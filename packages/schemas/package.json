@@ -1,0 +1,16 @@
+{
+  "name": "@dreamer/schemas",
+  "version": "0.0.1",
+  "scripts": {
+    "typecheck": "bunx tsc --noEmit"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "zod": "^4"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

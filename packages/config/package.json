@@ -1,0 +1,13 @@
+{
+  "name": "@dreamer/config",
+  "version": "0.0.1",
+  "scripts": {
+    "typecheck": "bunx tsc --noEmit"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

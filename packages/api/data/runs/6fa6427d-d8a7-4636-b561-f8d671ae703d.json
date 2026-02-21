@@ -1,0 +1,18 @@
+{
+  "run": {
+    "id": "6fa6427d-d8a7-4636-b561-f8d671ae703d",
+    "threadId": "b1a92aec-3b11-4d32-ab62-89fbd3f3a41d",
+    "projectId": "ad197c86-02fb-48cc-af63-4885f20fca15",
+    "sceneId": "25247756-bed7-4bda-acb2-d157ad64b51b",
+    "sessionId": "c21c772a-f65e-4a65-84a0-f0fc5c1a165a",
+    "agent": "core",
+    "status": "failed",
+    "createdAt": "2026-02-20T05:04:37.133Z",
+    "completedAt": "2026-02-20T05:04:59.099Z",
+    "error": "[\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"scriptId\"\n    ],\n    \"message\": \"Invalid input: expected string, received undefined\"\n  }\n]"
+  },
+  "prompt": "add an enemy that patrols",
+  "messages": [],
+  "proposedOps": [],
+  "appliedOps": []
+}
