@@ -12,9 +12,11 @@ import { ProjectPanel } from "./panels/project-panel";
 import Inspector from "./panels/inspector";
 import { GraphPanel } from "./graph/graph-panel";
 import { CharacterPanel } from "./character/character-panel";
+import { ViewportPanel } from "./viewport/viewport-panel";
 import { BottomToolbar } from "./toolbar/bottom-toolbar";
 import { SceneContext, useScene } from "./store/scene-context";
 import { GraphContext } from "./store/graph-context";
+import { DockviewContext } from "./store/dockview-context";
 import { ProjectLoader } from "./project/project-loader";
 import { useGraphPersistence } from "./project/use-graph-persistence";
 
@@ -39,17 +41,23 @@ function CharacterCreatorPanel(_props: IDockviewPanelProps) {
   return <CharacterPanel />;
 }
 
+function ViewportPanelWrapper(_props: IDockviewPanelProps) {
+  return <ViewportPanel />;
+}
+
 const components = {
   projectFiles: ProjectFilesPanel,
   canvas: CanvasPanel,
   inspector: InspectorPanel,
   graph: GraphEditorPanel,
   character: CharacterCreatorPanel,
+  viewport: ViewportPanelWrapper,
 };
 
 function AppInner() {
   const { state, send } = useScene();
   useGraphPersistence();
+  const dockviewApiRef = useRef<DockviewApi | null>(null);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -80,6 +88,7 @@ function AppInner() {
 
   const onReady = useCallback((event: DockviewReadyEvent) => {
     const api = event.api;
+    dockviewApiRef.current = api;
 
     // Try restoring saved layout from localStorage
     const saved = localStorage.getItem(LAYOUT_STORAGE_KEY);
@@ -151,16 +160,18 @@ function AppInner() {
   }
 
   return (
-    <div className="flex flex-col w-full h-full">
-      <div className="relative flex-1 min-h-0 dockview-theme-abyss">
-        <DockviewReact
-          onReady={onReady}
-          components={components}
-          className="h-full"
-        />
-        <BottomToolbar />
+    <DockviewContext.Provider value={dockviewApiRef}>
+      <div className="flex flex-col w-full h-full">
+        <div className="relative flex-1 min-h-0 dockview-theme-abyss">
+          <DockviewReact
+            onReady={onReady}
+            components={components}
+            className="h-full"
+          />
+          <BottomToolbar />
+        </div>
       </div>
-    </div>
+    </DockviewContext.Provider>
   );
 }
 

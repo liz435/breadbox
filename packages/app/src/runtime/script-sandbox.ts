@@ -1,3 +1,5 @@
+import type { EntitiesApi } from "./entity-store";
+
 /**
  * Script sandbox for executing code node scripts in a restricted context.
  *
@@ -6,6 +8,8 @@
  * - `time` (total elapsed time)
  * - `input` (resolved input port values)
  * - `console.log` (captured, not global)
+ * - `state` (persistent object across frames for this node)
+ * - `entities` (read/write access to sprite entities)
  *
  * Scripts are compiled once and re-invoked per frame.
  */
@@ -15,6 +19,8 @@ export type SandboxApi = {
   time: number;
   input: Record<string, unknown>;
   console: { log: (...args: unknown[]) => void };
+  state: Record<string, unknown>;
+  entities: EntitiesApi;
 };
 
 export type CompiledScript = {
@@ -45,6 +51,8 @@ export function compileScript(
         const time = __api.time;
         const input = __api.input;
         const console = __api.console;
+        const state = __api.state;
+        const entities = __api.entities;
         const __output = {};
 
         ${code}

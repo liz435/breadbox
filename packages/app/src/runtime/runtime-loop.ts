@@ -1,6 +1,8 @@
 import type { GraphNode, Edge } from "@dreamer/schemas";
 import { evaluateGraph } from "@/graph/evaluate";
 import { compileScript, type CompiledScript, type SandboxLog } from "./script-sandbox";
+import { frameBus } from "./frame-bus";
+import { EntityStore } from "./entity-store";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,9 +42,14 @@ export function createRuntimeLoop(params: RuntimeLoopParams): RuntimeLoop {
   const scriptCache: ScriptCache = new Map();
   const pressedKeys = new Set<string>();
   let hasStarted = false;
+  const entityStore = new EntityStore();
 
   function handleKeyDown(e: KeyboardEvent) {
     pressedKeys.add(e.key);
+    // Prevent arrow keys from scrolling the page during gameplay
+    if (e.key.startsWith("Arrow")) {
+      e.preventDefault();
+    }
   }
 
   function handleKeyUp(e: KeyboardEvent) {
@@ -61,27 +68,48 @@ export function createRuntimeLoop(params: RuntimeLoopParams): RuntimeLoop {
     const { nodes, edges } = getGraph();
 
     // Inject runtime data into event nodes before evaluation
+    // We patch node.data directly so the evaluation sees it immediately
+    // (the state machine update via updateNodeData is async and would be stale)
     for (const node of Object.values(nodes)) {
       if (node.type === "on_start") {
-        updateNodeData(node.id, { _triggered: !hasStarted });
+        const patch = { _triggered: !hasStarted };
+        Object.assign(node.data, patch);
+        updateNodeData(node.id, patch);
       } else if (node.type === "on_update") {
-        updateNodeData(node.id, { _dt: dt });
+        const patch = { _dt: dt };
+        Object.assign(node.data, patch);
+        updateNodeData(node.id, patch);
       } else if (node.type === "on_input") {
         const listenKeys = Array.isArray(node.data.listenKeys)
           ? (node.data.listenKeys as string[])
           : [];
         const activeKey = listenKeys.find((k) => pressedKeys.has(k));
-        updateNodeData(node.id, {
+        const patch = {
           _pressed: activeKey !== undefined,
           _key: activeKey ?? "",
-        });
+        };
+        Object.assign(node.data, patch);
+        updateNodeData(node.id, patch);
       }
     }
 
     hasStarted = true;
 
+    // Sync entity store with current sprite nodes
+    if (frameCount === 1) {
+      entityStore.init(nodes);
+    } else {
+      entityStore.sync(nodes);
+    }
+
     // Evaluate the full graph
     const evalResult = evaluateGraph(nodes, edges);
+
+    // Build entities API for code nodes
+    const entitiesApi = entityStore.buildEntitiesApi(nodes);
+
+    // Publish to frame bus for viewport renderer
+    frameBus.publish({ evalResult, nodes, time, dt, entityStore });
 
     // Execute code nodes with their resolved inputs
     for (const nodeId of evalResult.order) {
@@ -117,6 +145,8 @@ export function createRuntimeLoop(params: RuntimeLoopParams): RuntimeLoop {
             logs.push({ nodeId, args, timestamp: now });
           },
         },
+        state: entityStore.getNodeState(nodeId),
+        entities: entitiesApi,
       });
 
       if (scriptResult.__error) {
@@ -157,6 +187,8 @@ export function createRuntimeLoop(params: RuntimeLoopParams): RuntimeLoop {
       }
       scriptCache.clear();
       pressedKeys.clear();
+      entityStore.clear();
+      frameBus.clear();
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     },

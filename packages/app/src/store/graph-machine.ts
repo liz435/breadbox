@@ -1,5 +1,6 @@
 import { setup, assign } from "xstate";
-import type { GraphNode, Edge } from "@dreamer/schemas";
+import type { GraphNode, Edge, GraphNodeType } from "@dreamer/schemas";
+import { getDefaultPorts } from "@dreamer/schemas";
 
 // ── Graph State ─────────────────────────────────────────────────────────────
 
@@ -15,6 +16,8 @@ export type GraphEvent =
   | { type: "REMOVE_NODE"; nodeId: string }
   | { type: "MOVE_NODE"; nodeId: string; x: number; y: number }
   | { type: "UPDATE_NODE"; nodeId: string; patch: Record<string, unknown> }
+  | { type: "RENAME_NODE"; nodeId: string; name: string }
+  | { type: "CHANGE_NODE_TYPE"; nodeId: string; newType: GraphNodeType }
   | { type: "ADD_EDGE"; edge: Edge }
   | { type: "REMOVE_EDGE"; edgeId: string }
   | { type: "SELECT_NODES"; nodeIds: string[] }
@@ -47,6 +50,39 @@ function pushHistory(ctx: GraphMachineContext): {
   const past = [...ctx._past, graphData(ctx)];
   if (past.length > MAX_HISTORY) past.shift();
   return { _past: past, _future: [] };
+}
+
+const NODE_SIZE: Record<GraphNodeType, { width: number; height: number }> = {
+  sprite: { width: 200, height: 150 },
+  shader: { width: 240, height: 160 },
+  code: { width: 240, height: 160 },
+  audio: { width: 200, height: 140 },
+  video: { width: 200, height: 170 },
+  text: { width: 200, height: 130 },
+  material: { width: 200, height: 120 },
+  math: { width: 160, height: 90 },
+  group: { width: 240, height: 160 },
+  on_start: { width: 160, height: 70 },
+  on_update: { width: 160, height: 80 },
+  on_input: { width: 160, height: 80 },
+};
+
+function removeEdgesWithStalePorts(
+  edges: Record<string, Edge>,
+  nodeId: string,
+  validPortIds: Set<string>,
+): Record<string, Edge> {
+  const result: Record<string, Edge> = {};
+  for (const [id, edge] of Object.entries(edges)) {
+    if (
+      (edge.sourceNodeId === nodeId && !validPortIds.has(edge.sourcePortId)) ||
+      (edge.targetNodeId === nodeId && !validPortIds.has(edge.targetPortId))
+    ) {
+      continue;
+    }
+    result[id] = edge;
+  }
+  return result;
 }
 
 function removeEdgesForNode(
@@ -187,6 +223,43 @@ export const graphMachine = setup({
               data: { ...node.data, ...event.patch },
             },
           },
+        };
+      }),
+    },
+
+    RENAME_NODE: {
+      actions: assign(({ context, event }) => {
+        const node = context.nodes[event.nodeId];
+        if (!node) return {};
+        return {
+          ...pushHistory(context),
+          nodes: {
+            ...context.nodes,
+            [event.nodeId]: { ...node, name: event.name },
+          },
+        };
+      }),
+    },
+
+    CHANGE_NODE_TYPE: {
+      actions: assign(({ context, event }) => {
+        const node = context.nodes[event.nodeId];
+        if (!node || node.type === event.newType) return {};
+        const newPorts = getDefaultPorts(event.newType);
+        const newPortIds = new Set(newPorts.map((p) => p.id));
+        const size = NODE_SIZE[event.newType];
+        const updatedNode: GraphNode = {
+          ...node,
+          type: event.newType,
+          ports: newPorts,
+          width: size.width,
+          height: size.height,
+        };
+        const edges = removeEdgesWithStalePorts(context.edges, event.nodeId, newPortIds);
+        return {
+          ...pushHistory(context),
+          nodes: { ...context.nodes, [event.nodeId]: updatedNode },
+          edges,
         };
       }),
     },

@@ -277,6 +277,10 @@ function evaluateNode(
     }
 
     case "code": {
+      // Include resolved inputs so the runtime loop can pass them to scripts
+      for (const [portId, value] of Object.entries(inputs)) {
+        result[portId] = value;
+      }
       result["trigger_out"] = { type: "trigger", value: true };
       result["data_out"] = {
         type: "any",

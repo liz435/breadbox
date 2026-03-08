@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useProject } from "./project-context";
 import { useGraph } from "@/store/graph-context";
 import { saveProjectGraph } from "./api-client";
+import { createPongDemo } from "@/graph/demo-pong";
 
 const SAVE_DEBOUNCE_MS = 2000;
 
@@ -27,9 +28,19 @@ export function useGraphPersistence() {
     const nodeEntries = Object.values(graph.nodes);
     const edgeEntries = Object.values(graph.edges);
 
-    if (nodeEntries.length === 0 && edgeEntries.length === 0) return;
+    // Load Pong demo for empty graphs
+    if (nodeEntries.length === 0 && edgeEntries.length === 0) {
+      const demo = createPongDemo();
+      for (const node of Object.values(demo.nodes)) {
+        send({ type: "ADD_NODE", node });
+      }
+      for (const edge of Object.values(demo.edges)) {
+        send({ type: "ADD_EDGE", edge });
+      }
+      return;
+    }
 
-    // Replay nodes and edges into the graph machine
+    // Replay saved nodes and edges into the graph machine
     for (const node of nodeEntries) {
       send({ type: "ADD_NODE", node });
     }

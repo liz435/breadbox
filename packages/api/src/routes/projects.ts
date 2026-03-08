@@ -7,6 +7,18 @@ import {
   projectRepo,
   VersionConflictError,
 } from "../db/project-repo";
+import type { Asset } from "../db/schemas";
+
+function mimeToAssetType(mimeType: string, ext: string): Asset["type"] {
+  if (mimeType.startsWith("image/") || ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico"].includes(ext)) return "sprite";
+  if (mimeType.startsWith("audio/") || ["mp3", "wav", "ogg", "flac", "aac", "m4a", "wma"].includes(ext)) return "audio";
+  if (mimeType.startsWith("video/") || ["mp4", "webm", "mov", "avi", "mkv", "m4v"].includes(ext)) return "video";
+  if (["glsl", "wgsl", "frag", "vert", "hlsl"].includes(ext)) return "shader";
+  if (["ts", "js", "tsx", "jsx"].includes(ext)) return "script";
+  if (["json", "yaml", "yml", "txt", "md"].includes(ext)) return "text";
+  if (["ttf", "otf", "woff", "woff2"].includes(ext)) return "font";
+  return "text";
+}
 
 export const projectRoutes = new Elysia({ prefix: "/project" })
   .get("/", async () => {
@@ -52,6 +64,20 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
     if (!result) {
       set.status = 404;
       return { error: "Project not found" };
+    }
+    return result;
+  })
+  .patch("/:id/scenes/:sceneId", async ({ params, body, set }) => {
+    const payload = body as { name?: string } | null;
+    const name = payload?.name?.trim();
+    if (!name) {
+      set.status = 400;
+      return { error: "Name is required" };
+    }
+    const result = await projectRepo.renameScene(params.id, params.sceneId, name);
+    if (!result) {
+      set.status = 404;
+      return { error: "Project or scene not found" };
     }
     return result;
   })
@@ -128,12 +154,97 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
     const buffer = await file.arrayBuffer();
     await Bun.write(filePath, buffer);
 
+    const uri = `/project/${params.id}/assets/${filename}`;
+    const assetType = mimeToAssetType(file.type, ext);
+
+    // Register asset in the project JSON
+    project.assets[assetId] = {
+      id: assetId,
+      projectId: params.id,
+      type: assetType,
+      uri,
+      meta: {
+        name: file.name,
+        originalName: file.name,
+        mimeType: file.type,
+        size: buffer.byteLength,
+        ext,
+      },
+    };
+    project.project.updatedAt = new Date().toISOString();
+    await projectRepo.writeProject(params.id, project);
+
     return {
       assetId,
       filename,
-      uri: `/project/${params.id}/assets/${filename}`,
+      uri,
       size: buffer.byteLength,
+      assetType,
     };
+  })
+  // ── Asset list ─────────────────────────────────────────────────────────
+  .get("/:id/assets", async ({ params, set }) => {
+    const project = await projectRepo.readProject(params.id);
+    if (!project) {
+      set.status = 404;
+      return { error: "Project not found" };
+    }
+    return Object.values(project.assets);
+  })
+  // ── Asset rename ────────────────────────────────────────────────────────
+  .patch("/:id/assets/:assetId", async ({ params, body, set }) => {
+    const project = await projectRepo.readProject(params.id);
+    if (!project) {
+      set.status = 404;
+      return { error: "Project not found" };
+    }
+    const asset = project.assets[params.assetId];
+    if (!asset) {
+      set.status = 404;
+      return { error: "Asset not found" };
+    }
+    const payload = body as { name?: string } | null;
+    const name = payload?.name?.trim();
+    if (!name) {
+      set.status = 400;
+      return { error: "Name is required" };
+    }
+    asset.meta.name = name;
+    project.project.updatedAt = new Date().toISOString();
+    await projectRepo.writeProject(params.id, project);
+    return { id: asset.id, name };
+  })
+  // ── Asset delete ───────────────────────────────────────────────────────
+  .delete("/:id/assets/:assetId", async ({ params, set }) => {
+    const project = await projectRepo.readProject(params.id);
+    if (!project) {
+      set.status = 404;
+      return { error: "Project not found" };
+    }
+    const asset = project.assets[params.assetId];
+    if (!asset) {
+      set.status = 404;
+      return { error: "Asset not found" };
+    }
+
+    // Remove from project JSON
+    delete project.assets[params.assetId];
+    project.project.updatedAt = new Date().toISOString();
+    await projectRepo.writeProject(params.id, project);
+
+    // Try to delete the file (best effort)
+    const filename = asset.uri.split("/").pop();
+    if (filename) {
+      const filePath = join(projectRepo.projectAssetsDir(params.id), filename);
+      try {
+        const { unlink } = await import("fs/promises");
+        await unlink(filePath);
+      } catch {
+        // File may already be gone
+      }
+    }
+
+    return { deleted: true };
   })
   // ── Asset serve ─────────────────────────────────────────────────────────
   .get("/:id/assets/:filename", async ({ params, set }) => {

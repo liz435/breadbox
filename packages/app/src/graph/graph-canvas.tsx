@@ -38,7 +38,7 @@ type PendingConnection = {
 export function GraphCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const { state, send } = useGraph();
-  const { projectId } = useProject();
+  const { projectId, switchProject } = useProject();
   const [camera, setLocalCamera] = useState(getGraphCamera);
   const [pendingConn, setPendingConn] = useState<PendingConnection | null>(
     null
@@ -345,14 +345,48 @@ export function GraphCanvas() {
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
-      const files = e.dataTransfer?.files;
-      if (!files || files.length === 0) return;
 
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return;
       const cam = getGraphCamera();
       const worldX = (e.clientX - rect.left - cam.offsetX) / cam.zoom;
       const worldY = (e.clientY - rect.top - cam.offsetY) / cam.zoom;
+
+      // Handle asset drag from sidebar
+      const assetData = e.dataTransfer?.getData("application/x-dreamer-asset");
+      if (assetData) {
+        try {
+          const asset = JSON.parse(assetData) as {
+            assetId: string;
+            nodeType: string;
+            uri: string;
+            name: string;
+            mimeType: string;
+            size: number;
+          };
+          send({
+            type: "ADD_NODE",
+            node: createGraphNode(asset.nodeType as GraphNodeTypeEnum, {
+              name: asset.name,
+              x: worldX,
+              y: worldY,
+              data: {
+                fileName: asset.name,
+                fileType: asset.mimeType,
+                fileSize: asset.size,
+                assetId: asset.assetId,
+                uri: `${API_ORIGIN}${asset.uri}`,
+              },
+            }),
+          });
+        } catch {
+          // Invalid asset data
+        }
+        return;
+      }
+
+      const files = e.dataTransfer?.files;
+      if (!files || files.length === 0) return;
 
       for (const file of Array.from(files)) {
         const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
@@ -401,10 +435,14 @@ export function GraphCanvas() {
                   data: {
                     fileName: file.name,
                     fileType: file.type,
+                    fileSize: result.size,
+                    assetId: result.assetId,
                     uri: `${API_ORIGIN}${result.uri}`,
                   },
                 }),
               });
+              // Refresh project to update asset list in sidebar
+              switchProject(projectId);
             })
             .catch(() => {
               // Fallback: create node without URI
@@ -431,7 +469,7 @@ export function GraphCanvas() {
         }
       }
     },
-    [send, projectId]
+    [send, projectId, switchProject]
   );
 
   const handleSearchSelect = useCallback(
@@ -537,6 +575,7 @@ export function GraphCanvas() {
         <div
           className="absolute z-50 bg-neutral-800 border border-neutral-600 rounded-lg shadow-xl py-1 min-w-40"
           style={{ left: contextMenu.x, top: contextMenu.y }}
+          onMouseDown={(e) => e.stopPropagation()}
         >
           <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-neutral-500 font-medium">
             Add Node
@@ -555,7 +594,7 @@ export function GraphCanvas() {
 
       {/* Node search (Ctrl+K) */}
       {showSearch && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50">
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50" onMouseDown={(e) => e.stopPropagation()}>
           <NodeSearch
             onSelect={handleSearchSelect}
             onClose={() => setShowSearch(false)}

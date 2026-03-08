@@ -1,17 +1,26 @@
 import { describe, test, expect } from "bun:test";
-import { compileScript } from "../script-sandbox";
+import { compileScript, type SandboxApi } from "../script-sandbox";
+
+const noopEntities = { get: () => null, list: () => [] };
+
+function makeApi(overrides?: Partial<SandboxApi>): SandboxApi {
+  return {
+    dt: 0.016,
+    time: 0,
+    input: {},
+    console: { log: () => {} },
+    state: {},
+    entities: noopEntities,
+    ...overrides,
+  };
+}
 
 describe("compileScript", () => {
   test("compiles and runs a simple script", () => {
     const result = compileScript("function update(dt) { return { moved: dt * 100 }; }", "node-1");
     expect("error" in result).toBe(false);
     if (!("error" in result)) {
-      const output = result.run({
-        dt: 0.016,
-        time: 1.0,
-        input: {},
-        console: { log: () => {} },
-      });
+      const output = result.run(makeApi({ dt: 0.016, time: 1.0 }));
       expect(output.moved).toBeCloseTo(1.6, 1);
     }
   });
@@ -21,12 +30,9 @@ describe("compileScript", () => {
     const result = compileScript("console.log('hello', 42);", "node-1");
     expect("error" in result).toBe(false);
     if (!("error" in result)) {
-      result.run({
-        dt: 0.016,
-        time: 0,
-        input: {},
+      result.run(makeApi({
         console: { log: (...args: unknown[]) => logs.push(args) },
-      });
+      }));
       expect(logs).toHaveLength(1);
       expect(logs[0]).toEqual(["hello", 42]);
     }
@@ -39,12 +45,7 @@ describe("compileScript", () => {
     );
     expect("error" in result).toBe(false);
     if (!("error" in result)) {
-      const output = result.run({
-        dt: 0.033,
-        time: 5.5,
-        input: {},
-        console: { log: () => {} },
-      });
+      const output = result.run(makeApi({ dt: 0.033, time: 5.5 }));
       expect(output.elapsed).toBe(5.5);
       expect(output.delta).toBe(0.033);
     }
@@ -57,12 +58,7 @@ describe("compileScript", () => {
     );
     expect("error" in result).toBe(false);
     if (!("error" in result)) {
-      const output = result.run({
-        dt: 0.016,
-        time: 0,
-        input: {},
-        console: { log: () => {} },
-      });
+      const output = result.run(makeApi());
       expect(output.__error).toContain("boom");
     }
   });
@@ -82,12 +78,7 @@ describe("compileScript", () => {
     );
     expect("error" in result).toBe(false);
     if (!("error" in result)) {
-      const output = result.run({
-        dt: 0.016,
-        time: 0,
-        input: { speed: 42 },
-        console: { log: () => {} },
-      });
+      const output = result.run(makeApi({ input: { speed: 42 } }));
       expect(output.got).toBe(42);
     }
   });
@@ -96,12 +87,7 @@ describe("compileScript", () => {
     const result = compileScript("const x = 1;", "node-1");
     expect("error" in result).toBe(false);
     if (!("error" in result)) {
-      const output = result.run({
-        dt: 0.016,
-        time: 0,
-        input: {},
-        console: { log: () => {} },
-      });
+      const output = result.run(makeApi());
       expect(output).toEqual({});
     }
   });

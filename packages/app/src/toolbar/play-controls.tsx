@@ -3,6 +3,7 @@ import { Play, Pause, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useGraph } from "@/store/graph-context";
+import { useDockviewApi } from "@/store/dockview-context";
 import { createRuntimeLoop, type RuntimeLoop, type RuntimeFrame } from "@/runtime/runtime-loop";
 
 type PlayState = "stopped" | "playing" | "paused";
@@ -14,6 +15,7 @@ export function PlayControls() {
     frame: 0,
   });
   const { state, send } = useGraph();
+  const dockviewApi = useDockviewApi();
   const loopRef = useRef<RuntimeLoop | null>(null);
   const fpsRef = useRef<{ frames: number; lastCheck: number }>({
     frames: 0,
@@ -58,7 +60,25 @@ export function PlayControls() {
     loopRef.current = loop;
     loop.start();
     setPlayState("playing");
-  }, [playState, send, handleFrame]);
+
+    // Auto-open viewport panel
+    if (dockviewApi) {
+      const existing = dockviewApi.getPanel("viewport");
+      if (existing) {
+        existing.focus();
+      } else {
+        const canvasPanel = dockviewApi.getPanel("canvas");
+        dockviewApi.addPanel({
+          id: "viewport",
+          component: "viewport",
+          title: "Viewport",
+          position: canvasPanel
+            ? { referencePanel: canvasPanel, direction: "within" }
+            : { direction: "right" },
+        });
+      }
+    }
+  }, [playState, send, handleFrame, dockviewApi]);
 
   const handlePause = useCallback(() => {
     loopRef.current?.pause();

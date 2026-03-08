@@ -69,6 +69,24 @@ export async function renameProject(
   return res.json();
 }
 
+export async function renameScene(
+  projectId: string,
+  sceneId: string,
+  name: string,
+): Promise<{ id: string; name: string }> {
+  const url = `${API_ORIGIN}/project/${encodeURIComponent(projectId)}/scenes/${encodeURIComponent(sceneId)}`;
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new ApiError(res.status, `${res.status} ${text}`);
+  }
+  return res.json();
+}
+
 export function fetchProject(projectId: string): Promise<ProjectFile> {
   return request(`/project/${encodeURIComponent(projectId)}`, projectFileSchema);
 }
@@ -102,7 +120,7 @@ export async function saveProjectGraph(
 export async function uploadProjectAsset(
   projectId: string,
   file: File
-): Promise<{ assetId: string; filename: string; uri: string }> {
+): Promise<{ assetId: string; filename: string; uri: string; size: number; assetType: string }> {
   const url = `${API_ORIGIN}/project/${encodeURIComponent(projectId)}/assets`;
   const formData = new FormData();
   formData.append("file", file);
@@ -112,4 +130,46 @@ export async function uploadProjectAsset(
     throw new ApiError(res.status, `${res.status} ${text}`);
   }
   return res.json();
+}
+
+export async function listProjectAssets(
+  projectId: string,
+): Promise<Array<{ id: string; projectId: string; type: string; uri: string; meta: Record<string, unknown> }>> {
+  const url = `${API_ORIGIN}/project/${encodeURIComponent(projectId)}/assets`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new ApiError(res.status, `${res.status} ${text}`);
+  }
+  return res.json();
+}
+
+export async function renameProjectAsset(
+  projectId: string,
+  assetId: string,
+  name: string,
+): Promise<{ id: string; name: string }> {
+  const url = `${API_ORIGIN}/project/${encodeURIComponent(projectId)}/assets/${encodeURIComponent(assetId)}`;
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new ApiError(res.status, `${res.status} ${text}`);
+  }
+  return res.json();
+}
+
+export async function deleteProjectAsset(
+  projectId: string,
+  assetId: string,
+): Promise<void> {
+  const url = `${API_ORIGIN}/project/${encodeURIComponent(projectId)}/assets/${encodeURIComponent(assetId)}`;
+  const res = await fetch(url, { method: "DELETE" });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new ApiError(res.status, `${res.status} ${text}`);
+  }
 }

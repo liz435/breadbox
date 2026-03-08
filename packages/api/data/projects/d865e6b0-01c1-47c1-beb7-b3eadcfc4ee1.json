@@ -4,7 +4,7 @@
     "name": "Untitled Project",
     "version": 0,
     "createdAt": "2026-03-08T03:52:21.091Z",
-    "updatedAt": "2026-03-08T04:44:53.732Z",
+    "updatedAt": "2026-03-08T05:06:03.218Z",
     "threadId": "564f9267-f272-4df1-9817-ddd389637c6d",
     "activeSceneId": "f22e83d3-33a7-447b-81af-53bdc8f36088"
   },
@@ -41,8 +41,8 @@
         "id": "node-1772945061876-m2l2cv",
         "type": "sprite",
         "name": "Screenshot 2026-03-07 at 5.23.41 PM.png",
-        "x": 446,
-        "y": 146,
+        "x": 635,
+        "y": 151,
         "width": 200,
         "height": 150,
         "ports": [

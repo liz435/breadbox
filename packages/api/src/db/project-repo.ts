@@ -501,6 +501,23 @@ async function renameProject(
   return { id: projectId, name };
 }
 
+// ── Rename scene ────────────────────────────────────────────────────────────
+
+async function renameScene(
+  projectId: string,
+  sceneId: string,
+  name: string,
+): Promise<{ id: string; name: string } | null> {
+  const existing = await readProject(projectId);
+  if (!existing) return null;
+  const scene = existing.scenes[sceneId];
+  if (!scene) return null;
+  scene.name = name;
+  existing.project.updatedAt = now();
+  await writeProject(projectId, existing);
+  return { id: sceneId, name };
+}
+
 // ── Asset directory ──────────────────────────────────────────────────────────
 
 const ASSETS_DIR = join(import.meta.dir, "../../data/assets");
@@ -524,6 +541,7 @@ export const projectRepo = {
   applyOps,
   saveGraph,
   renameProject,
+  renameScene,
   ensureAssetsDir,
   projectAssetsDir,
 };
