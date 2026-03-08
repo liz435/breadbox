@@ -162,6 +162,8 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
             );
           } else if (err instanceof OpValidationError) {
             reqLog.warn(`op validation error: ${err.message}`);
+          } else if (err instanceof ZodError) {
+            reqLog.warn(`op schema validation error: ${err.message}`);
           } else {
             throw err;
           }

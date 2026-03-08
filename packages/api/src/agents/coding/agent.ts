@@ -67,14 +67,20 @@ export async function runCodingAgent(ctx: AgentContext): Promise<AgentResult> {
   });
 
   const messages: ModelMessage[] = [
+    {
+      role: "system",
+      content: SYSTEM_PROMPT,
+      providerOptions: {
+        anthropic: { cacheControl: { type: "ephemeral" } },
+      },
+    },
     { role: "user", content: ctx.prompt },
   ];
 
   let stepCount = 0;
 
   const result = streamText({
-    model: anthropic("claude-sonnet-4-6"),
-    system: SYSTEM_PROMPT,
+    model: anthropic("claude-haiku-4-5-20251001"),
     tools,
     messages,
     stopWhen: stepCountIs(5),

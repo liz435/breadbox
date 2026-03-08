@@ -1,0 +1,18 @@
+{
+  "run": {
+    "id": "5c8211d0-5009-4760-bf7c-1cfa86d2d5c2",
+    "threadId": "c513186f-41f4-48d0-8a0b-258fb2385c34",
+    "projectId": "2c01d0f4-ca40-44f5-8904-92e36c367bce",
+    "sceneId": "451f4b8a-6b42-4cda-97cd-dc7729a7dc5e",
+    "sessionId": "4af34a04-8e97-481d-8b28-dfa82269a7bd",
+    "agent": "core",
+    "status": "failed",
+    "createdAt": "2026-03-08T15:10:57.372Z",
+    "completedAt": "2026-03-08T15:10:58.316Z",
+    "error": "AI_NoOutputGeneratedError: No output generated. Check the stream for errors."
+  },
+  "prompt": "can you make a frogger game, use solid sprite block to build scene",
+  "messages": [],
+  "proposedOps": [],
+  "appliedOps": []
+}

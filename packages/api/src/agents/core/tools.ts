@@ -154,6 +154,27 @@ export function createCoreTools(params: {
       }),
       execute: async (input) => {
         const value = { ...input.value, entityId: input.entityId };
+
+        // Auto-generate assetId + placeholder asset for sprite components
+        if (input.componentType === "sprite" && !value.assetId) {
+          const assetId = crypto.randomUUID();
+          value.assetId = assetId;
+          ops.push(
+            makeOp(opCtx, {
+              kind: "create_asset",
+              payload: {
+                asset: {
+                  id: assetId,
+                  projectId,
+                  type: "sprite" as const,
+                  uri: `placeholder://${input.entityId}`,
+                  meta: { width: 64, height: 64, placeholder: true },
+                },
+              },
+            })
+          );
+        }
+
         ops.push(
           makeOp(opCtx, {
             kind: "add_component",
@@ -239,6 +260,97 @@ export function createCoreTools(params: {
         );
         ops.push(makeOp(opCtx, { kind: "update_scene_settings", payload: { patch } }));
         return { updated: "scene_settings", patch };
+      },
+    }),
+
+    create_quick_sprite: tool({
+      description:
+        "Create a simple solid-color square sprite entity directly, without using the sprite agent. Use this for basic shapes like paddles, walls, balls, or any simple game object where image generation is not needed.",
+      inputSchema: z.object({
+        name: z.string().describe("Display name for the sprite"),
+        x: z.number().optional().describe("X position (default 400)"),
+        y: z.number().optional().describe("Y position (default 300)"),
+        width: z.number().optional().describe("Width in pixels (default 16)"),
+        height: z.number().optional().describe("Height in pixels (default 16)"),
+        color: z
+          .string()
+          .optional()
+          .describe("Solid fill color as hex string (default '#ffffff')"),
+        layer: z
+          .number()
+          .int()
+          .optional()
+          .describe("Render layer (higher = on top)"),
+      }),
+      execute: async (input) => {
+        const entityId = crypto.randomUUID();
+        const assetId = crypto.randomUUID();
+        const w = input.width ?? 16;
+        const h = input.height ?? 16;
+
+        ops.push(
+          makeOp(opCtx, {
+            kind: "create_entity",
+            payload: {
+              entity: {
+                id: entityId,
+                sceneId,
+                name: input.name,
+                parentId: null,
+                childIds: [],
+                enabled: true,
+              },
+            },
+          })
+        );
+        ops.push(
+          makeOp(opCtx, {
+            kind: "add_component",
+            payload: {
+              entityId,
+              componentType: "transform",
+              value: {
+                entityId,
+                x: input.x ?? 400,
+                y: input.y ?? 300,
+                rotation: 0,
+                scaleX: 1,
+                scaleY: 1,
+              },
+            },
+          })
+        );
+        ops.push(
+          makeOp(opCtx, {
+            kind: "create_asset",
+            payload: {
+              asset: {
+                id: assetId,
+                projectId,
+                type: "sprite" as const,
+                uri: `placeholder://${input.name.toLowerCase().replace(/\s+/g, "-")}`,
+                meta: { width: w, height: h, placeholder: true },
+              },
+            },
+          })
+        );
+        ops.push(
+          makeOp(opCtx, {
+            kind: "add_component",
+            payload: {
+              entityId,
+              componentType: "sprite",
+              value: {
+                entityId,
+                assetId,
+                tint: input.color ?? "#ffffff",
+                layer: input.layer,
+              },
+            },
+          })
+        );
+
+        return { entityId, assetId, name: input.name, width: w, height: h };
       },
     }),
 

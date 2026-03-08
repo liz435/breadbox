@@ -17,7 +17,7 @@ You are the core orchestrator responsible for turning high-level game descriptio
 When a user asks you to create a game, follow this pipeline:
 
 1. **Plan** — Break the game into entities, behaviors, and controls
-2. **Create sprites** — Delegate to sprite agent for each visual entity (players, enemies, balls, etc.)
+2. **Create sprites** — Use create_quick_sprite for simple shapes (paddles, walls, balls). Only delegate to sprite agent if complex/detailed visuals are needed.
 3. **Build the node graph** — Delegate to graph agent to create:
    - Sprite nodes for each entity
    - Input map nodes for player controls (configurable key bindings)
@@ -32,9 +32,10 @@ When a user asks you to create a game, follow this pipeline:
 - Add, update, or remove components on entities
 - Update scene settings (background, gravity)
 - Read the current scene state
+- **create_quick_sprite**: Create simple solid-color square sprites instantly (paddles, walls, balls, blocks). No AI generation needed — much faster and cheaper. Prefer this for simple game objects.
 
 ## When to Delegate
-- **delegate_to_sprite_agent**: Creating visual/sprite entities, sprite images, managing visual assets
+- **delegate_to_sprite_agent**: Only for complex visual work that needs AI-generated images
 - **delegate_to_coding_agent**: Writing behavior scripts, physics, complex ECS logic
 - **delegate_to_graph_agent**: Creating and connecting nodes in the visual node graph
 
@@ -97,6 +98,13 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
   });
 
   const messages: ModelMessage[] = [
+    {
+      role: "system",
+      content: SYSTEM_PROMPT,
+      providerOptions: {
+        anthropic: { cacheControl: { type: "ephemeral" } },
+      },
+    },
     ...(ctx.history ?? []),
     { role: "user", content: ctx.prompt },
   ];
@@ -106,11 +114,13 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
   let opsCallback: ((newOps: SceneOp[]) => void) | null = null;
 
   const stream = streamText({
-    model: anthropic("claude-sonnet-4-6"),
-    system: SYSTEM_PROMPT,
+    model: anthropic("claude-haiku-4-5-20251001"),
     tools,
     messages,
     stopWhen: stepCountIs(10),
+    onError({ error }) {
+      log.error("streamText error", error);
+    },
     onStepFinish({ toolCalls, usage, finishReason }) {
       stepCount++;
       const elapsed = (performance.now() - start).toFixed(1);

@@ -1,0 +1,42 @@
+{
+  "project": {
+    "id": "test",
+    "name": "Untitled Project",
+    "version": 0,
+    "createdAt": "2026-03-08T14:49:22.729Z",
+    "updatedAt": "2026-03-08T14:49:22.729Z",
+    "threadId": "a3b91588-beed-4c72-a22e-d8676a9b76a8",
+    "activeSceneId": "54c51b33-8f53-4487-ae62-4b7c541c2929"
+  },
+  "scenes": {
+    "54c51b33-8f53-4487-ae62-4b7c541c2929": {
+      "id": "54c51b33-8f53-4487-ae62-4b7c541c2929",
+      "name": "Main Scene",
+      "version": 0,
+      "settings": {
+        "background": "#252525",
+        "gravity": {
+          "x": 0,
+          "y": 9.8
+        }
+      }
+    }
+  },
+  "entities": {},
+  "sceneEntityIds": {
+    "54c51b33-8f53-4487-ae62-4b7c541c2929": []
+  },
+  "components": {
+    "transform": {},
+    "sprite": {},
+    "tilemap": {},
+    "physicsBody": {},
+    "script": {},
+    "camera": {}
+  },
+  "assets": {},
+  "graph": {
+    "nodes": {},
+    "edges": {}
+  }
+}

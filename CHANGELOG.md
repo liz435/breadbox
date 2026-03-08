@@ -796,6 +796,56 @@ Fixed edges rendering at wrong positions on page refresh or new project load.
 | `packages/app/src/graph/graph-canvas.tsx` | `useRef` → `useState` callback ref for transform container element |
 | `packages/app/src/project/use-graph-persistence.ts` | `CLEAR_SELECTION` after replaying nodes/edges during hydration |
 
+### Agent Cost Optimizations (Phase 10i)
+
+Three changes to reduce API costs across all agents.
+
+#### 1. Sprite Component Validation Fix
+
+The core agent's `add_component` tool crashed with a `ZodError` when adding sprite components directly (without delegating to the sprite agent), because `spriteComponentSchema` requires `assetId` as a non-empty string. The tool now auto-generates a placeholder `assetId` and `create_asset` op when adding a sprite component without one.
+
+Also added `ZodError` to the catch block in `chat.ts` so schema validation errors are logged as warnings instead of crashing the entire stream.
+
+#### 2. Prompt Caching
+
+Enabled Anthropic prompt caching on all 5 agents. System prompts are now passed as `messages` array entries with `providerOptions.anthropic.cacheControl: { type: "ephemeral" }` instead of the `system` string parameter. Cached prompts are reused for 5 minutes, reducing input token costs by ~90% on repeat calls.
+
+#### 3. Model Switch to Haiku
+
+Switched all 5 agents from `claude-sonnet-4-6` to `claude-haiku-4-5-20251001`. Pricing drops from $3/$15 per M tokens (input/output) to $0.80/$4 — roughly 4x cheaper per run.
+
+| File | Change |
+|------|--------|
+| `packages/api/src/agents/core/agent.ts` | Prompt caching, switch to Haiku |
+| `packages/api/src/agents/graph/agent.ts` | Prompt caching, switch to Haiku |
+| `packages/api/src/agents/sprite/agent.ts` | Prompt caching, switch to Haiku |
+| `packages/api/src/agents/coding/agent.ts` | Prompt caching, switch to Haiku |
+| `packages/api/src/agents/character/agent.ts` | Prompt caching, switch to Haiku |
+| `packages/api/src/agents/core/tools.ts` | Auto-generate `assetId` + `create_asset` for sprite components |
+| `packages/api/src/routes/chat.ts` | Catch `ZodError` in `applyOps` error handler |
+
+### Quick Sprite Tool (Phase 10j)
+
+Added a fast, zero-cost sprite creation path — both in the frontend shapes library and as a core agent tool — so simple game objects (paddles, walls, balls) don't need AI image generation.
+
+#### Frontend: Cube Template (`utils/sprite-library.ts`)
+
+Added a "Cube" template to the shapes popover — a solid white filled square. Available alongside existing shapes (Square, Circle, Triangle, etc.) via the toolbar Shapes button.
+
+#### Backend: `create_quick_sprite` Tool (`agents/core/tools.ts`)
+
+New core agent tool that creates a solid-color sprite entity directly, without delegating to the sprite agent. Generates all 4 ops in one call: `create_entity` + `add_component(transform)` + `create_asset` + `add_component(sprite)`. Configurable name, position, size (default 16x16), and color (default white).
+
+#### System Prompt Update (`agents/core/agent.ts`)
+
+Updated the core agent's system prompt to prefer `create_quick_sprite` for simple game objects, only delegating to the sprite agent for complex visuals that need AI generation.
+
+| File | Change |
+|------|--------|
+| `packages/app/src/utils/sprite-library.ts` | Added "Cube" template (solid white square) |
+| `packages/api/src/agents/core/tools.ts` | Added `create_quick_sprite` tool |
+| `packages/api/src/agents/core/agent.ts` | Updated system prompt to prefer quick sprites |
+
 ---
 
 ## Test Summary

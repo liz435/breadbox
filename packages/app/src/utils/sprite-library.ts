@@ -110,6 +110,13 @@ const templates: SpriteTemplate[] = [
       ctx.fillRect(s * 0.1, s / 2 - t / 2, s * 0.8, t);
     },
   },
+  {
+    name: "Cube",
+    draw(ctx, s) {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(s * 0.1, s * 0.1, s * 0.8, s * 0.8);
+    },
+  },
 ];
 
 const SPRITE_SIZE = 512;
