@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { ProjectFile, SceneOp } from "../../db/schemas";
+import { getDefaultPorts } from "@dreamer/schemas";
 import { agentRunRepo } from "../../db/agent-run-repo";
 import { makeOp } from "../make-op";
 import type { DelegationContext } from "../types";
@@ -265,17 +266,21 @@ export function createCoreTools(params: {
 
     create_quick_sprite: tool({
       description:
-        "Create a simple solid-color square sprite entity directly, without using the sprite agent. Use this for basic shapes like paddles, walls, balls, or any simple game object where image generation is not needed.",
+        "Create a simple solid-color sprite entity with an optional inline script. Prefer delegating to graph agent for game creation — use this only for quick one-off sprites.",
       inputSchema: z.object({
         name: z.string().describe("Display name for the sprite"),
-        x: z.number().optional().describe("X position (default 400)"),
-        y: z.number().optional().describe("Y position (default 300)"),
+        sceneX: z.number().optional().describe("Scene X position (default 0, center of canvas)"),
+        sceneY: z.number().optional().describe("Scene Y position (default 0, center of canvas)"),
         width: z.number().optional().describe("Width in pixels (default 16)"),
         height: z.number().optional().describe("Height in pixels (default 16)"),
         color: z
           .string()
           .optional()
           .describe("Solid fill color as hex string (default '#ffffff')"),
+        script: z
+          .string()
+          .optional()
+          .describe("Inline script code that runs every frame (has access to self, dt, time, state, entities, Input, console)"),
         layer: z
           .number()
           .int()
@@ -287,6 +292,8 @@ export function createCoreTools(params: {
         const assetId = crypto.randomUUID();
         const w = input.width ?? 16;
         const h = input.height ?? 16;
+        const sx = input.sceneX ?? 0;
+        const sy = input.sceneY ?? 0;
 
         ops.push(
           makeOp(opCtx, {
@@ -311,8 +318,8 @@ export function createCoreTools(params: {
               componentType: "transform",
               value: {
                 entityId,
-                x: input.x ?? 400,
-                y: input.y ?? 300,
+                x: sx,
+                y: sy,
                 rotation: 0,
                 scaleX: 1,
                 scaleY: 1,
@@ -350,7 +357,46 @@ export function createCoreTools(params: {
           })
         );
 
-        return { entityId, assetId, name: input.name, width: w, height: h };
+        // Also create a graph node so the sprite appears in the node graph
+        const graphNodeId = crypto.randomUUID();
+        const nodeData: Record<string, unknown> = {
+          entityId,
+          assetId,
+          tint: input.color ?? "#ffffff",
+          sceneX: sx,
+          sceneY: sy,
+          width: w,
+          height: h,
+        };
+        if (input.script) {
+          nodeData.script = input.script;
+        }
+
+        const graphOp = {
+          opId: crypto.randomUUID(),
+          projectId,
+          sceneId,
+          expectedVersion,
+          timestamp: new Date().toISOString(),
+          kind: "create_graph_node" as const,
+          payload: {
+            node: {
+              id: graphNodeId,
+              type: "sprite" as const,
+              name: input.name,
+              x: 60,
+              y: Object.keys(project.graph?.nodes ?? {}).length * 200 + 60,
+              width: 200,
+              height: 150,
+              ports: getDefaultPorts("sprite"),
+              data: nodeData,
+            },
+          },
+        };
+        // Push as SceneOp — graph ops are filtered on the frontend via isGraphOp()
+        ops.push(graphOp as unknown as SceneOp);
+
+        return { entityId, assetId, graphNodeId, name: input.name, width: w, height: h };
       },
     }),
 

@@ -23,6 +23,7 @@
     "@pixi/react": "^8.0.5",
     "@tailwindcss/vite": "^4.2.0",
     "@xstate/react": "^6.0.0",
+    "@xyflow/react": "^12.10.1",
     "ai": "^6.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

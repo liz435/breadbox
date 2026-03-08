@@ -1,5 +1,5 @@
 import type { GraphNode, Edge } from "@dreamer/schemas";
-import { evaluateGraph, evaluatePartial, type NodeOutputs } from "@/graph/evaluate";
+import { evaluateGraph, evaluatePartial, getReachableSpriteIds, type NodeOutputs } from "@/graph/evaluate";
 import type { SandboxLog } from "./script-sandbox";
 import { frameBus } from "./frame-bus";
 import { EntityStore } from "./entity-store";
@@ -179,11 +179,14 @@ export function createRuntimeLoop(params: RuntimeLoopParams): RuntimeLoop {
 
     hasStarted = true;
 
-    // Sync entity store with current sprite nodes
+    // Determine which sprites are reachable from output nodes
+    const allowedSprites = getReachableSpriteIds(nodes, edges);
+
+    // Sync entity store with current sprite nodes (gated by output node)
     if (frameCount === 1) {
-      entityStore.init(nodes);
+      entityStore.init(nodes, allowedSprites);
     } else {
-      entityStore.sync(nodes);
+      entityStore.sync(nodes, allowedSprites);
     }
 
     // Evaluate graph — full on first frame, partial thereafter
@@ -195,7 +198,7 @@ export function createRuntimeLoop(params: RuntimeLoopParams): RuntimeLoop {
     // Publish to frame bus for viewport renderer
     frameBus.publish({ evalResult, nodes, time, dt, entityStore });
 
-    // Collect code node tasks and dispatch to worker
+    // Collect script tasks and dispatch to worker
     type ScriptTask = {
       nodeId: string;
       code: string;
@@ -205,12 +208,16 @@ export function createRuntimeLoop(params: RuntimeLoopParams): RuntimeLoop {
         input: Record<string, unknown>;
         state: Record<string, unknown>;
         entities: ReturnType<typeof serializeEntities>;
+        pressedKeys: string[];
+        selfEntityName?: string;
       };
     };
 
     const tasks: ScriptTask[] = [];
     const serializedEntities = serializeEntities(nodes);
+    const currentPressedKeys = [...pressedKeys];
 
+    // ── Code node scripts (graph-wired) ──
     for (const nodeId of evalResult.order) {
       const node = nodes[nodeId];
       if (!node || node.type !== "code") continue;
@@ -224,13 +231,11 @@ export function createRuntimeLoop(params: RuntimeLoopParams): RuntimeLoop {
       if (triggerIn && triggerIn.value === false) continue;
 
       // Build plain input object (strip PortValue wrappers)
-      // For entity ports, resolve to entity name for worker lookup
       const rawInput: Record<string, unknown> = {};
       const outputs = evalResult.outputs[nodeId];
       if (outputs) {
         for (const [key, pv] of Object.entries(outputs)) {
           if (pv.type === "entity" && pv.value && typeof pv.value === "object") {
-            // Resolve entity reference to name for the worker
             const entityNodeId = (pv.value as { nodeId: string }).nodeId;
             const entityNode = nodes[entityNodeId];
             rawInput[key] = entityNode ? entityNode.name : null;
@@ -249,6 +254,29 @@ export function createRuntimeLoop(params: RuntimeLoopParams): RuntimeLoop {
           input: rawInput,
           state: entityStore.getNodeState(nodeId),
           entities: serializedEntities,
+          pressedKeys: currentPressedKeys,
+        },
+      });
+    }
+
+    // ── Sprite inline scripts (Godot-style: script attached to entity) ──
+    for (const node of Object.values(nodes)) {
+      if (node.type !== "sprite") continue;
+      const script = typeof node.data.script === "string" ? node.data.script : "";
+      if (!script.trim()) continue;
+      if (!entityStore.entities.has(node.id)) continue;
+
+      tasks.push({
+        nodeId: node.id,
+        code: script,
+        api: {
+          dt,
+          time,
+          input: {},
+          state: entityStore.getNodeState(node.id),
+          entities: serializedEntities,
+          pressedKeys: currentPressedKeys,
+          selfEntityName: node.name,
         },
       });
     }

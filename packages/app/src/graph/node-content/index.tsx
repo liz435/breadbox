@@ -12,6 +12,8 @@ import { OnStartContent } from "./on-start-content";
 import { OnUpdateContent } from "./on-update-content";
 import { OnInputContent } from "./on-input-content";
 import { InputMapContent } from "./input-map-content";
+import { ComposerContent } from "./composer-content";
+import { OutputContent } from "./output-content";
 
 type NodeContentProps = {
   node: GraphNode;
@@ -21,7 +23,7 @@ type NodeContentProps = {
 export function NodeContent({ node, onDataChange }: NodeContentProps) {
   switch (node.type as GraphNodeType) {
     case "sprite":
-      return <SpriteContent node={node} />;
+      return <SpriteContent node={node} onDataChange={onDataChange} />;
     case "shader":
       return <ShaderContent node={node} onDataChange={onDataChange} />;
     case "code":
@@ -46,5 +48,9 @@ export function NodeContent({ node, onDataChange }: NodeContentProps) {
       return <OnInputContent node={node} />;
     case "input_map":
       return <InputMapContent node={node} />;
+    case "composer":
+      return <ComposerContent node={node} />;
+    case "output":
+      return <OutputContent node={node} />;
   }
 }

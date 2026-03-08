@@ -1,0 +1,16 @@
+{
+  "run": {
+    "id": "fd376ead-1b74-4c89-b8aa-0e100da8c1bb",
+    "threadId": "b507b9cc-b8c5-4716-bdf6-2be435e39df9",
+    "projectId": "92595a4c-fffe-4f02-bc71-c20de1a31d71",
+    "sceneId": "a1b41eb4-dea4-4998-90c5-023025d77dff",
+    "sessionId": "eaf93dc5-57e7-415e-ab54-e35de185752b",
+    "agent": "core",
+    "status": "running",
+    "createdAt": "2026-03-08T22:55:43.934Z"
+  },
+  "prompt": "the score is not displayed, and not working",
+  "messages": [],
+  "proposedOps": [],
+  "appliedOps": []
+}

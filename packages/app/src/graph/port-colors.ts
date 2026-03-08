@@ -32,6 +32,8 @@ const NODE_TYPE_COLORS: Record<string, string> = {
   on_update: "#f59e0b",
   on_input: "#a855f7",
   input_map: "#7c3aed",
+  composer: "#f59e0b",
+  output: "#10b981",
 };
 
 export function getNodeColor(nodeType: string): string {

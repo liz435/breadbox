@@ -162,6 +162,15 @@ export async function renameProjectAsset(
   return res.json();
 }
 
+export async function deleteProject(projectId: string): Promise<void> {
+  const url = `${API_ORIGIN}/project/${encodeURIComponent(projectId)}`;
+  const res = await fetch(url, { method: "DELETE" });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new ApiError(res.status, `${res.status} ${text}`);
+  }
+}
+
 export async function deleteProjectAsset(
   projectId: string,
   assetId: string,

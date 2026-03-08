@@ -3,10 +3,11 @@ import { useProject } from "@/project/project-context"
 import {
   listProjects,
   createProject,
+  deleteProject,
   type ProjectSummary,
 } from "@/project/api-client"
 import { saveProjectId } from "@/project/project-context"
-import { Plus, ChevronDown, Loader2 } from "lucide-react"
+import { Plus, ChevronDown, Loader2, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function ProjectSelector() {
@@ -15,6 +16,7 @@ export function ProjectSelector() {
   const [isOpen, setIsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const currentProject = projects.find((p) => p.id === projectId)
 
@@ -43,6 +45,32 @@ export function ProjectSelector() {
       setIsOpen(false)
     },
     [projectId, switchProject],
+  )
+
+  const handleDelete = useCallback(
+    async (id: string) => {
+      try {
+        await deleteProject(id)
+        setConfirmDeleteId(null)
+        if (id === projectId) {
+          // Deleted the current project — switch to another or create new
+          const remaining = projects.filter((p) => p.id !== id)
+          if (remaining.length > 0) {
+            saveProjectId(remaining[0].id)
+            switchProject(remaining[0].id)
+          } else {
+            const pf = await createProject({ name: "Untitled Project" })
+            saveProjectId(pf.project.id)
+            switchProject(pf.project.id)
+          }
+        } else {
+          setProjects((prev) => prev.filter((p) => p.id !== id))
+        }
+      } catch {
+        // best-effort
+      }
+    },
+    [projectId, projects, switchProject],
   )
 
   const handleCreate = useCallback(async () => {
@@ -84,7 +112,10 @@ export function ProjectSelector() {
         <>
           <div
             className="fixed inset-0 z-40"
-            onClick={() => setIsOpen(false)}
+            onClick={() => {
+              setIsOpen(false)
+              setConfirmDeleteId(null)
+            }}
           />
           <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-md border border-border bg-popover shadow-lg overflow-hidden">
             {isLoading ? (
@@ -94,20 +125,58 @@ export function ProjectSelector() {
             ) : (
               <div className="max-h-48 overflow-auto">
                 {projects.map((p) => (
-                  <button
+                  <div
                     key={p.id}
-                    type="button"
                     className={cn(
-                      "flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left hover:bg-accent transition-colors",
+                      "flex items-center gap-1 w-full px-3 py-1.5 text-xs hover:bg-accent transition-colors group",
                       p.id === projectId && "bg-accent text-accent-foreground",
                     )}
-                    onClick={() => handleSelect(p.id)}
                   >
-                    <span className="flex-1 truncate">{p.name}</span>
-                    {p.id === projectId && (
-                      <span className="text-muted-foreground">current</span>
+                    {confirmDeleteId === p.id ? (
+                      <>
+                        <span className="flex-1 truncate text-destructive">
+                          Delete "{p.name}"?
+                        </span>
+                        <button
+                          type="button"
+                          className="px-1.5 py-0.5 text-[10px] rounded bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          onClick={() => handleDelete(p.id)}
+                        >
+                          Yes
+                        </button>
+                        <button
+                          type="button"
+                          className="px-1.5 py-0.5 text-[10px] rounded hover:bg-accent-foreground/10"
+                          onClick={() => setConfirmDeleteId(null)}
+                        >
+                          No
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          className="flex-1 text-left truncate"
+                          onClick={() => handleSelect(p.id)}
+                        >
+                          {p.name}
+                        </button>
+                        {p.id === projectId && (
+                          <span className="text-muted-foreground">current</span>
+                        )}
+                        <button
+                          type="button"
+                          className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-destructive/20 hover:text-destructive transition-opacity"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setConfirmDeleteId(p.id)
+                          }}
+                        >
+                          <Trash2 className="size-3" />
+                        </button>
+                      </>
                     )}
-                  </button>
+                  </div>
                 ))}
               </div>
             )}

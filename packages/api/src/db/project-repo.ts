@@ -532,6 +532,32 @@ async function ensureAssetsDir(projectId: string): Promise<string> {
   return dir;
 }
 
+// ── Delete project ──────────────────────────────────────────────────────────
+
+async function deleteProject(projectId: string): Promise<boolean> {
+  const existing = await readProject(projectId);
+  if (!existing) return false;
+
+  const { unlink, rm } = await import("fs/promises");
+
+  // Delete project JSON
+  try {
+    await unlink(projectPath(projectId));
+  } catch {
+    // File may already be gone
+  }
+
+  // Delete assets directory (best effort)
+  const assetsDir = projectAssetsDir(projectId);
+  try {
+    await rm(assetsDir, { recursive: true, force: true });
+  } catch {
+    // Directory may not exist
+  }
+
+  return true;
+}
+
 export const projectRepo = {
   listProjects,
   createProject,
@@ -542,6 +568,7 @@ export const projectRepo = {
   saveGraph,
   renameProject,
   renameScene,
+  deleteProject,
   ensureAssetsDir,
   projectAssetsDir,
 };

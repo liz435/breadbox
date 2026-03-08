@@ -1,0 +1,437 @@
+{
+  "project": {
+    "id": "8cc7174b-149e-4212-aa06-69bace1a8c7c",
+    "name": "Untitled Project",
+    "version": 0,
+    "createdAt": "2026-03-08T22:00:26.676Z",
+    "updatedAt": "2026-03-08T22:37:58.789Z",
+    "threadId": "5e5c1090-3cd1-4d23-bbd1-7168812c5aa3",
+    "activeSceneId": "eab8f9e9-870c-4c12-a479-1cfc06108cd9"
+  },
+  "scenes": {
+    "eab8f9e9-870c-4c12-a479-1cfc06108cd9": {
+      "id": "eab8f9e9-870c-4c12-a479-1cfc06108cd9",
+      "name": "Main Scene",
+      "version": 0,
+      "settings": {
+        "background": "#252525",
+        "gravity": {
+          "x": 0,
+          "y": 9.8
+        }
+      }
+    }
+  },
+  "entities": {},
+  "sceneEntityIds": {
+    "eab8f9e9-870c-4c12-a479-1cfc06108cd9": []
+  },
+  "components": {
+    "transform": {},
+    "sprite": {},
+    "tilemap": {},
+    "physicsBody": {},
+    "script": {},
+    "camera": {}
+  },
+  "assets": {},
+  "graph": {
+    "nodes": {
+      "pong-ball": {
+        "id": "pong-ball",
+        "type": "sprite",
+        "name": "Ball",
+        "x": 60,
+        "y": 260,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#ffffff",
+          "sceneX": 0,
+          "sceneY": 0,
+          "width": 16,
+          "height": 16
+        }
+      },
+      "pong-paddle-left": {
+        "id": "pong-paddle-left",
+        "type": "sprite",
+        "name": "Left Paddle",
+        "x": 60,
+        "y": 60,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#4a9eff",
+          "sceneX": -350,
+          "sceneY": 0,
+          "width": 16,
+          "height": 80
+        }
+      },
+      "pong-paddle-right": {
+        "id": "pong-paddle-right",
+        "type": "sprite",
+        "name": "Right Paddle",
+        "x": 60,
+        "y": 440,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#ff4a4a",
+          "sceneX": 350,
+          "sceneY": 0,
+          "width": 16,
+          "height": 80
+        }
+      },
+      "pong-on-update": {
+        "id": "pong-on-update",
+        "type": "on_update",
+        "name": "On Update",
+        "x": 340,
+        "y": 60,
+        "width": 160,
+        "height": 80,
+        "ports": [
+          {
+            "id": "trigger_out",
+            "name": "Trigger",
+            "direction": "out",
+            "dataType": "trigger"
+          },
+          {
+            "id": "dt_out",
+            "name": "Delta Time",
+            "direction": "out",
+            "dataType": "float"
+          }
+        ],
+        "data": {
+          "_dt": 0.0334000000001397
+        }
+      },
+      "pong-p1-input": {
+        "id": "pong-p1-input",
+        "type": "input_map",
+        "name": "Player 1 Controls",
+        "x": 340,
+        "y": 200,
+        "width": 200,
+        "height": 120,
+        "ports": [
+          {
+            "id": "actions_out",
+            "name": "Actions",
+            "direction": "out",
+            "dataType": "any"
+          }
+        ],
+        "data": {
+          "actions": [
+            {
+              "name": "move_up",
+              "label": "Move Up",
+              "keys": [
+                "w",
+                "W"
+              ]
+            },
+            {
+              "name": "move_down",
+              "label": "Move Down",
+              "keys": [
+                "s",
+                "S"
+              ]
+            }
+          ],
+          "_actionStates": {
+            "move_up": false,
+            "move_down": false
+          }
+        }
+      },
+      "pong-p2-input": {
+        "id": "pong-p2-input",
+        "type": "input_map",
+        "name": "Player 2 Controls",
+        "x": 340,
+        "y": 360,
+        "width": 200,
+        "height": 120,
+        "ports": [
+          {
+            "id": "actions_out",
+            "name": "Actions",
+            "direction": "out",
+            "dataType": "any"
+          }
+        ],
+        "data": {
+          "actions": [
+            {
+              "name": "move_up",
+              "label": "Move Up",
+              "keys": [
+                "ArrowUp"
+              ]
+            },
+            {
+              "name": "move_down",
+              "label": "Move Down",
+              "keys": [
+                "ArrowDown"
+              ]
+            }
+          ],
+          "_actionStates": {
+            "move_up": false,
+            "move_down": false
+          }
+        }
+      },
+      "pong-logic": {
+        "id": "pong-logic",
+        "type": "code",
+        "name": "Pong Logic",
+        "x": 584.0389492073743,
+        "y": 42.01947460368717,
+        "width": 240,
+        "height": 160,
+        "ports": [
+          {
+            "id": "trigger_in",
+            "name": "Trigger",
+            "direction": "in",
+            "dataType": "trigger"
+          },
+          {
+            "id": "data_0_in",
+            "name": "Data A",
+            "direction": "in",
+            "dataType": "any"
+          },
+          {
+            "id": "data_1_in",
+            "name": "Data B",
+            "direction": "in",
+            "dataType": "any"
+          },
+          {
+            "id": "trigger_out",
+            "name": "Trigger",
+            "direction": "out",
+            "dataType": "trigger"
+          },
+          {
+            "id": "data_out",
+            "name": "Data",
+            "direction": "out",
+            "dataType": "any"
+          }
+        ],
+        "data": {
+          "language": "javascript",
+          "code": "// Pong — runs every frame via On Update trigger\n// Controls come from Input Map nodes wired to Data A (P1) and Data B (P2)\n// Sprites accessed by name via entities.get()\nconst PADDLE_SPEED = 400;\nconst BALL_SPEED = 250;\nconst HALF_W = 400;\nconst HALF_H = 300;\nconst PADDLE_H = 40;\n\n// Init state on first frame\nif (state.ballVX === undefined) {\n  state.ballX = 0;\n  state.ballY = 0;\n  state.ballVX = BALL_SPEED;\n  state.ballVY = BALL_SPEED * 0.6;\n  state.leftY = 0;\n  state.rightY = 0;\n  state.scoreL = 0;\n  state.scoreR = 0;\n}\n\n// ── Input from Input Map nodes ──\n// data_0_in = Player 1 actions, data_1_in = Player 2 actions\nconst p1 = input.data_0_in || {};\nconst p2 = input.data_1_in || {};\n\nif (p1.move_up) state.leftY -= PADDLE_SPEED * dt;\nif (p1.move_down) state.leftY += PADDLE_SPEED * dt;\nif (p2.move_up) state.rightY -= PADDLE_SPEED * dt;\nif (p2.move_down) state.rightY += PADDLE_SPEED * dt;\n\n// Clamp paddles to screen\nstate.leftY = Math.max(-HALF_H + PADDLE_H, Math.min(HALF_H - PADDLE_H, state.leftY));\nstate.rightY = Math.max(-HALF_H + PADDLE_H, Math.min(HALF_H - PADDLE_H, state.rightY));\n\n// ── Ball movement ──\nstate.ballX += state.ballVX * dt;\nstate.ballY += state.ballVY * dt;\n\n// Top/bottom bounce\nif (state.ballY < -HALF_H + 8 || state.ballY > HALF_H - 8) {\n  state.ballVY *= -1;\n  state.ballY = Math.max(-HALF_H + 8, Math.min(HALF_H - 8, state.ballY));\n}\n\n// Left paddle collision\nif (\n  state.ballX < -340 &&\n  state.ballX > -360 &&\n  state.ballVX < 0 &&\n  Math.abs(state.ballY - state.leftY) < PADDLE_H + 8\n) {\n  state.ballVX = Math.abs(state.ballVX) * 1.05;\n  state.ballVY += (state.ballY - state.leftY) * 3;\n  state.ballX = -340;\n}\n\n// Right paddle collision\nif (\n  state.ballX > 340 &&\n  state.ballX < 360 &&\n  state.ballVX > 0 &&\n  Math.abs(state.ballY - state.rightY) < PADDLE_H + 8\n) {\n  state.ballVX = -Math.abs(state.ballVX) * 1.05;\n  state.ballVY += (state.ballY - state.rightY) * 3;\n  state.ballX = 340;\n}\n\n// Score — reset ball\nif (state.ballX < -HALF_W) {\n  state.scoreR++;\n  state.ballX = 0;\n  state.ballY = 0;\n  state.ballVX = BALL_SPEED;\n  state.ballVY = BALL_SPEED * (Math.random() - 0.5);\n}\nif (state.ballX > HALF_W) {\n  state.scoreL++;\n  state.ballX = 0;\n  state.ballY = 0;\n  state.ballVX = -BALL_SPEED;\n  state.ballVY = BALL_SPEED * (Math.random() - 0.5);\n}\n\n// Cap ball velocity\nstate.ballVX = Math.max(-600, Math.min(600, state.ballVX));\nstate.ballVY = Math.max(-400, Math.min(400, state.ballVY));\n\n// ── Write to entities ──\n// Sprites accessed by name — composer makes them all reachable for rendering\nconst ball = entities.get(\"Ball\");\nif (ball) ball.setPosition(state.ballX, state.ballY);\n\nconst lp = entities.get(\"Left Paddle\");\nif (lp) lp.setPosition(-350, state.leftY);\n\nconst rp = entities.get(\"Right Paddle\");\nif (rp) rp.setPosition(350, state.rightY);\n\nconsole.log(state.scoreL + \" - \" + state.scoreR);\n"
+        }
+      },
+      "pong-composer": {
+        "id": "pong-composer",
+        "type": "composer",
+        "name": "Scene",
+        "x": 620.7728196501157,
+        "y": 442.54542906203704,
+        "width": 200,
+        "height": 100,
+        "ports": [
+          {
+            "id": "entities_in",
+            "name": "Entities",
+            "direction": "in",
+            "dataType": "entity"
+          },
+          {
+            "id": "scene_out",
+            "name": "Scene",
+            "direction": "out",
+            "dataType": "any"
+          }
+        ],
+        "data": {}
+      },
+      "pong-output": {
+        "id": "pong-output",
+        "type": "output",
+        "name": "Output",
+        "x": 900,
+        "y": 200,
+        "width": 200,
+        "height": 120,
+        "ports": [
+          {
+            "id": "scene_in",
+            "name": "Scene",
+            "direction": "in",
+            "dataType": "any"
+          },
+          {
+            "id": "texture_in",
+            "name": "Texture",
+            "direction": "in",
+            "dataType": "texture"
+          },
+          {
+            "id": "audio_in",
+            "name": "Audio",
+            "direction": "in",
+            "dataType": "audio"
+          }
+        ],
+        "data": {
+          "background": "#000000",
+          "resolution": {
+            "width": 800,
+            "height": 600
+          }
+        }
+      }
+    },
+    "edges": {
+      "pong-edge-update-trigger": {
+        "id": "pong-edge-update-trigger",
+        "sourceNodeId": "pong-on-update",
+        "sourcePortId": "trigger_out",
+        "targetNodeId": "pong-logic",
+        "targetPortId": "trigger_in"
+      },
+      "pong-edge-p1-input": {
+        "id": "pong-edge-p1-input",
+        "sourceNodeId": "pong-p1-input",
+        "sourcePortId": "actions_out",
+        "targetNodeId": "pong-logic",
+        "targetPortId": "data_0_in"
+      },
+      "pong-edge-p2-input": {
+        "id": "pong-edge-p2-input",
+        "sourceNodeId": "pong-p2-input",
+        "sourcePortId": "actions_out",
+        "targetNodeId": "pong-logic",
+        "targetPortId": "data_1_in"
+      },
+      "pong-edge-paddle-left-composer": {
+        "id": "pong-edge-paddle-left-composer",
+        "sourceNodeId": "pong-paddle-left",
+        "sourcePortId": "entity_out",
+        "targetNodeId": "pong-composer",
+        "targetPortId": "entities_in"
+      },
+      "pong-edge-paddle-right-composer": {
+        "id": "pong-edge-paddle-right-composer",
+        "sourceNodeId": "pong-paddle-right",
+        "sourcePortId": "entity_out",
+        "targetNodeId": "pong-composer",
+        "targetPortId": "entities_in"
+      },
+      "pong-edge-ball-composer": {
+        "id": "pong-edge-ball-composer",
+        "sourceNodeId": "pong-ball",
+        "sourcePortId": "entity_out",
+        "targetNodeId": "pong-composer",
+        "targetPortId": "entities_in"
+      },
+      "edge-1773007300079-hvxjqw": {
+        "id": "edge-1773007300079-hvxjqw",
+        "sourceNodeId": "pong-composer",
+        "sourcePortId": "scene_out",
+        "targetNodeId": "pong-output",
+        "targetPortId": "scene_in"
+      },
+      "edge-1773007332957-whcpfl": {
+        "id": "edge-1773007332957-whcpfl",
+        "sourceNodeId": "pong-logic",
+        "sourcePortId": "trigger_out",
+        "targetNodeId": "pong-output",
+        "targetPortId": "scene_in"
+      }
+    }
+  }
+}

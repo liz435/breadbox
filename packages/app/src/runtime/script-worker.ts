@@ -11,6 +11,10 @@ type SandboxApiData = {
   input: Record<string, unknown>;
   state: Record<string, unknown>;
   entities: SerializedEntities;
+  /** Global Input object — pressed keys available to all scripts */
+  pressedKeys: string[];
+  /** For sprite scripts: the name of the entity this script is attached to */
+  selfEntityName?: string;
 };
 
 type SerializedEntities = {
@@ -78,6 +82,8 @@ function compileInWorker(code: string, nodeId: string): CompiledFn | { error: st
         const console = __api.console;
         const state = __api.state;
         const entities = __api.entities;
+        const Input = __api.Input;
+        const self = __api.self;
         const __output = {};
 
         ${code}
@@ -187,6 +193,22 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
 
     const entitiesApi = buildEntitiesApi(task.api.entities, entityMutations);
 
+    // Build global Input object (Godot-style)
+    const pressedKeysSet = new Set(task.api.pressedKeys ?? []);
+    const inputApi = {
+      isKeyPressed(key: string): boolean {
+        return pressedKeysSet.has(key);
+      },
+      get keys(): string[] {
+        return [...pressedKeysSet];
+      },
+    };
+
+    // Build `self` entity handle for sprite scripts
+    const selfEntity = task.api.selfEntityName
+      ? entitiesApi.get(task.api.selfEntityName)
+      : null;
+
     try {
       const output = compiled({
         dt: task.api.dt,
@@ -199,6 +221,8 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
         },
         state: task.api.state,
         entities: entitiesApi,
+        Input: inputApi,
+        self: selfEntity,
       });
 
       results.push({

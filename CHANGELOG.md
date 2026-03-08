@@ -868,3 +868,103 @@ Updated the core agent's system prompt to prefer `create_quick_sprite` for simpl
 | Script sandbox | 1 | 7 |
 | Runtime machine | 1 | 8 |
 | **Total** | **14** | **187** |
+
+---
+
+## Output Node — Rendering Gateway
+
+Added the output node as the sole gateway to the rendering pipeline. Sprites only render during play mode if they are connected (directly or indirectly) to an output node.
+
+### Schema (`packages/schemas/src/graph.ts`)
+
+- Added `"output"` to `graphNodeTypeSchema` enum
+- Added default ports for output: `scene_in` (any), `texture_in` (texture), `audio_in` (audio)
+
+### Frontend (`packages/app/`)
+
+- **`graph/evaluate.ts`** — Added `getReachableSpriteIds(nodes, edges)`: BFS backwards from output nodes to find reachable sprite IDs. Returns empty set when no output node exists (nothing renders).
+- **`runtime/entity-store.ts`** — `init()` and `sync()` now require `allowedSpriteIds: Set<string>` — only sprites in that set are added to the entity store.
+- **`runtime/runtime-loop.ts`** — Computes reachable sprites via `getReachableSpriteIds` each frame and passes them to entity store.
+- **`graph/node-content/output-content.tsx`** — New component showing background color swatch, "Render Output" label, and resolution.
+- **`graph/node-content/index.tsx`** — Added `OutputContent` case.
+- **`graph/port-colors.ts`** — Added `output: "#10b981"` (emerald) to node type colors.
+- **`graph/node-search.tsx`** — Added output to node search palette.
+- **`graph/node-factory.ts`** — Added output defaults (size, name, data).
+- **`store/graph-machine.ts`** — Added `output: { width: 200, height: 120 }` to NODE_SIZE.
+
+### Backend (`packages/api/`)
+
+- **`agents/graph/tools.ts`** — Added `"output"` to `create_graph_node` enum, default data, and default size.
+- **`agents/graph/agent.ts`** — Added output node documentation to graph agent system prompt.
+
+### Rendering behavior
+
+- No output node → **all sprites render** (Godot-style default)
+- Output node exists, nothing connected → nothing renders
+- Sprite connected to output node (directly or through intermediary nodes) → renders
+- Disconnected sprites (when output node exists) → excluded from entity store
+
+## Composer Node — Scene Bundling
+
+Added the composer node as an intermediary between sprites and the output node. Multiple sprites connect to a single composer via its multi-input `entities_in` port, and the composer outputs a bundled scene to the output node.
+
+### Schema (`packages/schemas/src/graph.ts`)
+
+- Added `"composer"` to `graphNodeTypeSchema` enum
+- Added default ports: `entities_in` (entity, multi-input) and `scene_out` (any)
+- Removed individual entity ports from code nodes (`entity_0_in`, `entity_1_in`, `entity_2_in`) — scripts now use `entities.get("Name")` for name-based lookups
+
+### Frontend (`packages/app/`)
+
+- **`graph/evaluate.ts`** — Multi-edge support: edge lookup now stores arrays per port, enabling multiple edges to the same input port. Added `multiInputs` parameter to `evaluateNode`. Added `composer` evaluation case that collects all entity references.
+- **`graph/node-content/composer-content.tsx`** — New component displaying "Scene Composer" label.
+- **`graph/node-content/index.tsx`** — Added `ComposerContent` case.
+- **`graph/port-colors.ts`** — Added `composer: "#f59e0b"` (amber) to node type colors.
+- **`graph/node-search.tsx`** — Added composer to node search palette.
+- **`graph/node-factory.ts`** — Added composer defaults (size 200x100, empty data).
+- **`store/graph-machine.ts`** — Added `composer: { width: 200, height: 100 }` to NODE_SIZE.
+
+### Backend (`packages/api/`)
+
+- **`agents/graph/tools.ts`** — Added `"composer"` to `create_graph_node` enum, default data, and default size.
+- **`agents/graph/agent.ts`** — Added composer node documentation and updated common patterns (player-controlled sprite, two-player game) to use composer instead of entity ports.
+
+### Pong Demo (`packages/app/src/graph/demo-pong.ts`)
+
+- Added composer node at (340, 520)
+- All three sprites (Ball, Left Paddle, Right Paddle) connect to `composer.entities_in`
+- Composer connects to output via `scene_out → scene_in`
+- Script now uses `entities.get("Ball")`, `entities.get("Left Paddle")`, etc. instead of entity port references
+
+## Godot-Style Architecture
+
+Implemented four Godot-inspired architectural changes that simplify game creation. Sprites are now self-contained entities with inline scripts, global Input access, and default rendering — no wiring required for simple games.
+
+### 1. Sprite Inline Scripts
+
+Sprites can have a `script` data field containing code that runs every frame. Scripts have access to `self` (the entity), `dt`, `time`, `state`, `entities`, `Input`, and `console`.
+
+- **`runtime/runtime-loop.ts`** — Collects sprite inline scripts alongside code node scripts. Passes `pressedKeys` and `selfEntityName` to the worker.
+- **`runtime/script-worker.ts`** — Builds `Input` API (`isKeyPressed()`, `keys`) and `self` entity handle from `selfEntityName`. Injected into compiled script scope.
+- **`graph/node-content/sprite-content.tsx`** — Shows "Script attached" indicator (green dot) when a sprite has an inline script.
+
+### 2. Default Rendering
+
+Without an output node, all sprites render automatically. The output node is now optional — only needed for explicit render gating.
+
+- **`graph/evaluate.ts`** — `getReachableSpriteIds()` returns all sprite IDs when no output node exists.
+
+### 3. Global Input Object
+
+All scripts (sprite inline + code nodes) can use `Input.isKeyPressed("key")` and `Input.keys` for keyboard state. No input_map wiring needed for simple controls.
+
+### 4. Agent System Prompt Update
+
+- **`agents/graph/agent.ts`** — Complete rewrite of the graph agent system prompt documenting the Godot-style architecture, script API reference, and updated common patterns (sprite-with-script preferred over graph-wired approach).
+
+### Pong Demo Rewrite (`packages/app/src/graph/demo-pong.ts`)
+
+Rewrote from 11 nodes + 10 edges to **3 sprite nodes, 0 edges**:
+- **Ball** — Inline script handles movement, wall/paddle collision, scoring via `self` and `entities.get()`
+- **Left Paddle** — Inline script uses `Input.isKeyPressed("w"/"s")` for Player 1
+- **Right Paddle** — Inline script uses `Input.isKeyPressed("ArrowUp"/"ArrowDown")` for Player 2

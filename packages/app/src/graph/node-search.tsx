@@ -22,6 +22,8 @@ const ALL_NODE_TYPES: { type: GraphNodeType; label: string; keywords: string }[]
   { type: "on_update", label: "On Update", keywords: "event frame tick loop delta" },
   { type: "on_input", label: "On Input", keywords: "event keyboard key press input" },
   { type: "input_map", label: "Input Map", keywords: "controls keybind action player wasd arrows" },
+  { type: "composer", label: "Composer", keywords: "scene bundle collect entities group assets" },
+  { type: "output", label: "Output", keywords: "render display screen final pipeline" },
 ];
 
 function fuzzyMatch(query: string, text: string): boolean {

@@ -47,6 +47,11 @@ function extractLastUserPrompt(messages: z.infer<typeof chatRequestSchema>["mess
   return "";
 }
 
+const GRAPH_OP_KINDS = new Set([
+  "create_graph_node", "delete_graph_node", "move_graph_node",
+  "update_graph_node_data", "create_edge", "delete_edge",
+]);
+
 export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) => {
   const id = ++requestId;
   const start = performance.now();
@@ -145,11 +150,19 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
       let newVersion = capturedProject.project.version;
       let appliedOps: SceneOp[] = [];
 
-      if (result.proposedOps.length > 0) {
+      // Separate graph ops from scene ops
+      const sceneOps = result.proposedOps.filter(
+        (op) => !GRAPH_OP_KINDS.has(op.kind)
+      );
+      const graphOps = result.proposedOps.filter(
+        (op) => GRAPH_OP_KINDS.has(op.kind)
+      );
+
+      if (sceneOps.length > 0) {
         try {
           const applyResult = await projectRepo.applyOps(capturedProjectId, {
             expectedVersion: capturedExpectedVersion,
-            ops: result.proposedOps,
+            ops: sceneOps,
           });
           if (applyResult) {
             newVersion = applyResult.newVersion;
@@ -181,8 +194,18 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
 
       const elapsed = (performance.now() - start).toFixed(1);
       reqLog.info(
-        `completed — ${result.proposedOps.length} proposed, ${appliedOps.length} applied, v${newVersion}, ${elapsed}ms`
+        `completed — ${result.proposedOps.length} proposed (${graphOps.length} graph), ${appliedOps.length} applied, v${newVersion}, ${elapsed}ms`
       );
+
+      // Send graph ops as a dedicated event so frontend always receives them
+      // This is the reliable delivery path — streaming ops via onNewOps may miss
+      // ops produced during delegation (graph agent runs inside a tool call)
+      if (graphOps.length > 0) {
+        writer.write({
+          type: "data-scene-ops",
+          data: graphOps,
+        });
+      }
 
       // Send final result with applied ops and new version
       writer.write({

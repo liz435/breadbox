@@ -26,6 +26,8 @@ const NODE_DEFAULTS: Record<
   on_update: { width: 160, height: 80, name: "On Update" },
   on_input: { width: 160, height: 80, name: "On Input" },
   input_map: { width: 200, height: 120, name: "Input Map" },
+  composer: { width: 200, height: 100, name: "Composer" },
+  output: { width: 200, height: 120, name: "Output" },
 };
 
 function generateId(): string {
@@ -107,6 +109,10 @@ function getDefaultNodeData(type: GraphNodeType): Record<string, unknown> {
           { name: "move_right", label: "Move Right", keys: ["d", "D", "ArrowRight"] },
         ],
       };
+    case "composer":
+      return {};
+    case "output":
+      return { background: "#000000", resolution: { width: 800, height: 600 } };
   }
 }
 

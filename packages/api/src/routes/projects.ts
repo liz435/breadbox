@@ -53,6 +53,14 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
     }
     return project;
   })
+  .delete("/:id", async ({ params, set }) => {
+    const deleted = await projectRepo.deleteProject(params.id);
+    if (!deleted) {
+      set.status = 404;
+      return { error: "Project not found" };
+    }
+    return { deleted: true };
+  })
   .patch("/:id", async ({ params, body, set }) => {
     const payload = body as { name?: string } | null;
     const name = payload?.name?.trim();

@@ -315,6 +315,26 @@ function NodeProperties({
               />
             </div>
           </div>
+          {/* Script editor */}
+          <Separator className="my-1" />
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] text-neutral-500">Script</span>
+              {typeof data.script === "string" && data.script.trim().length > 0 && (
+                <span className="text-[9px] text-neutral-600">
+                  {data.script.split("\n").length} lines
+                </span>
+              )}
+            </div>
+            <textarea
+              value={typeof data.script === "string" ? data.script : ""}
+              onChange={(e) => onUpdateData({ script: e.target.value })}
+              placeholder="// Write sprite script here..."
+              className="w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1.5 text-[11px] text-emerald-400 font-mono outline-none resize-y min-h-20 max-h-80 transition-colors focus:border-emerald-500"
+              spellCheck={false}
+              rows={10}
+            />
+          </div>
         </div>
       );
 

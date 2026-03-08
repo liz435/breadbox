@@ -78,7 +78,7 @@ export function createGraphTools(params: {
 
     create_graph_node: tool({
       description:
-        "Create a new node in the visual graph. Node types: sprite, shader, code, audio, video, text, material, math, group, on_start, on_update, on_input, input_map. Each type has default ports and data.",
+        "Create a new node in the visual graph. Node types: sprite, shader, code, audio, video, text, material, math, group, on_start, on_update, on_input, input_map, composer, output. Each type has default ports and data.",
       inputSchema: z.object({
         type: z
           .enum([
@@ -95,6 +95,8 @@ export function createGraphTools(params: {
             "on_update",
             "on_input",
             "input_map",
+            "composer",
+            "output",
           ])
           .describe("The type of node to create"),
         name: z.string().describe("Display name for the node"),
@@ -246,7 +248,7 @@ export function createGraphTools(params: {
 
     update_node_data: tool({
       description:
-        "Update a graph node's data fields. For shader nodes: update `code`, `language`. For math nodes: update `operation`. For text nodes: update `content`. For audio: `volume`, `pitch`, `loop`.",
+        "Update a graph node's data fields. For sprite nodes: update `script` (inline behavior code), `tint`, `sceneX`, `sceneY`, `width`, `height`. For shader nodes: update `code`, `language`. For code nodes: update `code`. For math nodes: update `operation`. For text nodes: update `content`. For audio: `volume`, `pitch`, `loop`.",
       inputSchema: z.object({
         nodeId: z.string().describe("ID of the node to update"),
         patch: z
@@ -314,6 +316,10 @@ function getDefaultDataForType(type: GraphNodeType): Record<string, unknown> {
       return { listenKeys: ["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"] };
     case "input_map":
       return { actions: { move_up: "ArrowUp", move_down: "ArrowDown", move_left: "ArrowLeft", move_right: "ArrowRight" } };
+    case "composer":
+      return {};
+    case "output":
+      return { background: "#000000", resolution: { width: 800, height: 600 } };
     default:
       return {};
   }
@@ -344,6 +350,10 @@ function getDefaultSizeForType(type: GraphNodeType): { width: number; height: nu
       return { width: 160, height: 80 };
     case "input_map":
       return { width: 200, height: 140 };
+    case "composer":
+      return { width: 200, height: 100 };
+    case "output":
+      return { width: 200, height: 120 };
     default:
       return { width: 180, height: 100 };
   }

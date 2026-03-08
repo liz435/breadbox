@@ -38,22 +38,30 @@ export class EntityStore {
   /** Per-code-node persistent state across frames */
   readonly nodeState = new Map<string, Record<string, unknown>>();
 
-  /** Initialize entities from sprite nodes at runtime start */
-  init(nodes: Record<string, GraphNode>) {
+  /**
+   * Initialize entities from sprite nodes at runtime start.
+   * Only sprites in allowedSpriteIds are included — the output node
+   * is the sole gateway to rendering.
+   */
+  init(nodes: Record<string, GraphNode>, allowedSpriteIds: Set<string>) {
     this.entities.clear();
     this.nodeState.clear();
     for (const node of Object.values(nodes)) {
-      if (node.type === "sprite") {
+      if (node.type === "sprite" && allowedSpriteIds.has(node.id)) {
         this.entities.set(node.id, defaultEntity(node));
       }
     }
   }
 
-  /** Sync: add new sprites, remove deleted ones (called each frame) */
-  sync(nodes: Record<string, GraphNode>) {
+  /**
+   * Sync: add/remove sprites each frame.
+   * Only sprites in allowedSpriteIds are included.
+   */
+  sync(nodes: Record<string, GraphNode>, allowedSpriteIds: Set<string>) {
     const activeSpriteIds = new Set<string>();
     for (const node of Object.values(nodes)) {
       if (node.type !== "sprite") continue;
+      if (!allowedSpriteIds.has(node.id)) continue;
       activeSpriteIds.add(node.id);
       if (!this.entities.has(node.id)) {
         this.entities.set(node.id, defaultEntity(node));

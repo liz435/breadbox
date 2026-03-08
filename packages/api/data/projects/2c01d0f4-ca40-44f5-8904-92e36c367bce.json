@@ -4,7 +4,7 @@
     "name": "Untitled Project",
     "version": 1,
     "createdAt": "2026-03-08T14:36:48.863Z",
-    "updatedAt": "2026-03-08T15:39:30.245Z",
+    "updatedAt": "2026-03-08T19:54:10.207Z",
     "threadId": "c513186f-41f4-48d0-8a0b-258fb2385c34",
     "activeSceneId": "451f4b8a-6b42-4cda-97cd-dc7729a7dc5e"
   },
@@ -1102,6 +1102,96 @@
           "language": "javascript",
           "code": "// Pong — runs every frame via On Update trigger\n// Controls come from Input Map nodes wired to Data A (P1) and Data B (P2)\n// Paddles come from Entity A (left) and Entity B (right)\nconst PADDLE_SPEED = 400;\nconst BALL_SPEED = 250;\nconst HALF_W = 400;\nconst HALF_H = 300;\nconst PADDLE_H = 40;\n\n// Init state on first frame\nif (state.ballVX === undefined) {\n  state.ballX = 0;\n  state.ballY = 0;\n  state.ballVX = BALL_SPEED;\n  state.ballVY = BALL_SPEED * 0.6;\n  state.leftY = 0;\n  state.rightY = 0;\n  state.scoreL = 0;\n  state.scoreR = 0;\n}\n\n// ── Input from Input Map nodes ──\n// data_0_in = Player 1 actions, data_1_in = Player 2 actions\nconst p1 = input.data_0_in || {};\nconst p2 = input.data_1_in || {};\n\nif (p1.move_up) state.leftY -= PADDLE_SPEED * dt;\nif (p1.move_down) state.leftY += PADDLE_SPEED * dt;\nif (p2.move_up) state.rightY -= PADDLE_SPEED * dt;\nif (p2.move_down) state.rightY += PADDLE_SPEED * dt;\n\n// Clamp paddles to screen\nstate.leftY = Math.max(-HALF_H + PADDLE_H, Math.min(HALF_H - PADDLE_H, state.leftY));\nstate.rightY = Math.max(-HALF_H + PADDLE_H, Math.min(HALF_H - PADDLE_H, state.rightY));\n\n// ── Ball movement ──\nstate.ballX += state.ballVX * dt;\nstate.ballY += state.ballVY * dt;\n\n// Top/bottom bounce\nif (state.ballY < -HALF_H + 8 || state.ballY > HALF_H - 8) {\n  state.ballVY *= -1;\n  state.ballY = Math.max(-HALF_H + 8, Math.min(HALF_H - 8, state.ballY));\n}\n\n// Left paddle collision\nif (\n  state.ballX < -340 &&\n  state.ballX > -360 &&\n  state.ballVX < 0 &&\n  Math.abs(state.ballY - state.leftY) < PADDLE_H + 8\n) {\n  state.ballVX = Math.abs(state.ballVX) * 1.05;\n  state.ballVY += (state.ballY - state.leftY) * 3;\n  state.ballX = -340;\n}\n\n// Right paddle collision\nif (\n  state.ballX > 340 &&\n  state.ballX < 360 &&\n  state.ballVX > 0 &&\n  Math.abs(state.ballY - state.rightY) < PADDLE_H + 8\n) {\n  state.ballVX = -Math.abs(state.ballVX) * 1.05;\n  state.ballVY += (state.ballY - state.rightY) * 3;\n  state.ballX = 340;\n}\n\n// Score — reset ball\nif (state.ballX < -HALF_W) {\n  state.scoreR++;\n  state.ballX = 0;\n  state.ballY = 0;\n  state.ballVX = BALL_SPEED;\n  state.ballVY = BALL_SPEED * (Math.random() - 0.5);\n}\nif (state.ballX > HALF_W) {\n  state.scoreL++;\n  state.ballX = 0;\n  state.ballY = 0;\n  state.ballVX = -BALL_SPEED;\n  state.ballVY = BALL_SPEED * (Math.random() - 0.5);\n}\n\n// Cap ball velocity\nstate.ballVX = Math.max(-600, Math.min(600, state.ballVX));\nstate.ballVY = Math.max(-400, Math.min(400, state.ballVY));\n\n// ── Write to entities ──\n// Ball uses entities.get() by name (not wired via port)\nconst ball = entities.get(\"Ball\");\nif (ball) ball.setPosition(state.ballX, state.ballY);\n\n// Paddles accessed via entity ports (resolved to names by runtime)\nconst lp = entities.get(input.entity_0_in);\nif (lp) lp.setPosition(-350, state.leftY);\n\nconst rp = entities.get(input.entity_1_in);\nif (rp) rp.setPosition(350, state.rightY);\n\nconsole.log(state.scoreL + \" - \" + state.scoreR);\n"
         }
+      },
+      "node-1772998872677-jmh7fi": {
+        "id": "node-1772998872677-jmh7fi",
+        "type": "sprite",
+        "name": "car5",
+        "x": 360,
+        "y": 627,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#4a9eff",
+          "sceneX": 400,
+          "sceneY": 300,
+          "fileName": "car5",
+          "fileType": "",
+          "fileSize": 0,
+          "assetId": "016feafc-9099-47b3-9378-d6da239893b7",
+          "uri": "http://localhost:4111placeholder://car5"
+        }
+      },
+      "node-1772998878781-i10ug5": {
+        "id": "node-1772998878781-i10ug5",
+        "type": "sprite",
+        "name": "car7",
+        "x": 681,
+        "y": 573,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#a0adba",
+          "sceneX": 400,
+          "sceneY": 300,
+          "fileName": "car7",
+          "fileType": "",
+          "fileSize": 0,
+          "assetId": "42df2185-cfc5-4db3-9513-7e7196d867f0",
+          "uri": "http://localhost:4111placeholder://car7"
+        }
       }
     },
     "edges": {
@@ -1126,19 +1216,19 @@
         "targetNodeId": "pong-logic",
         "targetPortId": "data_1_in"
       },
-      "pong-edge-paddle-left": {
-        "id": "pong-edge-paddle-left",
-        "sourceNodeId": "pong-paddle-left",
-        "sourcePortId": "entity_out",
-        "targetNodeId": "pong-logic",
-        "targetPortId": "entity_0_in"
-      },
       "pong-edge-paddle-right": {
         "id": "pong-edge-paddle-right",
         "sourceNodeId": "pong-paddle-right",
         "sourcePortId": "entity_out",
         "targetNodeId": "pong-logic",
         "targetPortId": "entity_1_in"
+      },
+      "edge-1772998891734-b3a2nn": {
+        "id": "edge-1772998891734-b3a2nn",
+        "sourceNodeId": "node-1772998872677-jmh7fi",
+        "sourcePortId": "entity_out",
+        "targetNodeId": "pong-logic",
+        "targetPortId": "entity_0_in"
       }
     }
   }

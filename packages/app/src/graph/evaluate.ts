@@ -194,37 +194,51 @@ export function evaluateGraph(
   const outputs: Record<string, NodeOutputs> = {};
 
   // Build edge lookup: for each (targetNodeId, targetPortId) → source info
+  // A port may have multiple edges (multi-input, e.g. composer entities_in)
   const inputConnections: Record<
     string,
-    Record<string, { sourceNodeId: string; sourcePortId: string; edgeId: string }>
+    Record<string, Array<{ sourceNodeId: string; sourcePortId: string; edgeId: string }>>
   > = {};
   for (const edge of Object.values(edges)) {
     if (!inputConnections[edge.targetNodeId]) {
       inputConnections[edge.targetNodeId] = {};
     }
-    inputConnections[edge.targetNodeId][edge.targetPortId] = {
+    if (!inputConnections[edge.targetNodeId][edge.targetPortId]) {
+      inputConnections[edge.targetNodeId][edge.targetPortId] = [];
+    }
+    inputConnections[edge.targetNodeId][edge.targetPortId].push({
       sourceNodeId: edge.sourceNodeId,
       sourcePortId: edge.sourcePortId,
       edgeId: edge.id,
-    };
+    });
   }
 
   for (const nodeId of order) {
     const node = nodes[nodeId];
     if (!node) continue;
 
-    // Resolve inputs
+    // Resolve inputs (use first connection per port for single-input, all for multi)
     const resolvedInputs: Record<string, PortValue> = {};
+    const multiInputs: Record<string, PortValue[]> = {};
     const connections = inputConnections[nodeId] ?? {};
-    for (const [portId, conn] of Object.entries(connections)) {
-      const sourceOutputs = outputs[conn.sourceNodeId];
-      if (sourceOutputs && conn.sourcePortId in sourceOutputs) {
-        resolvedInputs[portId] = sourceOutputs[conn.sourcePortId];
+    for (const [portId, conns] of Object.entries(connections)) {
+      const values: PortValue[] = [];
+      for (const conn of conns) {
+        const sourceOutputs = outputs[conn.sourceNodeId];
+        if (sourceOutputs && conn.sourcePortId in sourceOutputs) {
+          values.push(sourceOutputs[conn.sourcePortId]);
+        }
+      }
+      if (values.length > 0) {
+        resolvedInputs[portId] = values[0];
+      }
+      if (values.length > 1) {
+        multiInputs[portId] = values;
       }
     }
 
     // Evaluate node
-    outputs[nodeId] = evaluateNode(node, resolvedInputs, errors);
+    outputs[nodeId] = evaluateNode(node, resolvedInputs, errors, multiInputs);
   }
 
   return { outputs, errors, order };
@@ -237,7 +251,8 @@ export function evaluateGraph(
 function evaluateNode(
   node: GraphNode,
   inputs: Record<string, PortValue>,
-  errors: EvalError[]
+  errors: EvalError[],
+  multiInputs: Record<string, PortValue[]> = {}
 ): NodeOutputs {
   const result: NodeOutputs = {};
 
@@ -375,6 +390,34 @@ function evaluateNode(
       };
       break;
     }
+    case "composer": {
+      // Collect all entity references from multi-input entities_in port
+      const entityRefs: Array<{ nodeId: string }> = [];
+      const multi = multiInputs["entities_in"];
+      if (multi) {
+        for (const pv of multi) {
+          if (pv.type === "entity" && pv.value && typeof pv.value === "object") {
+            entityRefs.push(pv.value as { nodeId: string });
+          }
+        }
+      } else if (inputs["entities_in"]) {
+        const pv = inputs["entities_in"];
+        if (pv.type === "entity" && pv.value && typeof pv.value === "object") {
+          entityRefs.push(pv.value as { nodeId: string });
+        }
+      }
+      result["scene_out"] = {
+        type: "any",
+        value: { nodeId: node.id, entities: entityRefs },
+      };
+      break;
+    }
+
+    case "output": {
+      // Output node is a sink — it collects inputs for the rendering pipeline
+      // No outputs to produce; the runtime reads its resolved inputs directly
+      break;
+    }
   }
 
   return result;
@@ -385,6 +428,68 @@ function resolveFloat(portValue: PortValue | undefined): number {
   if (typeof portValue.value === "number") return portValue.value;
   return 0;
 }
+
+// ── Output-node reachability ─────────────────────────────────────────────────
+
+/**
+ * Walk backwards from all output nodes to find which sprite node IDs
+ * are reachable. Only these sprites should render during play mode.
+ *
+ * If no output nodes exist, ALL sprites render (Godot-style: everything
+ * in the scene is visible by default). Output nodes are optional gates
+ * for advanced rendering control.
+ */
+export function getReachableSpriteIds(
+  nodes: Record<string, GraphNode>,
+  edges: Record<string, Edge>
+): Set<string> {
+  // Find output nodes
+  const outputNodeIds: string[] = [];
+  for (const node of Object.values(nodes)) {
+    if (node.type === "output") outputNodeIds.push(node.id);
+  }
+
+  // No output nodes → all sprites render (Godot-style default)
+  if (outputNodeIds.length === 0) {
+    const allSprites = new Set<string>();
+    for (const node of Object.values(nodes)) {
+      if (node.type === "sprite") allSprites.add(node.id);
+    }
+    return allSprites;
+  }
+
+  // Build reverse adjacency (target → sources)
+  const reverseAdj: Record<string, string[]> = {};
+  for (const id of Object.keys(nodes)) {
+    reverseAdj[id] = [];
+  }
+  for (const edge of Object.values(edges)) {
+    if (edge.targetNodeId in reverseAdj) {
+      reverseAdj[edge.targetNodeId].push(edge.sourceNodeId);
+    }
+  }
+
+  // BFS backwards from output nodes
+  const reachable = new Set<string>();
+  const queue = [...outputNodeIds];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (reachable.has(current)) continue;
+    reachable.add(current);
+    for (const src of reverseAdj[current] ?? []) {
+      if (!reachable.has(src)) queue.push(src);
+    }
+  }
+
+  // Filter to only sprite nodes
+  const spriteIds = new Set<string>();
+  for (const id of reachable) {
+    if (nodes[id]?.type === "sprite") spriteIds.add(id);
+  }
+
+  return spriteIds;
+}
+
 
 // ── Dirty tracking ──────────────────────────────────────────────────────────
 
@@ -450,20 +555,23 @@ export function evaluatePartial(
   const { order } = sortResult;
   const outputs: Record<string, NodeOutputs> = { ...cachedOutputs };
 
-  // Build edge lookup
+  // Build edge lookup (multi-input aware)
   const inputConnections: Record<
     string,
-    Record<string, { sourceNodeId: string; sourcePortId: string; edgeId: string }>
+    Record<string, Array<{ sourceNodeId: string; sourcePortId: string; edgeId: string }>>
   > = {};
   for (const edge of Object.values(edges)) {
     if (!inputConnections[edge.targetNodeId]) {
       inputConnections[edge.targetNodeId] = {};
     }
-    inputConnections[edge.targetNodeId][edge.targetPortId] = {
+    if (!inputConnections[edge.targetNodeId][edge.targetPortId]) {
+      inputConnections[edge.targetNodeId][edge.targetPortId] = [];
+    }
+    inputConnections[edge.targetNodeId][edge.targetPortId].push({
       sourceNodeId: edge.sourceNodeId,
       sourcePortId: edge.sourcePortId,
       edgeId: edge.id,
-    };
+    });
   }
 
   for (const nodeId of order) {
@@ -473,15 +581,25 @@ export function evaluatePartial(
     if (!node) continue;
 
     const resolvedInputs: Record<string, PortValue> = {};
+    const multiInputs: Record<string, PortValue[]> = {};
     const connections = inputConnections[nodeId] ?? {};
-    for (const [portId, conn] of Object.entries(connections)) {
-      const sourceOutputs = outputs[conn.sourceNodeId];
-      if (sourceOutputs && conn.sourcePortId in sourceOutputs) {
-        resolvedInputs[portId] = sourceOutputs[conn.sourcePortId];
+    for (const [portId, conns] of Object.entries(connections)) {
+      const values: PortValue[] = [];
+      for (const conn of conns) {
+        const sourceOutputs = outputs[conn.sourceNodeId];
+        if (sourceOutputs && conn.sourcePortId in sourceOutputs) {
+          values.push(sourceOutputs[conn.sourcePortId]);
+        }
+      }
+      if (values.length > 0) {
+        resolvedInputs[portId] = values[0];
+      }
+      if (values.length > 1) {
+        multiInputs[portId] = values;
       }
     }
 
-    outputs[nodeId] = evaluateNode(node, resolvedInputs, errors);
+    outputs[nodeId] = evaluateNode(node, resolvedInputs, errors, multiInputs);
   }
 
   return { outputs, errors, order };

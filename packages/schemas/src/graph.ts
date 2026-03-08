@@ -52,6 +52,8 @@ export const graphNodeTypeSchema = z.enum([
   "on_update",
   "on_input",
   "input_map",
+  "composer",
+  "output",
 ]);
 
 export type GraphNodeType = z.infer<typeof graphNodeTypeSchema>;
@@ -174,8 +176,6 @@ export function getDefaultPorts(nodeType: GraphNodeType): Port[] {
         { id: "trigger_in", name: "Trigger", direction: "in", dataType: "trigger" },
         { id: "data_0_in", name: "Data A", direction: "in", dataType: "any" },
         { id: "data_1_in", name: "Data B", direction: "in", dataType: "any" },
-        { id: "entity_0_in", name: "Entity A", direction: "in", dataType: "entity" },
-        { id: "entity_1_in", name: "Entity B", direction: "in", dataType: "entity" },
         { id: "trigger_out", name: "Trigger", direction: "out", dataType: "trigger" },
         { id: "data_out", name: "Data", direction: "out", dataType: "any" },
       ];
@@ -211,6 +211,17 @@ export function getDefaultPorts(nodeType: GraphNodeType): Port[] {
     case "input_map":
       return [
         { id: "actions_out", name: "Actions", direction: "out", dataType: "any" },
+      ];
+    case "composer":
+      return [
+        { id: "entities_in", name: "Entities", direction: "in", dataType: "entity" },
+        { id: "scene_out", name: "Scene", direction: "out", dataType: "any" },
+      ];
+    case "output":
+      return [
+        { id: "scene_in", name: "Scene", direction: "in", dataType: "any" },
+        { id: "texture_in", name: "Texture", direction: "in", dataType: "texture" },
+        { id: "audio_in", name: "Audio", direction: "in", dataType: "audio" },
       ];
   }
 }
