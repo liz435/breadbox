@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { Edge, GraphNode } from "@dreamer/schemas";
 import { getPortColor } from "./port-colors";
 
@@ -7,13 +7,53 @@ type GraphEdgeProps = {
   nodes: Record<string, GraphNode>;
   isSelected: boolean;
   onClick: (edgeId: string) => void;
+  /** The transform-container element that holds both SVG and node layers */
+  containerEl: HTMLElement | null;
 };
 
 /**
- * Compute the screen position of a port on a node.
- * Ports are laid out vertically; we estimate position based on port index.
+ * Walk up the offsetParent chain to compute the element's position
+ * relative to a given ancestor.
  */
-function getPortPosition(
+function offsetRelativeTo(
+  el: HTMLElement,
+  ancestor: HTMLElement
+): { x: number; y: number } {
+  let x = 0;
+  let y = 0;
+  let current: HTMLElement | null = el;
+  while (current && current !== ancestor) {
+    x += current.offsetLeft;
+    y += current.offsetTop;
+    current = current.offsetParent as HTMLElement | null;
+  }
+  return { x, y };
+}
+
+/**
+ * Find the center of a port circle in graph-world coordinates
+ * by querying the DOM for the actual rendered element.
+ */
+function getPortCenter(
+  container: HTMLElement,
+  nodeId: string,
+  portId: string
+): { x: number; y: number } | null {
+  const el = container.querySelector(
+    `[data-port-id="${portId}"][data-port-node-id="${nodeId}"]`
+  ) as HTMLElement | null;
+  if (!el) return null;
+  const pos = offsetRelativeTo(el, container);
+  return {
+    x: pos.x + el.offsetWidth / 2,
+    y: pos.y + el.offsetHeight / 2,
+  };
+}
+
+/**
+ * Fallback: estimate port position from node geometry when DOM isn't ready.
+ */
+function estimatePortPosition(
   node: GraphNode,
   portId: string,
   direction: "in" | "out"
@@ -43,22 +83,52 @@ function computeBezierPath(
   return `M ${x1} ${y1} C ${x1 + controlOffset} ${y1}, ${x2 - controlOffset} ${y2}, ${x2} ${y2}`;
 }
 
-export function GraphEdge({ edge, nodes, isSelected, onClick }: GraphEdgeProps) {
+export function GraphEdge({
+  edge,
+  nodes,
+  isSelected,
+  onClick,
+  containerEl,
+}: GraphEdgeProps) {
   const sourceNode = nodes[edge.sourceNodeId];
   const targetNode = nodes[edge.targetNodeId];
+  const [path, setPath] = useState<string | null>(null);
+  const prevPathRef = useRef<string | null>(null);
 
-  const path = useMemo(() => {
-    if (!sourceNode || !targetNode) return null;
-    const from = getPortPosition(sourceNode, edge.sourcePortId, "out");
-    const to = getPortPosition(targetNode, edge.targetPortId, "in");
-    return computeBezierPath(from.x, from.y, to.x, to.y);
-  }, [sourceNode, targetNode, edge.sourcePortId, edge.targetPortId]);
+  // Measure actual DOM positions after layout
+  useLayoutEffect(() => {
+    if (!sourceNode || !targetNode) {
+      setPath(null);
+      return;
+    }
 
-  const color = useMemo(() => {
+    let from: { x: number; y: number };
+    let to: { x: number; y: number };
+
+    if (containerEl) {
+      from =
+        getPortCenter(containerEl, edge.sourceNodeId, edge.sourcePortId) ??
+        estimatePortPosition(sourceNode, edge.sourcePortId, "out");
+      to =
+        getPortCenter(containerEl, edge.targetNodeId, edge.targetPortId) ??
+        estimatePortPosition(targetNode, edge.targetPortId, "in");
+    } else {
+      from = estimatePortPosition(sourceNode, edge.sourcePortId, "out");
+      to = estimatePortPosition(targetNode, edge.targetPortId, "in");
+    }
+
+    const newPath = computeBezierPath(from.x, from.y, to.x, to.y);
+    if (newPath !== prevPathRef.current) {
+      prevPathRef.current = newPath;
+      setPath(newPath);
+    }
+  });
+
+  const color = (() => {
     if (!sourceNode) return "#6b7280";
     const port = sourceNode.ports.find((p) => p.id === edge.sourcePortId);
     return port ? getPortColor(port.dataType) : "#6b7280";
-  }, [sourceNode, edge.sourcePortId]);
+  })();
 
   if (!path) return null;
 

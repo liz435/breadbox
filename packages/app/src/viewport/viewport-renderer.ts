@@ -2,15 +2,11 @@ import * as THREE from "three";
 import { frameBus, type FrameSnapshot } from "@/runtime/frame-bus";
 
 const CLEAR_COLOR = 0x1a1a2e;
-
-type SpriteEntry = {
-  mesh: THREE.Mesh;
-  materialOwned: THREE.MeshBasicMaterial;
-  loadedUri: string | null;
-};
+const MAX_INSTANCES = 1024;
 
 /**
  * Imperative Three.js renderer that reads from the frame bus each tick.
+ * Uses InstancedMesh for batched sprite rendering.
  * Completely outside React — no state, no re-renders.
  */
 export function createViewportRenderer() {
@@ -22,11 +18,55 @@ export function createViewportRenderer() {
   const camera = new THREE.OrthographicCamera(-400, 400, 300, -300, 0.1, 1000);
   camera.position.z = 10;
 
-  // Sprite mesh pool: nodeId → entry
-  const sprites = new Map<string, SpriteEntry>();
+  // Shared geometry for all sprites
+  const sharedGeometry = new THREE.PlaneGeometry(1, 1);
+
+  // Instanced mesh for solid-color (untextured) sprites
+  const solidMaterial = new THREE.MeshBasicMaterial({
+    transparent: true,
+    vertexColors: false,
+  });
+  // We use per-instance color via InstancedMesh's setColorAt
+  solidMaterial.onBeforeCompile = (shader) => {
+    // Ensure instance colors work
+    shader.fragmentShader = shader.fragmentShader;
+  };
+
+  const solidBatch = new THREE.InstancedMesh(sharedGeometry, solidMaterial, MAX_INSTANCES);
+  solidBatch.count = 0;
+  solidBatch.instanceColor = new THREE.InstancedBufferAttribute(
+    new Float32Array(MAX_INSTANCES * 3),
+    3,
+  );
+  scene.add(solidBatch);
+
+  // Textured sprite batches: one InstancedMesh per unique texture
+  type TextureBatch = {
+    mesh: THREE.InstancedMesh;
+    material: THREE.MeshBasicMaterial;
+    count: number;
+  };
+  const textureBatches = new Map<string, TextureBatch>();
+
   // Texture cache: uri → texture
   const textureCache = new Map<string, THREE.Texture>();
   const textureLoader = new THREE.TextureLoader();
+
+  // Temp objects for matrix computation (reuse to avoid GC pressure)
+  const tmpMatrix = new THREE.Matrix4();
+  const tmpPosition = new THREE.Vector3();
+  const tmpQuaternion = new THREE.Quaternion();
+  const tmpScale = new THREE.Vector3();
+  const tmpColor = new THREE.Color();
+  const tmpEuler = new THREE.Euler();
+
+  // Track which nodeIds map to which batch slot
+  type SpriteSlot = {
+    batchKey: string; // "solid" or texture uri
+    index: number;
+  };
+  const spriteSlots = new Map<string, SpriteSlot>();
+
   // Audio state
   let audioCtx: AudioContext | null = null;
   const audioBuffers = new Map<string, AudioBuffer>();
@@ -41,7 +81,6 @@ export function createViewportRenderer() {
   function getOrLoadTexture(uri: string): THREE.Texture | null {
     const cached = textureCache.get(uri);
     if (cached) return cached;
-    // Start loading (async, will appear next frame)
     textureLoader.load(
       uri,
       (tex) => {
@@ -50,70 +89,114 @@ export function createViewportRenderer() {
         textureCache.set(uri, tex);
       },
       undefined,
-      () => {
-        // Load failed — ignore
-      },
+      () => { /* Load failed — ignore */ },
     );
     return null;
   }
 
+  function getOrCreateTextureBatch(uri: string, texture: THREE.Texture): TextureBatch {
+    let batch = textureBatches.get(uri);
+    if (batch) return batch;
+
+    const mat = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+    });
+    const mesh = new THREE.InstancedMesh(sharedGeometry, mat, MAX_INSTANCES);
+    mesh.count = 0;
+    scene.add(mesh);
+    batch = { mesh, material: mat, count: 0 };
+    textureBatches.set(uri, batch);
+    return batch;
+  }
+
   function syncSprites(snapshot: FrameSnapshot) {
     const { entityStore, nodes } = snapshot;
-    const activeNodeIds = new Set<string>();
+
+    // Reset all batch counts
+    solidBatch.count = 0;
+    for (const batch of textureBatches.values()) {
+      batch.count = 0;
+    }
+    spriteSlots.clear();
+
+    // Counters for each batch
+    let solidIndex = 0;
+    const textureIndices = new Map<string, number>();
 
     for (const [nodeId, entity] of entityStore.entities) {
       if (!entity.visible) continue;
-      activeNodeIds.add(nodeId);
 
-      let entry = sprites.get(nodeId);
-      if (!entry) {
-        const material = new THREE.MeshBasicMaterial({ color: 0x4a9eff, transparent: true });
-        const geometry = new THREE.PlaneGeometry(1, 1);
-        const mesh = new THREE.Mesh(geometry, material);
-        scene.add(mesh);
-        entry = { mesh, materialOwned: material, loadedUri: null };
-        sprites.set(nodeId, entry);
-      }
-
-      // Position from entity store (written by code nodes)
-      entry.mesh.position.set(entity.x, -entity.y, 0);
-
-      // Scale from entity store
       const node = nodes[nodeId];
       const baseW = node && typeof node.data.width === "number" ? (node.data.width as number) : 64;
       const baseH = node && typeof node.data.height === "number" ? (node.data.height as number) : 64;
-      entry.mesh.scale.set(baseW * entity.scaleX, baseH * entity.scaleY, 1);
 
-      // Rotation
-      entry.mesh.rotation.z = -entity.rotation;
+      // Build transform matrix
+      tmpPosition.set(entity.x, -entity.y, 0);
+      tmpEuler.set(0, 0, -entity.rotation);
+      tmpQuaternion.setFromEuler(tmpEuler);
+      tmpScale.set(baseW * entity.scaleX, baseH * entity.scaleY, 1);
+      tmpMatrix.compose(tmpPosition, tmpQuaternion, tmpScale);
 
-      // Texture or tint — texture from entity URI (which may have been set at init)
       const uri = entity.uri;
+
       if (uri) {
-        const tex = getOrLoadTexture(uri);
-        if (tex && entry.loadedUri !== uri) {
-          entry.materialOwned.map = tex;
-          entry.materialOwned.color.set(0xffffff);
-          entry.materialOwned.needsUpdate = true;
-          entry.loadedUri = uri;
+        // Textured sprite
+        const texture = getOrLoadTexture(uri);
+        if (!texture) {
+          // Texture not loaded yet — render as solid
+          if (solidIndex < MAX_INSTANCES) {
+            solidBatch.setMatrixAt(solidIndex, tmpMatrix);
+            tmpColor.set(entity.tint);
+            solidBatch.setColorAt(solidIndex, tmpColor);
+            spriteSlots.set(nodeId, { batchKey: "solid", index: solidIndex });
+            solidIndex++;
+          }
+          continue;
+        }
+
+        const batch = getOrCreateTextureBatch(uri, texture);
+        const idx = textureIndices.get(uri) ?? 0;
+        if (idx < MAX_INSTANCES) {
+          batch.mesh.setMatrixAt(idx, tmpMatrix);
+          spriteSlots.set(nodeId, { batchKey: uri, index: idx });
+          textureIndices.set(uri, idx + 1);
+          batch.count = idx + 1;
         }
       } else {
-        if (entry.loadedUri !== null) {
-          entry.materialOwned.map = null;
-          entry.materialOwned.needsUpdate = true;
-          entry.loadedUri = null;
+        // Solid color sprite
+        if (solidIndex < MAX_INSTANCES) {
+          solidBatch.setMatrixAt(solidIndex, tmpMatrix);
+          tmpColor.set(entity.tint);
+          solidBatch.setColorAt(solidIndex, tmpColor);
+          spriteSlots.set(nodeId, { batchKey: "solid", index: solidIndex });
+          solidIndex++;
         }
-        entry.materialOwned.color.set(entity.tint);
       }
     }
 
-    // Remove meshes for deleted entities
-    for (const [nodeId, entry] of sprites) {
-      if (!activeNodeIds.has(nodeId)) {
-        scene.remove(entry.mesh);
-        entry.mesh.geometry.dispose();
-        entry.materialOwned.dispose();
-        sprites.delete(nodeId);
+    // Finalize batch counts and flag for GPU upload
+    solidBatch.count = solidIndex;
+    if (solidIndex > 0) {
+      solidBatch.instanceMatrix.needsUpdate = true;
+      if (solidBatch.instanceColor) solidBatch.instanceColor.needsUpdate = true;
+    }
+
+    for (const [uri, batch] of textureBatches) {
+      const count = textureIndices.get(uri) ?? 0;
+      batch.mesh.count = count;
+      if (count > 0) {
+        batch.mesh.instanceMatrix.needsUpdate = true;
+      }
+    }
+
+    // Remove texture batches with no instances (texture no longer in use)
+    for (const [uri, batch] of textureBatches) {
+      if (batch.mesh.count === 0) {
+        scene.remove(batch.mesh);
+        batch.mesh.dispose();
+        batch.material.dispose();
+        textureBatches.delete(uri);
       }
     }
   }
@@ -130,7 +213,6 @@ export function createViewportRenderer() {
       if (!uri) continue;
       activeAudioIds.add(nodeId);
 
-      // Check if trigger input is active
       const outputs = evalResult.outputs[nodeId];
       const audioOut = outputs?.["audio_out"];
       if (!audioOut) continue;
@@ -139,7 +221,6 @@ export function createViewportRenderer() {
       const pitch = typeof node.data.pitch === "number" ? (node.data.pitch as number) : 1;
       const loop = node.data.loop === true;
 
-      // Already playing — update gain/pitch
       const existing = audioSources.get(nodeId);
       if (existing) {
         existing.gainNode.gain.value = volume;
@@ -148,7 +229,6 @@ export function createViewportRenderer() {
         continue;
       }
 
-      // Need to start playing — load buffer if not cached
       if (!audioCtx) {
         audioCtx = new AudioContext();
       }
@@ -168,7 +248,6 @@ export function createViewportRenderer() {
         continue;
       }
 
-      // Play
       const source = audioCtx.createBufferSource();
       source.buffer = buffer;
       source.playbackRate.value = pitch;
@@ -183,7 +262,6 @@ export function createViewportRenderer() {
       audioSources.set(nodeId, { source, gainNode });
     }
 
-    // Stop audio for removed nodes
     for (const [nodeId, entry] of audioSources) {
       if (!activeAudioIds.has(nodeId)) {
         entry.source.stop();
@@ -195,12 +273,14 @@ export function createViewportRenderer() {
   }
 
   function clearScene() {
-    for (const [, entry] of sprites) {
-      scene.remove(entry.mesh);
-      entry.mesh.geometry.dispose();
-      entry.materialOwned.dispose();
+    solidBatch.count = 0;
+    for (const [, batch] of textureBatches) {
+      scene.remove(batch.mesh);
+      batch.mesh.dispose();
+      batch.material.dispose();
     }
-    sprites.clear();
+    textureBatches.clear();
+    spriteSlots.clear();
     stopAllAudio();
   }
 
@@ -224,7 +304,7 @@ export function createViewportRenderer() {
     if (snapshot && frameBus.playing) {
       syncSprites(snapshot);
       syncAudio(snapshot);
-    } else if (!frameBus.playing && sprites.size > 0) {
+    } else if (!frameBus.playing && (solidBatch.count > 0 || textureBatches.size > 0)) {
       clearScene();
     }
 
@@ -276,6 +356,9 @@ export function createViewportRenderer() {
         rafId = 0;
       }
       clearScene();
+      solidBatch.dispose();
+      solidMaterial.dispose();
+      sharedGeometry.dispose();
       for (const [, tex] of textureCache) {
         tex.dispose();
       }

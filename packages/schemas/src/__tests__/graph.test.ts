@@ -217,6 +217,10 @@ describe("getDefaultPorts", () => {
       "material",
       "math",
       "group",
+      "on_start",
+      "on_update",
+      "on_input",
+      "input_map",
     ];
     for (const type of types) {
       const ports = getDefaultPorts(type);

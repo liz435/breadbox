@@ -11,6 +11,7 @@ import { GroupContent } from "./group-content";
 import { OnStartContent } from "./on-start-content";
 import { OnUpdateContent } from "./on-update-content";
 import { OnInputContent } from "./on-input-content";
+import { InputMapContent } from "./input-map-content";
 
 type NodeContentProps = {
   node: GraphNode;
@@ -43,5 +44,7 @@ export function NodeContent({ node, onDataChange }: NodeContentProps) {
       return <OnUpdateContent node={node} />;
     case "on_input":
       return <OnInputContent node={node} />;
+    case "input_map":
+      return <InputMapContent node={node} />;
   }
 }

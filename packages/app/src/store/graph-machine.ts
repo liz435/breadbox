@@ -65,6 +65,7 @@ const NODE_SIZE: Record<GraphNodeType, { width: number; height: number }> = {
   on_start: { width: 160, height: 70 },
   on_update: { width: 160, height: 80 },
   on_input: { width: 160, height: 80 },
+  input_map: { width: 200, height: 120 },
 };
 
 function removeEdgesWithStalePorts(

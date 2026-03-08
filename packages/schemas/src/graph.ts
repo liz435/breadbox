@@ -51,6 +51,7 @@ export const graphNodeTypeSchema = z.enum([
   "on_start",
   "on_update",
   "on_input",
+  "input_map",
 ]);
 
 export type GraphNodeType = z.infer<typeof graphNodeTypeSchema>;
@@ -171,7 +172,10 @@ export function getDefaultPorts(nodeType: GraphNodeType): Port[] {
     case "code":
       return [
         { id: "trigger_in", name: "Trigger", direction: "in", dataType: "trigger" },
-        { id: "data_in", name: "Data", direction: "in", dataType: "any" },
+        { id: "data_0_in", name: "Data A", direction: "in", dataType: "any" },
+        { id: "data_1_in", name: "Data B", direction: "in", dataType: "any" },
+        { id: "entity_0_in", name: "Entity A", direction: "in", dataType: "entity" },
+        { id: "entity_1_in", name: "Entity B", direction: "in", dataType: "entity" },
         { id: "trigger_out", name: "Trigger", direction: "out", dataType: "trigger" },
         { id: "data_out", name: "Data", direction: "out", dataType: "any" },
       ];
@@ -203,6 +207,10 @@ export function getDefaultPorts(nodeType: GraphNodeType): Port[] {
       return [
         { id: "trigger_out", name: "Trigger", direction: "out", dataType: "trigger" },
         { id: "key_out", name: "Key", direction: "out", dataType: "string" },
+      ];
+    case "input_map":
+      return [
+        { id: "actions_out", name: "Actions", direction: "out", dataType: "any" },
       ];
   }
 }

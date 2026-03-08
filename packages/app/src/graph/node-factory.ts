@@ -25,6 +25,7 @@ const NODE_DEFAULTS: Record<
   on_start: { width: 160, height: 70, name: "On Start" },
   on_update: { width: 160, height: 80, name: "On Update" },
   on_input: { width: 160, height: 80, name: "On Input" },
+  input_map: { width: 200, height: 120, name: "Input Map" },
 };
 
 function generateId(): string {
@@ -97,8 +98,25 @@ function getDefaultNodeData(type: GraphNodeType): Record<string, unknown> {
       return {};
     case "on_input":
       return { listenKeys: ["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"] };
+    case "input_map":
+      return {
+        actions: [
+          { name: "move_up", label: "Move Up", keys: ["w", "W", "ArrowUp"] },
+          { name: "move_down", label: "Move Down", keys: ["s", "S", "ArrowDown"] },
+          { name: "move_left", label: "Move Left", keys: ["a", "A", "ArrowLeft"] },
+          { name: "move_right", label: "Move Right", keys: ["d", "D", "ArrowRight"] },
+        ],
+      };
   }
 }
+
+// ── Input map actions ────────────────────────────────────────────────────────
+
+export type InputAction = {
+  name: string;
+  label: string;
+  keys: string[];
+};
 
 // ── Math operations ─────────────────────────────────────────────────────────
 

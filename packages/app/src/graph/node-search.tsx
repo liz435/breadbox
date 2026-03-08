@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { GraphNodeType } from "@dreamer/schemas";
 import { getNodeColor } from "./port-colors";
+import { cn } from "@/utils/classnames";
 
 type NodeSearchProps = {
   onSelect: (type: GraphNodeType) => void;
@@ -20,6 +21,7 @@ const ALL_NODE_TYPES: { type: GraphNodeType; label: string; keywords: string }[]
   { type: "on_start", label: "On Start", keywords: "event begin init lifecycle" },
   { type: "on_update", label: "On Update", keywords: "event frame tick loop delta" },
   { type: "on_input", label: "On Input", keywords: "event keyboard key press input" },
+  { type: "input_map", label: "Input Map", keywords: "controls keybind action player wasd arrows" },
 ];
 
 function fuzzyMatch(query: string, text: string): boolean {
@@ -38,6 +40,7 @@ export function NodeSearch({ onSelect, onClose }: NodeSearchProps) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const filtered = query.trim()
     ? ALL_NODE_TYPES.filter(
@@ -57,6 +60,14 @@ export function NodeSearch({ onSelect, onClose }: NodeSearchProps) {
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  // Scroll selected item into view
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const item = list.children[selectedIndex] as HTMLElement | undefined;
+    item?.scrollIntoView({ block: "nearest" });
+  }, [selectedIndex]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -79,8 +90,18 @@ export function NodeSearch({ onSelect, onClose }: NodeSearchProps) {
     [filtered, selectedIndex, onSelect, onClose]
   );
 
+  // Stop wheel events from reaching the canvas pan/zoom handler
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const stop = (e: WheelEvent) => e.stopPropagation();
+    el.addEventListener("wheel", stop, { passive: false });
+    return () => el.removeEventListener("wheel", stop);
+  }, []);
+
   return (
-    <div className="w-64 bg-neutral-800 border border-neutral-600 rounded-lg shadow-2xl overflow-hidden">
+    <div ref={rootRef} className="w-64 bg-neutral-800 border border-neutral-600 rounded-lg shadow-2xl overflow-hidden">
       <div className="p-2">
         <input
           ref={inputRef}
@@ -91,7 +112,7 @@ export function NodeSearch({ onSelect, onClose }: NodeSearchProps) {
           onKeyDown={handleKeyDown}
         />
       </div>
-      <div className="max-h-60 overflow-y-auto">
+      <div ref={listRef} className="max-h-60 overflow-y-auto">
         {filtered.length === 0 ? (
           <div className="px-3 py-2 text-xs text-neutral-500">
             No matching nodes
@@ -100,11 +121,12 @@ export function NodeSearch({ onSelect, onClose }: NodeSearchProps) {
           filtered.map((item, idx) => (
             <button
               key={item.type}
-              className={`w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 transition-colors ${
+              className={cn(
+                "w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 transition-colors",
                 idx === selectedIndex
                   ? "bg-neutral-700 text-neutral-100"
                   : "text-neutral-300 hover:bg-neutral-700/50"
-              }`}
+              )}
               onMouseEnter={() => setSelectedIndex(idx)}
               onClick={() => onSelect(item.type)}
             >

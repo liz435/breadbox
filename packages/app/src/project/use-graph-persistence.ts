@@ -3,6 +3,8 @@ import { useProject } from "./project-context";
 import { useGraph } from "@/store/graph-context";
 import { saveProjectGraph } from "./api-client";
 import { createPongDemo } from "@/graph/demo-pong";
+import { getDefaultPorts } from "@dreamer/schemas";
+import type { GraphNodeType } from "@dreamer/schemas";
 
 const SAVE_DEBOUNCE_MS = 2000;
 
@@ -37,16 +39,20 @@ export function useGraphPersistence() {
       for (const edge of Object.values(demo.edges)) {
         send({ type: "ADD_EDGE", edge });
       }
+      send({ type: "CLEAR_SELECTION" });
       return;
     }
 
     // Replay saved nodes and edges into the graph machine
+    // Refresh ports from current schema so saved projects pick up new ports
     for (const node of nodeEntries) {
+      node.ports = getDefaultPorts(node.type as GraphNodeType);
       send({ type: "ADD_NODE", node });
     }
     for (const edge of edgeEntries) {
       send({ type: "ADD_EDGE", edge });
     }
+    send({ type: "CLEAR_SELECTION" });
   }, [projectFile, send]);
 
   // Auto-save graph changes to server (debounced)

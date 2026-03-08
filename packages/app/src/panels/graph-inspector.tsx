@@ -6,7 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { useGraph } from "@/store/graph-context";
 import { getPortColor, getNodeColor } from "@/graph/port-colors";
-import { MATH_OPERATIONS } from "@/graph/node-factory";
+import { MATH_OPERATIONS, type InputAction } from "@/graph/node-factory";
 import type { GraphNode, GraphNodeType } from "@dreamer/schemas";
 import { graphNodeTypeSchema } from "@dreamer/schemas";
 
@@ -95,6 +95,149 @@ function KeyBindingEditor({
           + Add key
         </button>
       )}
+    </div>
+  );
+}
+
+function InputMapEditor({
+  actions,
+  onUpdate,
+}: {
+  actions: InputAction[];
+  onUpdate: (actions: InputAction[]) => void;
+}) {
+  const [listeningIdx, setListeningIdx] = useState<number | null>(null);
+
+  const handleKeyCapture = useCallback(
+    (e: React.KeyboardEvent, idx: number) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const key = e.key;
+      if (key === "Escape") {
+        setListeningIdx(null);
+        return;
+      }
+      const action = actions[idx];
+      if (action && !action.keys.includes(key)) {
+        const updated = [...actions];
+        updated[idx] = { ...action, keys: [...action.keys, key] };
+        onUpdate(updated);
+      }
+      setListeningIdx(null);
+    },
+    [actions, onUpdate],
+  );
+
+  const removeKey = useCallback(
+    (actionIdx: number, key: string) => {
+      const updated = [...actions];
+      const action = updated[actionIdx];
+      if (action) {
+        updated[actionIdx] = { ...action, keys: action.keys.filter((k) => k !== key) };
+        onUpdate(updated);
+      }
+    },
+    [actions, onUpdate],
+  );
+
+  const removeAction = useCallback(
+    (idx: number) => {
+      onUpdate(actions.filter((_, i) => i !== idx));
+    },
+    [actions, onUpdate],
+  );
+
+  const addAction = useCallback(() => {
+    const name = `action_${actions.length}`;
+    onUpdate([...actions, { name, label: `Action ${actions.length}`, keys: [] }]);
+  }, [actions, onUpdate]);
+
+  const updateActionField = useCallback(
+    (idx: number, field: "name" | "label", value: string) => {
+      const updated = [...actions];
+      const action = updated[idx];
+      if (action) {
+        updated[idx] = { ...action, [field]: value };
+        onUpdate(updated);
+      }
+    },
+    [actions, onUpdate],
+  );
+
+  return (
+    <div className="flex flex-col gap-2">
+      {actions.map((action, idx) => (
+        <div
+          key={idx}
+          className="border border-neutral-700 rounded p-1.5 flex flex-col gap-1"
+        >
+          <div className="flex items-center gap-1">
+            <input
+              type="text"
+              value={action.label}
+              onChange={(e) => updateActionField(idx, "label", e.target.value)}
+              className="flex-1 min-w-0 text-[10px] text-neutral-300 bg-transparent border-b border-neutral-700 outline-none px-0.5"
+              placeholder="Label"
+            />
+            <button
+              className="text-[10px] text-neutral-500 hover:text-red-400 transition-colors leading-none shrink-0"
+              onClick={() => removeAction(idx)}
+            >
+              x
+            </button>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-[9px] text-neutral-500 shrink-0">id:</span>
+            <input
+              type="text"
+              value={action.name}
+              onChange={(e) => updateActionField(idx, "name", e.target.value.replace(/\s/g, "_"))}
+              className="flex-1 min-w-0 text-[9px] text-neutral-400 bg-transparent outline-none font-mono px-0.5"
+              placeholder="action_name"
+            />
+          </div>
+          <div className="flex flex-wrap gap-0.5">
+            {action.keys.map((key) => (
+              <span
+                key={key}
+                className="inline-flex items-center gap-0.5 bg-neutral-900 border border-neutral-700 rounded px-1 py-0.5 text-[9px] text-neutral-300 font-mono"
+              >
+                {key}
+                <button
+                  className="text-neutral-500 hover:text-red-400 transition-colors leading-none"
+                  onClick={() => removeKey(idx, key)}
+                >
+                  x
+                </button>
+              </span>
+            ))}
+            {listeningIdx === idx ? (
+              <div
+                className="text-[9px] text-blue-400 border border-blue-500/30 rounded px-1.5 py-0.5 bg-blue-500/5 outline-none"
+                tabIndex={0}
+                autoFocus
+                onKeyDown={(e) => handleKeyCapture(e, idx)}
+                onBlur={() => setListeningIdx(null)}
+              >
+                Press key...
+              </div>
+            ) : (
+              <button
+                className="text-[9px] text-neutral-500 hover:text-neutral-300 transition-colors"
+                onClick={() => setListeningIdx(idx)}
+              >
+                + key
+              </button>
+            )}
+          </div>
+        </div>
+      ))}
+      <button
+        className="text-[10px] text-neutral-500 hover:text-neutral-300 text-left transition-colors"
+        onClick={addAction}
+      >
+        + Add action
+      </button>
     </div>
   );
 }
@@ -370,6 +513,19 @@ function NodeProperties({
           <KeyBindingEditor
             keys={Array.isArray(data.listenKeys) ? (data.listenKeys as string[]) : []}
             onUpdate={(newKeys) => onUpdateData({ listenKeys: newKeys })}
+          />
+        </div>
+      );
+
+    case "input_map":
+      return (
+        <div className="flex flex-col gap-1.5">
+          <Label className="mb-0.5">Input Map</Label>
+          <InputMapEditor
+            actions={
+              Array.isArray(data.actions) ? (data.actions as InputAction[]) : []
+            }
+            onUpdate={(actions) => onUpdateData({ actions })}
           />
         </div>
       );

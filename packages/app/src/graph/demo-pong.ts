@@ -6,15 +6,17 @@ import { createGraphNode } from "./node-factory";
  *
  * Graph layout:
  *
- *   [On Update] ──trigger──▶ [Pong Logic (code)]
- *   [On Input]  ──trigger──▶
+ *   [Ball]           (sprite)
+ *   [Left Paddle]    (sprite) ──entity──▶ [Pong Logic]
+ *   [Right Paddle]   (sprite) ──entity──▶ [Pong Logic]
  *
- *   [Ball]    (sprite)
- *   [Left Paddle]  (sprite)
- *   [Right Paddle]  (sprite)
+ *   [On Update]      ──trigger──▶ [Pong Logic (code)]
+ *   [Player 1 Input] ──data_0──▶  [Pong Logic]
+ *   [Player 2 Input] ──data_1──▶  [Pong Logic]
  *
- * The code node uses `entities` API to move the ball and paddles,
- * and `state` to persist positions/velocities across frames.
+ * Input maps provide configurable key bindings per player.
+ * The code node reads action states (move_up/move_down) from each input map
+ * and accesses paddles via entity ports. No hardcoded keys in the script.
  */
 export function createPongDemo(): {
   nodes: Record<string, GraphNode>;
@@ -55,12 +57,32 @@ export function createPongDemo(): {
     y: 60,
   });
 
-  const onInput = createGraphNode("on_input", {
-    id: "pong-on-input",
-    name: "On Input",
+  // ── Input maps (one per player) ──────────────────────────────────────────
+
+  const p1Input = createGraphNode("input_map", {
+    id: "pong-p1-input",
+    name: "Player 1 Controls",
     x: 340,
     y: 200,
-    data: { listenKeys: ["w", "s", "ArrowUp", "ArrowDown"] },
+    data: {
+      actions: [
+        { name: "move_up", label: "Move Up", keys: ["w", "W"] },
+        { name: "move_down", label: "Move Down", keys: ["s", "S"] },
+      ],
+    },
+  });
+
+  const p2Input = createGraphNode("input_map", {
+    id: "pong-p2-input",
+    name: "Player 2 Controls",
+    x: 340,
+    y: 360,
+    data: {
+      actions: [
+        { name: "move_up", label: "Move Up", keys: ["ArrowUp"] },
+        { name: "move_down", label: "Move Down", keys: ["ArrowDown"] },
+      ],
+    },
   });
 
   // ── Logic ────────────────────────────────────────────────────────────────
@@ -80,6 +102,7 @@ export function createPongDemo(): {
 
   const edges: Record<string, Edge> = {};
 
+  // On Update → trigger
   const e1: Edge = {
     id: "pong-edge-update-trigger",
     sourceNodeId: onUpdate.id,
@@ -89,14 +112,45 @@ export function createPongDemo(): {
   };
   edges[e1.id] = e1;
 
+  // Player 1 input map → Data A
   const e2: Edge = {
-    id: "pong-edge-input-data",
-    sourceNodeId: onInput.id,
-    sourcePortId: "key_out",
+    id: "pong-edge-p1-input",
+    sourceNodeId: p1Input.id,
+    sourcePortId: "actions_out",
     targetNodeId: pongCode.id,
-    targetPortId: "data_in",
+    targetPortId: "data_0_in",
   };
   edges[e2.id] = e2;
+
+  // Player 2 input map → Data B
+  const e3: Edge = {
+    id: "pong-edge-p2-input",
+    sourceNodeId: p2Input.id,
+    sourcePortId: "actions_out",
+    targetNodeId: pongCode.id,
+    targetPortId: "data_1_in",
+  };
+  edges[e3.id] = e3;
+
+  // Left Paddle → Entity A
+  const e4: Edge = {
+    id: "pong-edge-paddle-left",
+    sourceNodeId: paddleLeft.id,
+    sourcePortId: "entity_out",
+    targetNodeId: pongCode.id,
+    targetPortId: "entity_0_in",
+  };
+  edges[e4.id] = e4;
+
+  // Right Paddle → Entity B
+  const e5: Edge = {
+    id: "pong-edge-paddle-right",
+    sourceNodeId: paddleRight.id,
+    sourcePortId: "entity_out",
+    targetNodeId: pongCode.id,
+    targetPortId: "entity_1_in",
+  };
+  edges[e5.id] = e5;
 
   // ── Assemble ─────────────────────────────────────────────────────────────
 
@@ -105,7 +159,8 @@ export function createPongDemo(): {
     [paddleLeft.id]: paddleLeft,
     [paddleRight.id]: paddleRight,
     [onUpdate.id]: onUpdate,
-    [onInput.id]: onInput,
+    [p1Input.id]: p1Input,
+    [p2Input.id]: p2Input,
     [pongCode.id]: pongCode,
   };
 
@@ -115,7 +170,9 @@ export function createPongDemo(): {
 // ── Pong game script ─────────────────────────────────────────────────────────
 
 const PONG_SCRIPT = `// Pong — runs every frame via On Update trigger
-const PADDLE_SPEED = 300;
+// Controls come from Input Map nodes wired to Data A (P1) and Data B (P2)
+// Paddles come from Entity A (left) and Entity B (right)
+const PADDLE_SPEED = 400;
 const BALL_SPEED = 250;
 const HALF_W = 400;
 const HALF_H = 300;
@@ -133,16 +190,15 @@ if (state.ballVX === undefined) {
   state.scoreR = 0;
 }
 
-// ── Input ──
-// W/S move left paddle, ArrowUp/ArrowDown move right paddle
-const keys = input.data_in;
-if (keys) {
-  const k = typeof keys === 'object' && keys !== null && 'value' in keys ? keys.value : keys;
-  if (k === 'w') state.leftY -= PADDLE_SPEED * dt;
-  if (k === 's') state.leftY += PADDLE_SPEED * dt;
-  if (k === 'ArrowUp') state.rightY -= PADDLE_SPEED * dt;
-  if (k === 'ArrowDown') state.rightY += PADDLE_SPEED * dt;
-}
+// ── Input from Input Map nodes ──
+// data_0_in = Player 1 actions, data_1_in = Player 2 actions
+const p1 = input.data_0_in || {};
+const p2 = input.data_1_in || {};
+
+if (p1.move_up) state.leftY -= PADDLE_SPEED * dt;
+if (p1.move_down) state.leftY += PADDLE_SPEED * dt;
+if (p2.move_up) state.rightY -= PADDLE_SPEED * dt;
+if (p2.move_down) state.rightY += PADDLE_SPEED * dt;
 
 // Clamp paddles to screen
 state.leftY = Math.max(-HALF_H + PADDLE_H, Math.min(HALF_H - PADDLE_H, state.leftY));
@@ -203,13 +259,15 @@ state.ballVX = Math.max(-600, Math.min(600, state.ballVX));
 state.ballVY = Math.max(-400, Math.min(400, state.ballVY));
 
 // ── Write to entities ──
+// Ball uses entities.get() by name (not wired via port)
 const ball = entities.get("Ball");
 if (ball) ball.setPosition(state.ballX, state.ballY);
 
-const lp = entities.get("Left Paddle");
+// Paddles accessed via entity ports (resolved to names by runtime)
+const lp = entities.get(input.entity_0_in);
 if (lp) lp.setPosition(-350, state.leftY);
 
-const rp = entities.get("Right Paddle");
+const rp = entities.get(input.entity_1_in);
 if (rp) rp.setPosition(350, state.rightY);
 
 console.log(state.scoreL + " - " + state.scoreR);

@@ -14,7 +14,7 @@ export function PlayControls() {
     fps: 0,
     frame: 0,
   });
-  const { state, send } = useGraph();
+  const { state } = useGraph();
   const dockviewApi = useDockviewApi();
   const loopRef = useRef<RuntimeLoop | null>(null);
   const fpsRef = useRef<{ frames: number; lastCheck: number }>({
@@ -52,9 +52,6 @@ export function PlayControls() {
         edges: graphRef.current.edges,
       }),
       onFrame: handleFrame,
-      updateNodeData: (nodeId, patch) => {
-        send({ type: "UPDATE_NODE", nodeId, patch });
-      },
     });
 
     loopRef.current = loop;
@@ -78,7 +75,7 @@ export function PlayControls() {
         });
       }
     }
-  }, [playState, send, handleFrame, dockviewApi]);
+  }, [playState, handleFrame, dockviewApi]);
 
   const handlePause = useCallback(() => {
     loopRef.current?.pause();

@@ -37,16 +37,13 @@ type PendingConnection = {
 
 export function GraphCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [transformEl, setTransformEl] = useState<HTMLDivElement | null>(null);
   const { state, send } = useGraph();
   const { projectId, switchProject } = useProject();
   const [camera, setLocalCamera] = useState(getGraphCamera);
   const [pendingConn, setPendingConn] = useState<PendingConnection | null>(
     null
   );
-  const [contextMenu, setContextMenu] = useState<{
-    x: number;
-    y: number;
-  } | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const dragStartRef = useRef<{ nodeX: number; nodeY: number; mouseX: number; mouseY: number } | null>(null);
 
@@ -261,34 +258,9 @@ export function GraphCanvas() {
         });
       } else if (e.button === 0) {
         send({ type: "CLEAR_SELECTION" });
-        setContextMenu(null);
       }
     },
     [send]
-  );
-
-  // ── Context menu ─────────────────────────────────────────────────────────
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    setContextMenu({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-  }, []);
-
-  const addNodeFromMenu = useCallback(
-    (type: GraphNodeType["type"]) => {
-      if (!contextMenu) return;
-      const cam = getGraphCamera();
-      const worldX = (contextMenu.x - cam.offsetX) / cam.zoom;
-      const worldY = (contextMenu.y - cam.offsetY) / cam.zoom;
-
-      send({
-        type: "ADD_NODE",
-        node: createGraphNode(type, { x: worldX, y: worldY }),
-      });
-      setContextMenu(null);
-    },
-    [send, contextMenu]
   );
 
   // ── Data change (from node content editors) ────────────────────────────────
@@ -323,13 +295,11 @@ export function GraphCanvas() {
       }
       if (e.key === "Escape") {
         send({ type: "CLEAR_SELECTION" });
-        setContextMenu(null);
         setShowSearch(false);
       }
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         setShowSearch((prev) => !prev);
-        setContextMenu(null);
       }
     }
     window.addEventListener("keydown", handleKeyDown);
@@ -490,27 +460,12 @@ export function GraphCanvas() {
     [send]
   );
 
-  const nodeTypes: GraphNodeType["type"][] = [
-    "sprite",
-    "shader",
-    "code",
-    "audio",
-    "video",
-    "text",
-    "material",
-    "math",
-    "group",
-    "on_start",
-    "on_update",
-    "on_input",
-  ];
-
   return (
     <div
       ref={containerRef}
       className="relative w-full h-full overflow-hidden bg-neutral-950"
       onMouseDown={handleCanvasMouseDown}
-      onContextMenu={handleContextMenu}
+      onContextMenu={(e) => e.preventDefault()}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
@@ -527,6 +482,7 @@ export function GraphCanvas() {
 
       {/* Transform container */}
       <div
+        ref={setTransformEl}
         className="absolute origin-top-left"
         style={{
           transform: `translate(${camera.offsetX}px, ${camera.offsetY}px) scale(${camera.zoom})`,
@@ -542,6 +498,7 @@ export function GraphCanvas() {
                 nodes={state.nodes}
                 isSelected={state.selectedEdgeIds.has(edge.id)}
                 onClick={handleEdgeClick}
+                containerEl={transformEl}
               />
             ))}
             {pendingConn && (
@@ -569,28 +526,6 @@ export function GraphCanvas() {
           />
         ))}
       </div>
-
-      {/* Context menu */}
-      {contextMenu && (
-        <div
-          className="absolute z-50 bg-neutral-800 border border-neutral-600 rounded-lg shadow-xl py-1 min-w-40"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-neutral-500 font-medium">
-            Add Node
-          </div>
-          {nodeTypes.map((type) => (
-            <button
-              key={type}
-              className="w-full text-left px-3 py-1.5 text-sm text-neutral-200 hover:bg-neutral-700 transition-colors"
-              onClick={() => addNodeFromMenu(type)}
-            >
-              {type.charAt(0).toUpperCase() + type.slice(1)}
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* Node search (Ctrl+K) */}
       {showSearch && (

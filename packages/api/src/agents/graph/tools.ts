@@ -78,7 +78,7 @@ export function createGraphTools(params: {
 
     create_graph_node: tool({
       description:
-        "Create a new node in the visual graph. Node types: sprite, shader, code, audio, video, text, material, math, group. Each type has default ports and data.",
+        "Create a new node in the visual graph. Node types: sprite, shader, code, audio, video, text, material, math, group, on_start, on_update, on_input, input_map. Each type has default ports and data.",
       inputSchema: z.object({
         type: z
           .enum([
@@ -94,6 +94,7 @@ export function createGraphTools(params: {
             "on_start",
             "on_update",
             "on_input",
+            "input_map",
           ])
           .describe("The type of node to create"),
         name: z.string().describe("Display name for the node"),
@@ -311,6 +312,8 @@ function getDefaultDataForType(type: GraphNodeType): Record<string, unknown> {
       return {};
     case "on_input":
       return { listenKeys: ["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"] };
+    case "input_map":
+      return { actions: { move_up: "ArrowUp", move_down: "ArrowDown", move_left: "ArrowLeft", move_right: "ArrowRight" } };
     default:
       return {};
   }
@@ -339,6 +342,8 @@ function getDefaultSizeForType(type: GraphNodeType): { width: number; height: nu
       return { width: 160, height: 80 };
     case "on_input":
       return { width: 160, height: 80 };
+    case "input_map":
+      return { width: 200, height: 140 };
     default:
       return { width: 180, height: 100 };
   }

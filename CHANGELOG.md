@@ -624,6 +624,180 @@ Two bugs prevented keyboard input from reaching code nodes during gameplay:
 
 ---
 
+## Performance Optimizations (Phase 10e)
+
+Four runtime performance improvements to support larger graphs and heavier scripts.
+
+### 1. Decoupled Runtime from React State
+
+Removed `updateNodeData` from the runtime loop — event node data (`_pressed`, `_key`, `_dt`, `_triggered`) is now mutated in-place on the runtime's local node copies via `Object.assign`, never pushed to React/XState state during play. Eliminates 60fps state machine transitions.
+
+### 2. Dirty Tracking with `evaluatePartial`
+
+The runtime loop now tracks which nodes changed each frame. Event nodes (on_start, on_update, on_input) are always dirty; other nodes are dirty only when their `node.data` changes (detected via JSON hash). First frame does a full `evaluateGraph`, subsequent frames use `evaluatePartial` which skips clean subgraphs and reuses cached outputs.
+
+### 3. Web Worker for Script Execution
+
+Created `script-worker.ts` that runs code node scripts off the main thread. Entity mutations are recorded as diffs in the worker and applied back on the main thread at the start of the next frame (1-frame latency tradeoff for unblocking the main thread). The worker has its own compilation cache and entity proxy system that mirrors the main-thread `EntityHandle` API.
+
+### 4. Instanced Mesh Sprite Batching
+
+Rewrote `viewport-renderer.ts` to use `THREE.InstancedMesh` instead of individual `THREE.Mesh` per sprite. One instanced mesh handles all solid-color sprites (with per-instance color), and one instanced mesh per unique texture URI handles textured sprites. Shared `PlaneGeometry`, reusable temp objects (`Matrix4`, `Vector3`, `Quaternion`, `Color`) to avoid GC pressure. Max 1024 instances per batch.
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `packages/app/src/runtime/runtime-loop.ts` | Removed `updateNodeData` param, added dirty tracking + `evaluatePartial`, integrated Web Worker dispatch |
+| `packages/app/src/runtime/script-worker.ts` | New — Web Worker for sandboxed script execution with entity mutation recording |
+| `packages/app/src/toolbar/play-controls.tsx` | Removed `updateNodeData` callback from `createRuntimeLoop` params |
+| `packages/app/src/viewport/viewport-renderer.ts` | Rewritten — `InstancedMesh` batching replaces individual mesh pool |
+
+---
+
+## Entity Wiring & Input Map (Phase 10f)
+
+Two new systems for explicit sprite connections and configurable input bindings.
+
+### Entity Port Wiring
+
+Code nodes now have two explicit entity input ports (`Entity A`, `Entity B`) so sprites can be wired directly into code nodes via edges. The runtime resolves entity port values to sprite names before dispatching to the Web Worker, letting scripts access connected sprites by name.
+
+- Added `entity_0_in` and `entity_1_in` ports (type: `entity`) to code node default ports
+- Runtime resolves entity references: `{ nodeId }` → sprite name for worker lookup
+- Sprite nodes output `{ type: "entity", value: { nodeId } }` for downstream wiring
+
+### Input Map Node
+
+New `input_map` node type for configurable action-to-key bindings. Replaces hardcoded key checks with a data-driven approach — users define named actions (e.g., "move_up") mapped to one or more keys.
+
+- **Node type**: `input_map` with `actions_out` port (type: `any`)
+- **Default actions**: WASD + arrow keys for move_up/down/left/right
+- **Runtime**: Each frame, the runtime evaluates which actions are active based on pressed keys, outputs `Record<string, boolean>` action states
+- **Inspector**: Full action list editor — add/remove actions, rename labels, capture key bindings with live key listener
+
+### Dual Data Ports on Code Nodes
+
+Code nodes now have two data input ports (`Data A` / `data_0_in`, `Data B` / `data_1_in`) instead of a single `data_in`. This lets two input maps (or any data sources) feed into one code node — e.g. Player 1 and Player 2 controls.
+
+### Bidirectional Connection Labels
+
+Node cards now show live connection context from the graph state:
+
+- **Code nodes** display connected sources above the code editor: `Data A ← Player 1 Controls`, `Entity B ← Right Paddle`
+- **Input Map nodes** display their target: `→ Pong Logic (Data A)`
+
+Labels update instantly as edges are connected or disconnected.
+
+### Pong Demo Rewrite
+
+The Pong demo now uses the full wiring system instead of hardcoded keys:
+
+- Two `input_map` nodes (Player 1: W/S, Player 2: Arrows) wired to Data A / Data B
+- Left/Right Paddle sprites wired to Entity A / Entity B ports
+- Script reads `input.data_0_in.move_up` etc. — zero hardcoded key names
+- Players can rebind keys by editing the input map nodes in the inspector
+
+### Port Refresh on Load
+
+Saved projects now refresh node ports from the current schema on hydration (`use-graph-persistence.ts`), so existing projects automatically pick up newly added ports.
+
+### Files Created
+
+| File | Purpose |
+|------|---------|
+| `packages/app/src/graph/node-content/input-map-content.tsx` | Node preview with action list + connection target label |
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `packages/schemas/src/graph.ts` | Added `input_map` type, dual data ports (`data_0_in`, `data_1_in`) + entity ports on code nodes |
+| `packages/app/src/graph/node-factory.ts` | `input_map` defaults, `InputAction` type, default WASD actions |
+| `packages/app/src/graph/evaluate.ts` | `input_map` evaluation outputs action states |
+| `packages/app/src/runtime/runtime-loop.ts` | Input map key tracking, entity port resolution for worker |
+| `packages/app/src/store/graph-machine.ts` | Added `input_map` to `NODE_SIZE` |
+| `packages/app/src/graph/port-colors.ts` | Added `input_map` color |
+| `packages/app/src/graph/node-search.tsx` | Added `input_map` to search with keywords |
+| `packages/app/src/graph/graph-canvas.tsx` | Added `input_map` to context menu |
+| `packages/app/src/graph/node-content/index.tsx` | Registered `InputMapContent` |
+| `packages/app/src/graph/node-content/code-content.tsx` | Shows connected source names on data/entity ports |
+| `packages/app/src/panels/graph-inspector.tsx` | Added `InputMapEditor` with key capture UI |
+| `packages/app/src/graph/demo-pong.ts` | Rewritten — uses input_map nodes + entity wiring, no hardcoded keys |
+| `packages/app/src/project/use-graph-persistence.ts` | Refreshes ports from schema on hydration |
+| `packages/schemas/src/__tests__/graph.test.ts` | Added event + input_map types to port tests |
+
+### DOM-Based Edge Alignment
+
+Edge bezier curves now read the actual DOM position of port circles instead of estimating with hardcoded offsets. Uses `useLayoutEffect` + `offsetRelativeTo` to walk the DOM from each port button up to the shared transform container. Falls back to the old estimation if the DOM isn't ready. Edges stay aligned regardless of variable node content height (code editors, action lists, connection labels).
+
+| File | Change |
+|------|--------|
+| `packages/app/src/graph/graph-edge.tsx` | Rewritten — DOM measurement via `getPortCenter()` + `offsetRelativeTo()`, fallback estimation |
+| `packages/app/src/graph/graph-canvas.tsx` | Added `transformRef` on transform container, passed `containerEl` to `GraphEdge` |
+
+### UI Cleanup
+
+- **Removed right-click context menu** from the graph canvas. Node creation is now exclusively via Cmd+K search palette.
+- **Scrollable Cmd+K list**: The search results list now scrolls properly — native `stopPropagation` on the search root prevents the canvas wheel handler from intercepting scroll events. Arrow key navigation auto-scrolls the selected item into view.
+
+| File | Change |
+|------|--------|
+| `packages/app/src/graph/graph-canvas.tsx` | Removed context menu state/handlers/rendering, suppress right-click with `preventDefault` |
+| `packages/app/src/graph/node-search.tsx` | Added `listRef` + scroll-into-view on selection, `rootRef` with native wheel `stopPropagation` |
+
+### Main Agent & Graph Ops Frontend Wiring (Phase 10g)
+
+Upgraded the agent system to be a game-creation orchestrator accessible from the toolbar prompt box.
+
+#### Frontend Graph Ops Wiring (`toolbar/use-chat-messages.ts`)
+
+The toolbar chat hook now applies graph ops alongside scene ops. When the agent streams `data-scene-ops`, ops are split using `isGraphOp()` discriminator — scene ops go to the scene machine via `applyOpsToScene()`, graph ops go to the graph machine via `applyGraphOpsToGraph()`. This means the graph agent can create nodes, connect edges, etc. and the frontend reflects changes in real time.
+
+#### Graph Agent Updates (`agents/graph/`)
+
+- **tools.ts**: Added `input_map` to `create_graph_node` type enum, added `input_map` cases to `getDefaultDataForType()` (default WASD actions) and `getDefaultSizeForType()` (200×140)
+- **agent.ts**: Complete system prompt rewrite:
+  - Documents all 13 node types with exact port IDs and data types
+  - Describes code node dual data ports (`data_0_in` / `data_1_in`) and entity ports (`entity_0_in` / `entity_1_in`)
+  - Documents `input_map` node with action-to-key bindings and how to customize
+  - Includes common patterns: player-controlled sprite, two-player game
+  - Layout tips for lifecycle events, input maps, and sprites relative to code nodes
+
+#### Core Agent Updates (`agents/core/agent.ts`)
+
+Rewritten system prompt transforms the core agent into a game-creation orchestrator:
+- **Game creation pipeline**: Plan → sprites → node graph → scripts
+- Documents the full node graph architecture including input_map, dual data/entity ports
+- Common wiring patterns: `on_update → code.trigger_in`, `input_map → code.data_0_in`, `sprite → code.entity_0_in`
+- Multi-player game guidance (separate input maps per player)
+- Clear delegation instructions with context requirements for each specialist
+
+| File | Change |
+|------|--------|
+| `packages/app/src/toolbar/use-chat-messages.ts` | Split ops by type, apply graph ops to graph machine |
+| `packages/api/src/agents/graph/tools.ts` | Added `input_map` to node type enum + defaults |
+| `packages/api/src/agents/graph/agent.ts` | Complete system prompt rewrite with all node types, ports, patterns |
+| `packages/api/src/agents/core/agent.ts` | Rewritten as game-creation orchestrator with pipeline + wiring docs |
+
+### Edge Alignment Fix on Load (Phase 10h)
+
+Fixed edges rendering at wrong positions on page refresh or new project load.
+
+**Root cause:** `containerEl={transformRef.current}` evaluated to `null` during the first render because React refs are assigned during the commit phase, after prop values are captured. Edges fell back to `estimatePortPosition` with hardcoded offsets that didn't match actual DOM layout (especially for nodes with variable-height content like connection labels). On any subsequent re-render the ref was set, so edges snapped to correct positions.
+
+**Fixes:**
+
+- **graph-canvas.tsx** — Replaced `useRef` with `useState` callback ref (`setTransformEl`) for the transform container. Setting state in the callback ref triggers a re-render with the actual DOM element, so edges always get real DOM measurements from the first paint.
+- **use-graph-persistence.ts** — Added `CLEAR_SELECTION` after hydration. Every `ADD_NODE` auto-selects the newly added node, so the last hydrated node (usually the code node) ended up selected on load. Clearing selection after hydration prevents unwanted auto-select.
+
+| File | Change |
+|------|--------|
+| `packages/app/src/graph/graph-canvas.tsx` | `useRef` → `useState` callback ref for transform container element |
+| `packages/app/src/project/use-graph-persistence.ts` | `CLEAR_SELECTION` after replaying nodes/edges during hydration |
+
+---
+
 ## Test Summary
 
 187 tests across 14 files, all passing.

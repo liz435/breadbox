@@ -1,6 +1,6 @@
 import type { GraphNode, Edge } from "@dreamer/schemas";
-import { evaluateGraph } from "@/graph/evaluate";
-import { compileScript, type CompiledScript, type SandboxLog } from "./script-sandbox";
+import { evaluateGraph, evaluatePartial, type NodeOutputs } from "@/graph/evaluate";
+import type { SandboxLog } from "./script-sandbox";
 import { frameBus } from "./frame-bus";
 import { EntityStore } from "./entity-store";
 
@@ -12,8 +12,6 @@ export type RuntimeFrame = {
   frameCount: number;
   logs: SandboxLog[];
 };
-
-type ScriptCache = Map<string, { code: string; compiled: CompiledScript }>;
 
 // ── Runtime loop controller ──────────────────────────────────────────────────
 
@@ -28,21 +26,44 @@ export type RuntimeLoop = {
 type RuntimeLoopParams = {
   getGraph: () => { nodes: Record<string, GraphNode>; edges: Record<string, Edge> };
   onFrame: (frame: RuntimeFrame) => void;
-  updateNodeData: (nodeId: string, patch: Record<string, unknown>) => void;
+};
+
+type SerializedEntity = {
+  id: string;
+  x: number;
+  y: number;
+  scaleX: number;
+  scaleY: number;
+  rotation: number;
+  tint: string;
+  visible: boolean;
+};
+
+type WorkerResult = {
+  nodeId: string;
+  logs: Array<{ nodeId: string; args: unknown[]; timestamp: number }>;
+  entityMutations: Record<string, Partial<SerializedEntity>>;
+  updatedState: Record<string, unknown>;
 };
 
 export function createRuntimeLoop(params: RuntimeLoopParams): RuntimeLoop {
-  const { getGraph, onFrame, updateNodeData } = params;
+  const { getGraph, onFrame } = params;
   let rafId = 0;
   let running = false;
   let paused = false;
   let startTime = 0;
   let lastTime = 0;
   let frameCount = 0;
-  const scriptCache: ScriptCache = new Map();
   const pressedKeys = new Set<string>();
   let hasStarted = false;
   const entityStore = new EntityStore();
+  let cachedOutputs: Record<string, NodeOutputs> = {};
+  const prevNodeDataHash = new Map<string, string>();
+
+  // Web Worker for script execution
+  let worker: Worker | null = null;
+  let pendingWorkerResults: WorkerResult[] = [];
+  let workerMessageId = 0;
 
   function handleKeyDown(e: KeyboardEvent) {
     pressedKeys.add(e.key);
@@ -56,6 +77,51 @@ export function createRuntimeLoop(params: RuntimeLoopParams): RuntimeLoop {
     pressedKeys.delete(e.key);
   }
 
+  /** Serialize entity store for worker communication */
+  function serializeEntities(nodes: Record<string, GraphNode>) {
+    const byName: Record<string, SerializedEntity> = {};
+    const idToName: Record<string, string> = {};
+
+    for (const node of Object.values(nodes)) {
+      if (node.type !== "sprite") continue;
+      const entity = entityStore.entities.get(node.id);
+      if (!entity) continue;
+      byName[node.name] = { id: node.id, ...entity };
+      idToName[node.id] = node.name;
+    }
+
+    return { byName, idToName };
+  }
+
+  /** Apply entity mutations from completed worker results */
+  function applyWorkerResults(logs: SandboxLog[]) {
+    const results = pendingWorkerResults;
+    pendingWorkerResults = [];
+
+    for (const result of results) {
+      // Apply entity mutations
+      for (const [entityId, mutations] of Object.entries(result.entityMutations)) {
+        const entity = entityStore.entities.get(entityId);
+        if (entity) {
+          Object.assign(entity, mutations);
+        }
+      }
+
+      // Restore node state from worker
+      const existing = entityStore.nodeState.get(result.nodeId);
+      if (existing) {
+        Object.assign(existing, result.updatedState);
+      } else {
+        entityStore.nodeState.set(result.nodeId, result.updatedState);
+      }
+
+      // Collect logs
+      for (const log of result.logs) {
+        logs.push(log);
+      }
+    }
+  }
+
   function tick(now: number) {
     if (!running || paused) return;
 
@@ -65,31 +131,49 @@ export function createRuntimeLoop(params: RuntimeLoopParams): RuntimeLoop {
     const time = (now - startTime) / 1000;
     const logs: SandboxLog[] = [];
 
+    // Apply entity mutations from previous frame's worker results
+    applyWorkerResults(logs);
+
     const { nodes, edges } = getGraph();
 
-    // Inject runtime data into event nodes before evaluation
-    // We patch node.data directly so the evaluation sees it immediately
-    // (the state machine update via updateNodeData is async and would be stale)
+    // Track which nodes are dirty this frame
+    const dirtyNodeIds = new Set<string>();
+
+    // Inject runtime data into event nodes (mutate in-place, no React state)
     for (const node of Object.values(nodes)) {
       if (node.type === "on_start") {
-        const patch = { _triggered: !hasStarted };
-        Object.assign(node.data, patch);
-        updateNodeData(node.id, patch);
+        Object.assign(node.data, { _triggered: !hasStarted });
+        dirtyNodeIds.add(node.id);
       } else if (node.type === "on_update") {
-        const patch = { _dt: dt };
-        Object.assign(node.data, patch);
-        updateNodeData(node.id, patch);
+        Object.assign(node.data, { _dt: dt });
+        dirtyNodeIds.add(node.id);
       } else if (node.type === "on_input") {
         const listenKeys = Array.isArray(node.data.listenKeys)
           ? (node.data.listenKeys as string[])
           : [];
         const activeKey = listenKeys.find((k) => pressedKeys.has(k));
-        const patch = {
+        Object.assign(node.data, {
           _pressed: activeKey !== undefined,
           _key: activeKey ?? "",
-        };
-        Object.assign(node.data, patch);
-        updateNodeData(node.id, patch);
+        });
+        dirtyNodeIds.add(node.id);
+      } else if (node.type === "input_map") {
+        const actions = Array.isArray(node.data.actions)
+          ? (node.data.actions as Array<{ name: string; keys: string[] }>)
+          : [];
+        const actionStates: Record<string, boolean> = {};
+        for (const action of actions) {
+          actionStates[action.name] = action.keys.some((k) => pressedKeys.has(k));
+        }
+        Object.assign(node.data, { _actionStates: actionStates });
+        dirtyNodeIds.add(node.id);
+      } else {
+        // Detect data changes for non-event nodes (user edits during play)
+        const hash = JSON.stringify(node.data);
+        if (prevNodeDataHash.get(node.id) !== hash) {
+          dirtyNodeIds.add(node.id);
+        }
+        prevNodeDataHash.set(node.id, hash);
       }
     }
 
@@ -102,16 +186,31 @@ export function createRuntimeLoop(params: RuntimeLoopParams): RuntimeLoop {
       entityStore.sync(nodes);
     }
 
-    // Evaluate the full graph
-    const evalResult = evaluateGraph(nodes, edges);
-
-    // Build entities API for code nodes
-    const entitiesApi = entityStore.buildEntitiesApi(nodes);
+    // Evaluate graph — full on first frame, partial thereafter
+    const evalResult = frameCount === 1
+      ? evaluateGraph(nodes, edges)
+      : evaluatePartial(nodes, edges, dirtyNodeIds, cachedOutputs);
+    cachedOutputs = evalResult.outputs;
 
     // Publish to frame bus for viewport renderer
     frameBus.publish({ evalResult, nodes, time, dt, entityStore });
 
-    // Execute code nodes with their resolved inputs
+    // Collect code node tasks and dispatch to worker
+    type ScriptTask = {
+      nodeId: string;
+      code: string;
+      api: {
+        dt: number;
+        time: number;
+        input: Record<string, unknown>;
+        state: Record<string, unknown>;
+        entities: ReturnType<typeof serializeEntities>;
+      };
+    };
+
+    const tasks: ScriptTask[] = [];
+    const serializedEntities = serializeEntities(nodes);
+
     for (const nodeId of evalResult.order) {
       const node = nodes[nodeId];
       if (!node || node.type !== "code") continue;
@@ -124,38 +223,44 @@ export function createRuntimeLoop(params: RuntimeLoopParams): RuntimeLoop {
       const triggerIn = nodeOutputs?.["trigger_in"];
       if (triggerIn && triggerIn.value === false) continue;
 
-      // Compile or use cached
-      let cached = scriptCache.get(nodeId);
-      if (!cached || cached.code !== code) {
-        const result = compileScript(code, nodeId);
-        if ("error" in result) {
-          logs.push({ nodeId, args: [result.error], timestamp: now });
-          continue;
+      // Build plain input object (strip PortValue wrappers)
+      // For entity ports, resolve to entity name for worker lookup
+      const rawInput: Record<string, unknown> = {};
+      const outputs = evalResult.outputs[nodeId];
+      if (outputs) {
+        for (const [key, pv] of Object.entries(outputs)) {
+          if (pv.type === "entity" && pv.value && typeof pv.value === "object") {
+            // Resolve entity reference to name for the worker
+            const entityNodeId = (pv.value as { nodeId: string }).nodeId;
+            const entityNode = nodes[entityNodeId];
+            rawInput[key] = entityNode ? entityNode.name : null;
+          } else {
+            rawInput[key] = pv.value;
+          }
         }
-        cached = { code, compiled: result };
-        scriptCache.set(nodeId, cached);
       }
 
-      const scriptResult = cached.compiled.run({
-        dt,
-        time,
-        input: evalResult.outputs[nodeId] ?? {},
-        console: {
-          log: (...args: unknown[]) => {
-            logs.push({ nodeId, args, timestamp: now });
-          },
+      tasks.push({
+        nodeId,
+        code,
+        api: {
+          dt,
+          time,
+          input: rawInput,
+          state: entityStore.getNodeState(nodeId),
+          entities: serializedEntities,
         },
-        state: entityStore.getNodeState(nodeId),
-        entities: entitiesApi,
       });
+    }
 
-      if (scriptResult.__error) {
-        logs.push({
-          nodeId,
-          args: [scriptResult.__error],
-          timestamp: now,
-        });
-      }
+    if (tasks.length > 0 && worker) {
+      workerMessageId++;
+      worker.postMessage({
+        type: "exec",
+        id: workerMessageId,
+        tasks,
+        now,
+      });
     }
 
     onFrame({ dt, time, frameCount, logs });
@@ -172,7 +277,23 @@ export function createRuntimeLoop(params: RuntimeLoopParams): RuntimeLoop {
       startTime = performance.now();
       lastTime = 0;
       frameCount = 0;
-      scriptCache.clear();
+      cachedOutputs = {};
+      prevNodeDataHash.clear();
+      pendingWorkerResults = [];
+      workerMessageId = 0;
+
+      // Create script worker
+      worker = new Worker(
+        new URL("./script-worker.ts", import.meta.url),
+        { type: "module" },
+      );
+      worker.onmessage = (e) => {
+        const data = e.data as { type: string; results: WorkerResult[] };
+        if (data.type === "result") {
+          pendingWorkerResults = data.results;
+        }
+      };
+
       window.addEventListener("keydown", handleKeyDown);
       window.addEventListener("keyup", handleKeyUp);
       rafId = requestAnimationFrame(tick);
@@ -185,7 +306,11 @@ export function createRuntimeLoop(params: RuntimeLoopParams): RuntimeLoop {
         cancelAnimationFrame(rafId);
         rafId = 0;
       }
-      scriptCache.clear();
+      if (worker) {
+        worker.terminate();
+        worker = null;
+      }
+      pendingWorkerResults = [];
       pressedKeys.clear();
       entityStore.clear();
       frameBus.clear();

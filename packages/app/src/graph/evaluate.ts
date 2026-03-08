@@ -366,6 +366,15 @@ function evaluateNode(
       result["key_out"] = { type: "string", value: node.data._key ?? "" };
       break;
     }
+
+    case "input_map": {
+      // Runtime loop injects _actionStates: Record<string, boolean>
+      result["actions_out"] = {
+        type: "any",
+        value: node.data._actionStates ?? {},
+      };
+      break;
+    }
   }
 
   return result;
