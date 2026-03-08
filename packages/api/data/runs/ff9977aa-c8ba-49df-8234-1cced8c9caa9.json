@@ -1,0 +1,18 @@
+{
+  "run": {
+    "id": "ff9977aa-c8ba-49df-8234-1cced8c9caa9",
+    "threadId": "c6db5773-3a24-4893-99cf-98c4e9a8812c",
+    "projectId": "d939078a-e35d-4e35-a4e6-74649ef92c01",
+    "sceneId": "660e4e69-47eb-43cf-b62e-7aa2f937173c",
+    "sessionId": "40996196-597e-4d94-8765-1fcde15bc137",
+    "agent": "core",
+    "status": "failed",
+    "createdAt": "2026-02-24T03:42:39.087Z",
+    "completedAt": "2026-02-24T03:42:40.125Z",
+    "error": "AI_NoOutputGeneratedError: No output generated. Check the stream for errors."
+  },
+  "prompt": "what is happening",
+  "messages": [],
+  "proposedOps": [],
+  "appliedOps": []
+}

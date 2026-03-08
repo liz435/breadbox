@@ -1,5 +1,5 @@
 import { join } from "path";
-import { mkdir } from "fs/promises";
+import { mkdir, readdir } from "fs/promises";
 import { match } from "ts-pattern";
 import {
   applyOpsRequestSchema,
@@ -104,6 +104,10 @@ function buildInitialProject(params: { id: string; name: string }): ProjectFile 
       camera: {},
     },
     assets: {},
+    graph: {
+      nodes: {},
+      edges: {},
+    },
   };
 }
 
@@ -434,10 +438,77 @@ async function applyOps(projectId: string, req: ApplyOpsRequest) {
   };
 }
 
+// ── List projects ───────────────────────────────────────────────────────────
+
+type ProjectSummary = {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+async function listProjects(): Promise<ProjectSummary[]> {
+  await ensureProjectsDir();
+  const files = await readdir(PROJECTS_DIR);
+  const summaries: ProjectSummary[] = [];
+
+  for (const file of files) {
+    if (!file.endsWith(".json")) continue;
+    try {
+      const data = await Bun.file(join(PROJECTS_DIR, file)).json();
+      const parsed = projectFileSchema.parse(data);
+      summaries.push({
+        id: parsed.project.id,
+        name: parsed.project.name,
+        createdAt: parsed.project.createdAt,
+        updatedAt: parsed.project.updatedAt,
+      });
+    } catch {
+      // Skip corrupt files
+    }
+  }
+
+  summaries.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  return summaries;
+}
+
+// ── Graph persistence ────────────────────────────────────────────────────────
+
+async function saveGraph(
+  projectId: string,
+  graph: { nodes: Record<string, unknown>; edges: Record<string, unknown> }
+): Promise<{ saved: true } | null> {
+  const existing = await readProject(projectId);
+  if (!existing) return null;
+
+  existing.graph = graph as ProjectFile["graph"];
+  existing.project.updatedAt = now();
+  await writeProject(projectId, existing);
+  return { saved: true };
+}
+
+// ── Asset directory ──────────────────────────────────────────────────────────
+
+const ASSETS_DIR = join(import.meta.dir, "../../data/assets");
+
+function projectAssetsDir(projectId: string): string {
+  return join(ASSETS_DIR, projectId);
+}
+
+async function ensureAssetsDir(projectId: string): Promise<string> {
+  const dir = projectAssetsDir(projectId);
+  await mkdir(dir, { recursive: true });
+  return dir;
+}
+
 export const projectRepo = {
+  listProjects,
   createProject,
   getOrCreateProject,
   readProject,
   writeProject,
   applyOps,
+  saveGraph,
+  ensureAssetsDir,
+  projectAssetsDir,
 };

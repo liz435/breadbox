@@ -6,6 +6,7 @@ import { makeOp } from "../make-op";
 import type { DelegationContext } from "../types";
 import { runSpriteAgent } from "../sprite/agent";
 import { runCodingAgent } from "../coding/agent";
+import { runGraphAgent } from "../graph/agent";
 
 /**
  * Creates the scene manipulation + delegation tools for the core agent.
@@ -358,6 +359,69 @@ export function createCoreTools(params: {
 
         log.info(
           `coding agent returned — ${result.proposedOps.length} ops, text: ${result.assistantText.slice(0, 80)}`
+        );
+
+        return {
+          assistantText: result.assistantText,
+          opsCount: result.proposedOps.length,
+        };
+      },
+    }),
+
+    delegate_to_graph_agent: tool({
+      description:
+        "Delegate a node graph task to the graph specialist agent. Use this for creating graph nodes (sprite, shader, audio, code, math, etc.), connecting nodes together, or modifying the visual node graph. The specialist manages the node graph that wires up the game's data flow.",
+      inputSchema: z.object({
+        task: z
+          .string()
+          .describe(
+            "Description of the graph/node task to delegate"
+          ),
+      }),
+      execute: async (input) => {
+        const log = delegation.parentLog.child("delegate:graph");
+        log.info(`delegating: ${input.task.slice(0, 100)}`);
+
+        const childRun = await agentRunRepo.createRun({
+          threadId: delegation.threadId,
+          projectId: delegation.projectId,
+          sceneId: delegation.sceneId,
+          sessionId: delegation.sessionId,
+          prompt: input.task,
+          agent: "graph",
+          parentRunId: delegation.parentRunId,
+        });
+        await agentRunRepo.attachRunToThread(
+          delegation.threadId,
+          childRun.run.id
+        );
+
+        const result = await runGraphAgent({
+          prompt: input.task,
+          project: delegation.project,
+          sceneId: delegation.sceneId,
+          runId: childRun.run.id,
+          threadId: delegation.threadId,
+          projectId: delegation.projectId,
+          sessionId: delegation.sessionId,
+          parentLog: log,
+        });
+
+        // Collect the specialist's ops into the parent's ops array
+        for (const op of result.proposedOps) {
+          ops.push(op);
+        }
+
+        await agentRunRepo.completeRun({
+          runId: childRun.run.id,
+          assistantText: result.assistantText,
+          messages: result.messages,
+          proposedOps: result.proposedOps,
+          appliedOps: [],
+        });
+
+        log.info(
+          `graph agent returned — ${result.proposedOps.length} ops, text: ${result.assistantText.slice(0, 80)}`
         );
 
         return {

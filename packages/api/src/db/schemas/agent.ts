@@ -4,7 +4,7 @@ import { sceneOpSchema } from "./ops";
 
 // ── Agent Kind ──────────────────────────────────────────────────────────────
 
-export const agentKindSchema = z.enum(["core", "sprite", "coding"]);
+export const agentKindSchema = z.enum(["core", "sprite", "coding", "graph"]);
 export type AgentKind = z.infer<typeof agentKindSchema>;
 
 // ── Project Thread ──────────────────────────────────────────────────────────

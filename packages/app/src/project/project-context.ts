@@ -9,6 +9,7 @@ export type ProjectContextValue = {
   sessionId: string;
   version: number;
   setVersion: (version: number) => void;
+  switchProject: (projectId: string) => void;
 };
 
 export const ProjectContext = createContext<ProjectContextValue | null>(null);

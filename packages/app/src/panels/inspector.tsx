@@ -5,10 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { useScene } from "../store/scene-context";
+import { useGraph } from "../store/graph-context";
 import { TileBrushPalette } from "./tile-brush-palette";
+import { GraphInspector } from "./graph-inspector";
 
 export default function Inspector() {
   const { state, send } = useScene();
+  const { state: graphState } = useGraph();
 
   const selected = useMemo(() => {
     if (!state.selectedId) return null;
@@ -21,6 +24,19 @@ export default function Inspector() {
 
   function toRad(deg: number) {
     return (deg * Math.PI) / 180;
+  }
+
+  // Graph node/edge selected → show graph inspector
+  const hasGraphSelection =
+    graphState.selectedNodeIds.size > 0 ||
+    graphState.selectedEdgeIds.size > 0;
+
+  if (hasGraphSelection) {
+    return (
+      <div className="h-full bg-card flex flex-col overflow-hidden overflow-y-auto">
+        <GraphInspector />
+      </div>
+    );
   }
 
   // Tilemap info when no sprite is selected

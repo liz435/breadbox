@@ -8,15 +8,19 @@ import {
 import "dockview-react/dist/styles/dockview.css";
 import "./app.css";
 import Canvas from "./canvas/canvas";
-import SpriteList from "./panels/sprite-list";
+import { ProjectPanel } from "./panels/project-panel";
 import Inspector from "./panels/inspector";
+import { GraphPanel } from "./graph/graph-panel";
+import { CharacterPanel } from "./character/character-panel";
 import { BottomToolbar } from "./toolbar/bottom-toolbar";
 import { SceneContext, useScene } from "./store/scene-context";
+import { GraphContext } from "./store/graph-context";
 import { ProjectLoader } from "./project/project-loader";
+import { useGraphPersistence } from "./project/use-graph-persistence";
 
 // Dockview panel wrappers
-function SpriteListPanel(_props: IDockviewPanelProps) {
-  return <SpriteList />;
+function ProjectFilesPanel(_props: IDockviewPanelProps) {
+  return <ProjectPanel />;
 }
 
 function CanvasPanel(_props: IDockviewPanelProps) {
@@ -27,14 +31,25 @@ function InspectorPanel(_props: IDockviewPanelProps) {
   return <Inspector />;
 }
 
+function GraphEditorPanel(_props: IDockviewPanelProps) {
+  return <GraphPanel />;
+}
+
+function CharacterCreatorPanel(_props: IDockviewPanelProps) {
+  return <CharacterPanel />;
+}
+
 const components = {
-  spriteList: SpriteListPanel,
+  projectFiles: ProjectFilesPanel,
   canvas: CanvasPanel,
   inspector: InspectorPanel,
+  graph: GraphEditorPanel,
+  character: CharacterCreatorPanel,
 };
 
 function AppInner() {
   const { state, send } = useScene();
+  useGraphPersistence();
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -81,28 +96,44 @@ function AppInner() {
     // Default layout: 20% / 60% / 20%
     const totalWidth = api.width;
 
-    const spriteListPanel = api.addPanel({
-      id: "spriteList",
-      component: "spriteList",
-      title: "Sprites",
+    const projectFilesPanel = api.addPanel({
+      id: "projectFiles",
+      component: "projectFiles",
+      title: "Project",
     });
 
     const canvasPanel = api.addPanel({
       id: "canvas",
       component: "canvas",
       title: "Canvas",
-      position: { referencePanel: spriteListPanel, direction: "right" },
+      position: { referencePanel: projectFilesPanel, direction: "right" },
     });
 
-    api.addPanel({
-      id: "inspector",
-      component: "inspector",
-      title: "Inspector",
+    const graphPanel = api.addPanel({
+      id: "graph",
+      component: "graph",
+      title: "Graph",
       position: { referencePanel: canvasPanel, direction: "right" },
     });
 
-    spriteListPanel.api.setSize({ width: totalWidth * 0.2 });
-    api.getPanel("inspector")?.api.setSize({ width: totalWidth * 0.2 });
+    const inspectorPanel = api.addPanel({
+      id: "inspector",
+      component: "inspector",
+      title: "Inspector",
+      position: { referencePanel: graphPanel, direction: "right" },
+    });
+
+    api.addPanel({
+      id: "character",
+      component: "character",
+      title: "Character",
+      position: { referencePanel: inspectorPanel, direction: "within" },
+    });
+
+    projectFilesPanel.api.setSize({ width: totalWidth * 0.15 });
+    canvasPanel.api.setSize({ width: totalWidth * 0.35 });
+    graphPanel.api.setSize({ width: totalWidth * 0.35 });
+    api.getPanel("inspector")?.api.setSize({ width: totalWidth * 0.15 });
 
     setupPersistence(api);
   }, []);
@@ -137,7 +168,9 @@ export default function App() {
   return (
     <ProjectLoader>
       <SceneContext.Provider>
-        <AppInner />
+        <GraphContext.Provider>
+          <AppInner />
+        </GraphContext.Provider>
       </SceneContext.Provider>
     </ProjectLoader>
   );
