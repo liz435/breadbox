@@ -318,9 +318,15 @@ function getDefaultDataForType(type: GraphNodeType): Record<string, unknown> {
 
 function getDefaultSizeForType(type: GraphNodeType): { width: number; height: number } {
   switch (type) {
+    case "sprite":
+      return { width: 200, height: 150 };
     case "shader":
     case "code":
       return { width: 220, height: 160 };
+    case "audio":
+      return { width: 200, height: 140 };
+    case "video":
+      return { width: 200, height: 170 };
     case "text":
       return { width: 200, height: 120 };
     case "math":

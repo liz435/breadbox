@@ -52,6 +52,23 @@ export async function listProjects(): Promise<ProjectSummary[]> {
   return res.json();
 }
 
+export async function renameProject(
+  projectId: string,
+  name: string,
+): Promise<{ id: string; name: string }> {
+  const url = `${API_ORIGIN}/project/${encodeURIComponent(projectId)}`;
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new ApiError(res.status, `${res.status} ${text}`);
+  }
+  return res.json();
+}
+
 export function fetchProject(projectId: string): Promise<ProjectFile> {
   return request(`/project/${encodeURIComponent(projectId)}`, projectFileSchema);
 }

@@ -13,11 +13,11 @@ const NODE_DEFAULTS: Record<
   GraphNodeType,
   { width: number; height: number; name: string }
 > = {
-  sprite: { width: 200, height: 120, name: "Sprite" },
+  sprite: { width: 200, height: 150, name: "Sprite" },
   shader: { width: 240, height: 160, name: "Shader" },
   code: { width: 240, height: 160, name: "Script" },
-  audio: { width: 200, height: 110, name: "Audio" },
-  video: { width: 200, height: 130, name: "Video" },
+  audio: { width: 200, height: 140, name: "Audio" },
+  video: { width: 200, height: 170, name: "Video" },
   text: { width: 200, height: 130, name: "Text" },
   material: { width: 200, height: 120, name: "Material" },
   math: { width: 160, height: 90, name: "Math" },

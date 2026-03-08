@@ -20,6 +20,9 @@ import { createGraphNode } from "./node-factory";
 import { wouldCreateCycle } from "./evaluate";
 import { GraphMinimap } from "./graph-minimap";
 import { NodeSearch } from "./node-search";
+import { useProject } from "@/project/project-context";
+import { uploadProjectAsset } from "@/project/api-client";
+import { API_ORIGIN } from "@dreamer/config";
 import type { GraphNodeType as GraphNodeTypeEnum } from "@dreamer/schemas";
 
 type PendingConnection = {
@@ -35,6 +38,7 @@ type PendingConnection = {
 export function GraphCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const { state, send } = useGraph();
+  const { projectId } = useProject();
   const [camera, setLocalCamera] = useState(getGraphCamera);
   const [pendingConn, setPendingConn] = useState<PendingConnection | null>(
     null
@@ -353,12 +357,14 @@ export function GraphCanvas() {
       for (const file of Array.from(files)) {
         const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
         let nodeType: GraphNodeType["type"] | null = null;
+        let isMediaFile = false;
 
         if (
           file.type.startsWith("image/") ||
           ["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(ext)
         ) {
           nodeType = "sprite";
+          isMediaFile = true;
         } else if (["glsl", "wgsl", "frag", "vert", "hlsl"].includes(ext)) {
           nodeType = "shader";
         } else if (
@@ -366,18 +372,53 @@ export function GraphCanvas() {
           ["mp3", "wav", "ogg", "flac", "aac"].includes(ext)
         ) {
           nodeType = "audio";
+          isMediaFile = true;
         } else if (
           file.type.startsWith("video/") ||
           ["mp4", "webm", "mov", "avi"].includes(ext)
         ) {
           nodeType = "video";
+          isMediaFile = true;
         } else if (["ts", "js", "tsx", "jsx"].includes(ext)) {
           nodeType = "code";
         } else if (["json", "yaml", "yml", "txt", "md"].includes(ext)) {
           nodeType = "text";
         }
 
-        if (nodeType) {
+        if (!nodeType) continue;
+
+        if (isMediaFile) {
+          // Upload media file, then create node with the returned URI
+          const capturedType = nodeType;
+          uploadProjectAsset(projectId, file)
+            .then((result) => {
+              send({
+                type: "ADD_NODE",
+                node: createGraphNode(capturedType, {
+                  name: file.name,
+                  x: worldX,
+                  y: worldY,
+                  data: {
+                    fileName: file.name,
+                    fileType: file.type,
+                    uri: `${API_ORIGIN}${result.uri}`,
+                  },
+                }),
+              });
+            })
+            .catch(() => {
+              // Fallback: create node without URI
+              send({
+                type: "ADD_NODE",
+                node: createGraphNode(capturedType, {
+                  name: file.name,
+                  x: worldX,
+                  y: worldY,
+                  data: { fileName: file.name, fileType: file.type },
+                }),
+              });
+            });
+        } else {
           send({
             type: "ADD_NODE",
             node: createGraphNode(nodeType, {
@@ -390,7 +431,7 @@ export function GraphCanvas() {
         }
       }
     },
-    [send]
+    [send, projectId]
   );
 
   const handleSearchSelect = useCallback(

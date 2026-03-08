@@ -41,6 +41,20 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
     }
     return project;
   })
+  .patch("/:id", async ({ params, body, set }) => {
+    const payload = body as { name?: string } | null;
+    const name = payload?.name?.trim();
+    if (!name) {
+      set.status = 400;
+      return { error: "Name is required" };
+    }
+    const result = await projectRepo.renameProject(params.id, name);
+    if (!result) {
+      set.status = 404;
+      return { error: "Project not found" };
+    }
+    return result;
+  })
   .post("/:id/ops", async ({ params, body, set }) => {
     try {
       const input = applyOpsRequestSchema.parse(body);

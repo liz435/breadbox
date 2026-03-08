@@ -487,6 +487,20 @@ async function saveGraph(
   return { saved: true };
 }
 
+// ── Rename project ──────────────────────────────────────────────────────────
+
+async function renameProject(
+  projectId: string,
+  name: string,
+): Promise<{ id: string; name: string } | null> {
+  const existing = await readProject(projectId);
+  if (!existing) return null;
+  existing.project.name = name;
+  existing.project.updatedAt = now();
+  await writeProject(projectId, existing);
+  return { id: projectId, name };
+}
+
 // ── Asset directory ──────────────────────────────────────────────────────────
 
 const ASSETS_DIR = join(import.meta.dir, "../../data/assets");
@@ -509,6 +523,7 @@ export const projectRepo = {
   writeProject,
   applyOps,
   saveGraph,
+  renameProject,
   ensureAssetsDir,
   projectAssetsDir,
 };

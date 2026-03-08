@@ -1,6 +1,7 @@
-import { useState } from "react"
+import { useState, useRef, useCallback } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useProject } from "@/project/project-context"
+import { renameProject } from "@/project/api-client"
 import {
   ChevronRight,
   ChevronDown,
@@ -96,6 +97,64 @@ const ASSET_ICONS: Record<string, React.ReactNode> = {
   audio: <Clapperboard className="size-3 text-purple-400" />,
 }
 
+function EditableProjectName({ name, projectId }: { name: string; projectId: string }) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [value, setValue] = useState(name)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const { switchProject } = useProject()
+
+  const commit = useCallback(() => {
+    const trimmed = value.trim()
+    if (!trimmed || trimmed === name) {
+      setValue(name)
+      setIsEditing(false)
+      return
+    }
+    setIsEditing(false)
+    renameProject(projectId, trimmed)
+      .then(() => {
+        // Reload project to reflect the new name everywhere
+        switchProject(projectId)
+      })
+      .catch(() => {
+        setValue(name)
+      })
+  }, [value, name, projectId, switchProject])
+
+  if (isEditing) {
+    return (
+      <input
+        ref={inputRef}
+        className="text-xs font-semibold text-foreground bg-transparent border-b border-accent outline-none w-full uppercase tracking-wider"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit()
+          if (e.key === "Escape") {
+            setValue(name)
+            setIsEditing(false)
+          }
+        }}
+        autoFocus
+      />
+    )
+  }
+
+  return (
+    <h2
+      className="text-xs font-semibold text-foreground uppercase tracking-wider cursor-text hover:text-accent-foreground transition-colors"
+      onDoubleClick={() => {
+        setValue(name)
+        setIsEditing(true)
+      }}
+      title="Double-click to rename"
+    >
+      {name}
+    </h2>
+  )
+}
+
 export function ProjectFiles() {
   const { projectFile } = useProject()
   const { project, scenes, entities, assets, graph } = projectFile
@@ -109,9 +168,7 @@ export function ProjectFiles() {
   return (
     <div className="h-full bg-card flex flex-col overflow-hidden">
       <div className="px-3 py-2 border-b border-border shrink-0">
-        <h2 className="text-xs font-semibold text-foreground uppercase tracking-wider">
-          {project.name}
-        </h2>
+        <EditableProjectName name={project.name} projectId={project.id} />
       </div>
 
       <ScrollArea className="flex-1">
