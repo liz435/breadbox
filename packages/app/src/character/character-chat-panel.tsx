@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react"
+import { useRef, useEffect, useCallback } from "react"
 import { Loader2, CheckCircle2, XCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PromptBox } from "@/chat/prompt-box"
@@ -224,6 +224,42 @@ function ToolCallCard({ part }: { part: ToolPartData }) {
   )
 }
 
+// ── Draggable image wrapper ──────────────────────────────────────────────────
+
+function DraggableCharacterImage({
+  src,
+  alt,
+  name,
+  className,
+  style,
+}: {
+  src: string
+  alt: string
+  name: string
+  className?: string
+  style?: React.CSSProperties
+}) {
+  const handleDragStart = useCallback(
+    (e: React.DragEvent<HTMLImageElement>) => {
+      const data = JSON.stringify({ url: src, name })
+      e.dataTransfer.setData("application/x-dreamer-character-asset", data)
+      e.dataTransfer.effectAllowed = "copy"
+    },
+    [src, name],
+  )
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={cn("cursor-grab active:cursor-grabbing", className)}
+      style={style}
+      draggable
+      onDragStart={handleDragStart}
+    />
+  )
+}
+
 // ── Main component ──────────────────────────────────────────────────────────
 
 export function CharacterChatPanel({ chat }: CharacterChatPanelProps) {
@@ -298,11 +334,12 @@ export function CharacterChatPanel({ chat }: CharacterChatPanelProps) {
               {images.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-2">
                   {images.map((img, i) => (
-                    <img
+                    <DraggableCharacterImage
                       key={i}
                       src={img.url}
                       alt="Generated character"
-                      className="rounded-lg border border-border max-w-[280px]"
+                      name={`character-${i}.png`}
+                      className="rounded-lg border border-border max-w-70"
                     />
                   ))}
                 </div>
@@ -312,10 +349,11 @@ export function CharacterChatPanel({ chat }: CharacterChatPanelProps) {
                   <div className="text-xs text-muted-foreground mb-1">
                     {sheet.animationName} sprite sheet
                   </div>
-                  <img
+                  <DraggableCharacterImage
                     src={sheet.url}
                     alt={`${sheet.animationName} sprite sheet`}
-                    className="rounded-lg border border-border max-w-[280px]"
+                    name={`${sheet.animationName}-sheet.png`}
+                    className="rounded-lg border border-border max-w-70"
                     style={{ imageRendering: "pixelated" }}
                   />
                 </div>
@@ -327,10 +365,11 @@ export function CharacterChatPanel({ chat }: CharacterChatPanelProps) {
                   </div>
                   <div className="flex gap-1">
                     {result.frames.map((frame) => (
-                      <img
+                      <DraggableCharacterImage
                         key={frame.index}
                         src={frame.url}
                         alt={`${result.animationName} frame ${frame.index + 1}`}
+                        name={`${result.animationName}-frame-${frame.index}.png`}
                         className="border border-border rounded"
                         style={{
                           imageRendering: "pixelated",

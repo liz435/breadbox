@@ -4,7 +4,7 @@
     "name": "Untitled Project",
     "version": 0,
     "createdAt": "2026-03-08T14:49:22.729Z",
-    "updatedAt": "2026-03-09T00:19:45.046Z",
+    "updatedAt": "2026-03-09T00:38:36.186Z",
     "threadId": "a3b91588-beed-4c72-a22e-d8676a9b76a8",
     "activeSceneId": "54c51b33-8f53-4487-ae62-4b7c541c2929"
   },
@@ -34,15 +34,29 @@
     "script": {},
     "camera": {}
   },
-  "assets": {},
+  "assets": {
+    "244de128-393d-4e73-8b83-5db7d5303522": {
+      "id": "244de128-393d-4e73-8b83-5db7d5303522",
+      "projectId": "test",
+      "type": "sprite",
+      "uri": "/project/test/assets/244de128-393d-4e73-8b83-5db7d5303522.png",
+      "meta": {
+        "name": "character-0.png",
+        "originalName": "character-0.png",
+        "mimeType": "image/png",
+        "size": 2106926,
+        "ext": "png"
+      }
+    }
+  },
   "graph": {
     "nodes": {
       "pong-ball": {
         "id": "pong-ball",
         "type": "sprite",
         "name": "Ball",
-        "x": 60,
-        "y": 60,
+        "x": 68,
+        "y": 67,
         "width": 200,
         "height": 150,
         "ports": [
@@ -77,7 +91,7 @@
           "sceneY": 0,
           "width": 16,
           "height": 16,
-          "script": "// Ball — moves, bounces off walls and paddles\nconst SPEED = 250;\nconst HALF_W = 400;\nconst HALF_H = 300;\nconst PADDLE_H = 40;\n\n// Init on first frame\nif (state.vx === undefined) {\n  state.vx = SPEED;\n  state.vy = SPEED * 0.6;\n  state.scoreL = 0;\n  state.scoreR = 0;\n}\n\n// Move\nself.x += state.vx * dt;\nself.y += state.vy * dt;\n\n// Top/bottom bounce\nif (self.y < -HALF_H + 8 || self.y > HALF_H - 8) {\n  state.vy *= -1;\n  self.y = Math.max(-HALF_H + 8, Math.min(HALF_H - 8, self.y));\n}\n\n// Left paddle collision\nconst lp = entities.get(\"Left Paddle\");\nif (lp && self.x < -340 && self.x > -360 && state.vx < 0 &&\n    Math.abs(self.y - lp.y) < PADDLE_H + 8) {\n  state.vx = Math.abs(state.vx) * 1.05;\n  state.vy += (self.y - lp.y) * 3;\n  self.x = -340;\n}\n\n// Right paddle collision\nconst rp = entities.get(\"Right Paddle\");\nif (rp && self.x > 340 && self.x < 360 && state.vx > 0 &&\n    Math.abs(self.y - rp.y) < PADDLE_H + 8) {\n  state.vx = -Math.abs(state.vx) * 1.05;\n  state.vy += (self.y - rp.y) * 3;\n  self.x = 340;\n}\n\n// Score — reset ball\nif (self.x < -HALF_W) {\n  state.scoreR++;\n  self.x = 0; self.y = 0;\n  state.vx = SPEED;\n  state.vy = SPEED * (Math.random() - 0.5);\n}\nif (self.x > HALF_W) {\n  state.scoreL++;\n  self.x = 0; self.y = 0;\n  state.vx = -SPEED;\n  state.vy = SPEED * (Math.random() - 0.5);\n}\n\n// Cap velocity\nstate.vx = Math.max(-600, Math.min(600, state.vx));\nstate.vy = Math.max(-400, Math.min(400, state.vy));\n\nconsole.log(state.scoreL + \" - \" + state.scoreR);\n"
+          "script": ""
         }
       },
       "pong-paddle-left": {
@@ -128,7 +142,7 @@
         "type": "sprite",
         "name": "Right Paddle",
         "x": 60,
-        "y": 440,
+        "y": 439,
         "width": 200,
         "height": 150,
         "ports": [
@@ -164,6 +178,52 @@
           "width": 16,
           "height": 80,
           "script": "// Right Paddle — Player 2 (Arrow keys)\nconst SPEED = 400;\nconst HALF_H = 300;\nconst PADDLE_H = 40;\n\nif (Input.isKeyPressed(\"ArrowUp\")) {\n  self.y -= SPEED * dt;\n}\nif (Input.isKeyPressed(\"ArrowDown\")) {\n  self.y += SPEED * dt;\n}\n\n// Clamp to screen\nself.y = Math.max(-HALF_H + PADDLE_H, Math.min(HALF_H - PADDLE_H, self.y));\n"
+        }
+      },
+      "node-1773016576911-z8f42s": {
+        "id": "node-1773016576911-z8f42s",
+        "type": "sprite",
+        "name": "character-0.png",
+        "x": 338,
+        "y": 261,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#4a9eff",
+          "sceneX": 400,
+          "sceneY": 300,
+          "fileName": "character-0.png",
+          "fileType": "image/png",
+          "fileSize": 2106926,
+          "assetId": "244de128-393d-4e73-8b83-5db7d5303522",
+          "uri": "http://localhost:4111/project/test/assets/244de128-393d-4e73-8b83-5db7d5303522.png",
+          "script": "// Ball — moves, bounces off walls and paddles\nconst SPEED = 250;\nconst HALF_W = 400;\nconst HALF_H = 300;\nconst PADDLE_H = 40;\n\n// Init on first frame\nif (state.vx === undefined) {\n  state.vx = SPEED;\n  state.vy = SPEED * 0.6;\n  state.scoreL = 0;\n  state.scoreR = 0;\n}\n\n// Move\nself.x += state.vx * dt;\nself.y += state.vy * dt;\n\n// Top/bottom bounce\nif (self.y < -HALF_H + 8 || self.y > HALF_H - 8) {\n  state.vy *= -1;\n  self.y = Math.max(-HALF_H + 8, Math.min(HALF_H - 8, self.y));\n}\n\n// Left paddle collision\nconst lp = entities.get(\"Left Paddle\");\nif (lp && self.x < -340 && self.x > -360 && state.vx < 0 &&\n    Math.abs(self.y - lp.y) < PADDLE_H + 8) {\n  state.vx = Math.abs(state.vx) * 1.05;\n  state.vy += (self.y - lp.y) * 3;\n  self.x = -340;\n}\n\n// Right paddle collision\nconst rp = entities.get(\"Right Paddle\");\nif (rp && self.x > 340 && self.x < 360 && state.vx > 0 &&\n    Math.abs(self.y - rp.y) < PADDLE_H + 8) {\n  state.vx = -Math.abs(state.vx) * 1.05;\n  state.vy += (self.y - rp.y) * 3;\n  self.x = 340;\n}\n\n// Score — reset ball\nif (self.x < -HALF_W) {\n  state.scoreR++;\n  self.x = 0; self.y = 0;\n  state.vx = SPEED;\n  state.vy = SPEED * (Math.random() - 0.5);\n}\nif (self.x > HALF_W) {\n  state.scoreL++;\n  self.x = 0; self.y = 0;\n  state.vx = -SPEED;\n  state.vy = SPEED * (Math.random() - 0.5);\n}\n\n// Cap velocity\nstate.vx = Math.max(-600, Math.min(600, state.vx));\nstate.vy = Math.max(-400, Math.min(400, state.vy));\n\nconsole.log(state.scoreL + \" - \" + state.scoreR);\n"
         }
       }
     },

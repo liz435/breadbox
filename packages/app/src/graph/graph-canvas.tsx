@@ -355,6 +355,54 @@ export function GraphCanvas() {
         return;
       }
 
+      // Handle character asset drag from character creator panel
+      const charData = e.dataTransfer?.getData("application/x-dreamer-character-asset");
+      if (charData) {
+        try {
+          const char = JSON.parse(charData) as { url: string; name: string };
+          // Fetch the character image and upload it as a project asset
+          fetch(char.url)
+            .then((res) => res.blob())
+            .then((blob) => {
+              const file = new File([blob], char.name, { type: "image/png" });
+              return uploadProjectAsset(projectId, file);
+            })
+            .then((result) => {
+              send({
+                type: "ADD_NODE",
+                node: createGraphNode("sprite", {
+                  name: char.name.replace(/\.png$/, ""),
+                  x: worldX,
+                  y: worldY,
+                  data: {
+                    fileName: char.name,
+                    fileType: "image/png",
+                    fileSize: result.size,
+                    assetId: result.assetId,
+                    uri: `${API_ORIGIN}${result.uri}`,
+                  },
+                }),
+              });
+              switchProject(projectId);
+            })
+            .catch(() => {
+              // Fallback: create sprite node with the original URL
+              send({
+                type: "ADD_NODE",
+                node: createGraphNode("sprite", {
+                  name: char.name.replace(/\.png$/, ""),
+                  x: worldX,
+                  y: worldY,
+                  data: { fileName: char.name, uri: char.url },
+                }),
+              });
+            });
+        } catch {
+          // Invalid character asset data
+        }
+        return;
+      }
+
       const files = e.dataTransfer?.files;
       if (!files || files.length === 0) return;
 
