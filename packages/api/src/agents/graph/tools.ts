@@ -266,6 +266,93 @@ export function createGraphTools(params: {
       },
     }),
 
+    create_sprite_batch: tool({
+      description:
+        "Create multiple sprite nodes at once from a template. Use this for groups of similar sprites (e.g., rows of enemies, obstacles, collectibles). Each entry overrides the template's fields. Much more efficient than calling create_graph_node repeatedly.",
+      inputSchema: z.object({
+        template: z.object({
+          type: z.literal("sprite").default("sprite"),
+          width: z.number().optional().describe("Sprite width (default 64)"),
+          height: z.number().optional().describe("Sprite height (default 64)"),
+          tint: z.string().optional().describe("Tint color hex"),
+          script: z.string().optional().describe("Inline script code shared by all sprites in the batch"),
+          sceneX: z.number().optional().describe("Default scene X"),
+          sceneY: z.number().optional().describe("Default scene Y"),
+        }).describe("Base template applied to all sprites in the batch"),
+        sprites: z.array(z.object({
+          name: z.string().describe("Unique display name"),
+          sceneX: z.number().optional().describe("Override scene X position"),
+          sceneY: z.number().optional().describe("Override scene Y position"),
+          tint: z.string().optional().describe("Override tint color"),
+          width: z.number().optional().describe("Override width"),
+          height: z.number().optional().describe("Override height"),
+          script: z.string().optional().describe("Override script (replaces template script)"),
+          data: z.record(z.string(), z.unknown()).optional().describe("Additional data fields"),
+        })).describe("Array of sprites to create, each overriding template fields as needed"),
+        graphLayout: z.object({
+          startX: z.number().optional().describe("Starting graph X position (default 0)"),
+          startY: z.number().optional().describe("Starting graph Y position (default 0)"),
+          direction: z.enum(["horizontal", "vertical"]).optional().describe("Layout direction (default vertical)"),
+          spacing: z.number().optional().describe("Spacing between nodes (default 180)"),
+        }).optional().describe("How to arrange nodes in the graph editor"),
+      }),
+      execute: async (input) => {
+        const { template, sprites, graphLayout } = input;
+        const startX = graphLayout?.startX ?? 0;
+        const startY = graphLayout?.startY ?? 0;
+        const direction = graphLayout?.direction ?? "vertical";
+        const spacing = graphLayout?.spacing ?? 180;
+        const type = "sprite" as GraphNodeType;
+        const ports = getDefaultPorts(type);
+        const { width: nodeWidth, height: nodeHeight } = { width: 200, height: 150 };
+
+        const created: Array<{ nodeId: string; name: string }> = [];
+
+        for (let i = 0; i < sprites.length; i++) {
+          const sprite = sprites[i];
+          const nodeId = crypto.randomUUID();
+
+          const data: Record<string, unknown> = {
+            tint: sprite.tint ?? template.tint ?? "#4a9eff",
+            width: sprite.width ?? template.width ?? 64,
+            height: sprite.height ?? template.height ?? 64,
+            sceneX: sprite.sceneX ?? template.sceneX ?? 0,
+            sceneY: sprite.sceneY ?? template.sceneY ?? 0,
+          };
+
+          const script = sprite.script ?? template.script;
+          if (script) data.script = script;
+          if (sprite.data) Object.assign(data, sprite.data);
+
+          const graphX = direction === "horizontal" ? startX + i * (nodeWidth + spacing) : startX;
+          const graphY = direction === "vertical" ? startY + i * (nodeHeight + spacing) : startY;
+
+          const node = {
+            id: nodeId,
+            type,
+            name: sprite.name,
+            x: graphX,
+            y: graphY,
+            width: nodeWidth,
+            height: nodeHeight,
+            ports: ports.map((p) => ({ ...p })),
+            data,
+          };
+
+          ops.push(
+            makeGraphOp(opCtx, {
+              kind: "create_graph_node",
+              payload: { node },
+            })
+          );
+
+          created.push({ nodeId, name: sprite.name });
+        }
+
+        return { created, count: created.length };
+      },
+    }),
+
     move_graph_node: tool({
       description: "Move a node to a new position in the graph layout.",
       inputSchema: z.object({

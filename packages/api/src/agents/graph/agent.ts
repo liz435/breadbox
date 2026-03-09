@@ -88,6 +88,27 @@ if (Input.isKeyPressed("ArrowLeft")) self.x -= SPEED * dt;
 if (Input.isKeyPressed("ArrowRight")) self.x += SPEED * dt;
 \`\`\`
 
+### Batch creation for repeated entities (IMPORTANT)
+When a game needs many similar sprites (e.g., rows of enemies, obstacles, coins), use \`create_sprite_batch\` instead of creating each one individually. This is MUCH more efficient.
+
+**Example: Frogger traffic rows**
+Instead of creating 15 individual car nodes, use 5 batch calls (one per row):
+\`\`\`
+create_sprite_batch({
+  template: { tint: "#FF0000", width: 50, height: 20, sceneY: 200, script: "self.x -= 150 * dt;\\nif (self.x < -420) self.x = 420;" },
+  sprites: [
+    { name: "Car_R1_1", sceneX: -300 },
+    { name: "Car_R1_2", sceneX: 0 },
+    { name: "Car_R1_3", sceneX: 300 },
+  ],
+  graphLayout: { startX: 250, startY: 0, direction: "vertical" }
+})
+\`\`\`
+
+This creates 3 sprites in one call, all sharing the same template script and color. Each sprite only overrides its unique position.
+
+**When to batch:** Any time you need 3+ sprites with the same or similar behavior (enemies, obstacles, collectibles, background tiles, particles).
+
 ### Two-player game (e.g., Pong)
 1. Create sprite nodes for each entity (ball, paddles)
 2. Each sprite has its own inline script
@@ -120,6 +141,7 @@ texture, float, vec2, color, audio, trigger, entity, string, shader, material, a
 ## Guidelines
 - **ALWAYS use list_graph first** to understand the current graph state
 - **Clean up before creating**: If asked to create a new game, delete all existing nodes that aren't part of the new game. Use list_graph, then delete_graph_node for each unwanted node.
+- **Batch similar sprites**: Use \`create_sprite_batch\` for groups of similar entities (enemies, obstacles, collectibles). Never create repetitive sprites one-by-one with \`create_graph_node\` — batch them. A shared template script + per-sprite position overrides is the pattern.
 - Give nodes descriptive names (e.g., "Ball", "Left Paddle", "Score Display")
 - Prefer sprite nodes with inline scripts over code nodes + wiring for simple games
 - For input_map nodes, customize the actions object for the specific game (e.g., { actions: { jump: "Space", crouch: "ShiftLeft" } })

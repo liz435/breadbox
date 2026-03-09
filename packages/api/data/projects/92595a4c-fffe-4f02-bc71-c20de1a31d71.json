@@ -1,10 +1,10 @@
 {
   "project": {
     "id": "92595a4c-fffe-4f02-bc71-c20de1a31d71",
-    "name": "Untitled Project",
+    "name": "Frogger",
     "version": 0,
     "createdAt": "2026-03-08T22:53:05.680Z",
-    "updatedAt": "2026-03-08T22:54:07.664Z",
+    "updatedAt": "2026-03-09T00:00:58.268Z",
     "threadId": "b507b9cc-b8c5-4716-bdf6-2be435e39df9",
     "activeSceneId": "a1b41eb4-dea4-4998-90c5-023025d77dff"
   },
@@ -497,7 +497,7 @@
         "type": "sprite",
         "name": "Car_R3_3",
         "x": 300,
-        "y": 80,
+        "y": 81.21713215434451,
         "width": 200,
         "height": 150,
         "ports": [
@@ -699,7 +699,7 @@
           }
         ],
         "data": {
-          "tint": "#FF00FF",
+          "tint": "#012d14",
           "width": 50,
           "height": 20,
           "sceneX": -300,

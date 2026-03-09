@@ -154,7 +154,7 @@ export function createCoreTools(params: {
         value: z.record(z.string(), z.unknown()).describe("Component data"),
       }),
       execute: async (input) => {
-        const value = { ...input.value, entityId: input.entityId };
+        const value: Record<string, unknown> = { ...input.value, entityId: input.entityId };
 
         // Auto-generate assetId + placeholder asset for sprite components
         if (input.componentType === "sprite" && !value.assetId) {

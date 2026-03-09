@@ -1,0 +1,613 @@
+{
+  "project": {
+    "id": "43231236-e46d-4dba-86d8-7c69792d9bf4",
+    "name": "froggerV2",
+    "version": 0,
+    "createdAt": "2026-03-08T23:43:23.437Z",
+    "updatedAt": "2026-03-08T23:59:46.399Z",
+    "threadId": "535c1bac-5eb9-4420-95ec-c712a156828c",
+    "activeSceneId": "16304eca-115a-4013-8bcc-ac2975424776"
+  },
+  "scenes": {
+    "16304eca-115a-4013-8bcc-ac2975424776": {
+      "id": "16304eca-115a-4013-8bcc-ac2975424776",
+      "name": "Main Scene",
+      "version": 0,
+      "settings": {
+        "background": "#252525",
+        "gravity": {
+          "x": 0,
+          "y": 9.8
+        }
+      }
+    }
+  },
+  "entities": {},
+  "sceneEntityIds": {
+    "16304eca-115a-4013-8bcc-ac2975424776": []
+  },
+  "components": {
+    "transform": {},
+    "sprite": {},
+    "tilemap": {},
+    "physicsBody": {},
+    "script": {},
+    "camera": {}
+  },
+  "assets": {},
+  "graph": {
+    "nodes": {
+      "8ca9c264-c904-4ce9-87b4-f88f905f9dc5": {
+        "id": "8ca9c264-c904-4ce9-87b4-f88f905f9dc5",
+        "type": "sprite",
+        "name": "Player",
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#00ff00",
+          "width": 24,
+          "height": 24,
+          "sceneX": 0,
+          "sceneY": 250,
+          "script": "const STEP = 30;\nconst MIN_X = -380, MAX_X = 380;\nconst MIN_Y = -280, MAX_Y = 280;\n\nif (!state.best_y) state.best_y = 250;\n\nlet moved = false;\nif (Input.isKeyPressed('ArrowUp')) {\n  self.y -= STEP;\n  moved = true;\n}\nif (Input.isKeyPressed('ArrowDown')) {\n  self.y += STEP;\n  moved = true;\n}\nif (Input.isKeyPressed('ArrowLeft')) {\n  self.x -= STEP;\n  moved = true;\n}\nif (Input.isKeyPressed('ArrowRight')) {\n  self.x += STEP;\n  moved = true;\n}\n\nif (moved) {\n  self.x = Math.max(MIN_X, Math.min(MAX_X, self.x));\n  self.y = Math.max(MIN_Y, Math.min(MAX_Y, self.y));\n  if (self.y < state.best_y) state.best_y = self.y;\n}\n\n// Check win condition (reached top)\nif (self.y <= -260) {\n  console.log('WIN!');\n  self.x = 0;\n  self.y = 250;\n  state.best_y = 250;\n}"
+        }
+      },
+      "bcf98476-b857-4eee-9b79-e3226231bbbf": {
+        "id": "bcf98476-b857-4eee-9b79-e3226231bbbf",
+        "type": "sprite",
+        "name": "WinZone",
+        "x": 300,
+        "y": -82.8730589075466,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#00ccff",
+          "width": 100,
+          "height": 30,
+          "sceneX": 0,
+          "sceneY": -260
+        }
+      },
+      "12e5b751-89c0-4125-ae62-b517d9c915fc": {
+        "id": "12e5b751-89c0-4125-ae62-b517d9c915fc",
+        "type": "sprite",
+        "name": "SafeZone",
+        "x": 600,
+        "y": 0,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#003300",
+          "width": 300,
+          "height": 40,
+          "sceneX": 0,
+          "sceneY": -160
+        }
+      },
+      "5f7928cc-dc8e-4d2f-b251-4fba14013a4b": {
+        "id": "5f7928cc-dc8e-4d2f-b251-4fba14013a4b",
+        "type": "text",
+        "name": "ScoreText",
+        "x": 900,
+        "y": 0,
+        "width": 200,
+        "height": 120,
+        "ports": [
+          {
+            "id": "vars_in",
+            "name": "Variables",
+            "direction": "in",
+            "dataType": "any"
+          },
+          {
+            "id": "string_out",
+            "name": "String",
+            "direction": "out",
+            "dataType": "string"
+          }
+        ],
+        "data": {
+          "content": "Y: 0 / BEST: 0",
+          "sceneX": -350,
+          "sceneY": -280
+        }
+      },
+      "85dbc62e-7c14-4381-a69a-33c14d04f3db": {
+        "id": "85dbc62e-7c14-4381-a69a-33c14d04f3db",
+        "type": "sprite",
+        "name": "Car1_1",
+        "x": 64.70910079082407,
+        "y": 185.14355367213693,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#ff0000",
+          "width": 50,
+          "height": 20,
+          "sceneX": -150,
+          "sceneY": -100,
+          "script": "const SPEED = 100;\nconst WRAP_LEFT = -420, WRAP_RIGHT = 420;\nconst PLAYER_HW = 12, PLAYER_HH = 12;\nconst CAR_HW = 25, CAR_HH = 10;\n\n// Move left\nself.x -= SPEED * dt;\n\n// Wrap around\nif (self.x < WRAP_LEFT) self.x = WRAP_RIGHT;\n\n// Collision with player\nlet player = entities.get('Player');\nif (player) {\n  let dx = Math.abs(self.x - player.x);\n  let dy = Math.abs(self.y - player.y);\n  if (dx < CAR_HW + PLAYER_HW && dy < CAR_HH + PLAYER_HH) {\n    player.x = 0;\n    player.y = 250;\n    state.best_y = 250;\n    console.log('HIT! Reset to start');\n  }\n}"
+        }
+      },
+      "75b6d5d8-ef0a-4a54-8897-b44e86ea7167": {
+        "id": "75b6d5d8-ef0a-4a54-8897-b44e86ea7167",
+        "type": "sprite",
+        "name": "Car1_2",
+        "x": 335.34001438818893,
+        "y": 157.8976164970531,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#ff0000",
+          "width": 50,
+          "height": 20,
+          "sceneX": -50,
+          "sceneY": -100,
+          "script": "const SPEED = 100;\nconst WRAP_LEFT = -420, WRAP_RIGHT = 420;\nconst PLAYER_HW = 12, PLAYER_HH = 12;\nconst CAR_HW = 25, CAR_HH = 10;\n\n// Move left\nself.x -= SPEED * dt;\n\n// Wrap around\nif (self.x < WRAP_LEFT) self.x = WRAP_RIGHT;\n\n// Collision with player\nlet player = entities.get('Player');\nif (player) {\n  let dx = Math.abs(self.x - player.x);\n  let dy = Math.abs(self.y - player.y);\n  if (dx < CAR_HW + PLAYER_HW && dy < CAR_HH + PLAYER_HH) {\n    player.x = 0;\n    player.y = 250;\n    state.best_y = 250;\n    console.log('HIT! Reset to start');\n  }\n}"
+        }
+      },
+      "e35e86b9-c5d6-422c-a729-c5415ba58407": {
+        "id": "e35e86b9-c5d6-422c-a729-c5415ba58407",
+        "type": "sprite",
+        "name": "Car1_3",
+        "x": 558.7021299439141,
+        "y": 177.45767263684218,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#ff0000",
+          "width": 50,
+          "height": 20,
+          "sceneX": 50,
+          "sceneY": -100,
+          "script": "const SPEED = 100;\nconst WRAP_LEFT = -420, WRAP_RIGHT = 420;\nconst PLAYER_HW = 12, PLAYER_HH = 12;\nconst CAR_HW = 25, CAR_HH = 10;\n\n// Move left\nself.x -= SPEED * dt;\n\n// Wrap around\nif (self.x < WRAP_LEFT) self.x = WRAP_RIGHT;\n\n// Collision with player\nlet player = entities.get('Player');\nif (player) {\n  let dx = Math.abs(self.x - player.x);\n  let dy = Math.abs(self.y - player.y);\n  if (dx < CAR_HW + PLAYER_HW && dy < CAR_HH + PLAYER_HH) {\n    player.x = 0;\n    player.y = 250;\n    state.best_y = 250;\n    console.log('HIT! Reset to start');\n  }\n}"
+        }
+      },
+      "fd6536cb-d48e-4fe7-912b-f47138f25ea4": {
+        "id": "fd6536cb-d48e-4fe7-912b-f47138f25ea4",
+        "type": "sprite",
+        "name": "Car2_1",
+        "x": 0,
+        "y": 400,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#ff8800",
+          "width": 50,
+          "height": 20,
+          "sceneX": 0,
+          "sceneY": -50,
+          "script": "const SPEED = 120;\nconst WRAP_LEFT = -420, WRAP_RIGHT = 420;\nconst PLAYER_HW = 12, PLAYER_HH = 12;\nconst CAR_HW = 25, CAR_HH = 10;\n\n// Move right\nself.x += SPEED * dt;\n\n// Wrap around\nif (self.x > WRAP_RIGHT) self.x = WRAP_LEFT;\n\n// Collision with player\nlet player = entities.get('Player');\nif (player) {\n  let dx = Math.abs(self.x - player.x);\n  let dy = Math.abs(self.y - player.y);\n  if (dx < CAR_HW + PLAYER_HW && dy < CAR_HH + PLAYER_HH) {\n    player.x = 0;\n    player.y = 250;\n    state.best_y = 250;\n    console.log('HIT! Reset to start');\n  }\n}"
+        }
+      },
+      "c6af5a56-fb54-46f2-907b-d250fc80d118": {
+        "id": "c6af5a56-fb54-46f2-907b-d250fc80d118",
+        "type": "sprite",
+        "name": "Car2_2",
+        "x": 450,
+        "y": 400,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#ff8800",
+          "width": 50,
+          "height": 20,
+          "sceneX": 120,
+          "sceneY": -50,
+          "script": "const SPEED = 120;\nconst WRAP_LEFT = -420, WRAP_RIGHT = 420;\nconst PLAYER_HW = 12, PLAYER_HH = 12;\nconst CAR_HW = 25, CAR_HH = 10;\n\n// Move right\nself.x += SPEED * dt;\n\n// Wrap around\nif (self.x > WRAP_RIGHT) self.x = WRAP_LEFT;\n\n// Collision with player\nlet player = entities.get('Player');\nif (player) {\n  let dx = Math.abs(self.x - player.x);\n  let dy = Math.abs(self.y - player.y);\n  if (dx < CAR_HW + PLAYER_HW && dy < CAR_HH + PLAYER_HH) {\n    player.x = 0;\n    player.y = 250;\n    state.best_y = 250;\n    console.log('HIT! Reset to start');\n  }\n}"
+        }
+      },
+      "a680450d-8198-4e8f-a45e-4bfdfecf4e3b": {
+        "id": "a680450d-8198-4e8f-a45e-4bfdfecf4e3b",
+        "type": "sprite",
+        "name": "Car2_3",
+        "x": 900,
+        "y": 400,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#ff8800",
+          "width": 50,
+          "height": 20,
+          "sceneX": 240,
+          "sceneY": -50,
+          "script": "const SPEED = 120;\nconst WRAP_LEFT = -420, WRAP_RIGHT = 420;\nconst PLAYER_HW = 12, PLAYER_HH = 12;\nconst CAR_HW = 25, CAR_HH = 10;\n\n// Move right\nself.x += SPEED * dt;\n\n// Wrap around\nif (self.x > WRAP_RIGHT) self.x = WRAP_LEFT;\n\n// Collision with player\nlet player = entities.get('Player');\nif (player) {\n  let dx = Math.abs(self.x - player.x);\n  let dy = Math.abs(self.y - player.y);\n  if (dx < CAR_HW + PLAYER_HW && dy < CAR_HH + PLAYER_HH) {\n    player.x = 0;\n    player.y = 250;\n    state.best_y = 250;\n    console.log('HIT! Reset to start');\n  }\n}"
+        }
+      },
+      "fa529d2a-af78-4bd0-bed2-59d14c06ab7d": {
+        "id": "fa529d2a-af78-4bd0-bed2-59d14c06ab7d",
+        "type": "sprite",
+        "name": "Car3_1",
+        "x": 0,
+        "y": 700,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#ffff00",
+          "width": 50,
+          "height": 20,
+          "sceneX": -200,
+          "sceneY": 50,
+          "script": "const SPEED = 140;\nconst WRAP_LEFT = -420, WRAP_RIGHT = 420;\nconst PLAYER_HW = 12, PLAYER_HH = 12;\nconst CAR_HW = 25, CAR_HH = 10;\n\n// Move left\nself.x -= SPEED * dt;\n\n// Wrap around\nif (self.x < WRAP_LEFT) self.x = WRAP_RIGHT;\n\n// Collision with player\nlet player = entities.get('Player');\nif (player) {\n  let dx = Math.abs(self.x - player.x);\n  let dy = Math.abs(self.y - player.y);\n  if (dx < CAR_HW + PLAYER_HW && dy < CAR_HH + PLAYER_HH) {\n    player.x = 0;\n    player.y = 250;\n    state.best_y = 250;\n    console.log('HIT! Reset to start');\n  }\n}"
+        }
+      },
+      "e7486941-cf3e-44ca-a814-bc6fbde83dd8": {
+        "id": "e7486941-cf3e-44ca-a814-bc6fbde83dd8",
+        "type": "sprite",
+        "name": "Car3_2",
+        "x": 450,
+        "y": 700,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#ffff00",
+          "width": 50,
+          "height": 20,
+          "sceneX": 100,
+          "sceneY": 50,
+          "script": "const SPEED = 140;\nconst WRAP_LEFT = -420, WRAP_RIGHT = 420;\nconst PLAYER_HW = 12, PLAYER_HH = 12;\nconst CAR_HW = 25, CAR_HH = 10;\n\n// Move left\nself.x -= SPEED * dt;\n\n// Wrap around\nif (self.x < WRAP_LEFT) self.x = WRAP_RIGHT;\n\n// Collision with player\nlet player = entities.get('Player');\nif (player) {\n  let dx = Math.abs(self.x - player.x);\n  let dy = Math.abs(self.y - player.y);\n  if (dx < CAR_HW + PLAYER_HW && dy < CAR_HH + PLAYER_HH) {\n    player.x = 0;\n    player.y = 250;\n    state.best_y = 250;\n    console.log('HIT! Reset to start');\n  }\n}"
+        }
+      },
+      "1c789ef0-c098-4dd0-8799-e8bc7d6c50ef": {
+        "id": "1c789ef0-c098-4dd0-8799-e8bc7d6c50ef",
+        "type": "on_update",
+        "name": "UpdateScore",
+        "x": 1200,
+        "y": 0,
+        "width": 160,
+        "height": 80,
+        "ports": [
+          {
+            "id": "trigger_out",
+            "name": "Trigger",
+            "direction": "out",
+            "dataType": "trigger"
+          },
+          {
+            "id": "dt_out",
+            "name": "Delta Time",
+            "direction": "out",
+            "dataType": "float"
+          }
+        ],
+        "data": {
+          "_dt": 0.0325
+        }
+      },
+      "1bfd1e3c-7899-431b-9a9b-0ada898feb4f": {
+        "id": "1bfd1e3c-7899-431b-9a9b-0ada898feb4f",
+        "type": "code",
+        "name": "ScoreUpdater",
+        "x": 1500,
+        "y": 0,
+        "width": 220,
+        "height": 160,
+        "ports": [
+          {
+            "id": "trigger_in",
+            "name": "Trigger",
+            "direction": "in",
+            "dataType": "trigger"
+          },
+          {
+            "id": "data_0_in",
+            "name": "Data A",
+            "direction": "in",
+            "dataType": "any"
+          },
+          {
+            "id": "data_1_in",
+            "name": "Data B",
+            "direction": "in",
+            "dataType": "any"
+          },
+          {
+            "id": "trigger_out",
+            "name": "Trigger",
+            "direction": "out",
+            "dataType": "trigger"
+          },
+          {
+            "id": "data_out",
+            "name": "Data",
+            "direction": "out",
+            "dataType": "any"
+          }
+        ],
+        "data": {
+          "language": "typescript",
+          "code": "let player = entities.get('Player');\nlet scoreText = entities.get('ScoreText');\n\nif (player && scoreText) {\n  let currentY = Math.round(player.y);\n  let bestY = Math.round(state.best_y || 250);\n  scoreText.content = 'Y: ' + currentY + ' / BEST: ' + bestY;\n}"
+        }
+      }
+    },
+    "edges": {}
+  }
+}

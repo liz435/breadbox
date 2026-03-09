@@ -133,12 +133,17 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
 
   const uiStream = createUIMessageStream({
     async execute({ writer }) {
-      // Stream ops to the client as they're produced (after each agent step)
+      // Stream scene ops to the client as they're produced (after each agent step)
+      // Graph ops are NOT streamed here — they are sent once after collectResult()
+      // to avoid duplicate delivery (onNewOps fires per step, then we send all graph ops again)
       agentStream.onNewOps((newOps) => {
-        writer.write({
-          type: "data-scene-ops",
-          data: newOps,
-        });
+        const sceneOnly = newOps.filter((op) => !GRAPH_OP_KINDS.has(op.kind));
+        if (sceneOnly.length > 0) {
+          writer.write({
+            type: "data-scene-ops",
+            data: sceneOnly,
+          });
+        }
       });
 
       // Merge the AI SDK's UI message stream (text deltas, tool calls, etc.)
@@ -197,10 +202,68 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
         `completed — ${result.proposedOps.length} proposed (${graphOps.length} graph), ${appliedOps.length} applied, v${newVersion}, ${elapsed}ms`
       );
 
-      // Send graph ops as a dedicated event so frontend always receives them
-      // This is the reliable delivery path — streaming ops via onNewOps may miss
-      // ops produced during delegation (graph agent runs inside a tool call)
+      // Apply graph ops to the project file server-side so they persist
+      // even if the frontend fails to receive them (stream error, page refresh, etc.)
       if (graphOps.length > 0) {
+        try {
+          const currentProject = await projectRepo.readProject(capturedProjectId);
+          if (currentProject) {
+            const graph = currentProject.graph ?? { nodes: {}, edges: {} };
+            for (const rawOp of graphOps) {
+              // Graph ops are typed as SceneOp but carry graph-specific kinds/payloads
+              const op = rawOp as unknown as { kind: string; payload: Record<string, unknown> };
+              switch (op.kind) {
+                case "create_graph_node": {
+                  const node = (op.payload as { node: { id: string } }).node;
+                  graph.nodes[node.id] = node as typeof graph.nodes[string];
+                  break;
+                }
+                case "delete_graph_node": {
+                  const nodeId = op.payload.nodeId as string;
+                  delete graph.nodes[nodeId];
+                  for (const [edgeId, edge] of Object.entries(graph.edges)) {
+                    if (edge.sourceNodeId === nodeId || edge.targetNodeId === nodeId) {
+                      delete graph.edges[edgeId];
+                    }
+                  }
+                  break;
+                }
+                case "move_graph_node": {
+                  const nodeId = op.payload.nodeId as string;
+                  const x = op.payload.x as number;
+                  const y = op.payload.y as number;
+                  if (graph.nodes[nodeId]) {
+                    graph.nodes[nodeId].x = x;
+                    graph.nodes[nodeId].y = y;
+                  }
+                  break;
+                }
+                case "update_graph_node_data": {
+                  const nodeId = op.payload.nodeId as string;
+                  const patch = op.payload.patch as Record<string, unknown>;
+                  if (graph.nodes[nodeId]) {
+                    graph.nodes[nodeId].data = { ...graph.nodes[nodeId].data, ...patch };
+                  }
+                  break;
+                }
+                case "create_edge": {
+                  const edge = (op.payload as { edge: { id: string } }).edge;
+                  graph.edges[edge.id] = edge as typeof graph.edges[string];
+                  break;
+                }
+                case "delete_edge":
+                  delete graph.edges[op.payload.edgeId as string];
+                  break;
+              }
+            }
+            await projectRepo.saveGraph(capturedProjectId, graph);
+            reqLog.info(`persisted ${graphOps.length} graph ops to project file`);
+          }
+        } catch (graphErr) {
+          reqLog.warn(`failed to persist graph ops: ${graphErr}`);
+        }
+
+        // Send graph ops to frontend for live update
         writer.write({
           type: "data-scene-ops",
           data: graphOps,
@@ -217,11 +280,14 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
       const elapsed = (performance.now() - start).toFixed(1);
       reqLog.error(`failed after ${elapsed}ms`, error);
 
+      // Mark the run as failed so it doesn't stay stuck in "running" status
       agentRunRepo.completeRun({
         runId: runFile.run.id,
         proposedOps: [],
         appliedOps: [],
         error: String(error),
+      }).catch((err) => {
+        reqLog.warn(`failed to mark run as errored: ${err}`);
       });
 
       return String(error);
