@@ -49,3 +49,27 @@ export {
   extractedSpriteSheetSchema,
   type ExtractedSpriteSheet,
 } from "./character";
+
+export {
+  portDataTypeSchema,
+  type PortDataType,
+  portDirectionSchema,
+  type PortDirection,
+  portSchema,
+  type Port,
+  graphNodeTypeSchema,
+  type GraphNodeType,
+  graphNodeSchema,
+  type GraphNode,
+  edgeSchema,
+  type Edge,
+  graphStateSchema,
+  type GraphState,
+  arePortsCompatible,
+  getDefaultPorts,
+} from "./graph";
+
+export {
+  graphOpSchema,
+  type GraphOp,
+} from "./graph-ops";

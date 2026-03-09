@@ -57,6 +57,13 @@ export function streamCharacterAgent(params: {
   const tools = createCharacterTools(state, sessionId)
 
   const messages: ModelMessage[] = [
+    {
+      role: "system",
+      content: SYSTEM_PROMPT,
+      providerOptions: {
+        anthropic: { cacheControl: { type: "ephemeral" } },
+      },
+    },
     ...(history ?? []),
     { role: "user", content: prompt },
   ]
@@ -64,8 +71,7 @@ export function streamCharacterAgent(params: {
   let stepCount = 0
 
   const stream = streamText({
-    model: anthropic("claude-sonnet-4-6"),
-    system: SYSTEM_PROMPT,
+    model: anthropic("claude-haiku-4-5-20251001"),
     tools,
     messages,
     stopWhen: stepCountIs(10),

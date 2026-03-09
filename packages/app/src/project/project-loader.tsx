@@ -40,9 +40,15 @@ export function ProjectLoader({ children }: { children: ReactNode }) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [version, setVersion] = useState(0);
 
-  const load = useCallback(() => {
+  const load = useCallback((targetId?: string) => {
     setState({ status: "loading" });
-    loadProject()
+    const doLoad = targetId
+      ? fetchProject(targetId).then((pf) => {
+          saveProjectId(pf.project.id);
+          return pf;
+        })
+      : loadProject();
+    doLoad
       .then((projectFile) => {
         setVersion(projectFile.project.version);
         setState({ status: "ready", projectFile });
@@ -59,6 +65,13 @@ export function ProjectLoader({ children }: { children: ReactNode }) {
     load();
   }, [load]);
 
+  const switchProject = useCallback(
+    (targetId: string) => {
+      load(targetId);
+    },
+    [load],
+  );
+
   const contextValue = useMemo<ProjectContextValue | null>(() => {
     if (state.status !== "ready") return null;
     const { projectFile } = state;
@@ -70,8 +83,9 @@ export function ProjectLoader({ children }: { children: ReactNode }) {
       sessionId: SESSION_ID,
       version,
       setVersion,
+      switchProject,
     };
-  }, [state, version]);
+  }, [state, version, switchProject]);
 
   if (state.status === "loading") {
     return (
@@ -88,7 +102,7 @@ export function ProjectLoader({ children }: { children: ReactNode }) {
         <p className="text-sm text-neutral-500">{state.message}</p>
         <button
           type="button"
-          onClick={load}
+          onClick={() => load()}
           className="rounded border border-neutral-600 px-3 py-1 text-sm text-neutral-300 hover:bg-neutral-700"
         >
           Retry

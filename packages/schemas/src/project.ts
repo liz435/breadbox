@@ -1,14 +1,13 @@
 import { z } from "zod";
+import {
+  nonEmptyStringSchema,
+  timestampSchema,
+  vec2Schema,
+} from "./primitives";
+import { graphNodeSchema, edgeSchema } from "./graph";
 
-// ── Primitives ──────────────────────────────────────────────────────────────
-
-export const nonEmptyStringSchema = z.string().min(1);
-export const timestampSchema = z.string().min(1);
-
-export const vec2Schema = z.object({
-  x: z.number(),
-  y: z.number(),
-});
+// Re-export primitives for backwards compatibility
+export { nonEmptyStringSchema, timestampSchema, vec2Schema };
 
 // ── Scene Settings ──────────────────────────────────────────────────────────
 
@@ -131,7 +130,18 @@ export type Components = z.infer<typeof componentsSchema>;
 
 // ── Assets ──────────────────────────────────────────────────────────────────
 
-export const assetTypeSchema = z.enum(["sprite", "spritesheet", "tilemap", "script"]);
+export const assetTypeSchema = z.enum([
+  "sprite",
+  "spritesheet",
+  "tilemap",
+  "script",
+  "shader",
+  "audio",
+  "video",
+  "text",
+  "material",
+  "font",
+]);
 
 export const assetSchema = z.object({
   id: nonEmptyStringSchema,
@@ -152,6 +162,12 @@ export const projectFileSchema = z.object({
   sceneEntityIds: z.record(z.string(), z.array(nonEmptyStringSchema)),
   components: componentsSchema,
   assets: z.record(z.string(), assetSchema),
+  graph: z
+    .object({
+      nodes: z.record(z.string(), graphNodeSchema),
+      edges: z.record(z.string(), edgeSchema),
+    })
+    .optional(),
 });
 
 export type ProjectFile = z.infer<typeof projectFileSchema>;

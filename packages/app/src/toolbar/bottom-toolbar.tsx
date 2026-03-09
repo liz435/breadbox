@@ -6,6 +6,7 @@ import { Separator } from "@/components/ui/separator"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { PromptBox } from "@/chat/prompt-box"
 import { EditToolbar } from "./edit-toolbar"
+import { PlayControls } from "./play-controls"
 import { AiToolbarHistory } from "./ai-toolbar"
 import { useChatMessages } from "./use-chat-messages"
 
@@ -59,6 +60,8 @@ export function BottomToolbar() {
               <ModeToggle mode={mode} onModeChange={setMode} />
               <Separator orientation="vertical" className="h-6" />
               <EditToolbar />
+              <Separator orientation="vertical" className="h-6" />
+              <PlayControls />
             </div>
           ) : (
             <PromptBox

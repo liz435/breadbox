@@ -1,0 +1,717 @@
+{
+  "project": {
+    "id": "test",
+    "name": "Untitled Project",
+    "version": 0,
+    "createdAt": "2026-03-08T14:49:22.729Z",
+    "updatedAt": "2026-03-09T02:07:52.096Z",
+    "threadId": "a3b91588-beed-4c72-a22e-d8676a9b76a8",
+    "activeSceneId": "54c51b33-8f53-4487-ae62-4b7c541c2929"
+  },
+  "scenes": {
+    "54c51b33-8f53-4487-ae62-4b7c541c2929": {
+      "id": "54c51b33-8f53-4487-ae62-4b7c541c2929",
+      "name": "Main Scene",
+      "version": 0,
+      "settings": {
+        "background": "#252525",
+        "gravity": {
+          "x": 0,
+          "y": 9.8
+        }
+      }
+    }
+  },
+  "entities": {},
+  "sceneEntityIds": {
+    "54c51b33-8f53-4487-ae62-4b7c541c2929": []
+  },
+  "components": {
+    "transform": {},
+    "sprite": {},
+    "tilemap": {},
+    "physicsBody": {},
+    "script": {},
+    "camera": {}
+  },
+  "assets": {
+    "244de128-393d-4e73-8b83-5db7d5303522": {
+      "id": "244de128-393d-4e73-8b83-5db7d5303522",
+      "projectId": "test",
+      "type": "sprite",
+      "uri": "/project/test/assets/244de128-393d-4e73-8b83-5db7d5303522.png",
+      "meta": {
+        "name": "character-0.png",
+        "originalName": "character-0.png",
+        "mimeType": "image/png",
+        "size": 2106926,
+        "ext": "png"
+      }
+    }
+  },
+  "graph": {
+    "nodes": {
+      "5bde95c5-14f2-4685-9dde-664491c36061": {
+        "id": "5bde95c5-14f2-4685-9dde-664491c36061",
+        "type": "sprite",
+        "name": "Player",
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#FF0000",
+          "width": 20,
+          "height": 30,
+          "sceneX": 0,
+          "sceneY": 150,
+          "script": "const SPEED = 200;\nconst GRAVITY = 500;\nconst JUMP_POWER = 300;\nconst GROUND_Y = 250; // Approximate ground level\n\nif (!state.playerVelocityY) state.playerVelocityY = 0;\nif (!state.isJumping) state.isJumping = false;\nif (!state.coins) state.coins = 0;\nif (!state.lives) state.lives = 3;\n\n// Horizontal movement\nlet moveX = 0;\nif (Input.isKeyPressed('a') || Input.isKeyPressed('A')) moveX = -SPEED;\nif (Input.isKeyPressed('d') || Input.isKeyPressed('D')) moveX = SPEED;\nself.x += moveX * dt;\n\n// Apply gravity\nstate.playerVelocityY += GRAVITY * dt;\nself.y += state.playerVelocityY * dt;\n\n// Platform collision detection\nlet platforms = [\n  { x: 0, y: 280, w: 800, h: 40 },     // Main ground\n  { x: -150, y: 180, w: 200, h: 20 },  // Platform 1\n  { x: 150, y: 180, w: 200, h: 20 },   // Platform 2\n  { x: 0, y: 80, w: 200, h: 20 }       // Platform 3\n];\n\nlet isOnGround = false;\nfor (let p of platforms) {\n  // Check if player is above platform and falling\n  if (state.playerVelocityY >= 0 &&\n      self.y + 15 >= p.y - 5 && // Player bottom touching platform top\n      self.y + 15 <= p.y + p.h + 5 &&\n      self.x + 10 > p.x - p.w/2 &&\n      self.x - 10 < p.x + p.w/2) {\n    self.y = p.y - 15;\n    state.playerVelocityY = 0;\n    state.isJumping = false;\n    isOnGround = true;\n  }\n}\n\n// Jump\nif ((Input.isKeyPressed(' ') || Input.isKeyPressed('Space')) && !state.isJumping && isOnGround) {\n  state.playerVelocityY = -JUMP_POWER;\n  state.isJumping = true;\n}\n\n// Goomba collision detection (game over)\nlet goombaList = ['Goomba_1', 'Goomba_2', 'Goomba_3'];\nfor (let gName of goombaList) {\n  let goomba = entities.get(gName);\n  if (goomba) {\n    let dx = self.x - goomba.x;\n    let dy = self.y - goomba.y;\n    let dist = Math.sqrt(dx*dx + dy*dy);\n    if (dist < 25) {\n      state.lives -= 1;\n      if (state.lives > 0) {\n        // Reset player position\n        self.x = 0;\n        self.y = 150;\n        state.playerVelocityY = 0;\n      }\n    }\n  }\n}\n\n// Coin collection\nlet coinList = ['Coin_1', 'Coin_2', 'Coin_3', 'Coin_4', 'Coin_5'];\nfor (let cName of coinList) {\n  let coin = entities.get(cName);\n  if (coin && coin.visible) {\n    let dx = self.x - coin.x;\n    let dy = self.y - coin.y;\n    let dist = Math.sqrt(dx*dx + dy*dy);\n    if (dist < 20) {\n      state.coins += 1;\n      coin.visible = false;\n    }\n  }\n}\n\n// Screen bounds\nif (self.x > 420) self.x = -420;\nif (self.x < -420) self.x = 420;\n"
+        }
+      },
+      "d15c8bf7-753a-4e5e-9937-8b0925499f24": {
+        "id": "d15c8bf7-753a-4e5e-9937-8b0925499f24",
+        "type": "sprite",
+        "name": "Ground",
+        "x": 0,
+        "y": 100,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#228B22",
+          "width": 800,
+          "height": 40,
+          "sceneX": 0,
+          "sceneY": 280
+        }
+      },
+      "73574a3a-77a3-4d03-8ad3-cdb9047694af": {
+        "id": "73574a3a-77a3-4d03-8ad3-cdb9047694af",
+        "type": "sprite",
+        "name": "Platform_1",
+        "x": 0,
+        "y": 400,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#228B22",
+          "width": 200,
+          "height": 20,
+          "sceneX": -150,
+          "sceneY": 180
+        }
+      },
+      "f9c5e4de-2c0e-456e-a1ee-397aa9d9c20b": {
+        "id": "f9c5e4de-2c0e-456e-a1ee-397aa9d9c20b",
+        "type": "sprite",
+        "name": "Platform_2",
+        "x": 0,
+        "y": 700,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#000000",
+          "width": 200,
+          "height": 20,
+          "sceneX": 150,
+          "sceneY": 180
+        }
+      },
+      "0bab66d3-e3b8-4876-bc3c-6c874e5f5192": {
+        "id": "0bab66d3-e3b8-4876-bc3c-6c874e5f5192",
+        "type": "sprite",
+        "name": "Platform_3",
+        "x": 0,
+        "y": 1000,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#228B22",
+          "width": 200,
+          "height": 20,
+          "sceneX": 0,
+          "sceneY": 80
+        }
+      },
+      "ab20a50f-11c8-49e5-bbbb-ccd259fcacbc": {
+        "id": "ab20a50f-11c8-49e5-bbbb-ccd259fcacbc",
+        "type": "sprite",
+        "name": "Goomba_1",
+        "x": 0,
+        "y": 250,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#8B4513",
+          "width": 20,
+          "height": 16,
+          "sceneX": -200,
+          "sceneY": 250,
+          "script": "const SPEED = 80;\n\nif (!state.goombaDir) state.goombaDir = {};\nlet id = self.name || 'unknown';\nif (!state.goombaDir[id]) state.goombaDir[id] = -1;\n\n// Patrol movement\nself.x += SPEED * state.goombaDir[id] * dt;\n\n// Bounce at edges\nif (self.x < -400) state.goombaDir[id] = 1;\nif (self.x > 400) state.goombaDir[id] = -1;\n"
+        }
+      },
+      "76343f62-bd27-4cf2-b7f3-4e6eabc91382": {
+        "id": "76343f62-bd27-4cf2-b7f3-4e6eabc91382",
+        "type": "sprite",
+        "name": "Goomba_2",
+        "x": 400,
+        "y": 250,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#8B4513",
+          "width": 20,
+          "height": 16,
+          "sceneX": 0,
+          "sceneY": 250,
+          "script": "const SPEED = 80;\n\nif (!state.goombaDir) state.goombaDir = {};\nlet id = self.name || 'unknown';\nif (!state.goombaDir[id]) state.goombaDir[id] = -1;\n\n// Patrol movement\nself.x += SPEED * state.goombaDir[id] * dt;\n\n// Bounce at edges\nif (self.x < -400) state.goombaDir[id] = 1;\nif (self.x > 400) state.goombaDir[id] = -1;\n"
+        }
+      },
+      "b33b70d1-5f27-4cd7-87d5-f4913dc1336b": {
+        "id": "b33b70d1-5f27-4cd7-87d5-f4913dc1336b",
+        "type": "sprite",
+        "name": "Goomba_3",
+        "x": 800,
+        "y": 250,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#8B4513",
+          "width": 20,
+          "height": 16,
+          "sceneX": 200,
+          "sceneY": 250,
+          "script": "const SPEED = 80;\n\nif (!state.goombaDir) state.goombaDir = {};\nlet id = self.name || 'unknown';\nif (!state.goombaDir[id]) state.goombaDir[id] = -1;\n\n// Patrol movement\nself.x += SPEED * state.goombaDir[id] * dt;\n\n// Bounce at edges\nif (self.x < -400) state.goombaDir[id] = 1;\nif (self.x > 400) state.goombaDir[id] = -1;\n"
+        }
+      },
+      "1fe3a4a2-e8dd-4742-a899-77fbebeeb6cb": {
+        "id": "1fe3a4a2-e8dd-4742-a899-77fbebeeb6cb",
+        "type": "sprite",
+        "name": "Coin_1",
+        "x": 0,
+        "y": 400,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#FFD700",
+          "width": 12,
+          "height": 12,
+          "sceneX": -150,
+          "sceneY": 150,
+          "script": "// Coins are collected by the player script\n// This is just a visual element\n"
+        }
+      },
+      "ddfad38b-c305-40b2-aa26-e90b59b98940": {
+        "id": "ddfad38b-c305-40b2-aa26-e90b59b98940",
+        "type": "sprite",
+        "name": "Coin_2",
+        "x": 350,
+        "y": 400,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#FFD700",
+          "width": 12,
+          "height": 12,
+          "sceneX": -50,
+          "sceneY": 150,
+          "script": "// Coins are collected by the player script\n// This is just a visual element\n"
+        }
+      },
+      "0908bc80-d162-4980-a394-2a24db57a044": {
+        "id": "0908bc80-d162-4980-a394-2a24db57a044",
+        "type": "sprite",
+        "name": "Coin_3",
+        "x": 700,
+        "y": 400,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#FFD700",
+          "width": 12,
+          "height": 12,
+          "sceneX": 0,
+          "sceneY": 50,
+          "script": "// Coins are collected by the player script\n// This is just a visual element\n"
+        }
+      },
+      "82310d37-cc25-4fea-aae8-617cd761f731": {
+        "id": "82310d37-cc25-4fea-aae8-617cd761f731",
+        "type": "sprite",
+        "name": "Coin_4",
+        "x": 1050,
+        "y": 400,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#FFD700",
+          "width": 12,
+          "height": 12,
+          "sceneX": 50,
+          "sceneY": 150,
+          "script": "// Coins are collected by the player script\n// This is just a visual element\n"
+        }
+      },
+      "b4875db5-0515-4da9-8e86-3cc6b346ae90": {
+        "id": "b4875db5-0515-4da9-8e86-3cc6b346ae90",
+        "type": "sprite",
+        "name": "Coin_5",
+        "x": 1400,
+        "y": 400,
+        "width": 200,
+        "height": 150,
+        "ports": [
+          {
+            "id": "shader_in",
+            "name": "Shader",
+            "direction": "in",
+            "dataType": "shader"
+          },
+          {
+            "id": "material_in",
+            "name": "Material",
+            "direction": "in",
+            "dataType": "material"
+          },
+          {
+            "id": "texture_out",
+            "name": "Texture",
+            "direction": "out",
+            "dataType": "texture"
+          },
+          {
+            "id": "entity_out",
+            "name": "Entity",
+            "direction": "out",
+            "dataType": "entity"
+          }
+        ],
+        "data": {
+          "tint": "#FFD700",
+          "width": 12,
+          "height": 12,
+          "sceneX": 150,
+          "sceneY": 150,
+          "script": "// Coins are collected by the player script\n// This is just a visual element\n"
+        }
+      },
+      "89c7edd6-c89a-4d25-ba69-e63d5b306bde": {
+        "id": "89c7edd6-c89a-4d25-ba69-e63d5b306bde",
+        "type": "text",
+        "name": "UI Display",
+        "x": 400,
+        "y": 0,
+        "width": 200,
+        "height": 120,
+        "ports": [
+          {
+            "id": "vars_in",
+            "name": "Variables",
+            "direction": "in",
+            "dataType": "any"
+          },
+          {
+            "id": "string_out",
+            "name": "String",
+            "direction": "out",
+            "dataType": "string"
+          }
+        ],
+        "data": {
+          "content": "Coins: 0 | Lives: 3"
+        }
+      },
+      "46a22f52-4c46-42ad-88d0-fe954ebb35a2": {
+        "id": "46a22f52-4c46-42ad-88d0-fe954ebb35a2",
+        "type": "code",
+        "name": "UI Update Logic",
+        "x": 233.90349543271458,
+        "y": -1.4126456430297736,
+        "width": 220,
+        "height": 160,
+        "ports": [
+          {
+            "id": "trigger_in",
+            "name": "Trigger",
+            "direction": "in",
+            "dataType": "trigger"
+          },
+          {
+            "id": "data_0_in",
+            "name": "Data A",
+            "direction": "in",
+            "dataType": "any"
+          },
+          {
+            "id": "data_1_in",
+            "name": "Data B",
+            "direction": "in",
+            "dataType": "any"
+          },
+          {
+            "id": "trigger_out",
+            "name": "Trigger",
+            "direction": "out",
+            "dataType": "trigger"
+          },
+          {
+            "id": "data_out",
+            "name": "Data",
+            "direction": "out",
+            "dataType": "any"
+          }
+        ],
+        "data": {
+          "language": "typescript",
+          "code": "// Update UI text with current game state\nlet uiText = `Coins: ${state.coins || 0} | Lives: ${state.lives || 3}`;\n\n// Reference to update the UI display\nlet uiDisplay = entities.get('UI Display');\nif (uiDisplay) {\n  // Store the content to be displayed\n  state.uiContent = uiText;\n}\n"
+        }
+      },
+      "30ba0c02-4ccc-4bde-9b4a-105b1dc5628d": {
+        "id": "30ba0c02-4ccc-4bde-9b4a-105b1dc5628d",
+        "type": "on_update",
+        "name": "Game Loop",
+        "x": 224,
+        "y": 284,
+        "width": 160,
+        "height": 80,
+        "ports": [
+          {
+            "id": "trigger_out",
+            "name": "Trigger",
+            "direction": "out",
+            "dataType": "trigger"
+          },
+          {
+            "id": "dt_out",
+            "name": "Delta Time",
+            "direction": "out",
+            "dataType": "float"
+          }
+        ],
+        "data": {
+          "_dt": 0.03290000000000009
+        }
+      }
+    },
+    "edges": {
+      "edge-201254a8-4494-42a6-9c67-4b0ae1106b43": {
+        "id": "edge-201254a8-4494-42a6-9c67-4b0ae1106b43",
+        "sourceNodeId": "30ba0c02-4ccc-4bde-9b4a-105b1dc5628d",
+        "sourcePortId": "trigger_out",
+        "targetNodeId": "46a22f52-4c46-42ad-88d0-fe954ebb35a2",
+        "targetPortId": "trigger_in"
+      }
+    }
+  }
+}
