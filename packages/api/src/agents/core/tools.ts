@@ -1,13 +1,93 @@
 import { tool } from "ai";
 import { z } from "zod";
-import type { ProjectFile, SceneOp } from "../../db/schemas";
+import type { ProjectFile, SceneOp, AgentKind } from "../../db/schemas";
 import { getDefaultPorts } from "@dreamer/schemas";
 import { agentRunRepo } from "../../db/agent-run-repo";
 import { makeOp } from "../make-op";
-import type { DelegationContext } from "../types";
+import type { AgentRunner, DelegationContext } from "../types";
 import { runSpriteAgent } from "../sprite/agent";
 import { runCodingAgent } from "../coding/agent";
 import { runGraphAgent } from "../graph/agent";
+
+/**
+ * Creates a delegation tool that spawns a specialist agent run.
+ * Extracts the shared boilerplate: create run → execute agent → merge ops → complete run.
+ */
+function makeDelegationTool(
+  agentName: AgentKind,
+  runner: AgentRunner,
+  description: string,
+  delegation: DelegationContext,
+  ops: SceneOp[],
+) {
+  return tool({
+    description,
+    inputSchema: z.object({
+      task: z.string().describe(`Description of the ${agentName} task to delegate`),
+    }),
+    execute: async (input) => {
+      const log = delegation.parentLog.child(`delegate:${agentName}`);
+      log.info(`delegating: ${input.task.slice(0, 100)}`);
+
+      const childRun = await agentRunRepo.createRun({
+        threadId: delegation.threadId,
+        projectId: delegation.projectId,
+        sceneId: delegation.sceneId,
+        sessionId: delegation.sessionId,
+        prompt: input.task,
+        agent: agentName,
+        parentRunId: delegation.parentRunId,
+      });
+      await agentRunRepo.attachRunToThread(delegation.threadId, childRun.run.id);
+
+      try {
+        const result = await runner({
+          prompt: input.task,
+          project: delegation.project,
+          sceneId: delegation.sceneId,
+          runId: childRun.run.id,
+          threadId: delegation.threadId,
+          projectId: delegation.projectId,
+          sessionId: delegation.sessionId,
+          parentLog: log,
+        });
+
+        for (const op of result.proposedOps) {
+          ops.push(op);
+        }
+
+        await agentRunRepo.completeRun({
+          runId: childRun.run.id,
+          assistantText: result.assistantText,
+          messages: result.messages,
+          proposedOps: result.proposedOps,
+          appliedOps: [],
+        });
+
+        log.info(
+          `${agentName} agent returned — ${result.proposedOps.length} ops, text: ${result.assistantText.slice(0, 80)}`
+        );
+
+        return {
+          assistantText: result.assistantText,
+          opsCount: result.proposedOps.length,
+        };
+      } catch (err) {
+        log.error(`${agentName} agent failed`, err);
+        await agentRunRepo.completeRun({
+          runId: childRun.run.id,
+          proposedOps: [],
+          appliedOps: [],
+          error: String(err),
+        }).catch((e) => log.warn(`failed to mark ${agentName} run as errored: ${e}`));
+        return {
+          error: `${agentName} agent failed: ${err instanceof Error ? err.message : String(err)}`,
+          opsCount: 0,
+        };
+      }
+    },
+  });
+}
 
 /**
  * Creates the scene manipulation + delegation tools for the core agent.
@@ -385,7 +465,8 @@ export function createCoreTools(params: {
               type: "sprite" as const,
               name: input.name,
               x: 60,
-              y: Object.keys(project.graph?.nodes ?? {}).length * 200 + 60,
+              y: (Object.keys(project.graph?.nodes ?? {}).length +
+                ops.filter((o) => (o as unknown as { kind: string }).kind === "create_graph_node").length) * 200 + 60,
               width: 200,
               height: 150,
               ports: getDefaultPorts("sprite"),
@@ -400,193 +481,28 @@ export function createCoreTools(params: {
       },
     }),
 
-    delegate_to_sprite_agent: tool({
-      description:
-        "Delegate a sprite/visual task to the sprite specialist agent. Use this for creating sprite entities, managing visual assets, or building sprite sheets. The specialist will return the results including any scene operations it proposed.",
-      inputSchema: z.object({
-        task: z
-          .string()
-          .describe(
-            "Description of the sprite/visual task to delegate"
-          ),
-      }),
-      execute: async (input) => {
-        const log = delegation.parentLog.child("delegate:sprite");
-        log.info(`delegating: ${input.task.slice(0, 100)}`);
+    delegate_to_sprite_agent: makeDelegationTool(
+      "sprite",
+      runSpriteAgent,
+      "Delegate a sprite/visual task to the sprite specialist agent. Use this for creating sprite entities, managing visual assets, or building sprite sheets. The specialist will return the results including any scene operations it proposed.",
+      delegation,
+      ops,
+    ),
 
-        const childRun = await agentRunRepo.createRun({
-          threadId: delegation.threadId,
-          projectId: delegation.projectId,
-          sceneId: delegation.sceneId,
-          sessionId: delegation.sessionId,
-          prompt: input.task,
-          agent: "sprite",
-          parentRunId: delegation.parentRunId,
-        });
-        await agentRunRepo.attachRunToThread(
-          delegation.threadId,
-          childRun.run.id
-        );
+    delegate_to_coding_agent: makeDelegationTool(
+      "coding",
+      runCodingAgent,
+      "Delegate a scripting/behavior task to the coding specialist agent. Use this for creating scripts, adding physics behaviors, or ECS component logic. The specialist will return the results including any scene operations it proposed.",
+      delegation,
+      ops,
+    ),
 
-        const result = await runSpriteAgent({
-          prompt: input.task,
-          project: delegation.project,
-          sceneId: delegation.sceneId,
-          runId: childRun.run.id,
-          threadId: delegation.threadId,
-          projectId: delegation.projectId,
-          sessionId: delegation.sessionId,
-          parentLog: log,
-        });
-
-        // Collect the specialist's ops into the parent's ops array
-        for (const op of result.proposedOps) {
-          ops.push(op);
-        }
-
-        await agentRunRepo.completeRun({
-          runId: childRun.run.id,
-          assistantText: result.assistantText,
-          messages: result.messages,
-          proposedOps: result.proposedOps,
-          appliedOps: [],
-        });
-
-        log.info(
-          `sprite agent returned — ${result.proposedOps.length} ops, text: ${result.assistantText.slice(0, 80)}`
-        );
-
-        return {
-          assistantText: result.assistantText,
-          opsCount: result.proposedOps.length,
-        };
-      },
-    }),
-
-    delegate_to_coding_agent: tool({
-      description:
-        "Delegate a scripting/behavior task to the coding specialist agent. Use this for creating scripts, adding physics behaviors, or ECS component logic. The specialist will return the results including any scene operations it proposed.",
-      inputSchema: z.object({
-        task: z
-          .string()
-          .describe(
-            "Description of the scripting/behavior task to delegate"
-          ),
-      }),
-      execute: async (input) => {
-        const log = delegation.parentLog.child("delegate:coding");
-        log.info(`delegating: ${input.task.slice(0, 100)}`);
-
-        const childRun = await agentRunRepo.createRun({
-          threadId: delegation.threadId,
-          projectId: delegation.projectId,
-          sceneId: delegation.sceneId,
-          sessionId: delegation.sessionId,
-          prompt: input.task,
-          agent: "coding",
-          parentRunId: delegation.parentRunId,
-        });
-        await agentRunRepo.attachRunToThread(
-          delegation.threadId,
-          childRun.run.id
-        );
-
-        const result = await runCodingAgent({
-          prompt: input.task,
-          project: delegation.project,
-          sceneId: delegation.sceneId,
-          runId: childRun.run.id,
-          threadId: delegation.threadId,
-          projectId: delegation.projectId,
-          sessionId: delegation.sessionId,
-          parentLog: log,
-        });
-
-        // Collect the specialist's ops into the parent's ops array
-        for (const op of result.proposedOps) {
-          ops.push(op);
-        }
-
-        await agentRunRepo.completeRun({
-          runId: childRun.run.id,
-          assistantText: result.assistantText,
-          messages: result.messages,
-          proposedOps: result.proposedOps,
-          appliedOps: [],
-        });
-
-        log.info(
-          `coding agent returned — ${result.proposedOps.length} ops, text: ${result.assistantText.slice(0, 80)}`
-        );
-
-        return {
-          assistantText: result.assistantText,
-          opsCount: result.proposedOps.length,
-        };
-      },
-    }),
-
-    delegate_to_graph_agent: tool({
-      description:
-        "Delegate a node graph task to the graph specialist agent. Use this for creating graph nodes (sprite, shader, audio, code, math, etc.), connecting nodes together, or modifying the visual node graph. The specialist manages the node graph that wires up the game's data flow.",
-      inputSchema: z.object({
-        task: z
-          .string()
-          .describe(
-            "Description of the graph/node task to delegate"
-          ),
-      }),
-      execute: async (input) => {
-        const log = delegation.parentLog.child("delegate:graph");
-        log.info(`delegating: ${input.task.slice(0, 100)}`);
-
-        const childRun = await agentRunRepo.createRun({
-          threadId: delegation.threadId,
-          projectId: delegation.projectId,
-          sceneId: delegation.sceneId,
-          sessionId: delegation.sessionId,
-          prompt: input.task,
-          agent: "graph",
-          parentRunId: delegation.parentRunId,
-        });
-        await agentRunRepo.attachRunToThread(
-          delegation.threadId,
-          childRun.run.id
-        );
-
-        const result = await runGraphAgent({
-          prompt: input.task,
-          project: delegation.project,
-          sceneId: delegation.sceneId,
-          runId: childRun.run.id,
-          threadId: delegation.threadId,
-          projectId: delegation.projectId,
-          sessionId: delegation.sessionId,
-          parentLog: log,
-        });
-
-        // Collect the specialist's ops into the parent's ops array
-        for (const op of result.proposedOps) {
-          ops.push(op);
-        }
-
-        await agentRunRepo.completeRun({
-          runId: childRun.run.id,
-          assistantText: result.assistantText,
-          messages: result.messages,
-          proposedOps: result.proposedOps,
-          appliedOps: [],
-        });
-
-        log.info(
-          `graph agent returned — ${result.proposedOps.length} ops, text: ${result.assistantText.slice(0, 80)}`
-        );
-
-        return {
-          assistantText: result.assistantText,
-          opsCount: result.proposedOps.length,
-        };
-      },
-    }),
+    delegate_to_graph_agent: makeDelegationTool(
+      "graph",
+      runGraphAgent,
+      "Delegate a node graph task to the graph specialist agent. Use this for creating graph nodes (sprite, shader, audio, code, math, etc.), connecting nodes together, or modifying the visual node graph. The specialist manages the node graph that wires up the game's data flow.",
+      delegation,
+      ops,
+    ),
   };
 }

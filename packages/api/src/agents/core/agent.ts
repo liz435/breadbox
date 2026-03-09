@@ -22,17 +22,6 @@ You coordinate across specialist agents:
 3. **Global Input** — All scripts use \`Input.isKeyPressed("key")\` for keyboard state. No input_map wiring needed.
 4. **Cross-entity access** — Scripts use \`entities.get("Name")\` to read/write other entities.
 
-## Script API (available in sprite inline scripts)
-- \`self\` — This sprite's entity (x, y, scaleX, scaleY, rotation, tint, visible, setPosition, setScale, translate)
-- \`dt\` — Frame delta time (seconds)
-- \`time\` — Elapsed time since start (seconds)
-- \`state\` — Persistent object (survives across frames)
-- \`entities.get("Name")\` — Get entity handle by sprite name
-- \`entities.list()\` — List all entity names
-- \`Input.isKeyPressed("key")\` — Check if key is pressed
-- \`Input.keys\` — Array of all pressed keys
-- \`console.log(...)\` — Log to runtime console
-
 ## Game Creation Pipeline
 When a user asks to create a game:
 
@@ -122,7 +111,7 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
 
   let stepCount = 0;
   let opsEmitted = 0;
-  let opsCallback: ((newOps: SceneOp[]) => void) | null = null;
+  const opsCallbacks: Array<(newOps: SceneOp[]) => void> = [];
 
   const stream = streamText({
     model: anthropic("claude-haiku-4-5-20251001"),
@@ -146,10 +135,10 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
       );
 
       // Emit any new ops that were added during this step
-      if (ops.length > opsEmitted && opsCallback) {
+      if (ops.length > opsEmitted && opsCallbacks.length > 0) {
         const newOps = ops.slice(opsEmitted);
         opsEmitted = ops.length;
-        opsCallback(newOps);
+        for (const cb of opsCallbacks) cb(newOps);
       }
     },
   });
@@ -163,7 +152,7 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
   }
 
   function onNewOps(cb: (newOps: SceneOp[]) => void) {
-    opsCallback = cb;
+    opsCallbacks.push(cb);
   }
 
   return { uiMessageStream: stream.toUIMessageStream(), ops, onNewOps, collectResult };
