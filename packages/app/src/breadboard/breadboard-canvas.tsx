@@ -26,6 +26,8 @@ import { breadboardInteractionActor } from "./breadboard-interaction";
 import { ComponentRenderer } from "./component-renderers/index";
 import { WireRenderer } from "./component-renderers/wire-renderer";
 import { ArduinoUnoBoard } from "./component-renderers/arduino-uno-renderer";
+import { CircuitOverlay } from "./circuit-overlay";
+import { useCircuitAnalysis } from "@/simulator/circuit-analysis-hook";
 
 // ── Default pin layouts per component type ──────────────────────
 
@@ -286,6 +288,9 @@ function BreadboardCanvasInner() {
     breadboardInteractionActor,
     (snap) => snap.context.componentType,
   );
+
+  // Circuit analysis
+  const { analysis } = useCircuitAnalysis();
 
   // Ghost preview position while placing
   const ghostRef = useRef<{ row: number; col: number } | null>(null);
@@ -565,10 +570,16 @@ function BreadboardCanvasInner() {
                 component={comp}
                 pinStates={state.pinStates}
                 isSelected={state.selectedId === comp.id}
+                electricalState={analysis?.componentStates.get(comp.id)}
               />
             </g>
           );
         })}
+
+        {/* ── Circuit analysis overlay ── */}
+        {analysis && analysis.isValid && (
+          <CircuitOverlay analysis={analysis} components={components} />
+        )}
 
         {/* ── Ghost preview while placing ── */}
         {interactionMode === "placing" && ghostPos && placingType && (

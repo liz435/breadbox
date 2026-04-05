@@ -1,11 +1,13 @@
 import React from "react";
 import type { BoardComponent, PinState } from "@dreamer/schemas";
+import type { ComponentElectricalState } from "@/simulator/circuit-solver";
 import { gridToPixel, HOLE_SPACING } from "@/breadboard/breadboard-grid";
 
 type ResistorRendererProps = {
   component: BoardComponent;
   pinStates: PinState[];
   isSelected: boolean;
+  electricalState?: ComponentElectricalState;
 };
 
 const BAND_COLORS: Record<number, string> = {
@@ -38,7 +40,7 @@ function resistanceToBands(resistance: number): string[] {
   ];
 }
 
-function ResistorRendererInner({ component, isSelected }: ResistorRendererProps) {
+function ResistorRendererInner({ component, isSelected, electricalState }: ResistorRendererProps) {
   const resistance = (component.properties.resistance as number) ?? 220;
   const bands = resistanceToBands(resistance);
 
@@ -136,6 +138,20 @@ function ResistorRendererInner({ component, isSelected }: ResistorRendererProps)
       >
         {component.name} ({resistance >= 1000 ? `${resistance / 1000}k` : resistance}&#937;)
       </text>
+
+      {/* Current flow indicator when active */}
+      {electricalState?.isActive && electricalState.current > 0.01 && (
+        <text
+          x={centerX}
+          y={centerY - bodyHeight / 2 - 5}
+          textAnchor="middle"
+          fontSize={5}
+          fill="#fbbf24"
+          fontFamily="monospace"
+        >
+          {electricalState.current.toFixed(1)}mA
+        </text>
+      )}
     </g>
   );
 }

@@ -1,21 +1,32 @@
 import React from "react";
 import type { BoardComponent, PinState } from "@dreamer/schemas";
+import type { ComponentElectricalState } from "@/simulator/circuit-solver";
 import { gridToPixel, HOLE_SPACING } from "@/breadboard/breadboard-grid";
 
 type LedRendererProps = {
   component: BoardComponent;
   pinStates: PinState[];
   isSelected: boolean;
+  electricalState?: ComponentElectricalState;
 };
 
-function LedRendererInner({ component, pinStates, isSelected }: LedRendererProps) {
+function LedRendererInner({ component, pinStates, isSelected, electricalState }: LedRendererProps) {
   const color = (component.properties.color as string) ?? "#ef4444";
-  const anodePin = component.pins.anode;
-  const isOn =
-    anodePin != null &&
-    pinStates.some(
-      (ps) => ps.pin === anodePin && (ps.digitalValue === 1 || ps.pwmValue > 0)
-    );
+
+  // Prefer electrical state from circuit solver when available
+  const isOn = electricalState
+    ? electricalState.isActive
+    : (() => {
+        const anodePin = component.pins.anode;
+        return (
+          anodePin != null &&
+          pinStates.some(
+            (ps) => ps.pin === anodePin && (ps.digitalValue === 1 || ps.pwmValue > 0)
+          )
+        );
+      })();
+
+  const isReversed = electricalState?.isReversed ?? false;
 
   // Anode position (top leg)
   const anode = gridToPixel({ row: component.y, col: component.x });
@@ -30,19 +41,30 @@ function LedRendererInner({ component, pinStates, isSelected }: LedRendererProps
 
   // Dim version of color for off state
   const offColor = `${color}55`;
+  const brightness = electricalState?.brightness ?? (isOn ? 1 : 0);
+  const reversePolarityFilterId = `led-reverse-${component.id}`;
 
   return (
     <g>
       <defs>
         {/* Dome gradient for 3D effect */}
         <radialGradient id={gradientId} cx="35%" cy="35%" r="65%">
-          <stop offset="0%" stopColor="#ffffff" stopOpacity={isOn ? 0.7 : 0.2} />
-          <stop offset="40%" stopColor={isOn ? color : offColor} stopOpacity={1} />
-          <stop offset="100%" stopColor={isOn ? color : offColor} stopOpacity={0.8} />
+          <stop offset="0%" stopColor="#ffffff" stopOpacity={isOn ? 0.3 + brightness * 0.4 : 0.2} />
+          <stop offset="40%" stopColor={isOn ? color : (isReversed ? "#ef4444" : offColor)} stopOpacity={1} />
+          <stop offset="100%" stopColor={isOn ? color : (isReversed ? "#ef444488" : offColor)} stopOpacity={0.8} />
         </radialGradient>
         {isOn && (
           <filter id={filterId} x="-150%" y="-150%" width="400%" height="400%">
-            <feGaussianBlur stdDeviation="6" result="blur" />
+            <feGaussianBlur stdDeviation={3 + brightness * 5} result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        )}
+        {isReversed && (
+          <filter id={reversePolarityFilterId} x="-200%" y="-200%" width="500%" height="500%">
+            <feGaussianBlur stdDeviation="4" result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
@@ -107,6 +129,24 @@ function LedRendererInner({ component, pinStates, isSelected }: LedRendererProps
           strokeWidth={1.5}
         />
       </g>
+
+      {/* Reverse polarity warning glow */}
+      {isReversed && (
+        <circle
+          cx={domeCenter.x}
+          cy={domeCenter.y}
+          r={domeRadius + 5}
+          fill="#ef4444"
+          filter={`url(#${reversePolarityFilterId})`}
+        >
+          <animate
+            attributeName="opacity"
+            values="0.15;0.35;0.15"
+            dur="1s"
+            repeatCount="indefinite"
+          />
+        </circle>
+      )}
 
       {/* Pin hole indicators */}
       <circle cx={anode.x} cy={anode.y} r={2} fill={color} opacity={0.5} />

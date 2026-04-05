@@ -1,5 +1,6 @@
 import React from "react";
 import type { BoardComponent, PinState, ComponentType } from "@dreamer/schemas";
+import type { ComponentElectricalState } from "@/simulator/circuit-solver";
 import { LedRenderer } from "./led-renderer";
 import { ButtonRenderer } from "./button-renderer";
 import { ResistorRenderer } from "./resistor-renderer";
@@ -10,6 +11,7 @@ export type ComponentRendererProps = {
   component: BoardComponent;
   pinStates: PinState[];
   isSelected: boolean;
+  electricalState?: ComponentElectricalState;
 };
 
 const RENDERER_MAP: Record<
@@ -30,9 +32,9 @@ export function getComponentRenderer(
   return RENDERER_MAP[componentType] ?? GenericRenderer;
 }
 
-function ComponentRendererInner({ component, pinStates, isSelected }: ComponentRendererProps) {
+function ComponentRendererInner({ component, pinStates, isSelected, electricalState }: ComponentRendererProps) {
   const Renderer = getComponentRenderer(component.type);
-  return <Renderer component={component} pinStates={pinStates} isSelected={isSelected} />;
+  return <Renderer component={component} pinStates={pinStates} isSelected={isSelected} electricalState={electricalState} />;
 }
 
 export const ComponentRenderer = React.memo(ComponentRendererInner);
