@@ -1,67 +1,175 @@
 import type { BoardComponent, Wire } from "@dreamer/schemas";
 
 /**
- * Standard breadboard layout:
- * - Terminal strips: 63 rows × 5 columns × 2 sides (a-e left, f-j right)
- * - Power rails: 2 rails × 2 sides (top +/-, bottom +/-)
- * - Center gap between columns e and f
+ * Layout:
+ *
+ * ┌──────────────────┐  ┌────────────────────────────────────┐
+ * │   ARDUINO UNO    │  │          BREADBOARD                │
+ * │                  │  │  + rail  ─────────────────── + rail │
+ * │  [D13] ... [D0]  │  │  - rail  ─────────────────── - rail │
+ * │                  │  │                                    │
+ * │  [A0] ... [A5]   │  │  a b c d e    f g h i j           │
+ * │                  │  │  1 ○ ○ ○ ○ ○    ○ ○ ○ ○ ○ 1       │
+ * │  [5V] [3.3V]    │  │  2 ○ ○ ○ ○ ○    ○ ○ ○ ○ ○ 2       │
+ * │  [GND] [VIN]    │  │  ...                               │
+ * │                  │  │  30 ○ ○ ○ ○ ○    ○ ○ ○ ○ ○ 30      │
+ * └──────────────────┘  │  - rail  ─────────────────── - rail │
+ *                       │  + rail  ─────────────────── + rail │
+ *                       └────────────────────────────────────┘
  *
  * Grid coordinates use (row, col) where:
- * - row: 0-62 for terminal strips
- * - col: 0-9 for terminal strips (0-4 = left side, 5-9 = right side)
+ * - row: 0-29 for terminal strips (30-row half-size breadboard)
+ * - col: 0-9 for terminal strips (0-4 = left side a-e, 5-9 = right side f-j)
  * - Power rails use special col values: -2 (+ rail), -1 (- rail), 10 (+ rail), 11 (- rail)
  */
 
 export type GridPoint = { row: number; col: number };
 export type Net = { id: string; points: GridPoint[]; arduinoPins: number[] };
 
-// ── Layout constants ──────────────────────────────────────────────
+// ── Arduino Uno board constants ──────────────────────────────
+export const ARDUINO_BOARD_WIDTH = 280;
+export const ARDUINO_BOARD_HEIGHT = 180;
+export const ARDUINO_BOARD_MARGIN = 20; // gap between Uno and breadboard
 
-export const ROWS = 63;
-export const COLS = 10; // 0-4 left, 5-9 right
-export const HOLE_SPACING = 10; // px between hole centers
-export const HOLE_RADIUS = 2.5;
-export const GAP_WIDTH = 20; // px gap between left and right sides
-export const RAIL_OFFSET = 30; // px offset for power rails from terminal area
-export const BOARD_PADDING = 30; // px padding around the board
+// ── Breadboard layout constants ──────────────────────────────
+export const ROWS = 30; // half-size breadboard
+export const COLS = 10; // 0-4 left (a-e), 5-9 right (f-j)
+export const HOLE_SPACING = 14; // px between hole centers (larger for realism)
+export const HOLE_RADIUS = 2.8;
+export const GAP_WIDTH = 28; // px gap between left and right sides (center channel)
+export const RAIL_OFFSET = 24; // px offset for power rails from terminal area
+export const BOARD_PADDING = 40; // px padding around the board
 
-// Computed dimensions
+// Breadboard offset: starts after the Arduino board
+export const BREADBOARD_OFFSET_X =
+  ARDUINO_BOARD_WIDTH + ARDUINO_BOARD_MARGIN;
+
+// Computed dimensions for the breadboard itself
 export const TERMINAL_WIDTH = 4 * HOLE_SPACING; // 5 holes, 4 gaps
-export const BOARD_WIDTH =
+export const BREADBOARD_INNER_WIDTH =
+  TERMINAL_WIDTH + GAP_WIDTH + TERMINAL_WIDTH;
+export const BREADBOARD_WIDTH =
+  BOARD_PADDING * 2 + BREADBOARD_INNER_WIDTH + RAIL_OFFSET * 2;
+
+// Power rails occupy space above and below the terminal area
+export const POWER_RAIL_HEIGHT = 30; // px height for the top/bottom power rail sections
+export const BREADBOARD_HEIGHT =
   BOARD_PADDING * 2 +
-  TERMINAL_WIDTH + // left side (cols 0-4)
-  GAP_WIDTH +
-  TERMINAL_WIDTH; // right side (cols 5-9)
+  POWER_RAIL_HEIGHT + // top rails
+  (ROWS - 1) * HOLE_SPACING +
+  POWER_RAIL_HEIGHT; // bottom rails
 
-export const BOARD_HEIGHT = BOARD_PADDING * 2 + (ROWS - 1) * HOLE_SPACING;
+// Total canvas size
+export const CANVAS_WIDTH = BREADBOARD_OFFSET_X + BREADBOARD_WIDTH;
+export const CANVAS_HEIGHT = Math.max(ARDUINO_BOARD_HEIGHT + 40, BREADBOARD_HEIGHT);
 
-// ── Coordinate conversion ─────────────────────────────────────────
+// ── Arduino pin pixel positions ──────────────────────────────
+
+type ArduinoPinInfo = {
+  label: string;
+  pin: number; // Arduino pin number (0-19, where A0=14..A5=19)
+  x: number;
+  y: number;
+  isPwm?: boolean;
+};
+
+const ARDUINO_PIN_SPACING = 16;
+const ARDUINO_X = 10; // left edge of the Uno board
+const ARDUINO_Y = 20; // top edge of the Uno board
+
+function makeDigitalPins(): ArduinoPinInfo[] {
+  const pins: ArduinoPinInfo[] = [];
+  const pwmPins = new Set([3, 5, 6, 9, 10, 11]);
+  const startX = ARDUINO_X + ARDUINO_BOARD_WIDTH - 20;
+  const startY = ARDUINO_Y + 30;
+  for (let i = 0; i <= 13; i++) {
+    pins.push({
+      label: `D${i}${pwmPins.has(i) ? "~" : ""}`,
+      pin: i,
+      x: startX,
+      y: startY + i * ARDUINO_PIN_SPACING,
+      isPwm: pwmPins.has(i),
+    });
+  }
+  return pins;
+}
+
+function makeAnalogPins(): ArduinoPinInfo[] {
+  const pins: ArduinoPinInfo[] = [];
+  const startX = ARDUINO_X + 20;
+  const startY = ARDUINO_Y + ARDUINO_BOARD_HEIGHT - 50;
+  for (let i = 0; i <= 5; i++) {
+    pins.push({
+      label: `A${i}`,
+      pin: 14 + i,
+      x: startX,
+      y: startY - i * ARDUINO_PIN_SPACING,
+    });
+  }
+  return pins;
+}
+
+function makePowerPins(): ArduinoPinInfo[] {
+  const startX = ARDUINO_X + 20;
+  const startY = ARDUINO_Y + 30;
+  return [
+    { label: "5V", pin: -1, x: startX, y: startY },
+    { label: "3.3V", pin: -2, x: startX, y: startY + ARDUINO_PIN_SPACING },
+    { label: "GND", pin: -3, x: startX, y: startY + ARDUINO_PIN_SPACING * 2 },
+    { label: "GND", pin: -4, x: startX, y: startY + ARDUINO_PIN_SPACING * 3 },
+    { label: "VIN", pin: -5, x: startX, y: startY + ARDUINO_PIN_SPACING * 4 },
+  ];
+}
+
+export const ARDUINO_DIGITAL_PINS = makeDigitalPins();
+export const ARDUINO_ANALOG_PINS = makeAnalogPins();
+export const ARDUINO_POWER_PINS = makePowerPins();
+export const ARDUINO_PINS: ArduinoPinInfo[] = [
+  ...ARDUINO_DIGITAL_PINS,
+  ...ARDUINO_ANALOG_PINS,
+  ...ARDUINO_POWER_PINS,
+];
+
+export type { ArduinoPinInfo };
+
+// ── Coordinate conversion ─────────────────────────────────────
+
+/** The x offset where the breadboard terminal area starts */
+const TERMINAL_ORIGIN_X = BREADBOARD_OFFSET_X + BOARD_PADDING + RAIL_OFFSET;
+/** The y offset where the terminal rows start (below top power rails) */
+const TERMINAL_ORIGIN_Y = BOARD_PADDING + POWER_RAIL_HEIGHT;
 
 export function gridToPixel(point: GridPoint): { x: number; y: number } {
   const { row, col } = point;
-  const y = BOARD_PADDING + row * HOLE_SPACING;
+  const y = TERMINAL_ORIGIN_Y + row * HOLE_SPACING;
 
-  // Power rails
-  if (col === -2) return { x: BOARD_PADDING - RAIL_OFFSET, y };
-  if (col === -1) return { x: BOARD_PADDING - RAIL_OFFSET + HOLE_SPACING, y };
-  if (col === 10)
+  // Power rails (top rails: row < 0 maps to top area, row >= 0 maps normally)
+  if (col === -2) {
+    return { x: TERMINAL_ORIGIN_X - RAIL_OFFSET + 4, y };
+  }
+  if (col === -1) {
+    return { x: TERMINAL_ORIGIN_X - RAIL_OFFSET + 4 + HOLE_SPACING, y };
+  }
+  if (col === 10) {
     return {
-      x: BOARD_PADDING + TERMINAL_WIDTH + GAP_WIDTH + TERMINAL_WIDTH + RAIL_OFFSET - HOLE_SPACING,
+      x: TERMINAL_ORIGIN_X + BREADBOARD_INNER_WIDTH + RAIL_OFFSET - 4 - HOLE_SPACING,
       y,
     };
-  if (col === 11)
+  }
+  if (col === 11) {
     return {
-      x: BOARD_PADDING + TERMINAL_WIDTH + GAP_WIDTH + TERMINAL_WIDTH + RAIL_OFFSET,
+      x: TERMINAL_ORIGIN_X + BREADBOARD_INNER_WIDTH + RAIL_OFFSET - 4,
       y,
     };
+  }
 
   // Terminal strips
   if (col >= 0 && col <= 4) {
-    return { x: BOARD_PADDING + col * HOLE_SPACING, y };
+    return { x: TERMINAL_ORIGIN_X + col * HOLE_SPACING, y };
   }
   if (col >= 5 && col <= 9) {
     return {
-      x: BOARD_PADDING + TERMINAL_WIDTH + GAP_WIDTH + (col - 5) * HOLE_SPACING,
+      x: TERMINAL_ORIGIN_X + TERMINAL_WIDTH + GAP_WIDTH + (col - 5) * HOLE_SPACING,
       y,
     };
   }
@@ -70,17 +178,16 @@ export function gridToPixel(point: GridPoint): { x: number; y: number } {
 }
 
 export function pixelToGrid(px: number, py: number): GridPoint {
-  const row = Math.round((py - BOARD_PADDING) / HOLE_SPACING);
+  const row = Math.round((py - TERMINAL_ORIGIN_Y) / HOLE_SPACING);
   const clampedRow = Math.max(0, Math.min(ROWS - 1, row));
 
-  // Determine which side based on x
-  const leftStart = BOARD_PADDING;
-  const leftEnd = BOARD_PADDING + TERMINAL_WIDTH;
-  const rightStart = BOARD_PADDING + TERMINAL_WIDTH + GAP_WIDTH;
+  const leftStart = TERMINAL_ORIGIN_X;
+  const leftEnd = TERMINAL_ORIGIN_X + TERMINAL_WIDTH;
+  const rightStart = TERMINAL_ORIGIN_X + TERMINAL_WIDTH + GAP_WIDTH;
   const rightEnd = rightStart + TERMINAL_WIDTH;
 
   if (px >= leftStart - HOLE_SPACING / 2 && px <= leftEnd + HOLE_SPACING / 2) {
-    const col = Math.round((px - BOARD_PADDING) / HOLE_SPACING);
+    const col = Math.round((px - TERMINAL_ORIGIN_X) / HOLE_SPACING);
     return { row: clampedRow, col: Math.max(0, Math.min(4, col)) };
   }
 
@@ -101,7 +208,80 @@ export function snapToGrid(px: number, py: number): GridPoint {
   return pixelToGrid(px, py);
 }
 
-// ── Connectivity ──────────────────────────────────────────────────
+// ── Component footprints ─────────────────────────────────────
+
+/**
+ * Returns the grid points occupied by a component placed at (row, col).
+ * This represents the physical pins/legs of the component on the breadboard.
+ */
+export type ComponentFootprint = {
+  points: GridPoint[];
+  /** Display width in pixels */
+  width: number;
+  /** Display height in pixels */
+  height: number;
+};
+
+export function getComponentFootprint(
+  type: string,
+  row: number,
+  col: number,
+): ComponentFootprint {
+  switch (type) {
+    case "led":
+      // 2 legs, adjacent rows same column
+      return {
+        points: [
+          { row, col },
+          { row: row + 1, col },
+        ],
+        width: HOLE_SPACING,
+        height: HOLE_SPACING * 2,
+      };
+    case "resistor":
+      // Spans 5 holes horizontally
+      return {
+        points: [
+          { row, col },
+          { row, col: col + 4 },
+        ],
+        width: HOLE_SPACING * 5,
+        height: HOLE_SPACING,
+      };
+    case "button":
+      // 4 pins in DIP: spans the center gap
+      // left side (col 3,4) and right side (col 5,6)
+      return {
+        points: [
+          { row, col: 3 },
+          { row: row + 1, col: 3 },
+          { row, col: 6 },
+          { row: row + 1, col: 6 },
+        ],
+        width: GAP_WIDTH + HOLE_SPACING * 4,
+        height: HOLE_SPACING * 2,
+      };
+    case "servo":
+      // Takes 3 adjacent holes in a row
+      return {
+        points: [
+          { row, col },
+          { row, col: col + 1 },
+          { row, col: col + 2 },
+        ],
+        width: HOLE_SPACING * 3,
+        height: HOLE_SPACING * 3,
+      };
+    default:
+      return {
+        points: [{ row, col }],
+        width: HOLE_SPACING * 2,
+        height: HOLE_SPACING * 2,
+      };
+  }
+}
+
+// ── Connectivity ──────────────────────────────────────────────
 
 /**
  * In a real breadboard:
@@ -139,7 +319,7 @@ export function areConnected(a: GridPoint, b: GridPoint): boolean {
   return false;
 }
 
-// ── Net resolution (union-find) ───────────────────────────────────
+// ── Net resolution (union-find) ───────────────────────────────
 
 function pointKey(p: GridPoint): string {
   return `${p.row},${p.col}`;
@@ -156,12 +336,12 @@ class UnionFind {
     }
     let root = key;
     while (this.parent.get(root) !== root) {
-      root = this.parent.get(root)!;
+      root = this.parent.get(root) as string;
     }
     // Path compression
     let current = key;
     while (current !== root) {
-      const next = this.parent.get(current)!;
+      const next = this.parent.get(current) as string;
       this.parent.set(current, root);
       current = next;
     }
@@ -189,7 +369,8 @@ class UnionFind {
     for (const key of this.parent.keys()) {
       const root = this.find(key);
       if (!result.has(root)) result.set(root, []);
-      result.get(root)!.push(key);
+      const group = result.get(root);
+      if (group) group.push(key);
     }
     return result;
   }
@@ -239,7 +420,8 @@ export function resolveNets(
       if (arduinoPin != null) {
         const key = pointKey({ row: comp.y, col: comp.x });
         if (!pinMap.has(key)) pinMap.set(key, []);
-        pinMap.get(key)!.push(arduinoPin);
+        const pins = pinMap.get(key);
+        if (pins) pins.push(arduinoPin);
       }
     }
   }

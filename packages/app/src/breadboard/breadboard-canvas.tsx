@@ -8,17 +8,24 @@ import {
   HOLE_SPACING,
   HOLE_RADIUS,
   BOARD_PADDING,
-  BOARD_WIDTH,
-  BOARD_HEIGHT,
+  BREADBOARD_WIDTH,
+  BREADBOARD_HEIGHT,
+  BREADBOARD_OFFSET_X,
   GAP_WIDTH,
   TERMINAL_WIDTH,
+  POWER_RAIL_HEIGHT,
+  CANVAS_WIDTH,
+  CANVAS_HEIGHT,
+  BREADBOARD_INNER_WIDTH,
   gridToPixel,
   pixelToGrid,
+  getComponentFootprint,
 } from "./breadboard-grid";
 import { getCamera, setCamera, screenToBoard, zoomAtPoint } from "./breadboard-camera";
 import { breadboardInteractionActor } from "./breadboard-interaction";
 import { ComponentRenderer } from "./component-renderers/index";
 import { WireRenderer } from "./component-renderers/wire-renderer";
+import { ArduinoUnoBoard } from "./component-renderers/arduino-uno-renderer";
 
 // ── Default pin layouts per component type ──────────────────────
 
@@ -45,49 +52,220 @@ const DEFAULT_PROPERTIES: Partial<Record<ComponentType, Record<string, unknown>>
   servo: { angle: 90 },
 };
 
-// ── Static board background (holes) ────────────────────────────
+// ── Column letters ──────────────────────────────────────────────
+const COL_LETTERS = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"];
 
-function buildHoleElements(): React.ReactElement[] {
-  const holes: React.ReactElement[] = [];
+// ── Breadboard origin helpers ───────────────────────────────────
 
+/** X position where the breadboard terminal area starts (in board coordinates) */
+const TERMINAL_ORIGIN_X = BREADBOARD_OFFSET_X + BOARD_PADDING + 24; // RAIL_OFFSET=24
+/** Y position where terminal rows start (below top power rails) */
+const TERMINAL_ORIGIN_Y = BOARD_PADDING + POWER_RAIL_HEIGHT;
+
+// ── Static board background (holes + labels + rails) ────────────
+
+function buildBreadboardBackground(): React.ReactElement[] {
+  const elements: React.ReactElement[] = [];
+
+  // ── Row numbers on left and right sides ──
+  for (let row = 0; row < ROWS; row++) {
+    const { y } = gridToPixel({ row, col: 0 });
+    const leftX = gridToPixel({ row, col: 0 }).x - 12;
+    const rightX = gridToPixel({ row, col: 9 }).x + 12;
+    const rowLabel = `${row + 1}`;
+
+    elements.push(
+      <text
+        key={`rl-${row}`}
+        x={leftX}
+        y={y + 1.5}
+        textAnchor="end"
+        dominantBaseline="middle"
+        fontSize={5}
+        fill="#999"
+        fontFamily="monospace"
+      >
+        {rowLabel}
+      </text>
+    );
+    elements.push(
+      <text
+        key={`rr-${row}`}
+        x={rightX}
+        y={y + 1.5}
+        textAnchor="start"
+        dominantBaseline="middle"
+        fontSize={5}
+        fill="#999"
+        fontFamily="monospace"
+      >
+        {rowLabel}
+      </text>
+    );
+  }
+
+  // ── Column letters at top ──
+  for (let col = 0; col < COLS; col++) {
+    const { x } = gridToPixel({ row: 0, col });
+    const letterY = TERMINAL_ORIGIN_Y - 8;
+    elements.push(
+      <text
+        key={`cl-${col}`}
+        x={x}
+        y={letterY}
+        textAnchor="middle"
+        fontSize={5.5}
+        fill="#999"
+        fontFamily="monospace"
+        fontWeight="bold"
+      >
+        {COL_LETTERS[col]}
+      </text>
+    );
+  }
+
+  // ── Terminal hole grid ──
   for (let row = 0; row < ROWS; row++) {
     for (let col = 0; col < COLS; col++) {
       const { x, y } = gridToPixel({ row, col });
-      holes.push(
+      elements.push(
         <circle
           key={`h-${row}-${col}`}
           cx={x}
           cy={y}
           r={HOLE_RADIUS}
-          fill="#1a1a1a"
-          stroke="#3a3a3a"
+          fill="#2a2a2a"
+          stroke="#4a4a4a"
           strokeWidth={0.5}
         />
       );
     }
   }
 
-  // Power rail holes
+  // ── Power rail holes ──
   const railCols = [-2, -1, 10, 11];
   for (const col of railCols) {
-    for (let row = 0; row < ROWS; row += 1) {
+    const isPositive = col === -2 || col === 10;
+    for (let row = 0; row < ROWS; row++) {
       const { x, y } = gridToPixel({ row, col });
-      const isPositive = col === -2 || col === 10;
-      holes.push(
+      elements.push(
         <circle
           key={`r-${row}-${col}`}
           cx={x}
           cy={y}
           r={HOLE_RADIUS}
-          fill="#1a1a1a"
-          stroke={isPositive ? "#ef444466" : "#3b82f666"}
-          strokeWidth={0.5}
+          fill="#2a2a2a"
+          stroke={isPositive ? "#ef444488" : "#3b82f688"}
+          strokeWidth={0.6}
         />
       );
     }
   }
 
-  return holes;
+  return elements;
+}
+
+// ── Power rail stripe decorations ───────────────────────────────
+
+function PowerRailStripes() {
+  const topRailY = TERMINAL_ORIGIN_Y - POWER_RAIL_HEIGHT / 2 - 2;
+  const bottomRailY = TERMINAL_ORIGIN_Y + (ROWS - 1) * HOLE_SPACING + POWER_RAIL_HEIGHT / 2 + 2;
+  const leftX = gridToPixel({ row: 0, col: -2 }).x - 6;
+  const rightX = gridToPixel({ row: 0, col: 11 }).x + 6;
+  const stripeWidth = rightX - leftX;
+
+  return (
+    <g>
+      {/* Top power rail stripes */}
+      <line
+        x1={leftX}
+        y1={topRailY - 3}
+        x2={leftX + stripeWidth}
+        y2={topRailY - 3}
+        stroke="#ef4444"
+        strokeWidth={1.5}
+        opacity={0.5}
+      />
+      <text x={leftX - 2} y={topRailY - 1} fontSize={6} fill="#ef4444" fontWeight="bold" opacity={0.6}>+</text>
+
+      <line
+        x1={leftX}
+        y1={topRailY + 3}
+        x2={leftX + stripeWidth}
+        y2={topRailY + 3}
+        stroke="#3b82f6"
+        strokeWidth={1.5}
+        opacity={0.5}
+      />
+      <text x={leftX - 2} y={topRailY + 6} fontSize={6} fill="#3b82f6" fontWeight="bold" opacity={0.6}>-</text>
+
+      {/* Bottom power rail stripes */}
+      <line
+        x1={leftX}
+        y1={bottomRailY - 3}
+        x2={leftX + stripeWidth}
+        y2={bottomRailY - 3}
+        stroke="#3b82f6"
+        strokeWidth={1.5}
+        opacity={0.5}
+      />
+      <text x={leftX - 2} y={bottomRailY - 1} fontSize={6} fill="#3b82f6" fontWeight="bold" opacity={0.6}>-</text>
+
+      <line
+        x1={leftX}
+        y1={bottomRailY + 3}
+        x2={leftX + stripeWidth}
+        y2={bottomRailY + 3}
+        stroke="#ef4444"
+        strokeWidth={1.5}
+        opacity={0.5}
+      />
+      <text x={leftX - 2} y={bottomRailY + 6} fontSize={6} fill="#ef4444" fontWeight="bold" opacity={0.6}>+</text>
+    </g>
+  );
+}
+
+// ── Ghost footprint preview ─────────────────────────────────────
+
+function GhostPreview({
+  row,
+  col,
+  componentType,
+}: {
+  row: number;
+  col: number;
+  componentType: ComponentType;
+}) {
+  const footprint = getComponentFootprint(componentType, row, col);
+
+  return (
+    <g opacity={0.4} pointerEvents="none">
+      {footprint.points.map((pt, i) => {
+        const { x, y } = gridToPixel(pt);
+        return (
+          <circle
+            key={i}
+            cx={x}
+            cy={y}
+            r={5}
+            fill="#3b82f6"
+            stroke="#60a5fa"
+            strokeWidth={1}
+          />
+        );
+      })}
+      <text
+        x={gridToPixel({ row, col }).x}
+        y={gridToPixel({ row, col }).y - 14}
+        textAnchor="middle"
+        fontSize={7}
+        fill="#60a5fa"
+        fontFamily="monospace"
+      >
+        {componentType.replace(/_/g, " ")}
+      </text>
+    </g>
+  );
 }
 
 // ── Main canvas ─────────────────────────────────────────────────
@@ -113,8 +291,8 @@ function BreadboardCanvasInner() {
   const ghostRef = useRef<{ row: number; col: number } | null>(null);
   const [ghostPos, setGhostPos] = React.useState<{ row: number; col: number } | null>(null);
 
-  // Static holes grid (never re-renders)
-  const holeElements = useMemo(() => buildHoleElements(), []);
+  // Static breadboard background (never re-renders)
+  const backgroundElements = useMemo(() => buildBreadboardBackground(), []);
 
   // Camera state — force re-render on zoom/pan
   const [, setTick] = React.useState(0);
@@ -246,7 +424,9 @@ function BreadboardCanvasInner() {
   );
 
   const cam = getCamera();
-  const components = Object.values(state.components);
+  const components = Object.values(state.components).filter(
+    (c) => c.type !== "arduino_uno"
+  );
   const wires = Object.values(state.wires);
 
   // Cursor style based on interaction mode
@@ -256,6 +436,15 @@ function BreadboardCanvasInner() {
       : interactionMode === "dragging"
         ? "cursor-grabbing"
         : "cursor-crosshair";
+
+  // Breadboard body coordinates
+  const bbX = BREADBOARD_OFFSET_X;
+  const bbY = 0;
+
+  // Center gap coordinates
+  const gapX = TERMINAL_ORIGIN_X + TERMINAL_WIDTH;
+  const gapY = TERMINAL_ORIGIN_Y - 4;
+  const gapHeight = (ROWS - 1) * HOLE_SPACING + 8;
 
   return (
     <svg
@@ -269,50 +458,72 @@ function BreadboardCanvasInner() {
       <g
         transform={`translate(${cam.offsetX}, ${cam.offsetY}) scale(${cam.zoom})`}
       >
-        {/* Board background */}
-        <rect
-          x={0}
-          y={0}
-          width={BOARD_WIDTH}
-          height={BOARD_HEIGHT}
-          rx={4}
-          fill="#f5f0e6"
-        />
+        {/* ── Arduino Uno board (fixed, left side) ── */}
+        <ArduinoUnoBoard />
 
-        {/* Center gap line */}
-        <rect
-          x={BOARD_PADDING + TERMINAL_WIDTH}
-          y={BOARD_PADDING - 4}
-          width={GAP_WIDTH}
-          height={(ROWS - 1) * HOLE_SPACING + 8}
-          fill="#e8e0d0"
-          rx={1}
-        />
+        {/* ── Breadboard ── */}
+        <g>
+          {/* Board shadow */}
+          <rect
+            x={bbX + 3}
+            y={bbY + 3}
+            width={BREADBOARD_WIDTH}
+            height={BREADBOARD_HEIGHT}
+            rx={6}
+            fill="#00000030"
+          />
 
-        {/* Power rail markings */}
-        <line
-          x1={BOARD_PADDING - 28}
-          y1={BOARD_PADDING - 4}
-          x2={BOARD_PADDING - 28}
-          y2={BOARD_PADDING + (ROWS - 1) * HOLE_SPACING + 4}
-          stroke="#ef4444"
-          strokeWidth={1}
-          opacity={0.4}
-        />
-        <line
-          x1={BOARD_PADDING - 18}
-          y1={BOARD_PADDING - 4}
-          x2={BOARD_PADDING - 18}
-          y2={BOARD_PADDING + (ROWS - 1) * HOLE_SPACING + 4}
-          stroke="#3b82f6"
-          strokeWidth={1}
-          opacity={0.4}
-        />
+          {/* Board background (off-white with subtle texture) */}
+          <rect
+            x={bbX}
+            y={bbY}
+            width={BREADBOARD_WIDTH}
+            height={BREADBOARD_HEIGHT}
+            rx={6}
+            fill="#f8f5ee"
+            stroke="#d0c8b8"
+            strokeWidth={1}
+          />
 
-        {/* Hole grid */}
-        <g>{holeElements}</g>
+          {/* Subtle board edge bevel */}
+          <rect
+            x={bbX + 2}
+            y={bbY + 2}
+            width={BREADBOARD_WIDTH - 4}
+            height={BREADBOARD_HEIGHT - 4}
+            rx={5}
+            fill="none"
+            stroke="#eee8d8"
+            strokeWidth={1}
+          />
 
-        {/* Wires */}
+          {/* Center gap (channel between left and right terminal strips) */}
+          <rect
+            x={gapX}
+            y={gapY}
+            width={GAP_WIDTH}
+            height={gapHeight}
+            fill="#e8e0d0"
+            rx={1}
+          />
+          {/* Center gap groove line */}
+          <line
+            x1={gapX + GAP_WIDTH / 2}
+            y1={gapY + 2}
+            x2={gapX + GAP_WIDTH / 2}
+            y2={gapY + gapHeight - 2}
+            stroke="#d8d0c0"
+            strokeWidth={1}
+          />
+
+          {/* Power rail stripes */}
+          <PowerRailStripes />
+
+          {/* Hole grid + labels */}
+          <g>{backgroundElements}</g>
+        </g>
+
+        {/* ── Wires ── */}
         {wires.map((wire) => (
           <WireRenderer
             key={wire.id}
@@ -321,60 +532,51 @@ function BreadboardCanvasInner() {
           />
         ))}
 
-        {/* Components */}
-        {components.map((comp) => (
-          <g
-            key={comp.id}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleComponentClick(comp.id);
-            }}
-            style={{ cursor: "pointer" }}
-          >
-            {/* Selection highlight */}
-            {state.selectedId === comp.id && (
-              <rect
-                x={gridToPixel({ row: comp.y, col: comp.x }).x - 16}
-                y={gridToPixel({ row: comp.y, col: comp.x }).y - 16}
-                width={32}
-                height={32}
-                rx={4}
-                fill="none"
-                stroke="#3b82f6"
-                strokeWidth={1.5}
-                strokeDasharray="4 2"
-                opacity={0.6}
-              />
-            )}
-            <ComponentRenderer
-              component={comp}
-              pinStates={state.pinStates}
-              isSelected={state.selectedId === comp.id}
-            />
-          </g>
-        ))}
+        {/* ── Components ── */}
+        {components.map((comp) => {
+          const footprint = getComponentFootprint(comp.type, comp.y, comp.x);
+          const primaryPos = gridToPixel({ row: comp.y, col: comp.x });
 
-        {/* Ghost preview while placing */}
-        {interactionMode === "placing" && ghostPos && placingType && (
-          <g opacity={0.4} pointerEvents="none">
-            <circle
-              cx={gridToPixel({ row: ghostPos.row, col: ghostPos.col }).x}
-              cy={gridToPixel({ row: ghostPos.row, col: ghostPos.col }).y}
-              r={8}
-              fill="#3b82f6"
-              stroke="#60a5fa"
-              strokeWidth={1}
-            />
-            <text
-              x={gridToPixel({ row: ghostPos.row, col: ghostPos.col }).x}
-              y={gridToPixel({ row: ghostPos.row, col: ghostPos.col }).y - 12}
-              textAnchor="middle"
-              fontSize={7}
-              fill="#60a5fa"
+          return (
+            <g
+              key={comp.id}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleComponentClick(comp.id);
+              }}
+              style={{ cursor: "pointer" }}
             >
-              {placingType.replace(/_/g, " ")}
-            </text>
-          </g>
+              {/* Selection highlight around footprint */}
+              {state.selectedId === comp.id && (
+                <rect
+                  x={primaryPos.x - 10}
+                  y={primaryPos.y - 10}
+                  width={footprint.width + 8}
+                  height={footprint.height + 8}
+                  rx={4}
+                  fill="none"
+                  stroke="#3b82f6"
+                  strokeWidth={1.5}
+                  strokeDasharray="4 2"
+                  opacity={0.5}
+                />
+              )}
+              <ComponentRenderer
+                component={comp}
+                pinStates={state.pinStates}
+                isSelected={state.selectedId === comp.id}
+              />
+            </g>
+          );
+        })}
+
+        {/* ── Ghost preview while placing ── */}
+        {interactionMode === "placing" && ghostPos && placingType && (
+          <GhostPreview
+            row={ghostPos.row}
+            col={ghostPos.col}
+            componentType={placingType}
+          />
         )}
       </g>
 

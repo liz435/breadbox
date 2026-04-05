@@ -1,6 +1,6 @@
 import React from "react";
 import type { BoardComponent, PinState } from "@dreamer/schemas";
-import { gridToPixel } from "@/breadboard/breadboard-grid";
+import { gridToPixel, HOLE_SPACING } from "@/breadboard/breadboard-grid";
 
 type ResistorRendererProps = {
   component: BoardComponent;
@@ -17,12 +17,14 @@ const BAND_COLORS: Record<number, string> = {
   5: "#22c55e", // green
   6: "#3b82f6", // blue
   7: "#8b5cf6", // violet
-  8: "#6b7280", // grey
+  8: "#6b7280", // gray
   9: "#ffffff", // white
 };
 
+const TOLERANCE_GOLD = "#CFB53B";
+
 function resistanceToBands(resistance: number): string[] {
-  if (resistance <= 0) return ["#000000", "#000000", "#000000"];
+  if (resistance <= 0) return ["#000000", "#000000", "#000000", TOLERANCE_GOLD];
   const exp = Math.floor(Math.log10(resistance));
   const significant = Math.round(resistance / Math.pow(10, exp - 1));
   const d1 = Math.floor(significant / 10) % 10;
@@ -32,67 +34,107 @@ function resistanceToBands(resistance: number): string[] {
     BAND_COLORS[d1] ?? "#000000",
     BAND_COLORS[d2] ?? "#000000",
     BAND_COLORS[multiplier] ?? "#000000",
+    TOLERANCE_GOLD, // 5% tolerance
   ];
 }
 
 function ResistorRendererInner({ component, isSelected }: ResistorRendererProps) {
   const resistance = (component.properties.resistance as number) ?? 220;
   const bands = resistanceToBands(resistance);
-  const { x, y } = gridToPixel({ row: component.y, col: component.x });
-  const bodyWidth = 24;
-  const bodyHeight = 8;
-  const leadLength = 6;
+
+  // Resistor spans from (row, col) to (row, col+4) — 5 holes horizontally
+  const pinA = gridToPixel({ row: component.y, col: component.x });
+  const pinB = gridToPixel({ row: component.y, col: component.x + 4 });
+
+  const centerX = (pinA.x + pinB.x) / 2;
+  const centerY = pinA.y;
+  const bodyWidth = Math.abs(pinB.x - pinA.x) * 0.55;
+  const bodyHeight = 10;
+  const leadStartX = pinA.x;
+  const leadEndX = pinB.x;
+  const bodyLeftX = centerX - bodyWidth / 2;
+  const bodyRightX = centerX + bodyWidth / 2;
+  const gradientId = `res-grad-${component.id}`;
 
   return (
     <g>
-      {/* Leads */}
+      <defs>
+        {/* Body gradient for 3D cylinder look */}
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#f5e6c8" />
+          <stop offset="30%" stopColor="#e8d5b7" />
+          <stop offset="70%" stopColor="#d4c4a0" />
+          <stop offset="100%" stopColor="#c0a882" />
+        </linearGradient>
+      </defs>
+
+      {/* Wire lead left */}
       <line
-        x1={x - bodyWidth / 2 - leadLength}
-        y1={y}
-        x2={x - bodyWidth / 2}
-        y2={y}
-        stroke="#a3a3a3"
+        x1={leadStartX}
+        y1={centerY}
+        x2={bodyLeftX}
+        y2={centerY}
+        stroke="#a0a0a0"
         strokeWidth={1.5}
+        strokeLinecap="round"
       />
+
+      {/* Wire lead right */}
       <line
-        x1={x + bodyWidth / 2}
-        y1={y}
-        x2={x + bodyWidth / 2 + leadLength}
-        y2={y}
-        stroke="#a3a3a3"
+        x1={bodyRightX}
+        y1={centerY}
+        x2={leadEndX}
+        y2={centerY}
+        stroke="#a0a0a0"
         strokeWidth={1.5}
+        strokeLinecap="round"
       />
+
       {/* Body */}
       <rect
-        x={x - bodyWidth / 2}
-        y={y - bodyHeight / 2}
+        x={bodyLeftX}
+        y={centerY - bodyHeight / 2}
         width={bodyWidth}
         height={bodyHeight}
-        rx={1}
-        fill="#e8d5b7"
-        stroke={isSelected ? "#3b82f6" : "#a3a3a3"}
-        strokeWidth={isSelected ? 2 : 1}
+        rx={2}
+        fill={`url(#${gradientId})`}
+        stroke={isSelected ? "#3b82f6" : "#b0a080"}
+        strokeWidth={isSelected ? 1.5 : 0.8}
       />
+
       {/* Color bands */}
-      {bands.map((color, i) => (
-        <rect
-          key={i}
-          x={x - bodyWidth / 2 + 4 + i * 6}
-          y={y - bodyHeight / 2 + 1}
-          width={3}
-          height={bodyHeight - 2}
-          fill={color}
-          rx={0.5}
-        />
-      ))}
+      {bands.map((color, i) => {
+        const bandSpacing = bodyWidth / (bands.length + 1);
+        const bx = bodyLeftX + bandSpacing * (i + 1) - 1.5;
+        return (
+          <rect
+            key={i}
+            x={bx}
+            y={centerY - bodyHeight / 2 + 1}
+            width={3}
+            height={bodyHeight - 2}
+            fill={color}
+            rx={0.5}
+            stroke={color === "#ffffff" ? "#ccc" : "none"}
+            strokeWidth={0.3}
+          />
+        );
+      })}
+
+      {/* Pin hole indicators */}
+      <circle cx={pinA.x} cy={pinA.y} r={2} fill="#a0a0a0" opacity={0.5} />
+      <circle cx={pinB.x} cy={pinB.y} r={2} fill="#a0a0a0" opacity={0.5} />
+
+      {/* Label */}
       <text
-        x={x}
-        y={y + bodyHeight / 2 + 10}
+        x={centerX}
+        y={centerY + bodyHeight / 2 + 10}
         textAnchor="middle"
-        fontSize={7}
-        fill="#666"
+        fontSize={6}
+        fill="#888"
+        fontFamily="monospace"
       >
-        {component.name}
+        {component.name} ({resistance >= 1000 ? `${resistance / 1000}k` : resistance}&#937;)
       </text>
     </g>
   );

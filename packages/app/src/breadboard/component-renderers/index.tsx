@@ -4,7 +4,6 @@ import { LedRenderer } from "./led-renderer";
 import { ButtonRenderer } from "./button-renderer";
 import { ResistorRenderer } from "./resistor-renderer";
 import { ServoRenderer } from "./servo-renderer";
-import { ArduinoUnoRenderer } from "./arduino-uno-renderer";
 import { GenericRenderer } from "./generic-renderer";
 
 export type ComponentRendererProps = {
@@ -22,7 +21,7 @@ const RENDERER_MAP: Record<
   button: ButtonRenderer,
   resistor: ResistorRenderer,
   servo: ServoRenderer,
-  arduino_uno: ArduinoUnoRenderer,
+  // arduino_uno is rendered as a fixed board, not as a component
 };
 
 export function getComponentRenderer(

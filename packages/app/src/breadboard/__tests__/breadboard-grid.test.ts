@@ -55,7 +55,7 @@ describe("areConnected", () => {
   });
 
   test("same power rail points are connected", () => {
-    expect(areConnected({ row: 0, col: -2 }, { row: 62, col: -2 })).toBe(true);
+    expect(areConnected({ row: 0, col: -2 }, { row: ROWS - 1, col: -2 })).toBe(true);
   });
 
   test("different power rails are NOT connected", () => {
@@ -104,7 +104,7 @@ describe("resolveNets", () => {
       type: "led",
       name: "LED2",
       x: 0,
-      y: 30,
+      y: 20,
       rotation: 0,
       pins: { anode: 12 },
       properties: {},
