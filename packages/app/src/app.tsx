@@ -16,11 +16,14 @@ import { SerialMonitor } from "./panels/serial-monitor";
 import { PinInspector } from "./panels/pin-inspector";
 import { BottomToolbar } from "./toolbar/bottom-toolbar";
 import { SceneContext, useScene } from "./store/scene-context";
-import { GraphContext } from "./store/graph-context";
+import { GraphContext, useGraph } from "./store/graph-context";
 import { BoardContext, useBoard } from "./store/board-context";
 import { DockviewContext } from "./store/dockview-context";
 import { ProjectLoader } from "./project/project-loader";
 import { useGraphPersistence } from "./project/use-graph-persistence";
+import { SketchEditor } from "./editor/sketch-editor";
+import { useProject } from "./project/project-context";
+import { syncCodegenToBoard } from "./store/graph-scene-bridge";
 
 // Dockview panel wrappers
 function ProjectFilesPanel(_props: IDockviewPanelProps) {
@@ -51,6 +54,10 @@ function PinInspectorPanel(_props: IDockviewPanelProps) {
   return <PinInspector />;
 }
 
+function SketchEditorPanel(_props: IDockviewPanelProps) {
+  return <SketchEditor />;
+}
+
 const components = {
   projectFiles: ProjectFilesPanel,
   breadboard: BreadboardDockPanel,
@@ -59,13 +66,41 @@ const components = {
   viewport: ViewportPanelWrapper,
   serialMonitor: SerialMonitorPanel,
   pinInspector: PinInspectorPanel,
+  sketchEditor: SketchEditorPanel,
 };
 
 function AppInner() {
   const { state, send } = useScene();
   const { state: boardState, send: boardSend } = useBoard();
+  const { state: graphState } = useGraph();
+  const project = useProject();
   useGraphPersistence();
   const dockviewApiRef = useRef<DockviewApi | null>(null);
+  const boardHydratedRef = useRef(false);
+
+  // Hydrate board state from project file on first render
+  useEffect(() => {
+    if (boardHydratedRef.current) return;
+    boardHydratedRef.current = true;
+    const pf = project.projectFile;
+    if (pf.boardState) {
+      boardSend({ type: "LOAD_BOARD", state: pf.boardState });
+    }
+  }, [project.projectFile, boardSend]);
+
+  // Sync codegen to board whenever graph nodes/edges change
+  const prevNodesRef = useRef(graphState.nodes);
+  const prevEdgesRef = useRef(graphState.edges);
+  useEffect(() => {
+    if (
+      graphState.nodes !== prevNodesRef.current ||
+      graphState.edges !== prevEdgesRef.current
+    ) {
+      prevNodesRef.current = graphState.nodes;
+      prevEdgesRef.current = graphState.edges;
+      syncCodegenToBoard(graphState.nodes, graphState.edges, boardSend);
+    }
+  }, [graphState.nodes, graphState.edges, boardSend]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -135,6 +170,13 @@ function AppInner() {
       component: "graph",
       title: "Graph",
       position: { referencePanel: canvasPanel, direction: "right" },
+    });
+
+    api.addPanel({
+      id: "sketchEditor",
+      component: "sketchEditor",
+      title: "Sketch",
+      position: { referencePanel: graphPanel, direction: "within" },
     });
 
     const inspectorPanel = api.addPanel({

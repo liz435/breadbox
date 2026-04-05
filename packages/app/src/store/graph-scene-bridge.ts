@@ -1,7 +1,9 @@
-import type { GraphNode } from "@dreamer/schemas";
+import type { GraphNode, Edge } from "@dreamer/schemas";
 import type { GraphEvent } from "./graph-machine";
 import type { SceneEvent } from "./scene-machine";
+import type { BoardEvent } from "./board-machine";
 import type { Sprite } from "../types";
+import { generateArduinoCode } from "../graph/arduino-codegen";
 
 /**
  * Bridge between graph and scene state machines.
@@ -79,6 +81,19 @@ export async function graphEventToSceneEvents(
     default:
       return null;
   }
+}
+
+/**
+ * Regenerate Arduino sketch code from the current graph state and
+ * dispatch UPDATE_SKETCH to the board machine to keep them in sync.
+ */
+export function syncCodegenToBoard(
+  nodes: Record<string, GraphNode>,
+  edges: Record<string, Edge>,
+  boardSend: (event: BoardEvent) => void,
+): void {
+  const code = generateArduinoCode(nodes, edges);
+  boardSend({ type: "UPDATE_SKETCH", code });
 }
 
 async function graphNodeToSprite(node: GraphNode): Promise<Sprite> {

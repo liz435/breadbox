@@ -1,11 +1,12 @@
 import { useState, useCallback } from "react"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport, type UIMessage } from "ai"
-import type { SceneOp } from "@dreamer/schemas"
+import type { SceneOp, BoardOp } from "@dreamer/schemas"
 import { useProject } from "@/project/project-context"
 import { useScene } from "@/store/scene-context"
 import { useGraph } from "@/store/graph-context"
-import { applyOpsToScene } from "@/chat/apply-ops"
+import { useBoard } from "@/store/board-context"
+import { applyOpsToScene, isBoardOp, applyBoardOpsToBoard } from "@/chat/apply-ops"
 import { applyGraphOpsToGraph, isGraphOp } from "@/chat/apply-graph-ops"
 import type { GraphOp } from "@dreamer/schemas"
 import { API_ORIGIN } from "@dreamer/config"
@@ -23,6 +24,7 @@ export function useChatMessages(): UseChatMessagesReturn {
   const project = useProject()
   const { send: sceneSend } = useScene()
   const { send: graphSend } = useGraph()
+  const { send: boardSend } = useBoard()
   const [inputValue, setInputValue] = useState("")
 
   const chat = useChat({
@@ -38,11 +40,13 @@ export function useChatMessages(): UseChatMessagesReturn {
     }),
     onData(dataPart) {
       if (dataPart.type === "data-scene-ops") {
-        const allOps = dataPart.data as Array<SceneOp | GraphOp>
-        const sceneOps = allOps.filter((op) => !isGraphOp(op)) as SceneOp[]
+        const allOps = dataPart.data as Array<SceneOp | GraphOp | BoardOp>
         const graphOps = allOps.filter((op) => isGraphOp(op)) as unknown as GraphOp[]
+        const boardOps = allOps.filter((op) => isBoardOp(op) && !isGraphOp(op)) as unknown as BoardOp[]
+        const sceneOps = allOps.filter((op) => !isGraphOp(op) && !isBoardOp(op)) as SceneOp[]
         if (sceneOps.length > 0) applyOpsToScene(sceneOps, sceneSend)
         if (graphOps.length > 0) applyGraphOpsToGraph(graphOps, graphSend)
+        if (boardOps.length > 0) applyBoardOpsToBoard(boardOps, boardSend)
       }
       if (dataPart.type === "data-scene-result") {
         const result = dataPart.data as {
