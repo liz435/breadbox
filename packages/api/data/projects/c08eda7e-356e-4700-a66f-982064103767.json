@@ -4,7 +4,7 @@
     "name": "Untitled Project",
     "version": 0,
     "createdAt": "2026-03-24T02:49:26.474Z",
-    "updatedAt": "2026-03-30T20:57:17.742Z",
+    "updatedAt": "2026-04-05T20:09:52.254Z",
     "threadId": "d9ce038b-57e1-4110-8f97-c0b9c47bb369",
     "activeSceneId": "69052eee-ea8c-47c0-9eac-fdbc1bfa38b9"
   },
@@ -37,136 +37,55 @@
   "assets": {},
   "graph": {
     "nodes": {
-      "pong-ball": {
-        "id": "pong-ball",
-        "type": "sprite",
-        "name": "Ball",
+      "node-1775419790218-npqkyq": {
+        "id": "node-1775419790218-npqkyq",
+        "type": "setup",
+        "name": "Setup",
         "x": 60,
         "y": 60,
-        "width": 200,
-        "height": 150,
+        "width": 160,
+        "height": 70,
         "ports": [
           {
-            "id": "shader_in",
-            "name": "Shader",
-            "direction": "in",
-            "dataType": "shader"
-          },
-          {
-            "id": "material_in",
-            "name": "Material",
-            "direction": "in",
-            "dataType": "material"
-          },
-          {
-            "id": "texture_out",
-            "name": "Texture",
+            "id": "flow_out",
+            "name": "Flow",
             "direction": "out",
-            "dataType": "texture"
-          },
-          {
-            "id": "entity_out",
-            "name": "Entity",
-            "direction": "out",
-            "dataType": "entity"
+            "dataType": "flow"
           }
         ],
-        "data": {
-          "tint": "#ffffff",
-          "sceneX": 0,
-          "sceneY": 0,
-          "width": 16,
-          "height": 16,
-          "script": "// Ball — moves, bounces off walls and paddles\nconst SPEED = 250;\nconst HALF_W = 400;\nconst HALF_H = 300;\nconst PADDLE_H = 40;\n\n// Init on first frame\nif (state.vx === undefined) {\n  state.vx = SPEED;\n  state.vy = SPEED * 0.6;\n  state.scoreL = 0;\n  state.scoreR = 0;\n}\n\n// Move\nself.x += state.vx * dt;\nself.y += state.vy * dt;\n\n// Top/bottom bounce\nif (self.y < -HALF_H + 8 || self.y > HALF_H - 8) {\n  state.vy *= -1;\n  self.y = Math.max(-HALF_H + 8, Math.min(HALF_H - 8, self.y));\n}\n\n// Left paddle collision\nconst lp = entities.get(\"Left Paddle\");\nif (lp && self.x < -340 && self.x > -360 && state.vx < 0 &&\n    Math.abs(self.y - lp.y) < PADDLE_H + 8) {\n  state.vx = Math.abs(state.vx) * 1.05;\n  state.vy += (self.y - lp.y) * 3;\n  self.x = -340;\n}\n\n// Right paddle collision\nconst rp = entities.get(\"Right Paddle\");\nif (rp && self.x > 340 && self.x < 360 && state.vx > 0 &&\n    Math.abs(self.y - rp.y) < PADDLE_H + 8) {\n  state.vx = -Math.abs(state.vx) * 1.05;\n  state.vy += (self.y - rp.y) * 3;\n  self.x = 340;\n}\n\n// Score — reset ball\nif (self.x < -HALF_W) {\n  state.scoreR++;\n  self.x = 0; self.y = 0;\n  state.vx = SPEED;\n  state.vy = SPEED * (Math.random() - 0.5);\n}\nif (self.x > HALF_W) {\n  state.scoreL++;\n  self.x = 0; self.y = 0;\n  state.vx = -SPEED;\n  state.vy = SPEED * (Math.random() - 0.5);\n}\n\n// Cap velocity\nstate.vx = Math.max(-600, Math.min(600, state.vx));\nstate.vy = Math.max(-400, Math.min(400, state.vy));\n\nconsole.log(state.scoreL + \" - \" + state.scoreR);\n"
-        }
+        "data": {}
       },
-      "pong-paddle-left": {
-        "id": "pong-paddle-left",
-        "type": "sprite",
-        "name": "Left Paddle",
+      "node-1775419790218-mskg3r": {
+        "id": "node-1775419790218-mskg3r",
+        "type": "loop",
+        "name": "Loop",
         "x": 60,
-        "y": 260,
-        "width": 200,
-        "height": 150,
+        "y": 200,
+        "width": 160,
+        "height": 70,
         "ports": [
           {
-            "id": "shader_in",
-            "name": "Shader",
-            "direction": "in",
-            "dataType": "shader"
-          },
-          {
-            "id": "material_in",
-            "name": "Material",
-            "direction": "in",
-            "dataType": "material"
-          },
-          {
-            "id": "texture_out",
-            "name": "Texture",
+            "id": "flow_out",
+            "name": "Flow",
             "direction": "out",
-            "dataType": "texture"
-          },
-          {
-            "id": "entity_out",
-            "name": "Entity",
-            "direction": "out",
-            "dataType": "entity"
+            "dataType": "flow"
           }
         ],
-        "data": {
-          "tint": "#4a9eff",
-          "sceneX": -350,
-          "sceneY": 0,
-          "width": 16,
-          "height": 80,
-          "script": "// Left Paddle — Player 1 (W/S keys)\nconst SPEED = 400;\nconst HALF_H = 300;\nconst PADDLE_H = 40;\n\nif (Input.isKeyPressed(\"w\") || Input.isKeyPressed(\"W\")) {\n  self.y -= SPEED * dt;\n}\nif (Input.isKeyPressed(\"s\") || Input.isKeyPressed(\"S\")) {\n  self.y += SPEED * dt;\n}\n\n// Clamp to screen\nself.y = Math.max(-HALF_H + PADDLE_H, Math.min(HALF_H - PADDLE_H, self.y));\n"
-        }
-      },
-      "pong-paddle-right": {
-        "id": "pong-paddle-right",
-        "type": "sprite",
-        "name": "Right Paddle",
-        "x": 60,
-        "y": 440,
-        "width": 200,
-        "height": 150,
-        "ports": [
-          {
-            "id": "shader_in",
-            "name": "Shader",
-            "direction": "in",
-            "dataType": "shader"
-          },
-          {
-            "id": "material_in",
-            "name": "Material",
-            "direction": "in",
-            "dataType": "material"
-          },
-          {
-            "id": "texture_out",
-            "name": "Texture",
-            "direction": "out",
-            "dataType": "texture"
-          },
-          {
-            "id": "entity_out",
-            "name": "Entity",
-            "direction": "out",
-            "dataType": "entity"
-          }
-        ],
-        "data": {
-          "tint": "#ff4a4a",
-          "sceneX": 350,
-          "sceneY": 0,
-          "width": 16,
-          "height": 80,
-          "script": "// Right Paddle — Player 2 (Arrow keys)\nconst SPEED = 400;\nconst HALF_H = 300;\nconst PADDLE_H = 40;\n\nif (Input.isKeyPressed(\"ArrowUp\")) {\n  self.y -= SPEED * dt;\n}\nif (Input.isKeyPressed(\"ArrowDown\")) {\n  self.y += SPEED * dt;\n}\n\n// Clamp to screen\nself.y = Math.max(-HALF_H + PADDLE_H, Math.min(HALF_H - PADDLE_H, self.y));\n"
-        }
+        "data": {}
       }
     },
     "edges": {}
+  },
+  "boardState": {
+    "components": {},
+    "wires": {},
+    "pinStates": [],
+    "libraryState": {
+      "servos": {},
+      "lcd": null,
+      "serialBaud": 0
+    },
+    "serialOutput": [],
+    "sketchCode": ""
   }
 }
