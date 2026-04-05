@@ -12,6 +12,8 @@ import Inspector from "./panels/inspector";
 import { GraphPanel } from "./graph/graph-panel";
 import { ViewportPanel } from "./viewport/viewport-panel";
 import { BreadboardPanel } from "./breadboard/breadboard-panel";
+import { SerialMonitor } from "./panels/serial-monitor";
+import { PinInspector } from "./panels/pin-inspector";
 import { BottomToolbar } from "./toolbar/bottom-toolbar";
 import { SceneContext, useScene } from "./store/scene-context";
 import { GraphContext } from "./store/graph-context";
@@ -41,12 +43,22 @@ function ViewportPanelWrapper(_props: IDockviewPanelProps) {
   return <ViewportPanel />;
 }
 
+function SerialMonitorPanel(_props: IDockviewPanelProps) {
+  return <SerialMonitor />;
+}
+
+function PinInspectorPanel(_props: IDockviewPanelProps) {
+  return <PinInspector />;
+}
+
 const components = {
   projectFiles: ProjectFilesPanel,
   breadboard: BreadboardDockPanel,
   inspector: InspectorPanel,
   graph: GraphEditorPanel,
   viewport: ViewportPanelWrapper,
+  serialMonitor: SerialMonitorPanel,
+  pinInspector: PinInspectorPanel,
 };
 
 function AppInner() {
@@ -130,6 +142,22 @@ function AppInner() {
       component: "inspector",
       title: "Inspector",
       position: { referencePanel: graphPanel, direction: "right" },
+    });
+
+    // Pin Inspector as a tab alongside Inspector
+    api.addPanel({
+      id: "pinInspector",
+      component: "pinInspector",
+      title: "Pin Inspector",
+      position: { referencePanel: inspectorPanel, direction: "within" },
+    });
+
+    // Serial Monitor below breadboard
+    api.addPanel({
+      id: "serialMonitor",
+      component: "serialMonitor",
+      title: "Serial Monitor",
+      position: { referencePanel: canvasPanel, direction: "below" },
     });
 
     projectFilesPanel.api.setSize({ width: totalWidth * 0.15 });
