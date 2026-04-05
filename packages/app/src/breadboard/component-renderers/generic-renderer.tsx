@@ -11,15 +11,30 @@ type GenericRendererProps = {
   libraryState?: LibraryState;
 };
 
-function BuzzerRenderer({ component, isSelected }: { component: BoardComponent; isSelected: boolean }) {
+function BuzzerRenderer({ component, isSelected, electricalState }: { component: BoardComponent; isSelected: boolean; electricalState?: ComponentElectricalState }) {
   const { x, y } = gridToPixel({ row: component.y, col: component.x });
   const radius = 10;
+  const isActive = electricalState?.isActive ?? false;
 
   return (
     <g>
       {/* Pins */}
       <line x1={x - 4} y1={y + radius + 2} x2={x - 4} y2={y + radius + 8} stroke="#a0a0a0" strokeWidth={1.2} />
       <line x1={x + 4} y1={y + radius + 2} x2={x + 4} y2={y + radius + 8} stroke="#a0a0a0" strokeWidth={1.2} />
+
+      {/* Vibration rings when active */}
+      {isActive && (
+        <>
+          <circle cx={x} cy={y} r={radius + 4} fill="none" stroke="#a78bfa" strokeWidth={0.8} opacity={0.4}>
+            <animate attributeName="r" values={`${radius + 2};${radius + 10};${radius + 2}`} dur="0.4s" repeatCount="indefinite" />
+            <animate attributeName="opacity" values="0.4;0;0.4" dur="0.4s" repeatCount="indefinite" />
+          </circle>
+          <circle cx={x} cy={y} r={radius + 8} fill="none" stroke="#a78bfa" strokeWidth={0.6} opacity={0.2}>
+            <animate attributeName="r" values={`${radius + 6};${radius + 16};${radius + 6}`} dur="0.4s" repeatCount="indefinite" />
+            <animate attributeName="opacity" values="0.2;0;0.2" dur="0.4s" repeatCount="indefinite" />
+          </circle>
+        </>
+      )}
 
       {/* Body */}
       <circle
@@ -208,7 +223,7 @@ function GenericRendererInner({ component, pinStates, isSelected, electricalStat
   // Route to specialized renderers
   switch (component.type) {
     case "buzzer":
-      return <g opacity={dimOpacity}><BuzzerRenderer component={component} isSelected={isSelected} /></g>;
+      return <g opacity={dimOpacity}><BuzzerRenderer component={component} isSelected={isSelected} electricalState={electricalState} /></g>;
     case "potentiometer":
       return <g opacity={dimOpacity}><PotentiometerRenderer component={component} isSelected={isSelected} /></g>;
     case "lcd_16x2":

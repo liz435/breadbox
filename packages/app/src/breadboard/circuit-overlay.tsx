@@ -147,7 +147,20 @@ function ActiveComponentGlow({
         fill={color}
         opacity={0.15 + electricalState.brightness * 0.25}
         filter={`url(#${filterId})`}
-      />
+      >
+        <animate
+          attributeName="r"
+          values={`${radius};${radius + 3};${radius}`}
+          dur="1.5s"
+          repeatCount="indefinite"
+        />
+        <animate
+          attributeName="opacity"
+          values={`${0.15 + electricalState.brightness * 0.25};${0.1 + electricalState.brightness * 0.15};${0.15 + electricalState.brightness * 0.25}`}
+          dur="1.5s"
+          repeatCount="indefinite"
+        />
+      </circle>
     </g>
   )
 }

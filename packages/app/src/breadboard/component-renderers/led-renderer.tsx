@@ -98,15 +98,28 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
 
       {/* LED dome (semicircle top + flat bottom) */}
       <g filter={isOn ? `url(#${filterId})` : undefined} opacity={domeOpacity}>
-        {/* Glow halo when on */}
+        {/* Animated bloom halo when on */}
         {isOn && (
           <circle
             cx={domeCenter.x}
             cy={domeCenter.y}
             r={domeRadius + 4}
             fill={color}
-            opacity={0.2}
-          />
+            opacity={0.25}
+          >
+            <animate
+              attributeName="r"
+              values={`${domeRadius + 3};${domeRadius + 8};${domeRadius + 3}`}
+              dur="2s"
+              repeatCount="indefinite"
+            />
+            <animate
+              attributeName="opacity"
+              values="0.2;0.35;0.2"
+              dur="2s"
+              repeatCount="indefinite"
+            />
+          </circle>
         )}
 
         {/* Dome body */}
