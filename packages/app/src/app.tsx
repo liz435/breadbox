@@ -14,6 +14,7 @@ import { ViewportPanel } from "./viewport/viewport-panel";
 import { BottomToolbar } from "./toolbar/bottom-toolbar";
 import { SceneContext, useScene } from "./store/scene-context";
 import { GraphContext } from "./store/graph-context";
+import { BoardContext, useBoard } from "./store/board-context";
 import { DockviewContext } from "./store/dockview-context";
 import { ProjectLoader } from "./project/project-loader";
 import { useGraphPersistence } from "./project/use-graph-persistence";
@@ -49,6 +50,7 @@ const components = {
 
 function AppInner() {
   const { state, send } = useScene();
+  const { state: boardState, send: boardSend } = useBoard();
   useGraphPersistence();
   const dockviewApiRef = useRef<DockviewApi | null>(null);
 
@@ -57,25 +59,29 @@ function AppInner() {
       const tag = (e.target as HTMLElement).tagName
       if (tag === "INPUT" || tag === "TEXTAREA") return;
 
-      // Undo / Redo
+      // Undo / Redo (both scene + board)
       if ((e.metaKey || e.ctrlKey) && e.key === "z") {
         e.preventDefault();
         send({ type: e.shiftKey ? "REDO" : "UNDO" });
+        boardSend({ type: e.shiftKey ? "REDO" : "UNDO" });
         return;
       }
 
       if (e.key === "Delete" || e.key === "Backspace") {
-        if (state.selectedId) {
+        if (boardState.selectedId) {
+          boardSend({ type: "REMOVE_COMPONENT", id: boardState.selectedId });
+        } else if (state.selectedId) {
           send({ type: "REMOVE", id: state.selectedId });
         }
       }
       if (e.key === "Escape") {
         send({ type: "SELECT", id: null });
+        boardSend({ type: "SELECT", id: null });
       }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [state.selectedId, send]);
+  }, [state.selectedId, boardState.selectedId, send, boardSend]);
 
   const LAYOUT_STORAGE_KEY = "dreamer:dockview-layout";
 
@@ -164,11 +170,13 @@ function AppInner() {
 export default function App() {
   return (
     <ProjectLoader>
-      <SceneContext.Provider>
-        <GraphContext.Provider>
-          <AppInner />
-        </GraphContext.Provider>
-      </SceneContext.Provider>
+      <BoardContext.Provider>
+        <SceneContext.Provider>
+          <GraphContext.Provider>
+            <AppInner />
+          </GraphContext.Provider>
+        </SceneContext.Provider>
+      </BoardContext.Provider>
     </ProjectLoader>
   );
 }
