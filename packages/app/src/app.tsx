@@ -137,9 +137,12 @@ function AppInner() {
     const api = event.api;
     dockviewApiRef.current = api;
 
-    // Try restoring saved layout from localStorage
+    // Clear stale layouts from before Arduino simulator conversion.
+    // The old layout references "canvas" and missing panels — force a fresh default.
+    const LAYOUT_VERSION = "arduino-sim-v2";
     const saved = localStorage.getItem(LAYOUT_STORAGE_KEY);
-    if (saved) {
+    const savedVersion = localStorage.getItem(LAYOUT_STORAGE_KEY + ":version");
+    if (saved && savedVersion === LAYOUT_VERSION) {
       try {
         const layout = JSON.parse(saved) as ReturnType<DockviewApi["toJSON"]>;
         api.fromJSON(layout);
@@ -147,6 +150,9 @@ function AppInner() {
       } catch {
         localStorage.removeItem(LAYOUT_STORAGE_KEY);
       }
+    } else {
+      // Remove stale layout
+      localStorage.removeItem(LAYOUT_STORAGE_KEY);
     }
 
     // Default layout: 20% / 60% / 20%
@@ -218,6 +224,7 @@ function AppInner() {
       debounceRef.current = setTimeout(() => {
         const layout = api.toJSON();
         localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout));
+        localStorage.setItem(LAYOUT_STORAGE_KEY + ":version", "arduino-sim-v2");
       }, 300);
     });
   }
