@@ -30,6 +30,7 @@
     "@xstate/react": "^6.0.0",
     "@xyflow/react": "^12.10.1",
     "ai": "^6.0.0",
+    "avr8js": "^0.21.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "codemirror": "^6.0.2",

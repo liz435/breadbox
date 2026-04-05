@@ -1,5 +1,7 @@
 import { describe, test, expect } from "bun:test"
 import { createArduinoVM, type ArduinoVMCallbacks } from "../arduino-vm"
+import { parseIntelHex } from "../avr-compiler"
+import { arduinoPinToPort, portToArduinoPin } from "../avr-runner"
 
 function createTestCallbacks(overrides: Partial<ArduinoVMCallbacks> = {}): {
   callbacks: ArduinoVMCallbacks
@@ -52,7 +54,9 @@ void loop() {
 }
 `
 
-describe("ArduinoVM", () => {
+// ── Transpile-mode tests (existing) ───────────────────────────────
+
+describe("ArduinoVM (transpile mode)", () => {
   test("loadSketch compiles a valid blink sketch", () => {
     const { callbacks } = createTestCallbacks()
     const vm = createArduinoVM(callbacks)
@@ -221,5 +225,126 @@ void loop() {}
 
     const pinState = vm.getPinState(9)
     expect(pinState.pwm).toBe(128)
+  })
+
+  test("getMode returns 'transpile' by default", () => {
+    const { callbacks } = createTestCallbacks()
+    const vm = createArduinoVM(callbacks)
+    expect(vm.getMode()).toBe("transpile")
+  })
+})
+
+// ── AVR-mode tests ────────────────────────────────────────────────
+
+describe("ArduinoVM (avr mode)", () => {
+  test("can be created with mode='avr'", () => {
+    const { callbacks } = createTestCallbacks()
+    const vm = createArduinoVM(callbacks, "avr")
+    expect(vm.getMode()).toBe("avr")
+  })
+
+  test("loadSketch in avr mode returns error suggesting async", () => {
+    const { callbacks } = createTestCallbacks()
+    const vm = createArduinoVM(callbacks, "avr")
+    const result = vm.loadSketch(BLINK_SKETCH)
+    expect(result.success).toBe(false)
+    expect(result.error).toContain("loadSketchAsync")
+  })
+
+  test("isDelaying returns false in avr mode", () => {
+    const { callbacks } = createTestCallbacks()
+    const vm = createArduinoVM(callbacks, "avr")
+    expect(vm.isDelaying()).toBe(false)
+  })
+})
+
+// ── Intel HEX parser tests ────────────────────────────────────────
+
+describe("parseIntelHex", () => {
+  test("parses a minimal Intel HEX with one data record and EOF", () => {
+    // Two bytes at address 0x0000: 0x0C 0x94
+    // sum = 0x02 + 0x00 + 0x00 + 0x00 + 0x0C + 0x94 = 0xA2
+    // checksum = (-0xA2) & 0xFF = 0x5E
+    const hex = [
+      ":020000000C945E",
+      ":00000001FF",
+    ].join("\n")
+
+    const result = parseIntelHex(hex)
+    // little-endian: 0x0C | (0x94 << 8) = 0x940C
+    expect(result[0]).toBe(0x940C)
+  })
+
+  test("parses multiple data records", () => {
+    // Record 1: 2 bytes at 0x0000: 0x0C 0x94
+    //   sum = 0x02 + 0x00 + 0x00 + 0x00 + 0x0C + 0x94 = 0xA2, checksum = 0x5E
+    // Record 2: 2 bytes at 0x0002: 0xFF 0x00
+    //   sum = 0x02 + 0x00 + 0x02 + 0x00 + 0xFF + 0x00 = 0x103, checksum = (-0x103) & 0xFF = 0xFD
+    const hex = [
+      ":020000000C945E",
+      ":020002000000FC",
+      ":00000001FF",
+    ].join("\n")
+
+    const result = parseIntelHex(hex)
+    expect(result[0]).toBe(0x940C)
+    // Second word: 0x00 | (0x00 << 8) = 0x0000
+    expect(result[1]).toBe(0x0000)
+  })
+
+  test("throws on empty input", () => {
+    expect(() => parseIntelHex("")).toThrow("no records found")
+  })
+
+  test("handles records with no data lines gracefully", () => {
+    const hex = ":00000001FF\n"
+    const result = parseIntelHex(hex)
+    // Should return a buffer (all zeros since no data records)
+    expect(result.length).toBeGreaterThan(0)
+  })
+})
+
+// ── Pin mapping tests ─────────────────────────────────────────────
+
+describe("Pin mapping", () => {
+  test("Arduino D0-D7 map to PORTD pins 0-7", () => {
+    for (let i = 0; i <= 7; i++) {
+      const mapped = arduinoPinToPort(i)
+      expect(mapped).toEqual({ port: "D", pin: i })
+    }
+  })
+
+  test("Arduino D8-D13 map to PORTB pins 0-5", () => {
+    for (let i = 8; i <= 13; i++) {
+      const mapped = arduinoPinToPort(i)
+      expect(mapped).toEqual({ port: "B", pin: i - 8 })
+    }
+  })
+
+  test("Arduino A0-A5 (14-19) map to PORTC pins 0-5", () => {
+    for (let i = 14; i <= 19; i++) {
+      const mapped = arduinoPinToPort(i)
+      expect(mapped).toEqual({ port: "C", pin: i - 14 })
+    }
+  })
+
+  test("out-of-range pin returns null", () => {
+    expect(arduinoPinToPort(-1)).toBeNull()
+    expect(arduinoPinToPort(20)).toBeNull()
+  })
+
+  test("portToArduinoPin is inverse of arduinoPinToPort", () => {
+    for (let pin = 0; pin <= 19; pin++) {
+      const mapped = arduinoPinToPort(pin)
+      expect(mapped).not.toBeNull()
+      if (mapped) {
+        const back = portToArduinoPin(mapped.port, mapped.pin)
+        expect(back).toBe(pin)
+      }
+    }
+  })
+
+  test("portToArduinoPin returns null for unknown port", () => {
+    expect(portToArduinoPin("X", 0)).toBeNull()
   })
 })

@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useRef } from "react"
 import { useMachine } from "@xstate/react"
 import { simulationMachine } from "./simulation-machine"
-import { createArduinoVM, type ArduinoVM, type ArduinoVMCallbacks } from "./arduino-vm"
+import { createArduinoVM, type ArduinoVM, type ArduinoVMCallbacks, type VMMode } from "./arduino-vm"
 
 export type SimulationStatus = "stopped" | "compiling" | "running" | "paused" | "error"
 
@@ -21,6 +21,7 @@ export type SimulationActions = {
 }
 
 type SimulationHookOptions = {
+  mode?: VMMode
   onPinWrite?: (pin: number, value: number, isPwm: boolean) => void
   onPinMode?: (pin: number, mode: number) => void
   onSerialPrint?: (text: string) => void
@@ -33,6 +34,8 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
   const [state, send] = useMachine(simulationMachine)
   const vmRef = useRef<ArduinoVM | null>(null)
   const rafRef = useRef<number | null>(null)
+  const modeRef = useRef<VMMode>(options.mode ?? "transpile")
+  modeRef.current = options.mode ?? "transpile"
 
   // Keep latest callbacks in a ref to avoid re-creating the VM on every render
   const callbacksRef = useRef<SimulationHookOptions>(options)
@@ -54,8 +57,8 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
 
   // Lazily create the VM
   function getVM(): ArduinoVM {
-    if (!vmRef.current) {
-      vmRef.current = createArduinoVM(vmCallbacks)
+    if (!vmRef.current || vmRef.current.getMode() !== modeRef.current) {
+      vmRef.current = createArduinoVM(vmCallbacks, modeRef.current)
     }
     return vmRef.current
   }
@@ -90,15 +93,34 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
       const vm = getVM()
       vm.reset()
 
-      const result = vm.loadSketch(sketchCode)
-      if (!result.success) {
-        send({ type: "COMPILE_ERROR", message: result.error ?? "Compilation failed" })
-        return
-      }
+      const currentMode = modeRef.current
 
-      send({ type: "COMPILE_SUCCESS" })
-      vm.runSetup()
-      startLoop()
+      if (currentMode === "avr") {
+        // AVR mode: async compile then run
+        vm.loadSketchAsync(sketchCode).then((result) => {
+          if (!result.success) {
+            send({
+              type: "COMPILE_ERROR",
+              message: result.error ?? "Compilation failed",
+            })
+            return
+          }
+          send({ type: "COMPILE_SUCCESS" })
+          vm.runSetup()
+          startLoop()
+        })
+      } else {
+        // Transpile mode: synchronous
+        const result = vm.loadSketch(sketchCode)
+        if (!result.success) {
+          send({ type: "COMPILE_ERROR", message: result.error ?? "Compilation failed" })
+          return
+        }
+
+        send({ type: "COMPILE_SUCCESS" })
+        vm.runSetup()
+        startLoop()
+      }
     },
     [send, startLoop],
   )
