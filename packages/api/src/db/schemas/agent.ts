@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { nonEmptyStringSchema, timestampSchema } from "./project";
-import { sceneOpSchema } from "./ops";
+import { boardOpSchema } from "@dreamer/schemas";
 
 // ── Agent Kind ──────────────────────────────────────────────────────────────
 
-export const agentKindSchema = z.enum(["core", "sprite", "coding", "graph"]);
+export const agentKindSchema = z.enum(["core", "circuit", "graph"]);
 export type AgentKind = z.infer<typeof agentKindSchema>;
 
 // ── Project Thread ──────────────────────────────────────────────────────────
@@ -48,8 +48,8 @@ export const agentRunFileSchema = z.object({
   prompt: z.string(),
   assistantText: z.string().optional(),
   messages: z.array(z.unknown()),
-  proposedOps: z.array(sceneOpSchema),
-  appliedOps: z.array(sceneOpSchema),
+  proposedOps: z.array(z.union([boardOpSchema, z.record(z.string(), z.unknown())])),
+  appliedOps: z.array(z.union([boardOpSchema, z.record(z.string(), z.unknown())])),
 });
 
 export type AgentRunFile = z.infer<typeof agentRunFileSchema>;

@@ -1,5 +1,6 @@
 import type { ModelMessage } from "ai";
-import type { ProjectFile, SceneOp } from "../db/schemas";
+import type { ProjectFile } from "../db/schemas";
+import type { BoardOp } from "@dreamer/schemas";
 import type { Logger } from "../logger";
 
 export type AgentContext = {
@@ -17,14 +18,14 @@ export type AgentContext = {
 
 export type AgentResult = {
   assistantText: string;
-  proposedOps: SceneOp[];
+  proposedOps: BoardOp[];
   /** Full model messages from the agent conversation, for persistence/replay. */
   messages: ModelMessage[];
 };
 
 /**
  * Signature shared by all agent runner functions.
- * Core, sprite, and coding agents all conform to this interface.
+ * Core, circuit, and graph agents all conform to this interface.
  */
 export type AgentRunner = (ctx: AgentContext) => Promise<AgentResult>;
 

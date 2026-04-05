@@ -53,3 +53,10 @@ export {
   agentRunRequestSchema,
   type AgentRunRequest,
 } from "./agent";
+
+export {
+  boardOpSchema,
+  type BoardOp,
+  applyBoardOpsRequestSchema,
+  type ApplyBoardOpsRequest,
+} from "@dreamer/schemas";

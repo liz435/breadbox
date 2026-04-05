@@ -8,8 +8,8 @@ import {
   type AgentRunFile,
   type AgentRunRecord,
   type ProjectThreadFile,
-  type SceneOp,
 } from "./schemas";
+import type { BoardOp } from "@dreamer/schemas";
 
 const THREADS_DIR = join(import.meta.dir, "../../data/threads");
 const RUNS_DIR = join(import.meta.dir, "../../data/runs");
@@ -115,8 +115,8 @@ async function completeRun(params: {
   runId: string;
   assistantText?: string;
   messages?: unknown[];
-  proposedOps: SceneOp[];
-  appliedOps: SceneOp[];
+  proposedOps: BoardOp[];
+  appliedOps: BoardOp[];
   error?: string;
 }) {
   const existing = await readRun(params.runId);

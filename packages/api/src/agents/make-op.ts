@@ -1,4 +1,5 @@
 import type { SceneOp } from "../db/schemas";
+import type { BoardOp } from "@dreamer/schemas";
 
 /**
  * Context needed to stamp every op with project/scene/version metadata.
@@ -39,4 +40,23 @@ export function makeOp(ctx: OpContext, body: OpBody): SceneOp {
     timestamp: new Date().toISOString(),
     ...body,
   };
+}
+
+/**
+ * The kind + payload portion of a BoardOp, as a discriminated union.
+ */
+export type BoardOpBody = DistributivePick<BoardOp, "kind" | "payload">;
+
+/**
+ * Type-safe factory for BoardOps.
+ */
+export function makeBoardOp(ctx: OpContext, body: BoardOpBody): BoardOp {
+  return {
+    opId: crypto.randomUUID(),
+    projectId: ctx.projectId,
+    sceneId: ctx.sceneId,
+    expectedVersion: ctx.expectedVersion,
+    timestamp: new Date().toISOString(),
+    ...body,
+  } as BoardOp;
 }

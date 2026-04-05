@@ -1,8 +1,8 @@
 import { Elysia } from "elysia";
 import { z, ZodError } from "zod";
 import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
-import { type SceneOp } from "../db/schemas";
 import { nonEmptyStringSchema } from "@dreamer/schemas";
+import type { BoardOp } from "@dreamer/schemas";
 import { projectRepo, VersionConflictError, OpValidationError } from "../db/project-repo";
 import { agentRunRepo } from "../db/agent-run-repo";
 import { buildModelMessagesFromRuns } from "../db/messages";
@@ -50,6 +50,12 @@ function extractLastUserPrompt(messages: z.infer<typeof chatRequestSchema>["mess
 const GRAPH_OP_KINDS = new Set([
   "create_graph_node", "delete_graph_node", "move_graph_node",
   "update_graph_node_data", "create_edge", "delete_edge",
+]);
+
+const BOARD_OP_KINDS = new Set([
+  "place_component", "remove_component", "move_component",
+  "update_component", "connect_wire", "remove_wire",
+  "set_pin_mode", "update_sketch", "update_board_settings",
 ]);
 
 export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) => {
@@ -133,15 +139,16 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
 
   const uiStream = createUIMessageStream({
     async execute({ writer }) {
-      // Stream scene ops to the client as they're produced (after each agent step)
+      // Stream board ops to the client as they're produced (after each agent step)
       // Graph ops are NOT streamed here — they are sent once after collectResult()
-      // to avoid duplicate delivery (onNewOps fires per step, then we send all graph ops again)
       agentStream.onNewOps((newOps) => {
-        const sceneOnly = newOps.filter((op) => !GRAPH_OP_KINDS.has(op.kind));
-        if (sceneOnly.length > 0) {
+        const boardOnly = newOps.filter(
+          (op) => BOARD_OP_KINDS.has(op.kind) && !GRAPH_OP_KINDS.has(op.kind)
+        );
+        if (boardOnly.length > 0) {
           writer.write({
             type: "data-scene-ops",
-            data: sceneOnly,
+            data: boardOnly,
           });
         }
       });
@@ -153,21 +160,21 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
       const result = await agentStream.collectResult();
 
       let newVersion = capturedProject.project.version;
-      let appliedOps: SceneOp[] = [];
+      let appliedOps: BoardOp[] = [];
 
-      // Separate graph ops from scene ops
-      const sceneOps = result.proposedOps.filter(
-        (op) => !GRAPH_OP_KINDS.has(op.kind)
+      // Separate graph ops from board ops
+      const boardOps = result.proposedOps.filter(
+        (op) => BOARD_OP_KINDS.has(op.kind)
       );
       const graphOps = result.proposedOps.filter(
         (op) => GRAPH_OP_KINDS.has(op.kind)
       );
 
-      if (sceneOps.length > 0) {
+      if (boardOps.length > 0) {
         try {
-          const applyResult = await projectRepo.applyOps(capturedProjectId, {
+          const applyResult = await projectRepo.applyBoardOps(capturedProjectId, {
             expectedVersion: capturedExpectedVersion,
-            ops: sceneOps,
+            ops: boardOps,
           });
           if (applyResult) {
             newVersion = applyResult.newVersion;
@@ -203,14 +210,12 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
       );
 
       // Apply graph ops to the project file server-side so they persist
-      // even if the frontend fails to receive them (stream error, page refresh, etc.)
       if (graphOps.length > 0) {
         try {
           const currentProject = await projectRepo.readProject(capturedProjectId);
           if (currentProject) {
             const graph = currentProject.graph ?? { nodes: {}, edges: {} };
             for (const rawOp of graphOps) {
-              // Graph ops are typed as SceneOp but carry graph-specific kinds/payloads
               const op = rawOp as unknown as { kind: string; payload: Record<string, unknown> };
               switch (op.kind) {
                 case "create_graph_node": {
