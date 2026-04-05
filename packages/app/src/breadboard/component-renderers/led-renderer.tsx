@@ -39,9 +39,10 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
   const filterId = `led-glow-${component.id}`;
   const gradientId = `led-grad-${component.id}`;
 
-  // Dim version of color for off state
-  const offColor = `${color}55`;
+  // Dim version of color for off state — desaturated and dark
+  const offColor = "#4a4a4a";
   const brightness = electricalState?.brightness ?? (isOn ? 1 : 0);
+  const domeOpacity = isOn ? 1 : 0.4;
   const reversePolarityFilterId = `led-reverse-${component.id}`;
 
   return (
@@ -96,7 +97,7 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
       />
 
       {/* LED dome (semicircle top + flat bottom) */}
-      <g filter={isOn ? `url(#${filterId})` : undefined}>
+      <g filter={isOn ? `url(#${filterId})` : undefined} opacity={domeOpacity}>
         {/* Glow halo when on */}
         {isOn && (
           <circle

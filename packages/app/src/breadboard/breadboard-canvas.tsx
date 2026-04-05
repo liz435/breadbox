@@ -36,6 +36,8 @@ const DEFAULT_PINS: Record<ComponentType, Record<string, number | null>> = {
   rgb_led: { red: null, green: null, blue: null, cathode: null },
   button: { a: null, b: null },
   resistor: { a: null, b: null },
+  capacitor: { a: null, b: null },
+  ic: {},
   potentiometer: { vcc: null, signal: null, gnd: null },
   buzzer: { positive: null, negative: null },
   servo: { signal: null, vcc: null, gnd: null },
@@ -54,6 +56,19 @@ const DEFAULT_PROPERTIES: Partial<Record<ComponentType, Record<string, unknown>>
   servo: { angle: 90 },
 };
 
+// ── Accent colors per component type (for occupied hole indicators) ──
+const COMPONENT_ACCENT_COLORS: Partial<Record<ComponentType, string>> = {
+  led: "#ef4444",
+  rgb_led: "#a855f7",
+  resistor: "#d2b48c",
+  capacitor: "#3b82f6",
+  ic: "#6b7280",
+  button: "#f59e0b",
+  buzzer: "#1a1a1a",
+  servo: "#22c55e",
+  potentiometer: "#78716c",
+};
+
 // ── Column letters ──────────────────────────────────────────────
 const COL_LETTERS = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"];
 
@@ -68,6 +83,26 @@ const TERMINAL_ORIGIN_Y = BOARD_PADDING + POWER_RAIL_HEIGHT;
 
 function buildBreadboardBackground(): React.ReactElement[] {
   const elements: React.ReactElement[] = [];
+
+  // ── SVG filter for inner shadow on holes ──
+  elements.push(
+    <defs key="hole-defs">
+      <filter id="hole-inner-shadow" x="-50%" y="-50%" width="200%" height="200%">
+        <feComponentTransfer in="SourceAlpha">
+          <feFuncA type="table" tableValues="1 0" />
+        </feComponentTransfer>
+        <feGaussianBlur stdDeviation="0.8" />
+        <feOffset dx={0} dy={0.6} result="offsetblur" />
+        <feFlood floodColor="#000000" floodOpacity="0.6" result="color" />
+        <feComposite in2="offsetblur" operator="in" result="shadow" />
+        <feComposite in2="SourceAlpha" operator="in" result="clipped" />
+        <feMerge>
+          <feMergeNode in="SourceGraphic" />
+          <feMergeNode in="clipped" />
+        </feMerge>
+      </filter>
+    </defs>
+  );
 
   // ── Row numbers on left and right sides ──
   for (let row = 0; row < ROWS; row++) {
@@ -126,6 +161,65 @@ function buildBreadboardBackground(): React.ReactElement[] {
     );
   }
 
+  // ── Column letters at bottom ──
+  for (let col = 0; col < COLS; col++) {
+    const { x } = gridToPixel({ row: ROWS - 1, col });
+    const letterY = TERMINAL_ORIGIN_Y + (ROWS - 1) * HOLE_SPACING + 12;
+    elements.push(
+      <text
+        key={`clb-${col}`}
+        x={x}
+        y={letterY}
+        textAnchor="middle"
+        fontSize={5.5}
+        fill="#999"
+        fontFamily="monospace"
+        fontWeight="bold"
+      >
+        {COL_LETTERS[col]}
+      </text>
+    );
+  }
+
+  // ── Tie-point grouping indicators ──
+  for (let row = 0; row < ROWS; row++) {
+    // Left group (cols 0-4)
+    const leftFirst = gridToPixel({ row, col: 0 });
+    const leftLast = gridToPixel({ row, col: 4 });
+    elements.push(
+      <rect
+        key={`tg-l-${row}`}
+        x={leftFirst.x - HOLE_RADIUS - 2}
+        y={leftFirst.y - HOLE_RADIUS - 2}
+        width={leftLast.x - leftFirst.x + (HOLE_RADIUS + 2) * 2}
+        height={(HOLE_RADIUS + 2) * 2}
+        fill="none"
+        stroke="#d0ccc0"
+        strokeWidth={0.5}
+        opacity={0.3}
+        rx={2}
+      />
+    );
+
+    // Right group (cols 5-9)
+    const rightFirst = gridToPixel({ row, col: 5 });
+    const rightLast = gridToPixel({ row, col: 9 });
+    elements.push(
+      <rect
+        key={`tg-r-${row}`}
+        x={rightFirst.x - HOLE_RADIUS - 2}
+        y={rightFirst.y - HOLE_RADIUS - 2}
+        width={rightLast.x - rightFirst.x + (HOLE_RADIUS + 2) * 2}
+        height={(HOLE_RADIUS + 2) * 2}
+        fill="none"
+        stroke="#d0ccc0"
+        strokeWidth={0.5}
+        opacity={0.3}
+        rx={2}
+      />
+    );
+  }
+
   // ── Terminal hole grid ──
   for (let row = 0; row < ROWS; row++) {
     for (let col = 0; col < COLS; col++) {
@@ -136,9 +230,10 @@ function buildBreadboardBackground(): React.ReactElement[] {
           cx={x}
           cy={y}
           r={HOLE_RADIUS}
-          fill="#2a2a2a"
+          fill="#1A1A1A"
           stroke="#4a4a4a"
           strokeWidth={0.5}
+          filter="url(#hole-inner-shadow)"
         />
       );
     }
@@ -156,9 +251,10 @@ function buildBreadboardBackground(): React.ReactElement[] {
           cx={x}
           cy={y}
           r={HOLE_RADIUS}
-          fill="#2a2a2a"
+          fill="#1A1A1A"
           stroke={isPositive ? "#ef444488" : "#3b82f688"}
           strokeWidth={0.6}
+          filter="url(#hole-inner-shadow)"
         />
       );
     }
@@ -485,7 +581,7 @@ function BreadboardCanvasInner() {
             width={BREADBOARD_WIDTH}
             height={BREADBOARD_HEIGHT}
             rx={6}
-            fill="#f8f5ee"
+            fill="#F5F0E8"
             stroke="#d0c8b8"
             strokeWidth={1}
           />
@@ -508,7 +604,7 @@ function BreadboardCanvasInner() {
             y={gapY}
             width={GAP_WIDTH}
             height={gapHeight}
-            fill="#e8e0d0"
+            fill="#D4CFC7"
             rx={1}
           />
           {/* Center gap groove line */}
@@ -519,6 +615,26 @@ function BreadboardCanvasInner() {
             y2={gapY + gapHeight - 2}
             stroke="#d8d0c0"
             strokeWidth={1}
+          />
+
+          {/* Power rail separation lines */}
+          <line
+            x1={bbX + 8}
+            y1={TERMINAL_ORIGIN_Y - 4}
+            x2={bbX + BREADBOARD_WIDTH - 8}
+            y2={TERMINAL_ORIGIN_Y - 4}
+            stroke="#c8c0b0"
+            strokeWidth={0.8}
+            opacity={0.6}
+          />
+          <line
+            x1={bbX + 8}
+            y1={TERMINAL_ORIGIN_Y + (ROWS - 1) * HOLE_SPACING + 4}
+            x2={bbX + BREADBOARD_WIDTH - 8}
+            y2={TERMINAL_ORIGIN_Y + (ROWS - 1) * HOLE_SPACING + 4}
+            stroke="#c8c0b0"
+            strokeWidth={0.8}
+            opacity={0.6}
           />
 
           {/* Power rail stripes */}
@@ -574,6 +690,28 @@ function BreadboardCanvasInner() {
               />
             </g>
           );
+        })}
+
+        {/* ── Occupied hole indicators ── */}
+        {components.map((comp) => {
+          const footprint = getComponentFootprint(comp.type, comp.y, comp.x);
+          const accentColor = COMPONENT_ACCENT_COLORS[comp.type] ?? "#60a5fa";
+          return footprint.points.map((pt, i) => {
+            const pos = gridToPixel(pt);
+            return (
+              <circle
+                key={`occ-${comp.id}-${i}`}
+                cx={pos.x}
+                cy={pos.y}
+                r={HOLE_RADIUS + 1.5}
+                fill="none"
+                stroke={accentColor}
+                strokeWidth={1}
+                opacity={0.7}
+                pointerEvents="none"
+              />
+            );
+          });
         })}
 
         {/* ── Circuit analysis overlay ── */}

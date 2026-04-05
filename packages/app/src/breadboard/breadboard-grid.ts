@@ -261,6 +261,31 @@ export function getComponentFootprint(
         width: GAP_WIDTH + HOLE_SPACING * 4,
         height: HOLE_SPACING * 2,
       };
+    case "capacitor":
+      // 2 legs, spaced 2 rows apart vertically
+      return {
+        points: [
+          { row, col },
+          { row: row + 2, col },
+        ],
+        width: HOLE_SPACING,
+        height: HOLE_SPACING * 3,
+      };
+    case "ic": {
+      // IC straddles center gap, pins on cols 2-7
+      const pinCount = 8; // default, actual may vary
+      const rowCount = pinCount / 2;
+      const pts: GridPoint[] = [];
+      for (let r = 0; r < rowCount; r++) {
+        pts.push({ row: row + r, col: 2 });
+        pts.push({ row: row + r, col: 7 });
+      }
+      return {
+        points: pts,
+        width: GAP_WIDTH + HOLE_SPACING * 6,
+        height: HOLE_SPACING * rowCount,
+      };
+    }
     case "servo":
       // Takes 3 adjacent holes in a row
       return {

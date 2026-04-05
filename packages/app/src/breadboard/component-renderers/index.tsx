@@ -4,6 +4,8 @@ import type { ComponentElectricalState } from "@/simulator/circuit-solver";
 import { LedRenderer } from "./led-renderer";
 import { ButtonRenderer } from "./button-renderer";
 import { ResistorRenderer } from "./resistor-renderer";
+import { CapacitorRenderer } from "./capacitor-renderer";
+import { IcRenderer } from "./ic-renderer";
 import { ServoRenderer } from "./servo-renderer";
 import { GenericRenderer } from "./generic-renderer";
 
@@ -22,6 +24,8 @@ const RENDERER_MAP: Record<
   rgb_led: LedRenderer,
   button: ButtonRenderer,
   resistor: ResistorRenderer,
+  capacitor: CapacitorRenderer,
+  ic: IcRenderer,
   servo: ServoRenderer,
   // arduino_uno is rendered as a fixed board, not as a component
 };

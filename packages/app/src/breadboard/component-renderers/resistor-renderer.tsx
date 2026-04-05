@@ -105,6 +105,7 @@ function ResistorRendererInner({ component, isSelected, electricalState }: Resis
       />
 
       {/* Color bands */}
+      <g opacity={electricalState?.isActive === false ? 0.7 : 1}>
       {bands.map((color, i) => {
         const bandSpacing = bodyWidth / (bands.length + 1);
         const bx = bodyLeftX + bandSpacing * (i + 1) - 1.5;
@@ -122,6 +123,7 @@ function ResistorRendererInner({ component, isSelected, electricalState }: Resis
           />
         );
       })}
+      </g>
 
       {/* Pin hole indicators */}
       <circle cx={pinA.x} cy={pinA.y} r={2} fill="#a0a0a0" opacity={0.5} />

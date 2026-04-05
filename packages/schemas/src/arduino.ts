@@ -7,6 +7,8 @@ export const componentTypeSchema = z.enum([
   "rgb_led",
   "button",
   "resistor",
+  "capacitor",
+  "ic",
   "potentiometer",
   "buzzer",
   "servo",

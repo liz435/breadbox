@@ -1,11 +1,13 @@
 import React from "react";
 import type { BoardComponent, PinState } from "@dreamer/schemas";
+import type { ComponentElectricalState } from "@/simulator/circuit-solver";
 import { gridToPixel, HOLE_SPACING } from "@/breadboard/breadboard-grid";
 
 type GenericRendererProps = {
   component: BoardComponent;
   pinStates: PinState[];
   isSelected: boolean;
+  electricalState?: ComponentElectricalState;
 };
 
 function BuzzerRenderer({ component, isSelected }: { component: BoardComponent; isSelected: boolean }) {
@@ -158,15 +160,18 @@ function TemperatureSensorRenderer({ component, isSelected }: { component: Board
   );
 }
 
-function GenericRendererInner({ component, pinStates, isSelected }: GenericRendererProps) {
+function GenericRendererInner({ component, pinStates, isSelected, electricalState }: GenericRendererProps) {
+  const isDimmed = electricalState != null && !electricalState.isActive;
+  const dimOpacity = isDimmed ? 0.5 : 1;
+
   // Route to specialized renderers
   switch (component.type) {
     case "buzzer":
-      return <BuzzerRenderer component={component} isSelected={isSelected} />;
+      return <g opacity={dimOpacity}><BuzzerRenderer component={component} isSelected={isSelected} /></g>;
     case "potentiometer":
-      return <PotentiometerRenderer component={component} isSelected={isSelected} />;
+      return <g opacity={dimOpacity}><PotentiometerRenderer component={component} isSelected={isSelected} /></g>;
     case "lcd_16x2":
-      return <LcdRenderer component={component} isSelected={isSelected} />;
+      return <g opacity={dimOpacity}><LcdRenderer component={component} isSelected={isSelected} /></g>;
     case "temperature_sensor":
       return <TemperatureSensorRenderer component={component} isSelected={isSelected} />;
     default:
