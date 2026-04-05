@@ -39,16 +39,6 @@ export {
   type ApplyOpsRequest,
 } from "./ops";
 
-export {
-  generatedImageSchema,
-  type GeneratedImage,
-  spriteSheetSchema,
-  type SpriteSheet,
-  extractedFrameSchema,
-  type ExtractedFrame,
-  extractedSpriteSheetSchema,
-  type ExtractedSpriteSheet,
-} from "./character";
 
 export {
   portDataTypeSchema,

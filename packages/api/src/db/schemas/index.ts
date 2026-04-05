@@ -53,12 +53,3 @@ export {
   agentRunRequestSchema,
   type AgentRunRequest,
 } from "./agent";
-
-export {
-  characterAssetTypeSchema,
-  type CharacterAssetType,
-  characterAssetSchema,
-  type CharacterAsset,
-  characterSessionFileSchema,
-  type CharacterSessionFile,
-} from "./character-session";

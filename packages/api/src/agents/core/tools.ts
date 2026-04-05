@@ -5,8 +5,6 @@ import { getDefaultPorts } from "@dreamer/schemas";
 import { agentRunRepo } from "../../db/agent-run-repo";
 import { makeOp } from "../make-op";
 import type { AgentRunner, DelegationContext } from "../types";
-import { runSpriteAgent } from "../sprite/agent";
-import { runCodingAgent } from "../coding/agent";
 import { runGraphAgent } from "../graph/agent";
 
 /**
@@ -480,22 +478,6 @@ export function createCoreTools(params: {
         return { entityId, assetId, graphNodeId, name: input.name, width: w, height: h };
       },
     }),
-
-    delegate_to_sprite_agent: makeDelegationTool(
-      "sprite",
-      runSpriteAgent,
-      "Delegate a sprite/visual task to the sprite specialist agent. Use this for creating sprite entities, managing visual assets, or building sprite sheets. The specialist will return the results including any scene operations it proposed.",
-      delegation,
-      ops,
-    ),
-
-    delegate_to_coding_agent: makeDelegationTool(
-      "coding",
-      runCodingAgent,
-      "Delegate a scripting/behavior task to the coding specialist agent. Use this for creating scripts, adding physics behaviors, or ECS component logic. The specialist will return the results including any scene operations it proposed.",
-      delegation,
-      ops,
-    ),
 
     delegate_to_graph_agent: makeDelegationTool(
       "graph",

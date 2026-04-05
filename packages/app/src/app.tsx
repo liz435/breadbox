@@ -7,11 +7,9 @@ import {
 } from "dockview-react";
 import "dockview-react/dist/styles/dockview.css";
 import "./app.css";
-import Canvas from "./canvas/canvas";
 import { ProjectPanel } from "./panels/project-panel";
 import Inspector from "./panels/inspector";
 import { GraphPanel } from "./graph/graph-panel";
-import { CharacterPanel } from "./character/character-panel";
 import { ViewportPanel } from "./viewport/viewport-panel";
 import { BottomToolbar } from "./toolbar/bottom-toolbar";
 import { SceneContext, useScene } from "./store/scene-context";
@@ -25,8 +23,8 @@ function ProjectFilesPanel(_props: IDockviewPanelProps) {
   return <ProjectPanel />;
 }
 
-function CanvasPanel(_props: IDockviewPanelProps) {
-  return <Canvas />;
+function PlaceholderPanel(_props: IDockviewPanelProps) {
+  return <div className="flex items-center justify-center h-full text-zinc-500">Breadboard (coming soon)</div>;
 }
 
 function InspectorPanel(_props: IDockviewPanelProps) {
@@ -37,20 +35,15 @@ function GraphEditorPanel(_props: IDockviewPanelProps) {
   return <GraphPanel />;
 }
 
-function CharacterCreatorPanel(_props: IDockviewPanelProps) {
-  return <CharacterPanel />;
-}
-
 function ViewportPanelWrapper(_props: IDockviewPanelProps) {
   return <ViewportPanel />;
 }
 
 const components = {
   projectFiles: ProjectFilesPanel,
-  canvas: CanvasPanel,
+  breadboard: PlaceholderPanel,
   inspector: InspectorPanel,
   graph: GraphEditorPanel,
-  character: CharacterCreatorPanel,
   viewport: ViewportPanelWrapper,
 };
 
@@ -112,9 +105,9 @@ function AppInner() {
     });
 
     const canvasPanel = api.addPanel({
-      id: "canvas",
-      component: "canvas",
-      title: "Canvas",
+      id: "breadboard",
+      component: "breadboard",
+      title: "Breadboard",
       position: { referencePanel: projectFilesPanel, direction: "right" },
     });
 
@@ -130,13 +123,6 @@ function AppInner() {
       component: "inspector",
       title: "Inspector",
       position: { referencePanel: graphPanel, direction: "right" },
-    });
-
-    api.addPanel({
-      id: "character",
-      component: "character",
-      title: "Character",
-      position: { referencePanel: inspectorPanel, direction: "within" },
     });
 
     projectFilesPanel.api.setSize({ width: totalWidth * 0.15 });
