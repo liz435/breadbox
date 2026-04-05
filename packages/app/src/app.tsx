@@ -11,6 +11,7 @@ import { ProjectPanel } from "./panels/project-panel";
 import Inspector from "./panels/inspector";
 import { GraphPanel } from "./graph/graph-panel";
 import { ViewportPanel } from "./viewport/viewport-panel";
+import { BreadboardPanel } from "./breadboard/breadboard-panel";
 import { BottomToolbar } from "./toolbar/bottom-toolbar";
 import { SceneContext, useScene } from "./store/scene-context";
 import { GraphContext } from "./store/graph-context";
@@ -24,8 +25,8 @@ function ProjectFilesPanel(_props: IDockviewPanelProps) {
   return <ProjectPanel />;
 }
 
-function PlaceholderPanel(_props: IDockviewPanelProps) {
-  return <div className="flex items-center justify-center h-full text-zinc-500">Breadboard (coming soon)</div>;
+function BreadboardDockPanel(_props: IDockviewPanelProps) {
+  return <BreadboardPanel />;
 }
 
 function InspectorPanel(_props: IDockviewPanelProps) {
@@ -42,7 +43,7 @@ function ViewportPanelWrapper(_props: IDockviewPanelProps) {
 
 const components = {
   projectFiles: ProjectFilesPanel,
-  breadboard: PlaceholderPanel,
+  breadboard: BreadboardDockPanel,
   inspector: InspectorPanel,
   graph: GraphEditorPanel,
   viewport: ViewportPanelWrapper,
