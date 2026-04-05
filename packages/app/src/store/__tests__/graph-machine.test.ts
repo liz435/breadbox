@@ -5,7 +5,7 @@ import type { GraphNode, Edge } from "@dreamer/schemas";
 
 // ── Test helpers ────────────────────────────────────────────────────────────
 
-function makeNode(id: string, type: GraphNode["type"] = "sprite"): GraphNode {
+function makeNode(id: string, type: GraphNode["type"] = "setup"): GraphNode {
   return {
     id,
     type,

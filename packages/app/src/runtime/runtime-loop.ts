@@ -1,5 +1,5 @@
 import type { GraphNode, Edge } from "@dreamer/schemas";
-import { evaluateGraph, evaluatePartial, getReachableSpriteIds, type NodeOutputs } from "@/graph/evaluate";
+import { evaluateGraph, evaluatePartial, type NodeOutputs } from "@/graph/evaluate";
 import type { SandboxLog } from "./script-sandbox";
 import { frameBus } from "./frame-bus";
 import { EntityStore } from "./entity-store";
@@ -83,7 +83,6 @@ export function createRuntimeLoop(params: RuntimeLoopParams): RuntimeLoop {
     const idToName: Record<string, string> = {};
 
     for (const node of Object.values(nodes)) {
-      if (node.type !== "sprite") continue;
       const entity = entityStore.entities.get(node.id);
       if (!entity) continue;
       byName[node.name] = { id: node.id, ...entity };
@@ -139,54 +138,25 @@ export function createRuntimeLoop(params: RuntimeLoopParams): RuntimeLoop {
     // Track which nodes are dirty this frame
     const dirtyNodeIds = new Set<string>();
 
-    // Inject runtime data into event nodes (mutate in-place, no React state)
+    // TODO: Implement Arduino-specific runtime data injection.
+    // Detect data changes for nodes (user edits during play)
     for (const node of Object.values(nodes)) {
-      if (node.type === "on_start") {
-        Object.assign(node.data, { _triggered: !hasStarted });
+      const hash = JSON.stringify(node.data);
+      if (prevNodeDataHash.get(node.id) !== hash) {
         dirtyNodeIds.add(node.id);
-      } else if (node.type === "on_update") {
-        Object.assign(node.data, { _dt: dt });
-        dirtyNodeIds.add(node.id);
-      } else if (node.type === "on_input") {
-        const listenKeys = Array.isArray(node.data.listenKeys)
-          ? (node.data.listenKeys as string[])
-          : [];
-        const activeKey = listenKeys.find((k) => pressedKeys.has(k));
-        Object.assign(node.data, {
-          _pressed: activeKey !== undefined,
-          _key: activeKey ?? "",
-        });
-        dirtyNodeIds.add(node.id);
-      } else if (node.type === "input_map") {
-        const actions = Array.isArray(node.data.actions)
-          ? (node.data.actions as Array<{ name: string; keys: string[] }>)
-          : [];
-        const actionStates: Record<string, boolean> = {};
-        for (const action of actions) {
-          actionStates[action.name] = action.keys.some((k) => pressedKeys.has(k));
-        }
-        Object.assign(node.data, { _actionStates: actionStates });
-        dirtyNodeIds.add(node.id);
-      } else {
-        // Detect data changes for non-event nodes (user edits during play)
-        const hash = JSON.stringify(node.data);
-        if (prevNodeDataHash.get(node.id) !== hash) {
-          dirtyNodeIds.add(node.id);
-        }
-        prevNodeDataHash.set(node.id, hash);
       }
+      prevNodeDataHash.set(node.id, hash);
     }
 
     hasStarted = true;
 
-    // Determine which sprites are reachable from output nodes
-    const allowedSprites = getReachableSpriteIds(nodes, edges);
-
-    // Sync entity store with current sprite nodes (gated by output node)
+    // TODO: Implement Arduino-specific entity/runtime sync.
+    // For now, initialize entity store with all nodes (no output-gate filtering).
+    const allNodeIds = new Set(Object.keys(nodes));
     if (frameCount === 1) {
-      entityStore.init(nodes, allowedSprites);
+      entityStore.init(nodes, allNodeIds);
     } else {
-      entityStore.sync(nodes, allowedSprites);
+      entityStore.sync(nodes, allNodeIds);
     }
 
     // Evaluate graph — full on first frame, partial thereafter
@@ -217,33 +187,13 @@ export function createRuntimeLoop(params: RuntimeLoopParams): RuntimeLoop {
     const serializedEntities = serializeEntities(nodes);
     const currentPressedKeys = [...pressedKeys];
 
-    // ── Code node scripts (graph-wired) ──
+    // ── Code block scripts ──
     for (const nodeId of evalResult.order) {
       const node = nodes[nodeId];
-      if (!node || node.type !== "code") continue;
+      if (!node || node.type !== "code_block") continue;
 
       const code = typeof node.data.code === "string" ? node.data.code : "";
       if (!code.trim()) continue;
-
-      // Check if trigger input is active
-      const nodeOutputs = evalResult.outputs[nodeId];
-      const triggerIn = nodeOutputs?.["trigger_in"];
-      if (triggerIn && triggerIn.value === false) continue;
-
-      // Build plain input object (strip PortValue wrappers)
-      const rawInput: Record<string, unknown> = {};
-      const outputs = evalResult.outputs[nodeId];
-      if (outputs) {
-        for (const [key, pv] of Object.entries(outputs)) {
-          if (pv.type === "entity" && pv.value && typeof pv.value === "object") {
-            const entityNodeId = (pv.value as { nodeId: string }).nodeId;
-            const entityNode = nodes[entityNodeId];
-            rawInput[key] = entityNode ? entityNode.name : null;
-          } else {
-            rawInput[key] = pv.value;
-          }
-        }
-      }
 
       tasks.push({
         nodeId,
@@ -251,32 +201,10 @@ export function createRuntimeLoop(params: RuntimeLoopParams): RuntimeLoop {
         api: {
           dt,
           time,
-          input: rawInput,
+          input: {},
           state: entityStore.getNodeState(nodeId),
           entities: serializedEntities,
           pressedKeys: currentPressedKeys,
-        },
-      });
-    }
-
-    // ── Sprite inline scripts (Godot-style: script attached to entity) ──
-    for (const node of Object.values(nodes)) {
-      if (node.type !== "sprite") continue;
-      const script = typeof node.data.script === "string" ? node.data.script : "";
-      if (!script.trim()) continue;
-      if (!entityStore.entities.has(node.id)) continue;
-
-      tasks.push({
-        nodeId: node.id,
-        code: script,
-        api: {
-          dt,
-          time,
-          input: {},
-          state: entityStore.getNodeState(node.id),
-          entities: serializedEntities,
-          pressedKeys: currentPressedKeys,
-          selfEntityName: node.name,
         },
       });
     }

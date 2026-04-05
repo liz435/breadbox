@@ -5,16 +5,15 @@ import type { PortDataType, GraphNodeType } from "@dreamer/schemas";
 describe("getPortColor", () => {
   test("returns a color for every port data type", () => {
     const types: PortDataType[] = [
-      "texture",
+      "flow",
+      "digital",
+      "analog",
+      "pwm",
+      "integer",
       "float",
-      "vec2",
-      "color",
-      "audio",
-      "trigger",
-      "entity",
       "string",
-      "shader",
-      "material",
+      "boolean",
+      "pin",
       "any",
     ];
     for (const t of types) {
@@ -26,11 +25,11 @@ describe("getPortColor", () => {
 
   test("different types have different colors (mostly)", () => {
     const colors = new Set([
-      getPortColor("texture"),
-      getPortColor("float"),
-      getPortColor("audio"),
-      getPortColor("trigger"),
-      getPortColor("shader"),
+      getPortColor("flow"),
+      getPortColor("digital"),
+      getPortColor("analog"),
+      getPortColor("integer"),
+      getPortColor("string"),
     ]);
     expect(colors.size).toBe(5);
   });
@@ -39,15 +38,31 @@ describe("getPortColor", () => {
 describe("getNodeColor", () => {
   test("returns a color for every node type", () => {
     const types: GraphNodeType[] = [
-      "sprite",
-      "shader",
-      "audio",
-      "video",
-      "text",
-      "code",
-      "material",
+      "setup",
+      "loop",
+      "digital_write",
+      "digital_read",
+      "pin_mode",
+      "analog_write",
+      "analog_read",
+      "delay",
+      "millis",
+      "micros",
+      "serial_begin",
+      "serial_print",
+      "serial_read",
+      "if_else",
+      "comparison",
+      "logic_gate",
       "math",
-      "group",
+      "map_value",
+      "constrain",
+      "variable",
+      "constant",
+      "servo_write",
+      "tone",
+      "lcd_print",
+      "code_block",
     ];
     for (const t of types) {
       const color = getNodeColor(t);

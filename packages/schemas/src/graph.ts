@@ -1,31 +1,23 @@
 import { z } from "zod";
 import { nonEmptyStringSchema } from "./primitives";
+import {
+  arduinoPortDataTypeSchema,
+  arduinoNodeTypeSchema,
+  type ArduinoPortDataType,
+  type ArduinoNodeType,
+} from "./arduino-graph";
 
-// ── Port Data Types ─────────────────────────────────────────────────────────
+// ── Port Data Types (Arduino) ──────────────────────────────────────────────
 
-export const portDataTypeSchema = z.enum([
-  "texture",
-  "float",
-  "vec2",
-  "color",
-  "audio",
-  "trigger",
-  "entity",
-  "string",
-  "shader",
-  "material",
-  "any",
-]);
+export const portDataTypeSchema = arduinoPortDataTypeSchema;
+export type PortDataType = ArduinoPortDataType;
 
-export type PortDataType = z.infer<typeof portDataTypeSchema>;
-
-// ── Port Direction ──────────────────────────────────────────────────────────
+// ── Port Direction ─────────────────────────────────────────────────────────
 
 export const portDirectionSchema = z.enum(["in", "out"]);
-
 export type PortDirection = z.infer<typeof portDirectionSchema>;
 
-// ── Port ────────────────────────────────────────────────────────────────────
+// ── Port ───────────────────────────────────────────────────────────────────
 
 export const portSchema = z.object({
   id: nonEmptyStringSchema,
@@ -33,32 +25,14 @@ export const portSchema = z.object({
   direction: portDirectionSchema,
   dataType: portDataTypeSchema,
 });
-
 export type Port = z.infer<typeof portSchema>;
 
-// ── Graph Node Types ────────────────────────────────────────────────────────
+// ── Graph Node Types (Arduino) ─────────────────────────────────────────────
 
-export const graphNodeTypeSchema = z.enum([
-  "sprite",
-  "shader",
-  "audio",
-  "video",
-  "text",
-  "code",
-  "material",
-  "math",
-  "group",
-  "on_start",
-  "on_update",
-  "on_input",
-  "input_map",
-  "composer",
-  "output",
-]);
+export const graphNodeTypeSchema = arduinoNodeTypeSchema;
+export type GraphNodeType = ArduinoNodeType;
 
-export type GraphNodeType = z.infer<typeof graphNodeTypeSchema>;
-
-// ── Graph Node ──────────────────────────────────────────────────────────────
+// ── Graph Node ─────────────────────────────────────────────────────────────
 
 export const graphNodeSchema = z.object({
   id: nonEmptyStringSchema,
@@ -71,10 +45,9 @@ export const graphNodeSchema = z.object({
   ports: z.array(portSchema),
   data: z.record(z.string(), z.unknown()),
 });
-
 export type GraphNode = z.infer<typeof graphNodeSchema>;
 
-// ── Edge ────────────────────────────────────────────────────────────────────
+// ── Edge ───────────────────────────────────────────────────────────────────
 
 export const edgeSchema = z.object({
   id: nonEmptyStringSchema,
@@ -83,49 +56,42 @@ export const edgeSchema = z.object({
   targetNodeId: nonEmptyStringSchema,
   targetPortId: nonEmptyStringSchema,
 });
-
 export type Edge = z.infer<typeof edgeSchema>;
 
-// ── Graph State ─────────────────────────────────────────────────────────────
+// ── Graph State ────────────────────────────────────────────────────────────
 
 export const graphStateSchema = z.object({
   nodes: z.record(z.string(), graphNodeSchema),
   edges: z.record(z.string(), edgeSchema),
 });
-
 export type GraphState = z.infer<typeof graphStateSchema>;
 
-// ── Port type compatibility ─────────────────────────────────────────────────
+// ── Port type compatibility ────────────────────────────────────────────────
 
 const COMPATIBLE_TYPES: Record<PortDataType, ReadonlySet<PortDataType>> = {
-  texture: new Set(["texture", "any"]),
-  float: new Set(["float", "any"]),
-  vec2: new Set(["vec2", "any"]),
-  color: new Set(["color", "any"]),
-  audio: new Set(["audio", "any"]),
-  trigger: new Set(["trigger", "any"]),
-  entity: new Set(["entity", "any"]),
+  flow: new Set(["flow"]),
+  digital: new Set(["digital", "integer", "boolean", "any"]),
+  analog: new Set(["analog", "integer", "float", "any"]),
+  pwm: new Set(["pwm", "integer", "any"]),
+  integer: new Set(["integer", "float", "analog", "pwm", "digital", "any"]),
+  float: new Set(["float", "integer", "any"]),
   string: new Set(["string", "any"]),
-  shader: new Set(["shader", "any"]),
-  material: new Set(["material", "any"]),
+  boolean: new Set(["boolean", "digital", "any"]),
+  pin: new Set(["pin", "integer", "any"]),
   any: new Set([
-    "texture",
+    "flow",
+    "digital",
+    "analog",
+    "pwm",
+    "integer",
     "float",
-    "vec2",
-    "color",
-    "audio",
-    "trigger",
-    "entity",
     "string",
-    "shader",
-    "material",
+    "boolean",
+    "pin",
     "any",
   ]),
 };
 
-/**
- * Check if an output port type can connect to an input port type.
- */
 export function arePortsCompatible(
   sourceType: PortDataType,
   targetType: PortDataType
@@ -133,95 +99,145 @@ export function arePortsCompatible(
   return COMPATIBLE_TYPES[sourceType].has(targetType);
 }
 
-// ── Default ports per node type ─────────────────────────────────────────────
+// ── Default ports per node type ────────────────────────────────────────────
 
 export function getDefaultPorts(nodeType: GraphNodeType): Port[] {
   switch (nodeType) {
-    case "sprite":
+    case "setup":
       return [
-        { id: "shader_in", name: "Shader", direction: "in", dataType: "shader" },
-        { id: "material_in", name: "Material", direction: "in", dataType: "material" },
-        { id: "texture_out", name: "Texture", direction: "out", dataType: "texture" },
-        { id: "entity_out", name: "Entity", direction: "out", dataType: "entity" },
+        { id: "flow_out", name: "Flow", direction: "out", dataType: "flow" },
       ];
-    case "shader":
+    case "loop":
       return [
-        { id: "texture_in", name: "Texture", direction: "in", dataType: "texture" },
-        { id: "float_in", name: "Float", direction: "in", dataType: "float" },
-        { id: "color_in", name: "Color", direction: "in", dataType: "color" },
-        { id: "shader_out", name: "Shader", direction: "out", dataType: "shader" },
+        { id: "flow_out", name: "Flow", direction: "out", dataType: "flow" },
       ];
-    case "audio":
+    case "digital_write":
       return [
-        { id: "trigger_in", name: "Trigger", direction: "in", dataType: "trigger" },
-        { id: "volume_in", name: "Volume", direction: "in", dataType: "float" },
-        { id: "pitch_in", name: "Pitch", direction: "in", dataType: "float" },
-        { id: "audio_out", name: "Audio", direction: "out", dataType: "audio" },
-        { id: "on_complete", name: "On Complete", direction: "out", dataType: "trigger" },
+        { id: "flow_in", name: "Flow", direction: "in", dataType: "flow" },
+        { id: "pin", name: "Pin", direction: "in", dataType: "pin" },
+        { id: "value", name: "Value", direction: "in", dataType: "digital" },
+        { id: "flow_out", name: "Flow", direction: "out", dataType: "flow" },
       ];
-    case "video":
+    case "digital_read":
       return [
-        { id: "trigger_in", name: "Trigger", direction: "in", dataType: "trigger" },
-        { id: "rate_in", name: "Rate", direction: "in", dataType: "float" },
-        { id: "texture_out", name: "Texture", direction: "out", dataType: "texture" },
-        { id: "audio_out", name: "Audio", direction: "out", dataType: "audio" },
+        { id: "pin", name: "Pin", direction: "in", dataType: "pin" },
+        { id: "value", name: "Value", direction: "out", dataType: "digital" },
       ];
-    case "text":
+    case "pin_mode":
       return [
-        { id: "vars_in", name: "Variables", direction: "in", dataType: "any" },
-        { id: "string_out", name: "String", direction: "out", dataType: "string" },
+        { id: "flow_in", name: "Flow", direction: "in", dataType: "flow" },
+        { id: "pin", name: "Pin", direction: "in", dataType: "pin" },
+        { id: "flow_out", name: "Flow", direction: "out", dataType: "flow" },
       ];
-    case "code":
+    case "analog_write":
       return [
-        { id: "trigger_in", name: "Trigger", direction: "in", dataType: "trigger" },
-        { id: "data_0_in", name: "Data A", direction: "in", dataType: "any" },
-        { id: "data_1_in", name: "Data B", direction: "in", dataType: "any" },
-        { id: "trigger_out", name: "Trigger", direction: "out", dataType: "trigger" },
-        { id: "data_out", name: "Data", direction: "out", dataType: "any" },
+        { id: "flow_in", name: "Flow", direction: "in", dataType: "flow" },
+        { id: "pin", name: "Pin", direction: "in", dataType: "pin" },
+        { id: "value", name: "Value", direction: "in", dataType: "pwm" },
+        { id: "flow_out", name: "Flow", direction: "out", dataType: "flow" },
       ];
-    case "material":
+    case "analog_read":
       return [
-        { id: "base_texture_in", name: "Base Texture", direction: "in", dataType: "texture" },
-        { id: "normal_in", name: "Normal Map", direction: "in", dataType: "texture" },
-        { id: "shader_in", name: "Shader", direction: "in", dataType: "shader" },
-        { id: "material_out", name: "Material", direction: "out", dataType: "material" },
+        { id: "pin", name: "Pin", direction: "in", dataType: "pin" },
+        { id: "value", name: "Value", direction: "out", dataType: "analog" },
+      ];
+    case "delay":
+      return [
+        { id: "flow_in", name: "Flow", direction: "in", dataType: "flow" },
+        { id: "ms", name: "Milliseconds", direction: "in", dataType: "integer" },
+        { id: "flow_out", name: "Flow", direction: "out", dataType: "flow" },
+      ];
+    case "millis":
+      return [
+        { id: "value", name: "Value", direction: "out", dataType: "integer" },
+      ];
+    case "micros":
+      return [
+        { id: "value", name: "Value", direction: "out", dataType: "integer" },
+      ];
+    case "serial_begin":
+      return [
+        { id: "flow_in", name: "Flow", direction: "in", dataType: "flow" },
+        { id: "flow_out", name: "Flow", direction: "out", dataType: "flow" },
+      ];
+    case "serial_print":
+      return [
+        { id: "flow_in", name: "Flow", direction: "in", dataType: "flow" },
+        { id: "value", name: "Value", direction: "in", dataType: "any" },
+        { id: "flow_out", name: "Flow", direction: "out", dataType: "flow" },
+      ];
+    case "serial_read":
+      return [
+        { id: "value", name: "Value", direction: "out", dataType: "integer" },
+      ];
+    case "if_else":
+      return [
+        { id: "flow_in", name: "Flow", direction: "in", dataType: "flow" },
+        { id: "condition", name: "Condition", direction: "in", dataType: "boolean" },
+        { id: "flow_true", name: "True", direction: "out", dataType: "flow" },
+        { id: "flow_false", name: "False", direction: "out", dataType: "flow" },
+      ];
+    case "comparison":
+      return [
+        { id: "a", name: "A", direction: "in", dataType: "any" },
+        { id: "b", name: "B", direction: "in", dataType: "any" },
+        { id: "result", name: "Result", direction: "out", dataType: "boolean" },
+      ];
+    case "logic_gate":
+      return [
+        { id: "a", name: "A", direction: "in", dataType: "boolean" },
+        { id: "b", name: "B", direction: "in", dataType: "boolean" },
+        { id: "result", name: "Result", direction: "out", dataType: "boolean" },
       ];
     case "math":
       return [
-        { id: "a_in", name: "A", direction: "in", dataType: "float" },
-        { id: "b_in", name: "B", direction: "in", dataType: "float" },
-        { id: "result_out", name: "Result", direction: "out", dataType: "float" },
+        { id: "a", name: "A", direction: "in", dataType: "float" },
+        { id: "b", name: "B", direction: "in", dataType: "float" },
+        { id: "result", name: "Result", direction: "out", dataType: "float" },
       ];
-    case "group":
-      return [];
-    case "on_start":
+    case "map_value":
       return [
-        { id: "trigger_out", name: "Trigger", direction: "out", dataType: "trigger" },
+        { id: "value", name: "Value", direction: "in", dataType: "integer" },
+        { id: "result", name: "Result", direction: "out", dataType: "integer" },
       ];
-    case "on_update":
+    case "constrain":
       return [
-        { id: "trigger_out", name: "Trigger", direction: "out", dataType: "trigger" },
-        { id: "dt_out", name: "Delta Time", direction: "out", dataType: "float" },
+        { id: "value", name: "Value", direction: "in", dataType: "integer" },
+        { id: "result", name: "Result", direction: "out", dataType: "integer" },
       ];
-    case "on_input":
+    case "variable":
       return [
-        { id: "trigger_out", name: "Trigger", direction: "out", dataType: "trigger" },
-        { id: "key_out", name: "Key", direction: "out", dataType: "string" },
+        { id: "set", name: "Set", direction: "in", dataType: "any" },
+        { id: "get", name: "Get", direction: "out", dataType: "any" },
       ];
-    case "input_map":
+    case "constant":
       return [
-        { id: "actions_out", name: "Actions", direction: "out", dataType: "any" },
+        { id: "value", name: "Value", direction: "out", dataType: "any" },
       ];
-    case "composer":
+    case "servo_write":
       return [
-        { id: "entities_in", name: "Entities", direction: "in", dataType: "entity" },
-        { id: "scene_out", name: "Scene", direction: "out", dataType: "any" },
+        { id: "flow_in", name: "Flow", direction: "in", dataType: "flow" },
+        { id: "pin", name: "Pin", direction: "in", dataType: "pin" },
+        { id: "angle", name: "Angle", direction: "in", dataType: "integer" },
+        { id: "flow_out", name: "Flow", direction: "out", dataType: "flow" },
       ];
-    case "output":
+    case "tone":
       return [
-        { id: "scene_in", name: "Scene", direction: "in", dataType: "any" },
-        { id: "texture_in", name: "Texture", direction: "in", dataType: "texture" },
-        { id: "audio_in", name: "Audio", direction: "in", dataType: "audio" },
+        { id: "flow_in", name: "Flow", direction: "in", dataType: "flow" },
+        { id: "pin", name: "Pin", direction: "in", dataType: "pin" },
+        { id: "frequency", name: "Frequency", direction: "in", dataType: "integer" },
+        { id: "flow_out", name: "Flow", direction: "out", dataType: "flow" },
+      ];
+    case "lcd_print":
+      return [
+        { id: "flow_in", name: "Flow", direction: "in", dataType: "flow" },
+        { id: "text", name: "Text", direction: "in", dataType: "string" },
+        { id: "flow_out", name: "Flow", direction: "out", dataType: "flow" },
+      ];
+    case "code_block":
+      return [
+        { id: "flow_in", name: "Flow", direction: "in", dataType: "flow" },
+        { id: "flow_out", name: "Flow", direction: "out", dataType: "flow" },
       ];
   }
 }

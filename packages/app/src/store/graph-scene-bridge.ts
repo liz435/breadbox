@@ -49,9 +49,8 @@ export async function graphEventToSceneEvents(
 ): Promise<SceneEvent[] | null> {
   switch (event.type) {
     case "ADD_NODE": {
-      if (event.node.type !== "sprite") return null;
-      const sprite = await graphNodeToSprite(event.node);
-      return [{ type: "ADD_SPRITE", sprite }];
+      // TODO: Implement Arduino-specific bridge logic if needed
+      return null;
     }
 
     case "REMOVE_NODE": {

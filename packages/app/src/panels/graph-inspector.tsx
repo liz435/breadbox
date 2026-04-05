@@ -252,254 +252,162 @@ function NodeProperties({
   const { type, data } = node;
 
   switch (type) {
-    case "sprite":
+    case "digital_write":
       return (
         <div className="flex flex-col gap-1.5">
-          <Label className="mb-0.5">Sprite</Label>
+          <Label className="mb-0.5">Digital Write</Label>
           <div className="flex items-center justify-between text-xs">
-            <span className="text-neutral-500">Tint</span>
-            <div className="flex items-center gap-1.5">
-              <input
-                type="color"
-                value={typeof data.tint === "string" ? data.tint : "#4a9eff"}
-                onChange={(e) => onUpdateData({ tint: e.target.value })}
-                className="w-6 h-5 rounded border border-neutral-600 bg-transparent cursor-pointer p-0 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:rounded"
-              />
-              <input
-                type="text"
-                value={typeof data.tint === "string" ? data.tint : "#4a9eff"}
-                onChange={(e) => onUpdateData({ tint: e.target.value })}
-                className="text-xs text-neutral-300 bg-transparent border-none outline-none w-16 font-mono"
-              />
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <span className="text-[10px] text-neutral-500 block mb-0.5">Scene X</span>
-              <input
-                type="number"
-                value={typeof data.sceneX === "number" ? data.sceneX : 0}
-                onChange={(e) => onUpdateData({ sceneX: Number(e.target.value) })}
-                className={numInputClass}
-              />
-            </div>
-            <div className="flex-1">
-              <span className="text-[10px] text-neutral-500 block mb-0.5">Scene Y</span>
-              <input
-                type="number"
-                value={typeof data.sceneY === "number" ? data.sceneY : 0}
-                onChange={(e) => onUpdateData({ sceneY: Number(e.target.value) })}
-                className={numInputClass}
-              />
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <span className="text-[10px] text-neutral-500 block mb-0.5">Width</span>
-              <input
-                type="number"
-                value={typeof data.width === "number" ? data.width : 64}
-                onChange={(e) => onUpdateData({ width: Number(e.target.value) })}
-                className={numInputClass}
-                min={1}
-              />
-            </div>
-            <div className="flex-1">
-              <span className="text-[10px] text-neutral-500 block mb-0.5">Height</span>
-              <input
-                type="number"
-                value={typeof data.height === "number" ? data.height : 64}
-                onChange={(e) => onUpdateData({ height: Number(e.target.value) })}
-                className={numInputClass}
-                min={1}
-              />
-            </div>
-          </div>
-          {/* Script editor */}
-          <Separator className="my-1" />
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] text-neutral-500">Script</span>
-              {typeof data.script === "string" && data.script.trim().length > 0 && (
-                <span className="text-[9px] text-neutral-600">
-                  {data.script.split("\n").length} lines
-                </span>
-              )}
-            </div>
-            <textarea
-              value={typeof data.script === "string" ? data.script : ""}
-              onChange={(e) => onUpdateData({ script: e.target.value })}
-              placeholder="// Write sprite script here..."
-              className="w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1.5 text-[11px] text-emerald-400 font-mono outline-none resize-y min-h-20 max-h-80 transition-colors focus:border-emerald-500"
-              spellCheck={false}
-              rows={10}
-            />
-          </div>
-        </div>
-      );
-
-    case "audio":
-      return (
-        <div className="flex flex-col gap-1.5">
-          <Label className="mb-0.5">Audio</Label>
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-neutral-500">Volume</span>
-            <div className="flex items-center gap-1.5">
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={typeof data.volume === "number" ? data.volume : 1}
-                onChange={(e) => onUpdateData({ volume: Number(e.target.value) })}
-                className="w-16 h-1 accent-blue-500 cursor-pointer"
-              />
-              <span className="text-neutral-300 w-8 text-right">
-                {Math.round((typeof data.volume === "number" ? data.volume : 1) * 100)}%
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-neutral-500">Pitch</span>
+            <span className="text-neutral-500">Pin</span>
             <input
               type="number"
-              value={typeof data.pitch === "number" ? data.pitch : 1}
-              onChange={(e) => onUpdateData({ pitch: Number(e.target.value) })}
+              value={typeof data.pin === "number" ? data.pin : 13}
+              onChange={(e) => onUpdateData({ pin: Number(e.target.value) })}
               className={numInputClass + " !w-16"}
-              step={0.1}
-              min={0.1}
-              max={4}
+              min={0}
+              max={53}
             />
           </div>
           <div className="flex items-center justify-between text-xs">
-            <span className="text-neutral-500">Loop</span>
-            <input
-              type="checkbox"
-              checked={data.loop === true}
-              onChange={(e) => onUpdateData({ loop: e.target.checked })}
-              className={checkboxClass}
-            />
-          </div>
-        </div>
-      );
-
-    case "video":
-      return (
-        <div className="flex flex-col gap-1.5">
-          <Label className="mb-0.5">Video</Label>
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-neutral-500">Playback rate</span>
-            <input
-              type="number"
-              value={typeof data.playbackRate === "number" ? data.playbackRate : 1}
-              onChange={(e) => onUpdateData({ playbackRate: Number(e.target.value) })}
-              className={numInputClass + " !w-16"}
-              step={0.25}
-              min={0.25}
-              max={4}
-            />
-          </div>
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-neutral-500">Loop</span>
-            <input
-              type="checkbox"
-              checked={data.loop === true}
-              onChange={(e) => onUpdateData({ loop: e.target.checked })}
-              className={checkboxClass}
-            />
-          </div>
-        </div>
-      );
-
-    case "shader":
-      return (
-        <div className="flex flex-col gap-1.5">
-          <Label className="mb-0.5">Shader</Label>
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-neutral-500">Language</span>
+            <span className="text-neutral-500">Value</span>
             <select
-              value={typeof data.language === "string" ? data.language : "glsl"}
-              onChange={(e) => onUpdateData({ language: e.target.value })}
+              value={typeof data.value === "string" ? data.value : "HIGH"}
+              onChange={(e) => onUpdateData({ value: e.target.value })}
               className={selectClass + " !w-20"}
             >
-              <option value="glsl">GLSL</option>
-              <option value="wgsl">WGSL</option>
-              <option value="hlsl">HLSL</option>
+              <option value="HIGH">HIGH</option>
+              <option value="LOW">LOW</option>
             </select>
           </div>
-          <div>
-            <span className="text-[10px] text-neutral-500 block mb-1">Code</span>
-            <textarea
-              value={typeof data.code === "string" ? data.code : ""}
-              onChange={(e) => onUpdateData({ code: e.target.value })}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1.5 text-[11px] text-neutral-300 font-mono outline-none resize-y min-h-20 max-h-60 transition-colors focus:border-neutral-500"
-              spellCheck={false}
-              rows={8}
+        </div>
+      );
+
+    case "digital_read":
+      return (
+        <div className="flex flex-col gap-1.5">
+          <Label className="mb-0.5">Digital Read</Label>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-neutral-500">Pin</span>
+            <input
+              type="number"
+              value={typeof data.pin === "number" ? data.pin : 2}
+              onChange={(e) => onUpdateData({ pin: Number(e.target.value) })}
+              className={numInputClass + " !w-16"}
+              min={0}
+              max={53}
             />
           </div>
         </div>
       );
 
-    case "code":
+    case "pin_mode":
       return (
         <div className="flex flex-col gap-1.5">
-          <Label className="mb-0.5">Script</Label>
+          <Label className="mb-0.5">Pin Mode</Label>
           <div className="flex items-center justify-between text-xs">
-            <span className="text-neutral-500">Language</span>
+            <span className="text-neutral-500">Pin</span>
+            <input
+              type="number"
+              value={typeof data.pin === "number" ? data.pin : 13}
+              onChange={(e) => onUpdateData({ pin: Number(e.target.value) })}
+              className={numInputClass + " !w-16"}
+              min={0}
+              max={53}
+            />
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-neutral-500">Mode</span>
             <select
-              value={typeof data.language === "string" ? data.language : "javascript"}
-              onChange={(e) => onUpdateData({ language: e.target.value })}
+              value={typeof data.mode === "string" ? data.mode : "OUTPUT"}
+              onChange={(e) => onUpdateData({ mode: e.target.value })}
               className={selectClass + " !w-24"}
             >
-              <option value="javascript">JavaScript</option>
-              <option value="typescript">TypeScript</option>
+              <option value="INPUT">INPUT</option>
+              <option value="OUTPUT">OUTPUT</option>
+              <option value="INPUT_PULLUP">INPUT_PULLUP</option>
             </select>
           </div>
-          <div>
-            <span className="text-[10px] text-neutral-500 block mb-1">Code</span>
-            <textarea
-              value={typeof data.code === "string" ? data.code : ""}
-              onChange={(e) => onUpdateData({ code: e.target.value })}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1.5 text-[11px] text-neutral-300 font-mono outline-none resize-y min-h-20 max-h-60 transition-colors focus:border-neutral-500"
-              spellCheck={false}
-              rows={10}
+        </div>
+      );
+
+    case "delay":
+      return (
+        <div className="flex flex-col gap-1.5">
+          <Label className="mb-0.5">Delay</Label>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-neutral-500">Milliseconds</span>
+            <input
+              type="number"
+              value={typeof data.ms === "number" ? data.ms : 1000}
+              onChange={(e) => onUpdateData({ ms: Number(e.target.value) })}
+              className={numInputClass + " !w-20"}
+              min={0}
             />
           </div>
         </div>
       );
 
-    case "text":
+    case "serial_begin":
       return (
         <div className="flex flex-col gap-1.5">
-          <Label className="mb-0.5">Text</Label>
-          <textarea
-            value={typeof data.content === "string" ? data.content : ""}
-            onChange={(e) => onUpdateData({ content: e.target.value })}
-            className="w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1.5 text-xs text-neutral-300 outline-none resize-y min-h-16 max-h-40 transition-colors focus:border-neutral-500"
-            rows={4}
-          />
-          <PropertyRow
-            label="Length"
-            value={typeof data.content === "string" ? `${data.content.length} chars` : "0 chars"}
-          />
+          <Label className="mb-0.5">Serial Begin</Label>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-neutral-500">Baud Rate</span>
+            <select
+              value={typeof data.baudRate === "number" ? data.baudRate : 9600}
+              onChange={(e) => onUpdateData({ baudRate: Number(e.target.value) })}
+              className={selectClass + " !w-20"}
+            >
+              <option value={300}>300</option>
+              <option value={1200}>1200</option>
+              <option value={2400}>2400</option>
+              <option value={4800}>4800</option>
+              <option value={9600}>9600</option>
+              <option value={19200}>19200</option>
+              <option value={38400}>38400</option>
+              <option value={57600}>57600</option>
+              <option value={115200}>115200</option>
+            </select>
+          </div>
         </div>
       );
 
-    case "material":
+    case "comparison":
       return (
         <div className="flex flex-col gap-1.5">
-          <Label className="mb-0.5">Material</Label>
+          <Label className="mb-0.5">Comparison</Label>
           <div className="flex items-center justify-between text-xs">
-            <span className="text-neutral-500">Blend</span>
+            <span className="text-neutral-500">Operator</span>
             <select
-              value={typeof data.blend === "string" ? data.blend : "normal"}
-              onChange={(e) => onUpdateData({ blend: e.target.value })}
-              className={selectClass + " !w-24"}
+              value={typeof data.operator === "string" ? data.operator : "=="}
+              onChange={(e) => onUpdateData({ operator: e.target.value })}
+              className={selectClass + " !w-16"}
             >
-              <option value="normal">Normal</option>
-              <option value="additive">Additive</option>
-              <option value="multiply">Multiply</option>
-              <option value="screen">Screen</option>
+              <option value="==">==</option>
+              <option value="!=">!=</option>
+              <option value="<">&lt;</option>
+              <option value=">">&gt;</option>
+              <option value="<=">&lt;=</option>
+              <option value=">=">&gt;=</option>
+            </select>
+          </div>
+        </div>
+      );
+
+    case "logic_gate":
+      return (
+        <div className="flex flex-col gap-1.5">
+          <Label className="mb-0.5">Logic Gate</Label>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-neutral-500">Gate</span>
+            <select
+              value={typeof data.gate === "string" ? data.gate : "AND"}
+              onChange={(e) => onUpdateData({ gate: e.target.value })}
+              className={selectClass + " !w-16"}
+            >
+              <option value="AND">AND</option>
+              <option value="OR">OR</option>
+              <option value="NOT">NOT</option>
+              <option value="XOR">XOR</option>
             </select>
           </div>
         </div>
@@ -526,38 +434,65 @@ function NodeProperties({
         </div>
       );
 
-    case "on_input":
+    case "variable":
       return (
         <div className="flex flex-col gap-1.5">
-          <Label className="mb-0.5">Input Keys</Label>
-          <KeyBindingEditor
-            keys={Array.isArray(data.listenKeys) ? (data.listenKeys as string[]) : []}
-            onUpdate={(newKeys) => onUpdateData({ listenKeys: newKeys })}
-          />
+          <Label className="mb-0.5">Variable</Label>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-neutral-500">Name</span>
+            <input
+              type="text"
+              value={typeof data.name === "string" ? data.name : "myVar"}
+              onChange={(e) => onUpdateData({ name: e.target.value })}
+              className={numInputClass + " !w-24"}
+            />
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-neutral-500">Type</span>
+            <select
+              value={typeof data.dataType === "string" ? data.dataType : "integer"}
+              onChange={(e) => onUpdateData({ dataType: e.target.value })}
+              className={selectClass + " !w-20"}
+            >
+              <option value="integer">int</option>
+              <option value="float">float</option>
+              <option value="boolean">bool</option>
+              <option value="string">String</option>
+            </select>
+          </div>
         </div>
       );
 
-    case "input_map":
+    case "constant":
       return (
         <div className="flex flex-col gap-1.5">
-          <Label className="mb-0.5">Input Map</Label>
-          <InputMapEditor
-            actions={
-              Array.isArray(data.actions) ? (data.actions as InputAction[]) : []
-            }
-            onUpdate={(actions) => onUpdateData({ actions })}
-          />
+          <Label className="mb-0.5">Constant</Label>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-neutral-500">Value</span>
+            <input
+              type="text"
+              value={data.value != null ? String(data.value) : "0"}
+              onChange={(e) => onUpdateData({ value: e.target.value })}
+              className={numInputClass + " !w-20"}
+            />
+          </div>
         </div>
       );
 
-    case "group":
+    case "code_block":
       return (
-        <div className="flex flex-col gap-1">
-          <Label className="mb-0.5">Group</Label>
-          <PropertyRow
-            label="Children"
-            value={Array.isArray(data.childNodeIds) ? data.childNodeIds.length : 0}
-          />
+        <div className="flex flex-col gap-1.5">
+          <Label className="mb-0.5">Code Block</Label>
+          <div>
+            <span className="text-[10px] text-neutral-500 block mb-1">Code</span>
+            <textarea
+              value={typeof data.code === "string" ? data.code : ""}
+              onChange={(e) => onUpdateData({ code: e.target.value })}
+              className="w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1.5 text-[11px] text-neutral-300 font-mono outline-none resize-y min-h-20 max-h-60 transition-colors focus:border-neutral-500"
+              spellCheck={false}
+              rows={10}
+            />
+          </div>
         </div>
       );
 

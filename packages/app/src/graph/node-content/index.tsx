@@ -1,56 +1,43 @@
 import type { GraphNode, GraphNodeType } from "@dreamer/schemas";
-import { SpriteContent } from "./sprite-content";
-import { ShaderContent } from "./shader-content";
-import { CodeContent } from "./code-content";
-import { AudioContent } from "./audio-content";
-import { VideoContent } from "./video-content";
-import { TextContent } from "./text-content";
-import { MaterialContent } from "./material-content";
-import { MathContent } from "./math-content";
-import { GroupContent } from "./group-content";
-import { OnStartContent } from "./on-start-content";
-import { OnUpdateContent } from "./on-update-content";
-import { OnInputContent } from "./on-input-content";
-import { InputMapContent } from "./input-map-content";
-import { ComposerContent } from "./composer-content";
-import { OutputContent } from "./output-content";
 
 type NodeContentProps = {
   node: GraphNode;
   onDataChange?: (nodeId: string, patch: Record<string, unknown>) => void;
 };
 
-export function NodeContent({ node, onDataChange }: NodeContentProps) {
-  switch (node.type as GraphNodeType) {
-    case "sprite":
-      return <SpriteContent node={node} onDataChange={onDataChange} />;
-    case "shader":
-      return <ShaderContent node={node} onDataChange={onDataChange} />;
-    case "code":
-      return <CodeContent node={node} onDataChange={onDataChange} />;
-    case "audio":
-      return <AudioContent node={node} />;
-    case "video":
-      return <VideoContent node={node} />;
-    case "text":
-      return <TextContent node={node} onDataChange={onDataChange} />;
-    case "material":
-      return <MaterialContent node={node} />;
-    case "math":
-      return <MathContent node={node} onDataChange={onDataChange} />;
-    case "group":
-      return <GroupContent node={node} />;
-    case "on_start":
-      return <OnStartContent node={node} />;
-    case "on_update":
-      return <OnUpdateContent node={node} />;
-    case "on_input":
-      return <OnInputContent node={node} />;
-    case "input_map":
-      return <InputMapContent node={node} />;
-    case "composer":
-      return <ComposerContent node={node} />;
-    case "output":
-      return <OutputContent node={node} />;
-  }
+export function NodeContent({ node }: NodeContentProps) {
+  const label = NODE_TYPE_LABELS[node.type as GraphNodeType] ?? node.type;
+  return (
+    <div className="px-2 py-1 text-[10px] text-neutral-400 truncate">
+      {label}
+    </div>
+  );
 }
+
+const NODE_TYPE_LABELS: Record<GraphNodeType, string> = {
+  setup: "Setup",
+  loop: "Loop",
+  digital_write: "Digital Write",
+  digital_read: "Digital Read",
+  pin_mode: "Pin Mode",
+  analog_write: "Analog Write",
+  analog_read: "Analog Read",
+  delay: "Delay",
+  millis: "Millis",
+  micros: "Micros",
+  serial_begin: "Serial Begin",
+  serial_print: "Serial Print",
+  serial_read: "Serial Read",
+  if_else: "If / Else",
+  comparison: "Comparison",
+  logic_gate: "Logic Gate",
+  math: "Math",
+  map_value: "Map Value",
+  constrain: "Constrain",
+  variable: "Variable",
+  constant: "Constant",
+  servo_write: "Servo Write",
+  tone: "Tone",
+  lcd_print: "LCD Print",
+  code_block: "Code Block",
+};

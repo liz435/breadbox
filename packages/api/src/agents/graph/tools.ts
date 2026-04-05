@@ -78,25 +78,35 @@ export function createGraphTools(params: {
 
     create_graph_node: tool({
       description:
-        "Create a new node in the visual graph. Node types: sprite, shader, code, audio, video, text, material, math, group, on_start, on_update, on_input, input_map, composer, output. Each type has default ports and data.",
+        "Create a new node in the visual graph. Node types: setup, loop, digital_write, digital_read, pin_mode, analog_write, analog_read, delay, millis, micros, serial_begin, serial_print, serial_read, if_else, comparison, logic_gate, math, map_value, constrain, variable, constant, servo_write, tone, lcd_print, code_block. Each type has default ports and data.",
       inputSchema: z.object({
         type: z
           .enum([
-            "sprite",
-            "shader",
-            "code",
-            "audio",
-            "video",
-            "text",
-            "material",
+            "setup",
+            "loop",
+            "digital_write",
+            "digital_read",
+            "pin_mode",
+            "analog_write",
+            "analog_read",
+            "delay",
+            "millis",
+            "micros",
+            "serial_begin",
+            "serial_print",
+            "serial_read",
+            "if_else",
+            "comparison",
+            "logic_gate",
             "math",
-            "group",
-            "on_start",
-            "on_update",
-            "on_input",
-            "input_map",
-            "composer",
-            "output",
+            "map_value",
+            "constrain",
+            "variable",
+            "constant",
+            "servo_write",
+            "tone",
+            "lcd_print",
+            "code_block",
           ])
           .describe("The type of node to create"),
         name: z.string().describe("Display name for the node"),
@@ -248,7 +258,7 @@ export function createGraphTools(params: {
 
     update_node_data: tool({
       description:
-        "Update a graph node's data fields. For sprite nodes: update `script` (inline behavior code), `tint`, `sceneX`, `sceneY`, `width`, `height`. For shader nodes: update `code`, `language`. For code nodes: update `code`. For math nodes: update `operation`. For text nodes: update `content`. For audio: `volume`, `pitch`, `loop`.",
+        "Update a graph node's data fields. For digital_write: `pin`, `value`. For delay: `ms`. For serial_begin: `baudRate`. For comparison: `operator`. For logic_gate: `gate`. For math: `operation`. For variable: `name`, `dataType`, `initialValue`. For code_block: `code`.",
       inputSchema: z.object({
         nodeId: z.string().describe("ID of the node to update"),
         patch: z
@@ -263,93 +273,6 @@ export function createGraphTools(params: {
           })
         );
         return { updated: input.nodeId, patch: input.patch };
-      },
-    }),
-
-    create_sprite_batch: tool({
-      description:
-        "Create multiple sprite nodes at once from a template. Use this for groups of similar sprites (e.g., rows of enemies, obstacles, collectibles). Each entry overrides the template's fields. Much more efficient than calling create_graph_node repeatedly.",
-      inputSchema: z.object({
-        template: z.object({
-          type: z.literal("sprite").default("sprite"),
-          width: z.number().optional().describe("Sprite width (default 64)"),
-          height: z.number().optional().describe("Sprite height (default 64)"),
-          tint: z.string().optional().describe("Tint color hex"),
-          script: z.string().optional().describe("Inline script code shared by all sprites in the batch"),
-          sceneX: z.number().optional().describe("Default scene X"),
-          sceneY: z.number().optional().describe("Default scene Y"),
-        }).describe("Base template applied to all sprites in the batch"),
-        sprites: z.array(z.object({
-          name: z.string().describe("Unique display name"),
-          sceneX: z.number().optional().describe("Override scene X position"),
-          sceneY: z.number().optional().describe("Override scene Y position"),
-          tint: z.string().optional().describe("Override tint color"),
-          width: z.number().optional().describe("Override width"),
-          height: z.number().optional().describe("Override height"),
-          script: z.string().optional().describe("Override script (replaces template script)"),
-          data: z.record(z.string(), z.unknown()).optional().describe("Additional data fields"),
-        })).describe("Array of sprites to create, each overriding template fields as needed"),
-        graphLayout: z.object({
-          startX: z.number().optional().describe("Starting graph X position (default 0)"),
-          startY: z.number().optional().describe("Starting graph Y position (default 0)"),
-          direction: z.enum(["horizontal", "vertical"]).optional().describe("Layout direction (default vertical)"),
-          spacing: z.number().optional().describe("Spacing between nodes (default 180)"),
-        }).optional().describe("How to arrange nodes in the graph editor"),
-      }),
-      execute: async (input) => {
-        const { template, sprites, graphLayout } = input;
-        const startX = graphLayout?.startX ?? 0;
-        const startY = graphLayout?.startY ?? 0;
-        const direction = graphLayout?.direction ?? "vertical";
-        const spacing = graphLayout?.spacing ?? 180;
-        const type = "sprite" as GraphNodeType;
-        const ports = getDefaultPorts(type);
-        const { width: nodeWidth, height: nodeHeight } = { width: 200, height: 150 };
-
-        const created: Array<{ nodeId: string; name: string }> = [];
-
-        for (let i = 0; i < sprites.length; i++) {
-          const sprite = sprites[i];
-          const nodeId = crypto.randomUUID();
-
-          const data: Record<string, unknown> = {
-            tint: sprite.tint ?? template.tint ?? "#4a9eff",
-            width: sprite.width ?? template.width ?? 64,
-            height: sprite.height ?? template.height ?? 64,
-            sceneX: sprite.sceneX ?? template.sceneX ?? 0,
-            sceneY: sprite.sceneY ?? template.sceneY ?? 0,
-          };
-
-          const script = sprite.script ?? template.script;
-          if (script) data.script = script;
-          if (sprite.data) Object.assign(data, sprite.data);
-
-          const graphX = direction === "horizontal" ? startX + i * (nodeWidth + spacing) : startX;
-          const graphY = direction === "vertical" ? startY + i * (nodeHeight + spacing) : startY;
-
-          const node = {
-            id: nodeId,
-            type,
-            name: sprite.name,
-            x: graphX,
-            y: graphY,
-            width: nodeWidth,
-            height: nodeHeight,
-            ports: ports.map((p) => ({ ...p })),
-            data,
-          };
-
-          ops.push(
-            makeGraphOp(opCtx, {
-              kind: "create_graph_node",
-              payload: { node },
-            })
-          );
-
-          created.push({ nodeId, name: sprite.name });
-        }
-
-        return { created, count: created.length };
       },
     }),
 
@@ -377,71 +300,104 @@ export function createGraphTools(params: {
 
 function getDefaultDataForType(type: GraphNodeType): Record<string, unknown> {
   switch (type) {
-    case "sprite":
-      return { tint: "#4a9eff", width: 64, height: 64, sceneX: 400, sceneY: 300 };
-    case "shader":
-      return { language: "glsl", code: "void main() {\n  gl_FragColor = vec4(1.0);\n}" };
-    case "code":
-      return { language: "typescript", code: "// behavior script\nexport function update(dt: number) {\n  \n}" };
-    case "audio":
-      return { volume: 1.0, pitch: 1.0, loop: false };
-    case "video":
-      return { playbackRate: 1.0, loop: false };
-    case "text":
-      return { content: "" };
-    case "material":
-      return { blend: "normal" };
+    case "setup":
+      return {};
+    case "loop":
+      return {};
+    case "digital_write":
+      return { pin: 13, value: "HIGH" };
+    case "digital_read":
+      return { pin: 2 };
+    case "pin_mode":
+      return { pin: 13, mode: "OUTPUT" };
+    case "analog_write":
+      return { pin: 9, value: 128 };
+    case "analog_read":
+      return { pin: 0 };
+    case "delay":
+      return { ms: 1000 };
+    case "millis":
+      return {};
+    case "micros":
+      return {};
+    case "serial_begin":
+      return { baudRate: 9600 };
+    case "serial_print":
+      return { value: "", newline: true };
+    case "serial_read":
+      return {};
+    case "if_else":
+      return {};
+    case "comparison":
+      return { operator: "==" };
+    case "logic_gate":
+      return { gate: "AND" };
     case "math":
       return { operation: "add" };
-    case "group":
-      return { childNodeIds: [] };
-    case "on_start":
-      return {};
-    case "on_update":
-      return {};
-    case "on_input":
-      return { listenKeys: ["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"] };
-    case "input_map":
-      return { actions: { move_up: "ArrowUp", move_down: "ArrowDown", move_left: "ArrowLeft", move_right: "ArrowRight" } };
-    case "composer":
-      return {};
-    case "output":
-      return { background: "#000000", resolution: { width: 800, height: 600 } };
-    default:
-      return {};
+    case "map_value":
+      return { fromLow: 0, fromHigh: 1023, toLow: 0, toHigh: 255 };
+    case "constrain":
+      return { low: 0, high: 255 };
+    case "variable":
+      return { name: "myVar", dataType: "integer", initialValue: 0 };
+    case "constant":
+      return { value: 0, dataType: "integer" };
+    case "servo_write":
+      return { pin: 9, angle: 90 };
+    case "tone":
+      return { pin: 8, frequency: 440, duration: 0 };
+    case "lcd_print":
+      return { address: 0x27, cols: 16, rows: 2, text: "" };
+    case "code_block":
+      return { language: "cpp", code: "// Custom Arduino code\n" };
   }
 }
 
 function getDefaultSizeForType(type: GraphNodeType): { width: number; height: number } {
   switch (type) {
-    case "sprite":
-      return { width: 200, height: 150 };
-    case "shader":
-    case "code":
-      return { width: 220, height: 160 };
-    case "audio":
-      return { width: 200, height: 140 };
-    case "video":
-      return { width: 200, height: 170 };
-    case "text":
-      return { width: 200, height: 120 };
-    case "math":
-      return { width: 140, height: 80 };
-    case "group":
-      return { width: 240, height: 180 };
-    case "on_start":
+    case "setup":
+    case "loop":
       return { width: 160, height: 70 };
-    case "on_update":
-      return { width: 160, height: 80 };
-    case "on_input":
-      return { width: 160, height: 80 };
-    case "input_map":
-      return { width: 200, height: 140 };
-    case "composer":
-      return { width: 200, height: 100 };
-    case "output":
-      return { width: 200, height: 120 };
-    default:
+    case "digital_write":
+    case "digital_read":
+    case "analog_write":
+    case "analog_read":
       return { width: 180, height: 100 };
+    case "pin_mode":
+      return { width: 180, height: 90 };
+    case "delay":
+      return { width: 140, height: 80 };
+    case "millis":
+    case "micros":
+      return { width: 140, height: 70 };
+    case "serial_begin":
+      return { width: 180, height: 80 };
+    case "serial_print":
+      return { width: 200, height: 100 };
+    case "serial_read":
+      return { width: 180, height: 90 };
+    case "if_else":
+      return { width: 180, height: 120 };
+    case "comparison":
+      return { width: 160, height: 90 };
+    case "logic_gate":
+      return { width: 140, height: 80 };
+    case "math":
+      return { width: 160, height: 90 };
+    case "map_value":
+      return { width: 180, height: 100 };
+    case "constrain":
+      return { width: 180, height: 90 };
+    case "variable":
+      return { width: 160, height: 90 };
+    case "constant":
+      return { width: 140, height: 70 };
+    case "servo_write":
+    case "tone":
+      return { width: 180, height: 100 };
+    case "lcd_print":
+      return { width: 200, height: 110 };
+    case "code_block":
+      return { width: 240, height: 160 };
   }
 }

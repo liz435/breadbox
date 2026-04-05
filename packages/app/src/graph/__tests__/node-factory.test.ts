@@ -11,15 +11,31 @@ import type { GraphNodeType } from "@dreamer/schemas";
 
 describe("createGraphNode", () => {
   const allTypes: GraphNodeType[] = [
-    "sprite",
-    "shader",
-    "audio",
-    "video",
-    "text",
-    "code",
-    "material",
+    "setup",
+    "loop",
+    "digital_write",
+    "digital_read",
+    "pin_mode",
+    "analog_write",
+    "analog_read",
+    "delay",
+    "millis",
+    "micros",
+    "serial_begin",
+    "serial_print",
+    "serial_read",
+    "if_else",
+    "comparison",
+    "logic_gate",
     "math",
-    "group",
+    "map_value",
+    "constrain",
+    "variable",
+    "constant",
+    "servo_write",
+    "tone",
+    "lcd_print",
+    "code_block",
   ];
 
   test("creates a valid node for every type", () => {
@@ -38,82 +54,65 @@ describe("createGraphNode", () => {
   test("generates unique ids", () => {
     const ids = new Set<string>();
     for (let i = 0; i < 50; i++) {
-      ids.add(createGraphNode("sprite").id);
+      ids.add(createGraphNode("setup").id);
     }
     expect(ids.size).toBe(50);
   });
 
   test("accepts custom id", () => {
-    const node = createGraphNode("sprite", { id: "custom-id" });
+    const node = createGraphNode("setup", { id: "custom-id" });
     expect(node.id).toBe("custom-id");
   });
 
   test("accepts custom name", () => {
-    const node = createGraphNode("shader", { name: "My Shader" });
-    expect(node.name).toBe("My Shader");
+    const node = createGraphNode("delay", { name: "My Delay" });
+    expect(node.name).toBe("My Delay");
   });
 
   test("accepts custom position", () => {
-    const node = createGraphNode("audio", { x: 100, y: 200 });
+    const node = createGraphNode("digital_write", { x: 100, y: 200 });
     expect(node.x).toBe(100);
     expect(node.y).toBe(200);
   });
 
   test("merges custom data with defaults", () => {
-    const node = createGraphNode("shader", {
+    const node = createGraphNode("digital_write", {
       data: { customField: "test" },
     });
-    // Should have both default shader data and custom data
-    expect(node.data.language).toBe("glsl");
-    expect(typeof node.data.code).toBe("string");
+    // Should have both default data and custom data
+    expect(node.data.pin).toBe(13);
+    expect(node.data.value).toBe("HIGH");
     expect(node.data.customField).toBe("test");
   });
 
   test("custom data overrides defaults", () => {
-    const node = createGraphNode("shader", {
-      data: { language: "wgsl" },
+    const node = createGraphNode("digital_write", {
+      data: { pin: 7 },
     });
-    expect(node.data.language).toBe("wgsl");
+    expect(node.data.pin).toBe(7);
   });
 
   // ── Type-specific defaults ────────────────────────────────────────────────
 
-  test("sprite has tint and scene position", () => {
-    const node = createGraphNode("sprite");
-    expect(node.data.tint).toBe("#4a9eff");
-    expect(typeof node.data.sceneX).toBe("number");
-    expect(typeof node.data.sceneY).toBe("number");
+  test("setup has empty default data", () => {
+    const node = createGraphNode("setup");
+    expect(node.data).toEqual({});
   });
 
-  test("shader has language and code", () => {
-    const node = createGraphNode("shader");
-    expect(node.data.language).toBe("glsl");
-    expect(typeof node.data.code).toBe("string");
-    expect((node.data.code as string).includes("void main")).toBe(true);
+  test("digital_write has pin and value", () => {
+    const node = createGraphNode("digital_write");
+    expect(node.data.pin).toBe(13);
+    expect(node.data.value).toBe("HIGH");
   });
 
-  test("code has language and code", () => {
-    const node = createGraphNode("code");
-    expect(node.data.language).toBe("typescript");
-    expect(typeof node.data.code).toBe("string");
+  test("delay has ms", () => {
+    const node = createGraphNode("delay");
+    expect(node.data.ms).toBe(1000);
   });
 
-  test("audio has volume, pitch, loop", () => {
-    const node = createGraphNode("audio");
-    expect(node.data.volume).toBe(1.0);
-    expect(node.data.pitch).toBe(1.0);
-    expect(node.data.loop).toBe(false);
-  });
-
-  test("video has playbackRate and loop", () => {
-    const node = createGraphNode("video");
-    expect(node.data.playbackRate).toBe(1.0);
-    expect(node.data.loop).toBe(false);
-  });
-
-  test("text has content", () => {
-    const node = createGraphNode("text");
-    expect(node.data.content).toBe("");
+  test("serial_begin has baudRate", () => {
+    const node = createGraphNode("serial_begin");
+    expect(node.data.baudRate).toBe(9600);
   });
 
   test("math has operation", () => {
@@ -121,33 +120,56 @@ describe("createGraphNode", () => {
     expect(node.data.operation).toBe("add");
   });
 
-  test("group has childNodeIds", () => {
-    const node = createGraphNode("group");
-    expect(Array.isArray(node.data.childNodeIds)).toBe(true);
+  test("variable has name, dataType, and initialValue", () => {
+    const node = createGraphNode("variable");
+    expect(node.data.name).toBe("myVar");
+    expect(node.data.dataType).toBe("integer");
+    expect(node.data.initialValue).toBe(0);
+  });
+
+  test("code_block has language and code", () => {
+    const node = createGraphNode("code_block");
+    expect(node.data.language).toBe("cpp");
+    expect(typeof node.data.code).toBe("string");
   });
 
   // ── Ports ─────────────────────────────────────────────────────────────────
 
-  test("sprite node has correct default ports", () => {
-    const node = createGraphNode("sprite");
+  test("setup node has flow_out port", () => {
+    const node = createGraphNode("setup");
     const portIds = node.ports.map((p) => p.id);
-    expect(portIds).toContain("shader_in");
-    expect(portIds).toContain("texture_out");
+    expect(portIds).toContain("flow_out");
   });
 
-  test("shader node has correct default ports", () => {
-    const node = createGraphNode("shader");
+  test("digital_write node has flow_in, pin, value, and flow_out ports", () => {
+    const node = createGraphNode("digital_write");
     const portIds = node.ports.map((p) => p.id);
-    expect(portIds).toContain("texture_in");
-    expect(portIds).toContain("shader_out");
+    expect(portIds).toContain("flow_in");
+    expect(portIds).toContain("pin");
+    expect(portIds).toContain("value");
+    expect(portIds).toContain("flow_out");
   });
 
   // ── Node sizes differ by type ─────────────────────────────────────────────
 
-  test("shader is wider than math", () => {
-    const shader = createGraphNode("shader");
-    const math = createGraphNode("math");
-    expect(shader.width).toBeGreaterThan(math.width);
+  test("code_block is wider than constant", () => {
+    const codeBlock = createGraphNode("code_block");
+    const constant = createGraphNode("constant");
+    expect(codeBlock.width).toBeGreaterThan(constant.width);
+  });
+
+  test("node sizes match expected values", () => {
+    const setup = createGraphNode("setup");
+    expect(setup.width).toBe(160);
+    expect(setup.height).toBe(70);
+
+    const serialPrint = createGraphNode("serial_print");
+    expect(serialPrint.width).toBe(200);
+    expect(serialPrint.height).toBe(100);
+
+    const lcdPrint = createGraphNode("lcd_print");
+    expect(lcdPrint.width).toBe(200);
+    expect(lcdPrint.height).toBe(110);
   });
 });
 

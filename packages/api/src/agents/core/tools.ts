@@ -460,14 +460,14 @@ export function createCoreTools(params: {
           payload: {
             node: {
               id: graphNodeId,
-              type: "sprite" as const,
+              type: "code_block" as const,
               name: input.name,
               x: 60,
               y: (Object.keys(project.graph?.nodes ?? {}).length +
                 ops.filter((o) => (o as unknown as { kind: string }).kind === "create_graph_node").length) * 200 + 60,
-              width: 200,
-              height: 150,
-              ports: getDefaultPorts("sprite"),
+              width: 240,
+              height: 160,
+              ports: getDefaultPorts("code_block"),
               data: nodeData,
             },
           },

@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useProject } from "./project-context";
 import { useGraph } from "@/store/graph-context";
 import { saveProjectGraph } from "./api-client";
-import { createPongDemo } from "@/graph/demo-pong";
+import { createGraphNode } from "@/graph/node-factory";
 import { getDefaultPorts } from "@dreamer/schemas";
 import type { GraphNodeType } from "@dreamer/schemas";
 
@@ -30,15 +30,12 @@ export function useGraphPersistence() {
     const nodeEntries = Object.values(graph.nodes);
     const edgeEntries = Object.values(graph.edges);
 
-    // Load Pong demo for empty graphs
+    // Seed empty graphs with a basic setup + loop scaffold
     if (nodeEntries.length === 0 && edgeEntries.length === 0) {
-      const demo = createPongDemo();
-      for (const node of Object.values(demo.nodes)) {
-        send({ type: "ADD_NODE", node });
-      }
-      for (const edge of Object.values(demo.edges)) {
-        send({ type: "ADD_EDGE", edge });
-      }
+      const setupNode = createGraphNode("setup", { x: 60, y: 60 });
+      const loopNode = createGraphNode("loop", { x: 60, y: 200 });
+      send({ type: "ADD_NODE", node: setupNode });
+      send({ type: "ADD_NODE", node: loopNode });
       send({ type: "CLEAR_SELECTION" });
       return;
     }

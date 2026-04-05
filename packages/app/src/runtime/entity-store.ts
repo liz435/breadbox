@@ -47,7 +47,7 @@ export class EntityStore {
     this.entities.clear();
     this.nodeState.clear();
     for (const node of Object.values(nodes)) {
-      if (node.type === "sprite" && allowedSpriteIds.has(node.id)) {
+      if (allowedSpriteIds.has(node.id)) {
         this.entities.set(node.id, defaultEntity(node));
       }
     }
@@ -60,7 +60,7 @@ export class EntityStore {
   sync(nodes: Record<string, GraphNode>, allowedSpriteIds: Set<string>) {
     const activeSpriteIds = new Set<string>();
     for (const node of Object.values(nodes)) {
-      if (node.type !== "sprite") continue;
+      // Include all nodes in allowed set
       if (!allowedSpriteIds.has(node.id)) continue;
       activeSpriteIds.add(node.id);
       if (!this.entities.has(node.id)) {
@@ -90,9 +90,7 @@ export class EntityStore {
     // Build name→id lookup
     const nameToId = new Map<string, string>();
     for (const node of Object.values(nodes)) {
-      if (node.type === "sprite") {
-        nameToId.set(node.name, node.id);
-      }
+      nameToId.set(node.name, node.id);
     }
 
     return {
