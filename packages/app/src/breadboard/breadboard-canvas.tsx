@@ -1,5 +1,7 @@
 import React, { useCallback, useMemo, useRef } from "react";
+import { useSelector } from "@xstate/react";
 import { useBoard } from "@/store/board-context";
+import type { BoardComponent, ComponentType } from "@dreamer/schemas";
 import {
   ROWS,
   COLS,
@@ -11,12 +13,39 @@ import {
   GAP_WIDTH,
   TERMINAL_WIDTH,
   gridToPixel,
+  pixelToGrid,
 } from "./breadboard-grid";
-import { getCamera, setCamera, zoomAtPoint } from "./breadboard-camera";
+import { getCamera, setCamera, screenToBoard, zoomAtPoint } from "./breadboard-camera";
+import { breadboardInteractionActor } from "./breadboard-interaction";
 import { ComponentRenderer } from "./component-renderers/index";
 import { WireRenderer } from "./component-renderers/wire-renderer";
 
-// ── Static board background (holes) ────────────────────────────────
+// ── Default pin layouts per component type ──────────────────────
+
+const DEFAULT_PINS: Record<ComponentType, Record<string, number | null>> = {
+  led: { anode: null, cathode: null },
+  rgb_led: { red: null, green: null, blue: null, cathode: null },
+  button: { a: null, b: null },
+  resistor: { a: null, b: null },
+  potentiometer: { vcc: null, signal: null, gnd: null },
+  buzzer: { positive: null, negative: null },
+  servo: { signal: null, vcc: null, gnd: null },
+  lcd_16x2: { rs: null, en: null, d4: null, d5: null, d6: null, d7: null },
+  seven_segment: { a: null, b: null, c: null, d: null, e: null, f: null, g: null },
+  photoresistor: { a: null, b: null },
+  temperature_sensor: { vcc: null, signal: null, gnd: null },
+  ultrasonic_sensor: { trigger: null, echo: null, vcc: null, gnd: null },
+  wire: {},
+  arduino_uno: {},
+};
+
+const DEFAULT_PROPERTIES: Partial<Record<ComponentType, Record<string, unknown>>> = {
+  led: { color: "#ef4444" },
+  resistor: { resistance: 220 },
+  servo: { angle: 90 },
+};
+
+// ── Static board background (holes) ────────────────────────────
 
 function buildHoleElements(): React.ReactElement[] {
   const holes: React.ReactElement[] = [];
@@ -38,7 +67,7 @@ function buildHoleElements(): React.ReactElement[] {
     }
   }
 
-  // Power rail holes (simplified: every 5th row)
+  // Power rail holes
   const railCols = [-2, -1, 10, 11];
   for (const col of railCols) {
     for (let row = 0; row < ROWS; row += 1) {
@@ -61,7 +90,7 @@ function buildHoleElements(): React.ReactElement[] {
   return holes;
 }
 
-// ── Main canvas ─────────────────────────────────────────────────────
+// ── Main canvas ─────────────────────────────────────────────────
 
 function BreadboardCanvasInner() {
   const { state, send } = useBoard();
@@ -70,11 +99,24 @@ function BreadboardCanvasInner() {
   const lastPanRef = useRef({ x: 0, y: 0 });
   const spaceDownRef = useRef(false);
 
+  // Read interaction machine state
+  const interactionMode = useSelector(
+    breadboardInteractionActor,
+    (snap) => snap.context.mode,
+  );
+  const placingType = useSelector(
+    breadboardInteractionActor,
+    (snap) => snap.context.componentType,
+  );
+
+  // Ghost preview position while placing
+  const ghostRef = useRef<{ row: number; col: number } | null>(null);
+  const [ghostPos, setGhostPos] = React.useState<{ row: number; col: number } | null>(null);
+
   // Static holes grid (never re-renders)
   const holeElements = useMemo(() => buildHoleElements(), []);
 
-  // Camera state for transform — we use a ref + forceUpdate pattern
-  // to avoid re-rendering the entire tree on every pan/zoom frame.
+  // Camera state — force re-render on zoom/pan
   const [, setTick] = React.useState(0);
   const forceUpdate = useCallback(() => setTick((t) => t + 1), []);
 
@@ -94,10 +136,10 @@ function BreadboardCanvasInner() {
     [forceUpdate]
   );
 
-  // ── Pan via middle-click or space+drag ──
+  // ── Pointer down ──
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
-      // Middle mouse button or space held
+      // Middle mouse button or space held → pan
       if (e.button === 1 || spaceDownRef.current) {
         isPanningRef.current = true;
         lastPanRef.current = { x: e.clientX, y: e.clientY };
@@ -105,35 +147,81 @@ function BreadboardCanvasInner() {
         return;
       }
 
-      // Left click: check if clicking empty space to deselect
+      // Left click while placing → create component
+      if (e.button === 0 && interactionMode === "placing" && placingType) {
+        const rect = svgRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const board = screenToBoard(e.clientX - rect.left, e.clientY - rect.top);
+        const grid = pixelToGrid(board.x, board.y);
+
+        const component: BoardComponent = {
+          id: crypto.randomUUID(),
+          type: placingType,
+          name: placingType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+          x: grid.col,
+          y: grid.row,
+          rotation: 0,
+          pins: { ...(DEFAULT_PINS[placingType] ?? {}) },
+          properties: { ...(DEFAULT_PROPERTIES[placingType] ?? {}) },
+        };
+
+        send({ type: "PLACE_COMPONENT", component });
+        breadboardInteractionActor.send({ type: "POINTER_UP" });
+        setGhostPos(null);
+        ghostRef.current = null;
+        return;
+      }
+
+      // Left click on empty space → deselect
       if (e.button === 0 && e.target === svgRef.current) {
         send({ type: "SELECT", id: null });
       }
     },
-    [send]
+    [send, interactionMode, placingType]
   );
 
+  // ── Pointer move ──
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
-      if (!isPanningRef.current) return;
-      const cam = getCamera();
-      const dx = e.clientX - lastPanRef.current.x;
-      const dy = e.clientY - lastPanRef.current.y;
-      setCamera({ offsetX: cam.offsetX + dx, offsetY: cam.offsetY + dy });
-      lastPanRef.current = { x: e.clientX, y: e.clientY };
-      forceUpdate();
+      // Pan
+      if (isPanningRef.current) {
+        const cam = getCamera();
+        const dx = e.clientX - lastPanRef.current.x;
+        const dy = e.clientY - lastPanRef.current.y;
+        setCamera({ offsetX: cam.offsetX + dx, offsetY: cam.offsetY + dy });
+        lastPanRef.current = { x: e.clientX, y: e.clientY };
+        forceUpdate();
+        return;
+      }
+
+      // Ghost preview while placing
+      if (interactionMode === "placing") {
+        const rect = svgRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const board = screenToBoard(e.clientX - rect.left, e.clientY - rect.top);
+        const grid = pixelToGrid(board.x, board.y);
+        if (!ghostRef.current || ghostRef.current.row !== grid.row || ghostRef.current.col !== grid.col) {
+          ghostRef.current = grid;
+          setGhostPos(grid);
+        }
+      }
     },
-    [forceUpdate]
+    [forceUpdate, interactionMode]
   );
 
   const handlePointerUp = useCallback(() => {
     isPanningRef.current = false;
   }, []);
 
-  // ── Keyboard for space panning ──
+  // ── Keyboard for space panning + Escape to cancel ──
   React.useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.code === "Space") spaceDownRef.current = true;
+      if (e.code === "Escape" && interactionMode !== "idle") {
+        breadboardInteractionActor.send({ type: "CANCEL" });
+        setGhostPos(null);
+        ghostRef.current = null;
+      }
     };
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.code === "Space") {
@@ -147,7 +235,7 @@ function BreadboardCanvasInner() {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, []);
+  }, [interactionMode]);
 
   // ── Component click handler ──
   const handleComponentClick = useCallback(
@@ -161,10 +249,18 @@ function BreadboardCanvasInner() {
   const components = Object.values(state.components);
   const wires = Object.values(state.wires);
 
+  // Cursor style based on interaction mode
+  const cursorClass =
+    interactionMode === "placing"
+      ? "cursor-copy"
+      : interactionMode === "dragging"
+        ? "cursor-grabbing"
+        : "cursor-crosshair";
+
   return (
     <svg
       ref={svgRef}
-      className="h-full w-full cursor-crosshair bg-neutral-900"
+      className={`h-full w-full bg-neutral-900 ${cursorClass}`}
       onWheel={handleWheel}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -257,7 +353,37 @@ function BreadboardCanvasInner() {
             />
           </g>
         ))}
+
+        {/* Ghost preview while placing */}
+        {interactionMode === "placing" && ghostPos && placingType && (
+          <g opacity={0.4} pointerEvents="none">
+            <circle
+              cx={gridToPixel({ row: ghostPos.row, col: ghostPos.col }).x}
+              cy={gridToPixel({ row: ghostPos.row, col: ghostPos.col }).y}
+              r={8}
+              fill="#3b82f6"
+              stroke="#60a5fa"
+              strokeWidth={1}
+            />
+            <text
+              x={gridToPixel({ row: ghostPos.row, col: ghostPos.col }).x}
+              y={gridToPixel({ row: ghostPos.row, col: ghostPos.col }).y - 12}
+              textAnchor="middle"
+              fontSize={7}
+              fill="#60a5fa"
+            >
+              {placingType.replace(/_/g, " ")}
+            </text>
+          </g>
+        )}
       </g>
+
+      {/* Mode indicator */}
+      {interactionMode !== "idle" && (
+        <text x={10} y={20} fontSize={11} fill="#60a5fa" fontFamily="monospace">
+          {interactionMode === "placing" ? `Placing: ${placingType} (click to place, Esc to cancel)` : interactionMode}
+        </text>
+      )}
     </svg>
   );
 }
