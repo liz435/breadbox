@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef } from "react"
 import { useMachine } from "@xstate/react"
 import { simulationMachine } from "./simulation-machine"
 import { createArduinoVM, type ArduinoVM, type ArduinoVMCallbacks, type VMMode } from "./arduino-vm"
+import type { LibraryState, ServoState } from "@dreamer/schemas"
 
 export type SimulationStatus = "stopped" | "compiling" | "running" | "paused" | "error"
 
@@ -28,6 +29,7 @@ type SimulationHookOptions = {
   onTone?: (pin: number, frequency: number, duration?: number) => void
   onNoTone?: (pin: number) => void
   onError?: (error: string) => void
+  onLibraryStateChange?: (changes: Partial<LibraryState>) => void
 }
 
 export function useSimulation(options: SimulationHookOptions = {}): SimulationActions {
@@ -70,6 +72,43 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     }
   }, [])
 
+  // Track previous library state to avoid dispatching unchanged values
+  const prevLibStateRef = useRef<string>("")
+
+  const syncLibraryState = useCallback(() => {
+    const vm = vmRef.current
+    if (!vm) return
+    const onLibChange = callbacksRef.current.onLibraryStateChange
+    if (!onLibChange) return
+
+    const stdlibState = vm.getStdlibState()
+
+    // Convert stdlib servos Map to a record
+    const servos: Record<string, ServoState> = {}
+    for (const [id, entry] of stdlibState.servos) {
+      servos[id] = { pin: entry.pin, angle: entry.angle }
+    }
+
+    // Convert stdlib lcd to schema format
+    const lcd = stdlibState.lcd
+      ? {
+          pins: [] as number[],
+          cols: stdlibState.lcd.cols,
+          rows: stdlibState.lcd.rows,
+          cursorCol: stdlibState.lcd.cursorCol,
+          cursorRow: stdlibState.lcd.cursorRow,
+          textBuffer: stdlibState.lcd.buffer,
+        }
+      : null
+
+    // Simple serialization check to avoid unnecessary dispatches
+    const serialized = JSON.stringify({ servos, lcd })
+    if (serialized === prevLibStateRef.current) return
+    prevLibStateRef.current = serialized
+
+    onLibChange({ servos, lcd })
+  }, [])
+
   const startLoop = useCallback(() => {
     cancelLoop()
 
@@ -80,11 +119,14 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
       // Run loop iteration — it may return false if delaying
       vm.runLoopIteration()
 
+      // Sync library state (servos, LCD) to board machine
+      syncLibraryState()
+
       rafRef.current = requestAnimationFrame(tick)
     }
 
     rafRef.current = requestAnimationFrame(tick)
-  }, [cancelLoop])
+  }, [cancelLoop, syncLibraryState])
 
   const play = useCallback(
     (sketchCode: string) => {

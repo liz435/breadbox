@@ -2,6 +2,7 @@ import { useCallback, useRef, useEffect } from "react"
 import { Play, Pause, Square, Cpu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
+import type { LibraryState } from "@dreamer/schemas"
 import { useBoard } from "@/store/board-context"
 import { useDockviewApi } from "@/store/dockview-context"
 import { useSimulation } from "@/simulator/simulation-loop"
@@ -47,10 +48,18 @@ export function PlayControls() {
     [boardSend],
   )
 
+  const onLibraryStateChange = useCallback(
+    (changes: Partial<LibraryState>) => {
+      boardSend({ type: "SET_LIBRARY_STATE", changes })
+    },
+    [boardSend],
+  )
+
   const { status, error, play, pause, resume, stop } = useSimulation({
     onPinWrite,
     onPinMode,
     onSerialPrint,
+    onLibraryStateChange,
   })
 
   const sketchCodeRef = useRef(state.sketchCode)

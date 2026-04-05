@@ -2,9 +2,9 @@
   "project": {
     "id": "c08eda7e-356e-4700-a66f-982064103767",
     "name": "Untitled Project",
-    "version": 0,
+    "version": 1,
     "createdAt": "2026-03-24T02:49:26.474Z",
-    "updatedAt": "2026-04-05T23:22:56.832Z",
+    "updatedAt": "2026-04-05T23:32:09.927Z",
     "threadId": "d9ce038b-57e1-4110-8f97-c0b9c47bb369",
     "activeSceneId": "69052eee-ea8c-47c0-9eac-fdbc1bfa38b9"
   },
@@ -77,8 +77,56 @@
     "edges": {}
   },
   "boardState": {
-    "components": {},
-    "wires": {},
+    "components": {
+      "6da5dafa-b495-4d51-bacb-15edafc93b51": {
+        "id": "6da5dafa-b495-4d51-bacb-15edafc93b51",
+        "type": "led",
+        "name": "Red LED",
+        "x": 5,
+        "y": 5,
+        "rotation": 0,
+        "pins": {
+          "anode": 13,
+          "cathode": null
+        },
+        "properties": {
+          "color": "red"
+        }
+      },
+      "67035e79-50a3-4d41-b38e-2d3b0021a2f0": {
+        "id": "67035e79-50a3-4d41-b38e-2d3b0021a2f0",
+        "type": "resistor",
+        "name": "220Ω Resistor",
+        "x": 5,
+        "y": 8,
+        "rotation": 0,
+        "pins": {
+          "pin1": null,
+          "pin2": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      }
+    },
+    "wires": {
+      "6eb26665-c941-4950-80d0-3499f3a27a20": {
+        "id": "6eb26665-c941-4950-80d0-3499f3a27a20",
+        "fromRow": 5,
+        "fromCol": 5,
+        "toRow": 8,
+        "toCol": 5,
+        "color": "#ff0000"
+      },
+      "ce5bcf76-6af1-4315-870e-7744c26349e8": {
+        "id": "ce5bcf76-6af1-4315-870e-7744c26349e8",
+        "fromRow": 8,
+        "fromCol": 5,
+        "toRow": 10,
+        "toCol": 5,
+        "color": "#000000"
+      }
+    },
     "pinStates": [],
     "libraryState": {
       "servos": {},
@@ -86,6 +134,6 @@
       "serialBaud": 0
     },
     "serialOutput": [],
-    "sketchCode": ""
+    "sketchCode": "// Simple LED Blink Circuit\n// Red LED on pin 13 with 220Ω resistor\n\nvoid setup() {\n  // Configure pin 13 as an output\n  pinMode(13, OUTPUT);\n}\n\nvoid loop() {\n  // Turn the LED on\n  digitalWrite(13, HIGH);\n  delay(1000);  // Wait 1 second (1000 milliseconds)\n  \n  // Turn the LED off\n  digitalWrite(13, LOW);\n  delay(1000);  // Wait 1 second\n}\n"
   }
 }

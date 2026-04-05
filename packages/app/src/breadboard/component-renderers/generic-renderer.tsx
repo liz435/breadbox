@@ -1,5 +1,5 @@
 import React from "react";
-import type { BoardComponent, PinState } from "@dreamer/schemas";
+import type { BoardComponent, PinState, LibraryState } from "@dreamer/schemas";
 import type { ComponentElectricalState } from "@/simulator/circuit-solver";
 import { gridToPixel, HOLE_SPACING } from "@/breadboard/breadboard-grid";
 
@@ -8,6 +8,7 @@ type GenericRendererProps = {
   pinStates: PinState[];
   isSelected: boolean;
   electricalState?: ComponentElectricalState;
+  libraryState?: LibraryState;
 };
 
 function BuzzerRenderer({ component, isSelected }: { component: BoardComponent; isSelected: boolean }) {
@@ -77,10 +78,21 @@ function PotentiometerRenderer({ component, isSelected }: { component: BoardComp
   );
 }
 
-function LcdRenderer({ component, isSelected }: { component: BoardComponent; isSelected: boolean }) {
+function LcdRenderer({ component, isSelected, libraryState }: { component: BoardComponent; isSelected: boolean; libraryState?: LibraryState }) {
   const { x, y } = gridToPixel({ row: component.y, col: component.x });
   const width = 50;
   const height = 24;
+
+  // Read LCD text from library state if available
+  const lcdState = libraryState?.lcd;
+  const line1 = lcdState?.textBuffer[0] ?? "";
+  const line2 = lcdState?.textBuffer[1] ?? "";
+  const hasText = line1.trim().length > 0 || line2.trim().length > 0;
+
+  const displayAreaX = x - width / 2 + 4;
+  const displayAreaY = y - height / 2 + 3;
+  const displayWidth = width - 8;
+  const displayHeight = height - 6;
 
   return (
     <g>
@@ -97,36 +109,65 @@ function LcdRenderer({ component, isSelected }: { component: BoardComponent; isS
       />
       {/* LCD display area */}
       <rect
-        x={x - width / 2 + 4}
-        y={y - height / 2 + 3}
-        width={width - 8}
-        height={height - 6}
+        x={displayAreaX}
+        y={displayAreaY}
+        width={displayWidth}
+        height={displayHeight}
         rx={1}
         fill="#a7f3d0"
       />
-      {/* Text grid lines */}
-      {Array.from({ length: 16 }, (_, i) => (
-        <rect
-          key={i}
-          x={x - width / 2 + 5 + i * 2.5}
-          y={y - height / 2 + 5}
-          width={2}
-          height={4}
-          fill="#065f46"
-          opacity={0.15}
-        />
-      ))}
-      {Array.from({ length: 16 }, (_, i) => (
-        <rect
-          key={`b${i}`}
-          x={x - width / 2 + 5 + i * 2.5}
-          y={y + 2}
-          width={2}
-          height={4}
-          fill="#065f46"
-          opacity={0.15}
-        />
-      ))}
+      {hasText ? (
+        <>
+          {/* Line 1 text */}
+          <text
+            x={displayAreaX + 2}
+            y={displayAreaY + 6}
+            fontSize={4.5}
+            fill="#065f46"
+            fontFamily="monospace"
+            dominantBaseline="middle"
+          >
+            {line1.slice(0, 16)}
+          </text>
+          {/* Line 2 text */}
+          <text
+            x={displayAreaX + 2}
+            y={displayAreaY + displayHeight - 3}
+            fontSize={4.5}
+            fill="#065f46"
+            fontFamily="monospace"
+            dominantBaseline="middle"
+          >
+            {line2.slice(0, 16)}
+          </text>
+        </>
+      ) : (
+        <>
+          {/* Text grid lines (placeholder when no text) */}
+          {Array.from({ length: 16 }, (_, i) => (
+            <rect
+              key={i}
+              x={x - width / 2 + 5 + i * 2.5}
+              y={y - height / 2 + 5}
+              width={2}
+              height={4}
+              fill="#065f46"
+              opacity={0.15}
+            />
+          ))}
+          {Array.from({ length: 16 }, (_, i) => (
+            <rect
+              key={`b${i}`}
+              x={x - width / 2 + 5 + i * 2.5}
+              y={y + 2}
+              width={2}
+              height={4}
+              fill="#065f46"
+              opacity={0.15}
+            />
+          ))}
+        </>
+      )}
     </g>
   );
 }
@@ -160,7 +201,7 @@ function TemperatureSensorRenderer({ component, isSelected }: { component: Board
   );
 }
 
-function GenericRendererInner({ component, pinStates, isSelected, electricalState }: GenericRendererProps) {
+function GenericRendererInner({ component, pinStates, isSelected, electricalState, libraryState }: GenericRendererProps) {
   const isDimmed = electricalState != null && !electricalState.isActive;
   const dimOpacity = isDimmed ? 0.5 : 1;
 
@@ -171,7 +212,7 @@ function GenericRendererInner({ component, pinStates, isSelected, electricalStat
     case "potentiometer":
       return <g opacity={dimOpacity}><PotentiometerRenderer component={component} isSelected={isSelected} /></g>;
     case "lcd_16x2":
-      return <g opacity={dimOpacity}><LcdRenderer component={component} isSelected={isSelected} /></g>;
+      return <g opacity={dimOpacity}><LcdRenderer component={component} isSelected={isSelected} libraryState={libraryState} /></g>;
     case "temperature_sensor":
       return <TemperatureSensorRenderer component={component} isSelected={isSelected} />;
     default:

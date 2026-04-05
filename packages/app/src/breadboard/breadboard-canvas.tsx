@@ -687,6 +687,7 @@ function BreadboardCanvasInner() {
                 pinStates={state.pinStates}
                 isSelected={state.selectedId === comp.id}
                 electricalState={analysis?.componentStates.get(comp.id)}
+                libraryState={state.libraryState}
               />
             </g>
           );

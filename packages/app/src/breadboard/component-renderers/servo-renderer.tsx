@@ -1,15 +1,27 @@
 import React from "react";
-import type { BoardComponent, PinState } from "@dreamer/schemas";
+import type { BoardComponent, PinState, LibraryState } from "@dreamer/schemas";
 import { gridToPixel, HOLE_SPACING } from "@/breadboard/breadboard-grid";
 
 type ServoRendererProps = {
   component: BoardComponent;
   pinStates: PinState[];
   isSelected: boolean;
+  libraryState?: LibraryState;
 };
 
-function ServoRendererInner({ component, isSelected }: ServoRendererProps) {
-  const angle = (component.properties.angle as number) ?? 90;
+function ServoRendererInner({ component, isSelected, libraryState }: ServoRendererProps) {
+  // Look up the servo's angle from libraryState by matching the servo's pin number
+  const signalPin = component.pins.signal;
+  let angle = (component.properties.angle as number) ?? 90;
+
+  if (libraryState && signalPin != null) {
+    for (const entry of Object.values(libraryState.servos)) {
+      if (entry.pin === signalPin) {
+        angle = entry.angle;
+        break;
+      }
+    }
+  }
 
   // Servo occupies 3 adjacent holes: signal, vcc, gnd
   const pinSignal = gridToPixel({ row: component.y, col: component.x });
