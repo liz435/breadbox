@@ -149,7 +149,14 @@ function AppInner() {
 
       if (e.key === "Delete" || e.key === "Backspace") {
         if (boardState.selectedId) {
-          boardSend({ type: "REMOVE_COMPONENT", id: boardState.selectedId });
+          // Check if selected item is a wire or a component
+          const isWire = boardState.selectedId in (boardState.wires ?? {});
+          if (isWire) {
+            boardSend({ type: "REMOVE_WIRE", id: boardState.selectedId });
+          } else {
+            boardSend({ type: "REMOVE_COMPONENT", id: boardState.selectedId });
+          }
+          boardSend({ type: "SELECT", id: null });
         } else if (state.selectedId) {
           send({ type: "REMOVE", id: state.selectedId });
         }

@@ -5,6 +5,7 @@ import { gridToPixel, ARDUINO_PINS } from "@/breadboard/breadboard-grid";
 type WireRendererProps = {
   wire: Wire;
   isSelected: boolean;
+  onSelect?: (id: string) => void;
 };
 
 /**
@@ -25,7 +26,7 @@ function resolveFromPosition(wire: Wire): { x: number; y: number } {
   return gridToPixel({ row: wire.fromRow, col: wire.fromCol });
 }
 
-function WireRendererInner({ wire, isSelected }: WireRendererProps) {
+function WireRendererInner({ wire, isSelected, onSelect }: WireRendererProps) {
   const from = resolveFromPosition(wire);
   const to = gridToPixel({ row: wire.toRow, col: wire.toCol });
   const color = wire.color ?? "#22c55e";
@@ -45,8 +46,21 @@ function WireRendererInner({ wire, isSelected }: WireRendererProps) {
 
   const pinRadius = 3;
 
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onSelect?.(wire.id);
+  };
+
   return (
-    <g>
+    <g onClick={handleClick} style={{ cursor: "pointer" }}>
+      {/* Invisible wide hit area for easier clicking */}
+      <path
+        d={pathD}
+        fill="none"
+        stroke="transparent"
+        strokeWidth={12}
+        strokeLinecap="round"
+      />
       {/* Wire shadow for selection visibility */}
       {isSelected && (
         <path

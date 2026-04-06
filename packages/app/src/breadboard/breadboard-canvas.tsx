@@ -311,7 +311,7 @@ type WireLayerProps = {
   selectedId: string | null;
 };
 
-const WireLayer = React.memo(function WireLayer({ wires, selectedId }: WireLayerProps) {
+const WireLayer = React.memo(function WireLayer({ wires, selectedId, onSelect }: WireLayerProps & { onSelect: (id: string) => void }) {
   const wireList = useMemo(() => Object.values(wires), [wires]);
   return (
     <g>
@@ -320,6 +320,7 @@ const WireLayer = React.memo(function WireLayer({ wires, selectedId }: WireLayer
           key={wire.id}
           wire={wire}
           isSelected={selectedId === wire.id}
+          onSelect={onSelect}
         />
       ))}
     </g>
@@ -427,6 +428,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
   const isPanningRef = useRef(false);
   const lastPanRef = useRef({ x: 0, y: 0 });
   const spaceDownRef = useRef(false);
+  const wireStartRef = useRef<{ row: number; col: number } | null>(null);
 
   // Read interaction machine state
   const interactionMode = useSelector(
@@ -505,12 +507,41 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
         return;
       }
 
-      // Left click while placing → create component
+      // Left click while placing → create component or start wire
       if (e.button === 0 && interactionMode === "placing" && placingType) {
         const rect = svgRef.current?.getBoundingClientRect();
         if (!rect) return;
         const board = screenToBoard(e.clientX - rect.left, e.clientY - rect.top);
         const grid = pixelToGrid(board.x, board.y);
+
+        // Wire mode: first click sets start, second click creates wire
+        if (placingType === "wire") {
+          if (!wireStartRef.current) {
+            // First click — remember start point
+            wireStartRef.current = grid;
+          } else {
+            // Second click — create wire between start and current point
+            const start = wireStartRef.current;
+            if (start.row !== grid.row || start.col !== grid.col) {
+              send({
+                type: "ADD_WIRE",
+                wire: {
+                  id: crypto.randomUUID(),
+                  fromRow: start.row,
+                  fromCol: start.col,
+                  toRow: grid.row,
+                  toCol: grid.col,
+                  color: "#fbbf24",
+                },
+              });
+            }
+            wireStartRef.current = null;
+            breadboardInteractionActor.send({ type: "POINTER_UP" });
+            setGhostPos(null);
+            ghostRef.current = null;
+          }
+          return;
+        }
 
         const component: BoardComponent = {
           id: crypto.randomUUID(),
@@ -619,6 +650,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
         breadboardInteractionActor.send({ type: "CANCEL" });
         setGhostPos(null);
         ghostRef.current = null;
+        wireStartRef.current = null;
       }
     };
     const onKeyUp = (e: KeyboardEvent) => {
@@ -679,7 +711,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
         <StaticBackground />
 
         {/* ── Wire layer ── */}
-        <WireLayer wires={wires} selectedId={selectedId} />
+        <WireLayer wires={wires} selectedId={selectedId} onSelect={handleComponentClick} />
 
         {/* ── Component layer ── */}
         <ComponentLayer
@@ -697,12 +729,70 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
         )}
 
         {/* ── Ghost preview while placing ── */}
-        {interactionMode === "placing" && ghostPos && placingType && (
+        {interactionMode === "placing" && ghostPos && placingType && placingType !== "wire" && (
           <GhostPreview
             row={ghostPos.row}
             col={ghostPos.col}
             componentType={placingType}
           />
+        )}
+
+        {/* ── Wire placement preview (first click done, showing line to cursor) ── */}
+        {interactionMode === "placing" && placingType === "wire" && ghostPos && wireStartRef.current && (
+          <g pointerEvents="none">
+            <line
+              x1={gridToPixel(wireStartRef.current).x}
+              y1={gridToPixel(wireStartRef.current).y}
+              x2={gridToPixel(ghostPos).x}
+              y2={gridToPixel(ghostPos).y}
+              stroke="#fbbf24"
+              strokeWidth={2.5}
+              strokeLinecap="round"
+              strokeDasharray="4 3"
+              opacity={0.8}
+            />
+            <circle
+              cx={gridToPixel(wireStartRef.current).x}
+              cy={gridToPixel(wireStartRef.current).y}
+              r={4}
+              fill="#fbbf24"
+              opacity={0.6}
+            />
+            <circle
+              cx={gridToPixel(ghostPos).x}
+              cy={gridToPixel(ghostPos).y}
+              r={4}
+              fill="#fbbf24"
+              fillOpacity={0.3}
+              stroke="#fbbf24"
+              strokeWidth={1}
+            />
+          </g>
+        )}
+
+        {/* ── Wire placement ghost dot (before first click) ── */}
+        {interactionMode === "placing" && placingType === "wire" && ghostPos && !wireStartRef.current && (
+          <g pointerEvents="none">
+            <circle
+              cx={gridToPixel(ghostPos).x}
+              cy={gridToPixel(ghostPos).y}
+              r={4}
+              fill="#fbbf24"
+              fillOpacity={0.3}
+              stroke="#fbbf24"
+              strokeWidth={1}
+            />
+            <text
+              x={gridToPixel(ghostPos).x}
+              y={gridToPixel(ghostPos).y - 10}
+              textAnchor="middle"
+              fontSize={7}
+              fill="#fbbf24"
+              fontFamily="monospace"
+            >
+              click start
+            </text>
+          </g>
         )}
 
         {/* ── Wire preview while wiring from Arduino pin ── */}
@@ -749,9 +839,13 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
       {/* Mode indicator */}
       {interactionMode !== "idle" && (
         <text x={10} y={20} fontSize={11} fill="#60a5fa" fontFamily="monospace">
-          {interactionMode === "placing"
-            ? `Placing: ${placingType} (click to place, Esc to cancel)`
-            : interactionMode === "wiring_from_pin" && wiringFromPin
+          {interactionMode === "placing" && placingType === "wire"
+            ? (wireStartRef.current
+              ? "Wire: click end point (Esc to cancel)"
+              : "Wire: click start point (Esc to cancel)")
+            : interactionMode === "placing"
+              ? `Placing: ${placingType} (click to place, Esc to cancel)`
+              : interactionMode === "wiring_from_pin" && wiringFromPin
               ? `Wiring from ${wiringFromPin.label} (click breadboard hole to connect, Esc to cancel)`
               : interactionMode}
         </text>
