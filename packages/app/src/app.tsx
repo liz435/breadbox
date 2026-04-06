@@ -178,7 +178,7 @@ function AppInner() {
 
     // Clear stale layouts from before Arduino simulator conversion.
     // The old layout references "canvas" and missing panels — force a fresh default.
-    const LAYOUT_VERSION = "arduino-sim-v4";
+    const LAYOUT_VERSION = "arduino-sim-v5";
     const saved = localStorage.getItem(LAYOUT_STORAGE_KEY);
     const savedVersion = localStorage.getItem(LAYOUT_STORAGE_KEY + ":version");
     if (saved && savedVersion === LAYOUT_VERSION) {
@@ -210,35 +210,36 @@ function AppInner() {
       position: { referencePanel: projectFilesPanel, direction: "right" },
     });
 
-    const graphPanel = api.addPanel({
-      id: "graph",
-      component: "graph",
-      title: "Graph",
+    // Sketch editor is the default visible tab in the middle-right panel
+    const sketchPanel = api.addPanel({
+      id: "sketchEditor",
+      component: "sketchEditor",
+      title: "Sketch",
       position: { referencePanel: canvasPanel, direction: "right" },
     });
 
     api.addPanel({
-      id: "sketchEditor",
-      component: "sketchEditor",
-      title: "Sketch",
-      position: { referencePanel: graphPanel, direction: "within" },
+      id: "graph",
+      component: "graph",
+      title: "Graph",
+      position: { referencePanel: sketchPanel, direction: "within" },
     });
 
     api.addPanel({
       id: "schematic",
       component: "schematic",
       title: "Schematic",
-      position: { referencePanel: graphPanel, direction: "within" },
+      position: { referencePanel: sketchPanel, direction: "within" },
     });
 
+    // Inspector is the default visible tab in the right panel
     const inspectorPanel = api.addPanel({
       id: "inspector",
       component: "inspector",
       title: "Inspector",
-      position: { referencePanel: graphPanel, direction: "right" },
+      position: { referencePanel: sketchPanel, direction: "right" },
     });
 
-    // Pin Inspector as a tab alongside Inspector
     api.addPanel({
       id: "pinInspector",
       component: "pinInspector",
@@ -256,7 +257,7 @@ function AppInner() {
 
     projectFilesPanel.api.setSize({ width: totalWidth * 0.15 });
     canvasPanel.api.setSize({ width: totalWidth * 0.35 });
-    graphPanel.api.setSize({ width: totalWidth * 0.35 });
+    sketchPanel.api.setSize({ width: totalWidth * 0.35 });
     api.getPanel("inspector")?.api.setSize({ width: totalWidth * 0.15 });
 
     setupPersistence(api);
