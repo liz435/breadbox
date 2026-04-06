@@ -37,7 +37,7 @@ export const COLS = 10; // 0-4 left (a-e), 5-9 right (f-j)
 export const HOLE_SPACING = 14; // px between hole centers (larger for realism)
 export const HOLE_RADIUS = 2.8;
 export const GAP_WIDTH = 28; // px gap between left and right sides (center channel)
-export const RAIL_OFFSET = 24; // px offset for power rails from terminal area
+export const RAIL_OFFSET = 38; // px offset for power rails from terminal area (enough gap from a/j columns)
 export const BOARD_PADDING = 40; // px padding around the board
 
 // Breadboard offset: starts after the Arduino board

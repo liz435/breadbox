@@ -17,6 +17,7 @@ import {
   CANVAS_WIDTH,
   CANVAS_HEIGHT,
   BREADBOARD_INNER_WIDTH,
+  RAIL_OFFSET,
   gridToPixel,
   pixelToGrid,
   getComponentFootprint,
@@ -86,7 +87,7 @@ const COL_LETTERS = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"];
 // ── Breadboard origin helpers ───────────────────────────────────
 
 /** X position where the breadboard terminal area starts (in board coordinates) */
-const TERMINAL_ORIGIN_X = BREADBOARD_OFFSET_X + BOARD_PADDING + 24; // RAIL_OFFSET=24
+const TERMINAL_ORIGIN_X = BREADBOARD_OFFSET_X + BOARD_PADDING + RAIL_OFFSET;
 /** Y position where terminal rows start (below top power rails) */
 const TERMINAL_ORIGIN_Y = BOARD_PADDING + POWER_RAIL_HEIGHT;
 
@@ -413,7 +414,7 @@ const ComponentLayer = React.memo(function ComponentLayer({
 
 // ── Main canvas ─────────────────────────────────────────────────
 
-function BreadboardCanvasInner() {
+function BreadboardCanvasInner({ zoomTick: _zoomTick }: { zoomTick?: number }) {
   // Granular board state selectors — each subscribes independently
   const components = useBoardSelector((s) => s.components);
   const wires = useBoardSelector((s) => s.wires);

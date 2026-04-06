@@ -54,13 +54,13 @@ function ZoomControls({ onZoomChange }: { onZoomChange: () => void }) {
 
 function BreadboardPanelInner() {
   // Force re-render when zoom changes so the canvas picks up the new camera state
-  const [, setTick] = useState(0);
+  const [tick, setTick] = useState(0);
   const handleZoomChange = useCallback(() => setTick((t) => t + 1), []);
 
   return (
     <div className="relative flex h-full w-full overflow-hidden">
       <div className="relative flex-1">
-        <BreadboardCanvas />
+        <BreadboardCanvas zoomTick={tick} />
         <ZoomControls onZoomChange={handleZoomChange} />
       </div>
     </div>
