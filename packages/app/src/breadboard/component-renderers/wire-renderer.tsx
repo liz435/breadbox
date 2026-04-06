@@ -1,14 +1,32 @@
 import React from "react";
 import type { Wire } from "@dreamer/schemas";
-import { gridToPixel } from "@/breadboard/breadboard-grid";
+import { gridToPixel, ARDUINO_PINS } from "@/breadboard/breadboard-grid";
 
 type WireRendererProps = {
   wire: Wire;
   isSelected: boolean;
 };
 
+/**
+ * Resolve the "from" pixel position of a wire.
+ * If fromRow === -999, this is an Arduino pin wire — look up the pin position by pin number (fromCol).
+ * Otherwise, use normal grid-to-pixel conversion.
+ */
+function resolveFromPosition(wire: Wire): { x: number; y: number } {
+  if (wire.fromRow === -999) {
+    // Arduino pin wire: fromCol is the Arduino pin number
+    const pinInfo = ARDUINO_PINS.find((p) => p.pin === wire.fromCol);
+    if (pinInfo) {
+      return { x: pinInfo.x, y: pinInfo.y };
+    }
+    // Fallback for unknown pin
+    return { x: 0, y: 0 };
+  }
+  return gridToPixel({ row: wire.fromRow, col: wire.fromCol });
+}
+
 function WireRendererInner({ wire, isSelected }: WireRendererProps) {
-  const from = gridToPixel({ row: wire.fromRow, col: wire.fromCol });
+  const from = resolveFromPosition(wire);
   const to = gridToPixel({ row: wire.toRow, col: wire.toCol });
   const color = wire.color ?? "#22c55e";
 
@@ -59,7 +77,6 @@ function WireRendererInner({ wire, isSelected }: WireRendererProps) {
         strokeWidth={1.5}
         strokeLinecap="round"
         opacity={0.5}
-        filter="url(#wire-highlight)"
       />
 
       {/* End point pins (male jumper wire ends) */}

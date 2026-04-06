@@ -484,13 +484,16 @@ function BreadboardCanvasInner() {
 
         // Only complete if clicking on the breadboard area
         if (grid.row >= 0 && grid.row < ROWS && grid.col >= -2 && grid.col <= 11) {
-          const targetPixel = gridToPixel(grid);
+          // Use sentinel fromRow=-999 to mark this as an Arduino pin wire.
+          // fromCol stores the Arduino pin number so the renderer can look up position.
+          const currentWiringPin = breadboardInteractionActor.getSnapshot().context.wireFromPin;
+          const pinNumber = currentWiringPin?.pin ?? 0;
           send({
             type: "ADD_WIRE",
             wire: {
               id: crypto.randomUUID(),
-              fromRow: wireFromPos.y, // Store pin pixel y as fromRow (special: negative = pin wire)
-              fromCol: wireFromPos.x, // Store pin pixel x as fromCol
+              fromRow: -999,
+              fromCol: pinNumber,
               toRow: grid.row,
               toCol: grid.col,
               color: "#fbbf24",
@@ -509,7 +512,7 @@ function BreadboardCanvasInner() {
         send({ type: "SELECT", id: null });
       }
     },
-    [send, interactionMode, placingType]
+    [send, interactionMode, placingType, wiringFromPin]
   );
 
   // ── Pointer move ──
