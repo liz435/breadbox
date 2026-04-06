@@ -62,18 +62,18 @@ describe("createGraphTools", () => {
     const { ops, tools } = makeTools();
     const execute = tools.create_graph_node.execute as AnyExecute;
     const result = await execute(
-      { type: "sprite", name: "Player" },
+      { type: "setup", name: "Init" },
       { toolCallId: "tc-1", messages: [] }
     );
 
     expect(result.nodeId).toBeTruthy();
-    expect(result.type).toBe("sprite");
-    expect(result.name).toBe("Player");
+    expect(result.type).toBe("setup");
+    expect(result.name).toBe("Init");
     expect(ops).toHaveLength(1);
     expect(ops[0].kind).toBe("create_graph_node");
     if (ops[0].kind === "create_graph_node") {
-      expect(ops[0].payload.node.type).toBe("sprite");
-      expect(ops[0].payload.node.name).toBe("Player");
+      expect(ops[0].payload.node.type).toBe("setup");
+      expect(ops[0].payload.node.name).toBe("Init");
       expect(ops[0].payload.node.ports.length).toBeGreaterThan(0);
     }
   });
@@ -82,7 +82,7 @@ describe("createGraphTools", () => {
     const { ops, tools } = makeTools();
     const execute = tools.create_graph_node.execute as AnyExecute;
     await execute(
-      { type: "shader", name: "Glow", x: 100, y: 200, data: { language: "wgsl" } },
+      { type: "delay", name: "Wait", x: 100, y: 200, data: { ms: 500 } },
       { toolCallId: "tc-1", messages: [] }
     );
 
@@ -90,7 +90,7 @@ describe("createGraphTools", () => {
     if (ops[0].kind === "create_graph_node") {
       expect(ops[0].payload.node.x).toBe(100);
       expect(ops[0].payload.node.y).toBe(200);
-      expect(ops[0].payload.node.data.language).toBe("wgsl");
+      expect(ops[0].payload.node.data.ms).toBe(500);
     }
   });
 
@@ -113,9 +113,9 @@ describe("createGraphTools", () => {
     const result = await execute(
       {
         sourceNodeId: "node-a",
-        sourcePortId: "texture_out",
+        sourcePortId: "flow_out",
         targetNodeId: "node-b",
-        targetPortId: "texture_in",
+        targetPortId: "flow_in",
       },
       { toolCallId: "tc-1", messages: [] }
     );
@@ -146,7 +146,7 @@ describe("createGraphTools", () => {
     const { ops, tools } = makeTools();
     const execute = tools.update_node_data.execute as AnyExecute;
     const result = await execute(
-      { nodeId: "node-1", patch: { code: "void main() {}", language: "glsl" } },
+      { nodeId: "node-1", patch: { pin: 7, value: "LOW" } },
       { toolCallId: "tc-1", messages: [] }
     );
 
@@ -174,8 +174,12 @@ describe("createGraphTools", () => {
 
   test("all node types create valid nodes with ports", async () => {
     const nodeTypes = [
-      "sprite", "shader", "code", "audio", "video",
-      "text", "material", "math", "group",
+      "setup", "loop", "digital_write", "digital_read", "pin_mode",
+      "analog_write", "analog_read", "delay", "millis", "micros",
+      "serial_begin", "serial_print", "serial_read", "if_else",
+      "comparison", "logic_gate", "math", "map_value", "constrain",
+      "variable", "constant", "servo_write", "tone", "lcd_print",
+      "code_block",
     ] as const;
 
     for (const type of nodeTypes) {

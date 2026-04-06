@@ -1,24 +1,23 @@
 import { tool } from "ai";
 import { z } from "zod";
-import type { ProjectFile, SceneOp, AgentKind } from "../../db/schemas";
-import { getDefaultPorts } from "@dreamer/schemas";
+import type { ProjectFile } from "../../db/schemas";
+import type { AgentKind } from "../../db/schemas";
+import type { BoardOp } from "@dreamer/schemas";
 import { agentRunRepo } from "../../db/agent-run-repo";
-import { makeOp } from "../make-op";
+import { makeBoardOp } from "../make-op";
 import type { AgentRunner, DelegationContext } from "../types";
-import { runSpriteAgent } from "../sprite/agent";
-import { runCodingAgent } from "../coding/agent";
 import { runGraphAgent } from "../graph/agent";
+import { runCircuitAgent } from "../circuit/agent";
 
 /**
  * Creates a delegation tool that spawns a specialist agent run.
- * Extracts the shared boilerplate: create run → execute agent → merge ops → complete run.
  */
 function makeDelegationTool(
   agentName: AgentKind,
   runner: AgentRunner,
   description: string,
   delegation: DelegationContext,
-  ops: SceneOp[],
+  ops: BoardOp[],
 ) {
   return tool({
     description,
@@ -62,6 +61,7 @@ function makeDelegationTool(
           messages: result.messages,
           proposedOps: result.proposedOps,
           appliedOps: [],
+          tokenUsage: result.tokenUsage,
         });
 
         log.info(
@@ -71,6 +71,7 @@ function makeDelegationTool(
         return {
           assistantText: result.assistantText,
           opsCount: result.proposedOps.length,
+          tokenUsage: result.tokenUsage,
         };
       } catch (err) {
         log.error(`${agentName} agent failed`, err);
@@ -90,7 +91,7 @@ function makeDelegationTool(
 }
 
 /**
- * Creates the scene manipulation + delegation tools for the core agent.
+ * Creates the board manipulation + delegation tools for the core agent.
  *
  * Takes a mutable `ops` array that tools push into, and a `delegation`
  * context for spawning specialist agent runs.
@@ -98,7 +99,7 @@ function makeDelegationTool(
 export function createCoreTools(params: {
   project: ProjectFile;
   sceneId: string;
-  ops: SceneOp[];
+  ops: BoardOp[];
   delegation: DelegationContext;
 }) {
   const { project, sceneId, ops, delegation } = params;
@@ -107,400 +108,170 @@ export function createCoreTools(params: {
   const opCtx = { projectId, sceneId, expectedVersion };
 
   return {
-    get_scene_state: tool({
+    get_board_state: tool({
       description:
-        "Read the current project state including entities, components, and assets. Use this before making changes to understand what exists.",
+        "Read the current board state including components, wires, pin states, and sketch code. Use this before making changes to understand what exists.",
       inputSchema: z.object({}),
       execute: async () => {
         const scene = project.scenes[sceneId];
-        const entityIds = project.sceneEntityIds[sceneId] ?? [];
-        const entities = entityIds.map((id) => {
-          const entity = project.entities[id];
-          const transform = project.components.transform[id];
-          const sprite = project.components.sprite[id];
-          const script = project.components.script[id];
-          const physicsBody = project.components.physicsBody[id];
-          return { entity, transform, sprite, script, physicsBody };
-        });
+        const board = project.boardState;
         return {
           scene,
-          entities,
-          assetCount: Object.keys(project.assets).length,
+          components: board?.components ?? {},
+          wires: board?.wires ?? {},
+          pinStates: board?.pinStates ?? [],
+          sketchCode: board?.sketchCode ?? "",
         };
       },
     }),
 
-    create_entity: tool({
+    place_component: tool({
       description:
-        "Create a new entity in the scene with a transform component. Returns the entity ID.",
+        "Place an Arduino component on the breadboard. Component types: led, rgb_led, button, resistor, potentiometer, buzzer, servo, lcd_16x2, seven_segment, photoresistor, temperature_sensor, ultrasonic_sensor.",
       inputSchema: z.object({
-        name: z.string().describe("Display name for the entity"),
-        x: z.number().optional().describe("X position (default 0)"),
-        y: z.number().optional().describe("Y position (default 0)"),
-        parentId: z
-          .string()
-          .nullable()
-          .optional()
-          .describe("Parent entity ID, or null for root"),
-      }),
-      execute: async (input) => {
-        const entityId = crypto.randomUUID();
-        const entity = {
-          id: entityId,
-          sceneId,
-          name: input.name,
-          parentId: input.parentId ?? null,
-          childIds: [],
-          enabled: true,
-        };
-        const transform = {
-          entityId,
-          x: input.x ?? 0,
-          y: input.y ?? 0,
-          rotation: 0,
-          scaleX: 1,
-          scaleY: 1,
-        };
-
-        ops.push(makeOp(opCtx, { kind: "create_entity", payload: { entity } }));
-        ops.push(
-          makeOp(opCtx, {
-            kind: "add_component",
-            payload: {
-              entityId,
-              componentType: "transform",
-              value: transform,
-            },
-          })
-        );
-
-        return { entityId, name: input.name };
-      },
-    }),
-
-    delete_entity: tool({
-      description: "Delete an entity and all its children from the scene.",
-      inputSchema: z.object({
-        entityId: z.string().describe("ID of the entity to delete"),
-      }),
-      execute: async (input) => {
-        ops.push(
-          makeOp(opCtx, {
-            kind: "delete_entity",
-            payload: {
-              entityId: input.entityId,
-              cascade: true,
-            },
-          })
-        );
-        return { deleted: input.entityId };
-      },
-    }),
-
-    update_transform: tool({
-      description:
-        "Move, rotate, or scale an entity by patching its transform component.",
-      inputSchema: z.object({
-        entityId: z.string().describe("ID of the entity"),
-        x: z.number().optional().describe("New X position"),
-        y: z.number().optional().describe("New Y position"),
-        rotation: z.number().optional().describe("New rotation in radians"),
-        scaleX: z.number().optional().describe("Horizontal scale"),
-        scaleY: z.number().optional().describe("Vertical scale"),
-      }),
-      execute: async (input) => {
-        const { entityId, ...patch } = input;
-        const cleanPatch = Object.fromEntries(
-          Object.entries(patch).filter(([, v]) => v !== undefined)
-        );
-        ops.push(
-          makeOp(opCtx, {
-            kind: "update_transform",
-            payload: { entityId, patch: cleanPatch },
-          })
-        );
-        return { updated: entityId, patch: cleanPatch };
-      },
-    }),
-
-    add_component: tool({
-      description:
-        "Attach a component to an entity. Component types: sprite, tilemap, physicsBody, script, camera.",
-      inputSchema: z.object({
-        entityId: z.string().describe("ID of the entity"),
-        componentType: z
-          .enum(["sprite", "tilemap", "physicsBody", "script", "camera"])
-          .describe("Type of component to add"),
-        value: z.record(z.string(), z.unknown()).describe("Component data"),
-      }),
-      execute: async (input) => {
-        const value: Record<string, unknown> = { ...input.value, entityId: input.entityId };
-
-        // Auto-generate assetId + placeholder asset for sprite components
-        if (input.componentType === "sprite" && !value.assetId) {
-          const assetId = crypto.randomUUID();
-          value.assetId = assetId;
-          ops.push(
-            makeOp(opCtx, {
-              kind: "create_asset",
-              payload: {
-                asset: {
-                  id: assetId,
-                  projectId,
-                  type: "sprite" as const,
-                  uri: `placeholder://${input.entityId}`,
-                  meta: { width: 64, height: 64, placeholder: true },
-                },
-              },
-            })
-          );
-        }
-
-        ops.push(
-          makeOp(opCtx, {
-            kind: "add_component",
-            payload: {
-              entityId: input.entityId,
-              componentType: input.componentType,
-              value,
-            },
-          })
-        );
-        return { added: input.componentType, entityId: input.entityId };
-      },
-    }),
-
-    update_component: tool({
-      description: "Modify fields on an existing component.",
-      inputSchema: z.object({
-        entityId: z.string().describe("ID of the entity"),
-        componentType: z
+        type: z
           .enum([
-            "transform",
-            "sprite",
-            "tilemap",
-            "physicsBody",
-            "script",
-            "camera",
+            "led",
+            "rgb_led",
+            "button",
+            "resistor",
+            "potentiometer",
+            "buzzer",
+            "servo",
+            "lcd_16x2",
+            "seven_segment",
+            "photoresistor",
+            "temperature_sensor",
+            "ultrasonic_sensor",
           ])
-          .describe("Type of component to update"),
-        patch: z
+          .describe("Type of component to place"),
+        name: z.string().describe("Display name for the component (e.g. 'Red LED', 'Start Button')"),
+        x: z.number().describe("Breadboard grid column"),
+        y: z.number().describe("Breadboard grid row"),
+        rotation: z.number().optional().describe("Rotation in degrees (default 0)"),
+        pins: z
+          .record(z.string(), z.number().nullable())
+          .describe(
+            "Component pin name -> Arduino pin number mapping. E.g. { 'anode': 13, 'cathode': null } for LED"
+          ),
+        properties: z
           .record(z.string(), z.unknown())
-          .describe("Fields to update on the component"),
+          .optional()
+          .describe("Type-specific properties (e.g. { resistance: 220, color: 'red' })"),
       }),
       execute: async (input) => {
+        const componentId = crypto.randomUUID();
+        const component = {
+          id: componentId,
+          type: input.type,
+          name: input.name,
+          x: input.x,
+          y: input.y,
+          rotation: input.rotation ?? 0,
+          pins: input.pins,
+          properties: input.properties ?? {},
+        };
+
         ops.push(
-          makeOp(opCtx, {
-            kind: "update_component",
-            payload: {
-              entityId: input.entityId,
-              componentType: input.componentType,
-              patch: input.patch,
-            },
+          makeBoardOp(opCtx, {
+            kind: "place_component",
+            payload: { component },
           })
         );
-        return { updated: input.componentType, entityId: input.entityId };
+
+        return { componentId, name: input.name, type: input.type };
       },
     }),
 
     remove_component: tool({
-      description: "Detach a component from an entity.",
+      description: "Remove a component from the breadboard by ID.",
       inputSchema: z.object({
-        entityId: z.string().describe("ID of the entity"),
-        componentType: z
-          .enum(["sprite", "tilemap", "physicsBody", "script", "camera"])
-          .describe("Type of component to remove"),
+        componentId: z.string().describe("ID of the component to remove"),
       }),
       execute: async (input) => {
         ops.push(
-          makeOp(opCtx, {
+          makeBoardOp(opCtx, {
             kind: "remove_component",
-            payload: {
-              entityId: input.entityId,
-              componentType: input.componentType,
-            },
+            payload: { componentId: input.componentId },
           })
         );
-        return { removed: input.componentType, entityId: input.entityId };
+        return { removed: input.componentId };
       },
     }),
 
-    update_scene_settings: tool({
+    connect_wire: tool({
       description:
-        "Update scene settings like background color or gravity.",
+        "Add a wire between two breadboard points. Wires connect component pins to Arduino pins or to power/ground rails.",
       inputSchema: z.object({
-        background: z.string().optional().describe("Background color hex"),
-        gravity: z
-          .object({ x: z.number(), y: z.number() })
-          .optional()
-          .describe("Gravity vector"),
-      }),
-      execute: async (input) => {
-        const patch = Object.fromEntries(
-          Object.entries(input).filter(([, v]) => v !== undefined)
-        );
-        ops.push(makeOp(opCtx, { kind: "update_scene_settings", payload: { patch } }));
-        return { updated: "scene_settings", patch };
-      },
-    }),
-
-    create_quick_sprite: tool({
-      description:
-        "Create a simple solid-color sprite entity with an optional inline script. Prefer delegating to graph agent for game creation — use this only for quick one-off sprites.",
-      inputSchema: z.object({
-        name: z.string().describe("Display name for the sprite"),
-        sceneX: z.number().optional().describe("Scene X position (default 0, center of canvas)"),
-        sceneY: z.number().optional().describe("Scene Y position (default 0, center of canvas)"),
-        width: z.number().optional().describe("Width in pixels (default 16)"),
-        height: z.number().optional().describe("Height in pixels (default 16)"),
+        fromRow: z.number().describe("Starting breadboard row"),
+        fromCol: z.number().describe("Starting breadboard column"),
+        toRow: z.number().describe("Ending breadboard row"),
+        toCol: z.number().describe("Ending breadboard column"),
         color: z
           .string()
           .optional()
-          .describe("Solid fill color as hex string (default '#ffffff')"),
-        script: z
-          .string()
-          .optional()
-          .describe("Inline script code that runs every frame (has access to self, dt, time, state, entities, Input, console)"),
-        layer: z
-          .number()
-          .int()
-          .optional()
-          .describe("Render layer (higher = on top)"),
+          .describe("Wire color as hex string (default '#22c55e')"),
       }),
       execute: async (input) => {
-        const entityId = crypto.randomUUID();
-        const assetId = crypto.randomUUID();
-        const w = input.width ?? 16;
-        const h = input.height ?? 16;
-        const sx = input.sceneX ?? 0;
-        const sy = input.sceneY ?? 0;
-
-        ops.push(
-          makeOp(opCtx, {
-            kind: "create_entity",
-            payload: {
-              entity: {
-                id: entityId,
-                sceneId,
-                name: input.name,
-                parentId: null,
-                childIds: [],
-                enabled: true,
-              },
-            },
-          })
-        );
-        ops.push(
-          makeOp(opCtx, {
-            kind: "add_component",
-            payload: {
-              entityId,
-              componentType: "transform",
-              value: {
-                entityId,
-                x: sx,
-                y: sy,
-                rotation: 0,
-                scaleX: 1,
-                scaleY: 1,
-              },
-            },
-          })
-        );
-        ops.push(
-          makeOp(opCtx, {
-            kind: "create_asset",
-            payload: {
-              asset: {
-                id: assetId,
-                projectId,
-                type: "sprite" as const,
-                uri: `placeholder://${input.name.toLowerCase().replace(/\s+/g, "-")}`,
-                meta: { width: w, height: h, placeholder: true },
-              },
-            },
-          })
-        );
-        ops.push(
-          makeOp(opCtx, {
-            kind: "add_component",
-            payload: {
-              entityId,
-              componentType: "sprite",
-              value: {
-                entityId,
-                assetId,
-                tint: input.color ?? "#ffffff",
-                layer: input.layer,
-              },
-            },
-          })
-        );
-
-        // Also create a graph node so the sprite appears in the node graph
-        const graphNodeId = crypto.randomUUID();
-        const nodeData: Record<string, unknown> = {
-          entityId,
-          assetId,
-          tint: input.color ?? "#ffffff",
-          sceneX: sx,
-          sceneY: sy,
-          width: w,
-          height: h,
+        const wireId = crypto.randomUUID();
+        const wire = {
+          id: wireId,
+          fromRow: input.fromRow,
+          fromCol: input.fromCol,
+          toRow: input.toRow,
+          toCol: input.toCol,
+          color: input.color ?? "#22c55e",
         };
-        if (input.script) {
-          nodeData.script = input.script;
-        }
 
-        const graphOp = {
-          opId: crypto.randomUUID(),
-          projectId,
-          sceneId,
-          expectedVersion,
-          timestamp: new Date().toISOString(),
-          kind: "create_graph_node" as const,
-          payload: {
-            node: {
-              id: graphNodeId,
-              type: "sprite" as const,
-              name: input.name,
-              x: 60,
-              y: (Object.keys(project.graph?.nodes ?? {}).length +
-                ops.filter((o) => (o as unknown as { kind: string }).kind === "create_graph_node").length) * 200 + 60,
-              width: 200,
-              height: 150,
-              ports: getDefaultPorts("sprite"),
-              data: nodeData,
-            },
-          },
-        };
-        // Push as SceneOp — graph ops are filtered on the frontend via isGraphOp()
-        ops.push(graphOp as unknown as SceneOp);
+        ops.push(
+          makeBoardOp(opCtx, {
+            kind: "connect_wire",
+            payload: { wire },
+          })
+        );
 
-        return { entityId, assetId, graphNodeId, name: input.name, width: w, height: h };
+        return { wireId };
       },
     }),
 
-    delegate_to_sprite_agent: makeDelegationTool(
-      "sprite",
-      runSpriteAgent,
-      "Delegate a sprite/visual task to the sprite specialist agent. Use this for creating sprite entities, managing visual assets, or building sprite sheets. The specialist will return the results including any scene operations it proposed.",
-      delegation,
-      ops,
-    ),
+    update_sketch: tool({
+      description:
+        "Write or update the Arduino sketch code. Provide the full sketch source (including setup() and loop() functions).",
+      inputSchema: z.object({
+        code: z.string().describe("Complete Arduino sketch code"),
+      }),
+      execute: async (input) => {
+        ops.push(
+          makeBoardOp(opCtx, {
+            kind: "update_sketch",
+            payload: { code: input.code },
+          })
+        );
+        return { updated: true, codeLength: input.code.length };
+      },
+    }),
 
-    delegate_to_coding_agent: makeDelegationTool(
-      "coding",
-      runCodingAgent,
-      "Delegate a scripting/behavior task to the coding specialist agent. Use this for creating scripts, adding physics behaviors, or ECS component logic. The specialist will return the results including any scene operations it proposed.",
-      delegation,
-      ops,
-    ),
+    get_sketch: tool({
+      description: "Read the current Arduino sketch code.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const code = project.boardState?.sketchCode ?? "";
+        return { code, length: code.length };
+      },
+    }),
 
     delegate_to_graph_agent: makeDelegationTool(
       "graph",
       runGraphAgent,
-      "Delegate a node graph task to the graph specialist agent. Use this for creating graph nodes (sprite, shader, audio, code, math, etc.), connecting nodes together, or modifying the visual node graph. The specialist manages the node graph that wires up the game's data flow.",
+      "Delegate a visual programming task to the graph specialist agent. Use this when users want to build Arduino programs using visual node blocks instead of writing code directly. The specialist manages the node graph for block-based Arduino programming.",
+      delegation,
+      ops,
+    ),
+
+    delegate_to_circuit_agent: makeDelegationTool(
+      "circuit",
+      runCircuitAgent,
+      "Delegate a circuit design task to the circuit specialist agent. Use this for complex circuit validation, component value suggestions, and detailed wiring guidance.",
       delegation,
       ops,
     ),

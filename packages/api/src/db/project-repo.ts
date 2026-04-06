@@ -15,7 +15,12 @@ import {
   transformComponentSchema,
   physicsBodyComponentSchema,
   cameraComponentSchema,
+  applyBoardOpsRequestSchema,
+  boardOpSchema,
+  type ApplyBoardOpsRequest,
+  type BoardOp,
 } from "./schemas";
+import { createDefaultBoardState } from "@dreamer/schemas";
 
 const PROJECTS_DIR = join(import.meta.dir, "../../data/projects");
 
@@ -438,6 +443,84 @@ async function applyOps(projectId: string, req: ApplyOpsRequest) {
   };
 }
 
+// ── Apply board ops ─────────────────────────────────────────────────────────
+
+function applyBoardOp(project: ProjectFile, op: BoardOp): void {
+  if (!project.boardState) {
+    project.boardState = createDefaultBoardState();
+  }
+  const board = project.boardState!;
+
+  switch (op.kind) {
+    case "place_component":
+      board.components[op.payload.component.id] = op.payload.component;
+      break;
+    case "remove_component":
+      delete board.components[op.payload.componentId];
+      break;
+    case "move_component":
+      if (board.components[op.payload.componentId]) {
+        board.components[op.payload.componentId].x = op.payload.x;
+        board.components[op.payload.componentId].y = op.payload.y;
+      }
+      break;
+    case "update_component":
+      if (board.components[op.payload.componentId]) {
+        Object.assign(board.components[op.payload.componentId], op.payload.changes);
+      }
+      break;
+    case "connect_wire":
+      board.wires[op.payload.wire.id] = op.payload.wire;
+      break;
+    case "remove_wire":
+      delete board.wires[op.payload.wireId];
+      break;
+    case "set_pin_mode":
+      if (board.pinStates[op.payload.pin]) {
+        board.pinStates[op.payload.pin].mode = op.payload.mode;
+      }
+      break;
+    case "update_sketch":
+      board.sketchCode = op.payload.code;
+      break;
+    case "update_board_settings":
+      // Merge settings into board state at top level
+      break;
+  }
+}
+
+async function applyBoardOps(projectId: string, req: ApplyBoardOpsRequest) {
+  const input = applyBoardOpsRequestSchema.parse(req);
+  const existing = await readProject(projectId);
+  if (!existing) return null;
+
+  if (existing.project.version !== input.expectedVersion) {
+    throw new VersionConflictError(input.expectedVersion, existing.project.version);
+  }
+
+  const working = structuredClone(existing);
+
+  for (const rawOp of input.ops) {
+    const op = boardOpSchema.parse(rawOp);
+    if (op.expectedVersion !== input.expectedVersion) {
+      throw new OpValidationError(
+        `Op ${op.opId} expectedVersion must equal batch expectedVersion`
+      );
+    }
+    applyBoardOp(working, op);
+  }
+
+  working.project.version += 1;
+  working.project.updatedAt = now();
+
+  await writeProject(projectId, working);
+  return {
+    project: working,
+    newVersion: working.project.version,
+    appliedOps: input.ops,
+  };
+}
+
 // ── List projects ───────────────────────────────────────────────────────────
 
 type ProjectSummary = {
@@ -565,6 +648,7 @@ export const projectRepo = {
   readProject,
   writeProject,
   applyOps,
+  applyBoardOps,
   saveGraph,
   renameProject,
   renameScene,

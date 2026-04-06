@@ -55,10 +55,8 @@ export {
 } from "./agent";
 
 export {
-  characterAssetTypeSchema,
-  type CharacterAssetType,
-  characterAssetSchema,
-  type CharacterAsset,
-  characterSessionFileSchema,
-  type CharacterSessionFile,
-} from "./character-session";
+  boardOpSchema,
+  type BoardOp,
+  applyBoardOpsRequestSchema,
+  type ApplyBoardOpsRequest,
+} from "@dreamer/schemas";

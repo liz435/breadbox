@@ -1,5 +1,6 @@
-import type { SceneOp } from "@dreamer/schemas";
+import type { SceneOp, BoardOp, LibraryState } from "@dreamer/schemas";
 import type { SceneEvent } from "@/store/scene-machine";
+import type { BoardEvent } from "@/store/board-machine";
 import type { Sprite } from "@/types";
 
 /**
@@ -202,5 +203,90 @@ export async function applyOpsToScene(
 
   for (const id of deletes) {
     send({ type: "REMOVE", id });
+  }
+}
+
+// ── Board Ops ─────────────────────────────────────────────────────────────
+
+const BOARD_OP_KINDS = new Set([
+  "place_component",
+  "remove_component",
+  "move_component",
+  "update_component",
+  "connect_wire",
+  "remove_wire",
+  "set_pin_mode",
+  "update_sketch",
+  "update_board_settings",
+]);
+
+export function isBoardOp(op: { kind: string }): boolean {
+  return BOARD_OP_KINDS.has(op.kind);
+}
+
+/**
+ * Translates an array of BoardOps into BoardEvents
+ * and dispatches them to the XState board machine.
+ */
+export function applyBoardOpsToBoard(
+  ops: BoardOp[],
+  send: (event: BoardEvent) => void,
+): void {
+  for (const op of ops) {
+    switch (op.kind) {
+      case "place_component": {
+        send({ type: "PLACE_COMPONENT", component: op.payload.component });
+        break;
+      }
+      case "remove_component": {
+        send({ type: "REMOVE_COMPONENT", id: op.payload.componentId });
+        break;
+      }
+      case "move_component": {
+        send({
+          type: "MOVE_COMPONENT",
+          id: op.payload.componentId,
+          x: op.payload.x,
+          y: op.payload.y,
+        });
+        break;
+      }
+      case "update_component": {
+        send({
+          type: "UPDATE_COMPONENT",
+          id: op.payload.componentId,
+          changes: op.payload.changes,
+        });
+        break;
+      }
+      case "connect_wire": {
+        send({ type: "ADD_WIRE", wire: op.payload.wire });
+        break;
+      }
+      case "remove_wire": {
+        send({ type: "REMOVE_WIRE", id: op.payload.wireId });
+        break;
+      }
+      case "set_pin_mode": {
+        send({
+          type: "SET_PIN_STATE",
+          pin: op.payload.pin,
+          changes: { mode: op.payload.mode },
+        });
+        break;
+      }
+      case "update_sketch": {
+        send({ type: "UPDATE_SKETCH", code: op.payload.code });
+        break;
+      }
+      case "update_board_settings": {
+        // Board settings are stored in libraryState
+        send({
+          type: "SET_LIBRARY_STATE",
+          changes: op.payload.settings as Partial<LibraryState>,
+        });
+        break;
+      }
+    }
   }
 }

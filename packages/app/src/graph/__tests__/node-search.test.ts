@@ -14,34 +14,34 @@ function fuzzyMatch(query: string, text: string): boolean {
 
 describe("NodeSearch fuzzyMatch", () => {
   test("exact match", () => {
-    expect(fuzzyMatch("sprite", "Sprite")).toBe(true);
+    expect(fuzzyMatch("setup", "Setup")).toBe(true);
   });
 
   test("substring match", () => {
-    expect(fuzzyMatch("rit", "Sprite")).toBe(true);
+    expect(fuzzyMatch("etu", "Setup")).toBe(true);
   });
 
   test("fuzzy character match", () => {
-    expect(fuzzyMatch("spt", "Sprite")).toBe(true);
+    expect(fuzzyMatch("stp", "Setup")).toBe(true);
   });
 
   test("no match", () => {
-    expect(fuzzyMatch("xyz", "Sprite")).toBe(false);
+    expect(fuzzyMatch("xyz", "Setup")).toBe(false);
   });
 
   test("empty query matches anything", () => {
-    expect(fuzzyMatch("", "Sprite")).toBe(true);
+    expect(fuzzyMatch("", "Setup")).toBe(true);
   });
 
   test("case insensitive", () => {
-    expect(fuzzyMatch("SPRITE", "sprite")).toBe(true);
+    expect(fuzzyMatch("SETUP", "setup")).toBe(true);
   });
 
   test("keyword match", () => {
-    expect(fuzzyMatch("glsl", "glsl wgsl filter effect")).toBe(true);
+    expect(fuzzyMatch("pwm", "pwm led fade output")).toBe(true);
   });
 
   test("partial keyword match", () => {
-    expect(fuzzyMatch("filt", "glsl wgsl filter effect")).toBe(true);
+    expect(fuzzyMatch("buz", "buzzer sound frequency speaker")).toBe(true);
   });
 });

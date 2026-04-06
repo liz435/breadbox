@@ -6,41 +6,41 @@ import type { Edge } from "@dreamer/schemas";
 
 describe("GraphInspector logic", () => {
   test("single node selection provides correct data", () => {
-    const node = createGraphNode("sprite");
+    const node = createGraphNode("setup");
     const selectedNodeIds = new Set([node.id]);
     const nodes = { [node.id]: node };
 
     expect(selectedNodeIds.size).toBe(1);
     const selectedId = [...selectedNodeIds][0];
     expect(nodes[selectedId]).toBe(node);
-    expect(node.type).toBe("sprite");
+    expect(node.type).toBe("setup");
     expect(node.name).toBeTruthy();
   });
 
   test("multi-selection reports count", () => {
-    const a = createGraphNode("sprite");
-    const b = createGraphNode("shader");
+    const a = createGraphNode("setup");
+    const b = createGraphNode("delay");
     const selectedNodeIds = new Set([a.id, b.id]);
 
     expect(selectedNodeIds.size).toBe(2);
   });
 
   test("edge selection finds source and target nodes", () => {
-    const sprite = createGraphNode("sprite");
-    const shader = createGraphNode("shader");
+    const setup = createGraphNode("setup");
+    const digitalWrite = createGraphNode("digital_write");
     const edge: Edge = {
       id: "e1",
-      sourceNodeId: sprite.id,
-      sourcePortId: "texture_out",
-      targetNodeId: shader.id,
-      targetPortId: "texture_in",
+      sourceNodeId: setup.id,
+      sourcePortId: "flow_out",
+      targetNodeId: digitalWrite.id,
+      targetPortId: "flow_in",
     };
-    const nodes = { [sprite.id]: sprite, [shader.id]: shader };
+    const nodes = { [setup.id]: setup, [digitalWrite.id]: digitalWrite };
 
     const sourceNode = nodes[edge.sourceNodeId];
     const targetNode = nodes[edge.targetNodeId];
-    expect(sourceNode).toBe(sprite);
-    expect(targetNode).toBe(shader);
+    expect(sourceNode).toBe(setup);
+    expect(targetNode).toBe(digitalWrite);
 
     const sourcePort = sourceNode.ports.find((p) => p.id === edge.sourcePortId);
     const targetPort = targetNode.ports.find((p) => p.id === edge.targetPortId);
@@ -49,44 +49,44 @@ describe("GraphInspector logic", () => {
   });
 
   test("connected edges for a node are filtered correctly", () => {
-    const sprite = createGraphNode("sprite");
-    const shader = createGraphNode("shader");
-    const code = createGraphNode("code");
+    const setup = createGraphNode("setup");
+    const digitalWrite = createGraphNode("digital_write");
+    const delay = createGraphNode("delay");
     const edges: Record<string, Edge> = {
       e1: {
         id: "e1",
-        sourceNodeId: sprite.id,
-        sourcePortId: "texture_out",
-        targetNodeId: shader.id,
-        targetPortId: "texture_in",
+        sourceNodeId: setup.id,
+        sourcePortId: "flow_out",
+        targetNodeId: digitalWrite.id,
+        targetPortId: "flow_in",
       },
       e2: {
         id: "e2",
-        sourceNodeId: code.id,
-        sourcePortId: "data_out",
-        targetNodeId: shader.id,
-        targetPortId: "float_in",
+        sourceNodeId: delay.id,
+        sourcePortId: "flow_out",
+        targetNodeId: digitalWrite.id,
+        targetPortId: "flow_in",
       },
     };
 
-    const connectedToShader = Object.values(edges).filter(
-      (e) => e.sourceNodeId === shader.id || e.targetNodeId === shader.id
+    const connectedToDigitalWrite = Object.values(edges).filter(
+      (e) => e.sourceNodeId === digitalWrite.id || e.targetNodeId === digitalWrite.id
     );
-    expect(connectedToShader).toHaveLength(2);
+    expect(connectedToDigitalWrite).toHaveLength(2);
 
-    const connectedToSprite = Object.values(edges).filter(
-      (e) => e.sourceNodeId === sprite.id || e.targetNodeId === sprite.id
+    const connectedToSetup = Object.values(edges).filter(
+      (e) => e.sourceNodeId === setup.id || e.targetNodeId === setup.id
     );
-    expect(connectedToSprite).toHaveLength(1);
+    expect(connectedToSetup).toHaveLength(1);
   });
 
   test("input and output ports are separated correctly", () => {
-    const shader = createGraphNode("shader");
-    const inputPorts = shader.ports.filter((p) => p.direction === "in");
-    const outputPorts = shader.ports.filter((p) => p.direction === "out");
+    const digitalWrite = createGraphNode("digital_write");
+    const inputPorts = digitalWrite.ports.filter((p) => p.direction === "in");
+    const outputPorts = digitalWrite.ports.filter((p) => p.direction === "out");
 
     expect(inputPorts.length).toBeGreaterThan(0);
     expect(outputPorts.length).toBeGreaterThan(0);
-    expect(inputPorts.length + outputPorts.length).toBe(shader.ports.length);
+    expect(inputPorts.length + outputPorts.length).toBe(digitalWrite.ports.length);
   });
 });
