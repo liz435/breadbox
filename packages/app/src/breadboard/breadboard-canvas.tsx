@@ -414,7 +414,7 @@ const ComponentLayer = React.memo(function ComponentLayer({
 
 // ── Main canvas ─────────────────────────────────────────────────
 
-function BreadboardCanvasInner({ zoomTick: _zoomTick }: { zoomTick?: number }) {
+function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: number; panMode?: boolean }) {
   // Granular board state selectors — each subscribes independently
   const components = useBoardSelector((s) => s.components);
   const wires = useBoardSelector((s) => s.wires);
@@ -498,7 +498,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick }: { zoomTick?: number }) {
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
       // Middle mouse button or space held → pan
-      if (e.button === 1 || spaceDownRef.current) {
+      if (e.button === 1 || spaceDownRef.current || panMode) {
         isPanningRef.current = true;
         lastPanRef.current = { x: e.clientX, y: e.clientY };
         svgRef.current?.setPointerCapture(e.pointerId);
@@ -567,7 +567,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick }: { zoomTick?: number }) {
         send({ type: "SELECT", id: null });
       }
     },
-    [send, interactionMode, placingType, wiringFromPin]
+    [send, interactionMode, placingType, wiringFromPin, panMode]
   );
 
   // ── Pointer move ──
@@ -647,13 +647,15 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick }: { zoomTick?: number }) {
 
   // Cursor style based on interaction mode
   const cursorClass =
-    interactionMode === "placing"
-      ? "cursor-copy"
-      : interactionMode === "dragging"
-        ? "cursor-grabbing"
-        : interactionMode === "wiring_from_pin"
-          ? "cursor-crosshair"
-          : "cursor-crosshair";
+    panMode
+      ? "cursor-grab"
+      : interactionMode === "placing"
+        ? "cursor-copy"
+        : interactionMode === "dragging"
+          ? "cursor-grabbing"
+          : interactionMode === "wiring_from_pin"
+            ? "cursor-crosshair"
+            : "cursor-crosshair";
 
   return (
     <svg
