@@ -22,6 +22,7 @@ import { DockviewContext } from "./store/dockview-context";
 import { ProjectLoader } from "./project/project-loader";
 import { useGraphPersistence } from "./project/use-graph-persistence";
 import { SketchEditor } from "./editor/sketch-editor";
+import { SchematicPanel } from "./schematic/schematic-panel";
 import { useProject } from "./project/project-context";
 import { syncCodegenToBoard } from "./store/graph-scene-bridge";
 import {
@@ -62,6 +63,10 @@ function SketchEditorPanel(_props: IDockviewPanelProps) {
   return <SketchEditor />;
 }
 
+function SchematicPanelWrapper(_props: IDockviewPanelProps) {
+  return <SchematicPanel />;
+}
+
 const components = {
   projectFiles: ProjectFilesPanel,
   breadboard: BreadboardDockPanel,
@@ -71,6 +76,7 @@ const components = {
   serialMonitor: SerialMonitorPanel,
   pinInspector: PinInspectorPanel,
   sketchEditor: SketchEditorPanel,
+  schematic: SchematicPanelWrapper,
 };
 
 function AppInner() {
@@ -165,7 +171,7 @@ function AppInner() {
 
     // Clear stale layouts from before Arduino simulator conversion.
     // The old layout references "canvas" and missing panels — force a fresh default.
-    const LAYOUT_VERSION = "arduino-sim-v3";
+    const LAYOUT_VERSION = "arduino-sim-v4";
     const saved = localStorage.getItem(LAYOUT_STORAGE_KEY);
     const savedVersion = localStorage.getItem(LAYOUT_STORAGE_KEY + ":version");
     if (saved && savedVersion === LAYOUT_VERSION) {
@@ -208,6 +214,13 @@ function AppInner() {
       id: "sketchEditor",
       component: "sketchEditor",
       title: "Sketch",
+      position: { referencePanel: graphPanel, direction: "within" },
+    });
+
+    api.addPanel({
+      id: "schematic",
+      component: "schematic",
+      title: "Schematic",
       position: { referencePanel: graphPanel, direction: "within" },
     });
 
