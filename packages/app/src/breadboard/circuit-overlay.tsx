@@ -21,6 +21,29 @@ type CircuitOverlayProps = {
   components: BoardComponent[]
 }
 
+// ── Shared SVG filter definitions ──────────────────────────────────
+
+function SharedFilterDefs() {
+  return (
+    <defs>
+      <filter id="circuit-reverse-glow" x="-200%" y="-200%" width="500%" height="500%">
+        <feGaussianBlur stdDeviation="4" result="blur" />
+        <feMerge>
+          <feMergeNode in="blur" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+      <filter id="circuit-active-glow" x="-200%" y="-200%" width="500%" height="500%">
+        <feGaussianBlur stdDeviation="5" result="blur" />
+        <feMerge>
+          <feMergeNode in="blur" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+    </defs>
+  )
+}
+
 // ── Animated current flow line ──────────────────────────────────────
 
 function CurrentFlowLine({ path }: { path: CurrentPath }) {
@@ -74,35 +97,23 @@ function ReversePolarityGlow({
   component: BoardComponent
 }) {
   const pos = gridToPixel({ row: component.y, col: component.x })
-  const filterId = `reverse-glow-${component.id}`
 
   return (
-    <g>
-      <defs>
-        <filter id={filterId} x="-200%" y="-200%" width="500%" height="500%">
-          <feGaussianBlur stdDeviation="4" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-      </defs>
-      <circle
-        cx={pos.x}
-        cy={pos.y}
-        r={12}
-        fill="#ef4444"
-        opacity={0.3}
-        filter={`url(#${filterId})`}
-      >
-        <animate
-          attributeName="opacity"
-          values="0.15;0.4;0.15"
-          dur="1s"
-          repeatCount="indefinite"
-        />
-      </circle>
-    </g>
+    <circle
+      cx={pos.x}
+      cy={pos.y}
+      r={12}
+      fill="#ef4444"
+      opacity={0.3}
+      filter="url(#circuit-reverse-glow)"
+    >
+      <animate
+        attributeName="opacity"
+        values="0.15;0.4;0.15"
+        dur="1s"
+        repeatCount="indefinite"
+      />
+    </circle>
   )
 }
 
@@ -123,45 +134,30 @@ function ActiveComponentGlow({
       ? ((component.properties.color as string) ?? "#ef4444")
       : "#fbbf24"
 
-  const filterId = `active-glow-${component.id}`
   const radius = 8 + electricalState.brightness * 6
 
   return (
-    <g>
-      <defs>
-        <filter id={filterId} x="-200%" y="-200%" width="500%" height="500%">
-          <feGaussianBlur
-            stdDeviation={3 + electricalState.brightness * 4}
-            result="blur"
-          />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-      </defs>
-      <circle
-        cx={pos.x}
-        cy={pos.y}
-        r={radius}
-        fill={color}
-        opacity={0.15 + electricalState.brightness * 0.25}
-        filter={`url(#${filterId})`}
-      >
-        <animate
-          attributeName="r"
-          values={`${radius};${radius + 3};${radius}`}
-          dur="1.5s"
-          repeatCount="indefinite"
-        />
-        <animate
-          attributeName="opacity"
-          values={`${0.15 + electricalState.brightness * 0.25};${0.1 + electricalState.brightness * 0.15};${0.15 + electricalState.brightness * 0.25}`}
-          dur="1.5s"
-          repeatCount="indefinite"
-        />
-      </circle>
-    </g>
+    <circle
+      cx={pos.x}
+      cy={pos.y}
+      r={radius}
+      fill={color}
+      opacity={0.15 + electricalState.brightness * 0.25}
+      filter="url(#circuit-active-glow)"
+    >
+      <animate
+        attributeName="r"
+        values={`${radius};${radius + 3};${radius}`}
+        dur="1.5s"
+        repeatCount="indefinite"
+      />
+      <animate
+        attributeName="opacity"
+        values={`${0.15 + electricalState.brightness * 0.25};${0.1 + electricalState.brightness * 0.15};${0.15 + electricalState.brightness * 0.25}`}
+        dur="1.5s"
+        repeatCount="indefinite"
+      />
+    </circle>
   )
 }
 
@@ -212,6 +208,9 @@ function CircuitOverlayInner({ analysis, components }: CircuitOverlayProps) {
 
   return (
     <g className="circuit-overlay" pointerEvents="none">
+      {/* Shared filter definitions — only 2 filters for all components */}
+      <SharedFilterDefs />
+
       {/* Current flow animations */}
       {analysis.currentPaths.map((path, i) => (
         <CurrentFlowLine key={`flow-${i}`} path={path} />

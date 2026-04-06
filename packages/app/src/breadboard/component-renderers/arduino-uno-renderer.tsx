@@ -1,5 +1,4 @@
 import React from "react";
-import type { PinState } from "@dreamer/schemas";
 import {
   ARDUINO_BOARD_WIDTH,
   ARDUINO_BOARD_HEIGHT,
@@ -14,7 +13,6 @@ const ARDUINO_X = 10;
 const ARDUINO_Y = 20;
 
 type ArduinoUnoBoardProps = {
-  pinStates: PinState[];
   onStartWireFromPin: (pin: ArduinoPinInfo) => void;
   wiringFromPin: ArduinoPinInfo | null;
 };
@@ -23,9 +21,12 @@ type ArduinoUnoBoardProps = {
  * Arduino Uno R3 board — realistic SVG rendering with interactive pins.
  * Matches the real board layout: blue PCB, USB-B top-left, barrel jack below,
  * digital pins along the top edge, power + analog pins along the bottom.
+ *
+ * Note: pinStates are NOT passed as props. Each ArduinoPin subscribes to
+ * its own pin state via useBoardSelector, so the board only re-renders
+ * when wiringFromPin changes.
  */
 function ArduinoUnoBoardInner({
-  pinStates,
   onStartWireFromPin,
   wiringFromPin,
 }: ArduinoUnoBoardProps) {
@@ -422,7 +423,7 @@ function ArduinoUnoBoardInner({
       >
         Arduino
       </text>
-      {/* Infinity logo (∞) */}
+      {/* Infinity logo */}
       <text
         x={x + w / 2}
         y={y + h / 2 - 4}
@@ -534,7 +535,6 @@ function ArduinoUnoBoardInner({
         <ArduinoPin
           key={`dpin-${pin.pin}-${pin.label}`}
           pin={pin}
-          pinState={pin.pin >= 0 ? pinStates[pin.pin] : undefined}
           isWiring={wiringFromPin?.pin === pin.pin && wiringFromPin?.label === pin.label}
           onStartWire={onStartWireFromPin}
         />
@@ -545,7 +545,6 @@ function ArduinoUnoBoardInner({
         <ArduinoPin
           key={`apin-${pin.pin}`}
           pin={pin}
-          pinState={pin.pin >= 0 && pin.pin < pinStates.length ? pinStates[pin.pin] : undefined}
           isWiring={wiringFromPin?.pin === pin.pin && wiringFromPin?.label === pin.label}
           onStartWire={onStartWireFromPin}
         />
@@ -556,7 +555,6 @@ function ArduinoUnoBoardInner({
         <ArduinoPin
           key={`ppin-${pin.pin}-${pin.label}`}
           pin={pin}
-          pinState={undefined}
           isWiring={wiringFromPin?.pin === pin.pin && wiringFromPin?.label === pin.label}
           onStartWire={onStartWireFromPin}
         />

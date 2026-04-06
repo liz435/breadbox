@@ -178,7 +178,7 @@ const TERMINAL_ORIGIN_X = BREADBOARD_OFFSET_X + BOARD_PADDING + RAIL_OFFSET;
 /** The y offset where the terminal rows start (below top power rails) */
 const TERMINAL_ORIGIN_Y = BOARD_PADDING + POWER_RAIL_HEIGHT;
 
-export function gridToPixel(point: GridPoint): { x: number; y: number } {
+function gridToPixelUncached(point: GridPoint): { x: number; y: number } {
   const { row, col } = point;
   const y = TERMINAL_ORIGIN_Y + row * HOLE_SPACING;
 
@@ -214,6 +214,28 @@ export function gridToPixel(point: GridPoint): { x: number; y: number } {
   }
 
   return { x: 0, y: 0 };
+}
+
+// Pre-computed pixel position cache for all valid grid points
+const PIXEL_CACHE = new Map<string, { x: number; y: number }>();
+
+function initPixelCache() {
+  // Terminal holes + power rail holes
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = -2; col <= 11; col++) {
+      const key = `${row},${col}`;
+      PIXEL_CACHE.set(key, gridToPixelUncached({ row, col }));
+    }
+  }
+}
+
+initPixelCache();
+
+export function gridToPixel(point: GridPoint): { x: number; y: number } {
+  const key = `${point.row},${point.col}`;
+  const cached = PIXEL_CACHE.get(key);
+  if (cached) return cached;
+  return gridToPixelUncached(point);
 }
 
 export function pixelToGrid(px: number, py: number): GridPoint {

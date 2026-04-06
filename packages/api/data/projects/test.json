@@ -4,7 +4,7 @@
     "name": "Untitled Project",
     "version": 0,
     "createdAt": "2026-03-08T14:49:22.729Z",
-    "updatedAt": "2026-03-09T02:07:52.096Z",
+    "updatedAt": "2026-04-06T01:48:28.798Z",
     "threadId": "a3b91588-beed-4c72-a22e-d8676a9b76a8",
     "activeSceneId": "54c51b33-8f53-4487-ae62-4b7c541c2929"
   },
@@ -36,14 +36,55 @@
   },
   "assets": {},
   "graph": {
-    "nodes": {},
+    "nodes": {
+      "node-1775440106739-ts28i9": {
+        "id": "node-1775440106739-ts28i9",
+        "type": "setup",
+        "name": "Setup",
+        "x": 60,
+        "y": 60,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      },
+      "node-1775440106739-l7lxzm": {
+        "id": "node-1775440106739-l7lxzm",
+        "type": "loop",
+        "name": "Loop",
+        "x": 60,
+        "y": 200,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      }
+    },
     "edges": {}
   },
   "boardState": {
     "components": {},
     "wires": {},
     "pinStates": [],
-    "libraryState": { "servos": {}, "lcd": null, "serialBaud": 0 },
+    "libraryState": {
+      "servos": {},
+      "lcd": null,
+      "serialBaud": 0
+    },
     "serialOutput": [],
     "sketchCode": ""
   }

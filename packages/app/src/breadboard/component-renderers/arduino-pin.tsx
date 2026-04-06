@@ -1,16 +1,15 @@
-import React, { useState, useCallback } from "react";
+import React, { useCallback } from "react";
 import type { ArduinoPinInfo } from "@/breadboard/breadboard-grid";
 import type { PinState } from "@dreamer/schemas";
+import { useBoardSelector } from "@/store/board-context";
 
 type ArduinoPinProps = {
   pin: ArduinoPinInfo;
-  pinState?: PinState;
   isWiring: boolean;
   onStartWire: (pin: ArduinoPinInfo) => void;
 };
 
 const RADIUS_DEFAULT = 3.5;
-const RADIUS_HOVER = 5;
 
 function getPinStrokeColor(pin: ArduinoPinInfo): string {
   // GND pins
@@ -46,11 +45,13 @@ function getPinTooltip(pin: ArduinoPinInfo): string {
   return pin.label;
 }
 
-function ArduinoPinInner({ pin, pinState, isWiring, onStartWire }: ArduinoPinProps) {
-  const [hovered, setHovered] = useState(false);
+function ArduinoPinInner({ pin, isWiring, onStartWire }: ArduinoPinProps) {
+  // Subscribe to only this pin's state from the board store
+  const pinState: PinState | undefined = useBoardSelector((s) =>
+    pin.pin >= 0 && pin.pin < s.pinStates.length ? s.pinStates[pin.pin] : undefined,
+  );
 
   const strokeColor = getPinStrokeColor(pin);
-  const r = hovered ? RADIUS_HOVER : RADIUS_DEFAULT;
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -71,42 +72,19 @@ function ArduinoPinInner({ pin, pinState, isWiring, onStartWire }: ArduinoPinPro
 
   return (
     <g
-      onPointerEnter={() => setHovered(true)}
-      onPointerLeave={() => setHovered(false)}
       onPointerDown={handlePointerDown}
+      className="arduino-pin"
       style={{ cursor: "crosshair" }}
     >
-      {/* Hover tooltip background */}
-      {hovered && (
-        <g pointerEvents="none">
-          <rect
-            x={pin.x - 24}
-            y={isTopPin ? pin.y + 16 : pin.y - 22}
-            width={48}
-            height={12}
-            rx={2}
-            fill="#1a1a1a"
-            fillOpacity={0.9}
-            stroke={strokeColor}
-            strokeWidth={0.5}
-          />
-          <text
-            x={pin.x}
-            y={isTopPin ? pin.y + 24 : pin.y - 14}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            fontSize={4.5}
-            fill="#ffffff"
-            fontFamily="monospace"
-          >
-            {getPinTooltip(pin)}
-          </text>
-        </g>
-      )}
+      {/* Native SVG tooltip — no useState needed */}
+      <title>{getPinTooltip(pin)}</title>
+
+      {/* Invisible hit area for easier hovering */}
+      <circle cx={pin.x} cy={pin.y} r={8} fill="transparent" />
 
       {/* PWM pulsing glow */}
       {isPwmActive && (
-        <circle cx={pin.x} cy={pin.y} r={RADIUS_HOVER + 2} fill="none" stroke="#ff9800" strokeWidth={1.5}>
+        <circle cx={pin.x} cy={pin.y} r={7.5} fill="none" stroke="#ff9800" strokeWidth={1.5}>
           <animate
             attributeName="opacity"
             values="0.2;0.8;0.2"
@@ -121,7 +99,7 @@ function ArduinoPinInner({ pin, pinState, isWiring, onStartWire }: ArduinoPinPro
         <circle
           cx={pin.x}
           cy={pin.y}
-          r={RADIUS_HOVER + 1}
+          r={6}
           fill="#4caf50"
           fillOpacity={0.35}
           pointerEvents="none"
@@ -133,22 +111,22 @@ function ArduinoPinInner({ pin, pinState, isWiring, onStartWire }: ArduinoPinPro
         <circle
           cx={pin.x}
           cy={pin.y}
-          r={RADIUS_HOVER + 1}
+          r={6}
           fill="#ffd54f"
           fillOpacity={0.3}
           pointerEvents="none"
         />
       )}
 
-      {/* Pin hole base */}
+      {/* Pin hole base — hover effect handled via CSS */}
       <circle
         cx={pin.x}
         cy={pin.y}
-        r={r}
+        r={RADIUS_DEFAULT}
         fill="#1a1a1a"
-        stroke={hovered || isWiring ? "#ffffff" : strokeColor}
-        strokeWidth={hovered ? 1.5 : 1}
-        style={{ transition: "r 0.1s ease, stroke-width 0.1s ease" }}
+        stroke={isWiring ? "#ffffff" : strokeColor}
+        strokeWidth={1.2}
+        className="pin-hole"
       />
 
       {/* Output LOW dim overlay */}
@@ -156,7 +134,7 @@ function ArduinoPinInner({ pin, pinState, isWiring, onStartWire }: ArduinoPinPro
         <circle
           cx={pin.x}
           cy={pin.y}
-          r={r - 1}
+          r={RADIUS_DEFAULT - 1}
           fill="#333333"
           fillOpacity={0.5}
           pointerEvents="none"

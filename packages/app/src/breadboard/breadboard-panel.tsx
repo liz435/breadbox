@@ -1,7 +1,6 @@
 import React, { useCallback, useState } from "react";
 import { BreadboardCanvas } from "./breadboard-canvas";
-import { ComponentPalette } from "./component-palette";
-import { getCamera, setCamera, zoomAtPoint } from "./breadboard-camera";
+import { getCamera, setCamera } from "./breadboard-camera";
 
 function ZoomControls({ onZoomChange }: { onZoomChange: () => void }) {
   const handleZoomIn = useCallback(() => {
@@ -60,9 +59,6 @@ function BreadboardPanelInner() {
 
   return (
     <div className="relative flex h-full w-full overflow-hidden">
-      <div className="w-[120px] flex-shrink-0 border-r border-neutral-700">
-        <ComponentPalette />
-      </div>
       <div className="relative flex-1">
         <BreadboardCanvas />
         <ZoomControls onZoomChange={handleZoomChange} />

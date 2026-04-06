@@ -10,7 +10,7 @@ import {
   type CircuitAnalysis,
 } from "./circuit-solver"
 
-const DEBOUNCE_MS = 100
+const DEBOUNCE_MS = 250
 
 export function useCircuitAnalysis(): {
   analysis: CircuitAnalysis | null

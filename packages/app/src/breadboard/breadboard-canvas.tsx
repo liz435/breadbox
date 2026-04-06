@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useRef } from "react";
 import { useSelector } from "@xstate/react";
-import { useBoard } from "@/store/board-context";
-import type { BoardComponent, ComponentType } from "@dreamer/schemas";
+import { useBoardSelector, BoardContext } from "@/store/board-context";
+import type { BoardComponent, ComponentType, LibraryState } from "@dreamer/schemas";
 import {
   ROWS,
   COLS,
@@ -377,10 +377,223 @@ function GhostPreview({
   );
 }
 
+// ── Static background layer — never re-renders after mount ──────
+
+const StaticBackground = React.memo(function StaticBackground() {
+  const elements = useMemo(() => buildBreadboardBackground(), []);
+
+  // Breadboard body coordinates
+  const bbX = BREADBOARD_OFFSET_X;
+  const bbY = 0;
+
+  // Center gap coordinates
+  const gapX = TERMINAL_ORIGIN_X + TERMINAL_WIDTH;
+  const gapY = TERMINAL_ORIGIN_Y - 4;
+  const gapHeight = (ROWS - 1) * HOLE_SPACING + 8;
+
+  return (
+    <g>
+      {/* Board shadow */}
+      <rect
+        x={bbX + 3}
+        y={bbY + 3}
+        width={BREADBOARD_WIDTH}
+        height={BREADBOARD_HEIGHT}
+        rx={6}
+        fill="#00000030"
+      />
+
+      {/* Board background (off-white with subtle texture) */}
+      <rect
+        x={bbX}
+        y={bbY}
+        width={BREADBOARD_WIDTH}
+        height={BREADBOARD_HEIGHT}
+        rx={6}
+        fill="#F5F0E8"
+        stroke="#d0c8b8"
+        strokeWidth={1}
+      />
+
+      {/* Subtle board edge bevel */}
+      <rect
+        x={bbX + 2}
+        y={bbY + 2}
+        width={BREADBOARD_WIDTH - 4}
+        height={BREADBOARD_HEIGHT - 4}
+        rx={5}
+        fill="none"
+        stroke="#eee8d8"
+        strokeWidth={1}
+      />
+
+      {/* Center gap (channel between left and right terminal strips) */}
+      <rect
+        x={gapX}
+        y={gapY}
+        width={GAP_WIDTH}
+        height={gapHeight}
+        fill="#D4CFC7"
+        rx={1}
+      />
+      {/* Center gap groove line */}
+      <line
+        x1={gapX + GAP_WIDTH / 2}
+        y1={gapY + 2}
+        x2={gapX + GAP_WIDTH / 2}
+        y2={gapY + gapHeight - 2}
+        stroke="#d8d0c0"
+        strokeWidth={1}
+      />
+
+      {/* Power rail separation lines */}
+      <line
+        x1={bbX + 8}
+        y1={TERMINAL_ORIGIN_Y - 4}
+        x2={bbX + BREADBOARD_WIDTH - 8}
+        y2={TERMINAL_ORIGIN_Y - 4}
+        stroke="#c8c0b0"
+        strokeWidth={0.8}
+        opacity={0.6}
+      />
+      <line
+        x1={bbX + 8}
+        y1={TERMINAL_ORIGIN_Y + (ROWS - 1) * HOLE_SPACING + 4}
+        x2={bbX + BREADBOARD_WIDTH - 8}
+        y2={TERMINAL_ORIGIN_Y + (ROWS - 1) * HOLE_SPACING + 4}
+        stroke="#c8c0b0"
+        strokeWidth={0.8}
+        opacity={0.6}
+      />
+
+      {/* Power rail stripes */}
+      <PowerRailStripes />
+
+      {/* Hole grid + labels */}
+      <g>{elements}</g>
+    </g>
+  );
+});
+
+// ── Wire layer — only re-renders when wires or selection changes ──
+
+type WireLayerProps = {
+  wires: Record<string, import("@dreamer/schemas").Wire>;
+  selectedId: string | null;
+};
+
+const WireLayer = React.memo(function WireLayer({ wires, selectedId }: WireLayerProps) {
+  const wireList = useMemo(() => Object.values(wires), [wires]);
+  return (
+    <g>
+      {wireList.map((wire) => (
+        <WireRenderer
+          key={wire.id}
+          wire={wire}
+          isSelected={selectedId === wire.id}
+        />
+      ))}
+    </g>
+  );
+});
+
+// ── Component layer — only re-renders when components/selection/analysis change ──
+
+type ComponentLayerProps = {
+  components: BoardComponent[];
+  selectedId: string | null;
+  analysis: import("@/simulator/circuit-solver").CircuitAnalysis | null;
+  libraryState: LibraryState;
+  pinStates: import("@dreamer/schemas").PinState[];
+  onSelect: (id: string) => void;
+};
+
+const ComponentLayer = React.memo(function ComponentLayer({
+  components,
+  selectedId,
+  analysis,
+  libraryState,
+  pinStates,
+  onSelect,
+}: ComponentLayerProps) {
+  return (
+    <g>
+      {/* ── Components ── */}
+      {components.map((comp) => {
+        const footprint = getComponentFootprint(comp.type, comp.y, comp.x);
+        const primaryPos = gridToPixel({ row: comp.y, col: comp.x });
+
+        return (
+          <g
+            key={comp.id}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect(comp.id);
+            }}
+            style={{ cursor: "pointer" }}
+          >
+            {/* Selection highlight around footprint */}
+            {selectedId === comp.id && (
+              <rect
+                x={primaryPos.x - 10}
+                y={primaryPos.y - 10}
+                width={footprint.width + 8}
+                height={footprint.height + 8}
+                rx={4}
+                fill="none"
+                stroke="#3b82f6"
+                strokeWidth={1.5}
+                strokeDasharray="4 2"
+                opacity={0.5}
+              />
+            )}
+            <ComponentRenderer
+              component={comp}
+              pinStates={pinStates}
+              isSelected={selectedId === comp.id}
+              electricalState={analysis?.componentStates.get(comp.id)}
+              libraryState={libraryState}
+            />
+          </g>
+        );
+      })}
+
+      {/* ── Occupied hole indicators ── */}
+      {components.map((comp) => {
+        const footprint = getComponentFootprint(comp.type, comp.y, comp.x);
+        const accentColor = COMPONENT_ACCENT_COLORS[comp.type] ?? "#60a5fa";
+        return footprint.points.map((pt, i) => {
+          const pos = gridToPixel(pt);
+          return (
+            <circle
+              key={`occ-${comp.id}-${i}`}
+              cx={pos.x}
+              cy={pos.y}
+              r={HOLE_RADIUS + 1.5}
+              fill="none"
+              stroke={accentColor}
+              strokeWidth={1}
+              opacity={0.7}
+              pointerEvents="none"
+            />
+          );
+        });
+      })}
+    </g>
+  );
+});
+
 // ── Main canvas ─────────────────────────────────────────────────
 
 function BreadboardCanvasInner() {
-  const { state, send } = useBoard();
+  // Granular board state selectors — each subscribes independently
+  const components = useBoardSelector((s) => s.components);
+  const wires = useBoardSelector((s) => s.wires);
+  const pinStates = useBoardSelector((s) => s.pinStates);
+  const selectedId = useBoardSelector((s) => s.selectedId);
+  const libraryState = useBoardSelector((s) => s.libraryState);
+  const send = BoardContext.useActorRef().send;
+
   const svgRef = useRef<SVGSVGElement>(null);
   const isPanningRef = useRef(false);
   const lastPanRef = useRef({ x: 0, y: 0 });
@@ -413,12 +626,15 @@ function BreadboardCanvasInner() {
   const ghostRef = useRef<{ row: number; col: number } | null>(null);
   const [ghostPos, setGhostPos] = React.useState<{ row: number; col: number } | null>(null);
 
-  // Static breadboard background (never re-renders)
-  const backgroundElements = useMemo(() => buildBreadboardBackground(), []);
-
   // Camera state — force re-render on zoom/pan
   const [, setTick] = React.useState(0);
   const forceUpdate = useCallback(() => setTick((t) => t + 1), []);
+
+  // Filtered components list (exclude arduino_uno)
+  const filteredComponents = useMemo(
+    () => Object.values(components).filter((c) => c.type !== "arduino_uno"),
+    [components],
+  );
 
   // ── Handle start wire from Arduino pin ──
   const handleStartWireFromPin = useCallback(
@@ -599,10 +815,6 @@ function BreadboardCanvasInner() {
   );
 
   const cam = getCamera();
-  const components = Object.values(state.components).filter(
-    (c) => c.type !== "arduino_uno"
-  );
-  const wires = Object.values(state.wires);
 
   // Cursor style based on interaction mode
   const cursorClass =
@@ -613,15 +825,6 @@ function BreadboardCanvasInner() {
         : interactionMode === "wiring_from_pin"
           ? "cursor-crosshair"
           : "cursor-crosshair";
-
-  // Breadboard body coordinates
-  const bbX = BREADBOARD_OFFSET_X;
-  const bbY = 0;
-
-  // Center gap coordinates
-  const gapX = TERMINAL_ORIGIN_X + TERMINAL_WIDTH;
-  const gapY = TERMINAL_ORIGIN_Y - 4;
-  const gapHeight = (ROWS - 1) * HOLE_SPACING + 8;
 
   return (
     <svg
@@ -637,167 +840,29 @@ function BreadboardCanvasInner() {
       >
         {/* ── Arduino Uno board (fixed, left side) ── */}
         <ArduinoUnoBoard
-          pinStates={state.pinStates}
           onStartWireFromPin={handleStartWireFromPin}
           wiringFromPin={wiringFromPin}
         />
 
-        {/* ── Breadboard ── */}
-        <g>
-          {/* Board shadow */}
-          <rect
-            x={bbX + 3}
-            y={bbY + 3}
-            width={BREADBOARD_WIDTH}
-            height={BREADBOARD_HEIGHT}
-            rx={6}
-            fill="#00000030"
-          />
+        {/* ── Breadboard (static background) ── */}
+        <StaticBackground />
 
-          {/* Board background (off-white with subtle texture) */}
-          <rect
-            x={bbX}
-            y={bbY}
-            width={BREADBOARD_WIDTH}
-            height={BREADBOARD_HEIGHT}
-            rx={6}
-            fill="#F5F0E8"
-            stroke="#d0c8b8"
-            strokeWidth={1}
-          />
+        {/* ── Wire layer ── */}
+        <WireLayer wires={wires} selectedId={selectedId} />
 
-          {/* Subtle board edge bevel */}
-          <rect
-            x={bbX + 2}
-            y={bbY + 2}
-            width={BREADBOARD_WIDTH - 4}
-            height={BREADBOARD_HEIGHT - 4}
-            rx={5}
-            fill="none"
-            stroke="#eee8d8"
-            strokeWidth={1}
-          />
-
-          {/* Center gap (channel between left and right terminal strips) */}
-          <rect
-            x={gapX}
-            y={gapY}
-            width={GAP_WIDTH}
-            height={gapHeight}
-            fill="#D4CFC7"
-            rx={1}
-          />
-          {/* Center gap groove line */}
-          <line
-            x1={gapX + GAP_WIDTH / 2}
-            y1={gapY + 2}
-            x2={gapX + GAP_WIDTH / 2}
-            y2={gapY + gapHeight - 2}
-            stroke="#d8d0c0"
-            strokeWidth={1}
-          />
-
-          {/* Power rail separation lines */}
-          <line
-            x1={bbX + 8}
-            y1={TERMINAL_ORIGIN_Y - 4}
-            x2={bbX + BREADBOARD_WIDTH - 8}
-            y2={TERMINAL_ORIGIN_Y - 4}
-            stroke="#c8c0b0"
-            strokeWidth={0.8}
-            opacity={0.6}
-          />
-          <line
-            x1={bbX + 8}
-            y1={TERMINAL_ORIGIN_Y + (ROWS - 1) * HOLE_SPACING + 4}
-            x2={bbX + BREADBOARD_WIDTH - 8}
-            y2={TERMINAL_ORIGIN_Y + (ROWS - 1) * HOLE_SPACING + 4}
-            stroke="#c8c0b0"
-            strokeWidth={0.8}
-            opacity={0.6}
-          />
-
-          {/* Power rail stripes */}
-          <PowerRailStripes />
-
-          {/* Hole grid + labels */}
-          <g>{backgroundElements}</g>
-        </g>
-
-        {/* ── Wires ── */}
-        {wires.map((wire) => (
-          <WireRenderer
-            key={wire.id}
-            wire={wire}
-            isSelected={state.selectedId === wire.id}
-          />
-        ))}
-
-        {/* ── Components ── */}
-        {components.map((comp) => {
-          const footprint = getComponentFootprint(comp.type, comp.y, comp.x);
-          const primaryPos = gridToPixel({ row: comp.y, col: comp.x });
-
-          return (
-            <g
-              key={comp.id}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleComponentClick(comp.id);
-              }}
-              style={{ cursor: "pointer" }}
-            >
-              {/* Selection highlight around footprint */}
-              {state.selectedId === comp.id && (
-                <rect
-                  x={primaryPos.x - 10}
-                  y={primaryPos.y - 10}
-                  width={footprint.width + 8}
-                  height={footprint.height + 8}
-                  rx={4}
-                  fill="none"
-                  stroke="#3b82f6"
-                  strokeWidth={1.5}
-                  strokeDasharray="4 2"
-                  opacity={0.5}
-                />
-              )}
-              <ComponentRenderer
-                component={comp}
-                pinStates={state.pinStates}
-                isSelected={state.selectedId === comp.id}
-                electricalState={analysis?.componentStates.get(comp.id)}
-                libraryState={state.libraryState}
-              />
-            </g>
-          );
-        })}
-
-        {/* ── Occupied hole indicators ── */}
-        {components.map((comp) => {
-          const footprint = getComponentFootprint(comp.type, comp.y, comp.x);
-          const accentColor = COMPONENT_ACCENT_COLORS[comp.type] ?? "#60a5fa";
-          return footprint.points.map((pt, i) => {
-            const pos = gridToPixel(pt);
-            return (
-              <circle
-                key={`occ-${comp.id}-${i}`}
-                cx={pos.x}
-                cy={pos.y}
-                r={HOLE_RADIUS + 1.5}
-                fill="none"
-                stroke={accentColor}
-                strokeWidth={1}
-                opacity={0.7}
-                pointerEvents="none"
-              />
-            );
-          });
-        })}
+        {/* ── Component layer ── */}
+        <ComponentLayer
+          components={filteredComponents}
+          selectedId={selectedId}
+          analysis={analysis}
+          libraryState={libraryState}
+          pinStates={pinStates}
+          onSelect={handleComponentClick}
+        />
 
         {/* ── Circuit analysis overlay ── */}
         {analysis && analysis.isValid && (
-          <CircuitOverlay analysis={analysis} components={components} />
+          <CircuitOverlay analysis={analysis} components={filteredComponents} />
         )}
 
         {/* ── Ghost preview while placing ── */}
