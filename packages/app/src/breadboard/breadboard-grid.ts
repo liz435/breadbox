@@ -27,8 +27,8 @@ export type GridPoint = { row: number; col: number };
 export type Net = { id: string; points: GridPoint[]; arduinoPins: number[] };
 
 // ── Arduino Uno board constants ──────────────────────────────
-export const ARDUINO_BOARD_WIDTH = 280;
-export const ARDUINO_BOARD_HEIGHT = 180;
+export const ARDUINO_BOARD_WIDTH = 340;
+export const ARDUINO_BOARD_HEIGHT = 220;
 export const ARDUINO_BOARD_MARGIN = 20; // gap between Uno and breadboard
 
 // ── Breadboard layout constants ──────────────────────────────
@@ -65,59 +65,98 @@ export const CANVAS_HEIGHT = Math.max(ARDUINO_BOARD_HEIGHT + 40, BREADBOARD_HEIG
 
 // ── Arduino pin pixel positions ──────────────────────────────
 
+type PinCategory = "digital" | "analog" | "power";
+
 type ArduinoPinInfo = {
   label: string;
   pin: number; // Arduino pin number (0-19, where A0=14..A5=19)
   x: number;
   y: number;
   isPwm?: boolean;
+  category: PinCategory;
 };
 
-const ARDUINO_PIN_SPACING = 16;
+const ARDUINO_PIN_SPACING = 14;
 const ARDUINO_X = 10; // left edge of the Uno board
 const ARDUINO_Y = 20; // top edge of the Uno board
 
+/**
+ * Digital pins along the TOP edge of the board.
+ * Order (right to left): D0(RX), D1(TX), D2, D3~, D4, D5~, D6~, D7 | D8, D9~, D10~, D11~, D12, D13, GND, AREF
+ * We lay them left-to-right in ascending pin order for rendering convenience,
+ * with AREF and GND at the right end.
+ */
 function makeDigitalPins(): ArduinoPinInfo[] {
   const pins: ArduinoPinInfo[] = [];
   const pwmPins = new Set([3, 5, 6, 9, 10, 11]);
-  const startX = ARDUINO_X + ARDUINO_BOARD_WIDTH - 20;
-  const startY = ARDUINO_Y + 30;
+  const startX = ARDUINO_X + 56; // offset from left edge (past USB area)
+  const pinY = ARDUINO_Y + 8; // near top edge
+
+  // Digital pins D0..D13
   for (let i = 0; i <= 13; i++) {
     pins.push({
       label: `D${i}${pwmPins.has(i) ? "~" : ""}`,
       pin: i,
-      x: startX,
-      y: startY + i * ARDUINO_PIN_SPACING,
+      x: startX + i * ARDUINO_PIN_SPACING,
+      y: pinY,
       isPwm: pwmPins.has(i),
+      category: "digital",
     });
   }
+  // GND (near digital header)
+  pins.push({
+    label: "GND",
+    pin: -6,
+    x: startX + 14 * ARDUINO_PIN_SPACING,
+    y: pinY,
+    category: "power",
+  });
+  // AREF
+  pins.push({
+    label: "AREF",
+    pin: -7,
+    x: startX + 15 * ARDUINO_PIN_SPACING,
+    y: pinY,
+    category: "power",
+  });
   return pins;
 }
 
+/**
+ * Analog pins along the BOTTOM-RIGHT edge.
+ * A0..A5 left to right.
+ */
 function makeAnalogPins(): ArduinoPinInfo[] {
   const pins: ArduinoPinInfo[] = [];
-  const startX = ARDUINO_X + 20;
-  const startY = ARDUINO_Y + ARDUINO_BOARD_HEIGHT - 50;
+  const startX = ARDUINO_X + 182; // right portion of bottom edge
+  const pinY = ARDUINO_Y + ARDUINO_BOARD_HEIGHT - 8; // near bottom edge
   for (let i = 0; i <= 5; i++) {
     pins.push({
       label: `A${i}`,
       pin: 14 + i,
-      x: startX,
-      y: startY - i * ARDUINO_PIN_SPACING,
+      x: startX + i * ARDUINO_PIN_SPACING,
+      y: pinY,
+      category: "analog",
     });
   }
   return pins;
 }
 
+/**
+ * Power pins along the BOTTOM-LEFT edge.
+ * IOREF, RESET, 3V3, 5V, GND, GND, VIN
+ */
 function makePowerPins(): ArduinoPinInfo[] {
-  const startX = ARDUINO_X + 20;
-  const startY = ARDUINO_Y + 30;
+  const startX = ARDUINO_X + 56;
+  const pinY = ARDUINO_Y + ARDUINO_BOARD_HEIGHT - 8;
   return [
-    { label: "5V", pin: -1, x: startX, y: startY },
-    { label: "3.3V", pin: -2, x: startX, y: startY + ARDUINO_PIN_SPACING },
-    { label: "GND", pin: -3, x: startX, y: startY + ARDUINO_PIN_SPACING * 2 },
-    { label: "GND", pin: -4, x: startX, y: startY + ARDUINO_PIN_SPACING * 3 },
-    { label: "VIN", pin: -5, x: startX, y: startY + ARDUINO_PIN_SPACING * 4 },
+    { label: "IOREF", pin: -8, x: startX, y: pinY, category: "power" },
+    { label: "RESET", pin: -9, x: startX + ARDUINO_PIN_SPACING, y: pinY, category: "power" },
+    { label: "3V3", pin: -2, x: startX + ARDUINO_PIN_SPACING * 2, y: pinY, category: "power" },
+    { label: "5V", pin: -1, x: startX + ARDUINO_PIN_SPACING * 3, y: pinY, category: "power" },
+    { label: "GND", pin: -3, x: startX + ARDUINO_PIN_SPACING * 4, y: pinY, category: "power" },
+    { label: "GND", pin: -4, x: startX + ARDUINO_PIN_SPACING * 5, y: pinY, category: "power" },
+    { label: "VIN", pin: -5, x: startX + ARDUINO_PIN_SPACING * 6, y: pinY, category: "power" },
   ];
 }
 
@@ -130,7 +169,7 @@ export const ARDUINO_PINS: ArduinoPinInfo[] = [
   ...ARDUINO_POWER_PINS,
 ];
 
-export type { ArduinoPinInfo };
+export type { ArduinoPinInfo, PinCategory };
 
 // ── Coordinate conversion ─────────────────────────────────────
 

@@ -21,6 +21,7 @@ import {
   pixelToGrid,
   getComponentFootprint,
 } from "./breadboard-grid";
+import type { ArduinoPinInfo } from "./breadboard-grid";
 import { getCamera, setCamera, screenToBoard, zoomAtPoint } from "./breadboard-camera";
 import { breadboardInteractionActor } from "./breadboard-interaction";
 import { ComponentRenderer } from "./component-renderers/index";
@@ -385,6 +386,16 @@ function BreadboardCanvasInner() {
     (snap) => snap.context.componentType,
   );
 
+  // Wire-from-pin state
+  const wiringFromPin = useSelector(
+    breadboardInteractionActor,
+    (snap) => snap.context.wireFromPin,
+  );
+  const wireFromPos = useSelector(
+    breadboardInteractionActor,
+    (snap) => ({ x: snap.context.wireFromX, y: snap.context.wireFromY }),
+  );
+
   // Circuit analysis
   const { analysis } = useCircuitAnalysis();
 
@@ -398,6 +409,19 @@ function BreadboardCanvasInner() {
   // Camera state — force re-render on zoom/pan
   const [, setTick] = React.useState(0);
   const forceUpdate = useCallback(() => setTick((t) => t + 1), []);
+
+  // ── Handle start wire from Arduino pin ──
+  const handleStartWireFromPin = useCallback(
+    (pin: ArduinoPinInfo) => {
+      breadboardInteractionActor.send({
+        type: "START_WIRE_FROM_PIN",
+        pin,
+        pinX: pin.x,
+        pinY: pin.y,
+      });
+    },
+    [],
+  );
 
   // ── Zoom via wheel ──
   const handleWheel = useCallback(
@@ -451,6 +475,35 @@ function BreadboardCanvasInner() {
         return;
       }
 
+      // Left click while wiring from pin → complete wire to breadboard hole
+      if (e.button === 0 && interactionMode === "wiring_from_pin" && wiringFromPin) {
+        const rect = svgRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const board = screenToBoard(e.clientX - rect.left, e.clientY - rect.top);
+        const grid = pixelToGrid(board.x, board.y);
+
+        // Only complete if clicking on the breadboard area
+        if (grid.row >= 0 && grid.row < ROWS && grid.col >= -2 && grid.col <= 11) {
+          const targetPixel = gridToPixel(grid);
+          send({
+            type: "ADD_WIRE",
+            wire: {
+              id: crypto.randomUUID(),
+              fromRow: wireFromPos.y, // Store pin pixel y as fromRow (special: negative = pin wire)
+              fromCol: wireFromPos.x, // Store pin pixel x as fromCol
+              toRow: grid.row,
+              toCol: grid.col,
+              color: "#fbbf24",
+            },
+          });
+        }
+
+        breadboardInteractionActor.send({ type: "POINTER_UP" });
+        setGhostPos(null);
+        ghostRef.current = null;
+        return;
+      }
+
       // Left click on empty space → deselect
       if (e.button === 0 && e.target === svgRef.current) {
         send({ type: "SELECT", id: null });
@@ -473,8 +526,8 @@ function BreadboardCanvasInner() {
         return;
       }
 
-      // Ghost preview while placing
-      if (interactionMode === "placing") {
+      // Ghost preview while placing or wiring from pin
+      if (interactionMode === "placing" || interactionMode === "wiring_from_pin") {
         const rect = svgRef.current?.getBoundingClientRect();
         if (!rect) return;
         const board = screenToBoard(e.clientX - rect.left, e.clientY - rect.top);
@@ -482,6 +535,14 @@ function BreadboardCanvasInner() {
         if (!ghostRef.current || ghostRef.current.row !== grid.row || ghostRef.current.col !== grid.col) {
           ghostRef.current = grid;
           setGhostPos(grid);
+        }
+        // Also send pointer move for the interaction machine to track currentX/Y
+        if (interactionMode === "wiring_from_pin") {
+          breadboardInteractionActor.send({
+            type: "POINTER_MOVE",
+            x: board.x,
+            y: board.y,
+          });
         }
       }
     },
@@ -536,7 +597,9 @@ function BreadboardCanvasInner() {
       ? "cursor-copy"
       : interactionMode === "dragging"
         ? "cursor-grabbing"
-        : "cursor-crosshair";
+        : interactionMode === "wiring_from_pin"
+          ? "cursor-crosshair"
+          : "cursor-crosshair";
 
   // Breadboard body coordinates
   const bbX = BREADBOARD_OFFSET_X;
@@ -560,7 +623,11 @@ function BreadboardCanvasInner() {
         transform={`translate(${cam.offsetX}, ${cam.offsetY}) scale(${cam.zoom})`}
       >
         {/* ── Arduino Uno board (fixed, left side) ── */}
-        <ArduinoUnoBoard />
+        <ArduinoUnoBoard
+          pinStates={state.pinStates}
+          onStartWireFromPin={handleStartWireFromPin}
+          wiringFromPin={wiringFromPin}
+        />
 
         {/* ── Breadboard ── */}
         <g>
@@ -728,12 +795,53 @@ function BreadboardCanvasInner() {
             componentType={placingType}
           />
         )}
+
+        {/* ── Wire preview while wiring from Arduino pin ── */}
+        {interactionMode === "wiring_from_pin" && wiringFromPin && ghostPos && (
+          <g pointerEvents="none">
+            {/* Dashed line from Arduino pin to nearest breadboard hole */}
+            <line
+              x1={wireFromPos.x}
+              y1={wireFromPos.y}
+              x2={gridToPixel(ghostPos).x}
+              y2={gridToPixel(ghostPos).y}
+              stroke="#fbbf24"
+              strokeWidth={2}
+              strokeDasharray="4 2"
+              opacity={0.8}
+            />
+            {/* Target hole indicator */}
+            <circle
+              cx={gridToPixel(ghostPos).x}
+              cy={gridToPixel(ghostPos).y}
+              r={4}
+              fill="#fbbf24"
+              fillOpacity={0.3}
+              stroke="#fbbf24"
+              strokeWidth={1}
+            />
+            {/* Source pin indicator */}
+            <circle
+              cx={wireFromPos.x}
+              cy={wireFromPos.y}
+              r={5}
+              fill="none"
+              stroke="#fbbf24"
+              strokeWidth={1.5}
+              opacity={0.6}
+            />
+          </g>
+        )}
       </g>
 
       {/* Mode indicator */}
       {interactionMode !== "idle" && (
         <text x={10} y={20} fontSize={11} fill="#60a5fa" fontFamily="monospace">
-          {interactionMode === "placing" ? `Placing: ${placingType} (click to place, Esc to cancel)` : interactionMode}
+          {interactionMode === "placing"
+            ? `Placing: ${placingType} (click to place, Esc to cancel)`
+            : interactionMode === "wiring_from_pin" && wiringFromPin
+              ? `Wiring from ${wiringFromPin.label} (click breadboard hole to connect, Esc to cancel)`
+              : interactionMode}
         </text>
       )}
     </svg>
