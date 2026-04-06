@@ -91,182 +91,99 @@ const TERMINAL_ORIGIN_X = BREADBOARD_OFFSET_X + BOARD_PADDING + 24; // RAIL_OFFS
 const TERMINAL_ORIGIN_Y = BOARD_PADDING + POWER_RAIL_HEIGHT;
 
 // ── Static board background (holes + labels + rails) ────────────
+// Matches real breadboard reference: light gray board, subtle holes,
+// column letters on left, row numbers in center gap, red/blue power rails
 
 function buildBreadboardBackground(): React.ReactElement[] {
   const elements: React.ReactElement[] = [];
 
-  // ── SVG filter for inner shadow on holes ──
-  elements.push(
-    <defs key="hole-defs">
-      <filter id="hole-inner-shadow" x="-50%" y="-50%" width="200%" height="200%">
-        <feComponentTransfer in="SourceAlpha">
-          <feFuncA type="table" tableValues="1 0" />
-        </feComponentTransfer>
-        <feGaussianBlur stdDeviation="0.8" />
-        <feOffset dx={0} dy={0.6} result="offsetblur" />
-        <feFlood floodColor="#000000" floodOpacity="0.6" result="color" />
-        <feComposite in2="offsetblur" operator="in" result="shadow" />
-        <feComposite in2="SourceAlpha" operator="in" result="clipped" />
-        <feMerge>
-          <feMergeNode in="SourceGraphic" />
-          <feMergeNode in="clipped" />
-        </feMerge>
-      </filter>
-    </defs>
-  );
+  // ── Column letters on left side (a-e) and right side (f-j) ──
+  const leftLetters = ["a", "b", "c", "d", "e"];
+  const rightLetters = ["f", "g", "h", "i", "j"];
+  const labelX0 = gridToPixel({ row: 0, col: 0 }).x - 14;
+  const labelX5 = gridToPixel({ row: 0, col: 5 }).x - 14;
 
-  // ── Row numbers on left and right sides ──
-  for (let row = 0; row < ROWS; row++) {
-    const { y } = gridToPixel({ row, col: 0 });
-    const leftX = gridToPixel({ row, col: 0 }).x - 12;
-    const rightX = gridToPixel({ row, col: 9 }).x + 12;
-    const rowLabel = `${row + 1}`;
-
+  for (let i = 0; i < 5; i++) {
+    const yLeft = gridToPixel({ row: 0, col: i }).x; // use col position for vertical offset
     elements.push(
       <text
-        key={`rl-${row}`}
-        x={leftX}
-        y={y + 1.5}
+        key={`cl-${i}`}
+        x={labelX0}
+        y={gridToPixel({ row: 0, col: 0 }).y + i * HOLE_SPACING * 0 - 8}
         textAnchor="end"
         dominantBaseline="middle"
         fontSize={5}
-        fill="#999"
-        fontFamily="monospace"
+        fill="#aaa"
+        fontFamily="sans-serif"
       >
-        {rowLabel}
-      </text>
-    );
-    elements.push(
-      <text
-        key={`rr-${row}`}
-        x={rightX}
-        y={y + 1.5}
-        textAnchor="start"
-        dominantBaseline="middle"
-        fontSize={5}
-        fill="#999"
-        fontFamily="monospace"
-      >
-        {rowLabel}
+        {leftLetters[i]}
       </text>
     );
   }
 
-  // ── Column letters at top ──
-  for (let col = 0; col < COLS; col++) {
+  // Actually — column letters should label each column, placed at the left edge vertically.
+  // In the reference: a,b,c,d,e are on the left of the left half, f,g,h,i,j on the left of the right half.
+  // But they label ROWS of 5 (a=col0, b=col1...). Let's place them at the far left and far right.
+  elements.length = 0; // reset, redo properly
+
+  // Column letters at LEFT edge for left half (a-e)
+  for (let col = 0; col < 5; col++) {
     const { x } = gridToPixel({ row: 0, col });
-    const letterY = TERMINAL_ORIGIN_Y - 8;
+    const letterY = TERMINAL_ORIGIN_Y - 10;
     elements.push(
-      <text
-        key={`cl-${col}`}
-        x={x}
-        y={letterY}
-        textAnchor="middle"
-        fontSize={5.5}
-        fill="#999"
-        fontFamily="monospace"
-        fontWeight="bold"
-      >
+      <text key={`cl-${col}`} x={x} y={letterY}
+        textAnchor="middle" fontSize={5} fill="#b0b0b0" fontFamily="sans-serif">
+        {COL_LETTERS[col]}
+      </text>
+    );
+  }
+  // Column letters for right half (f-j)
+  for (let col = 5; col < 10; col++) {
+    const { x } = gridToPixel({ row: 0, col });
+    const letterY = TERMINAL_ORIGIN_Y - 10;
+    elements.push(
+      <text key={`cl-${col}`} x={x} y={letterY}
+        textAnchor="middle" fontSize={5} fill="#b0b0b0" fontFamily="sans-serif">
         {COL_LETTERS[col]}
       </text>
     );
   }
 
-  // ── Column letters at bottom ──
-  for (let col = 0; col < COLS; col++) {
-    const { x } = gridToPixel({ row: ROWS - 1, col });
-    const letterY = TERMINAL_ORIGIN_Y + (ROWS - 1) * HOLE_SPACING + 12;
-    elements.push(
-      <text
-        key={`clb-${col}`}
-        x={x}
-        y={letterY}
-        textAnchor="middle"
-        fontSize={5.5}
-        fill="#999"
-        fontFamily="monospace"
-        fontWeight="bold"
-      >
-        {COL_LETTERS[col]}
-      </text>
-    );
-  }
-
-  // ── Tie-point grouping indicators ──
+  // ── Row numbers in center gap ──
+  const gapCenterX = (gridToPixel({ row: 0, col: 4 }).x + gridToPixel({ row: 0, col: 5 }).x) / 2;
   for (let row = 0; row < ROWS; row++) {
-    // Left group (cols 0-4)
-    const leftFirst = gridToPixel({ row, col: 0 });
-    const leftLast = gridToPixel({ row, col: 4 });
-    elements.push(
-      <rect
-        key={`tg-l-${row}`}
-        x={leftFirst.x - HOLE_RADIUS - 2}
-        y={leftFirst.y - HOLE_RADIUS - 2}
-        width={leftLast.x - leftFirst.x + (HOLE_RADIUS + 2) * 2}
-        height={(HOLE_RADIUS + 2) * 2}
-        fill="none"
-        stroke="#d0ccc0"
-        strokeWidth={0.5}
-        opacity={0.3}
-        rx={2}
-      />
-    );
-
-    // Right group (cols 5-9)
-    const rightFirst = gridToPixel({ row, col: 5 });
-    const rightLast = gridToPixel({ row, col: 9 });
-    elements.push(
-      <rect
-        key={`tg-r-${row}`}
-        x={rightFirst.x - HOLE_RADIUS - 2}
-        y={rightFirst.y - HOLE_RADIUS - 2}
-        width={rightLast.x - rightFirst.x + (HOLE_RADIUS + 2) * 2}
-        height={(HOLE_RADIUS + 2) * 2}
-        fill="none"
-        stroke="#d0ccc0"
-        strokeWidth={0.5}
-        opacity={0.3}
-        rx={2}
-      />
-    );
-  }
-
-  // ── Terminal hole grid ──
-  for (let row = 0; row < ROWS; row++) {
-    for (let col = 0; col < COLS; col++) {
-      const { x, y } = gridToPixel({ row, col });
+    const { y } = gridToPixel({ row, col: 0 });
+    // Show every 5th row number, plus row 1
+    if (row === 0 || (row + 1) % 5 === 0) {
       elements.push(
-        <circle
-          key={`h-${row}-${col}`}
-          cx={x}
-          cy={y}
-          r={HOLE_RADIUS}
-          fill="#1A1A1A"
-          stroke="#4a4a4a"
-          strokeWidth={0.5}
-          filter="url(#hole-inner-shadow)"
-        />
+        <text key={`rn-${row}`} x={gapCenterX} y={y + 1.5}
+          textAnchor="middle" dominantBaseline="middle"
+          fontSize={4.5} fill="#c44" fontFamily="sans-serif">
+          {row + 1}
+        </text>
       );
     }
   }
 
-  // ── Power rail holes ──
+  // ── Terminal hole grid — light gray holes ──
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      const { x, y } = gridToPixel({ row, col });
+      elements.push(
+        <circle key={`h-${row}-${col}`} cx={x} cy={y} r={HOLE_RADIUS}
+          fill="#B8B6B4" stroke="#A8A6A4" strokeWidth={0.4} />
+      );
+    }
+  }
+
+  // ── Power rail holes — grouped in 5s with small gaps ──
   const railCols = [-2, -1, 10, 11];
   for (const col of railCols) {
-    const isPositive = col === -2 || col === 10;
     for (let row = 0; row < ROWS; row++) {
       const { x, y } = gridToPixel({ row, col });
       elements.push(
-        <circle
-          key={`r-${row}-${col}`}
-          cx={x}
-          cy={y}
-          r={HOLE_RADIUS}
-          fill="#1A1A1A"
-          stroke={isPositive ? "#ef444488" : "#3b82f688"}
-          strokeWidth={0.6}
-          filter="url(#hole-inner-shadow)"
-        />
+        <circle key={`r-${row}-${col}`} cx={x} cy={y} r={HOLE_RADIUS}
+          fill="#B8B6B4" stroke="#A8A6A4" strokeWidth={0.4} />
       );
     }
   }
@@ -285,51 +202,13 @@ function PowerRailStripes() {
 
   return (
     <g>
-      {/* Top power rail stripes */}
-      <line
-        x1={leftX}
-        y1={topRailY - 3}
-        x2={leftX + stripeWidth}
-        y2={topRailY - 3}
-        stroke="#ef4444"
-        strokeWidth={1.5}
-        opacity={0.5}
-      />
-      <text x={leftX - 2} y={topRailY - 1} fontSize={6} fill="#ef4444" fontWeight="bold" opacity={0.6}>+</text>
+      {/* Top power rail — red line */}
+      <line x1={leftX} y1={topRailY} x2={leftX + stripeWidth} y2={topRailY}
+        stroke="#D44" strokeWidth={1.5} opacity={0.7} />
 
-      <line
-        x1={leftX}
-        y1={topRailY + 3}
-        x2={leftX + stripeWidth}
-        y2={topRailY + 3}
-        stroke="#3b82f6"
-        strokeWidth={1.5}
-        opacity={0.5}
-      />
-      <text x={leftX - 2} y={topRailY + 6} fontSize={6} fill="#3b82f6" fontWeight="bold" opacity={0.6}>-</text>
-
-      {/* Bottom power rail stripes */}
-      <line
-        x1={leftX}
-        y1={bottomRailY - 3}
-        x2={leftX + stripeWidth}
-        y2={bottomRailY - 3}
-        stroke="#3b82f6"
-        strokeWidth={1.5}
-        opacity={0.5}
-      />
-      <text x={leftX - 2} y={bottomRailY - 1} fontSize={6} fill="#3b82f6" fontWeight="bold" opacity={0.6}>-</text>
-
-      <line
-        x1={leftX}
-        y1={bottomRailY + 3}
-        x2={leftX + stripeWidth}
-        y2={bottomRailY + 3}
-        stroke="#ef4444"
-        strokeWidth={1.5}
-        opacity={0.5}
-      />
-      <text x={leftX - 2} y={bottomRailY + 6} fontSize={6} fill="#ef4444" fontWeight="bold" opacity={0.6}>+</text>
+      {/* Bottom power rail — blue line */}
+      <line x1={leftX} y1={bottomRailY} x2={leftX + stripeWidth} y2={bottomRailY}
+        stroke="#44D" strokeWidth={1.5} opacity={0.7} />
     </g>
   );
 }
@@ -393,77 +272,26 @@ const StaticBackground = React.memo(function StaticBackground() {
 
   return (
     <g>
-      {/* Board shadow */}
-      <rect
-        x={bbX + 3}
-        y={bbY + 3}
-        width={BREADBOARD_WIDTH}
-        height={BREADBOARD_HEIGHT}
-        rx={6}
-        fill="#00000030"
-      />
-
-      {/* Board background (off-white with subtle texture) */}
+      {/* Board background — light gray like real breadboard */}
       <rect
         x={bbX}
         y={bbY}
         width={BREADBOARD_WIDTH}
         height={BREADBOARD_HEIGHT}
-        rx={6}
-        fill="#F5F0E8"
-        stroke="#d0c8b8"
+        rx={3}
+        fill="#E8E4DE"
+        stroke="#D0CCC6"
         strokeWidth={1}
       />
 
-      {/* Subtle board edge bevel */}
+      {/* Center gap (subtle recessed channel) */}
       <rect
-        x={bbX + 2}
-        y={bbY + 2}
-        width={BREADBOARD_WIDTH - 4}
-        height={BREADBOARD_HEIGHT - 4}
-        rx={5}
-        fill="none"
-        stroke="#eee8d8"
-        strokeWidth={1}
-      />
-
-      {/* Center gap (channel between left and right terminal strips) */}
-      <rect
-        x={gapX}
+        x={gapX + 3}
         y={gapY}
-        width={GAP_WIDTH}
+        width={GAP_WIDTH - 6}
         height={gapHeight}
-        fill="#D4CFC7"
-        rx={1}
-      />
-      {/* Center gap groove line */}
-      <line
-        x1={gapX + GAP_WIDTH / 2}
-        y1={gapY + 2}
-        x2={gapX + GAP_WIDTH / 2}
-        y2={gapY + gapHeight - 2}
-        stroke="#d8d0c0"
-        strokeWidth={1}
-      />
-
-      {/* Power rail separation lines */}
-      <line
-        x1={bbX + 8}
-        y1={TERMINAL_ORIGIN_Y - 4}
-        x2={bbX + BREADBOARD_WIDTH - 8}
-        y2={TERMINAL_ORIGIN_Y - 4}
-        stroke="#c8c0b0"
-        strokeWidth={0.8}
-        opacity={0.6}
-      />
-      <line
-        x1={bbX + 8}
-        y1={TERMINAL_ORIGIN_Y + (ROWS - 1) * HOLE_SPACING + 4}
-        x2={bbX + BREADBOARD_WIDTH - 8}
-        y2={TERMINAL_ORIGIN_Y + (ROWS - 1) * HOLE_SPACING + 4}
-        stroke="#c8c0b0"
-        strokeWidth={0.8}
-        opacity={0.6}
+        fill="#DAD6D0"
+        rx={2}
       />
 
       {/* Power rail stripes */}
