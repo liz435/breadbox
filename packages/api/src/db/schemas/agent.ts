@@ -43,6 +43,15 @@ export const agentRunRecordSchema = z.object({
 
 export type AgentRunRecord = z.infer<typeof agentRunRecordSchema>;
 
+export const tokenUsageSchema = z.object({
+  inputTokens: z.number().int().nonnegative(),
+  outputTokens: z.number().int().nonnegative(),
+  totalTokens: z.number().int().nonnegative(),
+  model: z.string(),
+});
+
+export type TokenUsageRecord = z.infer<typeof tokenUsageSchema>;
+
 export const agentRunFileSchema = z.object({
   run: agentRunRecordSchema,
   prompt: z.string(),
@@ -50,6 +59,7 @@ export const agentRunFileSchema = z.object({
   messages: z.array(z.unknown()),
   proposedOps: z.array(z.union([boardOpSchema, z.record(z.string(), z.unknown())])),
   appliedOps: z.array(z.union([boardOpSchema, z.record(z.string(), z.unknown())])),
+  tokenUsage: tokenUsageSchema.optional(),
 });
 
 export type AgentRunFile = z.infer<typeof agentRunFileSchema>;

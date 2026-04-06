@@ -125,10 +125,14 @@ export async function runCircuitAgent(ctx: AgentContext): Promise<AgentResult> {
     { role: "user", content: ctx.prompt },
   ];
 
+  const CIRCUIT_MODEL = "claude-haiku-4-5-20251001";
+
   let stepCount = 0;
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
 
   const result = streamText({
-    model: anthropic("claude-haiku-4-5-20251001"),
+    model: anthropic(CIRCUIT_MODEL),
     tools,
     messages,
     stopWhen: stepCountIs(8),
@@ -137,6 +141,10 @@ export async function runCircuitAgent(ctx: AgentContext): Promise<AgentResult> {
       const elapsed = (performance.now() - start).toFixed(1);
       for (const call of toolCalls) {
         log.info(`tool [${call.toolName}]`, call.input);
+      }
+      if (usage) {
+        totalInputTokens += usage.inputTokens ?? 0;
+        totalOutputTokens += usage.outputTokens ?? 0;
       }
       log.info(
         `step ${stepCount} — reason: ${finishReason}, +${elapsed}ms`,
@@ -157,5 +165,11 @@ export async function runCircuitAgent(ctx: AgentContext): Promise<AgentResult> {
     assistantText: text,
     proposedOps: ops,
     messages: allMessages,
+    tokenUsage: {
+      inputTokens: totalInputTokens,
+      outputTokens: totalOutputTokens,
+      totalTokens: totalInputTokens + totalOutputTokens,
+      model: CIRCUIT_MODEL,
+    },
   };
 }

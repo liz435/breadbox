@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
+import { TokenTracker } from "@/chat/token-tracker"
 import type { UseChatMessagesReturn } from "./use-chat-messages"
 
 type AiToolbarProps = {
@@ -79,6 +80,10 @@ export function AiToolbarHistory({ chat }: AiToolbarProps) {
                 Thinking...
               </div>
             )}
+            <TokenTracker
+              sessionTokenUsage={chat.sessionTokenUsage}
+              className="pt-1 border-t border-border mt-2"
+            />
             <div ref={bottomRef} />
           </div>
         </ScrollArea>

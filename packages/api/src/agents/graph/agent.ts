@@ -127,10 +127,14 @@ export async function runGraphAgent(ctx: AgentContext): Promise<AgentResult> {
     { role: "user", content: ctx.prompt },
   ];
 
+  const GRAPH_MODEL = "claude-haiku-4-5-20251001";
+
   let stepCount = 0;
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
 
   const result = streamText({
-    model: anthropic("claude-haiku-4-5-20251001"),
+    model: anthropic(GRAPH_MODEL),
     tools,
     messages,
     stopWhen: stepCountIs(8),
@@ -139,6 +143,10 @@ export async function runGraphAgent(ctx: AgentContext): Promise<AgentResult> {
       const elapsed = (performance.now() - start).toFixed(1);
       for (const call of toolCalls) {
         log.info(`tool [${call.toolName}]`, call.input);
+      }
+      if (usage) {
+        totalInputTokens += usage.inputTokens ?? 0;
+        totalOutputTokens += usage.outputTokens ?? 0;
       }
       log.info(
         `step ${stepCount} — reason: ${finishReason}, +${elapsed}ms`,
@@ -160,5 +168,11 @@ export async function runGraphAgent(ctx: AgentContext): Promise<AgentResult> {
     // Graph ops need to be cast — they share the same base shape but have different kinds
     proposedOps: ops as unknown as AgentResult["proposedOps"],
     messages: allMessages,
+    tokenUsage: {
+      inputTokens: totalInputTokens,
+      outputTokens: totalOutputTokens,
+      totalTokens: totalInputTokens + totalOutputTokens,
+      model: GRAPH_MODEL,
+    },
   };
 }

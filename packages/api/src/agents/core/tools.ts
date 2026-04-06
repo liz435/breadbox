@@ -61,6 +61,7 @@ function makeDelegationTool(
           messages: result.messages,
           proposedOps: result.proposedOps,
           appliedOps: [],
+          tokenUsage: result.tokenUsage,
         });
 
         log.info(
@@ -70,6 +71,7 @@ function makeDelegationTool(
         return {
           assistantText: result.assistantText,
           opsCount: result.proposedOps.length,
+          tokenUsage: result.tokenUsage,
         };
       } catch (err) {
         log.error(`${agentName} agent failed`, err);

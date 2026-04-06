@@ -118,6 +118,12 @@ async function completeRun(params: {
   proposedOps: BoardOp[];
   appliedOps: BoardOp[];
   error?: string;
+  tokenUsage?: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    model: string;
+  };
 }) {
   const existing = await readRun(params.runId);
   if (!existing) return;
@@ -129,6 +135,7 @@ async function completeRun(params: {
   if (params.messages) existing.messages = params.messages;
   existing.proposedOps = params.proposedOps;
   existing.appliedOps = params.appliedOps;
+  if (params.tokenUsage) existing.tokenUsage = params.tokenUsage;
 
   await writeRun(existing.run.id, existing);
 }

@@ -202,6 +202,7 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
         messages: result.messages,
         proposedOps: result.proposedOps,
         appliedOps,
+        tokenUsage: result.tokenUsage,
       });
 
       const elapsed = (performance.now() - start).toFixed(1);
@@ -275,10 +276,45 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
         });
       }
 
+      // Gather child run token usage (from delegated agents)
+      const allRuns = await agentRunRepo.listRunsForThread(input.threadId);
+      const childRuns = allRuns
+        .filter((r) => r.run.parentRunId === runFile.run.id && r.tokenUsage)
+        .map((r) => ({
+          agent: r.run.agent,
+          inputTokens: r.tokenUsage?.inputTokens ?? 0,
+          outputTokens: r.tokenUsage?.outputTokens ?? 0,
+          totalTokens: r.tokenUsage?.totalTokens ?? 0,
+          model: r.tokenUsage?.model ?? "unknown",
+        }));
+
+      // Send token usage data
+      writer.write({
+        type: "data-token-usage",
+        data: {
+          inputTokens: result.tokenUsage.inputTokens,
+          outputTokens: result.tokenUsage.outputTokens,
+          totalTokens: result.tokenUsage.totalTokens,
+          model: result.tokenUsage.model,
+          childRuns,
+        },
+      });
+
       // Send final result with applied ops and new version
       writer.write({
         type: "data-scene-result",
-        data: { appliedOps, newVersion, runId: runFile.run.id },
+        data: {
+          appliedOps,
+          newVersion,
+          runId: runFile.run.id,
+          tokenUsage: {
+            inputTokens: result.tokenUsage.inputTokens,
+            outputTokens: result.tokenUsage.outputTokens,
+            totalTokens: result.tokenUsage.totalTokens,
+            model: result.tokenUsage.model,
+            childRuns,
+          },
+        },
       });
     },
     onError(error) {

@@ -117,12 +117,16 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
     { role: "user", content: ctx.prompt },
   ];
 
+  const CORE_MODEL = "claude-sonnet-4-6";
+
   let stepCount = 0;
   let opsEmitted = 0;
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
   const opsCallbacks: Array<(newOps: BoardOp[]) => void> = [];
 
   const stream = streamText({
-    model: anthropic("claude-haiku-4-5-20251001"),
+    model: anthropic(CORE_MODEL),
     tools,
     messages,
     stopWhen: stepCountIs(10),
@@ -134,6 +138,10 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
       const elapsed = (performance.now() - start).toFixed(1);
       for (const call of toolCalls) {
         log.info(`tool [${call.toolName}]`, call.input);
+      }
+      if (usage) {
+        totalInputTokens += usage.inputTokens ?? 0;
+        totalOutputTokens += usage.outputTokens ?? 0;
       }
       log.info(
         `step ${stepCount} — reason: ${finishReason}, +${elapsed}ms`,
@@ -156,7 +164,17 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
     const allMessages = (await stream.response).messages as ModelMessage[];
     const elapsed = (performance.now() - start).toFixed(1);
     log.info(`completed — ${ops.length} ops, ${stepCount} steps, ${elapsed}ms`);
-    return { assistantText: text, proposedOps: ops, messages: allMessages };
+    return {
+      assistantText: text,
+      proposedOps: ops,
+      messages: allMessages,
+      tokenUsage: {
+        inputTokens: totalInputTokens,
+        outputTokens: totalOutputTokens,
+        totalTokens: totalInputTokens + totalOutputTokens,
+        model: CORE_MODEL,
+      },
+    };
   }
 
   function onNewOps(cb: (newOps: BoardOp[]) => void) {

@@ -16,11 +16,19 @@ export type AgentContext = {
   history?: ModelMessage[];
 };
 
+export type TokenUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  model: string;
+};
+
 export type AgentResult = {
   assistantText: string;
   proposedOps: BoardOp[];
   /** Full model messages from the agent conversation, for persistence/replay. */
   messages: ModelMessage[];
+  tokenUsage: TokenUsage;
 };
 
 /**
