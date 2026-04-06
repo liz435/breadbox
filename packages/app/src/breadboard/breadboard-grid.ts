@@ -471,14 +471,35 @@ export function resolveNets(
   }
 
   // 2. Wire connections
+  // Track which grid points are connected to Arduino pins via -999 sentinel wires
+  const arduinoPinToGridKeys = new Map<number, string[]>();
+
   for (const wire of Object.values(wires)) {
-    const from = pointKey({ row: wire.fromRow, col: wire.fromCol });
-    const to = pointKey({ row: wire.toRow, col: wire.toCol });
-    uf.union(from, to);
+    if (wire.fromRow === -999) {
+      // Arduino pin wire: fromCol is the Arduino pin number.
+      // Union the target breadboard point with a virtual key for the Arduino pin,
+      // so the target net gets the Arduino pin number injected.
+      const arduinoPinNumber = wire.fromCol;
+      const toKey = pointKey({ row: wire.toRow, col: wire.toCol });
+      const virtualKey = `arduino-pin:${arduinoPinNumber}`;
+      uf.union(virtualKey, toKey);
+
+      // Track this association so we can inject the pin number into the net later
+      if (!arduinoPinToGridKeys.has(arduinoPinNumber)) {
+        arduinoPinToGridKeys.set(arduinoPinNumber, []);
+      }
+      arduinoPinToGridKeys.get(arduinoPinNumber)!.push(toKey);
+    } else {
+      const from = pointKey({ row: wire.fromRow, col: wire.fromCol });
+      const to = pointKey({ row: wire.toRow, col: wire.toCol });
+      uf.union(from, to);
+    }
   }
 
   // 3. Collect nets and annotate with Arduino pin numbers from components
   const pinMap = new Map<string, number[]>(); // pointKey -> Arduino pin numbers
+
+  // 3a. From component pin assignments
   for (const comp of Object.values(components)) {
     for (const [_pinName, arduinoPin] of Object.entries(comp.pins)) {
       if (arduinoPin != null) {
@@ -490,22 +511,38 @@ export function resolveNets(
     }
   }
 
+  // 3b. From Arduino pin wires (the -999 sentinel wires)
+  // Inject Arduino pin numbers into any grid point connected via the virtual key
+  for (const [arduinoPinNumber, gridKeys] of arduinoPinToGridKeys) {
+    for (const gridKey of gridKeys) {
+      if (!pinMap.has(gridKey)) pinMap.set(gridKey, []);
+      pinMap.get(gridKey)!.push(arduinoPinNumber);
+    }
+  }
+
   const groups = uf.groups();
   const nets: Net[] = [];
   let netId = 0;
 
   for (const [, keys] of groups) {
-    const points = keys.map((k) => {
+    // Filter out virtual arduino-pin keys — they're not real grid points
+    const realKeys = keys.filter((k) => !k.startsWith("arduino-pin:"));
+    const points = realKeys.map((k) => {
       const [row, col] = k.split(",").map(Number);
       return { row, col };
     });
     const arduinoPins: number[] = [];
     for (const key of keys) {
+      // Check real grid keys for component pin mappings
       const pins = pinMap.get(key);
       if (pins) arduinoPins.push(...pins);
+      // Check virtual arduino-pin keys — extract the pin number directly
+      if (key.startsWith("arduino-pin:")) {
+        const pinNum = parseInt(key.split(":")[1], 10);
+        if (!isNaN(pinNum)) arduinoPins.push(pinNum);
+      }
     }
-    if (arduinoPins.length > 0 || keys.length > 5) {
-      // Only include nets that have component connections or cross wires
+    if (arduinoPins.length > 0 || realKeys.length > 5) {
       nets.push({ id: `net-${netId++}`, points, arduinoPins: [...new Set(arduinoPins)] });
     }
   }
