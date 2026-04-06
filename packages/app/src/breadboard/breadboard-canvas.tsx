@@ -70,6 +70,16 @@ const COMPONENT_ACCENT_COLORS: Partial<Record<ComponentType, string>> = {
   potentiometer: "#78716c",
 };
 
+// ── Wire color from pin category ────────────────────────────────
+function getWireColorForPin(pin: import("./breadboard-grid").ArduinoPinInfo): string {
+  if (pin.label === "GND") return "#42a5f5";
+  if (pin.label === "5V" || pin.label === "3V3" || pin.label === "3.3V" || pin.label === "VIN") return "#ef5350";
+  if (pin.category === "power") return "#9e9e9e";
+  if (pin.isPwm) return "#ff9800";
+  if (pin.category === "analog") return "#81c784";
+  return "#ffd54f";
+}
+
 // ── Column letters ──────────────────────────────────────────────
 const COL_LETTERS = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"];
 
@@ -487,16 +497,16 @@ function BreadboardCanvasInner() {
           // Use sentinel fromRow=-999 to mark this as an Arduino pin wire.
           // fromCol stores the Arduino pin number so the renderer can look up position.
           const currentWiringPin = breadboardInteractionActor.getSnapshot().context.wireFromPin;
-          const pinNumber = currentWiringPin?.pin ?? 0;
+          if (!currentWiringPin) return;
           send({
             type: "ADD_WIRE",
             wire: {
               id: crypto.randomUUID(),
               fromRow: -999,
-              fromCol: pinNumber,
+              fromCol: currentWiringPin.pin,
               toRow: grid.row,
               toCol: grid.col,
-              color: "#fbbf24",
+              color: getWireColorForPin(currentWiringPin),
             },
           });
         }
@@ -800,7 +810,9 @@ function BreadboardCanvasInner() {
         )}
 
         {/* ── Wire preview while wiring from Arduino pin ── */}
-        {interactionMode === "wiring_from_pin" && wiringFromPin && ghostPos && (
+        {interactionMode === "wiring_from_pin" && wiringFromPin && ghostPos && (() => {
+          const previewColor = getWireColorForPin(wiringFromPin);
+          return (
           <g pointerEvents="none">
             {/* Dashed line from Arduino pin to nearest breadboard hole */}
             <line
@@ -808,7 +820,7 @@ function BreadboardCanvasInner() {
               y1={wireFromPos.y}
               x2={gridToPixel(ghostPos).x}
               y2={gridToPixel(ghostPos).y}
-              stroke="#fbbf24"
+              stroke={previewColor}
               strokeWidth={2}
               strokeDasharray="4 2"
               opacity={0.8}
@@ -818,9 +830,9 @@ function BreadboardCanvasInner() {
               cx={gridToPixel(ghostPos).x}
               cy={gridToPixel(ghostPos).y}
               r={4}
-              fill="#fbbf24"
+              fill={previewColor}
               fillOpacity={0.3}
-              stroke="#fbbf24"
+              stroke={previewColor}
               strokeWidth={1}
             />
             {/* Source pin indicator */}
@@ -829,12 +841,13 @@ function BreadboardCanvasInner() {
               cy={wireFromPos.y}
               r={5}
               fill="none"
-              stroke="#fbbf24"
+              stroke={previewColor}
               strokeWidth={1.5}
               opacity={0.6}
             />
           </g>
-        )}
+          );
+        })()}
       </g>
 
       {/* Mode indicator */}
