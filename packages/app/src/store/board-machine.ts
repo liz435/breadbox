@@ -6,7 +6,7 @@ import type {
   BoardState,
   LibraryState,
 } from "@dreamer/schemas";
-import { createDefaultBoardState } from "@dreamer/schemas";
+import { createDefaultBoardState, createDefaultPinStates } from "@dreamer/schemas";
 
 // ── Events ─────────────────────────────────────────────────────────────────
 
@@ -239,12 +239,18 @@ export const boardMachine = setup({
     // ── Bulk load ──
 
     LOAD_BOARD: {
-      actions: assign(({ event }) => ({
-        ...event.state,
-        selectedId: null,
-        _past: [],
-        _future: [],
-      })),
+      actions: assign(({ event }) => {
+        const s = event.state;
+        return {
+          ...s,
+          pinStates: s.pinStates && s.pinStates.length > 0 ? s.pinStates : createDefaultPinStates(),
+          libraryState: s.libraryState ?? { servos: {}, lcd: null, serialBaud: 0 },
+          serialOutput: s.serialOutput ?? [],
+          selectedId: null,
+          _past: [],
+          _future: [],
+        };
+      }),
     },
   },
 });

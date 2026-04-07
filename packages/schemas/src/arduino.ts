@@ -108,7 +108,7 @@ export type Wire = z.infer<typeof wireSchema>;
 export const boardStateSchema = z.object({
   components: z.record(z.string(), boardComponentSchema),
   wires: z.record(z.string(), wireSchema),
-  pinStates: z.array(pinStateSchema).default([]),
+  pinStates: z.array(pinStateSchema).default(createDefaultPinStates()),
   libraryState: libraryStateSchema.default({ servos: {}, lcd: null, serialBaud: 0 }),
   serialOutput: z.array(z.string()).default([]),
   sketchCode: z.string(),

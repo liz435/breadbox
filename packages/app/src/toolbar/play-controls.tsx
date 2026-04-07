@@ -10,6 +10,7 @@ import { useCircuitAnalysis } from "@/simulator/circuit-analysis-hook"
 import { cn } from "@/utils/classnames"
 import { markSerialUnread } from "./edit-toolbar"
 import { getComponentFootprint, areConnected } from "@/breadboard/breadboard-grid"
+import { simulationRef } from "@/simulator/simulation-ref"
 
 export function PlayControls() {
   const { state, send: boardSend } = useBoard()
@@ -110,13 +111,17 @@ export function PlayControls() {
     return result.size > 0 ? result : null
   }, [])
 
-  const { status, error, play, pause, resume, stop } = useSimulation({
+  const sim = useSimulation({
     onPinWrite,
     onPinMode,
     onSerialPrint,
     onLibraryStateChange,
     getAnalogInputs,
   })
+  const { status, error, play, pause, resume, stop } = sim
+
+  // Expose the simulation globally so the sketch editor can use the same instance
+  simulationRef.current = sim
 
   const sketchCodeRef = useRef(state.sketchCode)
   sketchCodeRef.current = state.sketchCode

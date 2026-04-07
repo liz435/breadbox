@@ -3,13 +3,23 @@
 // Connects the Arduino VM to the simulation state machine and the board
 // state machine via a React hook. Drives the rAF loop.
 
-import { useCallback, useEffect, useRef } from "react"
+import React, { useCallback, useEffect, useRef } from "react"
 import { useMachine } from "@xstate/react"
 import { simulationMachine } from "./simulation-machine"
 import { createArduinoVM, type ArduinoVM, type ArduinoVMCallbacks, type VMMode } from "./arduino-vm"
+import { analyzeCircuit, type CircuitAnalysis } from "./circuit-solver"
+import { getComponentFootprint, areConnected } from "@/breadboard/breadboard-grid"
+import { BoardContext } from "@/store/board-context"
 import type { LibraryState, ServoState } from "@dreamer/schemas"
 
 export type SimulationStatus = "stopped" | "compiling" | "running" | "paused" | "error"
+
+/**
+ * Global ref to the latest circuit analysis computed inside the simulation tick.
+ * The circuit analysis React hook reads from this when the simulation is running,
+ * avoiding the chicken-and-egg timing problem between React renders and the rAF loop.
+ */
+export const latestSimAnalysisRef: { current: React.RefObject<CircuitAnalysis | null> | null } = { current: null }
 
 export type SimulationActions = {
   status: SimulationStatus
@@ -40,6 +50,9 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
   const rafRef = useRef<number | null>(null)
   const modeRef = useRef<VMMode>(options.mode ?? "transpile")
   modeRef.current = options.mode ?? "transpile"
+
+  // Board actor for reading live state in the tick loop
+  const boardActor = BoardContext.useActorRef()
 
   // Keep latest callbacks in a ref to avoid re-creating the VM on every render
   const callbacksRef = useRef<SimulationHookOptions>(options)
@@ -117,6 +130,7 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
   const cancelLoop = useCallback(() => {
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current)
+      clearTimeout(rafRef.current)
       rafRef.current = null
     }
   }, [])
@@ -158,21 +172,79 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     onLibChange({ servos, lcd })
   }, [])
 
+  // Shared analysis result — updated inside the tick loop.
+  // Also exposed globally so the circuit analysis hook can read it.
+  const analysisResultRef = useRef<CircuitAnalysis | null>(null)
+  latestSimAnalysisRef.current = analysisResultRef
+
+  /** Run circuit analysis and feed analog values into the VM. */
+  function runInlineAnalysis() {
+    const ctx = boardActor.getSnapshot().context
+    const hasCircuitComponents = Object.values(ctx.components).some(
+      c => c.type !== "arduino_uno" && c.type !== "wire"
+    )
+    if (!hasCircuitComponents) {
+      analysisResultRef.current = null
+      return
+    }
+
+    try {
+      const result = analyzeCircuit(ctx.components, ctx.wires, ctx.pinStates)
+      analysisResultRef.current = result
+
+      if (!result.isValid) return
+      const vm = vmRef.current
+      if (!vm) return
+
+      // Feed component voltages to analog pins
+      // 1. Explicit pin assignments
+      for (const comp of Object.values(ctx.components)) {
+        const compState = result.componentStates.get(comp.id)
+        if (!compState) continue
+        for (const [, pin] of Object.entries(comp.pins)) {
+          if (pin !== null && pin >= 14 && pin <= 19) {
+            vm.setAnalogInput(pin, Math.round((Math.min(5, Math.abs(compState.voltage)) / 5) * 1023))
+          }
+        }
+      }
+
+      // 2. Wire-based: Arduino analog pin wires landing on component footprints
+      for (const wire of Object.values(ctx.wires)) {
+        if (wire.fromRow !== -999) continue
+        const arduinoPin = wire.fromCol
+        if (arduinoPin < 14 || arduinoPin > 19) continue
+        const wireTo = { row: wire.toRow, col: wire.toCol }
+        for (const comp of Object.values(ctx.components)) {
+          if (comp.type === "arduino_uno" || comp.type === "wire") continue
+          const compState = result.componentStates.get(comp.id)
+          if (!compState) continue
+          const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation)
+          if (footprint.points.some(pt => areConnected(wireTo, pt))) {
+            vm.setAnalogInput(arduinoPin, Math.round((Math.min(5, Math.abs(compState.voltage)) / 5) * 1023))
+            break
+          }
+        }
+      }
+    } catch {
+      analysisResultRef.current = null
+    }
+  }
+
   const startLoop = useCallback(() => {
     cancelLoop()
+
+    let frameCount = 0
 
     function tick() {
       const vm = vmRef.current
       if (!vm) return
 
-      // Feed analog values from circuit solver into VM
-      const analogInputs = callbacksRef.current.getAnalogInputs?.()
-      if (analogInputs) {
-        for (const [pin, voltage] of analogInputs) {
-          // Convert 0-5V to 0-1023 ADC range
-          const adcValue = Math.round((voltage / 5) * 1023)
-          vm.setAnalogInput(pin, adcValue)
-        }
+      frameCount++
+
+      // Run circuit analysis every 12 frames (~5 times/sec at 60fps)
+      // Also run on the very first frame so analog values are seeded
+      if (frameCount === 1 || frameCount % 12 === 0) {
+        runInlineAnalysis()
       }
 
       // Run loop iteration — it may return false if delaying
@@ -181,7 +253,14 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
       // Sync library state (servos, LCD) to board machine
       syncLibraryState()
 
-      rafRef.current = requestAnimationFrame(tick)
+      // Yield to React every 4th frame
+      if (frameCount % 4 === 0) {
+        rafRef.current = setTimeout(() => {
+          rafRef.current = requestAnimationFrame(tick)
+        }, 0) as unknown as number
+      } else {
+        rafRef.current = requestAnimationFrame(tick)
+      }
     }
 
     rafRef.current = requestAnimationFrame(tick)
@@ -220,6 +299,7 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
 
         send({ type: "COMPILE_SUCCESS" })
         vm.runSetup()
+        runInlineAnalysis()
         startLoop()
       }
     },
@@ -240,8 +320,12 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     cancelLoop()
     stopAllTones()
     vmRef.current?.reset()
+    // Reset pin states so LEDs/components go back to off
+    boardActor.send({ type: "RESET_PINS" })
+    // Clear the simulation analysis so visuals reflect the stopped state
+    analysisResultRef.current = null
     send({ type: "STOP" })
-  }, [send, cancelLoop])
+  }, [send, cancelLoop, boardActor])
 
   // Cleanup on unmount
   useEffect(() => {

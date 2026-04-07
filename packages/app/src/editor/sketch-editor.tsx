@@ -38,7 +38,7 @@ import { tags as t } from "@lezer/highlight"
 import { arduinoCompletionSource } from "./arduino-completions"
 import { arduinoLinter } from "./arduino-linter"
 import { useBoard } from "@/store/board-context"
-import { useSimulation } from "@/simulator/simulation-loop"
+import { simulationRef } from "@/simulator/simulation-ref"
 import { saveRef, editorContentRef } from "@/project/save-ref"
 
 // ── 1. Syntax Highlighting Colors (VS Code Dark+ inspired) ─────────────────
@@ -185,7 +185,15 @@ function SketchEditorInner() {
   const isExternalUpdate = useRef(false)
 
   const { state: boardState, send } = useBoard()
-  const sim = useSimulation()
+
+  // Use the shared simulation from PlayControls (not a separate instance)
+  const [, tickRender] = React.useReducer((c: number) => c + 1, 0)
+  useEffect(() => {
+    // Poll simulation status at 10fps so buttons stay in sync
+    const id = setInterval(tickRender, 100)
+    return () => clearInterval(id)
+  }, [])
+  const sim = simulationRef.current ?? { status: "stopped" as const, error: null, play: () => {}, pause: () => {}, resume: () => {}, stop: () => {}, vm: null }
 
   const lastCodeRef = useRef(boardState.sketchCode)
   lastCodeRef.current = boardState.sketchCode

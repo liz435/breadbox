@@ -1,17 +1,18 @@
 // ── Circuit Analysis Hook ───────────────────────────────────────────────
 //
-// React hook that runs SPICE circuit analysis reactively whenever
-// the board state changes. Uses throttle (not debounce) so analysis
-// still runs periodically during active simulation.
+// React hook that provides circuit analysis results to the UI.
+// When the simulation is running, it reads from the simulation loop's
+// inline analysis (updated every ~12 frames). When stopped, it runs
+// its own analysis reactively on board state changes.
 
-import { useMemo, useRef, useState, useEffect } from "react"
+import { useMemo, useRef, useCallback, useEffect, useReducer } from "react"
 import { useBoardSelector } from "@/store/board-context"
 import {
   analyzeCircuit,
   type CircuitAnalysis,
 } from "./circuit-solver"
+import { latestSimAnalysisRef } from "./simulation-loop"
 
-/** Minimum interval between analysis runs (ms). */
 const THROTTLE_MS = 200
 
 export function useCircuitAnalysis(): {
@@ -22,10 +23,13 @@ export function useCircuitAnalysis(): {
   const wires = useBoardSelector((ctx) => ctx.wires)
   const pinStates = useBoardSelector((ctx) => ctx.pinStates)
 
-  const [analysis, setAnalysis] = useState<CircuitAnalysis | null>(null)
-  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [, forceRender] = useReducer((c: number) => c + 1, 0)
+  const analysisRef = useRef<CircuitAnalysis | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastRunRef = useRef(0)
+
+  const depsRef = useRef({ components, wires, pinStates })
+  depsRef.current = { components, wires, pinStates }
 
   const hasComponents = useMemo(() => {
     return Object.values(components).some(
@@ -33,49 +37,69 @@ export function useCircuitAnalysis(): {
     )
   }, [components])
 
+  const runAnalysis = useCallback(() => {
+    lastRunRef.current = Date.now()
+    timerRef.current = null
+    const { components: c, wires: w, pinStates: p } = depsRef.current
+    try {
+      analysisRef.current = analyzeCircuit(c, w, p)
+    } catch {
+      analysisRef.current = null
+    }
+    forceRender()
+  }, [])
+
+  // When simulation is running, read from its inline analysis result
+  // and re-render periodically to pick up updates
   useEffect(() => {
+    if (!latestSimAnalysisRef.current) return
+
+    const id = setInterval(() => {
+      const simResult = latestSimAnalysisRef.current?.current ?? null
+      if (simResult !== analysisRef.current) {
+        analysisRef.current = simResult
+        forceRender()
+      }
+    }, THROTTLE_MS)
+
+    return () => clearInterval(id)
+  }, [])
+
+  // When simulation is NOT running, compute analysis reactively
+  useEffect(() => {
+    // If the simulation is providing analysis, skip our own computation
+    if (latestSimAnalysisRef.current?.current) return
+
     if (!hasComponents) {
-      setAnalysis(null)
-      setIsAnalyzing(false)
+      if (analysisRef.current !== null) {
+        analysisRef.current = null
+        forceRender()
+      }
       return
     }
 
-    setIsAnalyzing(true)
+    const elapsed = Date.now() - lastRunRef.current
 
-    const now = Date.now()
-    const elapsed = now - lastRunRef.current
-
-    function runAnalysis() {
-      lastRunRef.current = Date.now()
-      try {
-        const result = analyzeCircuit(components, wires, pinStates)
-        setAnalysis(result)
-      } catch {
-        setAnalysis(null)
-      }
-      setIsAnalyzing(false)
-      timerRef.current = null
-    }
-
-    // If enough time has passed, run immediately
     if (elapsed >= THROTTLE_MS) {
       if (timerRef.current !== null) {
         clearTimeout(timerRef.current)
+        timerRef.current = null
       }
       runAnalysis()
     } else if (timerRef.current === null) {
-      // Schedule a run after the remaining throttle window
       timerRef.current = setTimeout(runAnalysis, THROTTLE_MS - elapsed)
     }
-    // If a timer is already pending, let it fire — don't reset it (throttle, not debounce)
+  }, [components, wires, pinStates, hasComponents, runAnalysis])
 
+  // Cleanup on unmount
+  useEffect(() => {
     return () => {
       if (timerRef.current !== null) {
         clearTimeout(timerRef.current)
         timerRef.current = null
       }
     }
-  }, [components, wires, pinStates, hasComponents])
+  }, [])
 
-  return { analysis, isAnalyzing }
+  return { analysis: analysisRef.current, isAnalyzing: timerRef.current !== null }
 }
