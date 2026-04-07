@@ -82,6 +82,17 @@
   }
 }
 
+/* Arduino pin hover effects — pure CSS, no React state */
+.arduino-pin .pin-hole {
+  transition: stroke-width 0.1s ease, filter 0.1s ease;
+}
+
+.arduino-pin:hover .pin-hole {
+  stroke-width: 2;
+  filter: drop-shadow(0 0 3px currentColor);
+  r: 5;
+}
+
 html,
 body,
 #root {

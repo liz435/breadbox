@@ -67,7 +67,7 @@ export const agentRunRoutes = new Elysia({ prefix: "/agent" }).post(
       let appliedOps = [] as typeof result.proposedOps;
 
       if (result.proposedOps.length > 0) {
-        const applyResult = await projectRepo.applyOps(input.projectId, {
+        const applyResult = await projectRepo.applyBoardOps(input.projectId, {
           expectedVersion: input.expectedVersion,
           ops: result.proposedOps,
         });

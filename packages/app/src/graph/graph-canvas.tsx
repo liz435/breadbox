@@ -370,7 +370,7 @@ export function GraphCanvas() {
             .then((result) => {
               send({
                 type: "ADD_NODE",
-                node: createGraphNode("sprite", {
+                node: createGraphNode("code_block", {
                   name: char.name.replace(/\.png$/, ""),
                   x: worldX,
                   y: worldY,
@@ -386,10 +386,10 @@ export function GraphCanvas() {
               switchProject(projectId);
             })
             .catch(() => {
-              // Fallback: create sprite node with the original URL
+              // Fallback: create code_block node with the original URL
               send({
                 type: "ADD_NODE",
-                node: createGraphNode("sprite", {
+                node: createGraphNode("code_block", {
                   name: char.name.replace(/\.png$/, ""),
                   x: worldX,
                   y: worldY,
@@ -408,33 +408,21 @@ export function GraphCanvas() {
 
       for (const file of Array.from(files)) {
         const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-        let nodeType: GraphNodeType["type"] | null = null;
+        let nodeType: GraphNodeTypeEnum | null = null;
         let isMediaFile = false;
 
         if (
           file.type.startsWith("image/") ||
           ["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(ext)
         ) {
-          nodeType = "sprite";
+          nodeType = "code_block";
           isMediaFile = true;
-        } else if (["glsl", "wgsl", "frag", "vert", "hlsl"].includes(ext)) {
-          nodeType = "shader";
-        } else if (
-          file.type.startsWith("audio/") ||
-          ["mp3", "wav", "ogg", "flac", "aac"].includes(ext)
-        ) {
-          nodeType = "audio";
-          isMediaFile = true;
-        } else if (
-          file.type.startsWith("video/") ||
-          ["mp4", "webm", "mov", "avi"].includes(ext)
-        ) {
-          nodeType = "video";
-          isMediaFile = true;
+        } else if (["ino", "cpp", "c", "h"].includes(ext)) {
+          nodeType = "code_block";
         } else if (["ts", "js", "tsx", "jsx"].includes(ext)) {
-          nodeType = "code";
+          nodeType = "code_block";
         } else if (["json", "yaml", "yml", "txt", "md"].includes(ext)) {
-          nodeType = "text";
+          nodeType = "code_block";
         }
 
         if (!nodeType) continue;

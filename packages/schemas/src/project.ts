@@ -5,6 +5,7 @@ import {
   vec2Schema,
 } from "./primitives";
 import { graphNodeSchema, edgeSchema } from "./graph";
+import { boardStateSchema } from "./arduino";
 
 // Re-export primitives for backwards compatibility
 export { nonEmptyStringSchema, timestampSchema, vec2Schema };
@@ -168,6 +169,7 @@ export const projectFileSchema = z.object({
       edges: z.record(z.string(), edgeSchema),
     })
     .optional(),
+  boardState: boardStateSchema.optional(),
 });
 
 export type ProjectFile = z.infer<typeof projectFileSchema>;

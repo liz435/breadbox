@@ -13,21 +13,31 @@ const NODE_DEFAULTS: Record<
   GraphNodeType,
   { width: number; height: number; name: string }
 > = {
-  sprite: { width: 200, height: 150, name: "Sprite" },
-  shader: { width: 240, height: 160, name: "Shader" },
-  code: { width: 240, height: 160, name: "Script" },
-  audio: { width: 200, height: 140, name: "Audio" },
-  video: { width: 200, height: 170, name: "Video" },
-  text: { width: 200, height: 130, name: "Text" },
-  material: { width: 200, height: 120, name: "Material" },
+  setup: { width: 160, height: 70, name: "Setup" },
+  loop: { width: 160, height: 70, name: "Loop" },
+  digital_write: { width: 180, height: 100, name: "Digital Write" },
+  digital_read: { width: 180, height: 100, name: "Digital Read" },
+  pin_mode: { width: 180, height: 90, name: "Pin Mode" },
+  analog_write: { width: 180, height: 100, name: "Analog Write" },
+  analog_read: { width: 180, height: 100, name: "Analog Read" },
+  delay: { width: 140, height: 80, name: "Delay" },
+  millis: { width: 140, height: 70, name: "Millis" },
+  micros: { width: 140, height: 70, name: "Micros" },
+  serial_begin: { width: 180, height: 80, name: "Serial Begin" },
+  serial_print: { width: 200, height: 100, name: "Serial Print" },
+  serial_read: { width: 180, height: 90, name: "Serial Read" },
+  if_else: { width: 180, height: 120, name: "If / Else" },
+  comparison: { width: 160, height: 90, name: "Comparison" },
+  logic_gate: { width: 140, height: 80, name: "Logic Gate" },
   math: { width: 160, height: 90, name: "Math" },
-  group: { width: 240, height: 160, name: "Group" },
-  on_start: { width: 160, height: 70, name: "On Start" },
-  on_update: { width: 160, height: 80, name: "On Update" },
-  on_input: { width: 160, height: 80, name: "On Input" },
-  input_map: { width: 200, height: 120, name: "Input Map" },
-  composer: { width: 200, height: 100, name: "Composer" },
-  output: { width: 200, height: 120, name: "Output" },
+  map_value: { width: 180, height: 100, name: "Map Value" },
+  constrain: { width: 180, height: 90, name: "Constrain" },
+  variable: { width: 160, height: 90, name: "Variable" },
+  constant: { width: 140, height: 70, name: "Constant" },
+  servo_write: { width: 180, height: 100, name: "Servo Write" },
+  tone: { width: 180, height: 100, name: "Tone" },
+  lcd_print: { width: 200, height: 110, name: "LCD Print" },
+  code_block: { width: 240, height: 160, name: "Code Block" },
 };
 
 function generateId(): string {
@@ -56,67 +66,63 @@ export function createGraphNode(
 
 function getDefaultNodeData(type: GraphNodeType): Record<string, unknown> {
   switch (type) {
-    case "sprite":
-      return { tint: "#4a9eff", sceneX: 400, sceneY: 300 };
-    case "shader":
-      return {
-        language: "glsl",
-        code: [
-          "precision mediump float;",
-          "",
-          "varying vec2 vTextureCoord;",
-          "uniform sampler2D uSampler;",
-          "",
-          "void main() {",
-          "  gl_FragColor = texture2D(uSampler, vTextureCoord);",
-          "}",
-        ].join("\n"),
-      };
-    case "code":
-      return {
-        language: "typescript",
-        code: [
-          "// Script node",
-          "export function update(dt: number) {",
-          "  ",
-          "}",
-        ].join("\n"),
-      };
-    case "audio":
-      return { volume: 1.0, pitch: 1.0, loop: false };
-    case "video":
-      return { playbackRate: 1.0, loop: false };
-    case "text":
-      return { content: "" };
-    case "material":
-      return { blend: "normal" };
+    case "setup":
+      return {};
+    case "loop":
+      return {};
+    case "digital_write":
+      return { pin: 13, value: "HIGH" };
+    case "digital_read":
+      return { pin: 2 };
+    case "pin_mode":
+      return { pin: 13, mode: "OUTPUT" };
+    case "analog_write":
+      return { pin: 9, value: 128 };
+    case "analog_read":
+      return { pin: 0 };
+    case "delay":
+      return { ms: 1000 };
+    case "millis":
+      return {};
+    case "micros":
+      return {};
+    case "serial_begin":
+      return { baudRate: 9600 };
+    case "serial_print":
+      return { value: "", newline: true };
+    case "serial_read":
+      return {};
+    case "if_else":
+      return {};
+    case "comparison":
+      return { operator: "==" };
+    case "logic_gate":
+      return { gate: "AND" };
     case "math":
       return { operation: "add" };
-    case "group":
-      return { childNodeIds: [] };
-    case "on_start":
-      return {};
-    case "on_update":
-      return {};
-    case "on_input":
-      return { listenKeys: ["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"] };
-    case "input_map":
+    case "map_value":
+      return { fromLow: 0, fromHigh: 1023, toLow: 0, toHigh: 255 };
+    case "constrain":
+      return { low: 0, high: 255 };
+    case "variable":
+      return { name: "myVar", dataType: "integer", initialValue: 0 };
+    case "constant":
+      return { value: 0, dataType: "integer" };
+    case "servo_write":
+      return { pin: 9, angle: 90 };
+    case "tone":
+      return { pin: 8, frequency: 440, duration: 0 };
+    case "lcd_print":
+      return { address: 0x27, cols: 16, rows: 2, text: "" };
+    case "code_block":
       return {
-        actions: [
-          { name: "move_up", label: "Move Up", keys: ["w", "W", "ArrowUp"] },
-          { name: "move_down", label: "Move Down", keys: ["s", "S", "ArrowDown"] },
-          { name: "move_left", label: "Move Left", keys: ["a", "A", "ArrowLeft"] },
-          { name: "move_right", label: "Move Right", keys: ["d", "D", "ArrowRight"] },
-        ],
+        language: "cpp",
+        code: "// Custom Arduino code\n",
       };
-    case "composer":
-      return {};
-    case "output":
-      return { background: "#000000", resolution: { width: 800, height: 600 } };
   }
 }
 
-// ── Input map actions ────────────────────────────────────────────────────────
+// ── Input map actions (legacy, used by graph inspector) ─────────────────────
 
 export type InputAction = {
   name: string;
@@ -124,7 +130,7 @@ export type InputAction = {
   keys: string[];
 };
 
-// ── Math operations ─────────────────────────────────────────────────────────
+// ── Math operations ───────────────────��────────────────────────���────────────
 
 export type MathOperation =
   | "add"

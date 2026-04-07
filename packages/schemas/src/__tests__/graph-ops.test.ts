@@ -17,8 +17,8 @@ describe("graphOpSchema", () => {
       payload: {
         node: {
           id: "node-1",
-          type: "sprite",
-          name: "Player",
+          type: "digital_write",
+          name: "LED Output",
           x: 100,
           y: 200,
           width: 200,
@@ -53,7 +53,7 @@ describe("graphOpSchema", () => {
     const op: GraphOp = {
       ...BASE,
       kind: "update_graph_node_data",
-      payload: { nodeId: "node-1", patch: { shaderCode: "void main() {}" } },
+      payload: { nodeId: "node-1", patch: { code: "digitalWrite(13, HIGH);" } },
     };
     expect(graphOpSchema.safeParse(op).success).toBe(true);
   });
@@ -66,9 +66,9 @@ describe("graphOpSchema", () => {
         edge: {
           id: "edge-1",
           sourceNodeId: "node-1",
-          sourcePortId: "texture_out",
+          sourcePortId: "flow_out",
           targetNodeId: "node-2",
-          targetPortId: "texture_in",
+          targetPortId: "flow_in",
         },
       },
     };

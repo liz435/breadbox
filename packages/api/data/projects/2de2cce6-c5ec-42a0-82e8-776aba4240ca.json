@@ -1,0 +1,84 @@
+{
+  "project": {
+    "id": "2de2cce6-c5ec-42a0-82e8-776aba4240ca",
+    "name": "light-dove-gear",
+    "version": 0,
+    "createdAt": "2026-04-07T02:29:17.275Z",
+    "updatedAt": "2026-04-07T03:30:25.313Z",
+    "threadId": "07b5739e-b49d-434c-a469-2fb71a775926",
+    "activeSceneId": "172c8785-0b35-43ed-9b15-87937680e78e"
+  },
+  "scenes": {
+    "172c8785-0b35-43ed-9b15-87937680e78e": {
+      "id": "172c8785-0b35-43ed-9b15-87937680e78e",
+      "name": "Main Scene",
+      "version": 0,
+      "settings": {
+        "background": "#252525",
+        "gravity": {
+          "x": 0,
+          "y": 9.8
+        }
+      }
+    }
+  },
+  "entities": {},
+  "sceneEntityIds": {
+    "172c8785-0b35-43ed-9b15-87937680e78e": []
+  },
+  "components": {
+    "transform": {},
+    "sprite": {},
+    "tilemap": {},
+    "physicsBody": {},
+    "script": {},
+    "camera": {}
+  },
+  "assets": {},
+  "graph": {
+    "nodes": {
+      "node-1775532292097-21evcf": {
+        "id": "node-1775532292097-21evcf",
+        "type": "setup",
+        "name": "Setup",
+        "x": 60,
+        "y": 60,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      },
+      "node-1775532292097-1so90n": {
+        "id": "node-1775532292097-1so90n",
+        "type": "loop",
+        "name": "Loop",
+        "x": 60,
+        "y": 200,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      }
+    },
+    "edges": {}
+  },
+  "boardState": {
+    "components": {},
+    "wires": {},
+    "sketchCode": "void setup() {\n}\n\nvoid loop() {\n}\n"
+  }
+}

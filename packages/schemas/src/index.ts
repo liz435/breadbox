@@ -40,17 +40,6 @@ export {
 } from "./ops";
 
 export {
-  generatedImageSchema,
-  type GeneratedImage,
-  spriteSheetSchema,
-  type SpriteSheet,
-  extractedFrameSchema,
-  type ExtractedFrame,
-  extractedSpriteSheetSchema,
-  type ExtractedSpriteSheet,
-} from "./character";
-
-export {
   portDataTypeSchema,
   type PortDataType,
   portDirectionSchema,
@@ -73,3 +62,45 @@ export {
   graphOpSchema,
   type GraphOp,
 } from "./graph-ops";
+
+// ── Arduino schemas ────────────────────────────────────────────────────────
+
+export {
+  componentTypeSchema,
+  type ComponentType,
+  pinModeSchema,
+  type PinMode,
+  interruptModeSchema,
+  type InterruptMode,
+  pinStateSchema,
+  type PinState,
+  servoStateSchema,
+  type ServoState,
+  lcdStateSchema,
+  type LcdState,
+  libraryStateSchema,
+  type LibraryState,
+  boardComponentSchema,
+  type BoardComponent,
+  wireSchema,
+  type Wire,
+  boardStateSchema,
+  type BoardState,
+  createDefaultPinStates,
+  createDefaultBoardState,
+} from "./arduino";
+
+export {
+  arduinoNodeTypeSchema,
+  type ArduinoNodeType,
+  arduinoPortDataTypeSchema,
+  type ArduinoPortDataType,
+} from "./arduino-graph";
+
+export {
+  boardOpBaseSchema,
+  boardOpSchema,
+  type BoardOp,
+  applyBoardOpsRequestSchema,
+  type ApplyBoardOpsRequest,
+} from "./board-ops";

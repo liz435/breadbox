@@ -1,0 +1,432 @@
+// ── Schematic Symbols ──────────────────────────────────────────────────
+//
+// Standard IEEE/IEC schematic symbols rendered as SVG React components.
+// Each symbol renders at a given (x, y) position with consistent sizing.
+
+type SymbolProps = {
+  x: number
+  y: number
+  label: string
+  value?: string
+  voltage?: number
+  current?: number
+  isActive?: boolean
+}
+
+const STROKE = "#333"
+const STROKE_ACTIVE = "#ef4444"
+const STROKE_WIDTH = 2
+const FONT_LABEL = "10px monospace"
+const FONT_VALUE = "8px monospace"
+const FONT_ANNOTATION = "8px monospace"
+
+function Annotation({ x, y, voltage, current }: {
+  x: number
+  y: number
+  voltage?: number
+  current?: number
+}) {
+  if (voltage == null && current == null) return null
+  const parts: string[] = []
+  if (voltage != null) parts.push(`${voltage.toFixed(2)}V`)
+  if (current != null) parts.push(`${current.toFixed(1)}mA`)
+  return (
+    <text
+      x={x}
+      y={y}
+      textAnchor="middle"
+      fill="#888"
+      fontStyle="italic"
+      style={{ font: FONT_ANNOTATION }}
+    >
+      {parts.join(" ")}
+    </text>
+  )
+}
+
+export function ResistorSymbol({ x, y, label, value, voltage, current, isActive }: SymbolProps) {
+  const w = 60
+  const h = 12
+  const stroke = isActive ? STROKE_ACTIVE : STROKE
+  // Zigzag with 6 peaks
+  const zigzag = `M ${x} ${y} ` +
+    `l 5 0 l 4 -${h} l 8 ${h * 2} l 8 -${h * 2} l 8 ${h * 2} l 8 -${h * 2} l 8 ${h * 2} l 4 -${h} l 7 0`
+
+  return (
+    <g>
+      <path d={zigzag} fill="none" stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Terminal dots */}
+      <circle cx={x} cy={y} r={3} fill={stroke} />
+      <circle cx={x + w} cy={y} r={3} fill={stroke} />
+      {/* Label above */}
+      <text x={x + w / 2} y={y - 18} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+        {label}
+      </text>
+      {/* Value below */}
+      {value && (
+        <text x={x + w / 2} y={y + 22} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+          {value}
+        </text>
+      )}
+      <Annotation x={x + w / 2} y={y + 34} voltage={voltage} current={current} />
+    </g>
+  )
+}
+
+export function LedSymbol({ x, y, label, value, voltage, current, isActive }: SymbolProps) {
+  const w = 60
+  const triH = 16
+  const stroke = isActive ? "#ef4444" : STROKE
+  const fillColor = isActive ? "rgba(239,68,68,0.3)" : "none"
+
+  return (
+    <g>
+      {/* Triangle (anode left, cathode right) */}
+      <polygon
+        points={`${x + 15},${y - triH / 2} ${x + 15},${y + triH / 2} ${x + 40},${y}`}
+        fill={fillColor}
+        stroke={stroke}
+        strokeWidth={STROKE_WIDTH}
+      />
+      {/* Bar at cathode */}
+      <line x1={x + 40} y1={y - triH / 2} x2={x + 40} y2={y + triH / 2} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Lead lines */}
+      <line x1={x} y1={y} x2={x + 15} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      <line x1={x + 40} y1={y} x2={x + w} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Light emission arrows */}
+      <line x1={x + 30} y1={y - 14} x2={x + 36} y2={y - 20} stroke={stroke} strokeWidth={1} />
+      <line x1={x + 34} y1={y - 12} x2={x + 40} y2={y - 18} stroke={stroke} strokeWidth={1} />
+      {/* Arrowheads */}
+      <polygon points={`${x + 36},${y - 20} ${x + 33},${y - 17} ${x + 35},${y - 16}`} fill={stroke} />
+      <polygon points={`${x + 40},${y - 18} ${x + 37},${y - 15} ${x + 39},${y - 14}`} fill={stroke} />
+      {/* Terminal dots */}
+      <circle cx={x} cy={y} r={3} fill={stroke} />
+      <circle cx={x + w} cy={y} r={3} fill={stroke} />
+      {/* Label */}
+      <text x={x + w / 2} y={y - 24} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+        {label}
+      </text>
+      {value && (
+        <text x={x + w / 2} y={y + 22} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+          {value}
+        </text>
+      )}
+      <Annotation x={x + w / 2} y={y + 34} voltage={voltage} current={current} />
+    </g>
+  )
+}
+
+export function ButtonSymbol({ x, y, label, value, voltage, current, isActive }: SymbolProps) {
+  const w = 60
+  const stroke = isActive ? "#3b82f6" : STROKE
+
+  return (
+    <g>
+      {/* Lead lines */}
+      <line x1={x} y1={y} x2={x + 18} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      <line x1={x + 42} y1={y} x2={x + w} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Gap terminals */}
+      <circle cx={x + 18} cy={y} r={2.5} fill={stroke} />
+      <circle cx={x + 42} cy={y} r={2.5} fill={stroke} />
+      {/* Switch arm (angled line) */}
+      <line x1={x + 18} y1={y} x2={x + 40} y2={y - 12} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Terminal dots */}
+      <circle cx={x} cy={y} r={3} fill={stroke} />
+      <circle cx={x + w} cy={y} r={3} fill={stroke} />
+      {/* Label */}
+      <text x={x + w / 2} y={y - 18} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+        SW {label}
+      </text>
+      {value && (
+        <text x={x + w / 2} y={y + 18} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+          {value}
+        </text>
+      )}
+      <Annotation x={x + w / 2} y={y + 30} voltage={voltage} current={current} />
+    </g>
+  )
+}
+
+export function CapacitorSymbol({ x, y, label, value, voltage, current, isActive }: SymbolProps) {
+  const w = 60
+  const plateH = 16
+  const stroke = isActive ? "#3b82f6" : STROKE
+
+  return (
+    <g>
+      {/* Lead lines */}
+      <line x1={x} y1={y} x2={x + 25} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      <line x1={x + 35} y1={y} x2={x + w} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Flat plate (left) */}
+      <line x1={x + 25} y1={y - plateH / 2} x2={x + 25} y2={y + plateH / 2} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Curved plate (right, electrolytic) */}
+      <path
+        d={`M ${x + 35} ${y - plateH / 2} Q ${x + 32} ${y} ${x + 35} ${y + plateH / 2}`}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={STROKE_WIDTH}
+      />
+      {/* Terminal dots */}
+      <circle cx={x} cy={y} r={3} fill={stroke} />
+      <circle cx={x + w} cy={y} r={3} fill={stroke} />
+      {/* Label */}
+      <text x={x + w / 2} y={y - 16} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+        {label}
+      </text>
+      {value && (
+        <text x={x + w / 2} y={y + 22} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+          {value}
+        </text>
+      )}
+      <Annotation x={x + w / 2} y={y + 34} voltage={voltage} current={current} />
+    </g>
+  )
+}
+
+export function BuzzerSymbol({ x, y, label, value, voltage, current, isActive }: SymbolProps) {
+  const w = 60
+  const r = 14
+  const cx = x + w / 2
+  const stroke = isActive ? "#3b82f6" : STROKE
+
+  return (
+    <g>
+      {/* Lead lines */}
+      <line x1={x} y1={y} x2={cx - r} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      <line x1={cx + r} y1={y} x2={x + w} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Circle */}
+      <circle cx={cx} cy={y} r={r} fill="none" stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* BZ text */}
+      <text x={cx} y={y + 4} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+        BZ
+      </text>
+      {/* Terminal dots */}
+      <circle cx={x} cy={y} r={3} fill={stroke} />
+      <circle cx={x + w} cy={y} r={3} fill={stroke} />
+      {/* Label */}
+      <text x={cx} y={y - r - 6} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+        {label}
+      </text>
+      {value && (
+        <text x={cx} y={y + r + 14} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+          {value}
+        </text>
+      )}
+      <Annotation x={cx} y={y + r + 26} voltage={voltage} current={current} />
+    </g>
+  )
+}
+
+export function ServoSymbol({ x, y, label, value, voltage, current, isActive }: SymbolProps) {
+  const w = 60
+  const h = 30
+  const stroke = isActive ? "#3b82f6" : STROKE
+
+  return (
+    <g>
+      {/* Rectangle (motor) */}
+      <rect
+        x={x + 10}
+        y={y - h / 2}
+        width={w - 20}
+        height={h}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={STROKE_WIDTH}
+        rx={2}
+      />
+      {/* M inside */}
+      <text x={x + w / 2} y={y + 5} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+        M
+      </text>
+      {/* Three terminals at bottom: signal, VCC, GND */}
+      <line x1={x + 18} y1={y + h / 2} x2={x + 18} y2={y + h / 2 + 10} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      <line x1={x + w / 2} y1={y + h / 2} x2={x + w / 2} y2={y + h / 2 + 10} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      <line x1={x + w - 18} y1={y + h / 2} x2={x + w - 18} y2={y + h / 2 + 10} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Terminal dots */}
+      <circle cx={x + 18} cy={y + h / 2 + 10} r={3} fill={stroke} />
+      <circle cx={x + w / 2} cy={y + h / 2 + 10} r={3} fill={stroke} />
+      <circle cx={x + w - 18} cy={y + h / 2 + 10} r={3} fill={stroke} />
+      {/* Pin labels */}
+      <text x={x + 18} y={y + h / 2 + 24} textAnchor="middle" fill="#888" style={{ font: FONT_VALUE }}>
+        SIG
+      </text>
+      <text x={x + w / 2} y={y + h / 2 + 24} textAnchor="middle" fill="#888" style={{ font: FONT_VALUE }}>
+        VCC
+      </text>
+      <text x={x + w - 18} y={y + h / 2 + 24} textAnchor="middle" fill="#888" style={{ font: FONT_VALUE }}>
+        GND
+      </text>
+      {/* Label */}
+      <text x={x + w / 2} y={y - h / 2 - 6} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+        {label}
+      </text>
+      {value && (
+        <text x={x + w / 2} y={y - h / 2 - 18} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+          {value}
+        </text>
+      )}
+      <Annotation x={x + w / 2} y={y + h / 2 + 36} voltage={voltage} current={current} />
+    </g>
+  )
+}
+
+export function PotentiometerSymbol({ x, y, label, value, voltage, current, isActive }: SymbolProps) {
+  const w = 60
+  const h = 12
+  const stroke = isActive ? "#3b82f6" : STROKE
+  // Zigzag like resistor
+  const zigzag = `M ${x} ${y} ` +
+    `l 5 0 l 4 -${h} l 8 ${h * 2} l 8 -${h * 2} l 8 ${h * 2} l 8 -${h * 2} l 8 ${h * 2} l 4 -${h} l 7 0`
+
+  return (
+    <g>
+      <path d={zigzag} fill="none" stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Wiper arrow pointing to middle */}
+      <line x1={x + w / 2} y1={y - 20} x2={x + w / 2} y2={y - h - 2} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      <polygon
+        points={`${x + w / 2},${y - h - 2} ${x + w / 2 - 4},${y - h - 8} ${x + w / 2 + 4},${y - h - 8}`}
+        fill={stroke}
+      />
+      {/* Terminal dots */}
+      <circle cx={x} cy={y} r={3} fill={stroke} />
+      <circle cx={x + w} cy={y} r={3} fill={stroke} />
+      {/* Label */}
+      <text x={x + w / 2} y={y - 28} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+        {label}
+      </text>
+      {value && (
+        <text x={x + w / 2} y={y + 22} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+          {value}
+        </text>
+      )}
+      <Annotation x={x + w / 2} y={y + 34} voltage={voltage} current={current} />
+    </g>
+  )
+}
+
+export function VoltageSourceSymbol({ x, y, label }: SymbolProps) {
+  const r = 14
+  const cx = x + 30
+  const stroke = "#ef4444"
+
+  return (
+    <g>
+      {/* Circle */}
+      <circle cx={cx} cy={y} r={r} fill="none" stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* + and - */}
+      <text x={cx - 4} y={y + 1} fill="#ef4444" style={{ font: "bold 12px monospace" }}>+</text>
+      <text x={cx + 2} y={y + 1} fill="#3b82f6" style={{ font: "bold 12px monospace" }}>-</text>
+      {/* Lead right */}
+      <line x1={cx + r} y1={y} x2={x + 60} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Terminal dot */}
+      <circle cx={x + 60} cy={y} r={3} fill={stroke} />
+      {/* Label */}
+      <text x={cx} y={y - r - 6} textAnchor="middle" fill="#ef4444" style={{ font: FONT_LABEL }}>
+        {label}
+      </text>
+    </g>
+  )
+}
+
+export function GroundSymbol({ x, y, label }: SymbolProps) {
+  const stroke = "#3b82f6"
+
+  return (
+    <g>
+      {/* Lead left */}
+      <line x1={x} y1={y} x2={x + 20} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Terminal dot */}
+      <circle cx={x} cy={y} r={3} fill={stroke} />
+      {/* Three horizontal lines getting shorter */}
+      <line x1={x + 20} y1={y - 8} x2={x + 20} y2={y + 8} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      <line x1={x + 25} y1={y - 5} x2={x + 25} y2={y + 5} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      <line x1={x + 30} y1={y - 2} x2={x + 30} y2={y + 2} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Label */}
+      <text x={x + 25} y={y + 20} textAnchor="middle" fill="#3b82f6" style={{ font: FONT_LABEL }}>
+        {label}
+      </text>
+    </g>
+  )
+}
+
+export function ArduinoPinSymbol({ x, y, label }: SymbolProps) {
+  const w = 36
+  const h = 18
+  const stroke = "#22c55e"
+
+  return (
+    <g>
+      {/* Small rectangle */}
+      <rect
+        x={x}
+        y={y - h / 2}
+        width={w}
+        height={h}
+        fill="rgba(34,197,94,0.15)"
+        stroke={stroke}
+        strokeWidth={STROKE_WIDTH}
+        rx={3}
+      />
+      {/* Pin label */}
+      <text x={x + w / 2} y={y + 4} textAnchor="middle" fill="#22c55e" style={{ font: FONT_LABEL }}>
+        {label}
+      </text>
+      {/* Lead right */}
+      <line x1={x + w} y1={y} x2={x + w + 14} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Terminal dot */}
+      <circle cx={x + w + 14} cy={y} r={3} fill={stroke} />
+    </g>
+  )
+}
+
+export function WireJunction({ x, y }: { x: number; y: number }) {
+  return <circle cx={x} cy={y} r={4} fill="#1a1a1a" />
+}
+
+// ── Symbol Lookup ──────────────────────────────────────────────────────
+
+export type SchematicSymbolType =
+  | "resistor"
+  | "led"
+  | "button"
+  | "capacitor"
+  | "buzzer"
+  | "servo"
+  | "potentiometer"
+  | "voltage_source"
+  | "ground"
+  | "arduino_pin"
+  | "junction"
+
+export function renderSymbol(
+  type: SchematicSymbolType,
+  props: SymbolProps,
+): React.ReactNode {
+  switch (type) {
+    case "resistor":
+      return <ResistorSymbol {...props} />
+    case "led":
+      return <LedSymbol {...props} />
+    case "button":
+      return <ButtonSymbol {...props} />
+    case "capacitor":
+      return <CapacitorSymbol {...props} />
+    case "buzzer":
+      return <BuzzerSymbol {...props} />
+    case "servo":
+      return <ServoSymbol {...props} />
+    case "potentiometer":
+      return <PotentiometerSymbol {...props} />
+    case "voltage_source":
+      return <VoltageSourceSymbol {...props} />
+    case "ground":
+      return <GroundSymbol {...props} />
+    case "arduino_pin":
+      return <ArduinoPinSymbol {...props} />
+    case "junction":
+      return <WireJunction x={props.x} y={props.y} />
+  }
+}
+
+export type { SymbolProps }

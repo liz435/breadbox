@@ -1,6 +1,7 @@
 import { join } from "path";
 import { mkdir, readdir } from "fs/promises";
 import { match } from "ts-pattern";
+import { generateUniqueProjectName } from "../utils/name-generator";
 import {
   applyOpsRequestSchema,
   assetSchema,
@@ -15,7 +16,12 @@ import {
   transformComponentSchema,
   physicsBodyComponentSchema,
   cameraComponentSchema,
+  applyBoardOpsRequestSchema,
+  boardOpSchema,
+  type ApplyBoardOpsRequest,
+  type BoardOp,
 } from "./schemas";
+import { createDefaultBoardState } from "@dreamer/schemas";
 
 const PROJECTS_DIR = join(import.meta.dir, "../../data/projects");
 
@@ -118,10 +124,15 @@ async function createProject(params?: { id?: string; name?: string }) {
     throw new OpValidationError(`Project already exists: ${id}`);
   }
 
-  const project = buildInitialProject({
-    id,
-    name: params?.name ?? "Untitled Project",
-  });
+  // Generate a unique memorable name if none provided
+  let name = params?.name;
+  if (!name || name === "Untitled Project") {
+    const allProjects = await listProjects();
+    const existingNames = new Set(allProjects.map((p) => p.name));
+    name = generateUniqueProjectName(existingNames);
+  }
+
+  const project = buildInitialProject({ id, name });
   await writeProject(id, project);
   return project;
 }
@@ -438,6 +449,84 @@ async function applyOps(projectId: string, req: ApplyOpsRequest) {
   };
 }
 
+// ── Apply board ops ─────────────────────────────────────────────────────────
+
+function applyBoardOp(project: ProjectFile, op: BoardOp): void {
+  if (!project.boardState) {
+    project.boardState = createDefaultBoardState();
+  }
+  const board = project.boardState!;
+
+  switch (op.kind) {
+    case "place_component":
+      board.components[op.payload.component.id] = op.payload.component;
+      break;
+    case "remove_component":
+      delete board.components[op.payload.componentId];
+      break;
+    case "move_component":
+      if (board.components[op.payload.componentId]) {
+        board.components[op.payload.componentId].x = op.payload.x;
+        board.components[op.payload.componentId].y = op.payload.y;
+      }
+      break;
+    case "update_component":
+      if (board.components[op.payload.componentId]) {
+        Object.assign(board.components[op.payload.componentId], op.payload.changes);
+      }
+      break;
+    case "connect_wire":
+      board.wires[op.payload.wire.id] = op.payload.wire;
+      break;
+    case "remove_wire":
+      delete board.wires[op.payload.wireId];
+      break;
+    case "set_pin_mode":
+      if (board.pinStates[op.payload.pin]) {
+        board.pinStates[op.payload.pin].mode = op.payload.mode;
+      }
+      break;
+    case "update_sketch":
+      board.sketchCode = op.payload.code;
+      break;
+    case "update_board_settings":
+      // Merge settings into board state at top level
+      break;
+  }
+}
+
+async function applyBoardOps(projectId: string, req: ApplyBoardOpsRequest) {
+  const input = applyBoardOpsRequestSchema.parse(req);
+  const existing = await readProject(projectId);
+  if (!existing) return null;
+
+  if (existing.project.version !== input.expectedVersion) {
+    throw new VersionConflictError(input.expectedVersion, existing.project.version);
+  }
+
+  const working = structuredClone(existing);
+
+  for (const rawOp of input.ops) {
+    const op = boardOpSchema.parse(rawOp);
+    if (op.expectedVersion !== input.expectedVersion) {
+      throw new OpValidationError(
+        `Op ${op.opId} expectedVersion must equal batch expectedVersion`
+      );
+    }
+    applyBoardOp(working, op);
+  }
+
+  working.project.version += 1;
+  working.project.updatedAt = now();
+
+  await writeProject(projectId, working);
+  return {
+    project: working,
+    newVersion: working.project.version,
+    appliedOps: input.ops,
+  };
+}
+
 // ── List projects ───────────────────────────────────────────────────────────
 
 type ProjectSummary = {
@@ -482,6 +571,21 @@ async function saveGraph(
   if (!existing) return null;
 
   existing.graph = graph as ProjectFile["graph"];
+  existing.project.updatedAt = now();
+  await writeProject(projectId, existing);
+  return { saved: true };
+}
+
+// ── Board state persistence ─────────────────────────────────────────────────
+
+async function saveBoardState(
+  projectId: string,
+  boardState: Record<string, unknown>,
+): Promise<{ saved: true } | null> {
+  const existing = await readProject(projectId);
+  if (!existing) return null;
+
+  existing.boardState = boardState as ProjectFile["boardState"];
   existing.project.updatedAt = now();
   await writeProject(projectId, existing);
   return { saved: true };
@@ -565,7 +669,9 @@ export const projectRepo = {
   readProject,
   writeProject,
   applyOps,
+  applyBoardOps,
   saveGraph,
+  saveBoardState,
   renameProject,
   renameScene,
   deleteProject,
