@@ -301,11 +301,27 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
         nodeB: n3,
       }
     },
+    computeElectricalState: (comp, { voltageDrop }) => {
+      // The wiper voltage is a fraction of the total voltage across the pot.
+      // voltageDrop = V(vcc) - V(gnd). Wiper sits at ratio × voltageDrop.
+      const ratio = ((comp.properties.value as number) ?? 50) / 100
+      const wiperVoltage = Math.abs(voltageDrop) * ratio
+      return {
+        isActive: Math.abs(voltageDrop) > 0.01,
+        voltage: wiperVoltage,
+        current: 0,
+        isReversed: false,
+        brightness: 0,
+      }
+    },
     generateSketch: (comp) => {
       const pin = comp.pins.signal
       if (pin == null) return null
       return {
-        setupLines: [`  // ${comp.name} on analog pin ${pin}`],
+        setupLines: [`  // ${comp.name} on analog pin A${(pin as number) - 14}`],
+        loopLines: [
+          `  int ${sanitize(comp.name)}Val = analogRead(${pin}); // ${comp.name}`,
+        ],
         hasPin: true,
       }
     },
@@ -434,6 +450,7 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     type: "temperature_sensor",
     label: "Temperature Sensor",
     defaultPins: { vcc: null, signal: null, gnd: null },
+    defaultProperties: { temperature: 25 },
     footprint: (row, col) => ({
       points: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }],
       width: HOLE_SPACING * 3,
@@ -446,10 +463,24 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
       </svg>
     ),
     buildNetlist: () => null,
+    computeElectricalState: (comp) => {
+      // TMP36: output voltage = (temperature × 10mV) + 500mV
+      const temp = (comp.properties.temperature as number) ?? 25
+      const voltage = temp * 0.01 + 0.5
+      return { isActive: true, voltage, current: 0, isReversed: false, brightness: 0 }
+    },
     generateSketch: (comp) => {
       const pin = comp.pins.signal
       if (pin == null) return null
-      return { setupLines: [`  // ${comp.name} on pin ${pin}`], hasPin: true }
+      return {
+        setupLines: [`  // ${comp.name} (TMP36) on analog pin A${(pin as number) - 14}`],
+        loopLines: [
+          `  int ${sanitize(comp.name)}Raw = analogRead(${pin}); // ${comp.name}`,
+          `  float ${sanitize(comp.name)}Voltage = ${sanitize(comp.name)}Raw * (5.0 / 1023.0);`,
+          `  float ${sanitize(comp.name)}TempC = (${sanitize(comp.name)}Voltage - 0.5) * 100.0;`,
+        ],
+        hasPin: true,
+      }
     },
   },
 
@@ -559,7 +590,21 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
       </svg>
     ),
     buildNetlist: () => null,
-    generateSketch: () => null,
+    generateSketch: (comp) => {
+      const segPins = [comp.pins.a, comp.pins.b, comp.pins.c, comp.pins.d, comp.pins.e, comp.pins.f, comp.pins.g]
+      const assigned = segPins.filter(p => p != null)
+      if (assigned.length === 0) return null
+      const setupLines = segPins.map((p, i) => {
+        const seg = "abcdefg"[i]
+        return p != null ? `  pinMode(${p}, OUTPUT); // ${comp.name} segment ${seg}` : null
+      }).filter(Boolean) as string[]
+      // Display digit 0 by default (segments a,b,c,d,e,f on, g off)
+      const pattern = [1, 1, 1, 1, 1, 1, 0] // 0 = abcdef
+      const loopLines = segPins.map((p, i) => {
+        return p != null ? `  digitalWrite(${p}, ${pattern[i] ? "HIGH" : "LOW"}); // seg ${("abcdefg")[i]}` : null
+      }).filter(Boolean) as string[]
+      return { setupLines, loopLines, hasPin: true }
+    },
   },
 
   // ── IC Chip ───────────────────────────────────────────────────────────

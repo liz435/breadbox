@@ -1,0 +1,157 @@
+{
+  "project": {
+    "id": "3fe06be1-44c9-41a1-a382-73ae68d75d20",
+    "name": "echo-ox-horn",
+    "version": 0,
+    "createdAt": "2026-04-07T02:27:23.305Z",
+    "updatedAt": "2026-04-07T03:54:35.150Z",
+    "threadId": "93118918-2f59-48c4-a1d2-6301ff8a4537",
+    "activeSceneId": "20968fd8-771e-437d-a12c-1ae9051ed094"
+  },
+  "scenes": {
+    "20968fd8-771e-437d-a12c-1ae9051ed094": {
+      "id": "20968fd8-771e-437d-a12c-1ae9051ed094",
+      "name": "Main Scene",
+      "version": 0,
+      "settings": {
+        "background": "#252525",
+        "gravity": {
+          "x": 0,
+          "y": 9.8
+        }
+      }
+    }
+  },
+  "entities": {},
+  "sceneEntityIds": {
+    "20968fd8-771e-437d-a12c-1ae9051ed094": []
+  },
+  "components": {
+    "transform": {},
+    "sprite": {},
+    "tilemap": {},
+    "physicsBody": {},
+    "script": {},
+    "camera": {}
+  },
+  "assets": {},
+  "graph": {
+    "nodes": {
+      "node-1775528843326-b3soui": {
+        "id": "node-1775528843326-b3soui",
+        "type": "setup",
+        "name": "Setup",
+        "x": 60,
+        "y": 60,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      },
+      "node-1775528843326-ge943f": {
+        "id": "node-1775528843326-ge943f",
+        "type": "loop",
+        "name": "Loop",
+        "x": 60,
+        "y": 200,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      }
+    },
+    "edges": {}
+  },
+  "boardState": {
+    "components": {
+      "c64a49c7-4398-45bb-ace8-4cd61ff0d871": {
+        "id": "c64a49c7-4398-45bb-ace8-4cd61ff0d871",
+        "type": "led",
+        "name": "Led",
+        "x": 0,
+        "y": 9,
+        "rotation": 0,
+        "pins": {
+          "anode": null,
+          "cathode": null
+        },
+        "properties": {
+          "color": "#ef4444"
+        }
+      },
+      "dc3da59f-5e4f-4152-9964-fee12efac547": {
+        "id": "dc3da59f-5e4f-4152-9964-fee12efac547",
+        "type": "potentiometer",
+        "name": "Potentiometer",
+        "x": 1,
+        "y": 4,
+        "rotation": 1,
+        "pins": {
+          "vcc": null,
+          "signal": null,
+          "gnd": null
+        },
+        "properties": {
+          "value": 50
+        }
+      }
+    },
+    "wires": {
+      "c8fa26d8-94a0-4343-808d-ea432b460533": {
+        "id": "c8fa26d8-94a0-4343-808d-ea432b460533",
+        "fromRow": -999,
+        "fromCol": -4,
+        "toRow": 6,
+        "toCol": 0,
+        "color": "#42a5f5"
+      },
+      "9ec404b4-0cb4-4f4c-aa9f-4e6feca80e50": {
+        "id": "9ec404b4-0cb4-4f4c-aa9f-4e6feca80e50",
+        "fromRow": -999,
+        "fromCol": -1,
+        "toRow": 4,
+        "toCol": 0,
+        "color": "#ef5350"
+      },
+      "68c39d9a-2851-4c8e-9cb7-20b6d46fda95": {
+        "id": "68c39d9a-2851-4c8e-9cb7-20b6d46fda95",
+        "fromRow": -999,
+        "fromCol": 14,
+        "toRow": 5,
+        "toCol": 0,
+        "color": "#81c784"
+      },
+      "5bdecc1d-e45c-4af9-b7c4-2393073f2f64": {
+        "id": "5bdecc1d-e45c-4af9-b7c4-2393073f2f64",
+        "fromRow": -999,
+        "fromCol": 9,
+        "toRow": 9,
+        "toCol": 2,
+        "color": "#ff9800"
+      },
+      "88814faf-dd82-41a9-95ef-1ff874b17378": {
+        "id": "88814faf-dd82-41a9-95ef-1ff874b17378",
+        "fromRow": -999,
+        "fromCol": -3,
+        "toRow": 10,
+        "toCol": 1,
+        "color": "#42a5f5"
+      }
+    },
+    "sketchCode": "int potPin = A0;\nint ledPin = 9;\nint potValue = 0;\nint brightness = 0;\n\nvoid setup() {\n  pinMode(ledPin, OUTPUT);\n  pinMode(14, INPUT)\n  \n}\n\nvoid loop() {\n  potValue = analogRead(potPin);\n  Serial.print(potValue)\n  brightness = map(potValue, 0, 1023, 0, 255);\n  analogWrite(ledPin, brightness);\n  delay(10);\n}"
+  }
+}

@@ -6,6 +6,7 @@ import { useBoard } from "@/store/board-context"
 import { useRouter } from "@/router"
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { cn } from "@/utils/classnames"
+import { onSaveFlash } from "@/project/save-ref"
 
 // ── Serial output badge ──────────────────────────────────────────────────
 
@@ -148,6 +149,15 @@ export function EditToolbar() {
   const serialUnread = useSerialUnread()
   const prevSerialLenRef = useRef(state.serialOutput.length)
   const [, setTick] = useState(0)
+  const [saveFlash, setSaveFlash] = useState(false)
+
+  // Flash the project button green on save
+  useEffect(() => {
+    return onSaveFlash(() => {
+      setSaveFlash(true)
+      setTimeout(() => setSaveFlash(false), 600)
+    })
+  }, [])
   const rerender = useCallback(() => setTick(t => t + 1), [])
 
   // Subscribe to dockview layout changes to track panel open/close state
@@ -206,7 +216,10 @@ export function EditToolbar() {
               variant="ghost"
               size="icon"
               onClick={handleProject}
-              className={cn(projectOpen && "bg-neutral-700/60")}
+              className={cn(
+                projectOpen && "bg-neutral-700/60",
+                saveFlash && "bg-emerald-500/30 text-emerald-400 transition-colors duration-300",
+              )}
             />
           }
         >

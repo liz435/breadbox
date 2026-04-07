@@ -1,7 +1,8 @@
 // ── Circuit Analysis Hook ───────────────────────────────────────────────
 //
 // React hook that runs SPICE circuit analysis reactively whenever
-// the board state changes, with debouncing to avoid thrashing.
+// the board state changes. Uses throttle (not debounce) so analysis
+// still runs periodically during active simulation.
 
 import { useMemo, useRef, useState, useEffect } from "react"
 import { useBoardSelector } from "@/store/board-context"
@@ -10,7 +11,8 @@ import {
   type CircuitAnalysis,
 } from "./circuit-solver"
 
-const DEBOUNCE_MS = 250
+/** Minimum interval between analysis runs (ms). */
+const THROTTLE_MS = 200
 
 export function useCircuitAnalysis(): {
   analysis: CircuitAnalysis | null
@@ -23,8 +25,8 @@ export function useCircuitAnalysis(): {
   const [analysis, setAnalysis] = useState<CircuitAnalysis | null>(null)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastRunRef = useRef(0)
 
-  // Track whether there are any circuit-relevant components
   const hasComponents = useMemo(() => {
     return Object.values(components).some(
       (c) => c.type !== "arduino_uno" && c.type !== "wire",
@@ -40,11 +42,11 @@ export function useCircuitAnalysis(): {
 
     setIsAnalyzing(true)
 
-    if (timerRef.current !== null) {
-      clearTimeout(timerRef.current)
-    }
+    const now = Date.now()
+    const elapsed = now - lastRunRef.current
 
-    timerRef.current = setTimeout(() => {
+    function runAnalysis() {
+      lastRunRef.current = Date.now()
       try {
         const result = analyzeCircuit(components, wires, pinStates)
         setAnalysis(result)
@@ -53,7 +55,19 @@ export function useCircuitAnalysis(): {
       }
       setIsAnalyzing(false)
       timerRef.current = null
-    }, DEBOUNCE_MS)
+    }
+
+    // If enough time has passed, run immediately
+    if (elapsed >= THROTTLE_MS) {
+      if (timerRef.current !== null) {
+        clearTimeout(timerRef.current)
+      }
+      runAnalysis()
+    } else if (timerRef.current === null) {
+      // Schedule a run after the remaining throttle window
+      timerRef.current = setTimeout(runAnalysis, THROTTLE_MS - elapsed)
+    }
+    // If a timer is already pending, let it fire — don't reset it (throttle, not debounce)
 
     return () => {
       if (timerRef.current !== null) {

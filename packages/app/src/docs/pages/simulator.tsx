@@ -41,6 +41,7 @@ export function SimulatorPage() {
             ["Button", "current > 0.01 mA", "—"],
             ["Buzzer", "current > 0.5 mA", "min(1, current / 50 mA)"],
             ["Photoresistor", "current > 0.01 mA", "—"],
+            ["Temperature Sensor", "always active", "voltage = temp × 0.01 + 0.5"],
           ]}
         />
       </Section>
@@ -49,18 +50,67 @@ export function SimulatorPage() {
         <Table
           headers={["Component", "SPICE element", "Model"]}
           rows={[
-            ["LED", "Diode (D)", "Is=1e-14, N=1.8 — realistic forward voltage curve"],
+            ["LED", "Resistor (R)", "120 Ω linearized — approximates Vf/typical current"],
             ["Resistor", "Resistor (R)", "Exact ohm value from Inspector"],
             ["Button (open)", "Resistor (R)", "10 MΩ"],
             ["Button (pressed)", "Resistor (R)", "0.01 Ω"],
             ["Buzzer", "Resistor (R)", "30 Ω (piezo impedance)"],
             ["Photoresistor", "Resistor (R)", "10 kΩ fixed (dark value)"],
             ["Potentiometer", "Two resistors", "10 kΩ total — position not yet wired"],
+            ["Temperature Sensor", "None", "Outputs voltage via computeElectricalState (TMP36 model)"],
             ["5V rail", "Voltage source (V)", "5 V DC"],
             ["GND", "Ground node", "SPICE node 0"],
             ["Arduino PWM pin", "Voltage source (V)", "Duty cycle × 5 V"],
           ]}
         />
+        <Note>
+          LEDs use a linearized resistor model (120 Ω) instead of a non-linear diode model
+          because the SPICE solver lacks Newton-Raphson convergence for non-linear elements.
+          This gives realistic current values (14.7 mA with a 220 Ω series resistor at 5V).
+        </Note>
+      </Section>
+
+      <Section title="Analog input (analogRead)">
+        <p className="text-sm text-gray-300 leading-relaxed">
+          Component voltages from the circuit solver are automatically fed into the Arduino VM.
+          When a component has a pin assigned to an analog pin (A0–A5), its voltage is converted
+          to a 0–1023 ADC value (0V = 0, 5V = 1023) and made available via <code>analogRead()</code>.
+        </p>
+        <Table
+          headers={["Component", "Analog behavior"]}
+          rows={[
+            ["Temperature Sensor (TMP36)", "Outputs (temperature × 0.01 + 0.5) V on signal pin"],
+            ["Photoresistor", "Voltage divider output available on assigned analog pin"],
+            ["Potentiometer", "Wiper voltage available on signal pin (when implemented)"],
+          ]}
+        />
+      </Section>
+
+      <Section title="Interrupt handling">
+        <p className="text-sm text-gray-300 leading-relaxed">
+          External interrupts on pins 2 and 3 are fully supported. When a pin's digital state
+          changes, registered ISRs fire based on the configured mode:
+        </p>
+        <Table
+          headers={["Mode", "Fires when…"]}
+          rows={[
+            ["RISING", "Pin transitions from LOW to HIGH"],
+            ["FALLING", "Pin transitions from HIGH to LOW"],
+            ["CHANGE", "Pin transitions in either direction"],
+          ]}
+        />
+        <Note>
+          Use <code>attachInterrupt(digitalPinToInterrupt(2), myISR, RISING)</code> in your sketch.
+          The interrupt fires immediately when the external pin state changes.
+        </Note>
+      </Section>
+
+      <Section title="Tone / audio">
+        <p className="text-sm text-gray-300 leading-relaxed">
+          The <code>tone(pin, frequency)</code> function generates real audio output via the Web Audio
+          API. A square wave oscillator plays at the specified frequency. Use <code>noTone(pin)</code>{" "}
+          to stop. Audio is automatically cleaned up when the simulation stops.
+        </p>
       </Section>
 
       <Section title="Warnings">
@@ -82,10 +132,12 @@ export function SimulatorPage() {
             ["DC steady-state analysis", "Implemented"],
             ["LED brightness and glow", "Implemented"],
             ["Current flow path animation", "Implemented"],
-            ["Schematic voltage/current annotations", "Implemented"],
+            ["analogRead from circuit voltage", "Implemented"],
+            ["Interrupt firing (pins 2, 3)", "Implemented"],
+            ["Tone audio output", "Implemented"],
+            ["Virtual clock (deterministic timing)", "Implemented"],
             ["Capacitor charge/discharge dynamics", "Not implemented — capacitors are visual only"],
             ["AC / frequency response", "Not implemented — DC only"],
-            ["analogRead from sensors (ADC)", "Not implemented — always returns 0"],
             ["Potentiometer position → voltage", "Not implemented — wiper position is visual only"],
             ["Servo electrical simulation", "Not implemented — visual only"],
             ["Short-circuit detection", "Not fully implemented"],
@@ -94,7 +146,7 @@ export function SimulatorPage() {
         />
         <Warn>
           The simulator only runs a DC analysis. Capacitors, inductors, and time-domain effects
-          are not computed. Do not rely on the simulator for AC circuits or sensor readings.
+          are not computed. Do not rely on the simulator for AC circuits.
         </Warn>
       </Section>
 

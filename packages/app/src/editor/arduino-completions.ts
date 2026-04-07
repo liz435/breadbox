@@ -64,6 +64,40 @@ const allCompletions: Completion[] = [
   ...typeCompletions,
 ]
 
+/** Extract user-defined identifiers from the document text. */
+function extractUserIdentifiers(doc: string): Completion[] {
+  const seen = new Set<string>()
+  // Match variable declarations: int/float/char/etc. followed by identifier
+  const varRe = /\b(?:int|float|double|char|bool|boolean|byte|long|short|word|String|unsigned|void|auto)\s+(\w+)/g
+  // Match function definitions: type name(
+  const funcRe = /\b(?:int|float|double|char|bool|boolean|byte|long|short|word|String|void)\s+(\w+)\s*\(/g
+  // Match #define NAME
+  const defineRe = /#define\s+(\w+)/g
+  // Match class/struct Name
+  const classRe = /\b(?:class|struct)\s+(\w+)/g
+
+  const completions: Completion[] = []
+
+  for (const re of [varRe, funcRe, defineRe, classRe]) {
+    let m: RegExpExecArray | null
+    while ((m = re.exec(doc)) !== null) {
+      const name = m[1]
+      // Skip Arduino built-ins and very short names
+      if (name.length < 2 || seen.has(name)) continue
+      seen.add(name)
+      const isFn = re === funcRe
+      const isCls = re === classRe
+      completions.push({
+        label: name,
+        type: isCls ? "class" : isFn ? "function" : "variable",
+        boost: -1, // rank below built-in Arduino completions
+      })
+    }
+  }
+
+  return completions
+}
+
 export function arduinoCompletionSource(
   context: CompletionContext,
 ): CompletionResult | null {
@@ -71,9 +105,17 @@ export function arduinoCompletionSource(
   const word = context.matchBefore(/[\w.]+/)
   if (!word || (word.from === word.to && !context.explicit)) return null
 
+  // Merge built-in completions with user-defined identifiers from current doc
+  const docText = context.state.doc.toString()
+  const userCompletions = extractUserIdentifiers(docText)
+
+  // Filter out the word being typed from user completions (avoid self-suggestion)
+  const currentWord = docText.slice(word.from, word.to)
+  const filtered = userCompletions.filter(c => c.label !== currentWord)
+
   return {
     from: word.from,
-    options: allCompletions,
+    options: [...allCompletions, ...filtered],
     validFor: /^[\w.]*$/,
   }
 }

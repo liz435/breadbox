@@ -2,12 +2,14 @@ import { useCallback, useRef } from "react"
 import { Play, Pause, Square, Cpu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
-import type { LibraryState } from "@dreamer/schemas"
+import type { LibraryState, Wire } from "@dreamer/schemas"
 import { useBoard } from "@/store/board-context"
 import { useDockviewApi } from "@/store/dockview-context"
 import { useSimulation } from "@/simulator/simulation-loop"
+import { useCircuitAnalysis } from "@/simulator/circuit-analysis-hook"
 import { cn } from "@/utils/classnames"
 import { markSerialUnread } from "./edit-toolbar"
+import { getComponentFootprint, areConnected } from "@/breadboard/breadboard-grid"
 
 export function PlayControls() {
   const { state, send: boardSend } = useBoard()
@@ -57,11 +59,63 @@ export function PlayControls() {
     [boardSend],
   )
 
+  // Feed circuit analysis voltages into analogRead()
+  const { analysis } = useCircuitAnalysis()
+  const analysisRef = useRef(analysis)
+  analysisRef.current = analysis
+
+  const stateRef = useRef(state)
+  stateRef.current = state
+
+  const getAnalogInputs = useCallback((): Map<number, number> | null => {
+    const a = analysisRef.current
+    const s = stateRef.current
+    if (!a || !a.isValid) return null
+    const result = new Map<number, number>()
+
+    // 1. Explicit pin assignments: component.pins has an analog pin (14-19)
+    for (const comp of Object.values(s.components)) {
+      const compState = a.componentStates.get(comp.id)
+      if (!compState) continue
+      for (const [, pin] of Object.entries(comp.pins)) {
+        if (pin !== null && pin >= 14 && pin <= 19) {
+          result.set(pin, Math.min(5, Math.abs(compState.voltage)))
+        }
+      }
+    }
+
+    // 2. Wire-based: Arduino analog pin wires that land on a component's footprint net.
+    // Find wires from Arduino analog pins (fromRow=-999, fromCol=14..19)
+    for (const wire of Object.values(s.wires)) {
+      if (wire.fromRow !== -999) continue
+      const arduinoPin = wire.fromCol
+      if (arduinoPin < 14 || arduinoPin > 19) continue
+      if (result.has(arduinoPin)) continue // already set by explicit assignment
+
+      const wireTo = { row: wire.toRow, col: wire.toCol }
+      // Find which component footprint point is on the same breadboard bus
+      for (const comp of Object.values(s.components)) {
+        if (comp.type === "arduino_uno" || comp.type === "wire") continue
+        const compState = a.componentStates.get(comp.id)
+        if (!compState) continue
+        const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation)
+        const connected = footprint.points.some(pt => areConnected(wireTo, pt))
+        if (connected) {
+          result.set(arduinoPin, Math.min(5, Math.abs(compState.voltage)))
+          break
+        }
+      }
+    }
+
+    return result.size > 0 ? result : null
+  }, [])
+
   const { status, error, play, pause, resume, stop } = useSimulation({
     onPinWrite,
     onPinMode,
     onSerialPrint,
     onLibraryStateChange,
+    getAnalogInputs,
   })
 
   const sketchCodeRef = useRef(state.sketchCode)

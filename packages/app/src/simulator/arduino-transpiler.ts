@@ -14,7 +14,14 @@ export type TranspileResult = {
   error?: TranspileError
 }
 
-const KNOWN_LIBRARIES = new Set(["Servo.h", "LiquidCrystal.h"])
+const KNOWN_LIBRARIES = new Set([
+  "Servo.h",
+  "LiquidCrystal.h",
+  "EEPROM.h",
+  "Wire.h",
+  "SPI.h",
+  "Stepper.h",
+])
 
 const C_TYPES = new Set([
   "int",
@@ -49,8 +56,6 @@ const RETURN_TYPES = new Set([
 
 // Unsupported feature patterns
 const POINTER_RE = /[*&]\s*\w+|->|\w+\s*\*\s/
-const STRUCT_RE = /^\s*struct\s+\w+/
-const CLASS_RE = /^\s*class\s+\w+/
 const TEMPLATE_RE = /^\s*template\s*</
 const NAMESPACE_RE = /^\s*namespace\s+\w+/
 
@@ -145,12 +150,6 @@ function detectUnsupported(
       return { line, message: "Pointer arithmetic is not supported" }
     }
   }
-  if (STRUCT_RE.test(trimmed)) {
-    return { line, message: "struct definitions are not supported" }
-  }
-  if (CLASS_RE.test(trimmed)) {
-    return { line, message: "class definitions are not supported" }
-  }
   if (TEMPLATE_RE.test(trimmed)) {
     return { line, message: "Templates are not supported" }
   }
@@ -202,6 +201,17 @@ function transpileLine(line: string): string {
 
   // Substitute Arduino constants
   trimmed = substituteConstants(trimmed)
+
+  // ── class/struct → JS class ─────────────────────────────────
+  // `class Foo {` or `class Foo : public Bar {`
+  const classMatch = trimmed.match(/^(?:class|struct)\s+(\w+)(?:\s*:\s*(?:public|private|protected)\s+\w+)?\s*\{?\s*$/)
+  if (classMatch) {
+    return `${indent}class ${classMatch[1]} ${trimmed.includes("{") ? "{" : ""}`
+  }
+  // `public:` / `private:` / `protected:` → comment (JS classes don't have these)
+  if (/^(?:public|private|protected)\s*:\s*$/.test(trimmed)) {
+    return `${indent}// ${trimmed}`
+  }
 
   // ── const type declarations: `const int PIN = 13;` ─────────
   const constDeclMatch = trimmed.match(

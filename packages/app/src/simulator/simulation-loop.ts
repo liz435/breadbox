@@ -30,6 +30,8 @@ type SimulationHookOptions = {
   onNoTone?: (pin: number) => void
   onError?: (error: string) => void
   onLibraryStateChange?: (changes: Partial<LibraryState>) => void
+  /** Called each tick to feed analog values from circuit solver into the VM */
+  getAnalogInputs?: () => Map<number, number> | null
 }
 
 export function useSimulation(options: SimulationHookOptions = {}): SimulationActions {
@@ -43,14 +45,61 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
   const callbacksRef = useRef<SimulationHookOptions>(options)
   callbacksRef.current = options
 
+  // ── Web Audio tone generation ────────────────────────────────────
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const oscillatorsRef = useRef<Map<number, { osc: OscillatorNode; gain: GainNode; timer?: ReturnType<typeof setTimeout> }>>(new Map())
+
+  function getAudioCtx(): AudioContext {
+    if (!audioCtxRef.current) audioCtxRef.current = new AudioContext()
+    if (audioCtxRef.current.state === "suspended") audioCtxRef.current.resume()
+    return audioCtxRef.current
+  }
+
+  function startTone(pin: number, frequency: number, duration?: number) {
+    stopTone(pin)
+    const ctx = getAudioCtx()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.type = "square"
+    osc.frequency.value = frequency
+    gain.gain.value = 0.05 // keep volume low
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.start()
+    const entry: { osc: OscillatorNode; gain: GainNode; timer?: ReturnType<typeof setTimeout> } = { osc, gain }
+    if (duration && duration > 0) {
+      entry.timer = setTimeout(() => stopTone(pin), duration)
+    }
+    oscillatorsRef.current.set(pin, entry)
+  }
+
+  function stopTone(pin: number) {
+    const entry = oscillatorsRef.current.get(pin)
+    if (entry) {
+      if (entry.timer) clearTimeout(entry.timer)
+      try { entry.osc.stop() } catch { /* already stopped */ }
+      oscillatorsRef.current.delete(pin)
+    }
+  }
+
+  function stopAllTones() {
+    for (const [pin] of oscillatorsRef.current) stopTone(pin)
+  }
+
   // Create stable VM callbacks that delegate to the latest options
   const vmCallbacks: ArduinoVMCallbacks = {
     onPinWrite: (pin, value, isPwm) =>
       callbacksRef.current.onPinWrite?.(pin, value, isPwm),
     onPinMode: (pin, mode) => callbacksRef.current.onPinMode?.(pin, mode),
     onSerialPrint: (text) => callbacksRef.current.onSerialPrint?.(text),
-    onTone: (pin, freq, dur) => callbacksRef.current.onTone?.(pin, freq, dur),
-    onNoTone: (pin) => callbacksRef.current.onNoTone?.(pin),
+    onTone: (pin, freq, dur) => {
+      callbacksRef.current.onTone?.(pin, freq, dur)
+      startTone(pin, freq, dur)
+    },
+    onNoTone: (pin) => {
+      callbacksRef.current.onNoTone?.(pin)
+      stopTone(pin)
+    },
     onError: (error) => {
       callbacksRef.current.onError?.(error)
       send({ type: "RUNTIME_ERROR", message: error })
@@ -116,6 +165,16 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
       const vm = vmRef.current
       if (!vm) return
 
+      // Feed analog values from circuit solver into VM
+      const analogInputs = callbacksRef.current.getAnalogInputs?.()
+      if (analogInputs) {
+        for (const [pin, voltage] of analogInputs) {
+          // Convert 0-5V to 0-1023 ADC range
+          const adcValue = Math.round((voltage / 5) * 1023)
+          vm.setAnalogInput(pin, adcValue)
+        }
+      }
+
       // Run loop iteration — it may return false if delaying
       vm.runLoopIteration()
 
@@ -179,6 +238,7 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
 
   const stop = useCallback(() => {
     cancelLoop()
+    stopAllTones()
     vmRef.current?.reset()
     send({ type: "STOP" })
   }, [send, cancelLoop])
@@ -187,6 +247,7 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
   useEffect(() => {
     return () => {
       cancelLoop()
+      stopAllTones()
     }
   }, [cancelLoop])
 

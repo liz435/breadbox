@@ -60,13 +60,16 @@ export function createArduinoVM(
   let currentMode = mode
   let state = createStdlibState(Date.now())
   let simulationStartTime = Date.now()
+  // Virtual clock: advances by a fixed dt each loop iteration for deterministic timing.
+  // In transpile mode this avoids wall-clock jitter from browser scheduling.
+  let virtualMs = 0
+  const VIRTUAL_DT_MS = 16 // ~60 fps worth of simulated time per tick
 
   function getMillis(): number {
     if (currentMode === "avr" && avrRunner) {
-      // Derive millis from CPU cycle count for accuracy
       return Math.floor((avrRunner.getCycleCount() / avrRunner.getFrequencyHz()) * 1000)
     }
-    return Date.now() - simulationStartTime
+    return virtualMs
   }
 
   // ── Transpile-mode state ────────────────────────────────────────
@@ -202,7 +205,9 @@ return {
       return true
     }
 
-    // Transpile mode
+    // Transpile mode: advance virtual clock
+    virtualMs += VIRTUAL_DT_MS
+
     if (state.delayUntil > 0 && getMillis() < state.delayUntil) {
       return false
     }
@@ -247,6 +252,10 @@ return {
     }
 
     state.pins[pin] = value
+
+    // Fire any registered interrupts on edge transitions
+    const checkInterrupts = stdlib.__checkInterrupts as (() => void) | undefined
+    if (checkInterrupts) checkInterrupts()
   }
 
   function setAnalogInput(pin: number, value: number): void {
@@ -288,6 +297,7 @@ return {
   // ── Lifecycle ───────────────────────────────────────────────────
   function reset(): void {
     simulationStartTime = Date.now()
+    virtualMs = 0
     state = createStdlibState(simulationStartTime)
     stdlib = createStdlib(state, callbacks, getMillis)
     setupFn = null

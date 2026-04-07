@@ -5,8 +5,8 @@ export function SketchPage() {
     <DocsLayout>
       <PageTitle
         title="Sketch Editor"
-        subtitle="Write and edit your Arduino .ino sketch. Auto-generated from board layout."
-        badge={<Badge variant="partial">Partial</Badge>}
+        subtitle="Write, run, and debug Arduino sketches in the browser."
+        badge={<Badge variant="implemented">Implemented</Badge>}
       />
 
       <Section title="Auto-generation">
@@ -21,6 +21,62 @@ export function SketchPage() {
         </Note>
       </Section>
 
+      <Section title="Execution">
+        <p className="text-sm text-gray-300 leading-relaxed mb-2">
+          Click <strong>Compile & Run</strong> (or use the play button in the toolbar) to execute
+          your sketch in the browser. The transpiler converts your Arduino C++ to JavaScript and
+          runs <code>setup()</code> once, then <code>loop()</code> at ~60 fps.
+        </p>
+        <Table
+          headers={["Feature", "Details"]}
+          rows={[
+            ["Pin I/O", "pinMode, digitalWrite, digitalRead, analogWrite, analogRead — all functional"],
+            ["Serial", "Serial.begin, .print, .println, .available, .read, .write — output appears in Serial Monitor"],
+            ["Timing", "delay(), millis(), micros() — uses a virtual clock (16ms per tick, deterministic)"],
+            ["Tone", "tone(pin, freq) generates real audio via Web Audio API; noTone() stops it"],
+            ["Interrupts", "attachInterrupt on pins 2/3 — ISRs fire on RISING, FALLING, or CHANGE edges"],
+            ["pulseIn", "pulseIn(pin, value) — returns simulated microseconds (for ultrasonic sensors)"],
+            ["Shift registers", "shiftOut() and shiftIn() — bit-bang SPI on any pins"],
+          ]}
+        />
+      </Section>
+
+      <Section title="Supported libraries">
+        <Table
+          headers={["Library", "#include", "Available API"]}
+          rows={[
+            ["Servo", "<Servo.h>", "attach(pin), write(angle), read(), attached(), detach()"],
+            ["LiquidCrystal", "<LiquidCrystal.h>", "begin(cols, rows), setCursor(col, row), print(text), clear()"],
+            ["EEPROM", "<EEPROM.h>", "read(addr), write(addr, val), update(addr, val), length()"],
+            ["Wire (I2C)", "<Wire.h>", "begin(), beginTransmission(), write(), endTransmission(), requestFrom(), read()"],
+            ["SPI", "<SPI.h>", "begin(), transfer(data), beginTransaction(), endTransaction()"],
+            ["Stepper", "<Stepper.h>", "Stepper(steps, pins...), setSpeed(rpm), step(steps)"],
+          ]}
+        />
+        <Note>
+          Libraries are provided as built-in globals — no installation needed. Just <code>#include</code> them.
+          Unknown libraries will produce a transpilation error.
+        </Note>
+      </Section>
+
+      <Section title="C++ subset supported">
+        <Table
+          headers={["Feature", "Supported?"]}
+          rows={[
+            ["Variable declarations (int, float, char, String, bool, byte, long)", "Yes"],
+            ["Array declarations and initialization", "Yes"],
+            ["Function definitions with return types", "Yes"],
+            ["for/while/if/switch/do-while", "Yes"],
+            ["#define → const conversion", "Yes"],
+            ["Class and struct definitions (simple, no templates)", "Yes"],
+            ["public:/private:/protected: access specifiers", "Yes (treated as comments)"],
+            ["Pointers, references, ->", "No — transpilation error"],
+            ["Templates", "No — transpilation error"],
+            ["Namespaces", "No — transpilation error"],
+          ]}
+        />
+      </Section>
+
       <Section title="What gets generated per component">
         <Table
           headers={["Component", "setup()", "loop()", "Global / includes"]}
@@ -30,62 +86,43 @@ export function SketchPage() {
             ["Button", "pinMode(pin, INPUT_PULLUP)", "— (no loop code)", "—"],
             ["Servo", "servo.attach(pin)", "servo.write(90)", "#include <Servo.h>, Servo servo;"],
             ["Buzzer", "pinMode(pin, OUTPUT)", "— (no loop code)", "—"],
-            ["LCD 16×2", "lcd.begin(16, 2)", "lcd.print(\"Hello, World!\")", '#include <LiquidCrystal.h>, LiquidCrystal lcd(rs, en, d4, d5, d6, d7);'],
-            ["Potentiometer", "— (comment only)", "— (comment only)", "—"],
-            ["Photoresistor", "— (comment only)", "— (comment only)", "—"],
-            ["Temperature Sensor", "— (comment only)", "— (comment only)", "—"],
-            ["Ultrasonic", "pinMode(trigger, OUTPUT) pinMode(echo, INPUT)", "— (comment only)", "—"],
+            ["LCD 16x2", "lcd.begin(16, 2)", "lcd.print(\"Hello, World!\")", "#include <LiquidCrystal.h>"],
+            ["7-Segment", "pinMode(a-g, OUTPUT)", "digitalWrite pattern for digit 0", "—"],
+            ["Temperature Sensor", "// comment", "analogRead + voltage-to-temp conversion", "—"],
+            ["Ultrasonic", "pinMode(trigger, OUTPUT); pinMode(echo, INPUT)", "— (comment only)", "—"],
           ]}
         />
       </Section>
 
-      <Section title="Example generated sketch">
-        <CodeBlock code={`// Auto-generated from board layout
-
-#include <Servo.h>
-
-Servo servo1;
-
-void setup() {
-  Serial.begin(9600);
-  pinMode(13, OUTPUT); // LED1
-  pinMode(2, INPUT_PULLUP); // Button1
-  pinMode(3, OUTPUT); // Buzzer1
-  servo1.attach(9); // Servo1
-  servo1.write(90); // Servo1
-}
-
-void loop() {
-  digitalWrite(13, HIGH); // LED1
-  analogWrite(9, 90); // Servo1
-  delay(100);
-}`} />
-      </Section>
-
-      <Section title="Editing the sketch">
-        <p className="text-sm text-gray-300 leading-relaxed mb-2">
-          Type directly in the Sketch Editor panel. There is no compile or upload — the sketch is
-          stored in the project file and can be copied into the Arduino IDE for real hardware.
-        </p>
-        <p className="text-sm text-gray-300 leading-relaxed">
-          The AI agent can write or update the sketch for you via the <code>update_sketch</code> tool.
-          Ask it: <em>"Write a blink sketch for the LED on pin 13"</em> or
-          <em>"Add a button on pin 2 that toggles the LED"</em>.
-        </p>
+      <Section title="IDE features">
+        <Table
+          headers={["Feature", "Details"]}
+          rows={[
+            ["Syntax highlighting", "VS Code Dark+ colors — keywords, types, strings, comments, functions all colored"],
+            ["Autocomplete", "Arduino functions, constants, types — Tab to accept, arrow keys to navigate"],
+            ["Auto-close brackets", "Typing ( [ { \" automatically inserts the closing pair"],
+            ["Code folding", "Collapse setup(), loop(), if/for blocks via gutter arrows"],
+            ["Search & Replace", "Cmd+F to find, Cmd+H to replace"],
+            ["Indent with Tab", "Tab indents, Shift-Tab dedents selected lines"],
+            ["Selection match", "Select a word — all occurrences are highlighted"],
+            ["Lint warnings", "Missing setup()/loop(), wrong pin for analogWrite/analogRead"],
+            ["Undo/Redo", "Cmd+Z / Cmd+Shift+Z"],
+          ]}
+        />
       </Section>
 
       <Section title="Limitations">
         <Table
           headers={["Feature", "Status"]}
           rows={[
-            ["Syntax highlighting", "Implemented — C++ monospace editor"],
-            ["Auto-generation from board layout", "Implemented — boilerplate only"],
-            ["Code saved to project file", "Implemented"],
-            ["Compile / verify", "Not implemented — copy to Arduino IDE for that"],
-            ["Runtime execution", "Not implemented — sketch is not executed in the browser"],
-            ["Serial.print output", "Not implemented — Serial Monitor is a placeholder"],
-            ["analogRead returning sensor values", "Not implemented — ADC not wired"],
-            ["Auto-generate logic (conditions, sensors)", "Not implemented — only basic pin setup"],
+            ["Sketch execution in browser", "Implemented — transpile mode"],
+            ["Serial Monitor output", "Implemented — Serial.print shows in panel"],
+            ["analogRead from circuit voltage", "Implemented — voltage mapped to 0-1023"],
+            ["Audio tone output", "Implemented — Web Audio square wave"],
+            ["Code saved to project (auto-save)", "Implemented"],
+            ["Potentiometer wiper position", "Not implemented — always reads 0"],
+            ["Multi-file sketches (.h/.cpp tabs)", "Not implemented"],
+            ["External library import", "Not implemented — built-in libraries only"],
           ]}
         />
       </Section>

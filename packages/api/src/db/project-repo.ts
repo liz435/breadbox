@@ -1,6 +1,7 @@
 import { join } from "path";
 import { mkdir, readdir } from "fs/promises";
 import { match } from "ts-pattern";
+import { generateUniqueProjectName } from "../utils/name-generator";
 import {
   applyOpsRequestSchema,
   assetSchema,
@@ -123,10 +124,15 @@ async function createProject(params?: { id?: string; name?: string }) {
     throw new OpValidationError(`Project already exists: ${id}`);
   }
 
-  const project = buildInitialProject({
-    id,
-    name: params?.name ?? "Untitled Project",
-  });
+  // Generate a unique memorable name if none provided
+  let name = params?.name;
+  if (!name || name === "Untitled Project") {
+    const allProjects = await listProjects();
+    const existingNames = new Set(allProjects.map((p) => p.name));
+    name = generateUniqueProjectName(existingNames);
+  }
+
+  const project = buildInitialProject({ id, name });
   await writeProject(id, project);
   return project;
 }
@@ -570,6 +576,21 @@ async function saveGraph(
   return { saved: true };
 }
 
+// ── Board state persistence ─────────────────────────────────────────────────
+
+async function saveBoardState(
+  projectId: string,
+  boardState: Record<string, unknown>,
+): Promise<{ saved: true } | null> {
+  const existing = await readProject(projectId);
+  if (!existing) return null;
+
+  existing.boardState = boardState as ProjectFile["boardState"];
+  existing.project.updatedAt = now();
+  await writeProject(projectId, existing);
+  return { saved: true };
+}
+
 // ── Rename project ──────────────────────────────────────────────────────────
 
 async function renameProject(
@@ -650,6 +671,7 @@ export const projectRepo = {
   applyOps,
   applyBoardOps,
   saveGraph,
+  saveBoardState,
   renameProject,
   renameScene,
   deleteProject,

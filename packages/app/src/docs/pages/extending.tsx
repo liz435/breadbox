@@ -235,6 +235,35 @@ function MySensorInspector({ component, onUpdate }) {
         />
       </Section>
 
+      <Section title="Arduino library system">
+        <p className="text-sm text-gray-300 leading-relaxed mb-2">
+          Arduino libraries are provided as built-in JavaScript classes and objects injected into the
+          sketch execution scope. They are defined in{" "}
+          <code>packages/app/src/simulator/arduino-stdlib.ts</code>.
+        </p>
+        <Table
+          headers={["Library", "Implementation", "State tracked"]}
+          rows={[
+            ["Servo", "ServoClass — attach, write, read, detach", "servos Map (pin, angle)"],
+            ["LiquidCrystal", "LiquidCrystalClass — begin, setCursor, print, clear", "lcd buffer (cols, rows, cursor, textBuffer)"],
+            ["EEPROM", "Object — read, write, update, length", "1KB Uint8Array (persists during session)"],
+            ["Wire (I2C)", "Object — begin, beginTransmission, write, endTransmission, requestFrom, read", "i2cBus Map (address → device)"],
+            ["SPI", "Object — begin, transfer, beginTransaction, endTransaction", "Settings (bitOrder, clockDiv, dataMode)"],
+            ["Stepper", "StepperClass — setSpeed, step", "position, speed, pin states"],
+          ]}
+        />
+        <p className="text-sm text-gray-400 mt-3 mb-2">
+          To add a new library, add a class or object in <code>arduino-stdlib.ts</code>,
+          export it in the return object, and add its header to <code>KNOWN_LIBRARIES</code>{" "}
+          in <code>arduino-transpiler.ts</code>.
+        </p>
+        <p className="text-sm text-gray-300 leading-relaxed">
+          The transpiler supports a restricted C++ subset including simple class and struct
+          definitions. Users can write helper classes in their sketches that call existing Arduino
+          functions. Pointers, templates, and namespaces are not supported.
+        </p>
+      </Section>
+
       <Section title="Files changed when adding a component">
         <Table
           headers={["File", "Change", "When"]}

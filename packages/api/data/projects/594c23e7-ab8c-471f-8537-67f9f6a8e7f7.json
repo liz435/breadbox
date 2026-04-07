@@ -1,16 +1,16 @@
 {
   "project": {
-    "id": "e29f0406-1540-458d-a138-53fb2eed4d21",
+    "id": "594c23e7-ab8c-471f-8537-67f9f6a8e7f7",
     "name": "Untitled Project",
     "version": 0,
-    "createdAt": "2026-04-07T00:58:36.390Z",
-    "updatedAt": "2026-04-07T02:05:17.450Z",
-    "threadId": "650cc6c2-9f25-4bc5-8112-d7a05aa400df",
-    "activeSceneId": "ed6134de-9083-47c8-82ee-f9d9bb070221"
+    "createdAt": "2026-04-07T02:25:00.470Z",
+    "updatedAt": "2026-04-07T02:25:10.098Z",
+    "threadId": "339f6fca-e5f4-4013-8144-79d6694f5cdb",
+    "activeSceneId": "eab0a8f8-b1af-4b3a-b068-ac8dd0839f1a"
   },
   "scenes": {
-    "ed6134de-9083-47c8-82ee-f9d9bb070221": {
-      "id": "ed6134de-9083-47c8-82ee-f9d9bb070221",
+    "eab0a8f8-b1af-4b3a-b068-ac8dd0839f1a": {
+      "id": "eab0a8f8-b1af-4b3a-b068-ac8dd0839f1a",
       "name": "Main Scene",
       "version": 0,
       "settings": {
@@ -24,7 +24,7 @@
   },
   "entities": {},
   "sceneEntityIds": {
-    "ed6134de-9083-47c8-82ee-f9d9bb070221": []
+    "eab0a8f8-b1af-4b3a-b068-ac8dd0839f1a": []
   },
   "components": {
     "transform": {},
@@ -37,8 +37,8 @@
   "assets": {},
   "graph": {
     "nodes": {
-      "node-1775523590573-bqufpp": {
-        "id": "node-1775523590573-bqufpp",
+      "node-1775528700504-qv0mg2": {
+        "id": "node-1775528700504-qv0mg2",
         "type": "setup",
         "name": "Setup",
         "x": 60,
@@ -55,8 +55,8 @@
         ],
         "data": {}
       },
-      "node-1775523590573-q31hco": {
-        "id": "node-1775523590573-q31hco",
+      "node-1775528700504-u4lx9a": {
+        "id": "node-1775528700504-u4lx9a",
         "type": "loop",
         "name": "Loop",
         "x": 60,
@@ -75,5 +75,10 @@
       }
     },
     "edges": {}
+  },
+  "boardState": {
+    "components": {},
+    "wires": {},
+    "sketchCode": "void setup() {\n}\n\nvoid loop() {\n}\n"
   }
 }

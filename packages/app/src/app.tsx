@@ -23,6 +23,7 @@ import { BoardContext, useBoard } from "./store/board-context";
 import { DockviewContext } from "./store/dockview-context";
 import { ProjectLoader } from "./project/project-loader";
 import { useGraphPersistence } from "./project/use-graph-persistence";
+import { useBoardPersistence } from "./project/use-board-persistence";
 import { SketchEditor } from "./editor/sketch-editor";
 import { SchematicPanel } from "./schematic/schematic-panel";
 import { useProject } from "./project/project-context";
@@ -87,6 +88,7 @@ function AppInner() {
   const { state: graphState } = useGraph();
   const project = useProject();
   useGraphPersistence();
+  const { saveNow } = useBoardPersistence();
   const dockviewApiRef = useRef<DockviewApi | null>(null);
   const boardHydratedRef = useRef(false);
 
@@ -97,12 +99,16 @@ function AppInner() {
     const pf = project.projectFile;
     if (pf.boardState) {
       boardSend({ type: "LOAD_BOARD", state: pf.boardState });
+    } else {
     }
   }, [project.projectFile, boardSend]);
 
-  // Sync codegen to board whenever graph nodes/edges change
+  // Sync codegen to board whenever graph nodes/edges change.
+  // Skip during the initial hydration — graph persistence replays saved nodes,
+  // which would trigger codegen and overwrite the loaded sketchCode.
   const prevNodesRef = useRef(graphState.nodes);
   const prevEdgesRef = useRef(graphState.edges);
+  const graphHydratedRef = useRef(false);
   useEffect(() => {
     if (
       graphState.nodes !== prevNodesRef.current ||
@@ -110,6 +116,11 @@ function AppInner() {
     ) {
       prevNodesRef.current = graphState.nodes;
       prevEdgesRef.current = graphState.edges;
+      // Skip the first change (hydration replay from useGraphPersistence)
+      if (!graphHydratedRef.current) {
+        graphHydratedRef.current = true;
+        return;
+      }
       syncCodegenToBoard(graphState.nodes, graphState.edges, boardSend);
     }
   }, [graphState.nodes, graphState.edges, boardSend]);
@@ -137,6 +148,13 @@ function AppInner() {
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      // Cmd/Ctrl+S — save project (works from anywhere, including editors)
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+        e.preventDefault();
+        saveNow();
+        return;
+      }
+
       const tag = (e.target as HTMLElement).tagName
       if (tag === "INPUT" || tag === "TEXTAREA") return;
 
@@ -169,7 +187,7 @@ function AppInner() {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [state.selectedId, boardState.selectedId, send, boardSend]);
+  }, [state.selectedId, boardState.selectedId, send, boardSend, saveNow]);
 
   const LAYOUT_STORAGE_KEY = "dreamer:dockview-layout";
 
@@ -179,7 +197,7 @@ function AppInner() {
 
     // Clear stale layouts from before Arduino simulator conversion.
     // The old layout references "canvas" and missing panels — force a fresh default.
-    const LAYOUT_VERSION = "arduino-sim-v5";
+    const LAYOUT_VERSION = "arduino-sim-v6";
     const saved = localStorage.getItem(LAYOUT_STORAGE_KEY);
     const savedVersion = localStorage.getItem(LAYOUT_STORAGE_KEY + ":version");
     if (saved && savedVersion === LAYOUT_VERSION) {
@@ -233,6 +251,9 @@ function AppInner() {
       position: { referencePanel: sketchPanel, direction: "within" },
     });
 
+    // Ensure Sketch is the active tab (not Graph or Schematic)
+    sketchPanel.api.setActive();
+
     // Inspector is the default visible tab in the right panel
     const inspectorPanel = api.addPanel({
       id: "inspector",
@@ -272,7 +293,7 @@ function AppInner() {
       debounceRef.current = setTimeout(() => {
         const layout = api.toJSON();
         localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout));
-        localStorage.setItem(LAYOUT_STORAGE_KEY + ":version", "arduino-sim-v3");
+        localStorage.setItem(LAYOUT_STORAGE_KEY + ":version", "arduino-sim-v6");
       }, 300);
     });
   }

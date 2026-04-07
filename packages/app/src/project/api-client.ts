@@ -117,6 +117,22 @@ export async function saveProjectGraph(
   }
 }
 
+export async function saveBoardState(
+  projectId: string,
+  boardState: Record<string, unknown>,
+): Promise<void> {
+  const url = `${API_ORIGIN}/project/${encodeURIComponent(projectId)}/board`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(boardState),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new ApiError(res.status, `${res.status} ${text}`);
+  }
+}
+
 export async function uploadProjectAsset(
   projectId: string,
   file: File
