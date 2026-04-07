@@ -10,6 +10,8 @@ import { renderSymbol, WireJunction, type SymbolProps } from "./schematic-symbol
 type SchematicRendererProps = {
   layout: SchematicLayout
   analysis: CircuitAnalysis | null
+  selectedComponentId?: string | null
+  onSelectComponent?: (id: string) => void
 }
 
 // ── Wire Routing ───────────────────────────────────────────────────────
@@ -123,7 +125,7 @@ function findJunctions(layout: SchematicLayout): Array<{ x: number; y: number }>
 
 // ── Main Renderer ──────────────────────────────────────────────────────
 
-export function SchematicRenderer({ layout, analysis }: SchematicRendererProps) {
+export function SchematicRenderer({ layout, analysis, selectedComponentId, onSelectComponent }: SchematicRendererProps) {
   const junctions = findJunctions(layout)
 
   return (
@@ -144,6 +146,9 @@ export function SchematicRenderer({ layout, analysis }: SchematicRendererProps) 
           ? analysis?.componentStates.get(node.componentId)
           : undefined
 
+        const isSelected = node.componentId != null && node.componentId === selectedComponentId
+        const clickable = node.componentId != null && onSelectComponent != null
+
         const symbolProps: SymbolProps = {
           x: node.x,
           y: node.y,
@@ -155,7 +160,27 @@ export function SchematicRenderer({ layout, analysis }: SchematicRendererProps) 
         }
 
         return (
-          <g key={node.id}>
+          <g
+            key={node.id}
+            onClick={clickable ? (e) => { e.stopPropagation(); onSelectComponent(node.componentId!) } : undefined}
+            style={clickable ? { cursor: "pointer" } : undefined}
+          >
+            {/* Selection highlight */}
+            {isSelected && (
+              <rect
+                x={node.x - 8}
+                y={node.y - 28}
+                width={76}
+                height={56}
+                rx={6}
+                fill="#3b82f6"
+                fillOpacity={0.08}
+                stroke="#3b82f6"
+                strokeWidth={1.5}
+                strokeDasharray="4 2"
+                opacity={0.7}
+              />
+            )}
             {renderSymbol(node.type, symbolProps)}
           </g>
         )

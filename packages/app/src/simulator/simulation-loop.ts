@@ -28,6 +28,7 @@ export type SimulationActions = {
   pause: () => void
   resume: () => void
   stop: () => void
+  sendSerialInput: (text: string) => void
   vm: ArduinoVM | null
 }
 
@@ -335,6 +336,17 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     }
   }, [cancelLoop])
 
+  /** Feed text into the VM's Serial.read() buffer. */
+  const sendSerialInput = useCallback((text: string) => {
+    const vm = vmRef.current
+    if (!vm) return
+    const stdlibState = vm.getStdlibState()
+    // Push each character into the serial buffer
+    for (const ch of text) {
+      stdlibState.serialBuffer.push(ch)
+    }
+  }, [])
+
   const status = state.value as SimulationStatus
 
   return {
@@ -344,6 +356,7 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     pause,
     resume,
     stop,
+    sendSerialInput,
     vm: vmRef.current,
   }
 }

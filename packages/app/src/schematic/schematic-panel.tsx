@@ -4,7 +4,7 @@
 // from the current breadboard state. Read-only with zoom/pan.
 
 import React, { useMemo, useState, useCallback, useRef } from "react"
-import { useBoardSelector } from "@/store/board-context"
+import { useBoardSelector, BoardContext } from "@/store/board-context"
 import { useCircuitAnalysis } from "@/simulator/circuit-analysis-hook"
 import { generateSchematicLayout } from "./schematic-layout"
 import { SchematicRenderer } from "./schematic-renderer"
@@ -16,6 +16,8 @@ const MAX_ZOOM = 5
 function SchematicPanelInner() {
   const components = useBoardSelector((ctx) => ctx.components)
   const wires = useBoardSelector((ctx) => ctx.wires)
+  const selectedId = useBoardSelector((ctx) => ctx.selectedId)
+  const boardSend = BoardContext.useActorRef().send
   const { analysis } = useCircuitAnalysis()
 
   const layout = useMemo(
@@ -52,11 +54,14 @@ function SchematicPanelInner() {
     })
   }, [])
 
-  // Pan via middle-click or left-click drag
+  // Pan via middle-click or left-click drag on empty space
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button === 0 || e.button === 1) {
-      isPanningRef.current = true
-      lastMouseRef.current = { x: e.clientX, y: e.clientY }
+      // Only start panning if clicking on the SVG background, not a component
+      if (e.target === e.currentTarget) {
+        isPanningRef.current = true
+        lastMouseRef.current = { x: e.clientX, y: e.clientY }
+      }
     }
   }, [])
 
@@ -117,7 +122,12 @@ function SchematicPanelInner() {
         onMouseLeave={handleMouseUp}
       >
         <g transform={`translate(${offset.x}, ${offset.y}) scale(${zoom})`}>
-          <SchematicRenderer layout={layout} analysis={analysis} />
+          <SchematicRenderer
+            layout={layout}
+            analysis={analysis}
+            selectedComponentId={selectedId}
+            onSelectComponent={(id) => boardSend({ type: "SELECT", id })}
+          />
         </g>
       </svg>
 

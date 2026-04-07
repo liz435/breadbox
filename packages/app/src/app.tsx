@@ -155,8 +155,12 @@ function AppInner() {
         return;
       }
 
-      const tag = (e.target as HTMLElement).tagName
+      const target = e.target as HTMLElement
+      const tag = target.tagName
       if (tag === "INPUT" || tag === "TEXTAREA") return;
+
+      // Skip when focus is inside a CodeMirror editor — it has its own undo/redo
+      if (target.closest(".cm-editor")) return;
 
       // Undo / Redo (both scene + board)
       if ((e.metaKey || e.ctrlKey) && e.key === "z") {

@@ -12,7 +12,7 @@ export function OverviewPage() {
         <p className="text-sm text-gray-300 leading-relaxed">
           Dreamer is a browser-based Arduino simulator. You place components on a virtual breadboard,
           wire them to an Arduino Uno, run real SPICE circuit analysis to see voltages and currents,
-          write or auto-generate Arduino sketch code, and use a visual node-graph for programming logic.
+          write and execute Arduino sketches in the browser, and use a visual node-graph for programming logic.
           An AI agent can help you design circuits, place components, and write code.
         </p>
       </Section>
@@ -22,17 +22,18 @@ export function OverviewPage() {
           headers={["Panel", "Purpose"]}
           rows={[
             ["Breadboard", "Place and wire components on a virtual breadboard connected to an Arduino Uno."],
-            ["Sketch Editor", "Write or edit the Arduino .ino sketch. Auto-generated from your board layout when empty."],
+            ["Sketch Editor", "Write, edit, and run Arduino sketches. Auto-generated from board layout when empty. Includes Compile & Run controls."],
             ["Graph", "Visual node-graph programming. Connect blocks to build logic without typing code."],
-            ["Schematic", "Auto-generated IEEE circuit schematic from your breadboard wiring."],
+            ["Schematic", "Auto-generated IEEE circuit schematic. Click components to select them on the breadboard."],
             ["Inspector", "Edit the selected component's pins, properties, and settings."],
             ["Pin Inspector", "View the current state of all 20 Arduino pins (mode, digital value, PWM, analog)."],
-            ["Serial Monitor", "Serial output viewer. Not yet connected to a runtime — placeholder only."],
+            ["Serial Monitor", "Bidirectional serial communication. Works with both simulated sketches and real Arduino via Web Serial."],
             ["Project", "File browser for your scenes and project assets."],
           ]}
         />
         <Note>
-          Panels can be dragged, rearranged, and resized. The layout is saved automatically per project.
+          Panels can be dragged, rearranged, and resized. Toggle panels via the toolbar buttons.
+          The layout is saved automatically.
         </Note>
       </Section>
 
@@ -40,12 +41,16 @@ export function OverviewPage() {
         <Table
           headers={["Shortcut", "Action"]}
           rows={[
+            ["⌘S / Ctrl+S", "Save project immediately"],
             ["⌘Z / Ctrl+Z", "Undo (breadboard + scene)"],
             ["⌘⇧Z / Ctrl+Shift+Z", "Redo"],
+            ["⌘F / Ctrl+F", "Find in sketch editor"],
+            ["R", "Rotate selected component (or rotate while placing)"],
             ["Delete / Backspace", "Remove selected component or wire"],
-            ["Escape", "Deselect all"],
+            ["Escape", "Deselect / cancel placement"],
             ["Space + Drag", "Pan the breadboard canvas"],
             ["Scroll", "Zoom the breadboard canvas"],
+            ["Tab", "Accept autocomplete suggestion in sketch editor"],
           ]}
         />
       </Section>
@@ -53,12 +58,21 @@ export function OverviewPage() {
       <Section title="Workflow">
         <ol className="list-decimal list-inside space-y-2 text-sm text-gray-300 leading-relaxed">
           <li>Open the <strong className="text-gray-200">Breadboard</strong> panel and pick a component from the palette.</li>
-          <li>Click a hole to place the component. Use the <strong className="text-gray-200">Inspector</strong> to assign Arduino pins.</li>
+          <li>Click to place the component. Press <strong className="text-gray-200">R</strong> to rotate before placing. Drag to reposition.</li>
           <li>Draw wires between component legs and the Arduino power/ground rails.</li>
           <li>The <strong className="text-gray-200">Circuit Simulator</strong> runs automatically — LEDs glow, the schematic updates.</li>
           <li>Open the <strong className="text-gray-200">Sketch Editor</strong> — a boilerplate sketch is auto-generated. Edit it freely.</li>
-          <li>Use the <strong className="text-gray-200">AI Agent</strong> (bottom toolbar → sparkle icon) to ask for help at any step.</li>
+          <li>Click <strong className="text-gray-200">Run</strong> to compile and execute the sketch in the browser. Serial output appears in the Serial Monitor.</li>
+          <li>Use the <strong className="text-gray-200">AI Agent</strong> (bottom toolbar, sparkle icon) to ask for help at any step.</li>
         </ol>
+      </Section>
+
+      <Section title="Saving">
+        <p className="text-sm text-gray-300 leading-relaxed">
+          Projects auto-save after 2 seconds of inactivity. Press <strong className="text-gray-200">⌘S / Ctrl+S</strong> to save
+          immediately — the Project icon in the toolbar flashes green to confirm. Components, wires, sketch code,
+          and graph state are all persisted.
+        </p>
       </Section>
 
       <Section title="Auto-generated Sketch">
@@ -79,6 +93,25 @@ void loop() {
   digitalWrite(13, HIGH);
   delay(100);
 }`} />
+      </Section>
+
+      <Section title="Serial Monitor">
+        <p className="text-sm text-gray-300 leading-relaxed">
+          The Serial Monitor displays output from <code>Serial.print()</code> and accepts input for <code>Serial.read()</code>.
+          It works with both the in-browser simulation and real Arduino hardware via the Web Serial API (Chrome/Edge).
+        </p>
+        <Table
+          headers={["Feature", "Details"]}
+          rows={[
+            ["Output", "Serial.print / println from running sketches"],
+            ["Input", "Type and press Enter — feeds into Serial.read() or sends to real Arduino"],
+            ["Web Serial", "Click Connect to attach a real Arduino via USB (Chrome/Edge only)"],
+            ["Baud rate", "Selectable: 300 to 115200"],
+            ["Line endings", "No line ending, Newline, Carriage return, or Both"],
+            ["Autoscroll", "Toggle on/off"],
+            ["Timestamps", "Toggle to show time before each line"],
+          ]}
+        />
       </Section>
     </DocsLayout>
   )

@@ -85,8 +85,8 @@ export function AiAgentPage() {
             ["Write sketch code", "Implemented"],
             ["Circuit validation (missing resistors, bad pins)", "Implemented"],
             ["Circuit suggestion from description", "Implemented"],
-            ["Read sensor output / simulation results", "Not implemented — ADC not wired"],
-            ["Execute sketch", "Not implemented — no runtime"],
+            ["Read sensor output / simulation results", "Partially — analogRead works from circuit voltages, but agent can't read simulation state directly"],
+            ["Execute sketch", "Implemented in browser — but agent can't trigger run or read Serial output"],
             ["Read schematic or graph state", "Not implemented"],
           ]}
         />

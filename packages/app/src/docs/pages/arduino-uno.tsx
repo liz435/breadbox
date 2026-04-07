@@ -78,9 +78,11 @@ export function ArduinoUnoPage() {
             ["5V and GND rails as voltage sources", "Implemented — used as SPICE voltage nodes"],
             ["Digital pin HIGH/LOW states (from sketch)", "Implemented — drives LED brightness simulation"],
             ["PWM output (analogWrite)", "Implemented — modeled as fractional voltage"],
-            ["analogRead from sensors", "Not yet implemented — ADC not wired to simulation"],
-            ["Serial.print / Serial.read", "Not yet implemented — Serial Monitor is a placeholder"],
-            ["Interrupts", "Not yet implemented"],
+            ["analogRead from sensors", "Implemented — circuit voltages mapped to 0-1023 ADC values"],
+            ["Serial.print / Serial.read", "Implemented — full bidirectional Serial Monitor with Web Serial support"],
+            ["Interrupts (pins 2, 3)", "Implemented — RISING, FALLING, CHANGE modes"],
+            ["tone() / noTone()", "Implemented — real audio output via Web Audio API"],
+            ["Sketch execution", "Implemented — transpiles C++ to JS, runs setup() + loop() at 60fps"],
           ]}
         />
       </Section>

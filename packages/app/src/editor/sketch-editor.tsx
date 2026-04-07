@@ -193,7 +193,7 @@ function SketchEditorInner() {
     const id = setInterval(tickRender, 100)
     return () => clearInterval(id)
   }, [])
-  const sim = simulationRef.current ?? { status: "stopped" as const, error: null, play: () => {}, pause: () => {}, resume: () => {}, stop: () => {}, vm: null }
+  const sim = simulationRef.current ?? { status: "stopped" as const, error: null, play: () => {}, pause: () => {}, resume: () => {}, stop: () => {}, sendSerialInput: () => {}, vm: null }
 
   const lastCodeRef = useRef(boardState.sketchCode)
   lastCodeRef.current = boardState.sketchCode

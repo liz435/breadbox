@@ -6,7 +6,7 @@ export function GraphPage() {
       <PageTitle
         title="Visual Programming"
         subtitle="Node-graph editor for building Arduino logic without writing code."
-        badge={<Badge variant="not-implemented">Evaluation not yet implemented</Badge>}
+        badge={<Badge variant="partial">Partial — UI implemented, evaluation pending</Badge>}
       />
 
       <Section title="Overview">
@@ -17,8 +17,8 @@ export function GraphPage() {
           to wire data and execution flow.
         </p>
         <Warn>
-          <strong>Node evaluation is not yet implemented.</strong> You can build the graph, but nodes
-          do not execute and do not produce sketch code output yet.
+          <strong>Node evaluation is not yet implemented.</strong> You can place and connect nodes,
+          but they do not execute or produce sketch code yet. The graph UI and persistence are fully functional.
         </Warn>
       </Section>
 
