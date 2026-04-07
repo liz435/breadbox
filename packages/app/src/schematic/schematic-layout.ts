@@ -4,9 +4,9 @@
 // with positioned nodes and edges for SVG rendering.
 
 import type { BoardComponent, Wire } from "@dreamer/schemas"
-import { resolveNets } from "@/breadboard/breadboard-grid"
-import { getComponentFootprint } from "@/breadboard/breadboard-grid"
+import { resolveNets, getComponentFootprint } from "@/breadboard/breadboard-grid"
 import type { SchematicSymbolType } from "./schematic-symbols"
+import { getComponentDef } from "@/components/registry"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -40,59 +40,11 @@ export type SchematicLayout = {
 // ── Helpers ────────────────────────────────────────────────────────────
 
 function componentTypeToSymbol(type: string): SchematicSymbolType | null {
-  switch (type) {
-    case "resistor":
-      return "resistor"
-    case "led":
-    case "rgb_led":
-      return "led"
-    case "button":
-      return "button"
-    case "capacitor":
-      return "capacitor"
-    case "buzzer":
-      return "buzzer"
-    case "servo":
-      return "servo"
-    case "potentiometer":
-      return "potentiometer"
-    default:
-      return null
-  }
+  return getComponentDef(type)?.schematicSymbol ?? null
 }
 
 function getComponentValue(comp: BoardComponent): string | undefined {
-  const props = comp.properties
-  switch (comp.type) {
-    case "resistor": {
-      const ohms = props.resistance as number | undefined
-      if (ohms != null) {
-        if (ohms >= 1000000) return `${(ohms / 1000000).toFixed(1)}M\u03A9`
-        if (ohms >= 1000) return `${(ohms / 1000).toFixed(1)}k\u03A9`
-        return `${ohms}\u03A9`
-      }
-      return undefined
-    }
-    case "led":
-    case "rgb_led": {
-      const color = props.color as string | undefined
-      return color ? `${color} LED` : "LED"
-    }
-    case "capacitor": {
-      const cap = props.capacitance as string | undefined
-      return cap ?? undefined
-    }
-    case "buzzer":
-      return "Buzzer"
-    case "servo":
-      return "Servo"
-    case "potentiometer": {
-      const val = props.resistance as number | undefined
-      return val != null ? `${val}\u03A9 pot` : "Pot"
-    }
-    default:
-      return undefined
-  }
+  return getComponentDef(comp.type)?.schematicValue?.(comp)
 }
 
 function isGroundPin(pin: number): boolean {
@@ -263,7 +215,7 @@ export function generateSchematicLayout(
     // Check component nodes: a component is in a net if any of its footprint
     // grid points falls within the net's points
     for (const comp of circuitComponents) {
-      const footprint = getComponentFootprint(comp.type, comp.y, comp.x)
+      const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation)
       const compNodeId = `comp-${comp.id}`
       if (!nodes.find((n) => n.id === compNodeId)) continue
 

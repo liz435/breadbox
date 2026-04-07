@@ -2,6 +2,7 @@ import React from "react";
 import type { BoardComponent, PinState } from "@dreamer/schemas";
 import type { ComponentElectricalState } from "@/simulator/circuit-solver";
 import { gridToPixel, HOLE_SPACING } from "@/breadboard/breadboard-grid";
+import { PinLabel } from "./pin-label";
 
 type LedRendererProps = {
   component: BoardComponent;
@@ -9,6 +10,30 @@ type LedRendererProps = {
   isSelected: boolean;
   electricalState?: ComponentElectricalState;
 };
+
+/**
+ * Parse a hex color into [r, g, b] 0-255.
+ * Falls back to red if unparseable.
+ */
+function hexToRgb(hex: string): [number, number, number] {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  if (!m) return [239, 68, 68];
+  return [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)];
+}
+
+/** Blend a color toward white by t (0 = original, 1 = white). */
+function lighten(hex: string, t: number): string {
+  const [r, g, b] = hexToRgb(hex);
+  const mix = (c: number) => Math.round(c + (255 - c) * t);
+  return `rgb(${mix(r)},${mix(g)},${mix(b)})`;
+}
+
+/** Blend a color toward black by t (0 = original, 1 = black). */
+function darken(hex: string, t: number): string {
+  const [r, g, b] = hexToRgb(hex);
+  const mix = (c: number) => Math.round(c * (1 - t));
+  return `rgb(${mix(r)},${mix(g)},${mix(b)})`;
+}
 
 function LedRendererInner({ component, pinStates, isSelected, electricalState }: LedRendererProps) {
   const color = (component.properties.color as string) ?? "#ef4444";
@@ -27,6 +52,9 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
       })();
 
   const isReversed = electricalState?.isReversed ?? false;
+  const brightness = electricalState?.brightness ?? (isOn ? 1 : 0);
+  const currentMa = electricalState?.current ?? 0;
+  const voltage = electricalState?.voltage ?? 0;
 
   // Anode position (top leg)
   const anode = gridToPixel({ row: component.y, col: component.x });
@@ -38,25 +66,49 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
   const legWidth = 1.2;
   const filterId = `led-glow-${component.id}`;
   const gradientId = `led-grad-${component.id}`;
-
-  // Dim version of color for off state — desaturated and dark
-  const offColor = "#4a4a4a";
-  const brightness = electricalState?.brightness ?? (isOn ? 1 : 0);
-  const domeOpacity = isOn ? 1 : 0.4;
   const reversePolarityFilterId = `led-reverse-${component.id}`;
+
+  // ── Brightness-responsive visuals ──────────────────────────────────────
+
+  // Dome fill: blends from dark grey (off) → saturated color → whitish (max brightness)
+  const offColor = "#4a4a4a";
+  const domeColor = isOn
+    ? brightness > 0.7
+      ? lighten(color, (brightness - 0.7) / 0.3 * 0.4)  // wash out toward white at high current
+      : color
+    : isReversed
+      ? "#ef4444"
+      : offColor;
+
+  // Dome opacity: dim when off, fully opaque when on
+  const domeOpacity = isOn ? 0.7 + brightness * 0.3 : 0.35;
+
+  // Glow blur scales with brightness
+  const glowBlur = 2 + brightness * 8;
+
+  // Halo radius and opacity scale with brightness
+  const haloBaseR = domeRadius + 2 + brightness * 6;
+  const haloMaxR = haloBaseR + 2 + brightness * 8;
+  const haloOpacity = 0.1 + brightness * 0.35;
+
+  // Highlight specular spot intensity
+  const specularOpacity = isOn ? 0.15 + brightness * 0.55 : 0.1;
+
+  // Overcurrent indicator: LED gets a hot white center above 25 mA
+  const isOverdriven = isOn && currentMa > 25;
 
   return (
     <g>
       <defs>
-        {/* Dome gradient for 3D effect */}
+        {/* Dome gradient — brightness-responsive */}
         <radialGradient id={gradientId} cx="35%" cy="35%" r="65%">
-          <stop offset="0%" stopColor="#ffffff" stopOpacity={isOn ? 0.3 + brightness * 0.4 : 0.2} />
-          <stop offset="40%" stopColor={isOn ? color : (isReversed ? "#ef4444" : offColor)} stopOpacity={1} />
-          <stop offset="100%" stopColor={isOn ? color : (isReversed ? "#ef444488" : offColor)} stopOpacity={0.8} />
+          <stop offset="0%" stopColor="#ffffff" stopOpacity={specularOpacity} />
+          <stop offset="35%" stopColor={isOverdriven ? lighten(color, 0.6) : domeColor} stopOpacity={1} />
+          <stop offset="100%" stopColor={isOn ? darken(color, 0.2) : (isReversed ? "#ef444488" : offColor)} stopOpacity={0.85} />
         </radialGradient>
         {isOn && (
-          <filter id={filterId} x="-150%" y="-150%" width="400%" height="400%">
-            <feGaussianBlur stdDeviation={3 + brightness * 5} result="blur" />
+          <filter id={filterId} x="-200%" y="-200%" width="500%" height="500%">
+            <feGaussianBlur stdDeviation={glowBlur} result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
@@ -96,30 +148,43 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
         strokeLinecap="round"
       />
 
-      {/* LED dome (semicircle top + flat bottom) */}
+      {/* LED dome */}
       <g filter={isOn ? `url(#${filterId})` : undefined} opacity={domeOpacity}>
-        {/* Animated bloom halo when on */}
+        {/* Outer halo — scales with brightness */}
         {isOn && (
           <circle
             cx={domeCenter.x}
             cy={domeCenter.y}
-            r={domeRadius + 4}
+            r={haloBaseR}
             fill={color}
-            opacity={0.25}
+            opacity={haloOpacity * 0.6}
           >
             <animate
               attributeName="r"
-              values={`${domeRadius + 3};${domeRadius + 8};${domeRadius + 3}`}
-              dur="2s"
+              values={`${haloBaseR};${haloMaxR};${haloBaseR}`}
+              dur={1.5 + (1 - brightness) * 1.5 + "s"}
               repeatCount="indefinite"
             />
             <animate
               attributeName="opacity"
-              values="0.2;0.35;0.2"
-              dur="2s"
+              values={`${haloOpacity * 0.4};${haloOpacity};${haloOpacity * 0.4}`}
+              dur={1.5 + (1 - brightness) * 1.5 + "s"}
               repeatCount="indefinite"
             />
           </circle>
+        )}
+
+        {/* Inner glow ring — visible at medium+ brightness */}
+        {isOn && brightness > 0.3 && (
+          <circle
+            cx={domeCenter.x}
+            cy={domeCenter.y}
+            r={domeRadius + 1 + brightness * 2}
+            fill="none"
+            stroke={lighten(color, 0.3)}
+            strokeWidth={0.5 + brightness}
+            opacity={brightness * 0.5}
+          />
         )}
 
         {/* Dome body */}
@@ -132,6 +197,17 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
           stroke={isSelected ? "#3b82f6" : "#888"}
           strokeWidth={isSelected ? 1.5 : 0.8}
         />
+
+        {/* Hot center spot when overdriven */}
+        {isOverdriven && (
+          <circle
+            cx={domeCenter.x - 1}
+            cy={domeCenter.y - 1}
+            r={3}
+            fill="#fff"
+            opacity={0.3 + (currentMa - 25) / 50 * 0.4}
+          />
+        )}
 
         {/* Flat bottom edge (cathode indicator) */}
         <line
@@ -166,10 +242,14 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
       <circle cx={anode.x} cy={anode.y} r={2} fill={color} opacity={0.5} />
       <circle cx={cathode.x} cy={cathode.y} r={2} fill={color} opacity={0.5} />
 
-      {/* Label */}
+      {/* Pin labels */}
+      <PinLabel x={anode.x} y={anode.y} name="anode" side="left" />
+      <PinLabel x={cathode.x} y={cathode.y} name="cathode" side="left" />
+
+      {/* Label + electrical readout */}
       <text
         x={domeCenter.x + domeRadius + 4}
-        y={domeCenter.y + 2}
+        y={domeCenter.y - 1}
         textAnchor="start"
         fontSize={6}
         fill="#888"
@@ -177,6 +257,18 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
       >
         {component.name}
       </text>
+      {isOn && (
+        <text
+          x={domeCenter.x + domeRadius + 4}
+          y={domeCenter.y + 7}
+          textAnchor="start"
+          fontSize={4.5}
+          fill="#fbbf24"
+          fontFamily="monospace"
+        >
+          {currentMa.toFixed(1)}mA {voltage.toFixed(1)}V
+        </text>
+      )}
     </g>
   );
 }

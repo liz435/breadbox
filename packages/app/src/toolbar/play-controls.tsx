@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect } from "react"
+import { useCallback, useRef } from "react"
 import { Play, Pause, Square, Cpu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
@@ -7,6 +7,7 @@ import { useBoard } from "@/store/board-context"
 import { useDockviewApi } from "@/store/dockview-context"
 import { useSimulation } from "@/simulator/simulation-loop"
 import { cn } from "@/utils/classnames"
+import { markSerialUnread } from "./edit-toolbar"
 
 export function PlayControls() {
   const { state, send: boardSend } = useBoard()
@@ -44,6 +45,7 @@ export function PlayControls() {
   const onSerialPrint = useCallback(
     (text: string) => {
       boardSend({ type: "APPEND_SERIAL", text })
+      markSerialUnread()
     },
     [boardSend],
   )

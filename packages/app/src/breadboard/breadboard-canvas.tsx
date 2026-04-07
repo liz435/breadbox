@@ -30,46 +30,21 @@ import { WireRenderer } from "./component-renderers/wire-renderer";
 import { ArduinoUnoBoard } from "./component-renderers/arduino-uno-renderer";
 import { CircuitOverlay } from "./circuit-overlay";
 import { useCircuitAnalysis } from "@/simulator/circuit-analysis-hook";
+import { getComponentDef } from "@/components/registry";
 
-// ── Default pin layouts per component type ──────────────────────
+// ── Registry-driven helpers ──────────────────────────────────────
 
-const DEFAULT_PINS: Record<ComponentType, Record<string, number | null>> = {
-  led: { anode: null, cathode: null },
-  rgb_led: { red: null, green: null, blue: null, cathode: null },
-  button: { a: null, b: null },
-  resistor: { a: null, b: null },
-  capacitor: { a: null, b: null },
-  ic: {},
-  potentiometer: { vcc: null, signal: null, gnd: null },
-  buzzer: { positive: null, negative: null },
-  servo: { signal: null, vcc: null, gnd: null },
-  lcd_16x2: { rs: null, en: null, d4: null, d5: null, d6: null, d7: null },
-  seven_segment: { a: null, b: null, c: null, d: null, e: null, f: null, g: null },
-  photoresistor: { a: null, b: null },
-  temperature_sensor: { vcc: null, signal: null, gnd: null },
-  ultrasonic_sensor: { trigger: null, echo: null, vcc: null, gnd: null },
-  wire: {},
-  arduino_uno: {},
-};
+function getDefaultPins(type: ComponentType): Record<string, number | null> {
+  return { ...(getComponentDef(type)?.defaultPins ?? {}) };
+}
 
-const DEFAULT_PROPERTIES: Partial<Record<ComponentType, Record<string, unknown>>> = {
-  led: { color: "#ef4444" },
-  resistor: { resistance: 220 },
-  servo: { angle: 90 },
-};
+function getDefaultProperties(type: ComponentType): Record<string, unknown> {
+  return { ...(getComponentDef(type)?.defaultProperties ?? {}) };
+}
 
-// ── Accent colors per component type (for occupied hole indicators) ──
-const COMPONENT_ACCENT_COLORS: Partial<Record<ComponentType, string>> = {
-  led: "#ef4444",
-  rgb_led: "#a855f7",
-  resistor: "#d2b48c",
-  capacitor: "#3b82f6",
-  ic: "#6b7280",
-  button: "#f59e0b",
-  buzzer: "#1a1a1a",
-  servo: "#22c55e",
-  potentiometer: "#78716c",
-};
+function getAccentColor(type: ComponentType): string | undefined {
+  return getComponentDef(type)?.accentColor;
+}
 
 // ── Wire color from pin category ────────────────────────────────
 function getWireColorForPin(pin: import("./breadboard-grid").ArduinoPinInfo): string {
@@ -220,12 +195,14 @@ function GhostPreview({
   row,
   col,
   componentType,
+  rotation = 0,
 }: {
   row: number;
   col: number;
   componentType: ComponentType;
+  rotation?: number;
 }) {
-  const footprint = getComponentFootprint(componentType, row, col);
+  const footprint = getComponentFootprint(componentType, row, col, rotation);
 
   return (
     <g opacity={0.4} pointerEvents="none">
@@ -332,26 +309,32 @@ const WireLayer = React.memo(function WireLayer({ wires, selectedId, onSelect }:
 type ComponentLayerProps = {
   components: BoardComponent[];
   selectedId: string | null;
+  draggingId: string | null;
   analysis: import("@/simulator/circuit-solver").CircuitAnalysis | null;
   libraryState: LibraryState;
   pinStates: import("@dreamer/schemas").PinState[];
   onSelect: (id: string) => void;
+  onDragStart: (id: string, e: React.PointerEvent) => void;
 };
 
 const ComponentLayer = React.memo(function ComponentLayer({
   components,
   selectedId,
+  draggingId,
   analysis,
   libraryState,
   pinStates,
   onSelect,
+  onDragStart,
 }: ComponentLayerProps) {
   return (
     <g>
       {/* ── Components ── */}
       {components.map((comp) => {
-        const footprint = getComponentFootprint(comp.type, comp.y, comp.x);
+        const isDragging = draggingId === comp.id;
+        const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation);
         const primaryPos = gridToPixel({ row: comp.y, col: comp.x });
+        const rot = comp.rotation ?? 0;
 
         return (
           <g
@@ -360,7 +343,14 @@ const ComponentLayer = React.memo(function ComponentLayer({
               e.stopPropagation();
               onSelect(comp.id);
             }}
-            style={{ cursor: "pointer" }}
+            onPointerDown={(e) => {
+              if (e.button === 0) {
+                e.stopPropagation();
+                onDragStart(comp.id, e);
+              }
+            }}
+            style={{ cursor: isDragging ? "grabbing" : "pointer" }}
+            opacity={isDragging ? 0.35 : 1}
           >
             {/* Selection highlight around footprint */}
             {selectedId === comp.id && (
@@ -377,21 +367,23 @@ const ComponentLayer = React.memo(function ComponentLayer({
                 opacity={0.5}
               />
             )}
-            <ComponentRenderer
-              component={comp}
-              pinStates={pinStates}
-              isSelected={selectedId === comp.id}
-              electricalState={analysis?.componentStates.get(comp.id)}
-              libraryState={libraryState}
-            />
+            <g transform={rot ? `rotate(${rot * 90}, ${primaryPos.x}, ${primaryPos.y})` : undefined}>
+              <ComponentRenderer
+                component={comp}
+                pinStates={pinStates}
+                isSelected={selectedId === comp.id}
+                electricalState={analysis?.componentStates.get(comp.id)}
+                libraryState={libraryState}
+              />
+            </g>
           </g>
         );
       })}
 
       {/* ── Occupied hole indicators ── */}
       {components.map((comp) => {
-        const footprint = getComponentFootprint(comp.type, comp.y, comp.x);
-        const accentColor = COMPONENT_ACCENT_COLORS[comp.type] ?? "#60a5fa";
+        const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation);
+        const accentColor = getAccentColor(comp.type as ComponentType) ?? "#60a5fa";
         return footprint.points.map((pt, i) => {
           const pos = gridToPixel(pt);
           return (
@@ -457,6 +449,15 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
   const ghostRef = useRef<{ row: number; col: number } | null>(null);
   const [ghostPos, setGhostPos] = React.useState<{ row: number; col: number } | null>(null);
 
+  // Drag state
+  const draggingRef = useRef<{ id: string; startRow: number; startCol: number } | null>(null);
+  const [draggingId, setDraggingId] = React.useState<string | null>(null);
+  const [dragGhost, setDragGhost] = React.useState<{ row: number; col: number } | null>(null);
+
+  // Rotation while placing
+  const placingRotationRef = useRef(0);
+  const [placingRotation, setPlacingRotation] = React.useState(0);
+
   // Camera state — force re-render on zoom/pan
   const [, setTick] = React.useState(0);
   const forceUpdate = useCallback(() => setTick((t) => t + 1), []);
@@ -478,6 +479,22 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
       });
     },
     [],
+  );
+
+  // ── Handle drag start on a component ──
+  const handleDragStart = useCallback(
+    (id: string, e: React.PointerEvent) => {
+      // Don't start drag during other interactions
+      if (interactionMode !== "idle") return;
+      const comp = components[id];
+      if (!comp) return;
+      send({ type: "SELECT", id });
+      draggingRef.current = { id, startRow: comp.y, startCol: comp.x };
+      setDraggingId(id);
+      setDragGhost({ row: comp.y, col: comp.x });
+      svgRef.current?.setPointerCapture(e.pointerId);
+    },
+    [interactionMode, components, send],
   );
 
   // ── Zoom via wheel ──
@@ -549,13 +566,15 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
           name: placingType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
           x: grid.col,
           y: grid.row,
-          rotation: 0,
-          pins: { ...(DEFAULT_PINS[placingType] ?? {}) },
-          properties: { ...(DEFAULT_PROPERTIES[placingType] ?? {}) },
+          rotation: placingRotationRef.current,
+          pins: getDefaultPins(placingType),
+          properties: getDefaultProperties(placingType),
         };
 
         send({ type: "PLACE_COMPONENT", component });
         breadboardInteractionActor.send({ type: "POINTER_UP" });
+        placingRotationRef.current = 0;
+        setPlacingRotation(0);
         setGhostPos(null);
         ghostRef.current = null;
         return;
@@ -568,8 +587,8 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
         const board = screenToBoard(e.clientX - rect.left, e.clientY - rect.top);
         const grid = pixelToGrid(board.x, board.y);
 
-        // Only complete if clicking on the breadboard area
-        if (grid.row >= 0 && grid.row < ROWS && grid.col >= -2 && grid.col <= 11) {
+        // Complete wire to any grid point (on-board or off-board)
+        {
           // Use sentinel fromRow=-999 to mark this as an Arduino pin wire.
           // fromCol stores the Arduino pin number so the renderer can look up position.
           const currentWiringPin = breadboardInteractionActor.getSnapshot().context.wireFromPin;
@@ -615,6 +634,16 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
         return;
       }
 
+      // Dragging a component
+      if (draggingRef.current) {
+        const rect = svgRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const board = screenToBoard(e.clientX - rect.left, e.clientY - rect.top);
+        const grid = pixelToGrid(board.x, board.y);
+        setDragGhost(grid);
+        return;
+      }
+
       // Ghost preview while placing or wiring from pin
       if (interactionMode === "placing" || interactionMode === "wiring_from_pin") {
         const rect = svgRef.current?.getBoundingClientRect();
@@ -640,17 +669,53 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
 
   const handlePointerUp = useCallback(() => {
     isPanningRef.current = false;
-  }, []);
+
+    // Complete drag
+    if (draggingRef.current && dragGhost) {
+      const { id, startRow, startCol } = draggingRef.current;
+      if (dragGhost.row !== startRow || dragGhost.col !== startCol) {
+        send({ type: "MOVE_COMPONENT", id, x: dragGhost.col, y: dragGhost.row });
+      }
+      draggingRef.current = null;
+      setDraggingId(null);
+      setDragGhost(null);
+    }
+  }, [send, dragGhost]);
 
   // ── Keyboard for space panning + Escape to cancel ──
   React.useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+
       if (e.code === "Space") spaceDownRef.current = true;
-      if (e.code === "Escape" && interactionMode !== "idle") {
-        breadboardInteractionActor.send({ type: "CANCEL" });
-        setGhostPos(null);
-        ghostRef.current = null;
-        wireStartRef.current = null;
+      if (e.code === "Escape") {
+        if (draggingRef.current) {
+          draggingRef.current = null;
+          setDraggingId(null);
+          setDragGhost(null);
+        }
+        if (interactionMode !== "idle") {
+          breadboardInteractionActor.send({ type: "CANCEL" });
+          setGhostPos(null);
+          ghostRef.current = null;
+          wireStartRef.current = null;
+          placingRotationRef.current = 0;
+          setPlacingRotation(0);
+        }
+      }
+
+      // R key — rotate selected component or rotate placing ghost
+      if (e.code === "KeyR" && !e.metaKey && !e.ctrlKey) {
+        if (interactionMode === "placing") {
+          placingRotationRef.current = (placingRotationRef.current + 1) % 4;
+          setPlacingRotation(placingRotationRef.current);
+        } else if (selectedId) {
+          const comp = components[selectedId];
+          if (comp && comp.type !== "arduino_uno" && comp.type !== "wire") {
+            send({ type: "UPDATE_COMPONENT", id: selectedId, changes: { rotation: ((comp.rotation ?? 0) + 1) % 4 } });
+          }
+        }
       }
     };
     const onKeyUp = (e: KeyboardEvent) => {
@@ -665,7 +730,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [interactionMode]);
+  }, [interactionMode, selectedId, components, send]);
 
   // ── Component click handler ──
   const handleComponentClick = useCallback(
@@ -717,10 +782,12 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
         <ComponentLayer
           components={filteredComponents}
           selectedId={selectedId}
+          draggingId={draggingId}
           analysis={analysis}
           libraryState={libraryState}
           pinStates={pinStates}
           onSelect={handleComponentClick}
+          onDragStart={handleDragStart}
         />
 
         {/* ── Circuit analysis overlay ── */}
@@ -728,12 +795,38 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
           <CircuitOverlay analysis={analysis} components={filteredComponents} />
         )}
 
+        {/* ── Drag ghost preview ── */}
+        {draggingId && dragGhost && (() => {
+          const comp = components[draggingId];
+          if (!comp) return null;
+          const footprint = getComponentFootprint(comp.type, dragGhost.row, dragGhost.col);
+          return (
+            <g opacity={0.6} pointerEvents="none">
+              {footprint.points.map((pt, i) => {
+                const pos = gridToPixel(pt);
+                return (
+                  <circle
+                    key={i}
+                    cx={pos.x}
+                    cy={pos.y}
+                    r={5}
+                    fill="#3b82f6"
+                    stroke="#60a5fa"
+                    strokeWidth={1}
+                  />
+                );
+              })}
+            </g>
+          );
+        })()}
+
         {/* ── Ghost preview while placing ── */}
         {interactionMode === "placing" && ghostPos && placingType && placingType !== "wire" && (
           <GhostPreview
             row={ghostPos.row}
             col={ghostPos.col}
             componentType={placingType}
+            rotation={placingRotation}
           />
         )}
 

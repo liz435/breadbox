@@ -1,0 +1,79 @@
+{
+  "project": {
+    "id": "e29f0406-1540-458d-a138-53fb2eed4d21",
+    "name": "Untitled Project",
+    "version": 0,
+    "createdAt": "2026-04-07T00:58:36.390Z",
+    "updatedAt": "2026-04-07T02:05:17.450Z",
+    "threadId": "650cc6c2-9f25-4bc5-8112-d7a05aa400df",
+    "activeSceneId": "ed6134de-9083-47c8-82ee-f9d9bb070221"
+  },
+  "scenes": {
+    "ed6134de-9083-47c8-82ee-f9d9bb070221": {
+      "id": "ed6134de-9083-47c8-82ee-f9d9bb070221",
+      "name": "Main Scene",
+      "version": 0,
+      "settings": {
+        "background": "#252525",
+        "gravity": {
+          "x": 0,
+          "y": 9.8
+        }
+      }
+    }
+  },
+  "entities": {},
+  "sceneEntityIds": {
+    "ed6134de-9083-47c8-82ee-f9d9bb070221": []
+  },
+  "components": {
+    "transform": {},
+    "sprite": {},
+    "tilemap": {},
+    "physicsBody": {},
+    "script": {},
+    "camera": {}
+  },
+  "assets": {},
+  "graph": {
+    "nodes": {
+      "node-1775523590573-bqufpp": {
+        "id": "node-1775523590573-bqufpp",
+        "type": "setup",
+        "name": "Setup",
+        "x": 60,
+        "y": 60,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      },
+      "node-1775523590573-q31hco": {
+        "id": "node-1775523590573-q31hco",
+        "type": "loop",
+        "name": "Loop",
+        "x": 60,
+        "y": 200,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      }
+    },
+    "edges": {}
+  }
+}

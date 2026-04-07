@@ -1,6 +1,7 @@
 import React from "react";
 import type { BoardComponent, PinState, LibraryState } from "@dreamer/schemas";
 import { gridToPixel, HOLE_SPACING } from "@/breadboard/breadboard-grid";
+import { PinLabel } from "./pin-label";
 
 type ServoRendererProps = {
   component: BoardComponent;
@@ -75,6 +76,11 @@ function ServoRendererInner({ component, isSelected, libraryState }: ServoRender
       <circle cx={pinSignal.x} cy={pinSignal.y} r={2} fill="#ff9800" opacity={0.6} />
       <circle cx={pinVcc.x} cy={pinVcc.y} r={2} fill="#f44336" opacity={0.6} />
       <circle cx={pinGnd.x} cy={pinGnd.y} r={2} fill="#795548" opacity={0.6} />
+
+      {/* Pin labels */}
+      <PinLabel x={pinSignal.x} y={pinSignal.y} name="signal" side="below" />
+      <PinLabel x={pinVcc.x} y={pinVcc.y} name="vcc" side="below" />
+      <PinLabel x={pinGnd.x} y={pinGnd.y} name="gnd" side="below" />
 
       {/* Body shadow */}
       <rect

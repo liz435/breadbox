@@ -2,6 +2,7 @@ import React from "react";
 import type { BoardComponent, PinState } from "@dreamer/schemas";
 import type { ComponentElectricalState } from "@/simulator/circuit-solver";
 import { gridToPixel, HOLE_SPACING } from "@/breadboard/breadboard-grid";
+import { PinLabel } from "./pin-label";
 
 type ResistorRendererProps = {
   component: BoardComponent;
@@ -128,6 +129,10 @@ function ResistorRendererInner({ component, isSelected, electricalState }: Resis
       {/* Pin hole indicators */}
       <circle cx={pinA.x} cy={pinA.y} r={2} fill="#a0a0a0" opacity={0.5} />
       <circle cx={pinB.x} cy={pinB.y} r={2} fill="#a0a0a0" opacity={0.5} />
+
+      {/* Pin labels */}
+      <PinLabel x={pinA.x} y={pinA.y} name="a" side="above" symbol="A" />
+      <PinLabel x={pinB.x} y={pinB.y} name="b" side="above" symbol="B" />
 
       {/* Label */}
       <text

@@ -7,7 +7,7 @@ import React, { useRef, useEffect, useCallback } from "react"
 import { EditorView, keymap, lineNumbers } from "@codemirror/view"
 import { EditorState } from "@codemirror/state"
 import { cpp } from "@codemirror/lang-cpp"
-import { autocompletion } from "@codemirror/autocomplete"
+import { autocompletion, acceptCompletion } from "@codemirror/autocomplete"
 import { linter } from "@codemirror/lint"
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands"
 import { bracketMatching } from "@codemirror/language"
@@ -102,9 +102,14 @@ function SketchEditorInner() {
         cpp(),
         autocompletion({
           override: [arduinoCompletionSource],
+          defaultKeymap: false,
         }),
         linter(arduinoLinter),
-        keymap.of([...defaultKeymap, ...historyKeymap]),
+        keymap.of([
+          { key: "Tab", run: acceptCompletion },
+          ...defaultKeymap,
+          ...historyKeymap,
+        ]),
         darkTheme,
         updateListener,
         EditorView.lineWrapping,

@@ -1,4 +1,5 @@
 import type { BoardComponent, Wire } from "@dreamer/schemas";
+import { getComponentDef } from "@/components/registry";
 
 /**
  * Layout:
@@ -26,19 +27,29 @@ import type { BoardComponent, Wire } from "@dreamer/schemas";
 export type GridPoint = { row: number; col: number };
 export type Net = { id: string; points: GridPoint[]; arduinoPins: number[] };
 
-// ── Arduino Uno board constants ──────────────────────────────
-export const ARDUINO_BOARD_WIDTH = 340;
-export const ARDUINO_BOARD_HEIGHT = 220;
-export const ARDUINO_BOARD_MARGIN = 20; // gap between Uno and breadboard
-
-// ── Breadboard layout constants ──────────────────────────────
-export const ROWS = 30; // half-size breadboard
-export const COLS = 10; // 0-4 left (a-e), 5-9 right (f-j)
-export const HOLE_SPACING = 14; // px between hole centers (larger for realism)
-export const HOLE_RADIUS = 2.8;
-export const GAP_WIDTH = 28; // px gap between left and right sides (center channel)
-export const RAIL_OFFSET = 38; // px offset for power rails from terminal area (enough gap from a/j columns)
-export const BOARD_PADDING = 40; // px padding around the board
+// ── Breadboard constants (re-exported from breadboard-constants for back-compat) ──
+export {
+  ROWS,
+  COLS,
+  HOLE_SPACING,
+  HOLE_RADIUS,
+  GAP_WIDTH,
+  RAIL_OFFSET,
+  ARDUINO_BOARD_WIDTH,
+  ARDUINO_BOARD_HEIGHT,
+  ARDUINO_BOARD_MARGIN,
+  BOARD_PADDING,
+} from "@/breadboard/breadboard-constants"
+import {
+  ROWS,
+  HOLE_SPACING,
+  GAP_WIDTH,
+  RAIL_OFFSET,
+  ARDUINO_BOARD_WIDTH,
+  ARDUINO_BOARD_HEIGHT,
+  ARDUINO_BOARD_MARGIN,
+  BOARD_PADDING,
+} from "@/breadboard/breadboard-constants"
 
 // Breadboard offset: starts after the Arduino board
 export const BREADBOARD_OFFSET_X =
@@ -178,11 +189,14 @@ const TERMINAL_ORIGIN_X = BREADBOARD_OFFSET_X + BOARD_PADDING + RAIL_OFFSET;
 /** The y offset where the terminal rows start (below top power rails) */
 const TERMINAL_ORIGIN_Y = BOARD_PADDING + POWER_RAIL_HEIGHT;
 
+/** Right edge x of the right terminal strip (col 9) */
+const RIGHT_STRIP_ORIGIN_X = TERMINAL_ORIGIN_X + TERMINAL_WIDTH + GAP_WIDTH;
+
 function gridToPixelUncached(point: GridPoint): { x: number; y: number } {
   const { row, col } = point;
   const y = TERMINAL_ORIGIN_Y + row * HOLE_SPACING;
 
-  // Power rails (top rails: row < 0 maps to top area, row >= 0 maps normally)
+  // Power rails
   if (col === -2) {
     return { x: TERMINAL_ORIGIN_X - RAIL_OFFSET + 4, y };
   }
@@ -202,18 +216,16 @@ function gridToPixelUncached(point: GridPoint): { x: number; y: number } {
     };
   }
 
-  // Terminal strips
-  if (col >= 0 && col <= 4) {
+  // Left terminal strip (cols 0-4) — and extrapolate left for col < 0
+  if (col <= 4) {
     return { x: TERMINAL_ORIGIN_X + col * HOLE_SPACING, y };
   }
-  if (col >= 5 && col <= 9) {
-    return {
-      x: TERMINAL_ORIGIN_X + TERMINAL_WIDTH + GAP_WIDTH + (col - 5) * HOLE_SPACING,
-      y,
-    };
-  }
 
-  return { x: 0, y: 0 };
+  // Right terminal strip (cols 5-9) — and extrapolate right for col > 9
+  return {
+    x: RIGHT_STRIP_ORIGIN_X + (col - 5) * HOLE_SPACING,
+    y,
+  };
 }
 
 // Pre-computed pixel position cache for all valid grid points
@@ -235,34 +247,55 @@ export function gridToPixel(point: GridPoint): { x: number; y: number } {
   const key = `${point.row},${point.col}`;
   const cached = PIXEL_CACHE.get(key);
   if (cached) return cached;
-  return gridToPixelUncached(point);
+  // Off-grid points are computed on the fly (not cached)
+  const pos = gridToPixelUncached(point);
+  return pos;
+}
+
+/** Returns true if the grid point falls on the physical breadboard area. */
+export function isOnBoard(point: GridPoint): boolean {
+  const { row, col } = point;
+  if (row < 0 || row >= ROWS) return false;
+  if (col >= 0 && col <= 9) return true;
+  if (col === -2 || col === -1 || col === 10 || col === 11) return true;
+  return false;
 }
 
 export function pixelToGrid(px: number, py: number): GridPoint {
   const row = Math.round((py - TERMINAL_ORIGIN_Y) / HOLE_SPACING);
-  const clampedRow = Math.max(0, Math.min(ROWS - 1, row));
 
   const leftStart = TERMINAL_ORIGIN_X;
   const leftEnd = TERMINAL_ORIGIN_X + TERMINAL_WIDTH;
   const rightStart = TERMINAL_ORIGIN_X + TERMINAL_WIDTH + GAP_WIDTH;
   const rightEnd = rightStart + TERMINAL_WIDTH;
 
+  // Inside left terminal strip (cols 0-4)
   if (px >= leftStart - HOLE_SPACING / 2 && px <= leftEnd + HOLE_SPACING / 2) {
     const col = Math.round((px - TERMINAL_ORIGIN_X) / HOLE_SPACING);
-    return { row: clampedRow, col: Math.max(0, Math.min(4, col)) };
+    return { row, col: Math.max(0, Math.min(4, col)) };
   }
 
+  // Inside right terminal strip (cols 5-9)
   if (px >= rightStart - HOLE_SPACING / 2 && px <= rightEnd + HOLE_SPACING / 2) {
     const col = Math.round((px - rightStart) / HOLE_SPACING) + 5;
-    return { row: clampedRow, col: Math.max(5, Math.min(9, col)) };
+    return { row, col: Math.max(5, Math.min(9, col)) };
   }
 
-  // Default to nearest terminal side
-  const midX = (leftEnd + rightStart) / 2;
-  if (px < midX) {
-    return { row: clampedRow, col: 4 };
+  // In the center gap — snap to nearest terminal side
+  if (px >= leftEnd + HOLE_SPACING / 2 && px < rightStart - HOLE_SPACING / 2) {
+    const midX = (leftEnd + rightStart) / 2;
+    return { row, col: px < midX ? 4 : 5 };
   }
-  return { row: clampedRow, col: 5 };
+
+  // Off-board: to the left of the board → extrapolate left from col 0
+  if (px < leftStart - HOLE_SPACING / 2) {
+    const col = Math.round((px - TERMINAL_ORIGIN_X) / HOLE_SPACING);
+    return { row, col };
+  }
+
+  // Off-board: to the right of the board → extrapolate right from col 5
+  const col = Math.round((px - rightStart) / HOLE_SPACING) + 5;
+  return { row, col };
 }
 
 export function snapToGrid(px: number, py: number): GridPoint {
@@ -283,88 +316,85 @@ export type ComponentFootprint = {
   height: number;
 };
 
+/**
+ * Rotate footprint points in 90° increments around the anchor point (first point).
+ * rotation: 0 = 0°, 1 = 90° CW, 2 = 180°, 3 = 270° CW
+ */
+export function rotateFootprint(fp: ComponentFootprint, rotation: number): ComponentFootprint {
+  const r = ((rotation % 4) + 4) % 4;
+  if (r === 0) return fp;
+
+  const anchor = fp.points[0];
+  const points = fp.points.map((pt) => {
+    const dr = pt.row - anchor.row;
+    const dc = pt.col - anchor.col;
+    switch (r) {
+      case 1: return { row: anchor.row + dc, col: anchor.col - dr }; // 90° CW
+      case 2: return { row: anchor.row - dr, col: anchor.col - dc }; // 180°
+      case 3: return { row: anchor.row - dc, col: anchor.col + dr }; // 270° CW
+      default: return pt;
+    }
+  });
+
+  const swapped = r === 1 || r === 3;
+  return {
+    points,
+    width: swapped ? fp.height : fp.width,
+    height: swapped ? fp.width : fp.height,
+  };
+}
+
 export function getComponentFootprint(
   type: string,
   row: number,
   col: number,
+  rotation?: number,
 ): ComponentFootprint {
+  const def = getComponentDef(type)
+  const base = def ? def.footprint(row, col) : null;
+  if (base) return rotation ? rotateFootprint(base, rotation) : base;
+
+  let fallback: ComponentFootprint;
+  // All cases handled by registry above; this switch is a legacy fallback.
+  // Wrapped with rotation support at the end.
   switch (type) {
     case "led":
-      // 2 legs, adjacent rows same column
-      return {
-        points: [
-          { row, col },
-          { row: row + 1, col },
-        ],
-        width: HOLE_SPACING,
-        height: HOLE_SPACING * 2,
-      };
+      fallback = { points: [{ row, col }, { row: row + 1, col }], width: HOLE_SPACING, height: HOLE_SPACING * 2 }; break;
     case "resistor":
-      // Spans 5 holes horizontally
-      return {
-        points: [
-          { row, col },
-          { row, col: col + 4 },
-        ],
-        width: HOLE_SPACING * 5,
-        height: HOLE_SPACING,
-      };
+      fallback = { points: [{ row, col }, { row, col: col + 4 }], width: HOLE_SPACING * 5, height: HOLE_SPACING }; break;
     case "button":
-      // 4 pins in DIP: spans the center gap
-      // left side (col 3,4) and right side (col 5,6)
-      return {
-        points: [
-          { row, col: 3 },
-          { row: row + 1, col: 3 },
-          { row, col: 6 },
-          { row: row + 1, col: 6 },
-        ],
-        width: GAP_WIDTH + HOLE_SPACING * 4,
-        height: HOLE_SPACING * 2,
-      };
+      fallback = { points: [{ row, col: 3 }, { row: row + 1, col: 3 }, { row, col: 6 }, { row: row + 1, col: 6 }], width: GAP_WIDTH + HOLE_SPACING * 4, height: HOLE_SPACING * 2 }; break;
     case "capacitor":
-      // 2 legs, spaced 2 rows apart vertically
-      return {
-        points: [
-          { row, col },
-          { row: row + 2, col },
-        ],
-        width: HOLE_SPACING,
-        height: HOLE_SPACING * 3,
-      };
+      fallback = { points: [{ row, col }, { row: row + 2, col }], width: HOLE_SPACING, height: HOLE_SPACING * 3 }; break;
     case "ic": {
-      // IC straddles center gap, pins on cols 2-7
-      const pinCount = 8; // default, actual may vary
+      const pinCount = 8;
       const rowCount = pinCount / 2;
       const pts: GridPoint[] = [];
-      for (let r = 0; r < rowCount; r++) {
-        pts.push({ row: row + r, col: 2 });
-        pts.push({ row: row + r, col: 7 });
-      }
-      return {
-        points: pts,
-        width: GAP_WIDTH + HOLE_SPACING * 6,
-        height: HOLE_SPACING * rowCount,
-      };
+      for (let r = 0; r < rowCount; r++) { pts.push({ row: row + r, col: 2 }); pts.push({ row: row + r, col: 7 }); }
+      fallback = { points: pts, width: GAP_WIDTH + HOLE_SPACING * 6, height: HOLE_SPACING * rowCount }; break;
     }
     case "servo":
-      // Takes 3 adjacent holes in a row
-      return {
-        points: [
-          { row, col },
-          { row, col: col + 1 },
-          { row, col: col + 2 },
-        ],
-        width: HOLE_SPACING * 3,
-        height: HOLE_SPACING * 3,
-      };
+      fallback = { points: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }], width: HOLE_SPACING * 3, height: HOLE_SPACING * 3 }; break;
+    case "buzzer":
+      fallback = { points: [{ row, col }, { row, col: col + 1 }], width: HOLE_SPACING * 2, height: HOLE_SPACING * 2 }; break;
+    case "potentiometer":
+      fallback = { points: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }], width: HOLE_SPACING * 3, height: HOLE_SPACING * 2 }; break;
+    case "rgb_led":
+      fallback = { points: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }], width: HOLE_SPACING, height: HOLE_SPACING * 4 }; break;
+    case "photoresistor":
+      fallback = { points: [{ row, col }, { row: row + 1, col }], width: HOLE_SPACING, height: HOLE_SPACING * 2 }; break;
+    case "temperature_sensor":
+      fallback = { points: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }], width: HOLE_SPACING * 3, height: HOLE_SPACING * 2 }; break;
+    case "ultrasonic_sensor":
+      fallback = { points: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }], width: HOLE_SPACING * 4, height: HOLE_SPACING * 2 }; break;
+    case "lcd_16x2":
+      fallback = { points: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }, { row, col: col + 5 }], width: HOLE_SPACING * 6, height: HOLE_SPACING * 2 }; break;
+    case "seven_segment":
+      fallback = { points: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }, { row, col: col + 5 }, { row, col: col + 6 }], width: HOLE_SPACING * 7, height: HOLE_SPACING * 2 }; break;
     default:
-      return {
-        points: [{ row, col }],
-        width: HOLE_SPACING * 2,
-        height: HOLE_SPACING * 2,
-      };
+      fallback = { points: [{ row, col }], width: HOLE_SPACING * 2, height: HOLE_SPACING * 2 }; break;
   }
+  return rotation ? rotateFootprint(fallback, rotation) : fallback;
 }
 
 // ── Connectivity ──────────────────────────────────────────────

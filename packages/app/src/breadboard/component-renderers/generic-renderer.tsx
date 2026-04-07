@@ -2,6 +2,7 @@ import React from "react";
 import type { BoardComponent, PinState, LibraryState } from "@dreamer/schemas";
 import type { ComponentElectricalState } from "@/simulator/circuit-solver";
 import { gridToPixel, HOLE_SPACING } from "@/breadboard/breadboard-grid";
+import { PinLabel } from "./pin-label";
 
 type GenericRendererProps = {
   component: BoardComponent;
@@ -51,6 +52,10 @@ function BuzzerRenderer({ component, isSelected, electricalState }: { component:
       <circle cx={x} cy={y} r={3} fill="#2a2a2a" stroke="#444" strokeWidth={0.3} />
       {/* + marking */}
       <text x={x - 6} y={y - radius + 8} fontSize={5} fill="#666" fontFamily="monospace">+</text>
+
+      {/* Pin labels */}
+      <PinLabel x={x - 4} y={y + radius + 8} name="+" side="left" />
+      <PinLabel x={x + 4} y={y + radius + 8} name="-" side="right" />
     </g>
   );
 }
@@ -89,6 +94,11 @@ function PotentiometerRenderer({ component, isSelected }: { component: BoardComp
       />
       {/* Center dot */}
       <circle cx={x} cy={y} r={2} fill="#fbbf24" />
+
+      {/* Pin labels */}
+      <PinLabel x={x - 8} y={y + radius + 8} name="vcc" side="left" />
+      <PinLabel x={x} y={y + radius + 8} name="signal" side="below" />
+      <PinLabel x={x + 8} y={y + radius + 8} name="gnd" side="right" />
     </g>
   );
 }
@@ -212,6 +222,11 @@ function TemperatureSensorRenderer({ component, isSelected }: { component: Board
       <text x={x} y={y + 3} textAnchor="middle" fontSize={4} fill="#aaa" fontFamily="monospace">
         TMP
       </text>
+
+      {/* Pin labels */}
+      <PinLabel x={x - 5} y={y + bodyRadius + 10} name="vcc" side="left" />
+      <PinLabel x={x} y={y + bodyRadius + 10} name="out" side="below" />
+      <PinLabel x={x + 5} y={y + bodyRadius + 10} name="gnd" side="right" />
     </g>
   );
 }

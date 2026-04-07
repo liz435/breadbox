@@ -2,6 +2,7 @@ import React, { useCallback } from "react";
 import type { BoardComponent, PinState } from "@dreamer/schemas";
 import { gridToPixel, HOLE_SPACING, GAP_WIDTH, TERMINAL_WIDTH } from "@/breadboard/breadboard-grid";
 import { useBoard } from "@/store/board-context";
+import { PinLabel } from "./pin-label";
 
 type ButtonRendererProps = {
   component: BoardComponent;
@@ -113,6 +114,12 @@ function ButtonRendererInner({ component, pinStates, isSelected }: ButtonRendere
           pointerEvents="none"
         />
       )}
+
+      {/* Pin labels */}
+      <PinLabel x={topLeft.x} y={topLeft.y} name="a" side="left" />
+      <PinLabel x={bottomLeft.x} y={bottomLeft.y} name="a" side="left" />
+      <PinLabel x={topRight.x} y={topRight.y} name="b" side="right" />
+      <PinLabel x={bottomRight.x} y={bottomRight.y} name="b" side="right" />
 
       {/* Label */}
       <text

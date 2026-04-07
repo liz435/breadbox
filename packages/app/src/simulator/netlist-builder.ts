@@ -10,6 +10,7 @@ import {
   type Net,
   type GridPoint,
 } from "@/breadboard/breadboard-grid"
+import { getComponentDef } from "@/components/registry"
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -136,115 +137,31 @@ export function buildNetlist(
   }
 
   // Build component elements
-  let hasLed = false
-
   for (const comp of Object.values(components)) {
     if (comp.type === "arduino_uno" || comp.type === "wire") continue
 
-    const footprint = getComponentFootprint(comp.type, comp.y, comp.x)
+    const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation)
+    const def = getComponentDef(comp.type)
 
-    switch (comp.type) {
-      case "resistor": {
-        // Two legs: first and last footprint point
-        const nodeA = resolveNode(nodeMap, footprint.points[0])
-        const nodeB = resolveNode(nodeMap, footprint.points[1])
-        const resistance = (comp.properties.resistance as number) ?? 220
-        lines.push(`R_${sanitize(comp.id)} ${nodeA} ${nodeB} ${resistance}`)
-        componentNodePairs.set(comp.id, { nodeA, nodeB })
-        break
+    if (def?.buildNetlist) {
+      const ctx = {
+        footprint,
+        resolveNode: (pt: GridPoint) => resolveNode(nodeMap, pt),
+        pinStates,
       }
+      const result = def.buildNetlist(comp, ctx)
+      if (result) {
+        // Skip components with floating nodes — they crash the SPICE solver
+        // (singular matrix from nodes with no DC path to ground)
+        const hasFloating =
+          result.nodeA.startsWith("unconnected_") ||
+          result.nodeB.startsWith("unconnected_")
+        if (hasFloating) continue
 
-      case "led":
-      case "rgb_led": {
-        // Anode is first point, cathode is second
-        const anodeNode = resolveNode(nodeMap, footprint.points[0])
-        const cathodeNode = resolveNode(nodeMap, footprint.points[1])
-        lines.push(
-          `D_${sanitize(comp.id)} ${anodeNode} ${cathodeNode} DLED`,
-        )
-        componentNodePairs.set(comp.id, {
-          nodeA: anodeNode,
-          nodeB: cathodeNode,
-        })
-        hasLed = true
-        break
+        lines.push(...result.lines)
+        componentNodePairs.set(comp.id, { nodeA: result.nodeA, nodeB: result.nodeB })
       }
-
-      case "button": {
-        // DIP button: left pins (3) and right pins (6) are internally connected when pressed
-        // We model the connection between the left side net and right side net
-        const leftNode = resolveNode(nodeMap, footprint.points[0])
-        const rightNode = resolveNode(nodeMap, footprint.points[2])
-        const inputPin = comp.pins.a ?? comp.pins.input
-        const isPressed =
-          inputPin != null &&
-          pinStates.some(
-            (ps) => ps.pin === inputPin && ps.digitalValue === 1,
-          )
-
-        const resistance = isPressed ? 0.01 : 10_000_000
-        lines.push(
-          `R_${sanitize(comp.id)} ${leftNode} ${rightNode} ${resistance}`,
-        )
-        componentNodePairs.set(comp.id, {
-          nodeA: leftNode,
-          nodeB: rightNode,
-        })
-        break
-      }
-
-      case "buzzer": {
-        // Model as a resistor (piezo buzzer ~ 20-40 ohm impedance)
-        const posNode = resolveNode(nodeMap, footprint.points[0])
-        const negNode = resolveNode(
-          nodeMap,
-          footprint.points[1] ?? footprint.points[0],
-        )
-        lines.push(`R_${sanitize(comp.id)} ${posNode} ${negNode} 30`)
-        componentNodePairs.set(comp.id, { nodeA: posNode, nodeB: negNode })
-        break
-      }
-
-      case "potentiometer": {
-        // 3-pin: model as two resistors in series (voltage divider)
-        if (footprint.points.length >= 3) {
-          const n1 = resolveNode(nodeMap, footprint.points[0])
-          const n2 = resolveNode(nodeMap, footprint.points[1])
-          const n3 = resolveNode(nodeMap, footprint.points[2])
-          const totalR = 10000 // 10k pot
-          const ratio = 0.5 // default wiper position
-          lines.push(
-            `R_${sanitize(comp.id)}_A ${n1} ${n2} ${totalR * ratio}`,
-          )
-          lines.push(
-            `R_${sanitize(comp.id)}_B ${n2} ${n3} ${totalR * (1 - ratio)}`,
-          )
-          componentNodePairs.set(comp.id, { nodeA: n1, nodeB: n3 })
-        }
-        break
-      }
-
-      case "photoresistor": {
-        // Model as a fixed resistance (default dark: 10k)
-        const nodeA = resolveNode(nodeMap, footprint.points[0])
-        const nodeB = resolveNode(
-          nodeMap,
-          footprint.points[1] ?? footprint.points[0],
-        )
-        lines.push(`R_${sanitize(comp.id)} ${nodeA} ${nodeB} 10000`)
-        componentNodePairs.set(comp.id, { nodeA, nodeB })
-        break
-      }
-
-      default:
-        // Servo, LCD, sensors etc. — skip for SPICE simulation
-        break
     }
-  }
-
-  // Add LED model if any LEDs present
-  if (hasLed) {
-    lines.push(".model DLED D(Is=1e-14 N=1.8)")
   }
 
   // Transient analysis — short run for DC operating point

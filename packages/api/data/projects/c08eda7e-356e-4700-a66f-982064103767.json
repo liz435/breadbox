@@ -2,9 +2,9 @@
   "project": {
     "id": "c08eda7e-356e-4700-a66f-982064103767",
     "name": "Untitled Project",
-    "version": 1,
+    "version": 3,
     "createdAt": "2026-03-24T02:49:26.474Z",
-    "updatedAt": "2026-04-06T03:00:49.327Z",
+    "updatedAt": "2026-04-07T00:58:11.858Z",
     "threadId": "d9ce038b-57e1-4110-8f97-c0b9c47bb369",
     "activeSceneId": "69052eee-ea8c-47c0-9eac-fdbc1bfa38b9"
   },
@@ -78,12 +78,177 @@
   },
   "boardState": {
     "components": {
-      "6da5dafa-b495-4d51-bacb-15edafc93b51": {
-        "id": "6da5dafa-b495-4d51-bacb-15edafc93b51",
+      "46f59c2b-e511-4af6-9f3f-f67078cb71a5": {
+        "id": "46f59c2b-e511-4af6-9f3f-f67078cb71a5",
         "type": "led",
-        "name": "Red LED",
+        "name": "LED R0C0",
+        "x": 2,
+        "y": 2,
+        "rotation": 0,
+        "pins": {
+          "anode": 2,
+          "cathode": null
+        },
+        "properties": {
+          "color": "red"
+        }
+      },
+      "fa4c2113-d803-4ce3-a2e3-590e72d96203": {
+        "id": "fa4c2113-d803-4ce3-a2e3-590e72d96203",
+        "type": "led",
+        "name": "LED R0C1",
         "x": 5,
-        "y": 5,
+        "y": 2,
+        "rotation": 0,
+        "pins": {
+          "anode": 3,
+          "cathode": null
+        },
+        "properties": {
+          "color": "red"
+        }
+      },
+      "6d054692-e9b2-468d-8a30-fd439bd4bbdd": {
+        "id": "6d054692-e9b2-468d-8a30-fd439bd4bbdd",
+        "type": "led",
+        "name": "LED R0C2",
+        "x": 8,
+        "y": 2,
+        "rotation": 0,
+        "pins": {
+          "anode": 4,
+          "cathode": null
+        },
+        "properties": {
+          "color": "red"
+        }
+      },
+      "b8edda4d-a024-4172-a3cc-3bc26bc2e9af": {
+        "id": "b8edda4d-a024-4172-a3cc-3bc26bc2e9af",
+        "type": "led",
+        "name": "LED R0C3",
+        "x": 11,
+        "y": 2,
+        "rotation": 0,
+        "pins": {
+          "anode": 5,
+          "cathode": null
+        },
+        "properties": {
+          "color": "red"
+        }
+      },
+      "287641b2-4519-4ba4-8810-6787b977c60d": {
+        "id": "287641b2-4519-4ba4-8810-6787b977c60d",
+        "type": "led",
+        "name": "LED R1C0",
+        "x": 2,
+        "y": 6,
+        "rotation": 0,
+        "pins": {
+          "anode": 6,
+          "cathode": null
+        },
+        "properties": {
+          "color": "red"
+        }
+      },
+      "e2834001-6ee2-4f5e-a5a0-f754acc55977": {
+        "id": "e2834001-6ee2-4f5e-a5a0-f754acc55977",
+        "type": "led",
+        "name": "LED R1C1",
+        "x": 5,
+        "y": 6,
+        "rotation": 0,
+        "pins": {
+          "anode": 7,
+          "cathode": null
+        },
+        "properties": {
+          "color": "red"
+        }
+      },
+      "75f89d56-ff88-4811-899c-170ad8119b89": {
+        "id": "75f89d56-ff88-4811-899c-170ad8119b89",
+        "type": "led",
+        "name": "LED R1C2",
+        "x": 8,
+        "y": 6,
+        "rotation": 0,
+        "pins": {
+          "anode": 8,
+          "cathode": null
+        },
+        "properties": {
+          "color": "red"
+        }
+      },
+      "79315204-1397-4e4a-8618-865cce6aea14": {
+        "id": "79315204-1397-4e4a-8618-865cce6aea14",
+        "type": "led",
+        "name": "LED R1C3",
+        "x": 11,
+        "y": 6,
+        "rotation": 0,
+        "pins": {
+          "anode": 9,
+          "cathode": null
+        },
+        "properties": {
+          "color": "red"
+        }
+      },
+      "7866307c-d7f1-451a-9eda-24fc1cdc28c2": {
+        "id": "7866307c-d7f1-451a-9eda-24fc1cdc28c2",
+        "type": "led",
+        "name": "LED R2C0",
+        "x": 2,
+        "y": 10,
+        "rotation": 0,
+        "pins": {
+          "anode": 10,
+          "cathode": null
+        },
+        "properties": {
+          "color": "red"
+        }
+      },
+      "f52356dd-fb00-46ac-83ff-94e765893cff": {
+        "id": "f52356dd-fb00-46ac-83ff-94e765893cff",
+        "type": "led",
+        "name": "LED R2C1",
+        "x": 5,
+        "y": 10,
+        "rotation": 0,
+        "pins": {
+          "anode": 11,
+          "cathode": null
+        },
+        "properties": {
+          "color": "red"
+        }
+      },
+      "4e6aaf92-873e-4422-94b3-aa90e2d6697f": {
+        "id": "4e6aaf92-873e-4422-94b3-aa90e2d6697f",
+        "type": "led",
+        "name": "LED R2C2",
+        "x": 8,
+        "y": 10,
+        "rotation": 0,
+        "pins": {
+          "anode": 12,
+          "cathode": null
+        },
+        "properties": {
+          "color": "red"
+        }
+      },
+      "9c8d9259-c59b-413b-8ef4-6734516f3b97": {
+        "id": "9c8d9259-c59b-413b-8ef4-6734516f3b97",
+        "type": "led",
+        "name": "LED R2C3",
+        "x": 11,
+        "y": 10,
         "rotation": 0,
         "pins": {
           "anode": 13,
@@ -93,12 +258,117 @@
           "color": "red"
         }
       },
-      "67035e79-50a3-4d41-b38e-2d3b0021a2f0": {
-        "id": "67035e79-50a3-4d41-b38e-2d3b0021a2f0",
-        "type": "resistor",
-        "name": "220Ω Resistor",
+      "cd160226-8000-4f0f-9d4a-763d026f5436": {
+        "id": "cd160226-8000-4f0f-9d4a-763d026f5436",
+        "type": "led",
+        "name": "LED R3C0",
+        "x": 2,
+        "y": 14,
+        "rotation": 0,
+        "pins": {
+          "anode": 14,
+          "cathode": null
+        },
+        "properties": {
+          "color": "red"
+        }
+      },
+      "55fc0512-9699-49f9-8b4f-5e901bb38c69": {
+        "id": "55fc0512-9699-49f9-8b4f-5e901bb38c69",
+        "type": "led",
+        "name": "LED R3C1",
         "x": 5,
-        "y": 8,
+        "y": 14,
+        "rotation": 0,
+        "pins": {
+          "anode": 15,
+          "cathode": null
+        },
+        "properties": {
+          "color": "red"
+        }
+      },
+      "d1734fb4-3b05-4a26-85f8-ea582a4cc53c": {
+        "id": "d1734fb4-3b05-4a26-85f8-ea582a4cc53c",
+        "type": "led",
+        "name": "LED R3C2",
+        "x": 8,
+        "y": 14,
+        "rotation": 0,
+        "pins": {
+          "anode": 16,
+          "cathode": null
+        },
+        "properties": {
+          "color": "red"
+        }
+      },
+      "75015cae-ac53-4c61-9ea0-66c6267f21a8": {
+        "id": "75015cae-ac53-4c61-9ea0-66c6267f21a8",
+        "type": "led",
+        "name": "LED R3C3",
+        "x": 11,
+        "y": 14,
+        "rotation": 0,
+        "pins": {
+          "anode": 17,
+          "cathode": null
+        },
+        "properties": {
+          "color": "red"
+        }
+      },
+      "7f8f5e72-340d-4b14-bd3f-d474ab7b9d71": {
+        "id": "7f8f5e72-340d-4b14-bd3f-d474ab7b9d71",
+        "type": "resistor",
+        "name": "R Col0",
+        "x": 2,
+        "y": 18,
+        "rotation": 0,
+        "pins": {
+          "pin1": null,
+          "pin2": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "12836886-3f9a-4e7c-b0a1-754603b96f6b": {
+        "id": "12836886-3f9a-4e7c-b0a1-754603b96f6b",
+        "type": "resistor",
+        "name": "R Col1",
+        "x": 5,
+        "y": 18,
+        "rotation": 0,
+        "pins": {
+          "pin1": null,
+          "pin2": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "1253269d-77fd-42d9-a065-aed765573550": {
+        "id": "1253269d-77fd-42d9-a065-aed765573550",
+        "type": "resistor",
+        "name": "R Col2",
+        "x": 8,
+        "y": 18,
+        "rotation": 0,
+        "pins": {
+          "pin1": null,
+          "pin2": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "2ecacc96-dc6e-44d9-9d0d-52b7467c1411": {
+        "id": "2ecacc96-dc6e-44d9-9d0d-52b7467c1411",
+        "type": "resistor",
+        "name": "R Col3",
+        "x": 11,
+        "y": 18,
         "rotation": 0,
         "pins": {
           "pin1": null,
@@ -125,6 +395,214 @@
         "toRow": 10,
         "toCol": 5,
         "color": "#000000"
+      },
+      "5e7b7701-8935-4fde-ad6d-8b63ac617b41": {
+        "id": "5e7b7701-8935-4fde-ad6d-8b63ac617b41",
+        "fromRow": 3,
+        "fromCol": 2,
+        "toRow": 6,
+        "toCol": 2,
+        "color": "#ff0000"
+      },
+      "41625405-4fd3-4b2c-8c8b-08800bb26ca0": {
+        "id": "41625405-4fd3-4b2c-8c8b-08800bb26ca0",
+        "fromRow": 6,
+        "fromCol": 2,
+        "toRow": 9,
+        "toCol": 2,
+        "color": "#000000"
+      },
+      "3e8745d5-4089-4c37-9aa0-98b32cfed3c6": {
+        "id": "3e8745d5-4089-4c37-9aa0-98b32cfed3c6",
+        "fromRow": 3,
+        "fromCol": 7,
+        "toRow": 6,
+        "toCol": 7,
+        "color": "#22c55e"
+      },
+      "5c54ffe8-d2d8-49cd-9d9f-b91429545de1": {
+        "id": "5c54ffe8-d2d8-49cd-9d9f-b91429545de1",
+        "fromRow": 6,
+        "fromCol": 7,
+        "toRow": 9,
+        "toCol": 7,
+        "color": "#000000"
+      },
+      "8a8f2f54-eb2f-4671-9153-03450b75d15b": {
+        "id": "8a8f2f54-eb2f-4671-9153-03450b75d15b",
+        "fromRow": 3,
+        "fromCol": 12,
+        "toRow": 6,
+        "toCol": 12,
+        "color": "#f97316"
+      },
+      "7a3034fb-1e1d-474f-ac1f-9c9c6bc8fb5e": {
+        "id": "7a3034fb-1e1d-474f-ac1f-9c9c6bc8fb5e",
+        "fromRow": 6,
+        "fromCol": 12,
+        "toRow": 9,
+        "toCol": 12,
+        "color": "#000000"
+      },
+      "a19146c3-9efb-46de-bff7-4396b91ed3b2": {
+        "id": "a19146c3-9efb-46de-bff7-4396b91ed3b2",
+        "fromRow": 2,
+        "fromCol": 2,
+        "toRow": 6,
+        "toCol": 2,
+        "color": "#ff4444"
+      },
+      "994ef084-99e5-46bc-aa6f-64877ea798b4": {
+        "id": "994ef084-99e5-46bc-aa6f-64877ea798b4",
+        "fromRow": 6,
+        "fromCol": 2,
+        "toRow": 10,
+        "toCol": 2,
+        "color": "#ff4444"
+      },
+      "26d880a0-6d62-4b2d-8b22-4229ac220281": {
+        "id": "26d880a0-6d62-4b2d-8b22-4229ac220281",
+        "fromRow": 10,
+        "fromCol": 2,
+        "toRow": 14,
+        "toCol": 2,
+        "color": "#ff4444"
+      },
+      "bb28d40e-b92c-4845-88fc-8892e2725755": {
+        "id": "bb28d40e-b92c-4845-88fc-8892e2725755",
+        "fromRow": 14,
+        "fromCol": 2,
+        "toRow": 18,
+        "toCol": 2,
+        "color": "#ff4444"
+      },
+      "356cf244-b9a1-4bc0-9cac-084fe2b7beb7": {
+        "id": "356cf244-b9a1-4bc0-9cac-084fe2b7beb7",
+        "fromRow": 18,
+        "fromCol": 2,
+        "toRow": 21,
+        "toCol": 2,
+        "color": "#000000"
+      },
+      "eac454ff-8a0c-421f-aa74-b8354923bc81": {
+        "id": "eac454ff-8a0c-421f-aa74-b8354923bc81",
+        "fromRow": 2,
+        "fromCol": 5,
+        "toRow": 6,
+        "toCol": 5,
+        "color": "#ff4444"
+      },
+      "5edcee5f-6328-47e4-8e75-c5ab780e4d48": {
+        "id": "5edcee5f-6328-47e4-8e75-c5ab780e4d48",
+        "fromRow": 6,
+        "fromCol": 5,
+        "toRow": 10,
+        "toCol": 5,
+        "color": "#ff4444"
+      },
+      "6ee27b2a-326d-451d-a12a-055368341dd1": {
+        "id": "6ee27b2a-326d-451d-a12a-055368341dd1",
+        "fromRow": 10,
+        "fromCol": 5,
+        "toRow": 14,
+        "toCol": 5,
+        "color": "#ff4444"
+      },
+      "849b10fc-e9a4-477d-a4f5-25636d080656": {
+        "id": "849b10fc-e9a4-477d-a4f5-25636d080656",
+        "fromRow": 14,
+        "fromCol": 5,
+        "toRow": 18,
+        "toCol": 5,
+        "color": "#ff4444"
+      },
+      "e595096f-a0a5-44a4-8204-b8d30fb81201": {
+        "id": "e595096f-a0a5-44a4-8204-b8d30fb81201",
+        "fromRow": 18,
+        "fromCol": 5,
+        "toRow": 21,
+        "toCol": 5,
+        "color": "#000000"
+      },
+      "8a4bd1e5-1ff0-45fd-9cf9-1fbfea66b82a": {
+        "id": "8a4bd1e5-1ff0-45fd-9cf9-1fbfea66b82a",
+        "fromRow": 2,
+        "fromCol": 8,
+        "toRow": 6,
+        "toCol": 8,
+        "color": "#ff4444"
+      },
+      "45a67e08-e57d-4b85-9d21-8f3cd4dd4e14": {
+        "id": "45a67e08-e57d-4b85-9d21-8f3cd4dd4e14",
+        "fromRow": 6,
+        "fromCol": 8,
+        "toRow": 10,
+        "toCol": 8,
+        "color": "#ff4444"
+      },
+      "1d0e5886-b8b0-47c7-905e-b0cc23121fa5": {
+        "id": "1d0e5886-b8b0-47c7-905e-b0cc23121fa5",
+        "fromRow": 10,
+        "fromCol": 8,
+        "toRow": 14,
+        "toCol": 8,
+        "color": "#ff4444"
+      },
+      "86d414a4-f267-442f-8aeb-bc3cbf1b5e2f": {
+        "id": "86d414a4-f267-442f-8aeb-bc3cbf1b5e2f",
+        "fromRow": 14,
+        "fromCol": 8,
+        "toRow": 18,
+        "toCol": 8,
+        "color": "#ff4444"
+      },
+      "2cf0911c-7b9c-44f2-81ee-f0189587b12d": {
+        "id": "2cf0911c-7b9c-44f2-81ee-f0189587b12d",
+        "fromRow": 18,
+        "fromCol": 8,
+        "toRow": 21,
+        "toCol": 8,
+        "color": "#000000"
+      },
+      "0983ebd6-4f12-4c36-9153-81e94d2646c9": {
+        "id": "0983ebd6-4f12-4c36-9153-81e94d2646c9",
+        "fromRow": 2,
+        "fromCol": 11,
+        "toRow": 6,
+        "toCol": 11,
+        "color": "#ff4444"
+      },
+      "b4aece89-47bb-4e04-b20f-53d972098a50": {
+        "id": "b4aece89-47bb-4e04-b20f-53d972098a50",
+        "fromRow": 6,
+        "fromCol": 11,
+        "toRow": 10,
+        "toCol": 11,
+        "color": "#ff4444"
+      },
+      "992dfba2-320c-4373-8d76-7fa716a159a7": {
+        "id": "992dfba2-320c-4373-8d76-7fa716a159a7",
+        "fromRow": 10,
+        "fromCol": 11,
+        "toRow": 14,
+        "toCol": 11,
+        "color": "#ff4444"
+      },
+      "938304a5-38f7-4526-8177-662b2c70347f": {
+        "id": "938304a5-38f7-4526-8177-662b2c70347f",
+        "fromRow": 14,
+        "fromCol": 11,
+        "toRow": 18,
+        "toCol": 11,
+        "color": "#ff4444"
+      },
+      "37c7b415-bc54-4774-bf12-948c72a5168f": {
+        "id": "37c7b415-bc54-4774-bf12-948c72a5168f",
+        "fromRow": 18,
+        "fromCol": 11,
+        "toRow": 21,
+        "toCol": 11,
+        "color": "#000000"
       }
     },
     "pinStates": [],
@@ -134,6 +612,6 @@
       "serialBaud": 0
     },
     "serialOutput": [],
-    "sketchCode": "// Simple LED Blink Circuit\n// Red LED on pin 13 with 220Ω resistor\n\nvoid setup() {\n  // Configure pin 13 as an output\n  pinMode(13, OUTPUT);\n}\n\nvoid loop() {\n  // Turn the LED on\n  digitalWrite(13, HIGH);\n  delay(1000);  // Wait 1 second (1000 milliseconds)\n  \n  // Turn the LED off\n  digitalWrite(13, LOW);\n  delay(1000);  // Wait 1 second\n}\n"
+    "sketchCode": "// ============================================\n//   4x4 LED MATRIX — Arduino Uno\n//   16 LEDs individually controlled via\n//   D2–D13 + A0(14)–A3(17)\n//\n//   Matrix layout:\n//     Row 0: D2  D3  D4  D5\n//     Row 1: D6  D7  D8  D9\n//     Row 2: D10 D11 D12 D13\n//     Row 3: A0  A1  A2  A3\n//\n//   All cathodes share 220Ω resistors to GND\n//   Animations: Fill, Wipe, Bounce, Checkerboard,\n//               Spiral, Snake, Rain, Heart, X\n// ============================================\n\nconst int ROWS = 4;\nconst int COLS = 4;\n\n// Pin mapping: led[row][col] → Arduino pin\nconst int ledPin[ROWS][COLS] = {\n  {  2,  3,  4,  5 },  // Row 0\n  {  6,  7,  8,  9 },  // Row 1\n  { 10, 11, 12, 13 },  // Row 2\n  { 14, 15, 16, 17 }   // Row 3  (A0–A3)\n};\n\n// ── Helpers ──────────────────────────────────\n\nvoid setLed(int r, int c, bool on) {\n  digitalWrite(ledPin[r][c], on ? HIGH : LOW);\n}\n\nvoid allOff() {\n  for (int r = 0; r < ROWS; r++)\n    for (int c = 0; c < COLS; c++)\n      setLed(r, c, false);\n}\n\nvoid allOn() {\n  for (int r = 0; r < ROWS; r++)\n    for (int c = 0; c < COLS; c++)\n      setLed(r, c, true);\n}\n\n// Display a 4x4 bitmap (1 = on, 0 = off)\nvoid showPattern(const bool pat[ROWS][COLS]) {\n  for (int r = 0; r < ROWS; r++)\n    for (int c = 0; c < COLS; c++)\n      setLed(r, c, pat[r][c]);\n}\n\n// ── Animations ───────────────────────────────\n\n// 1. Fill in row by row, then clear row by row\nvoid animFill(int spd = 120) {\n  for (int r = 0; r < ROWS; r++) {\n    for (int c = 0; c < COLS; c++) {\n      setLed(r, c, true);\n      delay(spd);\n    }\n  }\n  delay(300);\n  for (int r = ROWS - 1; r >= 0; r--) {\n    for (int c = COLS - 1; c >= 0; c--) {\n      setLed(r, c, false);\n      delay(spd);\n    }\n  }\n}\n\n// 2. Column wipe left→right, then right→left\nvoid animWipe(int spd = 150) {\n  for (int c = 0; c < COLS; c++) {\n    for (int r = 0; r < ROWS; r++) setLed(r, c, true);\n    delay(spd);\n  }\n  delay(300);\n  for (int c = COLS - 1; c >= 0; c--) {\n    for (int r = 0; r < ROWS; r++) setLed(r, c, false);\n    delay(spd);\n  }\n}\n\n// 3. Checkerboard blink\nvoid animCheckerboard(int reps = 6, int spd = 250) {\n  for (int i = 0; i < reps; i++) {\n    for (int r = 0; r < ROWS; r++)\n      for (int c = 0; c < COLS; c++)\n        setLed(r, c, (r + c + i) % 2 == 0);\n    delay(spd);\n  }\n  allOff();\n}\n\n// 4. Spiral inward → outward\nvoid animSpiral(int spd = 130) {\n  // Spiral order for a 4x4 matrix (16 cells)\n  const int spiralR[] = {0,0,0,0,1,2,3,3,3,3,2,1,1,1,2,2};\n  const int spiralC[] = {0,1,2,3,3,3,3,2,1,0,0,0,1,2,2,1};\n\n  // Turn on in spiral order\n  for (int i = 0; i < 16; i++) {\n    setLed(spiralR[i], spiralC[i], true);\n    delay(spd);\n  }\n  delay(300);\n  // Turn off in reverse spiral\n  for (int i = 15; i >= 0; i--) {\n    setLed(spiralR[i], spiralC[i], false);\n    delay(spd);\n  }\n}\n\n// 5. Snake — single LED travels across the grid\nvoid animSnake(int spd = 100) {\n  for (int r = 0; r < ROWS; r++) {\n    for (int pass = 0; pass < COLS; pass++) {\n      int c = (r % 2 == 0) ? pass : (COLS - 1 - pass);\n      allOff();\n      setLed(r, c, true);\n      delay(spd);\n    }\n  }\n  allOff();\n}\n\n// 6. Rain — columns fall from top\nvoid animRain(int drops = 3, int spd = 100) {\n  for (int d = 0; d < drops; d++) {\n    int col = random(COLS);\n    for (int r = 0; r < ROWS; r++) {\n      if (r > 0) setLed(r - 1, col, false);\n      setLed(r, col, true);\n      delay(spd);\n    }\n    setLed(ROWS - 1, col, false);\n  }\n}\n\n// 7. Bounce — single row sweeps up and down\nvoid animBounce(int reps = 3, int spd = 120) {\n  for (int i = 0; i < reps; i++) {\n    for (int r = 0; r < ROWS; r++) {\n      allOff();\n      for (int c = 0; c < COLS; c++) setLed(r, c, true);\n      delay(spd);\n    }\n    for (int r = ROWS - 2; r >= 1; r--) {\n      allOff();\n      for (int c = 0; c < COLS; c++) setLed(r, c, true);\n      delay(spd);\n    }\n  }\n  allOff();\n}\n\n// 8. Heart pattern (static, then pulse)\nvoid animHeart(int reps = 4, int spd = 400) {\n  const bool heart[ROWS][COLS] = {\n    { 0, 1, 0, 1 },\n    { 1, 1, 1, 1 },\n    { 1, 1, 1, 1 },\n    { 0, 1, 1, 0 }\n  };\n  for (int i = 0; i < reps; i++) {\n    showPattern(heart);\n    delay(spd);\n    allOff();\n    delay(spd / 2);\n  }\n}\n\n// 9. X / cross pattern blink\nvoid animX(int reps = 4, int spd = 300) {\n  const bool xpat[ROWS][COLS] = {\n    { 1, 0, 0, 1 },\n    { 0, 1, 1, 0 },\n    { 0, 1, 1, 0 },\n    { 1, 0, 0, 1 }\n  };\n  for (int i = 0; i < reps; i++) {\n    showPattern(xpat);\n    delay(spd);\n    allOff();\n    delay(spd);\n  }\n}\n\n// ── Setup & Loop ─────────────────────────────\n\nvoid setup() {\n  for (int r = 0; r < ROWS; r++)\n    for (int c = 0; c < COLS; c++)\n      pinMode(ledPin[r][c], OUTPUT);\n\n  allOff();\n  randomSeed(analogRead(A4)); // use floating A4 for randomness\n}\n\nvoid loop() {\n  animFill(100);\n  delay(400);\n\n  animWipe(150);\n  delay(400);\n\n  animCheckerboard(6, 250);\n  delay(400);\n\n  animSpiral(120);\n  delay(400);\n\n  animSnake(90);\n  delay(400);\n\n  animRain(8, 90);\n  delay(400);\n\n  animBounce(3, 120);\n  delay(400);\n\n  animHeart(4, 400);\n  delay(400);\n\n  animX(4, 300);\n  delay(600);\n}\n"
   }
 }
