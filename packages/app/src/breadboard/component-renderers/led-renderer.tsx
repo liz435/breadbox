@@ -12,24 +12,18 @@ type LedRendererProps = {
   electricalState?: ComponentElectricalState;
 };
 
-/**
- * Parse a hex color into [r, g, b] 0-255.
- * Falls back to red if unparseable.
- */
 function hexToRgb(hex: string): [number, number, number] {
   const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
   if (!m) return [239, 68, 68];
   return [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)];
 }
 
-/** Blend a color toward white by t (0 = original, 1 = white). */
 function lighten(hex: string, t: number): string {
   const [r, g, b] = hexToRgb(hex);
   const mix = (c: number) => Math.round(c + (255 - c) * t);
   return `rgb(${mix(r)},${mix(g)},${mix(b)})`;
 }
 
-/** Blend a color toward black by t (0 = original, 1 = black). */
 function darken(hex: string, t: number): string {
   const [r, g, b] = hexToRgb(hex);
   const mix = (c: number) => Math.round(c * (1 - t));
@@ -39,7 +33,6 @@ function darken(hex: string, t: number): string {
 function LedRendererInner({ component, pinStates, isSelected, electricalState }: LedRendererProps) {
   const color = (component.properties.color as string) ?? "#ef4444";
 
-  // Prefer electrical state from circuit solver when available
   const isOn = electricalState
     ? electricalState.isActive
     : (() => {
@@ -57,56 +50,69 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
   const currentMa = electricalState?.current ?? 0;
   const voltage = electricalState?.voltage ?? 0;
 
-  // Anode position (top leg)
   const anode = gridToPixel({ row: component.y, col: component.x });
-  // Cathode position (bottom leg, one row down)
   const cathode = gridToPixel({ row: component.y + 1, col: component.x });
 
-  const domeRadius = LED_DOME_RADIUS;
-  const domeCenter = { x: anode.x, y: (anode.y + cathode.y) / 2 - 2 };
+  const R = LED_DOME_RADIUS;
+  const cx = anode.x;
+  const cy = (anode.y + cathode.y) / 2 - 2;
   const legWidth = LEG_WIDTH;
   const filterId = `led-glow-${component.id}`;
   const gradientId = `led-grad-${component.id}`;
+  const bodyGradId = `led-body-${component.id}`;
   const reversePolarityFilterId = `led-reverse-${component.id}`;
 
-  // ── Brightness-responsive visuals ──────────────────────────────────────
+  // Dome shape: bullet profile (rounded top, straight sides, flat bottom)
+  // Centered at (cx, cy), radius R
+  const domeTop = cy - R - 1;
+  const domeBottom = cy + R;
+  const flangeY = domeBottom;
+  const flangeH = 2.5;
 
-  // Dome fill: blends from dark grey (off) → saturated color → whitish (max brightness)
+  // Bullet dome path: flat bottom → straight sides → rounded top
+  const domePath = [
+    `M ${cx - R} ${flangeY}`,                              // bottom-left
+    `L ${cx - R} ${cy - R * 0.3}`,                         // left wall
+    `C ${cx - R} ${domeTop}, ${cx - R * 0.4} ${domeTop - 2}, ${cx} ${domeTop - 2}`, // top-left curve
+    `C ${cx + R * 0.4} ${domeTop - 2}, ${cx + R} ${domeTop}, ${cx + R} ${cy - R * 0.3}`, // top-right curve
+    `L ${cx + R} ${flangeY}`,                              // right wall
+    `Z`,
+  ].join(" ");
+
+  // Brightness-responsive visuals
   const offColor = "#4a4a4a";
   const domeColor = isOn
     ? brightness > 0.7
-      ? lighten(color, (brightness - 0.7) / 0.3 * 0.4)  // wash out toward white at high current
+      ? lighten(color, (brightness - 0.7) / 0.3 * 0.4)
       : color
     : isReversed
       ? "#ef4444"
       : offColor;
 
-  // Dome opacity: dim when off, fully opaque when on
   const domeOpacity = isOn ? 0.7 + brightness * 0.3 : 0.35;
-
-  // Glow blur scales with brightness
   const glowBlur = 2 + brightness * 8;
-
-  // Halo radius and opacity scale with brightness
-  const haloBaseR = domeRadius + 2 + brightness * 6;
+  const haloBaseR = R + 2 + brightness * 6;
   const haloMaxR = haloBaseR + 2 + brightness * 8;
   const haloOpacity = 0.1 + brightness * 0.35;
-
-  // Highlight specular spot intensity
   const specularOpacity = isOn ? 0.15 + brightness * 0.55 : 0.1;
-
-  // Overcurrent indicator: LED gets a hot white center above 25 mA
   const isOverdriven = isOn && currentMa > 25;
 
   return (
     <g>
       <defs>
-        {/* Dome gradient — brightness-responsive */}
-        <radialGradient id={gradientId} cx="35%" cy="35%" r="65%">
+        {/* Dome gradient — 3D translucent epoxy look */}
+        <radialGradient id={gradientId} cx="35%" cy="30%" r="70%">
           <stop offset="0%" stopColor="#ffffff" stopOpacity={specularOpacity} />
-          <stop offset="35%" stopColor={isOverdriven ? lighten(color, 0.6) : domeColor} stopOpacity={1} />
-          <stop offset="100%" stopColor={isOn ? darken(color, 0.2) : (isReversed ? "#ef444488" : offColor)} stopOpacity={0.85} />
+          <stop offset="30%" stopColor={isOverdriven ? lighten(color, 0.6) : domeColor} stopOpacity={0.95} />
+          <stop offset="85%" stopColor={isOn ? darken(color, 0.25) : (isReversed ? "#ef444488" : offColor)} stopOpacity={0.9} />
+          <stop offset="100%" stopColor={isOn ? darken(color, 0.4) : darken(offColor, 0.3)} stopOpacity={1} />
         </radialGradient>
+        {/* Vertical body gradient for 3D cylinder effect */}
+        <linearGradient id={bodyGradId} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor={darken(domeColor, 0.15)} stopOpacity={0.9} />
+          <stop offset="50%" stopColor={domeColor} stopOpacity={1} />
+          <stop offset="100%" stopColor={darken(domeColor, 0.2)} stopOpacity={0.9} />
+        </linearGradient>
         {isOn && (
           <filter id={filterId} x="-200%" y="-200%" width="500%" height="500%">
             <feGaussianBlur stdDeviation={glowBlur} result="blur" />
@@ -127,41 +133,38 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
         )}
       </defs>
 
-      {/* Anode leg (longer) */}
-      <line
-        x1={anode.x - 1}
-        y1={anode.y}
-        x2={domeCenter.x - 1}
-        y2={domeCenter.y + domeRadius - 1}
+      {/* Anode leg (longer, slight offset left) — straight with small kink at base */}
+      <path
+        d={`M ${anode.x - 1.5} ${anode.y} L ${anode.x - 1.5} ${flangeY + flangeH + 1}`}
         stroke="#c0c0c0"
         strokeWidth={legWidth}
         strokeLinecap="round"
+        fill="none"
       />
 
-      {/* Cathode leg (shorter, with flat mark) */}
-      <line
-        x1={cathode.x + 1}
-        y1={cathode.y}
-        x2={domeCenter.x + 1}
-        y2={domeCenter.y + domeRadius - 1}
+      {/* Cathode leg (shorter, offset right, with identification kink) */}
+      <path
+        d={`M ${cathode.x + 1.5} ${cathode.y} L ${cathode.x + 1.5} ${flangeY + flangeH + 3} L ${cathode.x + 2.5} ${flangeY + flangeH + 2} L ${cathode.x + 2.5} ${flangeY + flangeH + 1}`}
         stroke="#c0c0c0"
         strokeWidth={legWidth}
         strokeLinecap="round"
+        fill="none"
       />
 
-      {/* LED dome */}
+      {/* LED dome with glow filter */}
       <g filter={isOn ? `url(#${filterId})` : undefined} opacity={domeOpacity}>
         {/* Outer halo — scales with brightness */}
         {isOn && (
-          <circle
-            cx={domeCenter.x}
-            cy={domeCenter.y}
-            r={haloBaseR}
+          <ellipse
+            cx={cx}
+            cy={cy - 1}
+            rx={haloBaseR}
+            ry={haloBaseR * 1.1}
             fill={color}
             opacity={haloOpacity * 0.6}
           >
             <animate
-              attributeName="r"
+              attributeName="rx"
               values={`${haloBaseR};${haloMaxR};${haloBaseR}`}
               dur={1.5 + (1 - brightness) * 1.5 + "s"}
               repeatCount="indefinite"
@@ -172,15 +175,16 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
               dur={1.5 + (1 - brightness) * 1.5 + "s"}
               repeatCount="indefinite"
             />
-          </circle>
+          </ellipse>
         )}
 
-        {/* Inner glow ring — visible at medium+ brightness */}
+        {/* Inner glow ring */}
         {isOn && brightness > 0.3 && (
-          <circle
-            cx={domeCenter.x}
-            cy={domeCenter.y}
-            r={domeRadius + 1 + brightness * 2}
+          <ellipse
+            cx={cx}
+            cy={cy - 1}
+            rx={R + 1 + brightness * 2}
+            ry={R + 2 + brightness * 2}
             fill="none"
             stroke={lighten(color, 0.3)}
             strokeWidth={0.5 + brightness}
@@ -188,45 +192,64 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
           />
         )}
 
-        {/* Dome body */}
-        <ellipse
-          cx={domeCenter.x}
-          cy={domeCenter.y}
-          rx={domeRadius}
-          ry={domeRadius + 1}
+        {/* Dome body — bullet shape */}
+        <path
+          d={domePath}
           fill={`url(#${gradientId})`}
           stroke={isSelected ? "#3b82f6" : "#888"}
-          strokeWidth={isSelected ? 1.5 : 0.8}
+          strokeWidth={isSelected ? 1.5 : 0.6}
+        />
+
+        {/* Epoxy highlight — specular reflection on dome top */}
+        <ellipse
+          cx={cx - R * 0.2}
+          cy={cy - R * 0.5}
+          rx={R * 0.35}
+          ry={R * 0.25}
+          fill="#ffffff"
+          opacity={isOn ? 0.15 + brightness * 0.2 : 0.08}
         />
 
         {/* Hot center spot when overdriven */}
         {isOverdriven && (
           <circle
-            cx={domeCenter.x - 1}
-            cy={domeCenter.y - 1}
+            cx={cx}
+            cy={cy - 2}
             r={3}
             fill="#fff"
             opacity={0.3 + (currentMa - 25) / 50 * 0.4}
           />
         )}
 
-        {/* Flat bottom edge (cathode indicator) */}
-        <line
-          x1={domeCenter.x - domeRadius + 1}
-          y1={domeCenter.y + domeRadius}
-          x2={domeCenter.x + domeRadius - 1}
-          y2={domeCenter.y + domeRadius}
+        {/* Flange / rim at base (the plastic lip) */}
+        <rect
+          x={cx - R - 0.5}
+          y={flangeY}
+          width={R * 2 + 1}
+          height={flangeH}
+          rx={0.5}
+          fill={isOn ? darken(color, 0.3) : "#555"}
           stroke={isSelected ? "#3b82f6" : "#666"}
-          strokeWidth={1.5}
+          strokeWidth={0.5}
+        />
+
+        {/* Cathode flat mark on rim */}
+        <rect
+          x={cx + R * 0.3}
+          y={flangeY}
+          width={R * 0.7 + 0.5}
+          height={flangeH}
+          fill={isOn ? darken(color, 0.45) : "#444"}
         />
       </g>
 
       {/* Reverse polarity warning glow */}
       {isReversed && (
-        <circle
-          cx={domeCenter.x}
-          cy={domeCenter.y}
-          r={domeRadius + 5}
+        <ellipse
+          cx={cx}
+          cy={cy}
+          rx={R + 5}
+          ry={R + 6}
           fill="#ef4444"
           filter={`url(#${reversePolarityFilterId})`}
         >
@@ -236,7 +259,7 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
             dur="1s"
             repeatCount="indefinite"
           />
-        </circle>
+        </ellipse>
       )}
 
       {/* Pin hole indicators */}
@@ -249,8 +272,8 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
 
       {/* Label + electrical readout */}
       <text
-        x={domeCenter.x + domeRadius + 4}
-        y={domeCenter.y - 1}
+        x={cx + R + 4}
+        y={cy - 1}
         textAnchor="start"
         fontSize={LABEL_FONT_SIZE}
         fill="#888"
@@ -260,8 +283,8 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
       </text>
       {isOn && (
         <text
-          x={domeCenter.x + domeRadius + 4}
-          y={domeCenter.y + 7}
+          x={cx + R + 4}
+          y={cy + 7}
           textAnchor="start"
           fontSize={ANNOTATION_FONT_SIZE}
           fill="#fbbf24"

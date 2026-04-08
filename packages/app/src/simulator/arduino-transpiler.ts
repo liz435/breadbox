@@ -24,6 +24,10 @@ const KNOWN_LIBRARIES = new Set([
   "Wire.h",
   "SPI.h",
   "Stepper.h",
+  "Adafruit_NeoPixel.h",
+  "DHT.h",
+  "IRremote.h",
+  "Adafruit_SSD1306.h",
 ])
 
 const C_TYPES = new Set([
@@ -219,8 +223,28 @@ function transpileLine(line: string): string {
   const indent = line.match(/^(\s*)/)?.[1] ?? ""
   let trimmed = line.trim()
 
+  // Strip inline comment before matching (preserves it in output)
+  let inlineComment = ""
+  const commentIdx = trimmed.indexOf("//")
+  if (commentIdx > 0) {
+    const before = trimmed.slice(0, commentIdx)
+    const singles = (before.match(/'/g) || []).length
+    const doubles = (before.match(/"/g) || []).length
+    if (singles % 2 === 0 && doubles % 2 === 0) {
+      inlineComment = " " + trimmed.slice(commentIdx)
+      trimmed = before.trim()
+    }
+  }
+
   // Substitute Arduino constants
   trimmed = substituteConstants(trimmed)
+
+  // Process the line, then append the inline comment back
+  const transformed = processCodeLine(indent, trimmed)
+  return transformed + inlineComment
+}
+
+function processCodeLine(indent: string, trimmed: string): string {
 
   // ── class/struct → JS class ─────────────────────────────────
   // `class Foo {` or `class Foo : public Bar {`
@@ -239,6 +263,14 @@ function transpileLine(line: string): string {
   )
   if (constDeclMatch) {
     return `${indent}const ${constDeclMatch[1]} = ${constDeclMatch[2]};`
+  }
+
+  // ── const type without initializer: `const int x;` → `let x;` (JS const requires initializer)
+  const constNoInitMatch = trimmed.match(
+    /^const\s+(?:unsigned\s+)?(?:int|float|double|bool|boolean|byte|char|long|short|word|String)\s+(\w+)\s*;$/,
+  )
+  if (constNoInitMatch) {
+    return `${indent}let ${constNoInitMatch[1]};`
   }
 
   // ── Array declarations: `int arr[5];` or `int arr[5] = {1,2,3};` ─

@@ -7,6 +7,7 @@ import {
   type AgentKind,
   type AgentRunFile,
   type AgentRunRecord,
+  type CachedSummary,
   type ProjectThreadFile,
 } from "./schemas";
 import type { BoardOp } from "@dreamer/schemas";
@@ -163,6 +164,19 @@ async function listRunsForThread(threadId: string): Promise<AgentRunFile[]> {
   return runs;
 }
 
+async function readThreadSummary(threadId: string): Promise<CachedSummary | undefined> {
+  const thread = await readThread(threadId);
+  return thread?.cachedSummary;
+}
+
+async function updateThreadSummary(threadId: string, summary: CachedSummary) {
+  const thread = await readThread(threadId);
+  if (!thread) return;
+  thread.cachedSummary = summary;
+  thread.thread.updatedAt = now();
+  await writeThread(threadId, thread);
+}
+
 export const agentRunRepo = {
   getOrCreateThread,
   createRun,
@@ -170,4 +184,6 @@ export const agentRunRepo = {
   attachRunToThread,
   readRun,
   listRunsForThread,
+  readThreadSummary,
+  updateThreadSummary,
 };

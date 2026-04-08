@@ -187,15 +187,17 @@ type WireLayerProps = {
   wires: Record<string, import("@dreamer/schemas").Wire>;
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onDragEndpoint: (wireId: string, endpoint: "from" | "to", e: React.PointerEvent) => void;
 };
 
-const WireLayer = React.memo(function WireLayer({ wires, selectedId, onSelect }: WireLayerProps) {
+const WireLayer = React.memo(function WireLayer({ wires, selectedId, onSelect, onDragEndpoint }: WireLayerProps) {
   const wireList = useMemo(() => Object.values(wires), [wires]);
   return (
     <g>
       {wireList.map((wire) => (
         <WireRenderer key={wire.id} wire={wire}
-          isSelected={selectedId === wire.id} onSelect={onSelect} />
+          isSelected={selectedId === wire.id} onSelect={onSelect}
+          onDragEndpoint={onDragEndpoint} />
       ))}
     </g>
   );
@@ -296,6 +298,30 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
     [components],
   );
 
+  // ── Area selection state ───────────────────────────────────────
+  const areaSelectRef = useRef<{ startX: number; startY: number } | null>(null);
+  const [areaRect, setAreaRect] = React.useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const [multiSelected, setMultiSelected] = React.useState<Set<string>>(new Set());
+
+  // ── Wire endpoint drag state ───────────────────────────────��──
+  const wireDragRef = useRef<{ wireId: string; endpoint: "from" | "to" } | null>(null);
+  const [wireDragGhost, setWireDragGhost] = React.useState<{ row: number; col: number } | null>(null);
+
+  const handleWireEndpointDragStart = useCallback(
+    (wireId: string, endpoint: "from" | "to", e: React.PointerEvent) => {
+      wireDragRef.current = { wireId, endpoint };
+      const w = wires[wireId];
+      if (!w) return;
+      if (endpoint === "from") {
+        setWireDragGhost({ row: w.fromRow, col: w.fromCol });
+      } else {
+        setWireDragGhost({ row: w.toRow, col: w.toCol });
+      }
+      svgRef.current?.setPointerCapture(e.pointerId);
+    },
+    [wires],
+  );
+
   // ── Unified pointer handlers ──────────────────────────────────
 
   const handlePointerDown = useCallback(
@@ -330,8 +356,19 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
         return;
       }
 
+      // Left click on empty space → start area select or deselect
       if (e.button === 0 && e.target === svgRef.current) {
+        // Clear previous selections
         send({ type: "SELECT", id: null });
+        setMultiSelected(new Set());
+
+        // Start area selection drag
+        const rect = svgRef.current?.getBoundingClientRect();
+        if (rect) {
+          const board = screenToBoard(e.clientX - rect.left, e.clientY - rect.top);
+          areaSelectRef.current = { startX: board.x, startY: board.y };
+          svgRef.current?.setPointerCapture(e.pointerId);
+        }
       }
     },
     [send, camera, wire],
@@ -340,6 +377,34 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
       if (camera.handlePanMove(e)) return;
+
+      // Wire endpoint drag
+      if (wireDragRef.current) {
+        const rect = svgRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const board = screenToBoard(e.clientX - rect.left, e.clientY - rect.top);
+        const grid = pixelToGrid(board.x, board.y);
+        setWireDragGhost(grid);
+        return;
+      }
+
+      // Area selection drag
+      if (areaSelectRef.current) {
+        const rect = svgRef.current?.getBoundingClientRect();
+        if (rect) {
+          const board = screenToBoard(e.clientX - rect.left, e.clientY - rect.top);
+          const sx = areaSelectRef.current.startX;
+          const sy = areaSelectRef.current.startY;
+          setAreaRect({
+            x: Math.min(sx, board.x),
+            y: Math.min(sy, board.y),
+            w: Math.abs(board.x - sx),
+            h: Math.abs(board.y - sy),
+          });
+        }
+        return;
+      }
+
       if (drag.handleDragMove(e)) return;
       wire.handlePlacementMove(e);
     },
@@ -348,8 +413,56 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
 
   const handlePointerUp = useCallback(() => {
     camera.stopPan();
+
+    // Complete area selection
+    if (areaSelectRef.current && areaRect && areaRect.w > 3 && areaRect.h > 3) {
+      const selected = new Set<string>();
+      // Find components inside the area rect
+      for (const comp of filteredComponents) {
+        const pos = gridToPixel({ row: comp.y, col: comp.x });
+        if (pos.x >= areaRect.x && pos.x <= areaRect.x + areaRect.w &&
+            pos.y >= areaRect.y && pos.y <= areaRect.y + areaRect.h) {
+          selected.add(comp.id);
+        }
+      }
+      // Find wires inside the area rect
+      for (const w of Object.values(wires)) {
+        const to = gridToPixel({ row: w.toRow, col: w.toCol });
+        if (to.x >= areaRect.x && to.x <= areaRect.x + areaRect.w &&
+            to.y >= areaRect.y && to.y <= areaRect.y + areaRect.h) {
+          selected.add(w.id);
+        }
+      }
+      setMultiSelected(selected);
+      areaSelectRef.current = null;
+      setAreaRect(null);
+      return;
+    }
+    areaSelectRef.current = null;
+    setAreaRect(null);
+
+    // Complete wire endpoint drag
+    if (wireDragRef.current && wireDragGhost) {
+      const { wireId, endpoint } = wireDragRef.current;
+      const w = wires[wireId];
+      if (w) {
+        const origRow = endpoint === "from" ? w.fromRow : w.toRow;
+        const origCol = endpoint === "from" ? w.fromCol : w.toCol;
+        if (wireDragGhost.row !== origRow || wireDragGhost.col !== origCol) {
+          if (endpoint === "from") {
+            send({ type: "UPDATE_WIRE", id: wireId, changes: { fromRow: wireDragGhost.row, fromCol: wireDragGhost.col } });
+          } else {
+            send({ type: "UPDATE_WIRE", id: wireId, changes: { toRow: wireDragGhost.row, toCol: wireDragGhost.col } });
+          }
+        }
+      }
+      wireDragRef.current = null;
+      setWireDragGhost(null);
+      return;
+    }
+
     drag.handleDragEnd();
-  }, [camera, drag]);
+  }, [camera, drag, wires, wireDragGhost, send]);
 
   // ── Keyboard ──────────────────────────────────────────────────
 
@@ -364,6 +477,40 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
       if (e.code === "Escape") {
         drag.cancelDrag();
         wire.cancelPlacement();
+        wireDragRef.current = null;
+        setWireDragGhost(null);
+        areaSelectRef.current = null;
+        setAreaRect(null);
+        setMultiSelected(new Set());
+      }
+
+      // Cmd+A: select all components and wires
+      if ((e.metaKey || e.ctrlKey) && e.code === "KeyA") {
+        e.preventDefault();
+        const all = new Set<string>();
+        for (const c of Object.values(componentsRef)) {
+          if (c.type !== "arduino_uno") all.add(c.id);
+        }
+        for (const wId of Object.keys(wires)) {
+          all.add(wId);
+        }
+        setMultiSelected(all);
+        return;
+      }
+
+      // Delete/Backspace: batch delete multi-selected items
+      if ((e.code === "Delete" || e.code === "Backspace") && multiSelected.size > 0) {
+        e.preventDefault();
+        send({ type: "SNAPSHOT" });
+        for (const id of multiSelected) {
+          if (id in componentsRef) {
+            send({ type: "REMOVE_COMPONENT", id });
+          } else {
+            send({ type: "REMOVE_WIRE", id });
+          }
+        }
+        setMultiSelected(new Set());
+        return;
       }
 
       if (e.code === "KeyR" && !e.metaKey && !e.ctrlKey) {
@@ -386,7 +533,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [selectedId, components, send, camera, drag, wire]);
+  }, [selectedId, components, wires, send, camera, drag, wire, multiSelected]);
 
   const handleComponentClick = useCallback(
     (id: string) => { send({ type: "SELECT", id }); },
@@ -423,7 +570,8 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
 
         <StaticBackground />
 
-        <WireLayer wires={wires} selectedId={selectedId} onSelect={handleComponentClick} />
+        <WireLayer wires={wires} selectedId={selectedId} onSelect={handleComponentClick}
+          onDragEndpoint={handleWireEndpointDragStart} />
 
         <ComponentLayer
           components={filteredComponents}
@@ -451,6 +599,18 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
                 const pos = gridToPixel(pt);
                 return <circle key={i} cx={pos.x} cy={pos.y} r={5} fill="#3b82f6" stroke="#60a5fa" strokeWidth={1} />;
               })}
+            </g>
+          );
+        })()}
+
+        {/* Wire endpoint drag ghost */}
+        {wireDragRef.current && wireDragGhost && (() => {
+          const pos = gridToPixel(wireDragGhost);
+          return (
+            <g pointerEvents="none">
+              <circle cx={pos.x} cy={pos.y} r={5} fill="#3b82f6" fillOpacity={0.3}
+                stroke="#3b82f6" strokeWidth={1.5} />
+              <circle cx={pos.x} cy={pos.y} r={2} fill="#3b82f6" />
             </g>
           );
         })()}
@@ -514,6 +674,46 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
         })()}
       </g>
 
+        {/* Area selection rectangle */}
+        {areaRect && areaRect.w > 1 && areaRect.h > 1 && (
+          <rect
+            x={areaRect.x}
+            y={areaRect.y}
+            width={areaRect.w}
+            height={areaRect.h}
+            fill="#3b82f6"
+            fillOpacity={0.08}
+            stroke="#3b82f6"
+            strokeWidth={1}
+            strokeDasharray="4 2"
+            pointerEvents="none"
+          />
+        )}
+
+        {/* Multi-selection highlights */}
+        {multiSelected.size > 0 && filteredComponents
+          .filter((c) => multiSelected.has(c.id))
+          .map((comp) => {
+            const pos = gridToPixel({ row: comp.y, col: comp.x });
+            return (
+              <rect
+                key={`sel-${comp.id}`}
+                x={pos.x - 12}
+                y={pos.y - 12}
+                width={24}
+                height={24}
+                rx={4}
+                fill="#3b82f6"
+                fillOpacity={0.15}
+                stroke="#3b82f6"
+                strokeWidth={1.5}
+                strokeDasharray="3 2"
+                pointerEvents="none"
+              />
+            );
+          })
+        }
+
       {/* Mode indicator */}
       {wire.interactionMode !== "idle" && (
         <text x={10} y={20} fontSize={11} fill="#60a5fa" fontFamily="monospace">
@@ -526,6 +726,13 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
               : wire.interactionMode === "wiring_from_pin" && wire.wiringFromPin
               ? `Wiring from ${wire.wiringFromPin.label} (click breadboard hole to connect, Esc to cancel)`
               : wire.interactionMode}
+        </text>
+      )}
+
+      {/* Multi-selection count indicator */}
+      {multiSelected.size > 0 && (
+        <text x={10} y={20} fontSize={11} fill="#60a5fa" fontFamily="monospace">
+          {multiSelected.size} selected — Delete to remove, Esc to deselect
         </text>
       )}
     </svg>

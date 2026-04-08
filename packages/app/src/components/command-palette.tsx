@@ -128,6 +128,18 @@ function buildCommands(dockviewApi: ReturnType<typeof useDockviewApi>): Command[
     action: () => { saveRef.current?.() },
   })
   commands.push({
+    id: "action:shortcuts",
+    label: "Keyboard Shortcuts",
+    description: "Show all keyboard shortcuts",
+    category: "Actions",
+    icon: icons.action,
+    keywords: "help keys bindings hotkeys ?",
+    action: () => {
+      // Dispatch a synthetic ? keydown to trigger the shortcuts dialog
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "?" }))
+    },
+  })
+  commands.push({
     id: "action:pause",
     label: "Pause Sketch",
     description: "Pause the running simulation",

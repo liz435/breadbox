@@ -40,6 +40,7 @@ import { arduinoLinter } from "./arduino-linter"
 import { useBoard } from "@/store/board-context"
 import { simulationRef } from "@/simulator/simulation-ref"
 import { saveRef, editorContentRef } from "@/project/save-ref"
+import { transpileErrorRef } from "@/simulator/transpile-error-ref"
 
 // ── 1. Syntax Highlighting Colors (VS Code Dark+ inspired) ─────────────────
 
@@ -215,6 +216,8 @@ function SketchEditorInner() {
 
     const updateListener = EditorView.updateListener.of((update) => {
       if (update.docChanged && !isExternalUpdate.current) {
+        // Clear stale transpile errors when user edits code
+        transpileErrorRef.current = null
         const code = update.state.doc.toString()
         handleEditorChange(code)
       }

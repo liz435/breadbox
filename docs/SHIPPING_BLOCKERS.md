@@ -78,9 +78,11 @@ Audit of what's blocking the Arduino simulator from being shipped as a usable pr
 - Dockview multi-panel UI doesn't work on mobile or tablet. Touch interactions not implemented.
 - **Fix**: Responsive breakpoint that switches to tabbed view on small screens.
 
-### 14. Wire Editing Not Possible
-- Wires can be created and deleted but not edited. To change a wire endpoint, user must delete and recreate.
-- **Fix**: Click wire → drag endpoint to new position.
+### ~~14. Wire Editing Not Possible~~ FIXED
+- Added `UPDATE_WIRE` event to board machine with auto-snapshot for undo support.
+- Selected wires show blue drag handles on both endpoints.
+- Drag a handle to snap the endpoint to a new breadboard hole.
+- Arduino-pin wire "from" endpoints are locked (can't drag off the pin).
 
 ### ~~15. Component Property Editing Limited~~ FIXED
 - Added 6 new type-specific inspectors: RGB LED (4 pin selectors), Temperature Sensor (temperature slider -40 to 125°C + signal pin), Photoresistor (light level slider 0-100% + pins), Ultrasonic Sensor (distance slider 2-400cm + trigger/echo pins), LCD 16x2 (RS/EN/D4-D7 pin selectors), 7-Segment Display (segments A-G pin selectors).
@@ -114,9 +116,10 @@ Audit of what's blocking the Arduino simulator from being shipped as a usable pr
 - **Undo/redo**: 0 tests
 - **Fix**: Add integration tests for save/load cycle, circuit analysis, and API endpoints.
 
-### 20. No Keyboard Shortcuts Help Dialog
-- Keyboard shortcuts exist (Cmd+S, R, Delete, etc.) but there's no discoverable help dialog showing all shortcuts.
-- **Fix**: Add a `?` key or Help menu that shows the shortcuts.
+### ~~20. No Keyboard Shortcuts Help Dialog~~ FIXED
+- Press `?` anywhere (outside editors/inputs) to open a keyboard shortcuts dialog.
+- Three groups: General (Cmd+K, Cmd+S, Cmd+Z, ?), Breadboard (R, Delete, Escape, Space+Drag, Scroll), Sketch Editor (Cmd+F, Tab, fold/unfold).
+- Also accessible via Cmd+K command palette → "Keyboard Shortcuts".
 
 ### 21. No Export / Share
 - No way to export a project as a .zip, share a link, or export the schematic as an image.

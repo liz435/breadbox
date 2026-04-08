@@ -4,7 +4,7 @@
     "name": "echo-ox-horn",
     "version": 1,
     "createdAt": "2026-04-07T02:27:23.305Z",
-    "updatedAt": "2026-04-08T00:02:45.496Z",
+    "updatedAt": "2026-04-08T04:17:58.936Z",
     "threadId": "93118918-2f59-48c4-a1d2-6301ff8a4537",
     "activeSceneId": "20968fd8-771e-437d-a12c-1ae9051ed094"
   },
@@ -106,7 +106,7 @@
           "gnd": null
         },
         "properties": {
-          "value": 33
+          "value": 24
         }
       },
       "c01c7ca5-74d3-4525-9aa6-7e991dbc003a": {
@@ -138,19 +138,6 @@
         "properties": {
           "color": "#ef4444"
         }
-      },
-      "8c243654-b5e0-457f-914e-14b16ba9ac8a": {
-        "id": "8c243654-b5e0-457f-914e-14b16ba9ac8a",
-        "type": "photoresistor",
-        "name": "Photoresistor",
-        "x": 9,
-        "y": 11,
-        "rotation": 0,
-        "pins": {
-          "a": null,
-          "b": null
-        },
-        "properties": {}
       },
       "0f83bad9-c416-494b-98f9-a6bc2b684c68": {
         "id": "0f83bad9-c416-494b-98f9-a6bc2b684c68",
@@ -245,7 +232,7 @@
       "e93a12ba-d458-4119-9f49-52b6ea75acc0": {
         "id": "e93a12ba-d458-4119-9f49-52b6ea75acc0",
         "fromRow": 9,
-        "fromCol": 3,
+        "fromCol": 6,
         "toRow": 14,
         "toCol": 6,
         "color": "#ef4444"
@@ -259,215 +246,7 @@
         "color": "#1a1a1a"
       }
     },
-    "pinStates": [
-      {
-        "pin": 0,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 1,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 2,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 3,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 4,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 5,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 6,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 7,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 8,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 9,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 10,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 11,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 12,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 13,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 14,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 15,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 16,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 17,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 18,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 19,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      }
-    ],
-    "libraryState": {
-      "servos": {},
-      "lcd": null,
-      "serialBaud": 0
-    },
-    "serialOutput": [],
-    "sketchCode": "int potPin = A0;\nint ledPin = 9;\nint potValue = 0;\nint brightness = 255;\n\nvoid setup() {\n  pinMode(ledPin, OUTPUT);\n  pinMode(14, INPUT);\n  Serial.begin(9600);  // moved here, fixed to integer\n}\n\nvoid loop() {\n  potValue = analogRead(potPin);\n  Serial.print(potValue);  // added semicolon\n  brightness = map(potValue, 0, 1023, 0, 255);\n  analogWrite(ledPin, brightness);\n  delay(10);\n}",
+    "sketchCode": "int potPin = A0;\nint ledPin = 9;\nint potValue = 0;\nint brightness = 255;\n\nvoid setup() {\n  pinMode(ledPin, OUTPUT);\n  pinMode(14, INPUT);\n  Serial.begin(9600);\n}\n\nvoid loop() {\n  potValue = analogRead(potPin);\n  Serial.print(potValue);\n  brightness = map(potValue, 0, 1023, 0, 255);\n  analogWrite(ledPin, brightness);\n  delay(10);\n}\n\n",
     "customLibraries": {}
   }
 }

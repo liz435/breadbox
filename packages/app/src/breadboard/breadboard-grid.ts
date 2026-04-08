@@ -548,27 +548,29 @@ export function resolveNets(
     }
   }
 
-  // 3. Collect nets and annotate with Arduino pin numbers from components
+  // 3. Collect nets and annotate with Arduino pin numbers.
+  //    Pin-to-net mappings come exclusively from WIRES (the -999 sentinel wires),
+  //    NOT from component Inspector pin assignments. This means the circuit works
+  //    purely from wire topology — users don't need to set pins in the Inspector
+  //    for the SPICE solver to work.
   const pinMap = new Map<string, number[]>(); // pointKey -> Arduino pin numbers
 
-  // 3a. From component pin assignments
-  for (const comp of Object.values(components)) {
-    for (const [_pinName, arduinoPin] of Object.entries(comp.pins)) {
-      if (arduinoPin != null) {
-        const key = pointKey({ row: comp.y, col: comp.x });
-        if (!pinMap.has(key)) pinMap.set(key, []);
-        const pins = pinMap.get(key);
-        if (pins) pins.push(arduinoPin);
-      }
-    }
-  }
-
-  // 3b. From Arduino pin wires (the -999 sentinel wires)
+  // From Arduino pin wires (the -999 sentinel wires)
   // Inject Arduino pin numbers into any grid point connected via the virtual key
   for (const [arduinoPinNumber, gridKeys] of arduinoPinToGridKeys) {
     for (const gridKey of gridKeys) {
       if (!pinMap.has(gridKey)) pinMap.set(gridKey, []);
       pinMap.get(gridKey)!.push(arduinoPinNumber);
+    }
+  }
+
+  // Build set of all grid points occupied by component footprints
+  const componentFootprintPoints = new Set<string>();
+  for (const comp of Object.values(components)) {
+    if (comp.type === "arduino_uno" || comp.type === "wire") continue;
+    const fp = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation);
+    for (const pt of fp.points) {
+      componentFootprintPoints.add(pointKey(pt));
     }
   }
 
@@ -594,7 +596,11 @@ export function resolveNets(
         if (!isNaN(pinNum)) arduinoPins.push(pinNum);
       }
     }
-    if (arduinoPins.length > 0 || realKeys.length > 5) {
+    // Include nets that have Arduino pins OR that touch a component footprint point.
+    // Previously filtered to realKeys.length > 5, which excluded single-row bus nets
+    // critical for component-to-component connections (e.g., LED cathode row = resistor pin A row).
+    const touchesComponent = points.some((pt) => componentFootprintPoints.has(pointKey(pt)));
+    if (arduinoPins.length > 0 || touchesComponent) {
       nets.push({ id: `net-${netId++}`, points, arduinoPins: [...new Set(arduinoPins)] });
     }
   }

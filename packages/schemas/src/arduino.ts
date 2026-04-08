@@ -17,6 +17,14 @@ export const componentTypeSchema = z.enum([
   "photoresistor",
   "temperature_sensor",
   "ultrasonic_sensor",
+  "neopixel",
+  "pir_sensor",
+  "relay",
+  "dc_motor",
+  "dht_sensor",
+  "ir_receiver",
+  "shift_register",
+  "oled_display",
   "wire",
   "arduino_uno",
 ]);
@@ -83,8 +91,8 @@ export const boardComponentSchema = z.object({
   id: z.string().min(1),
   type: componentTypeSchema,
   name: z.string().min(1),
-  x: z.number(), // breadboard grid column
-  y: z.number(), // breadboard grid row
+  x: z.number().int(), // breadboard grid column (0-9 for terminal, -2/-1/10/11 for power rails)
+  y: z.number().int(), // breadboard grid row (0-29)
   rotation: z.number().default(0),
   pins: z.record(z.string(), z.number().nullable()), // component pin name -> Arduino pin number
   properties: z.record(z.string(), z.unknown()), // type-specific props

@@ -21,11 +21,11 @@ export function OverviewPage() {
         <Table
           headers={["Panel", "Purpose"]}
           rows={[
-            ["Breadboard", "Place and wire components on a virtual breadboard connected to an Arduino Uno."],
+            ["Breadboard", "Place and wire components on a virtual breadboard connected to an Arduino Uno. Search the palette by name or category. Drag wire endpoints to reposition them."],
             ["Sketch Editor", "Write, edit, and run Arduino sketches. Auto-generated from board layout when empty. Includes Compile & Run controls."],
             ["Graph", "Visual node-graph programming. Connect blocks to build logic without typing code."],
             ["Schematic", "Auto-generated IEEE circuit schematic. Click components to select them on the breadboard."],
-            ["Libraries", "Manage custom Arduino libraries. Create, upload, edit, and delete .h files used via #include."],
+            ["Libraries", "Manage custom Arduino libraries and browse the official Arduino Library Index (~7,000 libraries). 10 built-in JS-shimmed libraries work in transpile mode."],
             ["Inspector", "Edit the selected component's pins, properties, and settings."],
             ["Pin Inspector", "View the current state of all 20 Arduino pins (mode, digital value, PWM, analog)."],
             ["Serial Monitor", "Bidirectional serial communication. Works with both simulated sketches and real Arduino via Web Serial."],
@@ -42,25 +42,27 @@ export function OverviewPage() {
         <Table
           headers={["Shortcut", "Action"]}
           rows={[
+            ["⌘K / Ctrl+K", "Open command palette — search components, panels, and actions"],
             ["⌘S / Ctrl+S", "Save project immediately"],
             ["⌘Z / Ctrl+Z", "Undo (breadboard + scene)"],
             ["⌘⇧Z / Ctrl+Shift+Z", "Redo"],
             ["⌘F / Ctrl+F", "Find in sketch editor"],
             ["R", "Rotate selected component (or rotate while placing)"],
             ["Delete / Backspace", "Remove selected component or wire"],
-            ["Escape", "Deselect / cancel placement"],
+            ["Escape", "Deselect / cancel placement / cancel wire drag"],
             ["Space + Drag", "Pan the breadboard canvas"],
             ["Scroll", "Zoom the breadboard canvas"],
             ["Tab", "Accept autocomplete suggestion in sketch editor"],
+            ["?", "Show keyboard shortcuts help dialog"],
           ]}
         />
       </Section>
 
       <Section title="Workflow">
         <ol className="list-decimal list-inside space-y-2 text-sm text-gray-300 leading-relaxed">
-          <li>Open the <strong className="text-gray-200">Breadboard</strong> panel and pick a component from the palette.</li>
+          <li>Open the <strong className="text-gray-200">Breadboard</strong> panel and pick a component from the palette (search by name or category), or press <strong className="text-gray-200">⌘K</strong> to use the command palette.</li>
           <li>Click to place the component. Press <strong className="text-gray-200">R</strong> to rotate before placing. Drag to reposition.</li>
-          <li>Draw wires between component legs and the Arduino power/ground rails.</li>
+          <li>Draw wires between component legs and the Arduino power/ground rails. Select a wire and drag its endpoint handles to adjust.</li>
           <li>The <strong className="text-gray-200">Circuit Simulator</strong> runs automatically — LEDs glow, the schematic updates.</li>
           <li>Open the <strong className="text-gray-200">Sketch Editor</strong> — a boilerplate sketch is auto-generated. Edit it freely.</li>
           <li>Click <strong className="text-gray-200">Run</strong> to compile and execute the sketch in the browser. Serial output appears in the Serial Monitor.</li>

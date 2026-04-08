@@ -13,16 +13,16 @@ type ResistorRendererProps = {
 };
 
 const BAND_COLORS: Record<number, string> = {
-  0: "#000000", // black
-  1: "#8B4513", // brown
-  2: "#ef4444", // red
-  3: "#f97316", // orange
-  4: "#eab308", // yellow
-  5: "#22c55e", // green
-  6: "#3b82f6", // blue
-  7: "#8b5cf6", // violet
-  8: "#6b7280", // gray
-  9: "#ffffff", // white
+  0: "#000000",
+  1: "#8B4513",
+  2: "#ef4444",
+  3: "#f97316",
+  4: "#eab308",
+  5: "#22c55e",
+  6: "#3b82f6",
+  7: "#8b5cf6",
+  8: "#6b7280",
+  9: "#ffffff",
 };
 
 const TOLERANCE_GOLD = "#CFB53B";
@@ -38,7 +38,7 @@ function resistanceToBands(resistance: number): string[] {
     BAND_COLORS[d1] ?? "#000000",
     BAND_COLORS[d2] ?? "#000000",
     BAND_COLORS[multiplier] ?? "#000000",
-    TOLERANCE_GOLD, // 5% tolerance
+    TOLERANCE_GOLD,
   ];
 }
 
@@ -46,85 +46,130 @@ function ResistorRendererInner({ component, isSelected, electricalState }: Resis
   const resistance = (component.properties.resistance as number) ?? 220;
   const bands = resistanceToBands(resistance);
 
-  // Resistor spans from (row, col) to (row, col+4) — 5 holes horizontally
   const pinA = gridToPixel({ row: component.y, col: component.x });
   const pinB = gridToPixel({ row: component.y, col: component.x + 4 });
 
   const centerX = (pinA.x + pinB.x) / 2;
   const centerY = pinA.y;
-  const bodyWidth = Math.abs(pinB.x - pinA.x) * 0.55;
-  const bodyHeight = 10;
-  const leadStartX = pinA.x;
-  const leadEndX = pinB.x;
-  const bodyLeftX = centerX - bodyWidth / 2;
-  const bodyRightX = centerX + bodyWidth / 2;
+  const bodyW = Math.abs(pinB.x - pinA.x) * 0.52;
+  const bodyH = 10;
+  const halfH = bodyH / 2;
+  const bodyL = centerX - bodyW / 2;
+  const bodyR = centerX + bodyW / 2;
+  const endR = 3; // radius of the rounded ends
+
   const gradientId = `res-grad-${component.id}`;
+  const highlightId = `res-hi-${component.id}`;
+
+  // Rounded-end body path (capsule / pill shape)
+  const bodyPath = [
+    `M ${bodyL + endR} ${centerY - halfH}`,
+    `L ${bodyR - endR} ${centerY - halfH}`,
+    `Q ${bodyR} ${centerY - halfH} ${bodyR} ${centerY - halfH + endR}`,
+    `L ${bodyR} ${centerY + halfH - endR}`,
+    `Q ${bodyR} ${centerY + halfH} ${bodyR - endR} ${centerY + halfH}`,
+    `L ${bodyL + endR} ${centerY + halfH}`,
+    `Q ${bodyL} ${centerY + halfH} ${bodyL} ${centerY + halfH - endR}`,
+    `L ${bodyL} ${centerY - halfH + endR}`,
+    `Q ${bodyL} ${centerY - halfH} ${bodyL + endR} ${centerY - halfH}`,
+    `Z`,
+  ].join(" ");
 
   return (
     <g>
       <defs>
-        {/* Body gradient for 3D cylinder look */}
+        {/* Body gradient — 3D cylinder with warm ceramic color */}
         <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#f5e6c8" />
-          <stop offset="30%" stopColor="#e8d5b7" />
-          <stop offset="70%" stopColor="#d4c4a0" />
-          <stop offset="100%" stopColor="#c0a882" />
+          <stop offset="0%" stopColor="#f0dfc0" />
+          <stop offset="20%" stopColor="#ebd5b0" />
+          <stop offset="50%" stopColor="#dcc8a0" />
+          <stop offset="80%" stopColor="#cdb890" />
+          <stop offset="100%" stopColor="#bea878" />
+        </linearGradient>
+        {/* Top highlight for cylinder illusion */}
+        <linearGradient id={highlightId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#ffffff" stopOpacity={0.25} />
+          <stop offset="40%" stopColor="#ffffff" stopOpacity={0} />
         </linearGradient>
       </defs>
 
-      {/* Wire lead left */}
-      <line
-        x1={leadStartX}
-        y1={centerY}
-        x2={bodyLeftX}
-        y2={centerY}
+      {/* Wire lead left — bends into body */}
+      <path
+        d={`M ${pinA.x} ${centerY} L ${bodyL - 1} ${centerY}`}
         stroke="#a0a0a0"
-        strokeWidth={1.5}
+        strokeWidth={1.2}
         strokeLinecap="round"
+        fill="none"
+      />
+      {/* Left lead entry kink */}
+      <path
+        d={`M ${bodyL - 1} ${centerY} L ${bodyL + 1} ${centerY}`}
+        stroke="#b0b0b0"
+        strokeWidth={1.8}
+        strokeLinecap="butt"
+        fill="none"
       />
 
-      {/* Wire lead right */}
-      <line
-        x1={bodyRightX}
-        y1={centerY}
-        x2={leadEndX}
-        y2={centerY}
+      {/* Wire lead right — bends into body */}
+      <path
+        d={`M ${bodyR + 1} ${centerY} L ${pinB.x} ${centerY}`}
         stroke="#a0a0a0"
-        strokeWidth={1.5}
+        strokeWidth={1.2}
         strokeLinecap="round"
+        fill="none"
+      />
+      {/* Right lead entry */}
+      <path
+        d={`M ${bodyR - 1} ${centerY} L ${bodyR + 1} ${centerY}`}
+        stroke="#b0b0b0"
+        strokeWidth={1.8}
+        strokeLinecap="butt"
+        fill="none"
       />
 
-      {/* Body */}
-      <rect
-        x={bodyLeftX}
-        y={centerY - bodyHeight / 2}
-        width={bodyWidth}
-        height={bodyHeight}
-        rx={2}
+      {/* Body shadow */}
+      <path
+        d={bodyPath}
+        fill="#00000020"
+        transform={`translate(0.8, 1)`}
+      />
+
+      {/* Body — rounded pill shape */}
+      <path
+        d={bodyPath}
         fill={`url(#${gradientId})`}
         stroke={isSelected ? "#3b82f6" : "#b0a080"}
-        strokeWidth={isSelected ? 1.5 : 0.8}
+        strokeWidth={isSelected ? 1.5 : 0.6}
       />
 
-      {/* Color bands */}
+      {/* Top highlight overlay */}
+      <path
+        d={bodyPath}
+        fill={`url(#${highlightId})`}
+      />
+
+      {/* Color bands — curved to follow body */}
       <g opacity={electricalState?.isActive === false ? 0.7 : 1}>
-      {bands.map((color, i) => {
-        const bandSpacing = bodyWidth / (bands.length + 1);
-        const bx = bodyLeftX + bandSpacing * (i + 1) - 1.5;
-        return (
-          <rect
-            key={i}
-            x={bx}
-            y={centerY - bodyHeight / 2 + 1}
-            width={3}
-            height={bodyHeight - 2}
-            fill={color}
-            rx={0.5}
-            stroke={color === "#ffffff" ? "#ccc" : "none"}
-            strokeWidth={0.3}
-          />
-        );
-      })}
+        {bands.map((color, i) => {
+          const bandSpacing = bodyW / (bands.length + 1);
+          const bx = bodyL + bandSpacing * (i + 1);
+          // Tolerance band (last) is thinner with a gap
+          const bw = i === bands.length - 1 ? 2 : 2.5;
+          const gap = i === bands.length - 1 ? 1 : 0;
+          return (
+            <rect
+              key={i}
+              x={bx - bw / 2 + gap}
+              y={centerY - halfH + 1.5}
+              width={bw}
+              height={bodyH - 3}
+              fill={color}
+              rx={0.3}
+              stroke={color === "#ffffff" ? "#ccc" : "none"}
+              strokeWidth={0.3}
+            />
+          );
+        })}
       </g>
 
       {/* Pin hole indicators */}
@@ -138,7 +183,7 @@ function ResistorRendererInner({ component, isSelected, electricalState }: Resis
       {/* Label */}
       <text
         x={centerX}
-        y={centerY + bodyHeight / 2 + 10}
+        y={centerY + halfH + 10}
         textAnchor="middle"
         fontSize={LABEL_FONT_SIZE}
         fill="#888"
@@ -147,11 +192,11 @@ function ResistorRendererInner({ component, isSelected, electricalState }: Resis
         {component.name} ({resistance >= 1000 ? `${resistance / 1000}k` : resistance}&#937;)
       </text>
 
-      {/* Current flow indicator when active */}
+      {/* Current flow indicator */}
       {electricalState?.isActive && electricalState.current > 0.01 && (
         <text
           x={centerX}
-          y={centerY - bodyHeight / 2 - 5}
+          y={centerY - halfH - 5}
           textAnchor="middle"
           fontSize={ANNOTATION_FONT_SIZE}
           fill="#fbbf24"

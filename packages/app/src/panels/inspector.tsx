@@ -509,6 +509,38 @@ const TYPE_LABELS: Record<string, string> = {
   photoresistor: "Photoresistor",
   temperature_sensor: "Temperature Sensor",
   ultrasonic_sensor: "Ultrasonic Sensor",
+  neopixel: "NeoPixel Strip",
+  pir_sensor: "PIR Sensor",
+  relay: "Relay",
+  dc_motor: "DC Motor",
+  dht_sensor: "DHT Sensor",
+  ir_receiver: "IR Receiver",
+  shift_register: "Shift Register",
+  oled_display: "OLED Display",
+};
+
+const DOCS_PATHS: Record<string, string> = {
+  led: "/documentation/components/led",
+  rgb_led: "/documentation/components/rgb-led",
+  button: "/documentation/components/button",
+  resistor: "/documentation/components/resistor",
+  capacitor: "/documentation/components/capacitor",
+  potentiometer: "/documentation/components/potentiometer",
+  buzzer: "/documentation/components/buzzer",
+  servo: "/documentation/components/servo",
+  lcd_16x2: "/documentation/components/lcd-16x2",
+  seven_segment: "/documentation/components/seven-segment",
+  photoresistor: "/documentation/components/photoresistor",
+  temperature_sensor: "/documentation/components/temperature-sensor",
+  ultrasonic_sensor: "/documentation/components/ultrasonic-sensor",
+  neopixel: "/documentation/components/neopixel",
+  pir_sensor: "/documentation/components/pir-sensor",
+  relay: "/documentation/components/relay",
+  dc_motor: "/documentation/components/dc-motor",
+  dht_sensor: "/documentation/components/dht-sensor",
+  ir_receiver: "/documentation/components/ir-receiver",
+  shift_register: "/documentation/components/shift-register",
+  oled_display: "/documentation/components/oled-display",
 };
 
 // ── Main Component Inspector ──
@@ -518,6 +550,7 @@ function ComponentInspector({ component, onUpdate }: {
   onUpdate: (changes: Partial<BoardComponent>) => void;
 }) {
   const typeLabel = TYPE_LABELS[component.type] ?? component.type;
+  const docsPath = DOCS_PATHS[component.type];
 
   return (
     <div className="flex flex-col gap-2">
@@ -537,6 +570,20 @@ function ComponentInspector({ component, onUpdate }: {
           Row {component.y + 1}, Col {component.x}
         </span>
       </PropertyRow>
+
+      {docsPath && (
+        <a
+          href={docsPath}
+          className="flex items-center gap-1.5 rounded px-2 py-1 text-[11px] text-blue-400 hover:bg-blue-500/10 hover:text-blue-300 transition-colors"
+        >
+          <svg viewBox="0 0 16 16" width={12} height={12} className="shrink-0">
+            <path d="M2 2h8l4 4v8H2V2z" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinejoin="round" />
+            <line x1={10} y1={2} x2={10} y2={6} stroke="currentColor" strokeWidth={1.5} />
+            <line x1={10} y1={6} x2={14} y2={6} stroke="currentColor" strokeWidth={1.5} />
+          </svg>
+          View documentation
+        </a>
+      )}
 
       <Separator />
 

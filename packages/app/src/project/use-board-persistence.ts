@@ -45,13 +45,16 @@ export function useBoardPersistence(): { saveNow: () => void } {
   /** Save immediately — Cmd+S and beforeunload */
   const saveNow = useCallback(() => {
     clearTimeout(debounceRef.current)
+
+    // Always flash to confirm Cmd+S was received, even if nothing changed
+    notifySaveFlash()
+
     if (savingRef.current) return
 
     const { board, graph } = buildPayload()
     const snapshot = JSON.stringify(board)
     if (snapshot === lastSavedRef.current) return
     lastSavedRef.current = snapshot
-    notifySaveFlash()
 
     savingRef.current = true
     Promise.all([

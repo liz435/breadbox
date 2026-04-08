@@ -789,10 +789,10 @@ void loop() {
       expect(ok(";;")).toContain(";;")
     })
 
-    test("mixed code and comments (trailing comment prevents var decl match)", () => {
-      // The var decl regex expects the line to end with `;$` — trailing comments break it
+    test("mixed code and comments (inline comment preserved after transpilation)", () => {
+      // Inline comments are stripped before regex matching, then re-appended
       const code = ok("int x = 5; // set x to 5")
-      expect(code).toContain("int x = 5; // set x to 5")
+      expect(code).toContain("let x = 5; // set x to 5")
     })
 
     test("long sketch does not error", () => {

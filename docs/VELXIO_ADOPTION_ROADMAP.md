@@ -99,19 +99,10 @@ type BoardDefinition = {
 ---
 
 ## Tier 1 — High Impact, Low Effort
-<!-- 
-### 1. Component Palette Search + Categories -->
 
-**What Velxio does:** Searchable component picker with category filters and descriptions.
-**Our current state:** Flat list of 16 items, no search, no categories.
+### ~~1. Component Palette Search + Categories~~ DONE
 
-**Implementation:**
-- Add a search input at the top of `component-palette.tsx`
-- Group components into categories: Output, Input, Passive, Display, Other
-- Show one-line description on hover or below the label
-- Filter by search text matching name, type, or description
-
-**Effort:** ~2 hours. **Impact:** Major UX improvement for discoverability.
+Implemented search input, category grouping (Output, Input, Passive, Display, Other), and descriptions for all 14 component types. Also added Cmd+K command palette overlay.
 
 ---
 
@@ -130,17 +121,9 @@ type BoardDefinition = {
 
 ---
 
-### 3. Wire Editing (Drag Endpoints)
+### ~~3. Wire Editing (Drag Endpoints)~~ DONE
 
-**What Velxio does:** Segment-based wire editing.
-**Our current state:** Wires can only be created and deleted (SHIPPING_BLOCKERS #14).
-
-**Implementation:**
-- Click wire → show endpoint handles (circles at `from` and `to`)
-- Drag handle → snap to nearest grid hole → dispatch `UPDATE_WIRE` event
-- Add `UPDATE_WIRE` event to board machine (with auto-snapshot)
-
-**Effort:** ~4 hours. **Impact:** Eliminates a shipping blocker. Essential for usability.
+Added `UPDATE_WIRE` event to board machine (with auto-snapshot). Selected wires show blue drag handles on both endpoints. Drag an endpoint to snap it to a new grid hole. Arduino-pin wire endpoints are locked on the pin side. Also closes SHIPPING_BLOCKERS #14.
 
 ---
 
@@ -174,72 +157,29 @@ type BoardDefinition = {
 
 ---
 
-### 6. Keyboard Shortcuts Help Dialog
+### ~~6. Keyboard Shortcuts Help Dialog~~ DONE
 
-**What Velxio does:** Discoverable shortcut reference.
-**Our current state:** Shortcuts exist but undocumented (SHIPPING_BLOCKERS #20).
-
-**Implementation:**
-- Press `?` → Base UI Dialog listing all shortcuts
-- Effort: ~1 hour.
+Press `?` anywhere to open a shortcuts dialog (General, Breadboard, Sketch Editor groups). Also available via Cmd+K → "Keyboard Shortcuts". Closes SHIPPING_BLOCKERS #20.
 
 ---
 
 ## Tier 2 — High Impact, Medium Effort
 
-### 7. Expanded Component Library (24+)
+### ~~7. Expanded Component Library (24+)~~ DONE
 
-**What Velxio does:** 48+ components via wokwi-elements.
-**Our current state:** 16 components with custom SVG renderers.
-
-**Priority additions (8 new components):**
-
-| Component | Why | Renderer Complexity |
-|-----------|-----|-------------------|
-| NeoPixel / WS2812 LED strip | Most popular Arduino accessory, works across all boards | Medium |
-| PIR Motion Sensor | Common in starter kits | Low |
-| Relay Module | Teaches switching circuits | Low |
-| DC Motor | Pairs with existing servo | Medium |
-| DHT11/22 Temp+Humidity | Most popular sensor | Low |
-| IR Receiver | Remote control projects | Low |
-| Shift Register (74HC595) | Teaches multiplexing | Low |
-| OLED Display (SSD1306) | Modern alternative to LCD, common with ESP32 | Medium |
-
-**For each:** schema type → registry entry → SVG renderer → stdlib shim.
-
-**Effort:** ~2-3 days. **Impact:** Covers 90% of common projects.
+Added 8 new components: NeoPixel/WS2812 LED strip, PIR motion sensor, relay module, DC motor, DHT11/22 temp+humidity sensor, IR receiver, 74HC595 shift register, SSD1306 OLED display. Each has: schema type, registry entry with footprint/pins/sketch generation, custom SVG renderer, and JS stdlib shim (for NeoPixel, DHT, IRremote, SSD1306). Total component count: 22.
 
 ---
 
-### 8. Arduino Library Index Browser
+### ~~8. Arduino Library Index Browser~~ DONE
 
-**What Velxio does:** Browses full Arduino library index, installs libraries.
-**Our current state:** 6 hardcoded built-in + custom upload.
-
-**Implementation (browser-only):**
-- Fetch and cache the Arduino library index JSON
-- Searchable list: name, author, description, version
-- "Built-in" badge for shimmed libraries
-- "Add as custom" creates a placeholder with usage examples
-- Link to library docs
-- Shows which libraries work in transpile mode vs. compile-only
-
-**Effort:** ~6 hours. **Impact:** Discovery and education.
+Library Manager now has two tabs: "My Libraries" (custom + built-in list) and "Browse Index" (fetches the official Arduino library index — ~7,000 libraries, searchable by name/author/description/category). Built-in libraries show a green badge. Non-built-in libraries can be added as custom placeholders with one click. 10 built-in JS-shimmed libraries: Servo, LiquidCrystal, EEPROM, Wire, SPI, Stepper, Adafruit_NeoPixel, DHT, IRremote, Adafruit_SSD1306.
 
 ---
 
-### 9. Compilation Error Highlighting
+### ~~9. Compilation Error Highlighting~~ DONE
 
-**What Velxio does:** Monaco shows real compiler errors inline.
-**Our current state:** Lint warnings only. Transpiler errors shown as status text.
-
-**Implementation:**
-- Parse transpiler error messages for line numbers
-- Push to CodeMirror's lint system as red squiggles
-- For unsupported features (pointers, templates), mark the exact line
-- Board-aware: linter checks pin validity against active board definition
-
-**Effort:** ~4 hours. **Impact:** Standard IDE expectation.
+Transpile errors now show inline as red squiggles at the exact line via CodeMirror's lint system. Errors auto-clear when the user edits the code. Shared via `transpileErrorRef` — the VM sets it on failure, the linter reads it on each lint pass.
 
 ---
 

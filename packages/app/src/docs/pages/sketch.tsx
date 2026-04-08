@@ -51,6 +51,10 @@ export function SketchPage() {
             ["Wire (I2C)", "<Wire.h>", "begin(), beginTransmission(), write(), endTransmission(), requestFrom(), read()"],
             ["SPI", "<SPI.h>", "begin(), transfer(data), beginTransaction(), endTransaction()"],
             ["Stepper", "<Stepper.h>", "Stepper(steps, pins...), setSpeed(rpm), step(steps)"],
+            ["Adafruit NeoPixel", "<Adafruit_NeoPixel.h>", "Adafruit_NeoPixel(n, pin, type), begin(), setPixelColor(), show(), Color(), clear(), fill()"],
+            ["DHT", "<DHT.h>", "DHT(pin, type), begin(), readTemperature(), readHumidity()"],
+            ["IRremote", "<IRremote.h>", "IRrecv(pin), enableIRIn(), decode(&results), resume()"],
+            ["Adafruit SSD1306", "<Adafruit_SSD1306.h>", "Adafruit_SSD1306(w, h, &Wire, rst), begin(), print/println(), setCursor(), clearDisplay(), display()"],
           ]}
         />
         <Note>
@@ -127,6 +131,7 @@ export function SketchPage() {
             ["Indent with Tab", "Tab indents, Shift-Tab dedents selected lines"],
             ["Selection match", "Select a word — all occurrences are highlighted"],
             ["Lint warnings", "Missing setup()/loop(), wrong pin for analogWrite/analogRead"],
+            ["Compilation errors", "Transpile errors shown inline as red squiggles at the exact line — auto-clear on edit"],
             ["Undo/Redo", "Cmd+Z / Cmd+Shift+Z"],
           ]}
         />

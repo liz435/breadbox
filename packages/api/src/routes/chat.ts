@@ -5,8 +5,12 @@ import { nonEmptyStringSchema } from "@dreamer/schemas";
 import type { BoardOp } from "@dreamer/schemas";
 import { projectRepo, VersionConflictError, OpValidationError } from "../db/project-repo";
 import { agentRunRepo } from "../db/agent-run-repo";
-import { buildModelMessagesFromRuns } from "../db/messages";
+import { buildSummarizedHistory, generateThreadSummary } from "../agents/history-summarizer";
 import { streamCoreAgent } from "../agents/core/agent";
+import { classifyIntent } from "../agents/intent-classifier";
+import { CIRCUIT_TEMPLATES } from "../agents/circuit-templates";
+import { makeBoardOp } from "../agents/make-op";
+import { boardTracker } from "../db/board-state-tracker";
 import { createLogger } from "../logger";
 
 const log = createLogger("chat");
@@ -96,6 +100,11 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
     return { error: `Scene not found: ${input.sceneId}` };
   }
 
+  // 1b. Ensure board tracker is initialized for this project
+  if (!boardTracker.get(input.projectId) && project.boardState) {
+    boardTracker.set(input.projectId, project.boardState);
+  }
+
   // 2. Ensure thread exists
   await agentRunRepo.getOrCreateThread(input.threadId, input.projectId);
 
@@ -111,15 +120,111 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
   await agentRunRepo.attachRunToThread(input.threadId, runFile.run.id);
   reqLog.info(`created run: ${runFile.run.id}`);
 
-  // 4. Build conversation history from prior runs
+  // 4. Classify intent — template or agent?
+  const intent = classifyIntent(prompt);
+
+  if (intent.type === "template") {
+    reqLog.info(`template match: ${intent.template}, additive: ${intent.additive}`);
+    const templateFn = CIRCUIT_TEMPLATES[intent.template];
+    if (templateFn && project.boardState) {
+      const opCtx = {
+        projectId: input.projectId,
+        sceneId: input.sceneId,
+        expectedVersion: input.expectedVersion,
+      };
+
+      // Clear existing board unless the user wants to add to it
+      const clearOps: BoardOp[] = [];
+      if (!intent.additive) {
+        const board = project.boardState;
+        // Remove all wires first (to avoid orphan issues)
+        for (const wireId of Object.keys(board.wires)) {
+          clearOps.push(makeBoardOp(opCtx, {
+            kind: "remove_wire",
+            payload: { wireId },
+          }));
+        }
+        // Remove all components (except arduino_uno)
+        for (const comp of Object.values(board.components)) {
+          if (comp.type === "arduino_uno") continue;
+          clearOps.push(makeBoardOp(opCtx, {
+            kind: "remove_component",
+            payload: { componentId: comp.id },
+          }));
+        }
+      }
+
+      const result = templateFn(opCtx, project.boardState, intent.params);
+      const templateOps = [...clearOps, ...result.ops];
+
+      // Apply ops server-side
+      try {
+        await projectRepo.applyBoardOps(input.projectId, {
+          expectedVersion: input.expectedVersion,
+          ops: templateOps,
+        });
+        boardTracker.applyOps(input.projectId, templateOps, project.boardState);
+      } catch (err) {
+        reqLog.warn(`template op application failed: ${err}`);
+      }
+
+      // Complete the run record
+      await agentRunRepo.completeRun({
+        runId: runFile.run.id,
+        assistantText: result.description,
+        messages: [{ role: "assistant" as const, content: result.description }],
+        proposedOps: templateOps,
+        appliedOps: templateOps,
+        tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, model: "template" },
+      });
+
+      // Stream the response
+      const uiStream = createUIMessageStream({
+        async execute({ writer }) {
+          // Send ops to client
+          writer.write({ type: "data-scene-ops", data: templateOps });
+
+          // Send assistant text as deltas
+          const msgId = crypto.randomUUID();
+          writer.write({ type: "text-start", id: msgId });
+          writer.write({ type: "text-delta", delta: result.description, id: msgId });
+          writer.write({ type: "text-end", id: msgId });
+
+          // Send result metadata
+          writer.write({
+            type: "data-token-usage" as never,
+            data: { inputTokens: 0, outputTokens: 0, model: "template", childRuns: [] },
+          });
+
+          writer.write({
+            type: "data-scene-result" as never,
+            data: {
+              appliedOps: templateOps,
+              newVersion: input.expectedVersion + 1,
+              runId: runFile.run.id,
+              tokenUsage: { inputTokens: 0, outputTokens: 0, model: "template" },
+            },
+          });
+        },
+      });
+
+      const elapsed = (performance.now() - start).toFixed(1);
+      reqLog.info(`template completed — ${templateOps.length} ops, ${elapsed}ms`);
+
+      return createUIMessageStreamResponse({ stream: uiStream });
+    }
+  }
+
+  // 5. Build conversation history from prior runs (agent path)
   const priorRuns = await agentRunRepo.listRunsForThread(input.threadId);
+  const cachedSummary = await agentRunRepo.readThreadSummary(input.threadId);
   const completedRuns = priorRuns.filter(
     (r) => r.run.id !== runFile.run.id && r.run.status === "completed"
   );
-  const history = buildModelMessagesFromRuns(completedRuns);
+  const history = await buildSummarizedHistory(completedRuns, cachedSummary);
   reqLog.debug(`rebuilt ${history.length} history message(s) from ${completedRuns.length} prior run(s)`);
 
-  // 5. Start streaming agent
+  // 6. Start streaming agent
   const agentStream = streamCoreAgent({
     prompt,
     project,
@@ -179,6 +284,7 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
           if (applyResult) {
             newVersion = applyResult.newVersion;
             appliedOps = applyResult.appliedOps;
+            boardTracker.applyOps(capturedProjectId, appliedOps, capturedProject.boardState);
           }
         } catch (err) {
           if (err instanceof VersionConflictError) {
@@ -209,6 +315,18 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
       reqLog.info(
         `completed — ${result.proposedOps.length} proposed (${graphOps.length} graph), ${appliedOps.length} applied, v${newVersion}, ${elapsed}ms`
       );
+
+      // Fire-and-forget: pre-cache history summary for next turn
+      agentRunRepo.listRunsForThread(input.threadId).then((allThreadRuns) => {
+        const allCompleted = allThreadRuns.filter((r) => r.run.status === "completed");
+        return generateThreadSummary(allCompleted).then((summary) => {
+          if (summary) {
+            return agentRunRepo.updateThreadSummary(input.threadId, summary);
+          }
+        });
+      }).catch((err) => {
+        reqLog.warn(`background summary cache failed: ${err}`);
+      });
 
       // Apply graph ops to the project file server-side so they persist
       if (graphOps.length > 0) {
@@ -336,4 +454,42 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
   });
 
   return createUIMessageStreamResponse({ stream: uiStream });
+}).get("/api/threads/:threadId/messages", async ({ params, set }) => {
+  const { threadId } = params;
+  if (!threadId) {
+    set.status = 400;
+    return { error: "threadId is required" };
+  }
+
+  const runs = await agentRunRepo.listRunsForThread(threadId);
+  const completedCoreRuns = runs.filter(
+    (r) => r.run.status === "completed" && r.run.agent === "core"
+  );
+
+  // Convert runs to UIMessage format for the frontend
+  type ChatUIMessage = {
+    id: string;
+    role: "user" | "assistant";
+    parts: Array<{ type: "text"; text: string }>;
+  };
+
+  const messages: ChatUIMessage[] = [];
+  for (const run of completedCoreRuns) {
+    // User message
+    messages.push({
+      id: `${run.run.id}-user`,
+      role: "user",
+      parts: [{ type: "text", text: run.prompt }],
+    });
+    // Assistant message (final text only — skip tool calls for display)
+    if (run.assistantText) {
+      messages.push({
+        id: `${run.run.id}-assistant`,
+        role: "assistant",
+        parts: [{ type: "text", text: run.assistantText }],
+      });
+    }
+  }
+
+  return { messages };
 });

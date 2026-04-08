@@ -55,7 +55,7 @@ export function AiToolbarHistory({ chat }: AiToolbarProps) {
             Hide
           </button>
         </div>
-        <ScrollArea className="max-h-72">
+        <ScrollArea className="max-h-96">
           <div className="px-3 py-2">
             {messages.map((msg) => {
               const text = getMessageText(msg)

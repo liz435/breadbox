@@ -44,6 +44,8 @@ export {
   type AgentKind,
   projectThreadSchema,
   type ProjectThread,
+  cachedSummarySchema,
+  type CachedSummary,
   projectThreadFileSchema,
   type ProjectThreadFile,
   agentRunRecordSchema,

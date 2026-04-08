@@ -18,6 +18,7 @@ export type BoardEvent =
   | { type: "MOVE_COMPONENT"; id: string; x: number; y: number }
   | { type: "SELECT"; id: string | null }
   | { type: "ADD_WIRE"; wire: Wire }
+  | { type: "UPDATE_WIRE"; id: string; changes: Partial<Wire> }
   | { type: "REMOVE_WIRE"; id: string }
   | { type: "SET_PIN_STATE"; pin: number; changes: Partial<PinState> }
   | { type: "SET_LIBRARY_STATE"; changes: Partial<LibraryState> }
@@ -179,6 +180,20 @@ export const boardMachine = setup({
         ...pushHistory(context),
         wires: { ...context.wires, [event.wire.id]: event.wire },
       })),
+    },
+
+    UPDATE_WIRE: {
+      actions: assign(({ context, event }) => {
+        const existing = context.wires[event.id];
+        if (!existing) return {};
+        return {
+          ...pushHistory(context),
+          wires: {
+            ...context.wires,
+            [event.id]: { ...existing, ...event.changes },
+          },
+        };
+      }),
     },
 
     REMOVE_WIRE: {

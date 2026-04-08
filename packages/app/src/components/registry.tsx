@@ -286,9 +286,9 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     defaultPins: { vcc: null, signal: null, gnd: null },
     accentColor: "#78716c",
     footprint: (row, col) => ({
-      points: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }],
-      width: HOLE_SPACING * 3,
-      height: HOLE_SPACING * 2,
+      points: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }],
+      width: HOLE_SPACING,
+      height: HOLE_SPACING * 3,
     }),
     paletteIcon: (
       <svg viewBox="0 0 24 24" width={20} height={20}>
@@ -395,8 +395,8 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     defaultProperties: { angle: 90 },
     accentColor: "#22c55e",
     footprint: (row, col) => ({
-      points: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }],
-      width: HOLE_SPACING * 3,
+      points: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }],
+      width: HOLE_SPACING,
       height: HOLE_SPACING * 3,
     }),
     paletteIcon: (
@@ -472,9 +472,9 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     defaultPins: { vcc: null, signal: null, gnd: null },
     defaultProperties: { temperature: 25 },
     footprint: (row, col) => ({
-      points: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }],
-      width: HOLE_SPACING * 3,
-      height: HOLE_SPACING * 2,
+      points: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }],
+      width: HOLE_SPACING,
+      height: HOLE_SPACING * 3,
     }),
     paletteIcon: (
       <svg viewBox="0 0 24 24" width={20} height={20}>
@@ -630,6 +630,403 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
         return p != null ? `  digitalWrite(${p}, ${pattern[i] ? "HIGH" : "LOW"}); // seg ${("abcdefg")[i]}` : null
       }).filter(Boolean) as string[]
       return { setupLines, loopLines, hasPin: true }
+    },
+  },
+
+  // ── NeoPixel / WS2812 LED Strip ──────────────────────────────────────
+  {
+    type: "neopixel",
+    category: "output",
+    description: "WS2812 addressable RGB LED strip",
+    label: "NeoPixel Strip",
+    defaultPins: { din: null },
+    defaultProperties: { numLeds: 8 },
+    accentColor: "#a855f7",
+    footprint: (row, col) => ({
+      points: [
+        { row, col },
+        { row, col: col + 1 },
+        { row, col: col + 2 },
+      ],
+      width: HOLE_SPACING * 3,
+      height: HOLE_SPACING,
+    }),
+    paletteIcon: (
+      <svg viewBox="0 0 24 24" width={20} height={20}>
+        <rect x={1} y={8} width={22} height={8} rx={2} fill="#1a1a1a" stroke="#333" strokeWidth={0.5} />
+        {[4, 8, 12, 16, 20].map((x, i) => (
+          <circle key={i} cx={x} cy={12} r={2.5} fill={["#ef4444", "#22c55e", "#3b82f6", "#eab308", "#a855f7"][i]} opacity={0.9} />
+        ))}
+      </svg>
+    ),
+    buildNetlist: () => null,
+    generateSketch: (comp) => {
+      const pin = comp.pins.din
+      if (pin == null) return null
+      const numLeds = (comp.properties.numLeds as number) ?? 8
+      return {
+        globalLines: [
+          `#include <Adafruit_NeoPixel.h>`,
+          `Adafruit_NeoPixel strip(${numLeds}, ${pin}, NEO_GRB + NEO_KHZ800);`,
+        ],
+        setupLines: [
+          `  strip.begin(); // ${comp.name}`,
+          `  strip.setBrightness(50);`,
+          `  strip.show();`,
+        ],
+        loopLines: [
+          `  // ${comp.name}: rainbow cycle`,
+          `  for (int i = 0; i < strip.numPixels(); i++) {`,
+          `    strip.setPixelColor(i, strip.Color(255, 0, 0));`,
+          `  }`,
+          `  strip.show();`,
+          `  delay(500);`,
+        ],
+        hasPin: true,
+      }
+    },
+  },
+
+  // ── PIR Motion Sensor ───────────────────────────────────────────────
+  {
+    type: "pir_sensor",
+    category: "input",
+    description: "HC-SR501 passive infrared motion detector",
+    label: "PIR Sensor",
+    defaultPins: { signal: null },
+    defaultProperties: {},
+    accentColor: "#f59e0b",
+    footprint: (row, col) => ({
+      points: [
+        { row, col },
+        { row, col: col + 1 },
+        { row, col: col + 2 },
+      ],
+      width: HOLE_SPACING * 3,
+      height: HOLE_SPACING * 2,
+    }),
+    paletteIcon: (
+      <svg viewBox="0 0 24 24" width={20} height={20}>
+        <rect x={4} y={10} width={16} height={10} rx={2} fill="#065f46" stroke="#064e3b" strokeWidth={0.8} />
+        <circle cx={12} cy={8} r={6} fill="#d4d4d4" stroke="#a3a3a3" strokeWidth={0.8} />
+        <circle cx={12} cy={8} r={3} fill="#fbbf24" opacity={0.6} />
+      </svg>
+    ),
+    buildNetlist: () => null,
+    generateSketch: (comp) => {
+      const pin = comp.pins.signal
+      if (pin == null) return null
+      return {
+        setupLines: [
+          `  pinMode(${pin}, INPUT); // ${comp.name}`,
+        ],
+        loopLines: [
+          `  if (digitalRead(${pin}) == HIGH) { // ${comp.name} motion detected`,
+          `    Serial.println("Motion!");`,
+          `  }`,
+          `  delay(200);`,
+        ],
+        hasPin: true,
+      }
+    },
+  },
+
+  // ── Relay Module ────────────────────────────────────────────────────
+  {
+    type: "relay",
+    category: "output",
+    description: "Single-channel relay module for switching high-power loads",
+    label: "Relay",
+    defaultPins: { signal: null },
+    defaultProperties: {},
+    accentColor: "#3b82f6",
+    footprint: (row, col) => ({
+      points: [
+        { row, col },
+        { row: row + 1, col },
+        { row: row + 2, col },
+      ],
+      width: HOLE_SPACING * 2,
+      height: HOLE_SPACING * 3,
+    }),
+    paletteIcon: (
+      <svg viewBox="0 0 24 24" width={20} height={20}>
+        <rect x={3} y={3} width={18} height={18} rx={2} fill="#1e40af" stroke="#1e3a5f" strokeWidth={0.8} />
+        <rect x={6} y={6} width={12} height={8} rx={1} fill="#3b82f6" opacity={0.4} />
+        <text x={12} y={12} textAnchor="middle" fontSize={5} fill="#93c5fd" fontFamily="monospace">RELAY</text>
+        <line x1={8} y1={18} x2={8} y2={22} stroke="#a0a0a0" strokeWidth={1} />
+        <line x1={12} y1={18} x2={12} y2={22} stroke="#a0a0a0" strokeWidth={1} />
+        <line x1={16} y1={18} x2={16} y2={22} stroke="#a0a0a0" strokeWidth={1} />
+      </svg>
+    ),
+    buildNetlist: () => null,
+    generateSketch: (comp) => {
+      const pin = comp.pins.signal
+      if (pin == null) return null
+      return {
+        setupLines: [`  pinMode(${pin}, OUTPUT); // ${comp.name}`],
+        loopLines: [
+          `  digitalWrite(${pin}, HIGH); // ${comp.name} ON`,
+          `  delay(1000);`,
+          `  digitalWrite(${pin}, LOW); // ${comp.name} OFF`,
+          `  delay(1000);`,
+        ],
+        hasPin: true,
+      }
+    },
+  },
+
+  // ── DC Motor ────────────────────────────────────────────────────────
+  {
+    type: "dc_motor",
+    category: "output",
+    description: "Small DC motor — control speed with PWM via analogWrite()",
+    label: "DC Motor",
+    defaultPins: { signal: null },
+    defaultProperties: {},
+    accentColor: "#f97316",
+    footprint: (row, col) => ({
+      points: [
+        { row, col },
+        { row: row + 1, col },
+      ],
+      width: HOLE_SPACING * 2,
+      height: HOLE_SPACING * 2,
+    }),
+    paletteIcon: (
+      <svg viewBox="0 0 24 24" width={20} height={20}>
+        <circle cx={12} cy={12} r={8} fill="#374151" stroke="#6b7280" strokeWidth={1} />
+        <circle cx={12} cy={12} r={5} fill="#1f2937" stroke="#4b5563" strokeWidth={0.5} />
+        <line x1={12} y1={7} x2={12} y2={4} stroke="#a0a0a0" strokeWidth={1.5} strokeLinecap="round" />
+        <text x={12} y={13} textAnchor="middle" fontSize={5} fill="#9ca3af" fontFamily="monospace">M</text>
+      </svg>
+    ),
+    buildNetlist: () => null,
+    generateSketch: (comp) => {
+      const pin = comp.pins.signal
+      if (pin == null) return null
+      return {
+        setupLines: [`  pinMode(${pin}, OUTPUT); // ${comp.name}`],
+        loopLines: [
+          `  analogWrite(${pin}, 128); // ${comp.name} half speed`,
+          `  delay(2000);`,
+          `  analogWrite(${pin}, 255); // ${comp.name} full speed`,
+          `  delay(2000);`,
+        ],
+        hasPin: true,
+      }
+    },
+  },
+
+  // ── DHT Temperature + Humidity Sensor ───────────────────────────────
+  {
+    type: "dht_sensor",
+    category: "input",
+    description: "DHT11/DHT22 temperature and humidity sensor",
+    label: "DHT Sensor",
+    defaultPins: { signal: null },
+    defaultProperties: { variant: "DHT11" },
+    accentColor: "#06b6d4",
+    footprint: (row, col) => ({
+      points: [
+        { row, col },
+        { row, col: col + 1 },
+        { row, col: col + 2 },
+      ],
+      width: HOLE_SPACING * 3,
+      height: HOLE_SPACING * 2,
+    }),
+    paletteIcon: (
+      <svg viewBox="0 0 24 24" width={20} height={20}>
+        <rect x={4} y={3} width={16} height={18} rx={2} fill="#0891b2" stroke="#0e7490" strokeWidth={0.8} />
+        <rect x={7} y={6} width={10} height={6} rx={1} fill="#06b6d4" opacity={0.3} />
+        <text x={12} y={10} textAnchor="middle" fontSize={4} fill="#a5f3fc" fontFamily="monospace">DHT</text>
+        <line x1={8} y1={21} x2={8} y2={24} stroke="#a0a0a0" strokeWidth={1} />
+        <line x1={12} y1={21} x2={12} y2={24} stroke="#a0a0a0" strokeWidth={1} />
+        <line x1={16} y1={21} x2={16} y2={24} stroke="#a0a0a0" strokeWidth={1} />
+      </svg>
+    ),
+    buildNetlist: () => null,
+    generateSketch: (comp) => {
+      const pin = comp.pins.signal
+      if (pin == null) return null
+      const variant = (comp.properties.variant as string) ?? "DHT11"
+      return {
+        globalLines: [
+          `#include <DHT.h>`,
+          `DHT dht(${pin}, ${variant});`,
+        ],
+        setupLines: [
+          `  dht.begin(); // ${comp.name}`,
+        ],
+        loopLines: [
+          `  float temp = dht.readTemperature(); // ${comp.name}`,
+          `  float hum = dht.readHumidity();`,
+          `  Serial.print("Temp: "); Serial.print(temp);`,
+          `  Serial.print(" Humidity: "); Serial.println(hum);`,
+          `  delay(2000);`,
+        ],
+        hasPin: true,
+      }
+    },
+  },
+
+  // ── IR Receiver ─────────────────────────────────────────────────────
+  {
+    type: "ir_receiver",
+    category: "input",
+    description: "Infrared receiver for remote control signals (38kHz)",
+    label: "IR Receiver",
+    defaultPins: { signal: null },
+    defaultProperties: {},
+    accentColor: "#dc2626",
+    footprint: (row, col) => ({
+      points: [
+        { row, col },
+        { row, col: col + 1 },
+        { row, col: col + 2 },
+      ],
+      width: HOLE_SPACING * 3,
+      height: HOLE_SPACING,
+    }),
+    paletteIcon: (
+      <svg viewBox="0 0 24 24" width={20} height={20}>
+        <path d="M8 18 L8 10 A4 4 0 0 1 16 10 L16 18 Z" fill="#1a1a1a" stroke="#444" strokeWidth={0.8} />
+        <circle cx={12} cy={10} r={3} fill="#7f1d1d" opacity={0.6} />
+        <line x1={8} y1={20} x2={8} y2={22} stroke="#a0a0a0" strokeWidth={1} />
+        <line x1={12} y1={20} x2={12} y2={22} stroke="#a0a0a0" strokeWidth={1} />
+        <line x1={16} y1={20} x2={16} y2={22} stroke="#a0a0a0" strokeWidth={1} />
+      </svg>
+    ),
+    buildNetlist: () => null,
+    generateSketch: (comp) => {
+      const pin = comp.pins.signal
+      if (pin == null) return null
+      return {
+        globalLines: [
+          `#include <IRremote.h>`,
+          `IRrecv irrecv(${pin});`,
+          `decode_results results;`,
+        ],
+        setupLines: [
+          `  irrecv.enableIRIn(); // ${comp.name}`,
+        ],
+        loopLines: [
+          `  if (irrecv.decode(&results)) { // ${comp.name}`,
+          `    Serial.println(results.value, HEX);`,
+          `    irrecv.resume();`,
+          `  }`,
+        ],
+        hasPin: true,
+      }
+    },
+  },
+
+  // ── Shift Register (74HC595) ────────────────────────────────────────
+  {
+    type: "shift_register",
+    category: "other",
+    description: "74HC595 — 8-bit serial-in, parallel-out shift register",
+    label: "Shift Register",
+    defaultPins: { data: null, clock: null, latch: null },
+    defaultProperties: {},
+    accentColor: "#8b5cf6",
+    footprint: (row, col) => {
+      const points = []
+      for (let r = 0; r < 4; r++) {
+        points.push({ row: row + r, col: 2 })
+        points.push({ row: row + r, col: 7 })
+      }
+      return { points, width: 60 + HOLE_SPACING * 4, height: HOLE_SPACING * 4 }
+    },
+    paletteIcon: (
+      <svg viewBox="0 0 24 24" width={20} height={20}>
+        <rect x={5} y={3} width={14} height={18} rx={1} fill="#1a1a1a" stroke="#333" strokeWidth={0.8} />
+        <path d="M10 3 A2 2 0 0 1 14 3" fill="#2a2a2a" stroke="#444" strokeWidth={0.5} />
+        {[6, 9, 12, 15].map(y => (
+          <g key={y}>
+            <line x1={1} y1={y} x2={5} y2={y} stroke="#8b5cf6" strokeWidth={1} />
+            <line x1={19} y1={y} x2={23} y2={y} stroke="#8b5cf6" strokeWidth={1} />
+          </g>
+        ))}
+      </svg>
+    ),
+    buildNetlist: () => null,
+    generateSketch: (comp) => {
+      const data = comp.pins.data
+      const clock = comp.pins.clock
+      const latch = comp.pins.latch
+      if (data == null || clock == null || latch == null) return null
+      return {
+        setupLines: [
+          `  pinMode(${data}, OUTPUT); // ${comp.name} data`,
+          `  pinMode(${clock}, OUTPUT); // ${comp.name} clock`,
+          `  pinMode(${latch}, OUTPUT); // ${comp.name} latch`,
+        ],
+        loopLines: [
+          `  // ${comp.name}: shift out byte`,
+          `  digitalWrite(${latch}, LOW);`,
+          `  shiftOut(${data}, ${clock}, MSBFIRST, 0b10101010);`,
+          `  digitalWrite(${latch}, HIGH);`,
+          `  delay(500);`,
+        ],
+        hasPin: true,
+      }
+    },
+  },
+
+  // ── OLED Display (SSD1306) ──────────────────────────────────────────
+  {
+    type: "oled_display",
+    category: "display",
+    description: "128x64 I2C OLED display (SSD1306)",
+    label: "OLED Display",
+    defaultPins: { sda: null, scl: null },
+    defaultProperties: {},
+    accentColor: "#06b6d4",
+    footprint: (row, col) => ({
+      points: [
+        { row, col },
+        { row, col: col + 1 },
+        { row, col: col + 2 },
+        { row, col: col + 3 },
+      ],
+      width: HOLE_SPACING * 4,
+      height: HOLE_SPACING * 3,
+    }),
+    paletteIcon: (
+      <svg viewBox="0 0 24 24" width={20} height={20}>
+        <rect x={2} y={3} width={20} height={15} rx={2} fill="#1a1a1a" stroke="#333" strokeWidth={0.8} />
+        <rect x={4} y={5} width={16} height={11} rx={1} fill="#000" />
+        <text x={12} y={12} textAnchor="middle" fontSize={4} fill="#06b6d4" fontFamily="monospace">OLED</text>
+        {[7, 11, 15, 19].map(x => (
+          <line key={x} x1={x} y1={18} x2={x} y2={22} stroke="#a0a0a0" strokeWidth={0.8} />
+        ))}
+      </svg>
+    ),
+    buildNetlist: () => null,
+    generateSketch: (comp) => {
+      const sda = comp.pins.sda
+      const scl = comp.pins.scl
+      if (sda == null || scl == null) return null
+      return {
+        globalLines: [
+          `#include <Wire.h>`,
+          `#include <Adafruit_SSD1306.h>`,
+          `Adafruit_SSD1306 display(128, 64, &Wire, -1);`,
+        ],
+        setupLines: [
+          `  display.begin(SSD1306_SWITCHCAPVCC, 0x3C); // ${comp.name}`,
+          `  display.clearDisplay();`,
+          `  display.setTextSize(1);`,
+          `  display.setTextColor(SSD1306_WHITE);`,
+          `  display.setCursor(0, 0);`,
+          `  display.println("Hello World!");`,
+          `  display.display();`,
+        ],
+        loopLines: [],
+        hasPin: true,
+      }
     },
   },
 
