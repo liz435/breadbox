@@ -1,7 +1,8 @@
 import React from "react";
 import type { BoardComponent, PinState, LibraryState } from "@dreamer/schemas";
 import type { ComponentElectricalState } from "@/simulator/circuit-solver";
-import { gridToPixel, HOLE_SPACING } from "@/breadboard/breadboard-grid";
+import { gridToPixel } from "@/breadboard/breadboard-grid";
+import { KNOB_RADIUS, GENERIC_BODY_WIDTH, GENERIC_BODY_HEIGHT, LABEL_FONT_SIZE } from "@/breadboard/breadboard-constants";
 import { PinLabel } from "./pin-label";
 
 type GenericRendererProps = {
@@ -14,7 +15,7 @@ type GenericRendererProps = {
 
 function BuzzerRenderer({ component, isSelected, electricalState }: { component: BoardComponent; isSelected: boolean; electricalState?: ComponentElectricalState }) {
   const { x, y } = gridToPixel({ row: component.y, col: component.x });
-  const radius = 10;
+  const radius = KNOB_RADIUS;
   const isActive = electricalState?.isActive ?? false;
 
   return (
@@ -62,7 +63,7 @@ function BuzzerRenderer({ component, isSelected, electricalState }: { component:
 
 function PotentiometerRenderer({ component, isSelected }: { component: BoardComponent; isSelected: boolean }) {
   const { x, y } = gridToPixel({ row: component.y, col: component.x });
-  const radius = 10;
+  const radius = KNOB_RADIUS;
   const knobAngle = ((component.properties.value as number) ?? 50) / 100 * 270 - 135;
   const rad = (knobAngle * Math.PI) / 180;
 
@@ -251,8 +252,8 @@ function GenericRendererInner({ component, pinStates, isSelected, electricalStat
 
   // Default fallback
   const { x, y } = gridToPixel({ row: component.y, col: component.x });
-  const width = 28;
-  const height = 16;
+  const width = GENERIC_BODY_WIDTH;
+  const height = GENERIC_BODY_HEIGHT;
   const label = component.type
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
@@ -284,7 +285,7 @@ function GenericRendererInner({ component, pinStates, isSelected, electricalStat
         x={x}
         y={y + height / 2 + 10}
         textAnchor="middle"
-        fontSize={6}
+        fontSize={LABEL_FONT_SIZE}
         fill="#888"
         fontFamily="monospace"
       >

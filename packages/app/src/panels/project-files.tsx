@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { toast } from "@/components/ui/toast"
 import { useProject } from "@/project/project-context"
 import { useGraph } from "@/store/graph-context"
 import { useScene } from "@/store/scene-context"
@@ -291,7 +292,7 @@ function EditableProjectName({ name, projectId }: { name: string; projectId: str
     (newName: string) => {
       renameProject(projectId, newName)
         .then(() => switchProject(projectId))
-        .catch(() => {})
+        .catch(() => { toast.error("Operation failed") })
     },
     [projectId, switchProject],
   )
@@ -340,7 +341,7 @@ export function ProjectFiles() {
     (sceneId: string, name: string) => {
       renameScene(projectId, sceneId, name)
         .then(() => switchProject(projectId))
-        .catch(() => {})
+        .catch(() => { toast.error("Operation failed") })
     },
     [projectId, switchProject],
   )
@@ -363,7 +364,7 @@ export function ProjectFiles() {
     (assetId: string, name: string) => {
       renameProjectAsset(projectId, assetId, name)
         .then(() => switchProject(projectId))
-        .catch(() => {})
+        .catch(() => { toast.error("Operation failed") })
     },
     [projectId, switchProject],
   )

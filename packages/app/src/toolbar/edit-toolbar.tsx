@@ -179,7 +179,7 @@ export function EditToolbar() {
 
   const projectOpen = isPanelOpen(dockviewApi, "projectFiles")
   const serialOpen = isPanelOpen(dockviewApi, "serialMonitor")
-  const sketchOpen = isPanelOpen(dockviewApi, "sketchEditor", "graph", "schematic")
+  const sketchOpen = isPanelOpen(dockviewApi, "sketchEditor", "graph", "schematic", "libraryManager")
   const inspectorOpen = isPanelOpen(dockviewApi, "inspector", "pinInspector")
 
   const handleProject = useCallback(() => {
@@ -196,6 +196,7 @@ export function EditToolbar() {
       { id: "sketchEditor", component: "sketchEditor", title: "Sketch" },
       { id: "graph", component: "graph", title: "Graph" },
       { id: "schematic", component: "schematic", title: "Schematic" },
+      { id: "libraryManager", component: "libraryManager", title: "Libraries" },
     ])
   }, [dockviewApi])
 

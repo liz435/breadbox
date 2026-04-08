@@ -5,6 +5,8 @@ import { saveBoardState, saveProjectGraph } from "./api-client"
 import { BoardContext } from "@/store/board-context"
 import { GraphContext } from "@/store/graph-context"
 import { saveRef, editorContentRef, notifySaveFlash } from "./save-ref"
+import { toast } from "@/components/ui/toast"
+import { API_ORIGIN } from "@dreamer/config"
 
 const SAVE_DEBOUNCE_MS = 2000
 const HYDRATION_GRACE_MS = 3000
@@ -17,61 +19,97 @@ export function useBoardPersistence(): { saveNow: () => void } {
   const mountTimeRef = useRef(Date.now())
   const projectIdRef = useRef(projectId)
   projectIdRef.current = projectId
+  const savingRef = useRef(false)
 
   const boardActor = BoardContext.useActorRef()
   const graphActor = GraphContext.useActorRef()
 
-  // Auto-save: debounced, skips the first 3 seconds to let LOAD_BOARD settle
+  /** Build persistable payload from live actor state */
+  const buildPayload = useCallback(() => {
+    if (editorContentRef.current) {
+      boardActor.send({ type: "UPDATE_SKETCH", code: editorContentRef.current() })
+    }
+    const bs = boardActor.getSnapshot().context
+    const gs = graphActor.getSnapshot().context
+    return {
+      board: {
+        components: bs.components,
+        wires: bs.wires,
+        sketchCode: bs.sketchCode,
+        customLibraries: bs.customLibraries,
+      },
+      graph: { nodes: gs.nodes, edges: gs.edges },
+    }
+  }, [boardActor, graphActor])
+
+  /** Save immediately — Cmd+S and beforeunload */
+  const saveNow = useCallback(() => {
+    clearTimeout(debounceRef.current)
+    if (savingRef.current) return
+
+    const { board, graph } = buildPayload()
+    const snapshot = JSON.stringify(board)
+    if (snapshot === lastSavedRef.current) return
+    lastSavedRef.current = snapshot
+    notifySaveFlash()
+
+    savingRef.current = true
+    Promise.all([
+      saveBoardState(projectIdRef.current, board),
+      saveProjectGraph(projectIdRef.current, graph),
+    ])
+      .catch(() => toast.error("Failed to save project"))
+      .finally(() => { savingRef.current = false })
+  }, [buildPayload])
+
+  // Debounced auto-save
   useEffect(() => {
-    // Don't auto-save during the hydration grace period
     if (Date.now() - mountTimeRef.current < HYDRATION_GRACE_MS) return
 
     const persistable = {
       components: state.components,
       wires: state.wires,
       sketchCode: state.sketchCode,
+      customLibraries: state.customLibraries,
     }
     const snapshot = JSON.stringify(persistable)
-
     if (snapshot === lastSavedRef.current) return
 
     clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
+      if (savingRef.current) return
       lastSavedRef.current = snapshot
-      saveBoardState(projectId, persistable).catch(() => {})
+      savingRef.current = true
+      saveBoardState(projectIdRef.current, persistable)
+        .catch(() => toast.error("Failed to auto-save project"))
+        .finally(() => { savingRef.current = false })
     }, SAVE_DEBOUNCE_MS)
 
     return () => clearTimeout(debounceRef.current)
-  }, [state.components, state.wires, state.sketchCode, projectId])
+  }, [state.components, state.wires, state.sketchCode, state.customLibraries, projectId])
 
-  /** Immediately save board + graph state. Flushes editor content first. */
-  const saveNow = useCallback(() => {
-    clearTimeout(debounceRef.current)
-
-    // Flush CodeMirror editor content to board state if mounted
-    if (editorContentRef.current) {
-      const liveCode = editorContentRef.current()
-      boardActor.send({ type: "UPDATE_SKETCH", code: liveCode })
+  // Flush pending save on tab close / navigation via sendBeacon
+  useEffect(() => {
+    function handleBeforeUnload() {
+      const { board, graph } = buildPayload()
+      const snapshot = JSON.stringify(board)
+      if (snapshot === lastSavedRef.current) return
+      const pid = projectIdRef.current
+      try {
+        navigator.sendBeacon(
+          `${API_ORIGIN}/project/${encodeURIComponent(pid)}/board`,
+          new Blob([JSON.stringify(board)], { type: "application/json" }),
+        )
+        navigator.sendBeacon(
+          `${API_ORIGIN}/project/${encodeURIComponent(pid)}/graph`,
+          new Blob([JSON.stringify(graph)], { type: "application/json" }),
+        )
+      } catch { /* best effort */ }
     }
-
-    const boardSnap = boardActor.getSnapshot().context
-    const graphSnap = graphActor.getSnapshot().context
-
-    const persistable = {
-      components: boardSnap.components,
-      wires: boardSnap.wires,
-      sketchCode: boardSnap.sketchCode,
-    }
-    lastSavedRef.current = JSON.stringify(persistable)
-    notifySaveFlash()
-    saveBoardState(projectIdRef.current, persistable).catch(() => {})
-    saveProjectGraph(projectIdRef.current, {
-      nodes: graphSnap.nodes,
-      edges: graphSnap.edges,
-    }).catch(() => {})
-  }, [boardActor, graphActor])
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
+  }, [buildPayload])
 
   saveRef.current = saveNow
-
   return { saveNow }
 }

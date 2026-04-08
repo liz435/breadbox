@@ -1,7 +1,8 @@
 import React from "react";
 import type { BoardComponent, PinState } from "@dreamer/schemas";
 import type { ComponentElectricalState } from "@/simulator/circuit-solver";
-import { gridToPixel, HOLE_SPACING } from "@/breadboard/breadboard-grid";
+import { gridToPixel } from "@/breadboard/breadboard-grid";
+import { LABEL_FONT_SIZE, ANNOTATION_FONT_SIZE } from "@/breadboard/breadboard-constants";
 import { PinLabel } from "./pin-label";
 
 type ResistorRendererProps = {
@@ -139,7 +140,7 @@ function ResistorRendererInner({ component, isSelected, electricalState }: Resis
         x={centerX}
         y={centerY + bodyHeight / 2 + 10}
         textAnchor="middle"
-        fontSize={6}
+        fontSize={LABEL_FONT_SIZE}
         fill="#888"
         fontFamily="monospace"
       >
@@ -152,7 +153,7 @@ function ResistorRendererInner({ component, isSelected, electricalState }: Resis
           x={centerX}
           y={centerY - bodyHeight / 2 - 5}
           textAnchor="middle"
-          fontSize={5}
+          fontSize={ANNOTATION_FONT_SIZE}
           fill="#fbbf24"
           fontFamily="monospace"
         >

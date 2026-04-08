@@ -253,14 +253,20 @@ function MySensorInspector({ component, onUpdate }) {
           ]}
         />
         <p className="text-sm text-gray-400 mt-3 mb-2">
-          To add a new library, add a class or object in <code>arduino-stdlib.ts</code>,
-          export it in the return object, and add its header to <code>KNOWN_LIBRARIES</code>{" "}
-          in <code>arduino-transpiler.ts</code>.
+          <strong>Adding a built-in library (developer):</strong> Add a class or object in{" "}
+          <code>arduino-stdlib.ts</code>, export it in the return object, and add its header to{" "}
+          <code>KNOWN_LIBRARIES</code> in <code>arduino-transpiler.ts</code>.
+        </p>
+        <p className="text-sm text-gray-400 mb-2">
+          <strong>Adding a custom library (user):</strong> Open the Libraries tab, click +, name it
+          (e.g. <code>MyUtils.h</code>), and write C++ code. Use{" "}
+          <code>#include &quot;MyUtils.h&quot;</code> (double quotes) in your sketch. Custom libraries
+          are stored per-project and auto-saved.
         </p>
         <p className="text-sm text-gray-300 leading-relaxed">
           The transpiler supports a restricted C++ subset including simple class and struct
-          definitions. Users can write helper classes in their sketches that call existing Arduino
-          functions. Pointers, templates, and namespaces are not supported.
+          definitions, PascalCase class instantiation (<code>Servo motor;</code>), and all standard
+          Arduino functions. Pointers, templates, and namespaces are not supported.
         </p>
       </Section>
 

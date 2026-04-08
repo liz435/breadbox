@@ -1,6 +1,7 @@
 import React from "react";
 import type { BoardComponent, PinState, LibraryState } from "@dreamer/schemas";
-import { gridToPixel, HOLE_SPACING } from "@/breadboard/breadboard-grid";
+import { gridToPixel } from "@/breadboard/breadboard-grid";
+import { SERVO_BODY_WIDTH, SERVO_BODY_HEIGHT, LABEL_FONT_SIZE } from "@/breadboard/breadboard-constants";
 import { PinLabel } from "./pin-label";
 
 type ServoRendererProps = {
@@ -29,9 +30,9 @@ function ServoRendererInner({ component, isSelected, libraryState }: ServoRender
   const pinVcc = gridToPixel({ row: component.y, col: component.x + 1 });
   const pinGnd = gridToPixel({ row: component.y, col: component.x + 2 });
 
-  // Body dimensions
-  const bodyWidth = 30;
-  const bodyHeight = 22;
+  // Body dimensions (derived from grid spacing)
+  const bodyWidth = SERVO_BODY_WIDTH;
+  const bodyHeight = SERVO_BODY_HEIGHT;
   const centerX = pinVcc.x;
   const centerY = pinVcc.y - bodyHeight / 2 - 8;
 
@@ -167,7 +168,7 @@ function ServoRendererInner({ component, isSelected, libraryState }: ServoRender
         x={centerX}
         y={centerY + bodyHeight / 2 + 10}
         textAnchor="middle"
-        fontSize={6}
+        fontSize={LABEL_FONT_SIZE}
         fill="#888"
         fontFamily="monospace"
       >

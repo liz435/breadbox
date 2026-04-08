@@ -26,6 +26,8 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
   {
     type: "led",
     label: "LED",
+    category: "output",
+    description: "Light-emitting diode — lights up when current flows through it",
     defaultPins: { anode: null, cathode: null },
     defaultProperties: { color: "#ef4444" },
     accentColor: "#ef4444",
@@ -81,6 +83,8 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
   // ── RGB LED ───────────────────────────────────────────────────────────
   {
     type: "rgb_led",
+    category: "output",
+    description: "Red/green/blue LED — mix colors with PWM",
     label: "RGB LED",
     defaultPins: { red: null, green: null, blue: null, cathode: null },
     accentColor: "#a855f7",
@@ -147,6 +151,8 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
   // ── Resistor ──────────────────────────────────────────────────────────
   {
     type: "resistor",
+    category: "passive",
+    description: "Limits current flow — essential for protecting LEDs",
     label: "Resistor",
     defaultPins: { a: null, b: null },
     defaultProperties: { resistance: 220 },
@@ -191,6 +197,8 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
   // ── Capacitor ─────────────────────────────────────────────────────────
   {
     type: "capacitor",
+    category: "passive",
+    description: "Stores and releases electrical charge",
     label: "Capacitor",
     defaultPins: { a: null, b: null },
     defaultProperties: { capacitance: 100 },
@@ -221,6 +229,8 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
   // ── Button ────────────────────────────────────────────────────────────
   {
     type: "button",
+    category: "input",
+    description: "Momentary push button — closes circuit when pressed",
     label: "Push Button",
     defaultPins: { a: null, b: null },
     accentColor: "#f59e0b",
@@ -270,6 +280,8 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
   // ── Potentiometer ─────────────────────────────────────────────────────
   {
     type: "potentiometer",
+    category: "input",
+    description: "Variable resistor — turn the knob to change analog value",
     label: "Potentiometer",
     defaultPins: { vcc: null, signal: null, gnd: null },
     accentColor: "#78716c",
@@ -332,6 +344,8 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
   // ── Buzzer ────────────────────────────────────────────────────────────
   {
     type: "buzzer",
+    category: "output",
+    description: "Piezo buzzer — generates tones with tone()",
     label: "Buzzer",
     defaultPins: { positive: null, negative: null },
     accentColor: "#1a1a1a",
@@ -374,6 +388,8 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
   // ── Servo ─────────────────────────────────────────────────────────────
   {
     type: "servo",
+    category: "output",
+    description: "Servo motor — rotate to a precise angle (0-180°)",
     label: "Servo Motor",
     defaultPins: { signal: null, vcc: null, gnd: null },
     defaultProperties: { angle: 90 },
@@ -411,6 +427,8 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
   // ── Photoresistor ─────────────────────────────────────────────────────
   {
     type: "photoresistor",
+    category: "input",
+    description: "Light-dependent resistor — resistance changes with light",
     label: "Photoresistor",
     defaultPins: { a: null, b: null },
     footprint: (row, col) => ({
@@ -448,6 +466,8 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
   // ── Temperature Sensor ────────────────────────────────────────────────
   {
     type: "temperature_sensor",
+    category: "input",
+    description: "Analog temperature sensor (TMP36)",
     label: "Temperature Sensor",
     defaultPins: { vcc: null, signal: null, gnd: null },
     defaultProperties: { temperature: 25 },
@@ -487,6 +507,8 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
   // ── Ultrasonic Sensor ─────────────────────────────────────────────────
   {
     type: "ultrasonic_sensor",
+    category: "input",
+    description: "HC-SR04 distance sensor — measures 2-400cm via echo",
     label: "Ultrasonic Sensor",
     defaultPins: { trigger: null, echo: null, vcc: null, gnd: null },
     footprint: (row, col) => ({
@@ -520,6 +542,8 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
   // ── LCD 16×2 ──────────────────────────────────────────────────────────
   {
     type: "lcd_16x2",
+    category: "display",
+    description: "16x2 character LCD display",
     label: "LCD 16×2",
     defaultPins: { rs: null, en: null, d4: null, d5: null, d6: null, d7: null },
     footprint: (row, col) => ({
@@ -562,6 +586,8 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
   // ── 7-Segment Display ─────────────────────────────────────────────────
   {
     type: "seven_segment",
+    category: "display",
+    description: "7-segment numeric display (0-9)",
     label: "7-Segment Display",
     defaultPins: { a: null, b: null, c: null, d: null, e: null, f: null, g: null },
     footprint: (row, col) => ({
@@ -610,6 +636,8 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
   // ── IC Chip ───────────────────────────────────────────────────────────
   {
     type: "ic",
+    category: "other",
+    description: "Generic DIP integrated circuit chip",
     label: "IC Chip",
     defaultPins: {},
     footprint: (row, col) => {

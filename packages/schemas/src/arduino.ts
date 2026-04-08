@@ -103,6 +103,15 @@ export const wireSchema = z.object({
 });
 export type Wire = z.infer<typeof wireSchema>;
 
+// ── Custom Library ───────────────────────────────────────────────
+
+export const customLibrarySchema = z.object({
+  name: z.string().min(1),
+  code: z.string(),
+  description: z.string().default(""),
+});
+export type CustomLibrary = z.infer<typeof customLibrarySchema>;
+
 // ── Board State ──────────────────────────────────────────────────
 
 export const boardStateSchema = z.object({
@@ -112,6 +121,7 @@ export const boardStateSchema = z.object({
   libraryState: libraryStateSchema.default({ servos: {}, lcd: null, serialBaud: 0 }),
   serialOutput: z.array(z.string()).default([]),
   sketchCode: z.string(),
+  customLibraries: z.record(z.string(), customLibrarySchema).default({}),
 });
 export type BoardState = z.infer<typeof boardStateSchema>;
 
@@ -138,5 +148,6 @@ export function createDefaultBoardState(): BoardState {
     libraryState: { servos: {}, lcd: null, serialBaud: 0 },
     serialOutput: [],
     sketchCode: "",
+    customLibraries: {},
   };
 }

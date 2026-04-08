@@ -11,8 +11,9 @@ import {
 } from "./schemas";
 import type { BoardOp } from "@dreamer/schemas";
 
-const THREADS_DIR = join(import.meta.dir, "../../data/threads");
-const RUNS_DIR = join(import.meta.dir, "../../data/runs");
+const DATA_DIR = process.env.DATA_DIR ?? join(import.meta.dir, "../../data");
+const THREADS_DIR = join(DATA_DIR, "threads");
+const RUNS_DIR = join(DATA_DIR, "runs");
 
 function now(): string {
   return new Date().toISOString();

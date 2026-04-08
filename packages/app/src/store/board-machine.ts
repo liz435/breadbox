@@ -5,6 +5,7 @@ import type {
   PinState,
   BoardState,
   LibraryState,
+  CustomLibrary,
 } from "@dreamer/schemas";
 import { createDefaultBoardState, createDefaultPinStates } from "@dreamer/schemas";
 
@@ -24,6 +25,9 @@ export type BoardEvent =
   | { type: "APPEND_SERIAL"; text: string }
   | { type: "CLEAR_SERIAL" }
   | { type: "RESET_PINS" }
+  | { type: "ADD_CUSTOM_LIBRARY"; name: string; library: CustomLibrary }
+  | { type: "UPDATE_CUSTOM_LIBRARY"; name: string; library: CustomLibrary }
+  | { type: "REMOVE_CUSTOM_LIBRARY"; name: string }
   | { type: "LOAD_BOARD"; state: BoardState }
   | { type: "SNAPSHOT" }
   | { type: "UNDO" }
@@ -47,6 +51,7 @@ function boardData(ctx: BoardMachineContext): BoardState {
     libraryState: ctx.libraryState,
     serialOutput: ctx.serialOutput,
     sketchCode: ctx.sketchCode,
+    customLibraries: ctx.customLibraries,
   };
 }
 
@@ -228,6 +233,28 @@ export const boardMachine = setup({
 
     CLEAR_SERIAL: {
       actions: assign({ serialOutput: [] }),
+    },
+
+    // ── Custom Libraries ──
+
+    ADD_CUSTOM_LIBRARY: {
+      actions: assign(({ context, event }) => ({
+        ...pushHistory(context),
+        customLibraries: { ...context.customLibraries, [event.name]: event.library },
+      })),
+    },
+
+    UPDATE_CUSTOM_LIBRARY: {
+      actions: assign(({ context, event }) => ({
+        customLibraries: { ...context.customLibraries, [event.name]: event.library },
+      })),
+    },
+
+    REMOVE_CUSTOM_LIBRARY: {
+      actions: assign(({ context, event }) => {
+        const { [event.name]: _, ...rest } = context.customLibraries;
+        return { ...pushHistory(context), customLibraries: rest };
+      }),
     },
 
     // ── Selection ──

@@ -7,7 +7,7 @@
 //   "transpile" — instant, regex-based C++→JS (works without a server)
 //   "avr"       — accurate ATmega328P emulation via avr8js (needs compiled hex)
 
-import { transpile } from "./arduino-transpiler"
+import { transpile, type CustomLibraryMap } from "./arduino-transpiler"
 import { createStdlib, createStdlibState, type StdlibState } from "./arduino-stdlib"
 import { createAVRRunner, arduinoPinToPort, portToArduinoPin, type AVRRunner } from "./avr-runner"
 import { compileSketch } from "./avr-compiler"
@@ -32,8 +32,8 @@ export type PinSnapshot = {
 }
 
 export type ArduinoVM = {
-  loadSketch: (code: string) => { success: boolean; error?: string }
-  loadSketchAsync: (code: string) => Promise<{ success: boolean; error?: string }>
+  loadSketch: (code: string, customLibraries?: CustomLibraryMap) => { success: boolean; error?: string }
+  loadSketchAsync: (code: string, customLibraries?: CustomLibraryMap) => Promise<{ success: boolean; error?: string }>
   runSetup: () => void
   runLoopIteration: () => boolean // returns false if delaying
   setExternalPin: (pin: number, value: number) => void
@@ -99,7 +99,7 @@ export function createArduinoVM(
   }
 
   // ── loadSketch (synchronous — transpile mode only) ──────────────
-  function loadSketch(code: string): { success: boolean; error?: string } {
+  function loadSketch(code: string, customLibraries?: CustomLibraryMap): { success: boolean; error?: string } {
     if (currentMode === "avr") {
       return {
         success: false,
@@ -109,7 +109,7 @@ export function createArduinoVM(
 
     reset()
 
-    const result = transpile(code)
+    const result = transpile(code, customLibraries)
     if (!result.success) {
       const errMsg = result.error
         ? `Line ${result.error.line}: ${result.error.message}`
@@ -119,6 +119,21 @@ export function createArduinoVM(
 
     try {
       const globalNames = Object.keys(stdlib)
+
+      // Shadow dangerous browser globals to prevent sandbox escape.
+      // The transpiled code runs in strict mode inside a function scope
+      // where window, document, fetch, etc. are undefined.
+      // Shadow dangerous browser globals to prevent sandbox escape.
+      // Pass them as function parameters set to undefined.
+      // Note: "eval", "arguments" cannot be parameter names, so we skip them.
+      const blockedGlobals = [
+        "window", "self", "globalThis", "document",
+        "fetch", "XMLHttpRequest", "WebSocket", "EventSource",
+        "localStorage", "sessionStorage", "indexedDB",
+        "importScripts",
+      ]
+      const shadowParams = blockedGlobals.filter(g => !globalNames.includes(g))
+
       const wrappedCode = `
 ${result.code}
 
@@ -127,8 +142,12 @@ return {
   loop: typeof loop === 'function' ? loop : function() {}
 };
 `
-      const factory = new Function(...globalNames, wrappedCode)
-      const sketch = factory(...globalNames.map((name) => stdlib[name])) as {
+      const factory = new Function(...globalNames, ...shadowParams, wrappedCode)
+      const args = [
+        ...globalNames.map((name) => stdlib[name]),
+        ...shadowParams.map(() => undefined),
+      ]
+      const sketch = factory(...args) as {
         setup: () => void
         loop: () => void
       }
@@ -145,9 +164,10 @@ return {
   // ── loadSketchAsync (works for both modes) ──────────────────────
   async function loadSketchAsync(
     code: string,
+    customLibraries?: CustomLibraryMap,
   ): Promise<{ success: boolean; error?: string }> {
     if (currentMode === "transpile") {
-      return loadSketch(code)
+      return loadSketch(code, customLibraries)
     }
 
     // AVR mode: compile on the server, then load the hex

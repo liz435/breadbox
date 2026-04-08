@@ -9,6 +9,7 @@ import {
 import { saveProjectId } from "@/project/project-context"
 import { Plus, ChevronDown, Loader2, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { toast } from "@/components/ui/toast"
 
 export function ProjectSelector() {
   const { projectId, switchProject } = useProject()
@@ -25,7 +26,7 @@ export function ProjectSelector() {
     listProjects()
       .then(setProjects)
       .catch(() => {
-        // best-effort
+        toast.error("Failed to load project list")
       })
       .finally(() => setIsLoading(false))
   }, [])
@@ -67,7 +68,7 @@ export function ProjectSelector() {
           setProjects((prev) => prev.filter((p) => p.id !== id))
         }
       } catch {
-        // best-effort
+        toast.error("Failed to delete project")
       }
     },
     [projectId, projects, switchProject],
@@ -81,7 +82,7 @@ export function ProjectSelector() {
       switchProject(pf.project.id)
       setIsOpen(false)
     } catch {
-      // best-effort
+      toast.error("Failed to create project")
     } finally {
       setIsCreating(false)
     }

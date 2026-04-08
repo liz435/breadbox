@@ -1,7 +1,8 @@
 import React from "react";
 import type { BoardComponent, PinState } from "@dreamer/schemas";
 import type { ComponentElectricalState } from "@/simulator/circuit-solver";
-import { gridToPixel, HOLE_SPACING } from "@/breadboard/breadboard-grid";
+import { gridToPixel } from "@/breadboard/breadboard-grid";
+import { LED_DOME_RADIUS, LEG_WIDTH, LABEL_FONT_SIZE, ANNOTATION_FONT_SIZE } from "@/breadboard/breadboard-constants";
 import { PinLabel } from "./pin-label";
 
 type LedRendererProps = {
@@ -61,9 +62,9 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
   // Cathode position (bottom leg, one row down)
   const cathode = gridToPixel({ row: component.y + 1, col: component.x });
 
-  const domeRadius = 7;
+  const domeRadius = LED_DOME_RADIUS;
   const domeCenter = { x: anode.x, y: (anode.y + cathode.y) / 2 - 2 };
-  const legWidth = 1.2;
+  const legWidth = LEG_WIDTH;
   const filterId = `led-glow-${component.id}`;
   const gradientId = `led-grad-${component.id}`;
   const reversePolarityFilterId = `led-reverse-${component.id}`;
@@ -251,7 +252,7 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
         x={domeCenter.x + domeRadius + 4}
         y={domeCenter.y - 1}
         textAnchor="start"
-        fontSize={6}
+        fontSize={LABEL_FONT_SIZE}
         fill="#888"
         fontFamily="monospace"
       >
@@ -262,7 +263,7 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
           x={domeCenter.x + domeRadius + 4}
           y={domeCenter.y + 7}
           textAnchor="start"
-          fontSize={4.5}
+          fontSize={ANNOTATION_FONT_SIZE}
           fill="#fbbf24"
           fontFamily="monospace"
         >

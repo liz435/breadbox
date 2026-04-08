@@ -1,6 +1,7 @@
 import React, { useCallback } from "react";
 import type { BoardComponent, PinState } from "@dreamer/schemas";
-import { gridToPixel, HOLE_SPACING, GAP_WIDTH, TERMINAL_WIDTH } from "@/breadboard/breadboard-grid";
+import { gridToPixel } from "@/breadboard/breadboard-grid";
+import { LABEL_FONT_SIZE } from "@/breadboard/breadboard-constants";
 import { useBoard } from "@/store/board-context";
 import { PinLabel } from "./pin-label";
 
@@ -126,7 +127,7 @@ function ButtonRendererInner({ component, pinStates, isSelected }: ButtonRendere
         x={centerX}
         y={centerY + bodyHeight / 2 + 10}
         textAnchor="middle"
-        fontSize={6}
+        fontSize={LABEL_FONT_SIZE}
         fill="#888"
         fontFamily="monospace"
       >

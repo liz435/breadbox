@@ -25,6 +25,7 @@ export function OverviewPage() {
             ["Sketch Editor", "Write, edit, and run Arduino sketches. Auto-generated from board layout when empty. Includes Compile & Run controls."],
             ["Graph", "Visual node-graph programming. Connect blocks to build logic without typing code."],
             ["Schematic", "Auto-generated IEEE circuit schematic. Click components to select them on the breadboard."],
+            ["Libraries", "Manage custom Arduino libraries. Create, upload, edit, and delete .h files used via #include."],
             ["Inspector", "Edit the selected component's pins, properties, and settings."],
             ["Pin Inspector", "View the current state of all 20 Arduino pins (mode, digital value, PWM, analog)."],
             ["Serial Monitor", "Bidirectional serial communication. Works with both simulated sketches and real Arduino via Web Serial."],

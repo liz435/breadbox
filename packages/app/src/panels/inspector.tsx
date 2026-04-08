@@ -335,6 +335,144 @@ function PotentiometerInspector({ component, onUpdate }: {
   );
 }
 
+function RgbLedInspector({ component, onUpdate }: {
+  component: BoardComponent;
+  onUpdate: (changes: Partial<BoardComponent>) => void;
+}) {
+  return (
+    <>
+      <PropertyRow label="Red Pin">
+        <PinSelect value={component.pins.red ?? null}
+          onChange={(pin) => onUpdate({ pins: { ...component.pins, red: pin } })} />
+      </PropertyRow>
+      <PropertyRow label="Green Pin">
+        <PinSelect value={component.pins.green ?? null}
+          onChange={(pin) => onUpdate({ pins: { ...component.pins, green: pin } })} />
+      </PropertyRow>
+      <PropertyRow label="Blue Pin">
+        <PinSelect value={component.pins.blue ?? null}
+          onChange={(pin) => onUpdate({ pins: { ...component.pins, blue: pin } })} />
+      </PropertyRow>
+      <PropertyRow label="Cathode">
+        <PinSelect value={component.pins.cathode ?? null}
+          onChange={(pin) => onUpdate({ pins: { ...component.pins, cathode: pin } })} />
+      </PropertyRow>
+    </>
+  );
+}
+
+function TemperatureSensorInspector({ component, onUpdate }: {
+  component: BoardComponent;
+  onUpdate: (changes: Partial<BoardComponent>) => void;
+}) {
+  const temp = (component.properties.temperature as number) ?? 25;
+  return (
+    <>
+      <PropertyRow label="Temperature">
+        <div className="flex items-center gap-2">
+          <input type="range" min={-40} max={125} value={temp} className="flex-1"
+            onChange={(e) => onUpdate({
+              properties: { ...component.properties, temperature: parseInt(e.target.value, 10) },
+            })} />
+          <span className="text-xs text-neutral-300 w-10 text-right">{temp}°C</span>
+        </div>
+      </PropertyRow>
+      <PropertyRow label="Signal">
+        <PinSelect value={component.pins.signal ?? null}
+          onChange={(pin) => onUpdate({ pins: { ...component.pins, signal: pin } })} />
+      </PropertyRow>
+    </>
+  );
+}
+
+function PhotoresistorInspector({ component, onUpdate }: {
+  component: BoardComponent;
+  onUpdate: (changes: Partial<BoardComponent>) => void;
+}) {
+  const light = (component.properties.light as number) ?? 50;
+  return (
+    <>
+      <PropertyRow label="Light Level">
+        <div className="flex items-center gap-2">
+          <input type="range" min={0} max={100} value={light} className="flex-1"
+            onChange={(e) => onUpdate({
+              properties: { ...component.properties, light: parseInt(e.target.value, 10) },
+            })} />
+          <span className="text-xs text-neutral-300 w-10 text-right">{light}%</span>
+        </div>
+      </PropertyRow>
+      <PropertyRow label="Pin A">
+        <PinSelect value={component.pins.a ?? null}
+          onChange={(pin) => onUpdate({ pins: { ...component.pins, a: pin } })} />
+      </PropertyRow>
+      <PropertyRow label="Pin B">
+        <PinSelect value={component.pins.b ?? null}
+          onChange={(pin) => onUpdate({ pins: { ...component.pins, b: pin } })} />
+      </PropertyRow>
+    </>
+  );
+}
+
+function UltrasonicInspector({ component, onUpdate }: {
+  component: BoardComponent;
+  onUpdate: (changes: Partial<BoardComponent>) => void;
+}) {
+  const distance = (component.properties.distance as number) ?? 50;
+  return (
+    <>
+      <PropertyRow label="Distance">
+        <div className="flex items-center gap-2">
+          <input type="range" min={2} max={400} value={distance} className="flex-1"
+            onChange={(e) => onUpdate({
+              properties: { ...component.properties, distance: parseInt(e.target.value, 10) },
+            })} />
+          <span className="text-xs text-neutral-300 w-12 text-right">{distance} cm</span>
+        </div>
+      </PropertyRow>
+      <PropertyRow label="Trigger">
+        <PinSelect value={component.pins.trigger ?? null}
+          onChange={(pin) => onUpdate({ pins: { ...component.pins, trigger: pin } })} />
+      </PropertyRow>
+      <PropertyRow label="Echo">
+        <PinSelect value={component.pins.echo ?? null}
+          onChange={(pin) => onUpdate({ pins: { ...component.pins, echo: pin } })} />
+      </PropertyRow>
+    </>
+  );
+}
+
+function LcdInspector({ component, onUpdate }: {
+  component: BoardComponent;
+  onUpdate: (changes: Partial<BoardComponent>) => void;
+}) {
+  return (
+    <>
+      {["rs", "en", "d4", "d5", "d6", "d7"].map((pin) => (
+        <PropertyRow key={pin} label={pin.toUpperCase()}>
+          <PinSelect value={component.pins[pin] ?? null}
+            onChange={(v) => onUpdate({ pins: { ...component.pins, [pin]: v } })} />
+        </PropertyRow>
+      ))}
+    </>
+  );
+}
+
+function SevenSegmentInspector({ component, onUpdate }: {
+  component: BoardComponent;
+  onUpdate: (changes: Partial<BoardComponent>) => void;
+}) {
+  return (
+    <>
+      {["a", "b", "c", "d", "e", "f", "g"].map((seg) => (
+        <PropertyRow key={seg} label={`Seg ${seg.toUpperCase()}`}>
+          <PinSelect value={component.pins[seg] ?? null}
+            onChange={(v) => onUpdate({ pins: { ...component.pins, [seg]: v } })} />
+        </PropertyRow>
+      ))}
+    </>
+  );
+}
+
 function GenericPinInspector({ component, onUpdate }: {
   component: BoardComponent;
   onUpdate: (changes: Partial<BoardComponent>) => void;
@@ -402,17 +540,23 @@ function ComponentInspector({ component, onUpdate }: {
 
       <Separator />
 
-      {/* Type-specific inspector */}
+      {/* Type-specific inspectors */}
       {component.type === "led" && <LedInspector component={component} onUpdate={onUpdate} />}
+      {component.type === "rgb_led" && <RgbLedInspector component={component} onUpdate={onUpdate} />}
       {component.type === "resistor" && <ResistorInspector component={component} onUpdate={onUpdate} />}
       {component.type === "button" && <ButtonInspector component={component} onUpdate={onUpdate} />}
       {component.type === "servo" && <ServoInspector component={component} onUpdate={onUpdate} />}
       {component.type === "buzzer" && <BuzzerInspector component={component} onUpdate={onUpdate} />}
       {component.type === "capacitor" && <CapacitorInspector component={component} onUpdate={onUpdate} />}
       {component.type === "potentiometer" && <PotentiometerInspector component={component} onUpdate={onUpdate} />}
+      {component.type === "temperature_sensor" && <TemperatureSensorInspector component={component} onUpdate={onUpdate} />}
+      {component.type === "photoresistor" && <PhotoresistorInspector component={component} onUpdate={onUpdate} />}
+      {component.type === "ultrasonic_sensor" && <UltrasonicInspector component={component} onUpdate={onUpdate} />}
+      {component.type === "lcd_16x2" && <LcdInspector component={component} onUpdate={onUpdate} />}
+      {component.type === "seven_segment" && <SevenSegmentInspector component={component} onUpdate={onUpdate} />}
 
-      {/* Generic pin inspector for other types */}
-      {!["led", "resistor", "button", "servo", "buzzer", "capacitor", "potentiometer"].includes(component.type) && (
+      {/* Generic pin inspector for any remaining types */}
+      {!["led", "rgb_led", "resistor", "button", "servo", "buzzer", "capacitor", "potentiometer", "temperature_sensor", "photoresistor", "ultrasonic_sensor", "lcd_16x2", "seven_segment"].includes(component.type) && (
         <GenericPinInspector component={component} onUpdate={onUpdate} />
       )}
     </div>
