@@ -3,6 +3,7 @@ import { anthropic } from "@ai-sdk/anthropic";
 import type { ModelMessage } from "ai";
 import { createGraphTools } from "./tools";
 import type { AgentContext, AgentResult } from "../types";
+import { summarizeBoardState } from "../core/tools";
 import type { GraphOp } from "@dreamer/schemas";
 
 const SYSTEM_PROMPT = `You are a graph/node specialist for Dreamer, a visual node-graph Arduino simulator.
@@ -124,7 +125,7 @@ export async function runGraphAgent(ctx: AgentContext): Promise<AgentResult> {
         anthropic: { cacheControl: { type: "ephemeral" } },
       },
     },
-    { role: "user", content: ctx.prompt },
+    { role: "user", content: `Current board state:\n${summarizeBoardState(ctx.project)}\n\nTask: ${ctx.prompt}` },
   ];
 
   const GRAPH_MODEL = "claude-haiku-4-5-20251001";

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport, type UIMessage } from "ai"
 import type { SceneOp, BoardOp } from "@dreamer/schemas"
@@ -10,6 +10,17 @@ import { applyOpsToScene, isBoardOp, applyBoardOpsToBoard } from "@/chat/apply-o
 import { applyGraphOpsToGraph, isGraphOp } from "@/chat/apply-graph-ops"
 import type { GraphOp } from "@dreamer/schemas"
 import { API_ORIGIN } from "@dreamer/config"
+
+async function fetchThreadMessages(threadId: string): Promise<UIMessage[]> {
+  try {
+    const res = await fetch(`${API_ORIGIN}/api/threads/${threadId}/messages`)
+    if (!res.ok) return []
+    const data = await res.json()
+    return (data.messages ?? []) as UIMessage[]
+  } catch {
+    return []
+  }
+}
 
 export type ChildRunTokenUsage = {
   agent: string
@@ -124,6 +135,18 @@ export function useChatMessages(): UseChatMessagesReturn {
       }
     },
   })
+
+  // Load chat history from server on mount
+  const historyLoaded = useRef(false)
+  useEffect(() => {
+    if (historyLoaded.current) return
+    historyLoaded.current = true
+    fetchThreadMessages(project.threadId).then((msgs) => {
+      if (msgs.length > 0) {
+        chat.setMessages(msgs)
+      }
+    })
+  }, [project.threadId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = useCallback(() => {
     const text = inputValue.trim()

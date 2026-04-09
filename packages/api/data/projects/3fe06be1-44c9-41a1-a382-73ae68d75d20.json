@@ -2,9 +2,9 @@
   "project": {
     "id": "3fe06be1-44c9-41a1-a382-73ae68d75d20",
     "name": "echo-ox-horn",
-    "version": 0,
+    "version": 1,
     "createdAt": "2026-04-07T02:27:23.305Z",
-    "updatedAt": "2026-04-07T05:19:23.598Z",
+    "updatedAt": "2026-04-08T04:17:58.936Z",
     "threadId": "93118918-2f59-48c4-a1d2-6301ff8a4537",
     "activeSceneId": "20968fd8-771e-437d-a12c-1ae9051ed094"
   },
@@ -106,14 +106,14 @@
           "gnd": null
         },
         "properties": {
-          "value": 31
+          "value": 24
         }
       },
       "c01c7ca5-74d3-4525-9aa6-7e991dbc003a": {
         "id": "c01c7ca5-74d3-4525-9aa6-7e991dbc003a",
         "type": "led",
         "name": "Led",
-        "x": 3,
+        "x": 4,
         "y": 9,
         "rotation": 0,
         "pins": {
@@ -122,6 +122,69 @@
         },
         "properties": {
           "color": "#22c55e"
+        }
+      },
+      "013752ba-3c67-492b-a208-1d340d9f1e78": {
+        "id": "013752ba-3c67-492b-a208-1d340d9f1e78",
+        "type": "led",
+        "name": "Led",
+        "x": 7,
+        "y": 14,
+        "rotation": 2,
+        "pins": {
+          "anode": null,
+          "cathode": null
+        },
+        "properties": {
+          "color": "#ef4444"
+        }
+      },
+      "0f83bad9-c416-494b-98f9-a6bc2b684c68": {
+        "id": "0f83bad9-c416-494b-98f9-a6bc2b684c68",
+        "type": "resistor",
+        "name": "R1 - 220Ω (Red LED)",
+        "x": 0,
+        "y": 11,
+        "rotation": 0,
+        "pins": {
+          "pin1": null,
+          "pin2": null
+        },
+        "properties": {
+          "resistance": 220,
+          "color": "red"
+        }
+      },
+      "7e7b2455-6198-4b06-9e45-6e0249de92c1": {
+        "id": "7e7b2455-6198-4b06-9e45-6e0249de92c1",
+        "type": "resistor",
+        "name": "R2 - 220Ω (Green LED)",
+        "x": 5,
+        "y": 11,
+        "rotation": 0,
+        "pins": {
+          "pin1": null,
+          "pin2": null
+        },
+        "properties": {
+          "resistance": 220,
+          "color": "green"
+        }
+      },
+      "bfa40d76-df7c-44e0-8e81-2093faa104cb": {
+        "id": "bfa40d76-df7c-44e0-8e81-2093faa104cb",
+        "type": "resistor",
+        "name": "R3 - 220Ω (Red LED 2)",
+        "x": 7,
+        "y": 16,
+        "rotation": 0,
+        "pins": {
+          "pin1": null,
+          "pin2": null
+        },
+        "properties": {
+          "resistance": 220,
+          "color": "red"
         }
       }
     },
@@ -165,8 +228,25 @@
         "toRow": 10,
         "toCol": 1,
         "color": "#42a5f5"
+      },
+      "e93a12ba-d458-4119-9f49-52b6ea75acc0": {
+        "id": "e93a12ba-d458-4119-9f49-52b6ea75acc0",
+        "fromRow": 9,
+        "fromCol": 6,
+        "toRow": 14,
+        "toCol": 6,
+        "color": "#ef4444"
+      },
+      "90f79dd1-37d2-4cfd-91b0-6dde49922202": {
+        "id": "90f79dd1-37d2-4cfd-91b0-6dde49922202",
+        "fromRow": 13,
+        "fromCol": 6,
+        "toRow": 10,
+        "toCol": 2,
+        "color": "#1a1a1a"
       }
     },
-    "sketchCode": "\nint potPin = A0;\nint ledPin = 9;\nint potValue = 0;\nint brightness = 255;\n\nvoid setup() {\n  pinMode(ledPin, OUTPUT);\n  pinMode(14, INPUT)\n\n}\n\nvoid loop() {\n  potValue = analogRead(potPin);\n  Serial.print(potValue)\n  brightness = map(potValue, 0, 1023, 0, 255);\n  analogWrite(ledPin, brightness);\n  delay(10);\n}\n"
+    "sketchCode": "int potPin = A0;\nint ledPin = 9;\nint potValue = 0;\nint brightness = 255;\n\nvoid setup() {\n  pinMode(ledPin, OUTPUT);\n  pinMode(14, INPUT);\n  Serial.begin(9600);\n}\n\nvoid loop() {\n  potValue = analogRead(potPin);\n  Serial.print(potValue);\n  brightness = map(potValue, 0, 1023, 0, 255);\n  analogWrite(ledPin, brightness);\n  delay(10);\n}\n\n",
+    "customLibraries": {}
   }
 }

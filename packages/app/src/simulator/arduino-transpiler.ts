@@ -14,6 +14,9 @@ export type TranspileResult = {
   error?: TranspileError
 }
 
+/** Custom library map passed to the transpiler. Key = filename (e.g. "MyLib.h"), value = code. */
+export type CustomLibraryMap = Record<string, string>
+
 const KNOWN_LIBRARIES = new Set([
   "Servo.h",
   "LiquidCrystal.h",
@@ -21,6 +24,10 @@ const KNOWN_LIBRARIES = new Set([
   "Wire.h",
   "SPI.h",
   "Stepper.h",
+  "Adafruit_NeoPixel.h",
+  "DHT.h",
+  "IRremote.h",
+  "Adafruit_SSD1306.h",
 ])
 
 const C_TYPES = new Set([
@@ -64,8 +71,11 @@ const NAMESPACE_RE = /^\s*namespace\s+\w+/
  *
  * The output is a self-contained JS string that, when evaluated, defines
  * `setup()` and `loop()` functions (and any user-defined helpers).
+ *
+ * @param customLibraries Optional map of custom library filenames to their code.
+ *   When the sketch has `#include "MyLib.h"`, the library code is transpiled and prepended.
  */
-export function transpile(arduinoCode: string): TranspileResult {
+export function transpile(arduinoCode: string, customLibraries?: CustomLibraryMap): TranspileResult {
   const lines = arduinoCode.split("\n")
   const output: string[] = []
   let inBlockComment = false
@@ -123,7 +133,7 @@ export function transpile(arduinoCode: string): TranspileResult {
 
     // ── Preprocessor directives ──────────────────────────────────
     if (trimmed.startsWith("#")) {
-      const directive = transpileDirective(trimmed, lineNum)
+      const directive = transpileDirective(trimmed, lineNum, customLibraries)
       if (directive.error) {
         return { success: false, code: "", error: directive.error }
       }
@@ -164,22 +174,36 @@ type DirectiveResult = {
   error?: TranspileError
 }
 
-function transpileDirective(trimmed: string, line: number): DirectiveResult {
+function transpileDirective(trimmed: string, line: number, customLibs?: CustomLibraryMap): DirectiveResult {
   // #include
   const includeMatch = trimmed.match(/^#include\s*[<"](.+?)[>"]/)
   if (includeMatch) {
     const lib = includeMatch[1]
-    if (!KNOWN_LIBRARIES.has(lib)) {
-      return {
-        output: null,
-        error: {
-          line,
-          message: `Unsupported library: ${lib}. Only Servo.h and LiquidCrystal.h are supported.`,
-        },
-      }
+    if (KNOWN_LIBRARIES.has(lib)) {
+      // Built-in libraries are provided as globals — skip the include
+      return { output: `// #include <${lib}> (provided as global)` }
     }
-    // Known libraries are provided as globals — skip the include
-    return { output: `// #include <${lib}> (provided as global)` }
+    if (customLibs && lib in customLibs) {
+      // Custom library — transpile and inline its code
+      const libResult = transpile(customLibs[lib])
+      if (!libResult.success) {
+        return {
+          output: null,
+          error: {
+            line,
+            message: `Error in custom library "${lib}": ${libResult.error?.message ?? "unknown error"}`,
+          },
+        }
+      }
+      return { output: `// ── ${lib} (custom library) ──\n${libResult.code}\n// ── end ${lib} ──` }
+    }
+    return {
+      output: null,
+      error: {
+        line,
+        message: `Unsupported library: ${lib}. Built-in: ${[...KNOWN_LIBRARIES].join(", ")}. Or add it as a custom library.`,
+      },
+    }
   }
 
   // #define
@@ -199,8 +223,28 @@ function transpileLine(line: string): string {
   const indent = line.match(/^(\s*)/)?.[1] ?? ""
   let trimmed = line.trim()
 
+  // Strip inline comment before matching (preserves it in output)
+  let inlineComment = ""
+  const commentIdx = trimmed.indexOf("//")
+  if (commentIdx > 0) {
+    const before = trimmed.slice(0, commentIdx)
+    const singles = (before.match(/'/g) || []).length
+    const doubles = (before.match(/"/g) || []).length
+    if (singles % 2 === 0 && doubles % 2 === 0) {
+      inlineComment = " " + trimmed.slice(commentIdx)
+      trimmed = before.trim()
+    }
+  }
+
   // Substitute Arduino constants
   trimmed = substituteConstants(trimmed)
+
+  // Process the line, then append the inline comment back
+  const transformed = processCodeLine(indent, trimmed)
+  return transformed + inlineComment
+}
+
+function processCodeLine(indent: string, trimmed: string): string {
 
   // ── class/struct → JS class ─────────────────────────────────
   // `class Foo {` or `class Foo : public Bar {`
@@ -219,6 +263,14 @@ function transpileLine(line: string): string {
   )
   if (constDeclMatch) {
     return `${indent}const ${constDeclMatch[1]} = ${constDeclMatch[2]};`
+  }
+
+  // ── const type without initializer: `const int x;` → `let x;` (JS const requires initializer)
+  const constNoInitMatch = trimmed.match(
+    /^const\s+(?:unsigned\s+)?(?:int|float|double|bool|boolean|byte|char|long|short|word|String)\s+(\w+)\s*;$/,
+  )
+  if (constNoInitMatch) {
+    return `${indent}let ${constNoInitMatch[1]};`
   }
 
   // ── Array declarations: `int arr[5];` or `int arr[5] = {1,2,3};` ─
@@ -259,6 +311,22 @@ function transpileLine(line: string): string {
         "(let ",
       )
     )
+  }
+
+  // ── Class instantiation: `Servo motor;` or `LiquidCrystal lcd(12, 11, ...);`
+  // Matches any PascalCase type (starts with uppercase) that isn't a C keyword,
+  // followed by a variable name, optionally with constructor args.
+  const classInstMatch = trimmed.match(
+    /^([A-Z]\w+)\s+(\w+)\s*(?:\(([^)]*)\))?\s*;$/,
+  )
+  if (classInstMatch && !C_TYPES.has(classInstMatch[1])) {
+    const className = classInstMatch[1]
+    const varName = classInstMatch[2]
+    const args = classInstMatch[3]
+    if (args !== undefined) {
+      return `${indent}let ${varName} = new ${className}(${args});`
+    }
+    return `${indent}let ${varName} = new ${className}();`
   }
 
   // ── Variable declarations: `int x = 5;` or `int x;` ──────

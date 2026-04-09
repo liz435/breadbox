@@ -17,6 +17,14 @@ export const componentTypeSchema = z.enum([
   "photoresistor",
   "temperature_sensor",
   "ultrasonic_sensor",
+  "neopixel",
+  "pir_sensor",
+  "relay",
+  "dc_motor",
+  "dht_sensor",
+  "ir_receiver",
+  "shift_register",
+  "oled_display",
   "wire",
   "arduino_uno",
 ]);
@@ -83,8 +91,8 @@ export const boardComponentSchema = z.object({
   id: z.string().min(1),
   type: componentTypeSchema,
   name: z.string().min(1),
-  x: z.number(), // breadboard grid column
-  y: z.number(), // breadboard grid row
+  x: z.number().int(), // breadboard grid column (0-9 for terminal, -2/-1/10/11 for power rails)
+  y: z.number().int(), // breadboard grid row (0-29)
   rotation: z.number().default(0),
   pins: z.record(z.string(), z.number().nullable()), // component pin name -> Arduino pin number
   properties: z.record(z.string(), z.unknown()), // type-specific props
@@ -103,6 +111,15 @@ export const wireSchema = z.object({
 });
 export type Wire = z.infer<typeof wireSchema>;
 
+// ── Custom Library ───────────────────────────────────────────────
+
+export const customLibrarySchema = z.object({
+  name: z.string().min(1),
+  code: z.string(),
+  description: z.string().default(""),
+});
+export type CustomLibrary = z.infer<typeof customLibrarySchema>;
+
 // ── Board State ──────────────────────────────────────────────────
 
 export const boardStateSchema = z.object({
@@ -112,6 +129,7 @@ export const boardStateSchema = z.object({
   libraryState: libraryStateSchema.default({ servos: {}, lcd: null, serialBaud: 0 }),
   serialOutput: z.array(z.string()).default([]),
   sketchCode: z.string(),
+  customLibraries: z.record(z.string(), customLibrarySchema).default({}),
 });
 export type BoardState = z.infer<typeof boardStateSchema>;
 
@@ -138,5 +156,6 @@ export function createDefaultBoardState(): BoardState {
     libraryState: { servos: {}, lcd: null, serialBaud: 0 },
     serialOutput: [],
     sketchCode: "",
+    customLibraries: {},
   };
 }

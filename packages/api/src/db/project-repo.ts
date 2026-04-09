@@ -23,7 +23,8 @@ import {
 } from "./schemas";
 import { createDefaultBoardState } from "@dreamer/schemas";
 
-const PROJECTS_DIR = join(import.meta.dir, "../../data/projects");
+const DATA_DIR = process.env.DATA_DIR ?? join(import.meta.dir, "../../data");
+const PROJECTS_DIR = join(DATA_DIR, "projects");
 
 function now(): string {
   return new Date().toISOString();
@@ -624,7 +625,7 @@ async function renameScene(
 
 // ── Asset directory ──────────────────────────────────────────────────────────
 
-const ASSETS_DIR = join(import.meta.dir, "../../data/assets");
+const ASSETS_DIR = join(DATA_DIR, "assets");
 
 function projectAssetsDir(projectId: string): string {
   return join(ASSETS_DIR, projectId);

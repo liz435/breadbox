@@ -340,6 +340,110 @@ export function createStdlib(
     }
   }
 
+  // ── Adafruit_NeoPixel ──────────────────────────────────────────
+
+  class Adafruit_NeoPixelClass {
+    private numPixels_: number
+    private pin: number
+    private pixels: Array<{ r: number; g: number; b: number }>
+
+    constructor(numPixels: number, pin: number, _type?: number) {
+      this.numPixels_ = numPixels
+      this.pin = pin
+      this.pixels = Array.from({ length: numPixels }, () => ({ r: 0, g: 0, b: 0 }))
+    }
+
+    begin(): void {
+      if (this.pin >= 0 && this.pin <= 19) {
+        state.pins[this.pin] = 1
+        callbacks.onPinWrite(this.pin, 1, false)
+      }
+    }
+
+    show(): void { /* visual update would happen via libraryState */ }
+    setBrightness(_b: number): void { /* no-op in simulation */ }
+
+    setPixelColor(n: number, r: number, g?: number, b?: number): void {
+      if (n < 0 || n >= this.numPixels_) return
+      if (g !== undefined && b !== undefined) {
+        this.pixels[n] = { r, g, b }
+      } else {
+        // packed color: 0xRRGGBB
+        this.pixels[n] = { r: (r >> 16) & 0xff, g: (r >> 8) & 0xff, b: r & 0xff }
+      }
+    }
+
+    numPixels(): number { return this.numPixels_ }
+
+    getPixelColor(n: number): number {
+      if (n < 0 || n >= this.numPixels_) return 0
+      const p = this.pixels[n]
+      return (p.r << 16) | (p.g << 8) | p.b
+    }
+
+    Color(r: number, g: number, b: number): number {
+      return ((r & 0xff) << 16) | ((g & 0xff) << 8) | (b & 0xff)
+    }
+
+    clear(): void {
+      for (let i = 0; i < this.numPixels_; i++) {
+        this.pixels[i] = { r: 0, g: 0, b: 0 }
+      }
+    }
+
+    fill(color: number, first = 0, count?: number): void {
+      const end = count !== undefined ? first + count : this.numPixels_
+      for (let i = first; i < end && i < this.numPixels_; i++) {
+        this.setPixelColor(i, color)
+      }
+    }
+  }
+
+  // ── DHT Sensor ────────────────────────────────────────────────────
+
+  class DHTClass {
+    constructor(_pin: number, _type: number | string) { /* no-op */ }
+    begin(): void { /* no-op */ }
+    readTemperature(isFahrenheit?: boolean): number { return isFahrenheit ? 77 : 25 }
+    readHumidity(): number { return 50 }
+    computeHeatIndex(temp: number, hum: number): number { return temp + hum * 0.01 }
+  }
+
+  // ── IR Receiver ───────────────────────────────────────────────────
+
+  class IRrecvClass {
+    private enabled = false
+    constructor(_pin: number) { /* no-op */ }
+    enableIRIn(): void { this.enabled = true }
+    decode(results: { value: number }): boolean {
+      if (this.enabled && Math.random() < 0.05) {
+        results.value = 0xFF00FF + Math.floor(Math.random() * 16)
+        return true
+      }
+      return false
+    }
+    resume(): void { /* no-op */ }
+  }
+
+  // ── Adafruit SSD1306 OLED ─────────────────────────────────────────
+
+  class Adafruit_SSD1306Class {
+    constructor(_w: number, _h: number, _wire?: unknown, _rst?: number) { /* no-op */ }
+    begin(_vcs: number, _addr: number): boolean { return true }
+    clearDisplay(): void { /* no-op */ }
+    display(): void { /* no-op */ }
+    setTextSize(_s: number): void { /* no-op */ }
+    setTextColor(_c: number): void { /* no-op */ }
+    setCursor(_x: number, _y: number): void { /* no-op */ }
+    println(text: string | number): void { callbacks.onSerialPrint(`[OLED] ${text}\n`) }
+    print(text: string | number): void { callbacks.onSerialPrint(`[OLED] ${text}`) }
+    drawPixel(_x: number, _y: number, _c: number): void { /* no-op */ }
+    drawLine(_x0: number, _y0: number, _x1: number, _y1: number, _c: number): void { /* no-op */ }
+    drawRect(_x: number, _y: number, _w: number, _h: number, _c: number): void { /* no-op */ }
+    fillRect(_x: number, _y: number, _w: number, _h: number, _c: number): void { /* no-op */ }
+    drawCircle(_x: number, _y: number, _r: number, _c: number): void { /* no-op */ }
+  }
+
   // ── Servo class ──────────────────────────────────────────────────
 
   let servoCounter = 0
@@ -509,6 +613,18 @@ export function createStdlib(
     Servo: ServoClass,
     LiquidCrystal: LiquidCrystalClass,
     Stepper: StepperClass,
+    Adafruit_NeoPixel: Adafruit_NeoPixelClass,
+    DHT: DHTClass,
+    IRrecv: IRrecvClass,
+    Adafruit_SSD1306: Adafruit_SSD1306Class,
+
+    // Library constants
+    NEO_GRB: 0x01,
+    NEO_KHZ800: 0x02,
+    DHT11: 11,
+    DHT22: 22,
+    SSD1306_SWITCHCAPVCC: 0x02,
+    SSD1306_WHITE: 1,
 
     // Library objects
     EEPROM,

@@ -86,6 +86,12 @@ export type ComponentDefinition = {
   /** Human-readable label used in the inspector title and palette */
   label: string
 
+  /** Category for palette grouping */
+  category?: "output" | "input" | "passive" | "display" | "other"
+
+  /** One-line description shown in palette and command palette */
+  description?: string
+
   // ── Breadboard placement ──────────────────────────────────────────────
 
   /**

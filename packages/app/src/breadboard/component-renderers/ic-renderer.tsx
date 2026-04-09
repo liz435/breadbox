@@ -1,7 +1,8 @@
 import React from "react";
 import type { BoardComponent, PinState } from "@dreamer/schemas";
 import type { ComponentElectricalState } from "@/simulator/circuit-solver";
-import { gridToPixel, HOLE_SPACING, GAP_WIDTH } from "@/breadboard/breadboard-grid";
+import { gridToPixel } from "@/breadboard/breadboard-grid";
+import { HOLE_SPACING } from "@/breadboard/breadboard-constants";
 
 type IcRendererProps = {
   component: BoardComponent;

@@ -1,6 +1,8 @@
 import React from "react";
 import type { BoardComponent, PinState, LibraryState } from "@dreamer/schemas";
 import { gridToPixel, HOLE_SPACING } from "@/breadboard/breadboard-grid";
+import { LABEL_FONT_SIZE } from "@/breadboard/breadboard-constants";
+import { useBoardSelector } from "@/store/board-context";
 import { PinLabel } from "./pin-label";
 
 type ServoRendererProps = {
@@ -11,167 +13,110 @@ type ServoRendererProps = {
 };
 
 function ServoRendererInner({ component, isSelected, libraryState }: ServoRendererProps) {
-  // Look up the servo's angle from libraryState by matching the servo's pin number
-  const signalPin = component.pins.signal;
+  const wires = useBoardSelector((s) => s.wires);
+
+  // Find which Arduino pin connects to the servo's signal row via wire topology
+  let connectedPin: number | null = component.pins.signal ?? null;
+  if (connectedPin == null) {
+    // Check wires: any Arduino pin wire (fromRow=-999) that lands on the signal row
+    const signalRow = component.y;
+    const signalCol = component.x;
+    for (const w of Object.values(wires)) {
+      if (w.fromRow === -999 && w.toRow === signalRow && w.toCol >= 0 && w.toCol <= 4 && signalCol >= 0 && signalCol <= 4) {
+        connectedPin = w.fromCol;
+        break;
+      }
+      if (w.fromRow === -999 && w.toRow === signalRow && w.toCol >= 5 && w.toCol <= 9 && signalCol >= 5 && signalCol <= 9) {
+        connectedPin = w.fromCol;
+        break;
+      }
+    }
+  }
+
   let angle = (component.properties.angle as number) ?? 90;
 
-  if (libraryState && signalPin != null) {
+  if (libraryState && connectedPin != null) {
     for (const entry of Object.values(libraryState.servos)) {
-      if (entry.pin === signalPin) {
+      if (entry.pin === connectedPin) {
         angle = entry.angle;
         break;
       }
     }
   }
 
-  // Servo occupies 3 adjacent holes: signal, vcc, gnd
-  const pinSignal = gridToPixel({ row: component.y, col: component.x });
-  const pinVcc = gridToPixel({ row: component.y, col: component.x + 1 });
-  const pinGnd = gridToPixel({ row: component.y, col: component.x + 2 });
+  // The 3 footprint holes — these MUST match getComponentFootprint("servo", y, x)
+  // Footprint: (y,x), (y+1,x), (y+2,x) — vertical
+  const p0 = gridToPixel({ row: component.y, col: component.x });       // signal
+  const p1 = gridToPixel({ row: component.y + 1, col: component.x });   // vcc
+  const p2 = gridToPixel({ row: component.y + 2, col: component.x });   // gnd
 
-  // Body dimensions
-  const bodyWidth = 30;
-  const bodyHeight = 22;
-  const centerX = pinVcc.x;
-  const centerY = pinVcc.y - bodyHeight / 2 - 8;
+  // Body: blue rectangle to the left of the 3 pin holes
+  const bodyW = 26;
+  const bodyH = (p2.y - p0.y) + 10;
+  const bodyT = p0.y - 5;
+  const bodyR = p0.x - 5;
+  const bodyL = bodyR - bodyW;
+  const cx = bodyL + bodyW / 2;
+  const cy = p1.y;
 
-  // Horn rotation
+  // Horn — compute endpoint with trig (no CSS transform needed)
+  const hornLen = 11;
   const rad = ((angle - 90) * Math.PI) / 180;
-  const hornLength = 12;
-  const hornX = centerX + Math.cos(rad) * hornLength;
-  const hornY = centerY - 4 + Math.sin(rad) * hornLength;
+  const hornX = cx + Math.cos(rad) * hornLen;
+  const hornY = (cy - 3) + Math.sin(rad) * hornLen;
 
   return (
     <g>
-      {/* Cable wires from body down to pins */}
-      <line
-        x1={pinSignal.x}
-        y1={pinSignal.y}
-        x2={centerX - 8}
-        y2={centerY + bodyHeight / 2}
-        stroke="#ff9800"
-        strokeWidth={1.5}
-        strokeLinecap="round"
-      />
-      <line
-        x1={pinVcc.x}
-        y1={pinVcc.y}
-        x2={centerX}
-        y2={centerY + bodyHeight / 2}
-        stroke="#f44336"
-        strokeWidth={1.5}
-        strokeLinecap="round"
-      />
-      <line
-        x1={pinGnd.x}
-        y1={pinGnd.y}
-        x2={centerX + 8}
-        y2={centerY + bodyHeight / 2}
-        stroke="#795548"
-        strokeWidth={1.5}
-        strokeLinecap="round"
-      />
+      {/* Cables from body to pin holes — horizontal lines */}
+      <line x1={bodyR} y1={p0.y} x2={p0.x} y2={p0.y} stroke="#ff9800" strokeWidth={1.5} />
+      <line x1={bodyR} y1={p1.y} x2={p1.x} y2={p1.y} stroke="#f44336" strokeWidth={1.5} />
+      <line x1={bodyR} y1={p2.y} x2={p2.x} y2={p2.y} stroke="#795548" strokeWidth={1.5} />
 
-      {/* Pin indicators */}
-      <circle cx={pinSignal.x} cy={pinSignal.y} r={2} fill="#ff9800" opacity={0.6} />
-      <circle cx={pinVcc.x} cy={pinVcc.y} r={2} fill="#f44336" opacity={0.6} />
-      <circle cx={pinGnd.x} cy={pinGnd.y} r={2} fill="#795548" opacity={0.6} />
+      {/* Pin dots — exactly on breadboard grid holes */}
+      <circle cx={p0.x} cy={p0.y} r={2.5} fill="#ff9800" />
+      <circle cx={p1.x} cy={p1.y} r={2.5} fill="#f44336" />
+      <circle cx={p2.x} cy={p2.y} r={2.5} fill="#795548" />
 
       {/* Pin labels */}
-      <PinLabel x={pinSignal.x} y={pinSignal.y} name="signal" side="below" />
-      <PinLabel x={pinVcc.x} y={pinVcc.y} name="vcc" side="below" />
-      <PinLabel x={pinGnd.x} y={pinGnd.y} name="gnd" side="below" />
+      <PinLabel x={p0.x} y={p0.y} name="signal" side="right" />
+      <PinLabel x={p1.x} y={p1.y} name="vcc" side="right" />
+      <PinLabel x={p2.x} y={p2.y} name="gnd" side="right" />
 
       {/* Body shadow */}
-      <rect
-        x={centerX - bodyWidth / 2 + 1}
-        y={centerY - bodyHeight / 2 + 1}
-        width={bodyWidth}
-        height={bodyHeight}
-        rx={3}
-        fill="#00000030"
+      <rect x={bodyL + 1} y={bodyT + 1} width={bodyW} height={bodyH} rx={2} fill="#00000020" />
+
+      {/* Body */}
+      <rect x={bodyL} y={bodyT} width={bodyW} height={bodyH} rx={2}
+        fill="#1565c0" stroke={isSelected ? "#3b82f6" : "#0d47a1"}
+        strokeWidth={isSelected ? 1.5 : 0.8} />
+
+      {/* Top highlight */}
+      <line x1={bodyL + 2} y1={bodyT + 2} x2={bodyR - 2} y2={bodyT + 2}
+        stroke="#42a5f5" strokeWidth={0.5} opacity={0.5} />
+
+      {/* Shaft circle */}
+      <circle cx={cx} cy={cy - 3} r={5} fill="#e0e0e0" stroke="#bdbdbd" strokeWidth={0.6} />
+      <circle cx={cx} cy={cy - 3} r={1.8} fill="#9e9e9e" />
+
+      {/* Horn */}
+      <line x1={cx} y1={cy - 3} x2={hornX} y2={hornY}
+        stroke="#f5f5f5" strokeWidth={3} strokeLinecap="round" />
+      <circle cx={hornX} cy={hornY} r={1.5} fill="#ddd" />
+
+      {/* Angle arc indicator */}
+      <path
+        d={`M ${cx - 8} ${cy - 3} A 8 8 0 0 1 ${cx + 8} ${cy - 3}`}
+        fill="none" stroke="#42a5f5" strokeWidth={0.5} opacity={0.4}
       />
 
-      {/* Body (blue rectangular housing) */}
-      <rect
-        x={centerX - bodyWidth / 2}
-        y={centerY - bodyHeight / 2}
-        width={bodyWidth}
-        height={bodyHeight}
-        rx={3}
-        fill="#1565c0"
-        stroke={isSelected ? "#3b82f6" : "#0d47a1"}
-        strokeWidth={isSelected ? 1.5 : 1}
-      />
-
-      {/* Body detail lines */}
-      <line
-        x1={centerX - bodyWidth / 2 + 3}
-        y1={centerY - bodyHeight / 2 + 3}
-        x2={centerX + bodyWidth / 2 - 3}
-        y2={centerY - bodyHeight / 2 + 3}
-        stroke="#1976d2"
-        strokeWidth={0.5}
-      />
-      <line
-        x1={centerX - bodyWidth / 2 + 3}
-        y1={centerY + bodyHeight / 2 - 3}
-        x2={centerX + bodyWidth / 2 - 3}
-        y2={centerY + bodyHeight / 2 - 3}
-        stroke="#0d47a1"
-        strokeWidth={0.5}
-      />
-
-      {/* Servo shaft mount (white circle) */}
-      <circle
-        cx={centerX}
-        cy={centerY - 4}
-        r={6}
-        fill="#e0e0e0"
-        stroke="#bdbdbd"
-        strokeWidth={0.8}
-      />
-      <circle
-        cx={centerX}
-        cy={centerY - 4}
-        r={2}
-        fill="#9e9e9e"
-      />
-
-      {/* Horn arm */}
-      <line
-        x1={centerX}
-        y1={centerY - 4}
-        x2={hornX}
-        y2={hornY}
-        stroke="#f5f5f5"
-        strokeWidth={3}
-        strokeLinecap="round"
-      />
-      <circle cx={hornX} cy={hornY} r={2} fill="#e0e0e0" stroke="#bdbdbd" strokeWidth={0.5} />
-
-      {/* Body label */}
-      <text
-        x={centerX}
-        y={centerY + 6}
-        textAnchor="middle"
-        fontSize={5}
-        fill="#bbdefb"
-        fontFamily="monospace"
-      >
+      {/* SERVO label */}
+      <text x={cx} y={cy + 7} textAnchor="middle" fontSize={4} fill="#bbdefb" fontFamily="monospace" fontWeight="bold">
         SERVO
       </text>
 
-      {/* Component name label */}
-      <text
-        x={centerX}
-        y={centerY + bodyHeight / 2 + 10}
-        textAnchor="middle"
-        fontSize={6}
-        fill="#888"
-        fontFamily="monospace"
-      >
-        {component.name}
+      {/* Name below */}
+      <text x={p1.x} y={p2.y + 12} textAnchor="middle" fontSize={LABEL_FONT_SIZE} fill="#888" fontFamily="monospace">
+        {component.name} ({angle}°)
       </text>
     </g>
   );

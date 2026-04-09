@@ -20,6 +20,14 @@ import { TemperatureSensorPage } from "@/docs/pages/components/temperature-senso
 import { UltrasonicSensorPage } from "@/docs/pages/components/ultrasonic-sensor"
 import { Lcd16x2Page } from "@/docs/pages/components/lcd-16x2"
 import { SevenSegmentPage } from "@/docs/pages/components/seven-segment"
+import { NeoPixelPage } from "@/docs/pages/components/neopixel"
+import { PirSensorPage } from "@/docs/pages/components/pir-sensor"
+import { RelayPage } from "@/docs/pages/components/relay"
+import { DcMotorPage } from "@/docs/pages/components/dc-motor"
+import { DhtSensorPage } from "@/docs/pages/components/dht-sensor"
+import { IrReceiverPage } from "@/docs/pages/components/ir-receiver"
+import { ShiftRegisterPage } from "@/docs/pages/components/shift-register"
+import { OledDisplayPage } from "@/docs/pages/components/oled-display"
 import { DocsLayout, PageTitle } from "@/docs/docs-layout"
 
 const ROUTES: Record<string, () => React.JSX.Element> = {
@@ -43,6 +51,14 @@ const ROUTES: Record<string, () => React.JSX.Element> = {
   "/documentation/components/ultrasonic-sensor": UltrasonicSensorPage,
   "/documentation/components/lcd-16x2": Lcd16x2Page,
   "/documentation/components/seven-segment": SevenSegmentPage,
+  "/documentation/components/neopixel": NeoPixelPage,
+  "/documentation/components/pir-sensor": PirSensorPage,
+  "/documentation/components/relay": RelayPage,
+  "/documentation/components/dc-motor": DcMotorPage,
+  "/documentation/components/dht-sensor": DhtSensorPage,
+  "/documentation/components/ir-receiver": IrReceiverPage,
+  "/documentation/components/shift-register": ShiftRegisterPage,
+  "/documentation/components/oled-display": OledDisplayPage,
 }
 
 function NotFoundPage() {

@@ -76,6 +76,34 @@ export function buildNetlist(
     voltage: number
   }> = []
 
+  // Build a point→netId lookup for fast component-to-net resolution
+  const pointToNetId = new Map<string, string>()
+  for (const net of nets) {
+    for (const pt of net.points) {
+      pointToNetId.set(pointKey(pt), net.id)
+    }
+  }
+
+  // Build a set of component types per net for topology-based inference
+  const netComponentTypes = new Map<string, Set<string>>()
+  for (const comp of Object.values(components)) {
+    if (comp.type === "arduino_uno" || comp.type === "wire") continue
+    const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation)
+    for (const pt of footprint.points) {
+      const nid = pointToNetId.get(pointKey(pt))
+      if (nid) {
+        if (!netComponentTypes.has(nid)) netComponentTypes.set(nid, new Set())
+        netComponentTypes.get(nid)!.add(comp.type)
+      }
+    }
+  }
+
+  // Output component types — if one of these is on a net with a digital pin,
+  // infer the pin is OUTPUT HIGH when the sketch isn't running
+  const OUTPUT_COMPONENT_TYPES = new Set([
+    "led", "rgb_led", "buzzer", "servo", "dc_motor", "relay", "neopixel",
+  ])
+
   for (const net of nets) {
     for (const arduinoPin of net.arduinoPins) {
       // Power pins
@@ -90,10 +118,14 @@ export function buildNetlist(
         groundNetIds.add(net.id)
       } else if (arduinoPin === -5) {
         // VIN — treat as unregulated input, skip for now
+      } else if (arduinoPin === -6) {
+        // Second GND
+        groundNetIds.add(net.id)
       } else if (arduinoPin >= 0 && arduinoPin <= 19) {
-        // Digital/analog pin — check pin state
+        // Digital/analog pin — check pin state from simulation
         const ps = pinStates[arduinoPin]
         if (ps && ps.mode === "OUTPUT") {
+          // Sketch is running and has set this pin to OUTPUT
           if (ps.isPwm) {
             const voltage = (ps.pwmValue / 255) * 5
             voltageSourceNets.push({
@@ -110,6 +142,22 @@ export function buildNetlist(
           } else {
             // Pin is LOW → connect to ground
             groundNetIds.add(net.id)
+          }
+        } else if (!ps || ps.mode === "UNSET") {
+          // Sketch is NOT running — infer pin direction from wire topology.
+          // If this net contains an output component (LED, buzzer, etc.),
+          // assume the pin is driving it at 5V so the circuit analysis works
+          // even before the user clicks Run.
+          const compTypes = netComponentTypes.get(net.id)
+          if (compTypes) {
+            const hasOutputComponent = [...compTypes].some((t) => OUTPUT_COMPONENT_TYPES.has(t))
+            if (hasOutputComponent) {
+              voltageSourceNets.push({
+                label: `V_D${arduinoPin}`,
+                netId: net.id,
+                voltage: 5,
+              })
+            }
           }
         }
       }

@@ -7,7 +7,8 @@
 //   "transpile" — instant, regex-based C++→JS (works without a server)
 //   "avr"       — accurate ATmega328P emulation via avr8js (needs compiled hex)
 
-import { transpile } from "./arduino-transpiler"
+import { transpile, type CustomLibraryMap } from "./arduino-transpiler"
+import { transpileErrorRef } from "./transpile-error-ref"
 import { createStdlib, createStdlibState, type StdlibState } from "./arduino-stdlib"
 import { createAVRRunner, arduinoPinToPort, portToArduinoPin, type AVRRunner } from "./avr-runner"
 import { compileSketch } from "./avr-compiler"
@@ -32,8 +33,8 @@ export type PinSnapshot = {
 }
 
 export type ArduinoVM = {
-  loadSketch: (code: string) => { success: boolean; error?: string }
-  loadSketchAsync: (code: string) => Promise<{ success: boolean; error?: string }>
+  loadSketch: (code: string, customLibraries?: CustomLibraryMap) => { success: boolean; error?: string }
+  loadSketchAsync: (code: string, customLibraries?: CustomLibraryMap) => Promise<{ success: boolean; error?: string }>
   runSetup: () => void
   runLoopIteration: () => boolean // returns false if delaying
   setExternalPin: (pin: number, value: number) => void
@@ -76,6 +77,12 @@ export function createArduinoVM(
   let stdlib = createStdlib(state, callbacks, getMillis)
   let setupFn: (() => void) | null = null
   let loopFn: (() => void) | null = null
+  // Generator-based loop: when loop() calls delay(), it yields control
+  // back to the VM. The VM resumes the generator on the next iteration
+  // after the delay expires. This makes delay() actually pause execution
+  // mid-function, like real Arduino delay().
+  let loopGenerator: Generator | null = null
+  let loopGeneratorFn: (() => Generator) | null = null
 
   // ── AVR-mode state ──────────────────────────────────────────────
   let avrRunner: AVRRunner | null = null
@@ -99,7 +106,7 @@ export function createArduinoVM(
   }
 
   // ── loadSketch (synchronous — transpile mode only) ──────────────
-  function loadSketch(code: string): { success: boolean; error?: string } {
+  function loadSketch(code: string, customLibraries?: CustomLibraryMap): { success: boolean; error?: string } {
     if (currentMode === "avr") {
       return {
         success: false,
@@ -109,31 +116,111 @@ export function createArduinoVM(
 
     reset()
 
-    const result = transpile(code)
+    const result = transpile(code, customLibraries)
     if (!result.success) {
+      // Store structured error for CodeMirror linter to display inline
+      transpileErrorRef.current = result.error ?? null
       const errMsg = result.error
         ? `Line ${result.error.line}: ${result.error.message}`
         : "Unknown transpilation error"
       return { success: false, error: errMsg }
     }
+    // Clear any previous error on success
+    transpileErrorRef.current = null
 
     try {
       const globalNames = Object.keys(stdlib)
+
+      // Shadow dangerous browser globals to prevent sandbox escape.
+      // The transpiled code runs in strict mode inside a function scope
+      // where window, document, fetch, etc. are undefined.
+      // Shadow dangerous browser globals to prevent sandbox escape.
+      // Pass them as function parameters set to undefined.
+      // Note: "eval", "arguments" cannot be parameter names, so we skip them.
+      const blockedGlobals = [
+        "window", "self", "globalThis", "document",
+        "fetch", "XMLHttpRequest", "WebSocket", "EventSource",
+        "localStorage", "sessionStorage", "indexedDB",
+        "importScripts",
+      ]
+      const shadowParams = blockedGlobals.filter(g => !globalNames.includes(g))
+
+      // Transform delay() calls into yield points for the generator-based loop.
+      // Replace `delay(expr)` with `yield delay(expr)` so the VM can pause mid-function.
+      const hasDelay = /\bdelay\s*\(/.test(result.code)
+
+      // Extract ONLY the loop function body and create a generator version of it.
+      // This avoids redeclaring top-level variables (let myServo, etc.).
+      let genLoopDef = ""
+      if (hasDelay) {
+        const loopMatch = result.code.match(/function\s+loop\s*\(\s*\)\s*\{/)
+        if (loopMatch && loopMatch.index != null) {
+          // Find the matching closing brace for the loop function
+          let braceCount = 0
+          let loopEnd = loopMatch.index + loopMatch[0].length
+          for (let i = loopEnd - 1; i < result.code.length; i++) {
+            if (result.code[i] === "{") braceCount++
+            else if (result.code[i] === "}") {
+              braceCount--
+              if (braceCount === 0) { loopEnd = i + 1; break }
+            }
+          }
+          const loopBody = result.code.slice(loopMatch.index, loopEnd)
+          // Transform delay → yield delay, and function loop → function* _genLoop
+          genLoopDef = loopBody
+            .replace(/\bdelay\s*\(([^)]*)\)\s*;/g, "yield delay($1);")
+            .replace(/function\s+loop\s*\(\s*\)/, "function* _genLoop()")
+        }
+      }
+
       const wrappedCode = `
 ${result.code}
 
-return {
-  setup: typeof setup === 'function' ? setup : function() {},
-  loop: typeof loop === 'function' ? loop : function() {}
-};
+${genLoopDef}
+
+var _setup = typeof setup === 'function' ? setup : function() {};
+var _loop = typeof loop === 'function' ? loop : function() {};
+var _gen = typeof _genLoop === 'function' ? _genLoop : null;
+return { setup: _setup, loop: _loop, genLoop: _gen };
 `
-      const factory = new Function(...globalNames, wrappedCode)
-      const sketch = factory(...globalNames.map((name) => stdlib[name])) as {
-        setup: () => void
-        loop: () => void
+
+      const factory = new Function(...globalNames, ...shadowParams, wrappedCode)
+      const args = [
+        ...globalNames.map((name) => stdlib[name]),
+        ...shadowParams.map(() => undefined),
+      ]
+
+      try {
+        const sketch = factory(...args) as {
+          setup: () => void
+          loop: () => void
+          genLoop: (() => Generator) | null
+        }
+        setupFn = sketch.setup
+        loopFn = sketch.loop
+        loopGeneratorFn = sketch.genLoop
+        loopGenerator = null
+      } catch {
+        // Generator compilation failed — try without it
+        const fallbackCode = `
+${result.code}
+
+var _setup = typeof setup === 'function' ? setup : function() {};
+var _loop = typeof loop === 'function' ? loop : function() {};
+return { setup: _setup, loop: _loop, genLoop: null };
+`
+        const fallbackFactory = new Function(...globalNames, ...shadowParams, fallbackCode)
+        const sketch = fallbackFactory(...args) as {
+          setup: () => void
+          loop: () => void
+          genLoop: null
+        }
+        setupFn = sketch.setup
+        loopFn = sketch.loop
+        loopGeneratorFn = null
+        loopGenerator = null
       }
-      setupFn = sketch.setup
-      loopFn = sketch.loop
+
       return { success: true }
     } catch (err) {
       const message =
@@ -145,9 +232,10 @@ return {
   // ── loadSketchAsync (works for both modes) ──────────────────────
   async function loadSketchAsync(
     code: string,
+    customLibraries?: CustomLibraryMap,
   ): Promise<{ success: boolean; error?: string }> {
     if (currentMode === "transpile") {
-      return loadSketch(code)
+      return loadSketch(code, customLibraries)
     }
 
     // AVR mode: compile on the server, then load the hex
@@ -213,6 +301,42 @@ return {
     }
     state.delayUntil = 0
 
+    // Use generator-based loop if available (supports mid-function delay)
+    if (loopGeneratorFn) {
+      try {
+        // Start a new generator if we don't have one (first call or previous finished)
+        if (!loopGenerator) {
+          loopGenerator = loopGeneratorFn()
+        }
+
+        const startWall = Date.now()
+        const result = loopGenerator.next()
+        const elapsed = Date.now() - startWall
+
+        if (elapsed > MAX_LOOP_DURATION_MS) {
+          callbacks.onError(`Possible infinite loop: loop() took ${elapsed}ms`)
+          return false
+        }
+
+        if (result.done) {
+          // Generator finished — start fresh on next iteration
+          loopGenerator = null
+        }
+
+        // Check if delay was set during this step
+        if (state.delayUntil > 0 && getMillis() < state.delayUntil) {
+          return false
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Runtime error in loop()"
+        callbacks.onError(message)
+        loopGenerator = null
+        return false
+      }
+      return true
+    }
+
+    // Fallback: normal (non-generator) loop
     if (!loopFn) return true
 
     try {
@@ -302,6 +426,8 @@ return {
     stdlib = createStdlib(state, callbacks, getMillis)
     setupFn = null
     loopFn = null
+    loopGenerator = null
+    loopGeneratorFn = null
 
     if (avrRunner) {
       avrRunner.reset()

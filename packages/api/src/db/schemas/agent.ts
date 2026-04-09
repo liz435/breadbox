@@ -18,9 +18,19 @@ export const projectThreadSchema = z.object({
 
 export type ProjectThread = z.infer<typeof projectThreadSchema>;
 
+export const cachedSummarySchema = z.object({
+  /** The summarized text covering older runs. */
+  text: z.string(),
+  /** Number of completed core runs this summary covers. */
+  runCount: z.number().int().nonnegative(),
+});
+
+export type CachedSummary = z.infer<typeof cachedSummarySchema>;
+
 export const projectThreadFileSchema = z.object({
   thread: projectThreadSchema,
   runIds: z.array(nonEmptyStringSchema),
+  cachedSummary: cachedSummarySchema.optional(),
 });
 
 export type ProjectThreadFile = z.infer<typeof projectThreadFileSchema>;

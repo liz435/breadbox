@@ -5,6 +5,7 @@ import type {
   PinState,
   BoardState,
   LibraryState,
+  CustomLibrary,
 } from "@dreamer/schemas";
 import { createDefaultBoardState, createDefaultPinStates } from "@dreamer/schemas";
 
@@ -17,6 +18,7 @@ export type BoardEvent =
   | { type: "MOVE_COMPONENT"; id: string; x: number; y: number }
   | { type: "SELECT"; id: string | null }
   | { type: "ADD_WIRE"; wire: Wire }
+  | { type: "UPDATE_WIRE"; id: string; changes: Partial<Wire> }
   | { type: "REMOVE_WIRE"; id: string }
   | { type: "SET_PIN_STATE"; pin: number; changes: Partial<PinState> }
   | { type: "SET_LIBRARY_STATE"; changes: Partial<LibraryState> }
@@ -24,6 +26,9 @@ export type BoardEvent =
   | { type: "APPEND_SERIAL"; text: string }
   | { type: "CLEAR_SERIAL" }
   | { type: "RESET_PINS" }
+  | { type: "ADD_CUSTOM_LIBRARY"; name: string; library: CustomLibrary }
+  | { type: "UPDATE_CUSTOM_LIBRARY"; name: string; library: CustomLibrary }
+  | { type: "REMOVE_CUSTOM_LIBRARY"; name: string }
   | { type: "LOAD_BOARD"; state: BoardState }
   | { type: "SNAPSHOT" }
   | { type: "UNDO" }
@@ -47,6 +52,7 @@ function boardData(ctx: BoardMachineContext): BoardState {
     libraryState: ctx.libraryState,
     serialOutput: ctx.serialOutput,
     sketchCode: ctx.sketchCode,
+    customLibraries: ctx.customLibraries,
   };
 }
 
@@ -176,6 +182,20 @@ export const boardMachine = setup({
       })),
     },
 
+    UPDATE_WIRE: {
+      actions: assign(({ context, event }) => {
+        const existing = context.wires[event.id];
+        if (!existing) return {};
+        return {
+          ...pushHistory(context),
+          wires: {
+            ...context.wires,
+            [event.id]: { ...existing, ...event.changes },
+          },
+        };
+      }),
+    },
+
     REMOVE_WIRE: {
       actions: assign(({ context, event }) => {
         const { [event.id]: _, ...rest } = context.wires;
@@ -228,6 +248,28 @@ export const boardMachine = setup({
 
     CLEAR_SERIAL: {
       actions: assign({ serialOutput: [] }),
+    },
+
+    // ── Custom Libraries ──
+
+    ADD_CUSTOM_LIBRARY: {
+      actions: assign(({ context, event }) => ({
+        ...pushHistory(context),
+        customLibraries: { ...context.customLibraries, [event.name]: event.library },
+      })),
+    },
+
+    UPDATE_CUSTOM_LIBRARY: {
+      actions: assign(({ context, event }) => ({
+        customLibraries: { ...context.customLibraries, [event.name]: event.library },
+      })),
+    },
+
+    REMOVE_CUSTOM_LIBRARY: {
+      actions: assign(({ context, event }) => {
+        const { [event.name]: _, ...rest } = context.customLibraries;
+        return { ...pushHistory(context), customLibraries: rest };
+      }),
     },
 
     // ── Selection ──

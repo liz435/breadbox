@@ -51,11 +51,36 @@ export function SketchPage() {
             ["Wire (I2C)", "<Wire.h>", "begin(), beginTransmission(), write(), endTransmission(), requestFrom(), read()"],
             ["SPI", "<SPI.h>", "begin(), transfer(data), beginTransaction(), endTransaction()"],
             ["Stepper", "<Stepper.h>", "Stepper(steps, pins...), setSpeed(rpm), step(steps)"],
+            ["Adafruit NeoPixel", "<Adafruit_NeoPixel.h>", "Adafruit_NeoPixel(n, pin, type), begin(), setPixelColor(), show(), Color(), clear(), fill()"],
+            ["DHT", "<DHT.h>", "DHT(pin, type), begin(), readTemperature(), readHumidity()"],
+            ["IRremote", "<IRremote.h>", "IRrecv(pin), enableIRIn(), decode(&results), resume()"],
+            ["Adafruit SSD1306", "<Adafruit_SSD1306.h>", "Adafruit_SSD1306(w, h, &Wire, rst), begin(), print/println(), setCursor(), clearDisplay(), display()"],
           ]}
         />
         <Note>
-          Libraries are provided as built-in globals — no installation needed. Just <code>#include</code> them.
-          Unknown libraries will produce a transpilation error.
+          Built-in libraries are provided as globals — just <code>#include &lt;Name.h&gt;</code> (angle brackets).
+        </Note>
+      </Section>
+
+      <Section title="Custom libraries">
+        <p className="text-sm text-gray-300 leading-relaxed mb-2">
+          You can add your own libraries via the <strong>Libraries</strong> tab (next to Sketch/Graph/Schematic).
+          Custom libraries are written in the same C++ subset the transpiler supports.
+        </p>
+        <Table
+          headers={["Action", "How"]}
+          rows={[
+            ["Create a library", "Click + in the Libraries tab, name it (e.g. MyUtils.h), write code in the editor"],
+            ["Upload a file", "Click the upload icon to import a .h or .cpp file from disk"],
+            ["Use in your sketch", '#include "MyUtils.h" — use double quotes, not angle brackets'],
+            ["Edit", "Expand the library in the Libraries tab and edit the code directly"],
+            ["Delete", "Hover over the library name and click the trash icon"],
+          ]}
+        />
+        <Note>
+          Custom libraries use <code>#include &quot;name.h&quot;</code> (double quotes). Built-in libraries use{" "}
+          <code>#include &lt;name.h&gt;</code> (angle brackets). Both syntaxes work for built-in libraries,
+          but custom libraries must use quotes.
         </Note>
       </Section>
 
@@ -106,6 +131,7 @@ export function SketchPage() {
             ["Indent with Tab", "Tab indents, Shift-Tab dedents selected lines"],
             ["Selection match", "Select a word — all occurrences are highlighted"],
             ["Lint warnings", "Missing setup()/loop(), wrong pin for analogWrite/analogRead"],
+            ["Compilation errors", "Transpile errors shown inline as red squiggles at the exact line — auto-clear on edit"],
             ["Undo/Redo", "Cmd+Z / Cmd+Shift+Z"],
           ]}
         />
@@ -117,12 +143,15 @@ export function SketchPage() {
           rows={[
             ["Sketch execution in browser", "Implemented — transpile mode"],
             ["Serial Monitor output", "Implemented — Serial.print shows in panel"],
+            ["Serial Monitor input", "Implemented — Serial.read from input field or Web Serial"],
             ["analogRead from circuit voltage", "Implemented — voltage mapped to 0-1023"],
             ["Audio tone output", "Implemented — Web Audio square wave"],
             ["Code saved to project (auto-save)", "Implemented"],
-            ["Potentiometer wiper position", "Not implemented — always reads 0"],
-            ["Multi-file sketches (.h/.cpp tabs)", "Not implemented"],
-            ["External library import", "Not implemented — built-in libraries only"],
+            ["Custom library upload & #include", "Implemented — Libraries tab"],
+            ["Web Serial (real Arduino)", "Implemented — Chrome/Edge, click Connect"],
+            ["Class instantiation (Servo motor;)", "Implemented — any PascalCase class"],
+            ["Potentiometer wiper position", "Partially — works via circuit solver when wired correctly"],
+            ["Multi-file sketches (.h/.cpp tabs)", "Not implemented — use custom libraries instead"],
           ]}
         />
       </Section>

@@ -147,6 +147,7 @@ describe("boardMachine", () => {
         libraryState: { servos: {}, lcd: null, serialBaud: 9600 },
         serialOutput: ["loaded"],
         sketchCode: "// loaded",
+        customLibraries: {},
       },
     });
     const ctx = actor.getSnapshot().context;

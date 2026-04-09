@@ -267,18 +267,30 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     rafRef.current = requestAnimationFrame(tick)
   }, [cancelLoop, syncLibraryState])
 
+  /** Build a filename→code map from board state custom libraries */
+  function getCustomLibraryMap(): Record<string, string> {
+    const libs = boardActor.getSnapshot().context.customLibraries
+    const map: Record<string, string> = {}
+    for (const [name, lib] of Object.entries(libs)) {
+      // Key is the filename the user uses in #include "name"
+      map[name] = lib.code
+    }
+    return map
+  }
+
   const play = useCallback(
     (sketchCode: string) => {
       send({ type: "PLAY" })
 
       const vm = getVM()
       vm.reset()
+      const customLibs = getCustomLibraryMap()
 
       const currentMode = modeRef.current
 
       if (currentMode === "avr") {
         // AVR mode: async compile then run
-        vm.loadSketchAsync(sketchCode).then((result) => {
+        vm.loadSketchAsync(sketchCode, customLibs).then((result) => {
           if (!result.success) {
             send({
               type: "COMPILE_ERROR",
@@ -292,7 +304,7 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
         })
       } else {
         // Transpile mode: synchronous
-        const result = vm.loadSketch(sketchCode)
+        const result = vm.loadSketch(sketchCode, customLibs)
         if (!result.success) {
           send({ type: "COMPILE_ERROR", message: result.error ?? "Compilation failed" })
           return
