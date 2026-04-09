@@ -1,22 +1,36 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useMemo } from "react";
 import type { BoardComponent, PinState } from "@dreamer/schemas";
 import { gridToPixel } from "@/breadboard/breadboard-grid";
 import { LABEL_FONT_SIZE } from "@/breadboard/breadboard-constants";
-import { useBoard } from "@/store/board-context";
+import { pinStateStore } from "@/simulator/pin-state-store";
+import { buttonPressStore } from "@/simulator/button-press-store";
+import { usePinState } from "@/simulator/use-pin-state";
+import { useBoardSelector } from "@/store/board-context";
+import { findInputPinForComponent } from "@/breadboard/component-pin-resolver";
 import { PinLabel } from "./pin-label";
 
 type ButtonRendererProps = {
   component: BoardComponent;
-  pinStates: PinState[];
+  // pinStates kept as a prop for API compatibility but the button
+  // subscribes directly to its own pin via usePinState().
+  pinStates?: PinState[];
   isSelected: boolean;
 };
 
-function ButtonRendererInner({ component, pinStates, isSelected }: ButtonRendererProps) {
-  const { send } = useBoard();
-  const inputPin = component.pins.a ?? component.pins.input;
-  const isPressed =
-    inputPin != null &&
-    pinStates.some((ps) => ps.pin === inputPin && ps.digitalValue === 1);
+function ButtonRendererInner({ component, isSelected }: ButtonRendererProps) {
+  // Buttons are usually wired (not pin-mapped) — derive the input pin
+  // from the wire graph, falling back to explicit pin assignment.
+  const wires = useBoardSelector((s) => s.wires);
+  const inputPin = useMemo(
+    () => findInputPinForComponent(component, wires),
+    [component, wires],
+  );
+  const inputPinState = usePinState(inputPin ?? -1);
+  // For INPUT_PULLUP: pressed = pin pulled LOW (0). For INPUT: pressed = HIGH (1).
+  const isPullup = inputPinState?.mode === "INPUT_PULLUP";
+  const pressedValue: 0 | 1 = isPullup ? 0 : 1;
+  const releasedValue: 0 | 1 = isPullup ? 1 : 0;
+  const isPressed = inputPinState?.digitalValue === pressedValue;
 
   // Button spans center gap: pins at (row, col=3), (row+1, col=3) left side
   // and (row, col=6), (row+1, col=6) right side
@@ -31,17 +45,21 @@ function ButtonRendererInner({ component, pinStates, isSelected }: ButtonRendere
   const bodyHeight = bottomLeft.y - topLeft.y + 8;
   const capR = Math.min(bodyWidth, bodyHeight) * 0.26;
 
-  const handlePointerDown = useCallback(() => {
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    e.stopPropagation();
+    buttonPressStore.press(component.id);
     if (inputPin != null) {
-      send({ type: "SET_PIN_STATE", pin: inputPin, changes: { digitalValue: 1 } });
+      pinStateStore.writeExternal(inputPin, { digitalValue: pressedValue });
     }
-  }, [inputPin, send]);
+  }, [component.id, inputPin, pressedValue]);
 
-  const handlePointerUp = useCallback(() => {
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    e.stopPropagation();
+    buttonPressStore.release(component.id);
     if (inputPin != null) {
-      send({ type: "SET_PIN_STATE", pin: inputPin, changes: { digitalValue: 0 } });
+      pinStateStore.writeExternal(inputPin, { digitalValue: releasedValue });
     }
-  }, [inputPin, send]);
+  }, [component.id, inputPin, releasedValue]);
 
   const pins = [topLeft, bottomLeft, topRight, bottomRight];
   const bodyL = centerX - bodyWidth / 2;
@@ -50,8 +68,15 @@ function ButtonRendererInner({ component, pinStates, isSelected }: ButtonRendere
   const housingGradId = `btn-body-${component.id}`;
   const capGradId = `btn-cap-${component.id}`;
 
+  // Attach pointer handlers to the whole group so any click on the button
+  // triggers press — not just the small cap circle.
   return (
-    <g>
+    <g
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerLeave={handlePointerUp}
+      style={{ cursor: "pointer" }}
+    >
       <defs>
         {/* Housing gradient — dark plastic 3D */}
         <linearGradient id={housingGradId} x1="0" y1="0" x2="0" y2="1">
@@ -150,10 +175,6 @@ function ButtonRendererInner({ component, pinStates, isSelected }: ButtonRendere
         fill={`url(#${capGradId})`}
         stroke="#444"
         strokeWidth={0.8}
-        onPointerDown={handlePointerDown}
-        onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerUp}
-        style={{ cursor: "pointer" }}
       />
 
       {/* Cap highlight — specular reflection */}

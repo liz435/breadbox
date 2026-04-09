@@ -1,0 +1,84 @@
+{
+  "generatedAt": "2026-04-09T16:21:08.870Z",
+  "totalRuns": 38,
+  "byModel": {
+    "template": {
+      "runs": 8,
+      "avgScore": 93,
+      "totalTokens": 0,
+      "totalCost": 0
+    },
+    "claude-haiku-4-5-20251001": {
+      "runs": 13,
+      "avgScore": 74,
+      "totalTokens": 324265,
+      "totalCost": 0.3069
+    },
+    "claude-sonnet-4-6": {
+      "runs": 14,
+      "avgScore": 75,
+      "totalTokens": 608281,
+      "totalCost": 2.0794
+    },
+    "unknown": {
+      "runs": 3,
+      "avgScore": 63,
+      "totalTokens": 0,
+      "totalCost": 0
+    }
+  },
+  "avgScore": 77,
+  "avgToolErrorRate": 0.03,
+  "avgTokensPerRun": 24541,
+  "hallucationRate": 13,
+  "proposeCircuitAdoption": 8,
+  "topIssues": [
+    {
+      "issue": "Missing resistors",
+      "count": 33
+    },
+    {
+      "issue": "Hallucination",
+      "count": 18
+    },
+    {
+      "issue": "Floating components",
+      "count": 13
+    },
+    {
+      "issue": "Tool errors",
+      "count": 12
+    },
+    {
+      "issue": "Bus shorts",
+      "count": 3
+    }
+  ],
+  "worstRuns": [
+    {
+      "runId": "bbb75b9e-2f71-4b8b-8f09-4f88d265d667",
+      "score": 25,
+      "issue": "Low score"
+    },
+    {
+      "runId": "88f74485-72dd-406f-acf2-87da056f31a5",
+      "score": 25,
+      "issue": "Low score"
+    },
+    {
+      "runId": "0b5a2ac0-df1b-4ff9-8a73-1721eccec19c",
+      "score": 25,
+      "issue": "Low score"
+    },
+    {
+      "runId": "4a062b27-5dff-4a32-81b0-489095e4a8f3",
+      "score": 53,
+      "issue": "wire_component_to_pin: Component d136103b-7a87-4f07-9b84-541f13d5c4d5 not found."
+    },
+    {
+      "runId": "873677ae-cc23-4d24-9385-1464f8b4349d",
+      "score": 60,
+      "issue": "Low score"
+    }
+  ]
+}

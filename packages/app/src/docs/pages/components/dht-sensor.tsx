@@ -26,6 +26,8 @@ export function DhtSensorPage() {
           headers={["Property", "Values", "Default"]}
           rows={[
             ["Variant", "DHT11, DHT22", "DHT11"],
+            ["Temperature", "−40 – 80 °C (slider)", "25 °C"],
+            ["Humidity", "0 – 100% (slider)", "50%"],
             ["Signal pin", "D0–D13", "None (unassigned)"],
           ]}
         />
@@ -35,12 +37,17 @@ export function DhtSensorPage() {
         <Table
           headers={["Feature", "Status"]}
           rows={[
-            ["DHT class (begin, readTemperature, readHumidity)", "Implemented — returns simulated 25°C, 50%"],
+            ["DHT class (begin, readTemperature, readHumidity)", "Implemented"],
             ["computeHeatIndex", "Implemented"],
-            ["Adjustable simulated values", "Not implemented — returns fixed values"],
-            ["Real timing protocol", "Not implemented — instant response"],
+            ["Adjustable temperature/humidity via Inspector sliders", "Implemented"],
+            ["Real 1-Wire timing protocol", "Not implemented — responds instantly"],
           ]}
         />
+        <Note>
+          <code>dht.readTemperature()</code> and <code>dht.readHumidity()</code> now return the
+          values you set in the Inspector for the matching component. Multiple DHT sensors on
+          different pins use each sensor's own Inspector values.
+        </Note>
       </Section>
 
       <Section title="Auto-generated sketch code">

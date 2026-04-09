@@ -6,7 +6,7 @@ export function PotentiometerPage() {
       <PageTitle
         title="Potentiometer"
         subtitle="Three-terminal variable resistor acting as a voltage divider."
-        badge={<Badge variant="partial">Partial — Position Not Wired</Badge>}
+        badge={<Badge variant="implemented">Simulated</Badge>}
       />
 
       <Section title="Pins">
@@ -41,10 +41,14 @@ export function PotentiometerPage() {
           rows={[
             ["Modeled as 10 kΩ voltage divider (two resistors)", "Implemented"],
             ["Knob rotation visual from position property", "Implemented"],
-            ["Position slider → actual voltage output", "Not implemented — wiper position is visual only"],
-            ["analogRead returning position value", "Not implemented — ADC not wired"],
+            ["Position slider → wiper voltage", "Implemented — ratio × (V_vcc − V_gnd)"],
+            ["analogRead returning position value (0–1023)", "Implemented — voltage fed into analog pin store"],
           ]}
         />
+        <Note>
+          The wiper voltage is computed each simulation tick from the slider position and
+          pushed to the signal pin's analog value via the circuit solver's pin feed.
+        </Note>
       </Section>
 
       <Section title="Auto-generated sketch code">

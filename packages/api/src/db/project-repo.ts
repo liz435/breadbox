@@ -483,9 +483,8 @@ function applyBoardOp(project: ProjectFile, op: BoardOp): void {
       delete board.wires[op.payload.wireId];
       break;
     case "set_pin_mode":
-      if (board.pinStates[op.payload.pin]) {
-        board.pinStates[op.payload.pin].mode = op.payload.mode;
-      }
+      // Pin mode is runtime state on the client. The op is still persisted
+      // in the project file (for eval/replay) but doesn't mutate board state.
       break;
     case "update_sketch":
       board.sketchCode = op.payload.code;
@@ -501,19 +500,10 @@ async function applyBoardOps(projectId: string, req: ApplyBoardOpsRequest) {
   const existing = await readProject(projectId);
   if (!existing) return null;
 
-  if (existing.project.version !== input.expectedVersion) {
-    throw new VersionConflictError(input.expectedVersion, existing.project.version);
-  }
-
   const working = structuredClone(existing);
 
   for (const rawOp of input.ops) {
     const op = boardOpSchema.parse(rawOp);
-    if (op.expectedVersion !== input.expectedVersion) {
-      throw new OpValidationError(
-        `Op ${op.opId} expectedVersion must equal batch expectedVersion`
-      );
-    }
     applyBoardOp(working, op);
   }
 

@@ -119,6 +119,9 @@ export function LedSymbol({ x, y, label, value, voltage, current, isActive }: Sy
 export function ButtonSymbol({ x, y, label, value, voltage, current, isActive }: SymbolProps) {
   const w = 60
   const stroke = isActive ? "#3b82f6" : STROKE
+  // Arm: closed (horizontal) when active, open (angled) when not
+  const armX2 = x + 42
+  const armY2 = isActive ? y : y - 12
 
   return (
     <g>
@@ -128,13 +131,13 @@ export function ButtonSymbol({ x, y, label, value, voltage, current, isActive }:
       {/* Gap terminals */}
       <circle cx={x + 18} cy={y} r={2.5} fill={stroke} />
       <circle cx={x + 42} cy={y} r={2.5} fill={stroke} />
-      {/* Switch arm (angled line) */}
-      <line x1={x + 18} y1={y} x2={x + 40} y2={y - 12} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Switch arm — horizontal (closed) when active, angled (open) when not */}
+      <line x1={x + 18} y1={y} x2={armX2} y2={armY2} stroke={stroke} strokeWidth={STROKE_WIDTH} />
       {/* Terminal dots */}
       <circle cx={x} cy={y} r={3} fill={stroke} />
       <circle cx={x + w} cy={y} r={3} fill={stroke} />
       {/* Label */}
-      <text x={x + w / 2} y={y - 18} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+      <text x={x + w / 2} y={y - 22} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
         SW {label}
       </text>
       {value && (

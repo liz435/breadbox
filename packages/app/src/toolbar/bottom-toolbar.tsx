@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { PromptBox } from "@/chat/prompt-box"
 import { EditToolbar } from "./edit-toolbar"
 import { PlayControls } from "./play-controls"
+import { BoardStatus } from "./board-status"
 import { AiToolbarHistory } from "./ai-toolbar"
 import { useChatMessages } from "./use-chat-messages"
 
@@ -62,6 +63,8 @@ export function BottomToolbar() {
               <EditToolbar />
               <Separator orientation="vertical" className="h-6" />
               <PlayControls />
+              <Separator orientation="vertical" className="h-6" />
+              <BoardStatus />
             </div>
           ) : (
             <PromptBox
@@ -70,7 +73,7 @@ export function BottomToolbar() {
               onSubmit={chat.handleSubmit}
               onStop={chat.stop}
               isStreaming={chat.status === "streaming" || chat.status === "submitted"}
-              placeholder="e.g. add a sprite at the center"
+              placeholder="generate a traffic light circuit"
               leading={<ModeToggle mode={mode} onModeChange={setMode} />}
             />
           )}

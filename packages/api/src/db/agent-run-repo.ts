@@ -140,6 +140,11 @@ async function completeRun(params: {
   if (params.tokenUsage) existing.tokenUsage = params.tokenUsage;
 
   await writeRun(existing.run.id, existing);
+
+  // Fire-and-forget: auto-evaluate the run
+  import("../eval/batch-evaluator").then(({ evaluateSingleRun }) => {
+    evaluateSingleRun(params.runId).catch(() => {});
+  }).catch(() => {});
 }
 
 async function attachRunToThread(threadId: string, runId: string) {

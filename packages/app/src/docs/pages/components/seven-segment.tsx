@@ -6,7 +6,7 @@ export function SevenSegmentPage() {
       <PageTitle
         title="7-Segment Display"
         subtitle="Common-cathode 7-segment display for showing digits and some letters."
-        badge={<Badge variant="not-implemented">Visual Only</Badge>}
+        badge={<Badge variant="implemented">Simulated</Badge>}
       />
 
       <Section title="Pins">
@@ -48,15 +48,19 @@ export function SevenSegmentPage() {
           headers={["Feature", "Status"]}
           rows={[
             ["Visual placement", "Implemented"],
-            ["Digit rendering from segment states", "Not implemented"],
-            ["Individual segment electrical simulation", "Not implemented"],
-            ["Multiplexing support", "Not implemented"],
+            ["Per-segment lighting from pin states", "Implemented — each of a–g lights on HIGH / PWM > 0"],
+            ["Active-high common-cathode logic", "Implemented (LOW = off, HIGH = on)"],
+            ["Individual segment SPICE simulation", "Not implemented"],
+            ["Multiplexing support (multi-digit)", "Not implemented"],
+            ["Common-anode variants (inverted logic)", "Not implemented"],
           ]}
         />
-        <Warn>
-          The display does not render digits in the simulator. Segments are not visually lit
-          based on pin states. This component is visual placement only.
-        </Warn>
+        <Note>
+          Assign pins to each segment (a–g) in the Inspector or via wires. The renderer reads
+          the live pin state every frame, so <code>digitalWrite(segPin, HIGH)</code> lights that
+          segment immediately. A decimal-point dot is drawn for reference but is not yet wired
+          to a pin.
+        </Note>
       </Section>
 
       <Section title="Segment patterns for digits">

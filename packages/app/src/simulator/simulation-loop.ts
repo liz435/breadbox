@@ -3,13 +3,16 @@
 // Connects the Arduino VM to the simulation state machine and the board
 // state machine via a React hook. Drives the rAF loop.
 
-import React, { useCallback, useEffect, useRef } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import { useMachine } from "@xstate/react"
 import { simulationMachine } from "./simulation-machine"
 import { createArduinoVM, type ArduinoVM, type ArduinoVMCallbacks, type VMMode } from "./arduino-vm"
 import { analyzeCircuit, type CircuitAnalysis } from "./circuit-solver"
+import { snapshotAsPinStates } from "./pin-state-store"
+import { applySensorInputs, resetSensorBuses } from "./sensor-inputs"
 import { getComponentFootprint, areConnected } from "@/breadboard/breadboard-grid"
 import { BoardContext } from "@/store/board-context"
+import { getGlobalSelectedPort } from "./use-board-connection"
 import type { LibraryState, ServoState } from "@dreamer/schemas"
 
 export type SimulationStatus = "stopped" | "compiling" | "running" | "paused" | "error"
@@ -34,8 +37,6 @@ export type SimulationActions = {
 
 type SimulationHookOptions = {
   mode?: VMMode
-  onPinWrite?: (pin: number, value: number, isPwm: boolean) => void
-  onPinMode?: (pin: number, mode: number) => void
   onSerialPrint?: (text: string) => void
   onTone?: (pin: number, frequency: number, duration?: number) => void
   onNoTone?: (pin: number) => void
@@ -49,8 +50,23 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
   const [state, send] = useMachine(simulationMachine)
   const vmRef = useRef<ArduinoVM | null>(null)
   const rafRef = useRef<number | null>(null)
-  const modeRef = useRef<VMMode>(options.mode ?? "transpile")
-  modeRef.current = options.mode ?? "transpile"
+
+  // C1: auto-switch to AVR mode when a real board is connected (cycle-accurate
+  // simulation is the correct "expected" side for hardware diff). Fall back to
+  // transpile when no board is plugged in.
+  const [autoMode, setAutoMode] = useState<VMMode>("transpile")
+  useEffect(() => {
+    const check = () => {
+      const connected = getGlobalSelectedPort() !== null
+      setAutoMode(connected ? "avr" : "transpile")
+    }
+    check()
+    const id = setInterval(check, 2_000)
+    return () => clearInterval(id)
+  }, [])
+
+  const modeRef = useRef<VMMode>(options.mode ?? autoMode)
+  modeRef.current = options.mode ?? autoMode
 
   // Board actor for reading live state in the tick loop
   const boardActor = BoardContext.useActorRef()
@@ -100,11 +116,10 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     for (const [pin] of oscillatorsRef.current) stopTone(pin)
   }
 
-  // Create stable VM callbacks that delegate to the latest options
+  // Create stable VM callbacks that delegate to the latest options.
+  // Pin writes no longer flow through here — they go directly into the
+  // shared PinStateStore (see simulator/pin-state-store.ts).
   const vmCallbacks: ArduinoVMCallbacks = {
-    onPinWrite: (pin, value, isPwm) =>
-      callbacksRef.current.onPinWrite?.(pin, value, isPwm),
-    onPinMode: (pin, mode) => callbacksRef.current.onPinMode?.(pin, mode),
     onSerialPrint: (text) => callbacksRef.current.onSerialPrint?.(text),
     onTone: (pin, freq, dur) => {
       callbacksRef.current.onTone?.(pin, freq, dur)
@@ -178,7 +193,7 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
   const analysisResultRef = useRef<CircuitAnalysis | null>(null)
   latestSimAnalysisRef.current = analysisResultRef
 
-  /** Run circuit analysis and feed analog values into the VM. */
+  /** Run circuit analysis and feed analog voltages into the pin store. */
   function runInlineAnalysis() {
     const ctx = boardActor.getSnapshot().context
     const hasCircuitComponents = Object.values(ctx.components).some(
@@ -189,22 +204,27 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
       return
     }
 
+    const vm = vmRef.current
+    if (!vm) return
+    const store = vm.getPinStore()
+
     try {
-      const result = analyzeCircuit(ctx.components, ctx.wires, ctx.pinStates)
+      const result = analyzeCircuit(ctx.components, ctx.wires, snapshotAsPinStates(store))
       analysisResultRef.current = result
 
       if (!result.isValid) return
-      const vm = vmRef.current
-      if (!vm) return
 
-      // Feed component voltages to analog pins
+      const voltsToAnalog = (v: number) =>
+        Math.round((Math.min(5, Math.abs(v)) / 5) * 1023)
+
+      // Feed component voltages to analog pins.
       // 1. Explicit pin assignments
       for (const comp of Object.values(ctx.components)) {
         const compState = result.componentStates.get(comp.id)
         if (!compState) continue
         for (const [, pin] of Object.entries(comp.pins)) {
           if (pin !== null && pin >= 14 && pin <= 19) {
-            vm.setAnalogInput(pin, Math.round((Math.min(5, Math.abs(compState.voltage)) / 5) * 1023))
+            store.writeExternal(pin, { analogValue: voltsToAnalog(compState.voltage) })
           }
         }
       }
@@ -221,11 +241,15 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
           if (!compState) continue
           const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation)
           if (footprint.points.some(pt => areConnected(wireTo, pt))) {
-            vm.setAnalogInput(arduinoPin, Math.round((Math.min(5, Math.abs(compState.voltage)) / 5) * 1023))
+            store.writeExternal(arduinoPin, { analogValue: voltsToAnalog(compState.voltage) })
             break
           }
         }
       }
+
+      // 3. Apply sensor-driven inputs LAST so photoresistor/ultrasonic/PIR/etc.
+      // values override any stale SPICE-computed voltage on their signal pin.
+      applySensorInputs(ctx.components, ctx.wires, store)
     } catch {
       analysisResultRef.current = null
     }
@@ -248,7 +272,9 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
         runInlineAnalysis()
       }
 
-      // Run loop iteration — it may return false if delaying
+      // Run loop iteration — it may return false if delaying.
+      // External digital inputs (button press, etc.) go straight into the
+      // PinStateStore via writeExternal() — no per-frame sync loop needed.
       vm.runLoopIteration()
 
       // Sync library state (servos, LCD) to board machine
@@ -284,6 +310,7 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
 
       const vm = getVM()
       vm.reset()
+      resetSensorBuses()
       const customLibs = getCustomLibraryMap()
 
       const currentMode = modeRef.current
@@ -337,6 +364,8 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     boardActor.send({ type: "RESET_PINS" })
     // Clear the simulation analysis so visuals reflect the stopped state
     analysisResultRef.current = null
+    // Clear sensor input busses so stale values don't leak into the next run.
+    resetSensorBuses()
     send({ type: "STOP" })
   }, [send, cancelLoop, boardActor])
 

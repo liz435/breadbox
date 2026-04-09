@@ -39,6 +39,8 @@ export type NetlistContext = {
   resolveNode: (point: GridPoint) => string
   /** Current pin states for all 20 Arduino pins */
   pinStates: PinState[]
+  /** All wires on the board, used by builders that need to trace input pins */
+  wires: Record<string, import("@dreamer/schemas").Wire>
 }
 
 export type NetlistOutput = {

@@ -6,7 +6,7 @@ export function PirSensorPage() {
       <PageTitle
         title="PIR Motion Sensor"
         subtitle="HC-SR501 passive infrared sensor. Detects motion from warm bodies."
-        badge={<Badge variant="implemented">Simulated</Badge>}
+        badge={<Badge variant="partial">Partial — Inspector-driven</Badge>}
       />
 
       <Section title="Pins">
@@ -24,6 +24,7 @@ export function PirSensorPage() {
         <Table
           headers={["Property", "Values", "Default"]}
           rows={[
+            ["Motion detected", "toggle", "off"],
             ["Signal pin", "D0–D13", "None (unassigned)"],
           ]}
         />
@@ -33,9 +34,10 @@ export function PirSensorPage() {
         <Table
           headers={["Feature", "Status"]}
           rows={[
-            ["Digital output (HIGH/LOW)", "Implemented — use digitalRead()"],
-            ["Detection zone rendering", "Not implemented"],
-            ["Sensitivity/delay adjustment", "Not implemented"],
+            ["Signal pin goes HIGH while 'Motion detected' is on", "Implemented — injected into pin store"],
+            ["digitalRead returns 1 / 0 to sketch", "Implemented"],
+            ["Detection zone / motion cone rendering", "Not implemented"],
+            ["Warm-up delay / sensitivity adjustment", "Not implemented"],
           ]}
         />
       </Section>

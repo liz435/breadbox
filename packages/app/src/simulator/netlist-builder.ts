@@ -196,18 +196,27 @@ export function buildNetlist(
         footprint,
         resolveNode: (pt: GridPoint) => resolveNode(nodeMap, pt),
         pinStates,
+        wires,
       }
       const result = def.buildNetlist(comp, ctx)
       if (result) {
-        // Skip components with floating nodes — they crash the SPICE solver
-        // (singular matrix from nodes with no DC path to ground)
-        const hasFloating =
-          result.nodeA.startsWith("unconnected_") ||
-          result.nodeB.startsWith("unconnected_")
-        if (hasFloating) continue
+        // Add a large bleed resistor (1GΩ) to ground for any floating node so
+        // the SPICE solver doesn't produce a singular matrix. This is better than
+        // skipping the component entirely — it keeps the component in the netlist
+        // (e.g. a button with one unwired side) without affecting circuit voltages.
+        let nodeA = result.nodeA
+        let nodeB = result.nodeB
+        let bleedIdx = lines.filter((l) => l.startsWith("R_bleed_")).length
+        if (nodeA.startsWith("unconnected_")) {
+          lines.push(`R_bleed_${bleedIdx} ${nodeA} 0 1000000000`)
+          bleedIdx++
+        }
+        if (nodeB.startsWith("unconnected_")) {
+          lines.push(`R_bleed_${bleedIdx} ${nodeB} 0 1000000000`)
+        }
 
         lines.push(...result.lines)
-        componentNodePairs.set(comp.id, { nodeA: result.nodeA, nodeB: result.nodeB })
+        componentNodePairs.set(comp.id, { nodeA, nodeB })
       }
     }
   }

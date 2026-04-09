@@ -34,10 +34,17 @@ export function DcMotorPage() {
           headers={["Feature", "Status"]}
           rows={[
             ["PWM speed control", "Implemented — analogWrite(pin, 0-255)"],
-            ["Spinning animation", "Not implemented"],
-            ["Direction control (H-bridge)", "Not implemented"],
+            ["Spinning animation", "Implemented — shaft rotates at rate ∝ duty cycle"],
+            ["Duty-cycle readout on the breadboard", "Implemented"],
+            ["Direction control (H-bridge)", "Not implemented — single pin only"],
+            ["Back-EMF / current draw", "Not implemented"],
           ]}
         />
+        <Note>
+          The motor visually spins whenever the signal pin has a non-zero digital or PWM value.
+          Full speed (255) takes 0.8 s per revolution; 10% duty cycle slows to 3 s per revolution.
+          A live duty percentage is shown below the body while spinning.
+        </Note>
       </Section>
 
       <Section title="Auto-generated sketch code">

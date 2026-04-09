@@ -2,9 +2,9 @@
   "project": {
     "id": "6ec65e28-3879-48cc-8d8e-5739598f3b2f",
     "name": "green-seal-sail",
-    "version": 1,
+    "version": 6,
     "createdAt": "2026-04-08T21:32:09.097Z",
-    "updatedAt": "2026-04-08T21:39:50.349Z",
+    "updatedAt": "2026-04-09T03:39:32.869Z",
     "threadId": "bf167d24-8be0-420d-ab57-3c015e617cca",
     "activeSceneId": "e337f89d-613b-45ed-a6c1-839faa91752e"
   },
@@ -78,55 +78,98 @@
   },
   "boardState": {
     "components": {
-      "0626f1f4-8990-4a68-bac2-d2403e4048fb": {
-        "id": "0626f1f4-8990-4a68-bac2-d2403e4048fb",
-        "type": "led",
-        "name": "LED Red",
+      "3ac951d2-a4e8-4b64-8413-acc0995ac310": {
+        "id": "3ac951d2-a4e8-4b64-8413-acc0995ac310",
+        "type": "servo",
+        "name": "Servo",
         "x": 2,
-        "y": 2,
+        "y": 0,
+        "rotation": 0,
+        "pins": {
+          "signal": null,
+          "vcc": null,
+          "gnd": null
+        },
+        "properties": {}
+      },
+      "844bb2d9-1a7e-4b59-bab1-1988711bf91a": {
+        "id": "844bb2d9-1a7e-4b59-bab1-1988711bf91a",
+        "type": "potentiometer",
+        "name": "Potentiometer",
+        "x": 2,
+        "y": 4,
+        "rotation": 0,
+        "pins": {
+          "vcc": null,
+          "signal": null,
+          "gnd": null
+        },
+        "properties": {}
+      },
+      "72264b1c-44d2-4846-8246-1129b07a156a": {
+        "id": "72264b1c-44d2-4846-8246-1129b07a156a",
+        "type": "led",
+        "name": "Red LED",
+        "x": 2,
+        "y": 8,
         "rotation": 0,
         "pins": {
           "anode": null,
           "cathode": null
         },
         "properties": {
-          "color": "#ff0000"
+          "color": "#ef4444"
         }
       },
-      "78b28f74-014d-42ba-bc3d-7d6f8330a929": {
-        "id": "78b28f74-014d-42ba-bc3d-7d6f8330a929",
+      "4c662629-b465-43d9-8e3b-080576f6e077": {
+        "id": "4c662629-b465-43d9-8e3b-080576f6e077",
+        "type": "resistor",
+        "name": "R1",
+        "x": 3,
+        "y": 9,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "2d78e41f-4eae-4292-ace3-d7f6a56f2a83": {
+        "id": "2d78e41f-4eae-4292-ace3-d7f6a56f2a83",
         "type": "led",
-        "name": "LED Yellow",
+        "name": "Yellow LED",
         "x": 2,
-        "y": 6,
+        "y": 11,
         "rotation": 0,
         "pins": {
           "anode": null,
           "cathode": null
         },
         "properties": {
-          "color": "#ffff00"
+          "color": "#fbbf24"
         }
       },
-      "ecfcc9e1-63ad-451f-b36b-37626a841a88": {
-        "id": "ecfcc9e1-63ad-451f-b36b-37626a841a88",
-        "type": "led",
-        "name": "LED Green",
-        "x": 2,
-        "y": 10,
+      "60d5fffd-6989-45ce-8cdb-e5883009659a": {
+        "id": "60d5fffd-6989-45ce-8cdb-e5883009659a",
+        "type": "resistor",
+        "name": "R2",
+        "x": 3,
+        "y": 12,
         "rotation": 0,
         "pins": {
-          "anode": null,
-          "cathode": null
+          "a": null,
+          "b": null
         },
         "properties": {
-          "color": "#00ff00"
+          "resistance": 220
         }
       },
-      "5d2b2296-a54a-400a-ae56-ff0b3727987a": {
-        "id": "5d2b2296-a54a-400a-ae56-ff0b3727987a",
+      "0642e463-1e84-4915-9b27-74fb6dca16bb": {
+        "id": "0642e463-1e84-4915-9b27-74fb6dca16bb",
         "type": "led",
-        "name": "LED Blue",
+        "name": "Green LED",
         "x": 2,
         "y": 14,
         "rotation": 0,
@@ -135,74 +178,14 @@
           "cathode": null
         },
         "properties": {
-          "color": "#0000ff"
+          "color": "#22c55e"
         }
       },
-      "c804a760-9a2e-4e90-ad9f-bd2dfad61344": {
-        "id": "c804a760-9a2e-4e90-ad9f-bd2dfad61344",
-        "type": "led",
-        "name": "LED Purple",
-        "x": 2,
-        "y": 18,
-        "rotation": 0,
-        "pins": {
-          "anode": null,
-          "cathode": null
-        },
-        "properties": {
-          "color": "#ff00ff"
-        }
-      },
-      "4a4b2708-83c5-4e3a-9af7-bcdae2318845": {
-        "id": "4a4b2708-83c5-4e3a-9af7-bcdae2318845",
+      "09a0c1de-ffa3-4531-9852-9900c89033a5": {
+        "id": "09a0c1de-ffa3-4531-9852-9900c89033a5",
         "type": "resistor",
-        "name": "R1 220Ω",
+        "name": "R3",
         "x": 3,
-        "y": 3,
-        "rotation": 0,
-        "pins": {
-          "a": null,
-          "b": null
-        },
-        "properties": {
-          "resistance": 220
-        }
-      },
-      "58e0b49b-747b-415e-b37e-7b8ffa9fef7d": {
-        "id": "58e0b49b-747b-415e-b37e-7b8ffa9fef7d",
-        "type": "resistor",
-        "name": "R2 220Ω",
-        "x": 3,
-        "y": 7,
-        "rotation": 0,
-        "pins": {
-          "a": null,
-          "b": null
-        },
-        "properties": {
-          "resistance": 220
-        }
-      },
-      "c8198cc1-4c4f-406e-9dec-dd7b5f4b604f": {
-        "id": "c8198cc1-4c4f-406e-9dec-dd7b5f4b604f",
-        "type": "resistor",
-        "name": "R3 220Ω",
-        "x": 3,
-        "y": 11,
-        "rotation": 0,
-        "pins": {
-          "a": null,
-          "b": null
-        },
-        "properties": {
-          "resistance": 220
-        }
-      },
-      "c4c17c2e-363d-4563-b634-6ef4e6243ab4": {
-        "id": "c4c17c2e-363d-4563-b634-6ef4e6243ab4",
-        "type": "resistor",
-        "name": "R4 220Ω",
-        "x": 4,
         "y": 15,
         "rotation": 0,
         "pins": {
@@ -213,12 +196,57 @@
           "resistance": 220
         }
       },
-      "2b56871a-e093-4a0a-9b55-f3cc3aebaf07": {
-        "id": "2b56871a-e093-4a0a-9b55-f3cc3aebaf07",
+      "2ff57df6-e0c0-47fb-8266-1fdc057240f8": {
+        "id": "2ff57df6-e0c0-47fb-8266-1fdc057240f8",
+        "type": "led",
+        "name": "Blue LED",
+        "x": 2,
+        "y": 17,
+        "rotation": 0,
+        "pins": {
+          "anode": null,
+          "cathode": null
+        },
+        "properties": {
+          "color": "#3b82f6"
+        }
+      },
+      "1fd417dd-fd2d-4dc9-8299-349c9f79bff4": {
+        "id": "1fd417dd-fd2d-4dc9-8299-349c9f79bff4",
         "type": "resistor",
-        "name": "R5 220Ω",
+        "name": "R4",
         "x": 3,
-        "y": 19,
+        "y": 18,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "9315ee53-7f5f-4f0f-8f67-374f1341bc0f": {
+        "id": "9315ee53-7f5f-4f0f-8f67-374f1341bc0f",
+        "type": "led",
+        "name": "Purple LED",
+        "x": 2,
+        "y": 20,
+        "rotation": 0,
+        "pins": {
+          "anode": null,
+          "cathode": null
+        },
+        "properties": {
+          "color": "#a855f7"
+        }
+      },
+      "51e51d2c-0098-47fd-b73b-3091a5596316": {
+        "id": "51e51d2c-0098-47fd-b73b-3091a5596316",
+        "type": "resistor",
+        "name": "R5",
+        "x": 3,
+        "y": 21,
         "rotation": 0,
         "pins": {
           "a": null,
@@ -230,168 +258,344 @@
       }
     },
     "wires": {
-      "1033cd37-27a8-4100-abb3-82e333627201": {
-        "id": "1033cd37-27a8-4100-abb3-82e333627201",
+      "a15594e3-11cf-43f8-95e9-7a6a2379d7f8": {
+        "id": "a15594e3-11cf-43f8-95e9-7a6a2379d7f8",
         "fromRow": -999,
-        "fromCol": 9,
+        "fromCol": 6,
+        "toRow": 0,
+        "toCol": 2,
+        "color": "#22c55e"
+      },
+      "27085774-a51b-4150-bc97-c496989105b0": {
+        "id": "27085774-a51b-4150-bc97-c496989105b0",
+        "fromRow": -999,
+        "fromCol": -1,
+        "toRow": 1,
+        "toCol": 2,
+        "color": "#22c55e"
+      },
+      "565d316e-0cbf-4af2-a75d-6cf69985d3bc": {
+        "id": "565d316e-0cbf-4af2-a75d-6cf69985d3bc",
+        "fromRow": -999,
+        "fromCol": -3,
         "toRow": 2,
         "toCol": 2,
-        "color": "#ff0000"
+        "color": "#22c55e"
       },
-      "b02db352-8a33-4a17-ae06-e441caae755f": {
-        "id": "b02db352-8a33-4a17-ae06-e441caae755f",
+      "bb096fc1-c97d-452c-963a-d6202811c44b": {
+        "id": "bb096fc1-c97d-452c-963a-d6202811c44b",
         "fromRow": -999,
-        "fromCol": 10,
+        "fromCol": 14,
+        "toRow": 4,
+        "toCol": 2,
+        "color": "#22c55e"
+      },
+      "71d85f0b-37e8-4587-b074-2ed04a60d9d4": {
+        "id": "71d85f0b-37e8-4587-b074-2ed04a60d9d4",
+        "fromRow": -999,
+        "fromCol": -1,
+        "toRow": 5,
+        "toCol": 2,
+        "color": "#22c55e"
+      },
+      "f91283d7-d374-4101-8931-87ec854f0776": {
+        "id": "f91283d7-d374-4101-8931-87ec854f0776",
+        "fromRow": -999,
+        "fromCol": -3,
         "toRow": 6,
         "toCol": 2,
-        "color": "#ffff00"
+        "color": "#22c55e"
       },
-      "6fd95a9a-2d31-4dc7-95c9-561cc7a73c22": {
-        "id": "6fd95a9a-2d31-4dc7-95c9-561cc7a73c22",
+      "4d3ed678-8d29-40ee-a402-1d01ba87d322": {
+        "id": "4d3ed678-8d29-40ee-a402-1d01ba87d322",
+        "fromRow": -999,
+        "fromCol": 9,
+        "toRow": 8,
+        "toCol": 2,
+        "color": "#22c55e"
+      },
+      "fdd2421b-d04c-44a1-9adc-5e11a6a8a03f": {
+        "id": "fdd2421b-d04c-44a1-9adc-5e11a6a8a03f",
+        "fromRow": -999,
+        "fromCol": 10,
+        "toRow": 11,
+        "toCol": 2,
+        "color": "#22c55e"
+      },
+      "2f9e448f-8bd6-4078-98ff-88f6ba442dfe": {
+        "id": "2f9e448f-8bd6-4078-98ff-88f6ba442dfe",
         "fromRow": -999,
         "fromCol": 11,
-        "toRow": 10,
-        "toCol": 2,
-        "color": "#00ff00"
-      },
-      "e4adb452-ffe1-401f-82e9-d0257dcb9513": {
-        "id": "e4adb452-ffe1-401f-82e9-d0257dcb9513",
-        "fromRow": -999,
-        "fromCol": 12,
         "toRow": 14,
         "toCol": 2,
-        "color": "#0000ff"
+        "color": "#22c55e"
       },
-      "9a1101bd-0e01-48e6-8ede-483aac6feaa1": {
-        "id": "9a1101bd-0e01-48e6-8ede-483aac6feaa1",
+      "052d7d52-d9a7-464a-89dc-acfebd747b14": {
+        "id": "052d7d52-d9a7-464a-89dc-acfebd747b14",
+        "fromRow": -999,
+        "fromCol": 12,
+        "toRow": 17,
+        "toCol": 2,
+        "color": "#22c55e"
+      },
+      "d0933f7a-95e0-4e27-bd86-13112115d935": {
+        "id": "d0933f7a-95e0-4e27-bd86-13112115d935",
         "fromRow": -999,
         "fromCol": 13,
-        "toRow": 18,
+        "toRow": 20,
         "toCol": 2,
-        "color": "#ff00ff"
-      },
-      "5bf1121f-7d7d-4cf0-a69c-448f19d6c28a": {
-        "id": "5bf1121f-7d7d-4cf0-a69c-448f19d6c28a",
-        "fromRow": 3,
-        "fromCol": 7,
-        "toRow": 3,
-        "toCol": 5,
         "color": "#22c55e"
       },
-      "a1ce0e82-8b64-4ae3-92e9-5c4a3d2f19cf": {
-        "id": "a1ce0e82-8b64-4ae3-92e9-5c4a3d2f19cf",
-        "fromRow": 7,
-        "fromCol": 7,
-        "toRow": 7,
-        "toCol": 5,
-        "color": "#22c55e"
-      },
-      "6846c229-9c59-4d23-80d2-50789653a077": {
-        "id": "6846c229-9c59-4d23-80d2-50789653a077",
-        "fromRow": 11,
-        "fromCol": 7,
-        "toRow": 11,
-        "toCol": 5,
-        "color": "#22c55e"
-      },
-      "f6670324-1c9f-470d-a1f8-e2b0acb27543": {
-        "id": "f6670324-1c9f-470d-a1f8-e2b0acb27543",
-        "fromRow": 15,
-        "fromCol": 7,
-        "toRow": 15,
-        "toCol": 5,
-        "color": "#22c55e"
-      },
-      "76924308-a1ec-429f-b36d-285f87e4dd61": {
-        "id": "76924308-a1ec-429f-b36d-285f87e4dd61",
-        "fromRow": 19,
-        "fromCol": 7,
-        "toRow": 19,
-        "toCol": 5,
-        "color": "#22c55e"
-      },
-      "3e4adfa4-9f3a-478f-bf7e-00fc1129cf53": {
-        "id": "3e4adfa4-9f3a-478f-bf7e-00fc1129cf53",
-        "fromRow": 3,
-        "fromCol": 7,
-        "toRow": 3,
-        "toCol": 5,
-        "color": "#22c55e"
-      },
-      "1540060f-e590-41a4-b06c-4f78e6e30e89": {
-        "id": "1540060f-e590-41a4-b06c-4f78e6e30e89",
-        "fromRow": 7,
-        "fromCol": 7,
-        "toRow": 7,
-        "toCol": 5,
-        "color": "#22c55e"
-      },
-      "5e15593d-aea2-4f82-8d18-1abbee46f571": {
-        "id": "5e15593d-aea2-4f82-8d18-1abbee46f571",
-        "fromRow": 11,
-        "fromCol": 7,
-        "toRow": 11,
-        "toCol": 5,
-        "color": "#22c55e"
-      },
-      "a4b355ae-484d-40b8-bb19-5834c02ba788": {
-        "id": "a4b355ae-484d-40b8-bb19-5834c02ba788",
-        "fromRow": 15,
-        "fromCol": 7,
-        "toRow": 15,
-        "toCol": 5,
-        "color": "#22c55e"
-      },
-      "139fedcb-6fb5-4808-92fa-4dfef73b2380": {
-        "id": "139fedcb-6fb5-4808-92fa-4dfef73b2380",
-        "fromRow": 19,
-        "fromCol": 7,
-        "toRow": 19,
-        "toCol": 5,
-        "color": "#22c55e"
-      },
-      "b9d1b564-a8a3-4a4e-b295-70b85fb81d1a": {
-        "id": "b9d1b564-a8a3-4a4e-b295-70b85fb81d1a",
+      "fba44a7c-cf89-4d08-97fd-08e4bb3d8429": {
+        "id": "fba44a7c-cf89-4d08-97fd-08e4bb3d8429",
         "fromRow": -999,
         "fromCol": -3,
-        "toRow": 3,
-        "toCol": 5,
-        "color": "#22c55e"
+        "toRow": 9,
+        "toCol": 7,
+        "color": "#42a5f5"
       },
-      "a92a1e45-d5ee-4e7b-ab9f-d6c8d9eea06d": {
-        "id": "a92a1e45-d5ee-4e7b-ab9f-d6c8d9eea06d",
+      "40be15c8-3b14-410a-ba23-0fbe5f14020a": {
+        "id": "40be15c8-3b14-410a-ba23-0fbe5f14020a",
         "fromRow": -999,
         "fromCol": -3,
-        "toRow": 7,
-        "toCol": 5,
-        "color": "#22c55e"
+        "toRow": 12,
+        "toCol": 7,
+        "color": "#42a5f5"
       },
-      "171775b2-bbbb-4abf-84e4-83c256db4ed9": {
-        "id": "171775b2-bbbb-4abf-84e4-83c256db4ed9",
-        "fromRow": -999,
-        "fromCol": -3,
-        "toRow": 11,
-        "toCol": 5,
-        "color": "#22c55e"
-      },
-      "1bf126fb-5372-44de-a831-674f61ece31f": {
-        "id": "1bf126fb-5372-44de-a831-674f61ece31f",
+      "b65798f2-03b7-4ce1-98c7-fda079f5d2a7": {
+        "id": "b65798f2-03b7-4ce1-98c7-fda079f5d2a7",
         "fromRow": -999,
         "fromCol": -3,
         "toRow": 15,
-        "toCol": 5,
-        "color": "#22c55e"
+        "toCol": 7,
+        "color": "#42a5f5"
       },
-      "10ad2e4b-6e54-4c93-8fed-df780349f454": {
-        "id": "10ad2e4b-6e54-4c93-8fed-df780349f454",
+      "0841c6f4-9e18-43f4-9419-caf002010fb3": {
+        "id": "0841c6f4-9e18-43f4-9419-caf002010fb3",
         "fromRow": -999,
         "fromCol": -3,
-        "toRow": 19,
-        "toCol": 5,
-        "color": "#22c55e"
+        "toRow": 18,
+        "toCol": 7,
+        "color": "#42a5f5"
+      },
+      "0320074f-157a-4f52-9e5b-bcb8413f72d1": {
+        "id": "0320074f-157a-4f52-9e5b-bcb8413f72d1",
+        "fromRow": -999,
+        "fromCol": -3,
+        "toRow": 21,
+        "toCol": 7,
+        "color": "#42a5f5"
       }
     },
-    "sketchCode": "// 5 LEDs flashing in sequence\n\nconst int LED_RED = 9;\nconst int LED_YELLOW = 10;\nconst int LED_GREEN = 11;\nconst int LED_BLUE = 12;\nconst int LED_PURPLE = 13;\n\nconst int DELAY_MS = 300;\n\nvoid setup() {\n  pinMode(LED_RED, OUTPUT);\n  pinMode(LED_YELLOW, OUTPUT);\n  pinMode(LED_GREEN, OUTPUT);\n  pinMode(LED_BLUE, OUTPUT);\n  pinMode(LED_PURPLE, OUTPUT);\n}\n\nvoid loop() {\n  // Flash each LED in sequence\n  digitalWrite(LED_RED, HIGH);\n  delay(DELAY_MS);\n  digitalWrite(LED_RED, LOW);\n  \n  digitalWrite(LED_YELLOW, HIGH);\n  delay(DELAY_MS);\n  digitalWrite(LED_YELLOW, LOW);\n  \n  digitalWrite(LED_GREEN, HIGH);\n  delay(DELAY_MS);\n  digitalWrite(LED_GREEN, LOW);\n  \n  digitalWrite(LED_BLUE, HIGH);\n  delay(DELAY_MS);\n  digitalWrite(LED_BLUE, LOW);\n  \n  digitalWrite(LED_PURPLE, HIGH);\n  delay(DELAY_MS);\n  digitalWrite(LED_PURPLE, LOW);\n  \n  delay(100); // Pause before next cycle\n}\n",
+    "pinStates": [
+      {
+        "pin": 0,
+        "mode": "UNSET",
+        "digitalValue": 0,
+        "analogValue": 0,
+        "pwmValue": 0,
+        "isPwm": false,
+        "pwmFrequency": 490,
+        "interruptMode": "NONE"
+      },
+      {
+        "pin": 1,
+        "mode": "UNSET",
+        "digitalValue": 0,
+        "analogValue": 0,
+        "pwmValue": 0,
+        "isPwm": false,
+        "pwmFrequency": 490,
+        "interruptMode": "NONE"
+      },
+      {
+        "pin": 2,
+        "mode": "UNSET",
+        "digitalValue": 0,
+        "analogValue": 0,
+        "pwmValue": 0,
+        "isPwm": false,
+        "pwmFrequency": 490,
+        "interruptMode": "NONE"
+      },
+      {
+        "pin": 3,
+        "mode": "UNSET",
+        "digitalValue": 0,
+        "analogValue": 0,
+        "pwmValue": 0,
+        "isPwm": false,
+        "pwmFrequency": 490,
+        "interruptMode": "NONE"
+      },
+      {
+        "pin": 4,
+        "mode": "UNSET",
+        "digitalValue": 0,
+        "analogValue": 0,
+        "pwmValue": 0,
+        "isPwm": false,
+        "pwmFrequency": 490,
+        "interruptMode": "NONE"
+      },
+      {
+        "pin": 5,
+        "mode": "UNSET",
+        "digitalValue": 0,
+        "analogValue": 0,
+        "pwmValue": 0,
+        "isPwm": false,
+        "pwmFrequency": 490,
+        "interruptMode": "NONE"
+      },
+      {
+        "pin": 6,
+        "mode": "UNSET",
+        "digitalValue": 0,
+        "analogValue": 0,
+        "pwmValue": 0,
+        "isPwm": false,
+        "pwmFrequency": 490,
+        "interruptMode": "NONE"
+      },
+      {
+        "pin": 7,
+        "mode": "UNSET",
+        "digitalValue": 0,
+        "analogValue": 0,
+        "pwmValue": 0,
+        "isPwm": false,
+        "pwmFrequency": 490,
+        "interruptMode": "NONE"
+      },
+      {
+        "pin": 8,
+        "mode": "UNSET",
+        "digitalValue": 0,
+        "analogValue": 0,
+        "pwmValue": 0,
+        "isPwm": false,
+        "pwmFrequency": 490,
+        "interruptMode": "NONE"
+      },
+      {
+        "pin": 9,
+        "mode": "UNSET",
+        "digitalValue": 0,
+        "analogValue": 0,
+        "pwmValue": 0,
+        "isPwm": false,
+        "pwmFrequency": 490,
+        "interruptMode": "NONE"
+      },
+      {
+        "pin": 10,
+        "mode": "UNSET",
+        "digitalValue": 0,
+        "analogValue": 0,
+        "pwmValue": 0,
+        "isPwm": false,
+        "pwmFrequency": 490,
+        "interruptMode": "NONE"
+      },
+      {
+        "pin": 11,
+        "mode": "UNSET",
+        "digitalValue": 0,
+        "analogValue": 0,
+        "pwmValue": 0,
+        "isPwm": false,
+        "pwmFrequency": 490,
+        "interruptMode": "NONE"
+      },
+      {
+        "pin": 12,
+        "mode": "UNSET",
+        "digitalValue": 0,
+        "analogValue": 0,
+        "pwmValue": 0,
+        "isPwm": false,
+        "pwmFrequency": 490,
+        "interruptMode": "NONE"
+      },
+      {
+        "pin": 13,
+        "mode": "UNSET",
+        "digitalValue": 0,
+        "analogValue": 0,
+        "pwmValue": 0,
+        "isPwm": false,
+        "pwmFrequency": 490,
+        "interruptMode": "NONE"
+      },
+      {
+        "pin": 14,
+        "mode": "UNSET",
+        "digitalValue": 0,
+        "analogValue": 0,
+        "pwmValue": 0,
+        "isPwm": false,
+        "pwmFrequency": 490,
+        "interruptMode": "NONE"
+      },
+      {
+        "pin": 15,
+        "mode": "UNSET",
+        "digitalValue": 0,
+        "analogValue": 0,
+        "pwmValue": 0,
+        "isPwm": false,
+        "pwmFrequency": 490,
+        "interruptMode": "NONE"
+      },
+      {
+        "pin": 16,
+        "mode": "UNSET",
+        "digitalValue": 0,
+        "analogValue": 0,
+        "pwmValue": 0,
+        "isPwm": false,
+        "pwmFrequency": 490,
+        "interruptMode": "NONE"
+      },
+      {
+        "pin": 17,
+        "mode": "UNSET",
+        "digitalValue": 0,
+        "analogValue": 0,
+        "pwmValue": 0,
+        "isPwm": false,
+        "pwmFrequency": 490,
+        "interruptMode": "NONE"
+      },
+      {
+        "pin": 18,
+        "mode": "UNSET",
+        "digitalValue": 0,
+        "analogValue": 0,
+        "pwmValue": 0,
+        "isPwm": false,
+        "pwmFrequency": 490,
+        "interruptMode": "NONE"
+      },
+      {
+        "pin": 19,
+        "mode": "UNSET",
+        "digitalValue": 0,
+        "analogValue": 0,
+        "pwmValue": 0,
+        "isPwm": false,
+        "pwmFrequency": 490,
+        "interruptMode": "NONE"
+      }
+    ],
+    "libraryState": {
+      "servos": {},
+      "lcd": null,
+      "serialBaud": 0
+    },
+    "serialOutput": [],
+    "sketchCode": "#include <Servo.h>\n\nconst int SERVO_PIN = 6;\nconst int POT_PIN = A0;\n\nconst int LED_PINS[] = {9, 10, 11, 12, 13};\nconst int NUM_LEDS = 5;\nconst int FLASH_DELAY = 300;\n\nServo servo;\n\nvoid setup() {\n  servo.attach(SERVO_PIN);\n  Serial.begin(9600);\n  \n  for (int i = 0; i < NUM_LEDS; i++) {\n    pinMode(LED_PINS[i], OUTPUT);\n    digitalWrite(LED_PINS[i], LOW);\n  }\n}\n\nvoid loop() {\n  // Read potentiometer and control servo\n  int potValue = analogRead(POT_PIN);\n  int angle = map(potValue, 0, 1023, 0, 180);\n  servo.write(angle);\n  \n  Serial.print(\"Pot: \");\n  Serial.print(potValue);\n  Serial.print(\" -> Angle: \");\n  Serial.println(angle);\n  \n  // Flash LEDs in sequence\n  for (int i = 0; i < NUM_LEDS; i++) {\n    digitalWrite(LED_PINS[i], HIGH);\n    delay(FLASH_DELAY);\n    digitalWrite(LED_PINS[i], LOW);\n  }\n}",
     "customLibraries": {}
   }
 }

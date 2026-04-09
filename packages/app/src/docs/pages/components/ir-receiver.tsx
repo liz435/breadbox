@@ -24,6 +24,7 @@ export function IrReceiverPage() {
         <Table
           headers={["Property", "Values", "Default"]}
           rows={[
+            ["Send code (hex)", "e.g. FF00FF", "(empty)"],
             ["Signal pin", "D0–D13", "None (unassigned)"],
           ]}
         />
@@ -33,12 +34,16 @@ export function IrReceiverPage() {
         <Table
           headers={["Feature", "Status"]}
           rows={[
-            ["IRrecv class (enableIRIn, decode, resume)", "Implemented — simulates random IR codes"],
+            ["IRrecv class (enableIRIn, decode, resume)", "Implemented"],
+            ["Deterministic codes via Inspector 'Send' button", "Implemented"],
             ["Real remote protocol decoding (NEC, RC5)", "Not implemented"],
-            ["IR transmitter pairing", "Not implemented"],
           ]}
         />
-        <Note>In simulation, the IR receiver randomly generates codes (~5% chance per loop iteration) to test your decoding logic.</Note>
+        <Note>
+          Type a hex code (e.g. <code>FF00FF</code>) in the Inspector and click <strong>Send</strong>
+          to make <code>irrecv.decode(&amp;results)</code> return that code on the next call.
+          The code auto-clears after ~200 ms so each press is a single event.
+        </Note>
       </Section>
 
       <Section title="Auto-generated sketch code">

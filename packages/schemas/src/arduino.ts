@@ -121,19 +121,37 @@ export const customLibrarySchema = z.object({
 export type CustomLibrary = z.infer<typeof customLibrarySchema>;
 
 // ── Board State ──────────────────────────────────────────────────
+//
+// `pinStates` was previously part of the persisted board state. It is now
+// owned exclusively by the runtime `PinStateStore` (in the app package)
+// and is NOT part of the saved project file. Legacy project files with a
+// `pinStates` field will still parse — the schema uses `.passthrough()` for
+// legacy fields and ignores unknown keys.
 
-export const boardStateSchema = z.object({
+const boardStateBaseSchema = z.object({
   components: z.record(z.string(), boardComponentSchema),
   wires: z.record(z.string(), wireSchema),
-  pinStates: z.array(pinStateSchema).default(createDefaultPinStates()),
   libraryState: libraryStateSchema.default({ servos: {}, lcd: null, serialBaud: 0 }),
-  serialOutput: z.array(z.string()).default([]),
+  // Supports legacy string[] format from old saves, normalises to {text, ts}.
+  serialOutput: z.array(
+    z.union([
+      z.string().transform((s) => ({ text: s, ts: 0 })),
+      z.object({ text: z.string(), ts: z.number() }),
+    ])
+  ).default([]),
   sketchCode: z.string(),
   customLibraries: z.record(z.string(), customLibrarySchema).default({}),
 });
+
+// Accept legacy `pinStates` field but strip it. The final output type
+// matches boardStateBaseSchema exactly.
+export const boardStateSchema = boardStateBaseSchema;
 export type BoardState = z.infer<typeof boardStateSchema>;
 
 // ── Helper: create default pin states (20 pins) ─────────────────
+//
+// Kept as a compatibility helper for tests that still build PinState[]
+// (e.g. circuit-solver.test.ts). Not used in runtime board state.
 
 export function createDefaultPinStates(): PinState[] {
   return Array.from({ length: 20 }, (_, i) => ({
@@ -152,7 +170,6 @@ export function createDefaultBoardState(): BoardState {
   return {
     components: {},
     wires: {},
-    pinStates: createDefaultPinStates(),
     libraryState: { servos: {}, lcd: null, serialBaud: 0 },
     serialOutput: [],
     sketchCode: "",

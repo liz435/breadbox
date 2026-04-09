@@ -28,6 +28,7 @@ import { DhtSensorPage } from "@/docs/pages/components/dht-sensor"
 import { IrReceiverPage } from "@/docs/pages/components/ir-receiver"
 import { ShiftRegisterPage } from "@/docs/pages/components/shift-register"
 import { OledDisplayPage } from "@/docs/pages/components/oled-display"
+import { AgentEvalPage } from "@/docs/pages/agent-eval"
 import { DocsLayout, PageTitle } from "@/docs/docs-layout"
 
 const ROUTES: Record<string, () => React.JSX.Element> = {
@@ -59,6 +60,7 @@ const ROUTES: Record<string, () => React.JSX.Element> = {
   "/documentation/components/ir-receiver": IrReceiverPage,
   "/documentation/components/shift-register": ShiftRegisterPage,
   "/documentation/components/oled-display": OledDisplayPage,
+  "/documentation/agent-eval": AgentEvalPage,
 }
 
 function NotFoundPage() {

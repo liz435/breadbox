@@ -6,7 +6,7 @@ export function BuzzerPage() {
       <PageTitle
         title="Buzzer"
         subtitle="Piezoelectric buzzer for generating tones. Controlled with the tone() function."
-        badge={<Badge variant="partial">Partial — No Audio Output</Badge>}
+        badge={<Badge variant="implemented">Simulated</Badge>}
       />
 
       <Section title="Pins">
@@ -36,14 +36,15 @@ export function BuzzerPage() {
             ["Modeled as 30 Ω resistor in SPICE", "Implemented"],
             ["isActive when current > 0.5 mA", "Implemented"],
             ["Vibration ring animation when active", "Implemented"],
-            ["Actual audio output / tone generation", "Not implemented — visual only"],
-            ["Frequency from tone() call", "Not implemented"],
+            ["Audio output via Web Audio", "Implemented — square wave at the requested frequency"],
+            ["tone(pin, freq[, dur]) / noTone(pin)", "Implemented — starts/stops an oscillator per pin"],
           ]}
         />
-        <Warn>
-          The buzzer makes no sound in Dreamer. The animation shows when it is electrically active,
-          but <code>tone()</code> frequency is not simulated.
-        </Warn>
+        <Note>
+          Calling <code>tone(pin, 440)</code> plays an audible 440 Hz square wave through your
+          speakers. Calling <code>noTone(pin)</code> or passing the duration argument stops it.
+          Volume is intentionally low (5%).
+        </Note>
       </Section>
 
       <Section title="Auto-generated sketch code">

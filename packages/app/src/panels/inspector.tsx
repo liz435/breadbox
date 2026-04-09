@@ -5,6 +5,10 @@ import { Label } from "@/components/ui/label";
 import { useBoard } from "@/store/board-context";
 import { useGraph } from "../store/graph-context";
 import { GraphInspector } from "./graph-inspector";
+import { pinStateStore } from "@/simulator/pin-state-store";
+import { buttonPressStore, useButtonPressed } from "@/simulator/button-press-store";
+import { usePinState } from "@/simulator/use-pin-state";
+import { findInputPinForComponent } from "@/breadboard/component-pin-resolver";
 import type { BoardComponent, Wire } from "@dreamer/schemas";
 
 // ── Wire colors ──
@@ -207,6 +211,37 @@ function ButtonInspector({ component, onUpdate }: {
   component: BoardComponent;
   onUpdate: (changes: Partial<BoardComponent>) => void;
 }) {
+  // Derive the input pin from the wire graph (buttons have pins.a/b set
+  // to null because connections come from wires, not pin assignments).
+  const { state: boardState } = useBoard();
+  const inputPin = useMemo(
+    () => findInputPinForComponent(component, boardState.wires),
+    [component, boardState.wires],
+  );
+  const pinState = usePinState(inputPin ?? -1);
+  // INPUT_PULLUP: pressed = pin LOW. INPUT: pressed = HIGH.
+  const isPullup = pinState?.mode === "INPUT_PULLUP";
+  const pressedValue: 0 | 1 = isPullup ? 0 : 1;
+  const releasedValue: 0 | 1 = isPullup ? 1 : 0;
+  // Physical press state drives the circuit; fall back to pin state for the
+  // label when the button is also wired to an Arduino input pin.
+  const physicallyPressed = useButtonPressed(component.id);
+  const isPressed = physicallyPressed || pinState?.digitalValue === pressedValue;
+
+  const handlePress = useCallback(() => {
+    buttonPressStore.press(component.id);
+    if (inputPin != null) {
+      pinStateStore.writeExternal(inputPin, { digitalValue: pressedValue });
+    }
+  }, [component.id, inputPin, pressedValue]);
+
+  const handleRelease = useCallback(() => {
+    buttonPressStore.release(component.id);
+    if (inputPin != null) {
+      pinStateStore.writeExternal(inputPin, { digitalValue: releasedValue });
+    }
+  }, [component.id, inputPin, releasedValue]);
+
   return (
     <>
       <PropertyRow label="Pin A">
@@ -220,6 +255,21 @@ function ButtonInspector({ component, onUpdate }: {
           value={component.pins.b ?? null}
           onChange={(pin) => onUpdate({ pins: { ...component.pins, b: pin } })}
         />
+      </PropertyRow>
+      <PropertyRow label="Press">
+        <button
+          type="button"
+          onPointerDown={handlePress}
+          onPointerUp={handleRelease}
+          onPointerLeave={handleRelease}
+          className={`w-full px-3 py-1.5 rounded-md text-xs font-medium transition-colors select-none ${
+            isPressed
+              ? "bg-blue-600 text-white"
+              : "bg-neutral-700 text-neutral-300 hover:bg-neutral-600 active:bg-blue-600 active:text-white"
+          }`}
+        >
+          {isPressed ? "Pressed" : "Hold to press"}
+        </button>
       </PropertyRow>
     </>
   );
@@ -473,6 +523,170 @@ function SevenSegmentInspector({ component, onUpdate }: {
   );
 }
 
+function PirSensorInspector({ component, onUpdate }: {
+  component: BoardComponent;
+  onUpdate: (changes: Partial<BoardComponent>) => void;
+}) {
+  const motion = (component.properties.motion as boolean) === true;
+  return (
+    <>
+      <PropertyRow label="Motion">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={motion}
+            onChange={(e) =>
+              onUpdate({
+                properties: { ...component.properties, motion: e.target.checked },
+              })
+            }
+            className="accent-amber-500"
+          />
+          <span className={`text-xs ${motion ? "text-amber-400" : "text-neutral-400"}`}>
+            {motion ? "Detected" : "Idle"}
+          </span>
+        </label>
+      </PropertyRow>
+      <PropertyRow label="Signal">
+        <PinSelect
+          value={component.pins.signal ?? null}
+          onChange={(pin) => onUpdate({ pins: { ...component.pins, signal: pin } })}
+        />
+      </PropertyRow>
+    </>
+  );
+}
+
+function DhtSensorInspector({ component, onUpdate }: {
+  component: BoardComponent;
+  onUpdate: (changes: Partial<BoardComponent>) => void;
+}) {
+  const variant = (component.properties.variant as string) ?? "DHT11";
+  const temperature = (component.properties.temperature as number) ?? 25;
+  const humidity = (component.properties.humidity as number) ?? 50;
+  const tempMin = variant === "DHT22" ? -40 : 0;
+  const tempMax = variant === "DHT22" ? 80 : 50;
+  return (
+    <>
+      <PropertyRow label="Variant">
+        <select
+          className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs text-neutral-200 outline-none focus:border-zinc-500"
+          value={variant}
+          onChange={(e) =>
+            onUpdate({
+              properties: { ...component.properties, variant: e.target.value },
+            })
+          }
+        >
+          <option value="DHT11">DHT11</option>
+          <option value="DHT22">DHT22</option>
+        </select>
+      </PropertyRow>
+      <PropertyRow label="Temperature">
+        <div className="flex items-center gap-2">
+          <input
+            type="range"
+            min={tempMin}
+            max={tempMax}
+            value={temperature}
+            className="flex-1"
+            onChange={(e) =>
+              onUpdate({
+                properties: {
+                  ...component.properties,
+                  temperature: parseInt(e.target.value, 10),
+                },
+              })
+            }
+          />
+          <span className="text-xs text-neutral-300 w-10 text-right">{temperature}°C</span>
+        </div>
+      </PropertyRow>
+      <PropertyRow label="Humidity">
+        <div className="flex items-center gap-2">
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={humidity}
+            className="flex-1"
+            onChange={(e) =>
+              onUpdate({
+                properties: {
+                  ...component.properties,
+                  humidity: parseInt(e.target.value, 10),
+                },
+              })
+            }
+          />
+          <span className="text-xs text-neutral-300 w-10 text-right">{humidity}%</span>
+        </div>
+      </PropertyRow>
+      <PropertyRow label="Signal">
+        <PinSelect
+          value={component.pins.signal ?? null}
+          onChange={(pin) => onUpdate({ pins: { ...component.pins, signal: pin } })}
+        />
+      </PropertyRow>
+    </>
+  );
+}
+
+function IrReceiverInspector({ component, onUpdate }: {
+  component: BoardComponent;
+  onUpdate: (changes: Partial<BoardComponent>) => void;
+}) {
+  const pendingCode = (component.properties.codeDraft as string) ?? "FF00FF";
+  const lastSentAt = (component.properties.pendingCodeAt as number) ?? 0;
+  const recent = Date.now() - lastSentAt < 400;
+  return (
+    <>
+      <PropertyRow label="Hex code">
+        <Input
+          className="h-auto px-2 py-1 text-xs font-mono"
+          value={pendingCode}
+          placeholder="FF00FF"
+          onChange={(e) =>
+            onUpdate({
+              properties: {
+                ...component.properties,
+                codeDraft: (e.target as HTMLInputElement).value,
+              },
+            })
+          }
+        />
+      </PropertyRow>
+      <PropertyRow label="Send">
+        <button
+          type="button"
+          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+            recent
+              ? "bg-amber-500 text-zinc-900"
+              : "bg-zinc-700 hover:bg-zinc-600 text-neutral-200"
+          }`}
+          onClick={() =>
+            onUpdate({
+              properties: {
+                ...component.properties,
+                pendingCode,
+                pendingCodeAt: Date.now(),
+              },
+            })
+          }
+        >
+          {recent ? "Sent" : "Send code"}
+        </button>
+      </PropertyRow>
+      <PropertyRow label="Signal">
+        <PinSelect
+          value={component.pins.signal ?? null}
+          onChange={(pin) => onUpdate({ pins: { ...component.pins, signal: pin } })}
+        />
+      </PropertyRow>
+    </>
+  );
+}
+
 function GenericPinInspector({ component, onUpdate }: {
   component: BoardComponent;
   onUpdate: (changes: Partial<BoardComponent>) => void;
@@ -601,9 +815,12 @@ function ComponentInspector({ component, onUpdate }: {
       {component.type === "ultrasonic_sensor" && <UltrasonicInspector component={component} onUpdate={onUpdate} />}
       {component.type === "lcd_16x2" && <LcdInspector component={component} onUpdate={onUpdate} />}
       {component.type === "seven_segment" && <SevenSegmentInspector component={component} onUpdate={onUpdate} />}
+      {component.type === "pir_sensor" && <PirSensorInspector component={component} onUpdate={onUpdate} />}
+      {component.type === "dht_sensor" && <DhtSensorInspector component={component} onUpdate={onUpdate} />}
+      {component.type === "ir_receiver" && <IrReceiverInspector component={component} onUpdate={onUpdate} />}
 
       {/* Generic pin inspector for any remaining types */}
-      {!["led", "rgb_led", "resistor", "button", "servo", "buzzer", "capacitor", "potentiometer", "temperature_sensor", "photoresistor", "ultrasonic_sensor", "lcd_16x2", "seven_segment"].includes(component.type) && (
+      {!["led", "rgb_led", "resistor", "button", "servo", "buzzer", "capacitor", "potentiometer", "temperature_sensor", "photoresistor", "ultrasonic_sensor", "lcd_16x2", "seven_segment", "pir_sensor", "dht_sensor", "ir_receiver"].includes(component.type) && (
         <GenericPinInspector component={component} onUpdate={onUpdate} />
       )}
     </div>

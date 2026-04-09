@@ -1,0 +1,52 @@
+{
+  "runId": "0b5a2ac0-df1b-4ff9-8a73-1721eccec19c",
+  "evaluatedAt": "2026-04-09T16:21:08.869Z",
+  "agent": "core",
+  "prompt": "hi",
+  "status": "completed",
+  "path": {
+    "stepCount": 0,
+    "stepLimit": 10,
+    "retryCount": 0,
+    "hallucinations": [],
+    "usedProposeCircuit": false,
+    "delegations": [],
+    "trace": [
+      {
+        "step": 1,
+        "type": "text",
+        "text": "Hi! 👋 How can I help? Want to make any changes to your circuit or sketch?"
+      }
+    ]
+  },
+  "tokens": {
+    "model": "claude-sonnet-4-6",
+    "inputTokens": 5901,
+    "outputTokens": 25,
+    "totalTokens": 5926,
+    "estimatedCost": 0.0181,
+    "wastedTokens": 2963,
+    "wasteDetails": [
+      "Run produced 0 ops but consumed 5926 tokens"
+    ]
+  },
+  "tools": {
+    "totalCalls": 0,
+    "errors": 0,
+    "errorRate": 0,
+    "hallucatedIds": 0,
+    "wrongPinNames": 0,
+    "invalidPositions": 0,
+    "details": []
+  },
+  "circuit": null,
+  "score": {
+    "total": 25,
+    "breakdown": {
+      "accuracy": 25,
+      "efficiency": 0,
+      "quality": 0,
+      "completeness": 0
+    }
+  }
+}

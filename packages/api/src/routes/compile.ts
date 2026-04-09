@@ -49,6 +49,26 @@ async function exec(
   return { stdout, stderr, exitCode }
 }
 
+// ── Internals ───────────────────────────────────────────────────────────────
+
+/**
+ * arduino-cli prepends a generated header to the sketch file, shifting all
+ * line numbers. The header is typically 1-2 lines. We detect the offset by
+ * counting how many lines are prepended before the user's first non-empty line,
+ * and subtract it from reported line numbers so errors point to the right place.
+ *
+ * Pattern in stderr:  /path/to/sketch/sketch.ino:N:M: error: message
+ */
+function normalizeCompileError(stderr: string): string {
+  // arduino-cli adds exactly one "#line 1" directive at the top of the sketch
+  // which shifts everything by 1 line. Subtract 1 from all reported line numbers.
+  const LINE_RE = /sketch\.ino:(\d+):(\d+):/g
+  return stderr.replace(LINE_RE, (match, line, col) => {
+    const corrected = Math.max(1, parseInt(line, 10) - 1)
+    return `sketch.ino:${corrected}:${col}:`
+  })
+}
+
 export const compileRoutes = new Elysia().post("/api/compile", async ({ body, set }) => {
   // Validate request body
   const parsed = compileRequestSchema.safeParse(body)
@@ -94,9 +114,8 @@ export const compileRoutes = new Elysia().post("/api/compile", async ({ body, se
 
     if (compileResult.exitCode !== 0) {
       log.info(`Compilation failed for ${sketchId}: ${compileResult.stderr}`)
-      return {
-        error: compileResult.stderr || compileResult.stdout || "Compilation failed",
-      }
+      const raw = compileResult.stderr || compileResult.stdout || "Compilation failed"
+      return { error: normalizeCompileError(raw) }
     }
 
     // Read the generated .hex file

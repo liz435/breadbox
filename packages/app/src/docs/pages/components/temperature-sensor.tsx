@@ -6,7 +6,7 @@ export function TemperatureSensorPage() {
       <PageTitle
         title="Temperature Sensor"
         subtitle="TMP36 analog temperature sensor. Outputs a voltage proportional to temperature."
-        badge={<Badge variant="not-implemented">Visual Only</Badge>}
+        badge={<Badge variant="partial">Partial — Inspector-driven</Badge>}
       />
 
       <Section title="Pins">
@@ -27,6 +27,7 @@ export function TemperatureSensorPage() {
         <Table
           headers={["Property", "Values", "Default"]}
           rows={[
+            ["Temperature", "−40 – 125 °C (slider)", "25 °C"],
             ["VCC pin", "5V rail", "None"],
             ["Signal pin", "A0–A5", "None"],
             ["GND pin", "GND rail", "None"],
@@ -39,10 +40,10 @@ export function TemperatureSensorPage() {
           headers={["Feature", "Status"]}
           rows={[
             ["Visual placement and rendering", "Implemented"],
-            ["SPICE electrical simulation", "Not implemented — not in netlist"],
-            ["Voltage output based on temperature", "Not implemented"],
-            ["analogRead returning temperature value", "Not implemented — ADC not wired"],
-            ["Temperature parameter in Inspector", "Not implemented"],
+            ["Temperature slider in Inspector", "Implemented"],
+            ["Voltage output based on temperature (TMP36 formula)", "Implemented"],
+            ["analogRead returning voltage as 0–1023", "Implemented — via sensor injection"],
+            ["SPICE electrical simulation", "Not included in netlist (bypassed — value injected directly)"],
           ]}
         />
       </Section>

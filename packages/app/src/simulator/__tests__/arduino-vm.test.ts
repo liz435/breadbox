@@ -1,46 +1,68 @@
 import { describe, test, expect } from "bun:test"
 import { createArduinoVM, type ArduinoVMCallbacks } from "../arduino-vm"
+import { PinStateStore, type PinSnapshot } from "../pin-state-store"
 import { parseIntelHex } from "../avr-compiler"
 import { arduinoPinToPort, portToArduinoPin } from "../avr-runner"
 
-function createTestCallbacks(overrides: Partial<ArduinoVMCallbacks> = {}): {
+/**
+ * Build a fresh, isolated test harness: VM with a dedicated PinStateStore
+ * (so tests don't share the global singleton) plus convenient log arrays
+ * that record every pin write / mode change observed via the store.
+ */
+function createTestHarness(
+  mode: "transpile" | "avr" = "transpile",
+  overrides: Partial<ArduinoVMCallbacks> = {},
+): {
   callbacks: ArduinoVMCallbacks
+  store: PinStateStore
+  vm: ReturnType<typeof createArduinoVM>
   pinWrites: Array<{ pin: number; value: number; isPwm: boolean }>
-  pinModes: Array<{ pin: number; mode: number }>
+  pinModes: Array<{ pin: number; mode: string }>
   serialOutput: string[]
   errors: string[]
 } {
   const pinWrites: Array<{ pin: number; value: number; isPwm: boolean }> = []
-  const pinModes: Array<{ pin: number; mode: number }> = []
+  const pinModes: Array<{ pin: number; mode: string }> = []
   const serialOutput: string[] = []
   const errors: string[] = []
 
-  return {
-    callbacks: {
-      onPinWrite: (pin, value, isPwm) => {
-        pinWrites.push({ pin, value, isPwm })
-        overrides.onPinWrite?.(pin, value, isPwm)
-      },
-      onPinMode: (pin, mode) => {
-        pinModes.push({ pin, mode })
-        overrides.onPinMode?.(pin, mode)
-      },
-      onSerialPrint: (text) => {
-        serialOutput.push(text)
-        overrides.onSerialPrint?.(text)
-      },
-      onTone: overrides.onTone ?? (() => {}),
-      onNoTone: overrides.onNoTone ?? (() => {}),
-      onError: (error) => {
-        errors.push(error)
-        overrides.onError?.(error)
-      },
+  const store = new PinStateStore()
+
+  // Subscribe to track pin changes — equivalent to the old onPinWrite/onPinMode.
+  const prev: PinSnapshot[] = store.getSnapshot().map((p) => ({ ...p }))
+  store.subscribe(() => {
+    const curr = store.getSnapshot()
+    for (let i = 0; i < 20; i++) {
+      const p = curr[i]
+      const q = prev[i]
+      if (p.digitalValue !== q.digitalValue || p.pwmValue !== q.pwmValue) {
+        const isPwm = p.isPwm
+        const value = isPwm ? p.pwmValue : p.digitalValue
+        pinWrites.push({ pin: i, value, isPwm })
+      }
+      if (p.mode !== q.mode) {
+        pinModes.push({ pin: i, mode: p.mode })
+      }
+      prev[i] = { ...p }
+    }
+  })
+
+  const callbacks: ArduinoVMCallbacks = {
+    onSerialPrint: (text) => {
+      serialOutput.push(text)
+      overrides.onSerialPrint?.(text)
     },
-    pinWrites,
-    pinModes,
-    serialOutput,
-    errors,
+    onTone: overrides.onTone ?? (() => {}),
+    onNoTone: overrides.onNoTone ?? (() => {}),
+    onError: (error) => {
+      errors.push(error)
+      overrides.onError?.(error)
+    },
   }
+
+  const vm = createArduinoVM(callbacks, mode, store)
+
+  return { callbacks, store, vm, pinWrites, pinModes, serialOutput, errors }
 }
 
 const BLINK_SKETCH = `
@@ -54,65 +76,53 @@ void loop() {
 }
 `
 
-// ── Transpile-mode tests (existing) ───────────────────────────────
+// ── Transpile-mode tests ──────────────────────────────────────────
 
 describe("ArduinoVM (transpile mode)", () => {
   test("loadSketch compiles a valid blink sketch", () => {
-    const { callbacks } = createTestCallbacks()
-    const vm = createArduinoVM(callbacks)
+    const { vm } = createTestHarness()
     const result = vm.loadSketch(BLINK_SKETCH)
     expect(result.success).toBe(true)
   })
 
   test("loadSketch returns error for invalid code", () => {
-    const { callbacks } = createTestCallbacks()
-    const vm = createArduinoVM(callbacks)
+    const { vm } = createTestHarness()
     const result = vm.loadSketch("struct Foo {")
     expect(result.success).toBe(false)
     expect(result.error).toBeDefined()
   })
 
   test("runSetup calls pinMode", () => {
-    const { callbacks, pinModes } = createTestCallbacks()
-    const vm = createArduinoVM(callbacks)
+    const { vm, pinModes } = createTestHarness()
     vm.loadSketch(BLINK_SKETCH)
     vm.runSetup()
     expect(pinModes.length).toBeGreaterThanOrEqual(1)
-    expect(pinModes[0]).toEqual({ pin: 13, mode: 1 })
+    expect(pinModes[0]).toEqual({ pin: 13, mode: "OUTPUT" })
   })
 
   test("runLoopIteration writes to pin 13", () => {
-    const { callbacks, pinWrites } = createTestCallbacks()
-    const vm = createArduinoVM(callbacks)
+    const { vm, pinWrites } = createTestHarness()
     vm.loadSketch(BLINK_SKETCH)
     vm.runSetup()
     vm.runLoopIteration()
 
     expect(pinWrites.length).toBeGreaterThanOrEqual(1)
-    // First write should be pin 13 HIGH (digital)
     const write13 = pinWrites.find((w) => w.pin === 13)
     expect(write13).toBeDefined()
     expect(write13!.value).toBe(1)
   })
 
   test("delay() causes runLoopIteration to return false", () => {
-    const { callbacks } = createTestCallbacks()
-    const vm = createArduinoVM(callbacks)
+    const { vm } = createTestHarness()
     vm.loadSketch(BLINK_SKETCH)
     vm.runSetup()
-
-    // First iteration: runs loop, which calls delay(1000)
     vm.runLoopIteration()
-
-    // Should now be delaying
     expect(vm.isDelaying()).toBe(true)
     expect(vm.runLoopIteration()).toBe(false)
   })
 
   test("Serial.println produces output", () => {
-    const { callbacks, serialOutput } = createTestCallbacks()
-    const vm = createArduinoVM(callbacks)
-
+    const { vm, serialOutput } = createTestHarness()
     const sketch = `
 void setup() {
   Serial.begin(9600);
@@ -127,30 +137,26 @@ void loop() {}
   })
 
   test("millis() returns increasing values", () => {
-    const { callbacks } = createTestCallbacks()
-    const vm = createArduinoVM(callbacks)
+    const { vm } = createTestHarness()
     vm.loadSketch("void setup() {}\nvoid loop() {}")
     vm.runSetup()
     const t1 = vm.getMillis()
-    // millis is based on Date.now() so even a tiny sleep check should show it's >= 0
     expect(t1).toBeGreaterThanOrEqual(0)
   })
 
   test("getPinState reads written values", () => {
-    const { callbacks } = createTestCallbacks()
-    const vm = createArduinoVM(callbacks)
+    const { vm } = createTestHarness()
     vm.loadSketch(BLINK_SKETCH)
     vm.runSetup()
     vm.runLoopIteration()
 
     const pinState = vm.getPinState(13)
     expect(pinState.digital).toBe(1)
-    expect(pinState.mode).toBe(1) // OUTPUT
+    expect(pinState.mode).toBe(1) // numeric OUTPUT
   })
 
-  test("setExternalPin updates pin state for digitalRead", () => {
-    const { callbacks, serialOutput } = createTestCallbacks()
-    const vm = createArduinoVM(callbacks)
+  test("store.writeExternal updates pin state for digitalRead", () => {
+    const { vm, store, serialOutput } = createTestHarness()
 
     const sketch = `
 void setup() {
@@ -165,14 +171,13 @@ void loop() {
 `
     vm.loadSketch(sketch)
     vm.runSetup()
-    vm.setExternalPin(2, 1)
+    store.writeExternal(2, { digitalValue: 1 })
     vm.runLoopIteration()
     expect(serialOutput).toContain("1\n")
   })
 
-  test("setAnalogInput updates pin state for analogRead", () => {
-    const { callbacks, serialOutput } = createTestCallbacks()
-    const vm = createArduinoVM(callbacks)
+  test("store.writeExternal updates analog pin for analogRead", () => {
+    const { vm, store, serialOutput } = createTestHarness()
 
     const sketch = `
 void setup() {
@@ -186,14 +191,13 @@ void loop() {
 `
     vm.loadSketch(sketch)
     vm.runSetup()
-    vm.setAnalogInput(14, 512)
+    store.writeExternal(14, { analogValue: 512 })
     vm.runLoopIteration()
     expect(serialOutput).toContain("512\n")
   })
 
   test("reset clears all state", () => {
-    const { callbacks } = createTestCallbacks()
-    const vm = createArduinoVM(callbacks)
+    const { vm } = createTestHarness()
     vm.loadSketch(BLINK_SKETCH)
     vm.runSetup()
     vm.runLoopIteration()
@@ -201,13 +205,12 @@ void loop() {
 
     const pinState = vm.getPinState(13)
     expect(pinState.digital).toBe(0)
-    expect(pinState.mode).toBe(0)
+    expect(pinState.mode).toBe(0) // UNSET → 0
     expect(vm.isDelaying()).toBe(false)
   })
 
   test("analogWrite sets PWM values", () => {
-    const { callbacks, pinWrites } = createTestCallbacks()
-    const vm = createArduinoVM(callbacks)
+    const { vm, pinWrites } = createTestHarness()
 
     const sketch = `
 void setup() {
@@ -228,8 +231,7 @@ void loop() {}
   })
 
   test("getMode returns 'transpile' by default", () => {
-    const { callbacks } = createTestCallbacks()
-    const vm = createArduinoVM(callbacks)
+    const { vm } = createTestHarness()
     expect(vm.getMode()).toBe("transpile")
   })
 })
@@ -238,22 +240,19 @@ void loop() {}
 
 describe("ArduinoVM (avr mode)", () => {
   test("can be created with mode='avr'", () => {
-    const { callbacks } = createTestCallbacks()
-    const vm = createArduinoVM(callbacks, "avr")
+    const { vm } = createTestHarness("avr")
     expect(vm.getMode()).toBe("avr")
   })
 
   test("loadSketch in avr mode returns error suggesting async", () => {
-    const { callbacks } = createTestCallbacks()
-    const vm = createArduinoVM(callbacks, "avr")
+    const { vm } = createTestHarness("avr")
     const result = vm.loadSketch(BLINK_SKETCH)
     expect(result.success).toBe(false)
     expect(result.error).toContain("loadSketchAsync")
   })
 
   test("isDelaying returns false in avr mode", () => {
-    const { callbacks } = createTestCallbacks()
-    const vm = createArduinoVM(callbacks, "avr")
+    const { vm } = createTestHarness("avr")
     expect(vm.isDelaying()).toBe(false)
   })
 })

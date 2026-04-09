@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react"
 import { useBoard } from "@/store/board-context"
-import { createWebSerial, isWebSerialSupported, type WebSerialConnection } from "@/simulator/web-serial"
+import { createLocalBoard, type LocalBoardConnection } from "@/simulator/local-board"
+import { useBoardConnection } from "@/simulator/use-board-connection"
 import { simulationRef } from "@/simulator/simulation-ref"
 import { cn } from "@/utils/classnames"
 
@@ -30,29 +31,48 @@ export function SerialMonitor() {
   const [baudRate, setBaudRate] = useState(9600)
   const [autoscroll, setAutoscroll] = useState(true)
   const [showTimestamps, setShowTimestamps] = useState(false)
-
-  // Web Serial state
   const [serialConnected, setSerialConnected] = useState(false)
-  const serialRef = useRef<WebSerialConnection | null>(null)
-  const webSerialSupported = isWebSerialSupported()
+  const boardRef = useRef<LocalBoardConnection | null>(null)
 
-  // Initialize Web Serial wrapper once
+  const { selectedPort } = useBoardConnection()
+
+  // Create board connection once
   useEffect(() => {
-    const serial = createWebSerial({
+    const board = createLocalBoard({
       onData: (text) => {
-        send({ type: "APPEND_SERIAL", text })
+        send({ type: "APPEND_SERIAL", text, ts: Date.now() })
       },
       onConnect: () => setSerialConnected(true),
       onDisconnect: () => setSerialConnected(false),
+      onReconnecting: () => {
+        send({ type: "APPEND_SERIAL", text: "[Reconnecting after flash…]\n", ts: Date.now() })
+      },
       onError: (err) => {
-        send({ type: "APPEND_SERIAL", text: `[Serial Error] ${err}\n` })
+        send({ type: "APPEND_SERIAL", text: `[Serial Error] ${err}\n`, ts: Date.now() })
+        setSerialConnected(false)
       },
     })
-    serialRef.current = serial
-    return () => { serial.disconnect() }
+    boardRef.current = board
+    return () => { board.disconnect() }
   }, [send])
 
-  // Auto-scroll to bottom on new output
+  // Auto-connect when selected port changes
+  useEffect(() => {
+    const board = boardRef.current
+    if (!board) return
+
+    if (!selectedPort) {
+      if (board.isConnected()) board.disconnect()
+      return
+    }
+
+    // Reconnect if port changed
+    if (board.getPortPath() !== selectedPort) {
+      board.connect(selectedPort, baudRate).catch(() => {})
+    }
+  }, [selectedPort, baudRate])
+
+  // Auto-scroll on new output
   useEffect(() => {
     if (!autoscroll) return
     const el = scrollRef.current
@@ -63,29 +83,25 @@ export function SerialMonitor() {
   const simBaudRate = state.libraryState.serialBaud
 
   const handleConnect = useCallback(async () => {
-    const serial = serialRef.current
-    if (!serial) return
-    if (serial.isConnected()) {
-      await serial.disconnect()
+    const board = boardRef.current
+    if (!board || !selectedPort) return
+    if (board.isConnected()) {
+      await board.disconnect()
     } else {
-      await serial.connect(baudRate)
+      await board.connect(selectedPort, baudRate).catch(() => {})
     }
-  }, [baudRate])
+  }, [selectedPort, baudRate])
 
   const handleSend = useCallback(() => {
     if (!input) return
     const data = input + LINE_ENDING_CHARS[lineEnding]
 
-    // Send to real Arduino if connected
-    if (serialRef.current?.isConnected()) {
-      serialRef.current.write(data)
+    if (boardRef.current?.isConnected()) {
+      boardRef.current.write(data)
     }
-
-    // Feed into the simulated VM's Serial.read buffer
     simulationRef.current?.sendSerialInput(data)
-
     setInput("")
-  }, [input, lineEnding, send])
+  }, [input, lineEnding])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -97,12 +113,23 @@ export function SerialMonitor() {
     [handleSend],
   )
 
-  const formatLine = (line: string, index: number) => {
-    if (showTimestamps) {
-      const ts = new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" })
-      return <div key={index}><span className="text-zinc-600 mr-2">[{ts}]</span>{line}</div>
+  const formatLine = (entry: { text: string; ts: number }, index: number) => {
+    if (showTimestamps && entry.ts > 0) {
+      const d = new Date(entry.ts)
+      const ts = d.toLocaleTimeString("en-US", {
+        hour12: false,
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      }) + "." + String(d.getMilliseconds()).padStart(3, "0")
+      return (
+        <div key={index}>
+          <span className="text-zinc-600 mr-2">[{ts}]</span>
+          {entry.text}
+        </div>
+      )
     }
-    return <div key={index}>{line}</div>
+    return <div key={index}>{entry.text}</div>
   }
 
   return (
@@ -118,19 +145,17 @@ export function SerialMonitor() {
           {serialConnected ? (
             <span className="flex items-center gap-1 text-[10px] text-emerald-400">
               <span className="size-1.5 rounded-full bg-emerald-400" />
-              Connected
+              {selectedPort ?? "Connected"}
             </span>
           ) : simBaudRate > 0 ? (
             <span className="text-[10px] text-zinc-500">
               Simulated {simBaudRate} baud
             </span>
           ) : (
-            <span className="text-[10px] text-zinc-500">
-              not initialized
-            </span>
+            <span className="text-[10px] text-zinc-500">not initialized</span>
           )}
 
-          {/* Baud rate selector */}
+          {/* Baud rate */}
           <select
             value={baudRate}
             onChange={(e) => setBaudRate(Number(e.target.value))}
@@ -141,8 +166,8 @@ export function SerialMonitor() {
             ))}
           </select>
 
-          {/* Web Serial connect button */}
-          {webSerialSupported && (
+          {/* Connect/disconnect — only shown when a port is selected */}
+          {selectedPort && (
             <button
               type="button"
               onClick={handleConnect}
@@ -157,7 +182,7 @@ export function SerialMonitor() {
             </button>
           )}
 
-          {/* Autoscroll toggle */}
+          {/* Autoscroll */}
           <button
             type="button"
             onClick={() => setAutoscroll((v) => !v)}
@@ -169,7 +194,7 @@ export function SerialMonitor() {
             Autoscroll
           </button>
 
-          {/* Timestamp toggle */}
+          {/* Timestamps */}
           <button
             type="button"
             onClick={() => setShowTimestamps((v) => !v)}
@@ -192,34 +217,32 @@ export function SerialMonitor() {
         </div>
       </div>
 
-      {/* Scrolling output area */}
+      {/* Output */}
       <pre
         ref={scrollRef}
         className="flex-1 overflow-y-auto whitespace-pre-wrap px-3 py-2 text-green-400"
       >
         {state.serialOutput.length === 0 ? (
           <span className="text-zinc-600 italic">
-            {webSerialSupported
-              ? "No serial output yet. Click Connect to attach a real Arduino, or Run a sketch."
-              : "No serial output yet. Run a sketch to see output here."}
+            {selectedPort
+              ? "No output yet. Run a sketch or connect a board."
+              : "No output yet. Run a sketch to see output here, or select a board from the toolbar."}
           </span>
         ) : (
-          state.serialOutput.map((line, i) => formatLine(line, i))
+          state.serialOutput.map((entry, i) => formatLine(entry, i))
         )}
       </pre>
 
-      {/* Input field */}
+      {/* Input */}
       <div className="flex border-t border-zinc-700">
         <input
           type="text"
           className="flex-1 bg-zinc-800 px-3 py-1.5 text-xs text-green-300 placeholder-zinc-600 outline-none"
-          placeholder="Type message and press Enter to send..."
+          placeholder="Type message and press Enter to send…"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
         />
-
-        {/* Line ending selector */}
         <select
           value={lineEnding}
           onChange={(e) => setLineEnding(e.target.value as LineEnding)}
@@ -229,7 +252,6 @@ export function SerialMonitor() {
             <option key={value} value={value}>{label}</option>
           ))}
         </select>
-
         <button
           type="button"
           className="border-l border-zinc-700 px-3 py-1.5 text-[10px] text-zinc-300 hover:bg-zinc-700 transition-colors"

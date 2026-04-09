@@ -35,10 +35,18 @@ export function RelayPage() {
           headers={["Feature", "Status"]}
           rows={[
             ["Digital switching", "Implemented — use digitalWrite()"],
+            ["Armature animation (NO / NC position)", "Implemented — swings based on signal pin state"],
+            ["Status LED on body (ON / OFF)", "Implemented — green when energized"],
             ["Click sound", "Not implemented"],
-            ["Load circuit rendering", "Not implemented"],
+            ["Load-side (switched) circuit", "Not implemented — you only wire the coil side"],
           ]}
         />
+        <Note>
+          The renderer reads the signal pin live. When your sketch writes HIGH, the armature swings
+          to the NO position and the status LED lights green; writing LOW returns it to NC with a
+          grey LED. This simulator treats the module as active-high — some real modules are
+          active-low, so on real hardware check your board's silkscreen.
+        </Note>
       </Section>
 
       <Section title="Auto-generated sketch code">
