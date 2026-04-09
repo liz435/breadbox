@@ -2,6 +2,7 @@ import React from "react";
 import type { BoardComponent, PinState, ComponentType, LibraryState } from "@dreamer/schemas";
 import type { ComponentElectricalState } from "@/simulator/circuit-solver";
 import { LedRenderer } from "./led-renderer";
+import { RgbLedRenderer } from "./rgb-led-renderer";
 import { ButtonRenderer } from "./button-renderer";
 import { ResistorRenderer } from "./resistor-renderer";
 import { CapacitorRenderer } from "./capacitor-renderer";
@@ -22,7 +23,7 @@ const RENDERER_MAP: Record<
   React.ComponentType<ComponentRendererProps>
 > = {
   led: LedRenderer,
-  rgb_led: LedRenderer,
+  rgb_led: RgbLedRenderer,
   button: ButtonRenderer,
   resistor: ResistorRenderer,
   capacitor: CapacitorRenderer,

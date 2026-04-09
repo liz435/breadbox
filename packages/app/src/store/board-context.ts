@@ -7,7 +7,6 @@ function boardEqual(a: BoardMachineContext, b: BoardMachineContext) {
   return (
     a.components === b.components &&
     a.wires === b.wires &&
-    a.pinStates === b.pinStates &&
     a.libraryState === b.libraryState &&
     a.serialOutput === b.serialOutput &&
     a.sketchCode === b.sketchCode &&

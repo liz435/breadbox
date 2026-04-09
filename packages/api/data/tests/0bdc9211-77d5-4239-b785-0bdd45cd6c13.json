@@ -1,0 +1,101 @@
+{
+  "runId": "0bdc9211-77d5-4239-b785-0bdd45cd6c13",
+  "evaluatedAt": "2026-04-09T16:21:08.866Z",
+  "agent": "core",
+  "prompt": "servo sweep",
+  "status": "completed",
+  "path": {
+    "stepCount": 0,
+    "stepLimit": 10,
+    "retryCount": 0,
+    "hallucinations": [],
+    "usedProposeCircuit": false,
+    "delegations": [],
+    "trace": []
+  },
+  "tokens": {
+    "model": "template",
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "totalTokens": 0,
+    "estimatedCost": 0,
+    "wastedTokens": 0,
+    "wasteDetails": []
+  },
+  "tools": {
+    "totalCalls": 0,
+    "errors": 0,
+    "errorRate": 0,
+    "hallucatedIds": 0,
+    "wrongPinNames": 0,
+    "invalidPositions": 0,
+    "details": []
+  },
+  "circuit": {
+    "componentsPlaced": 1,
+    "wiresCreated": 3,
+    "floatingComponents": 0,
+    "busShorts": 0,
+    "missingResistors": 0,
+    "sketchPinMatch": true,
+    "sketchCompiles": true,
+    "issues": [],
+    "components": [
+      {
+        "id": "25fd6a64-661a-402b-b715-e5b9e035093e",
+        "type": "servo",
+        "name": "Servo",
+        "x": 2,
+        "y": 14,
+        "pins": {
+          "signal": null,
+          "vcc": null,
+          "gnd": null
+        },
+        "properties": {}
+      }
+    ],
+    "wires": [
+      {
+        "id": "f929fd65-aecd-472b-9d12-7d3bf5a48f41",
+        "fromRow": -999,
+        "fromCol": 9,
+        "toRow": 14,
+        "toCol": 2,
+        "color": "#ff9800",
+        "fromLabel": "D9",
+        "toLabel": "(14,2)"
+      },
+      {
+        "id": "30feb5ed-428a-4141-8a70-ef16b8046fbd",
+        "fromRow": -999,
+        "fromCol": -1,
+        "toRow": 15,
+        "toCol": 2,
+        "color": "#ef5350",
+        "fromLabel": "5V",
+        "toLabel": "(15,2)"
+      },
+      {
+        "id": "d5f9b653-69cf-4590-a1fc-7c21902cc11f",
+        "fromRow": -999,
+        "fromCol": -3,
+        "toRow": 16,
+        "toCol": 2,
+        "color": "#42a5f5",
+        "fromLabel": "GND",
+        "toLabel": "(16,2)"
+      }
+    ],
+    "sketch": "#include <Servo.h>\n\nServo myServo;\n\nvoid setup() {\n  myServo.attach(9);\n}\n\nvoid loop() {\n  for (int angle = 0; angle <= 180; angle++) {\n    myServo.write(angle);\n    delay(15);\n  }\n  for (int angle = 180; angle >= 0; angle--) {\n    myServo.write(angle);\n    delay(15);\n  }\n}\n"
+  },
+  "score": {
+    "total": 100,
+    "breakdown": {
+      "accuracy": 25,
+      "efficiency": 25,
+      "quality": 25,
+      "completeness": 25
+    }
+  }
+}

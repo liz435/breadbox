@@ -25,6 +25,7 @@ import { WireRenderer } from "./component-renderers/wire-renderer";
 import { ArduinoUnoBoard } from "./component-renderers/arduino-uno-renderer";
 import { CircuitOverlay } from "./circuit-overlay";
 import { useCircuitAnalysis } from "@/simulator/circuit-analysis-hook";
+import { usePinStates } from "@/simulator/use-pin-state";
 import { getComponentDef } from "@/components/registry";
 import { useBreadboardCamera } from "./use-breadboard-camera";
 import { useBreadboardDrag } from "./use-breadboard-drag";
@@ -276,10 +277,22 @@ const ComponentLayer = React.memo(function ComponentLayer({
 
 // ── Main canvas (orchestrator) ──────────────────────────────────
 
-function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: number; panMode?: boolean }) {
+type BreadboardCanvasProps = {
+  zoomTick?: number;
+  panMode?: boolean;
+  /**
+   * When true, disables component drag/move, wire placement, area select,
+   * delete/cmd+A/rotate shortcuts, and multi-select. Camera pan and wheel
+   * zoom still work, and component-level interactions that stop propagation
+   * (button press, sensor sliders) still fire. Used by <BreadboardEmbed>.
+   */
+  readOnly?: boolean;
+};
+
+function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: BreadboardCanvasProps) {
   const components = useBoardSelector((s) => s.components);
   const wires = useBoardSelector((s) => s.wires);
-  const pinStates = useBoardSelector((s) => s.pinStates);
+  const pinStates = usePinStates();
   const selectedId = useBoardSelector((s) => s.selectedId);
   const libraryState = useBoardSelector((s) => s.libraryState);
   const send = BoardContext.useActorRef().send;
@@ -309,6 +322,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
 
   const handleWireEndpointDragStart = useCallback(
     (wireId: string, endpoint: "from" | "to", e: React.PointerEvent) => {
+      if (readOnly) return;
       wireDragRef.current = { wireId, endpoint };
       const w = wires[wireId];
       if (!w) return;
@@ -319,7 +333,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
       }
       svgRef.current?.setPointerCapture(e.pointerId);
     },
-    [wires],
+    [wires, readOnly],
   );
 
   // ── Unified pointer handlers ──────────────────────────────────
@@ -330,6 +344,11 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
         camera.startPan(e);
         return;
       }
+
+      // In read-only embed mode, only camera pan is allowed. Component
+      // button/slider interactions still fire via stopPropagation on child
+      // elements.
+      if (readOnly) return;
 
       if (e.button === 0 && wire.handlePlacementPointerDown(e)) return;
 
@@ -371,7 +390,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
         }
       }
     },
-    [send, camera, wire],
+    [send, camera, wire, readOnly],
   );
 
   const handlePointerMove = useCallback(
@@ -474,6 +493,9 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
 
       camera.onKeyDown(e);
 
+      // Read-only: skip all editing shortcuts (delete, select-all, rotate).
+      if (readOnly) return;
+
       if (e.code === "Escape") {
         drag.cancelDrag();
         wire.cancelPlacement();
@@ -533,12 +555,17 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [selectedId, components, wires, send, camera, drag, wire, multiSelected]);
+  }, [selectedId, components, wires, send, camera, drag, wire, multiSelected, readOnly]);
 
   const handleComponentClick = useCallback(
-    (id: string) => { send({ type: "SELECT", id }); },
-    [send],
+    (id: string) => {
+      if (readOnly) return;
+      send({ type: "SELECT", id });
+    },
+    [send, readOnly],
   );
+
+  const noopDragStart = useCallback((_id: string, _e: React.PointerEvent) => {}, []);
 
   const cam = camera.camera;
 
@@ -581,7 +608,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode }: { zoomTick?: nu
           libraryState={libraryState}
           pinStates={pinStates}
           onSelect={handleComponentClick}
-          onDragStart={drag.handleDragStart}
+          onDragStart={readOnly ? noopDragStart : drag.handleDragStart}
         />
 
         {analysis && analysis.isValid && (

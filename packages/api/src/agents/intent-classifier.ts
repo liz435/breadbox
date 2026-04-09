@@ -12,15 +12,57 @@ export type ClassifiedIntent =
 
 export type AgentComplexity = "simple" | "complex"
 
-/** Words that signal the user wants to add to the existing board, not replace it. */
-const ADDITIVE_PATTERNS = /\badd\b|\balso\b|\bmore\b|\banother\b|\bextra\b|\bmodif|\bchange\b|\bupdate\b|\bkeep\b|\bexisting\b|\bcurrent\b|\bon top\b|\bas well\b/
+/** Words for components that, when paired with additive triggers, indicate "add to board" */
+const COMPONENT_NOUNS = "led|button|servo|buzzer|resistor|capacitor|pot|potentiometer|sensor|relay|motor|wire|neopixel|lcd|oled|display|switch|speaker|piezo|dht|pir|temperature|temp"
+
+/** Template circuit names — also valid additive targets ("add another traffic light") */
+const TEMPLATE_NOUNS = "traffic\\s*light|blink|sweep|tone|melody|brightness"
+
+/**
+ * Additive intent: trigger word followed by a component or template name.
+ * Matches: "add a led", "also add a buzzer", "another traffic light", "more LEDs"
+ * Does NOT match: "another circuit", "more complex" (no component/template after trigger)
+ */
+const ADDITIVE_PATTERNS = new RegExp(
+  `\\b(?:add|also|another|more|extra|as well)\\b[^.]*?\\b(?:${COMPONENT_NOUNS}|${TEMPLATE_NOUNS})\\b`,
+  "i"
+)
+
+/**
+ * "Keep" intent: keep specific components or existing state
+ * Matches: "keep the led", "keep existing", "keep current"
+ * Does NOT match: "keep this clean", "keep going"
+ */
+const KEEP_PATTERNS = new RegExp(
+  `\\bkeep\\b[^.]*?\\b(?:existing|current|the\\s+(?:${COMPONENT_NOUNS})|board)\\b`,
+  "i"
+)
+
+/**
+ * Explicit replacement intent — escape to agent path for these.
+ * Matches: "another circuit", "different design", "new setup", "replace with"
+ * The agent has full board context and can decide what to do.
+ */
+const REPLACEMENT_PATTERNS = /\b(?:another|different|new|fresh|instead|replace(?:\s+with)?)\s+(?:circuit|design|version|setup|sketch|one|project)\b/i
+
+/**
+ * Selective removal intent — also escape to agent.
+ * Matches: "keep only the led", "remove all but", "delete everything except"
+ */
+const SELECTIVE_PATTERNS = /\bkeep\s+only\b|\b(?:remove|delete)\s+(?:all|everything)\s+(?:but|except)\b|\bonly\s+(?:keep|leave)\b/i
 
 export function classifyIntent(prompt: string): ClassifiedIntent {
   const p = prompt.toLowerCase().trim()
-  const additive = ADDITIVE_PATTERNS.test(p)
+
+  // Ambiguous prompts go to the agent — it has full context
+  if (REPLACEMENT_PATTERNS.test(p) || SELECTIVE_PATTERNS.test(p)) {
+    return { type: "agent" }
+  }
+
+  const additive = ADDITIVE_PATTERNS.test(p) || KEEP_PATTERNS.test(p)
 
   // ── Blink LED ──
-  if (/\bblink\b/.test(p) && /\bled\b/.test(p) && !(/button|servo|lcd|sensor|motor/.test(p))) {
+  if (/\bblink(?:ing)?\b/.test(p) && /\bled\b/.test(p) && !(/button|servo|lcd|sensor|motor/.test(p))) {
     const pinMatch = p.match(/\bpin\s*(\d+)\b/)
     const pin = pinMatch ? parseInt(pinMatch[1], 10) : 13
     const colorMatch = p.match(/\b(red|green|blue|yellow|white|orange)\b/)

@@ -361,7 +361,10 @@ export function getComponentFootprint(
     case "led":
       fallback = { points: [{ row, col }, { row: row + 1, col }], width: HOLE_SPACING, height: HOLE_SPACING * 2 }; break;
     case "resistor":
-      fallback = { points: [{ row, col }, { row, col: col + 4 }], width: HOLE_SPACING * 5, height: HOLE_SPACING }; break;
+      // Horizontal but straddling the center gap: one leg in the left half
+      // (col 3), one leg in the right half (col 6). Keeps the legs in
+      // separate nets on a real breadboard.
+      fallback = { points: [{ row, col: 3 }, { row, col: 6 }], width: HOLE_SPACING * 5, height: HOLE_SPACING }; break;
     case "button":
       fallback = { points: [{ row, col: 3 }, { row: row + 1, col: 3 }, { row, col: 6 }, { row: row + 1, col: 6 }], width: GAP_WIDTH + HOLE_SPACING * 4, height: HOLE_SPACING * 2 }; break;
     case "capacitor":
@@ -374,23 +377,23 @@ export function getComponentFootprint(
       fallback = { points: pts, width: GAP_WIDTH + HOLE_SPACING * 6, height: HOLE_SPACING * rowCount }; break;
     }
     case "servo":
-      fallback = { points: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }], width: HOLE_SPACING * 3, height: HOLE_SPACING * 3 }; break;
+      fallback = { points: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }], width: HOLE_SPACING * 3, height: HOLE_SPACING * 3 }; break;
     case "buzzer":
-      fallback = { points: [{ row, col }, { row, col: col + 1 }], width: HOLE_SPACING * 2, height: HOLE_SPACING * 2 }; break;
+      fallback = { points: [{ row, col }, { row: row + 1, col }], width: HOLE_SPACING * 2, height: HOLE_SPACING * 2 }; break;
     case "potentiometer":
-      fallback = { points: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }], width: HOLE_SPACING * 3, height: HOLE_SPACING * 2 }; break;
+      fallback = { points: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }], width: HOLE_SPACING * 3, height: HOLE_SPACING * 3 }; break;
     case "rgb_led":
       fallback = { points: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }], width: HOLE_SPACING, height: HOLE_SPACING * 4 }; break;
     case "photoresistor":
       fallback = { points: [{ row, col }, { row: row + 1, col }], width: HOLE_SPACING, height: HOLE_SPACING * 2 }; break;
     case "temperature_sensor":
-      fallback = { points: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }], width: HOLE_SPACING * 3, height: HOLE_SPACING * 2 }; break;
+      fallback = { points: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }], width: HOLE_SPACING * 3, height: HOLE_SPACING * 3 }; break;
     case "ultrasonic_sensor":
-      fallback = { points: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }], width: HOLE_SPACING * 4, height: HOLE_SPACING * 2 }; break;
+      fallback = { points: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }], width: HOLE_SPACING * 4, height: HOLE_SPACING * 4 }; break;
     case "lcd_16x2":
-      fallback = { points: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }, { row, col: col + 5 }], width: HOLE_SPACING * 6, height: HOLE_SPACING * 2 }; break;
+      fallback = { points: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }, { row: row + 4, col }, { row: row + 5, col }], width: HOLE_SPACING * 6, height: HOLE_SPACING * 6 }; break;
     case "seven_segment":
-      fallback = { points: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }, { row, col: col + 5 }, { row, col: col + 6 }], width: HOLE_SPACING * 7, height: HOLE_SPACING * 2 }; break;
+      fallback = { points: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }, { row: row + 4, col }, { row: row + 5, col }, { row: row + 6, col }], width: HOLE_SPACING * 5, height: HOLE_SPACING * 7 }; break;
     default:
       fallback = { points: [{ row, col }], width: HOLE_SPACING * 2, height: HOLE_SPACING * 2 }; break;
   }

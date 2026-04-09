@@ -1,0 +1,60 @@
+{
+  "components": {
+    "led-1": {
+      "id": "led-1",
+      "type": "led",
+      "name": "LED",
+      "x": 5,
+      "y": 5,
+      "rotation": 0,
+      "pins": {
+        "anode": null,
+        "cathode": null
+      },
+      "properties": {
+        "color": "#ef4444"
+      }
+    },
+    "resistor-1": {
+      "id": "resistor-1",
+      "type": "resistor",
+      "name": "R1",
+      "x": 3,
+      "y": 5,
+      "rotation": 0,
+      "pins": {
+        "a": null,
+        "b": null
+      },
+      "properties": {
+        "resistance": 220
+      }
+    }
+  },
+  "wires": {
+    "wire-d13": {
+      "id": "wire-d13",
+      "fromRow": -999,
+      "fromCol": 13,
+      "toRow": 5,
+      "toCol": 3,
+      "color": "#fbbf24"
+    },
+    "wire-gnd": {
+      "id": "wire-gnd",
+      "fromRow": -999,
+      "fromCol": -3,
+      "toRow": 6,
+      "toCol": 9,
+      "color": "#1a1a1a"
+    }
+  },
+  "libraryState": {
+    "servos": {},
+    "lcd": null,
+    "serialBaud": 0
+  },
+  "serialOutput": [],
+  "sketchCode": "// Lesson 1 — Blink\n// Turn an LED on pin 13 on and off every half second.\n\nvoid setup() {\n  pinMode(13, OUTPUT);\n}\n\nvoid loop() {\n  digitalWrite(13, HIGH);\n  delay(500);\n  digitalWrite(13, LOW);\n  delay(500);\n}\n",
+  "customLibraries": {}
+}

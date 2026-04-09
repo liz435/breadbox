@@ -6,7 +6,7 @@ export function Lcd16x2Page() {
       <PageTitle
         title="LCD 16×2"
         subtitle="HD44780-based 16-character, 2-line alphanumeric display in 4-bit mode."
-        badge={<Badge variant="not-implemented">Visual Only</Badge>}
+        badge={<Badge variant="partial">Partial — Text Rendered</Badge>}
       />
 
       <Section title="Pins">
@@ -46,15 +46,17 @@ export function Lcd16x2Page() {
           headers={["Feature", "Status"]}
           rows={[
             ["Visual placement (green PCB with display area)", "Implemented"],
-            ["Display text from sketch", "Not implemented — display is static placeholder"],
-            ["Backlight / cursor animation", "Not implemented"],
-            ["SPICE electrical simulation", "Not implemented"],
+            ["Display text from sketch (lcd.print, setCursor, clear)", "Implemented — rendered live on the breadboard"],
+            ["LiquidCrystal library (begin, print, setCursor, clear)", "Implemented"],
+            ["Backlight / cursor blink animation", "Not implemented"],
+            ["SPICE electrical simulation", "Not implemented — LCD is bridged via libraryState, not SPICE"],
           ]}
         />
-        <Warn>
-          The LCD display does not show text from <code>lcd.print()</code> in the simulator.
-          The display area renders as a static green rectangle with placeholder grid lines.
-        </Warn>
+        <Note>
+          Text from <code>lcd.print()</code> and <code>lcd.setCursor()</code> appears directly on the
+          LCD on the breadboard. The display falls back to a placeholder grid only before
+          <code>lcd.begin()</code> has been called.
+        </Note>
       </Section>
 
       <Section title="Auto-generated sketch code">

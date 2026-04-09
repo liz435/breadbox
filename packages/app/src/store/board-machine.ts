@@ -2,12 +2,12 @@ import { setup, assign } from "xstate";
 import type {
   BoardComponent,
   Wire,
-  PinState,
   BoardState,
   LibraryState,
   CustomLibrary,
 } from "@dreamer/schemas";
-import { createDefaultBoardState, createDefaultPinStates } from "@dreamer/schemas";
+import { createDefaultBoardState } from "@dreamer/schemas";
+import { pinStateStore } from "@/simulator/pin-state-store";
 
 // ── Events ─────────────────────────────────────────────────────────────────
 
@@ -20,10 +20,9 @@ export type BoardEvent =
   | { type: "ADD_WIRE"; wire: Wire }
   | { type: "UPDATE_WIRE"; id: string; changes: Partial<Wire> }
   | { type: "REMOVE_WIRE"; id: string }
-  | { type: "SET_PIN_STATE"; pin: number; changes: Partial<PinState> }
   | { type: "SET_LIBRARY_STATE"; changes: Partial<LibraryState> }
   | { type: "UPDATE_SKETCH"; code: string }
-  | { type: "APPEND_SERIAL"; text: string }
+  | { type: "APPEND_SERIAL"; text: string; ts?: number }
   | { type: "CLEAR_SERIAL" }
   | { type: "RESET_PINS" }
   | { type: "ADD_CUSTOM_LIBRARY"; name: string; library: CustomLibrary }
@@ -35,6 +34,10 @@ export type BoardEvent =
   | { type: "REDO" };
 
 // ── Context ────────────────────────────────────────────────────────────────
+//
+// `pinStates` used to live here. It is now owned by the PinStateStore
+// (see simulator/pin-state-store.ts) and is not part of the machine context.
+// React components access pin state via usePinStates() / usePinState(n).
 
 export type BoardMachineContext = BoardState & {
   selectedId: string | null;
@@ -48,7 +51,6 @@ function boardData(ctx: BoardMachineContext): BoardState {
   return {
     components: ctx.components,
     wires: ctx.wires,
-    pinStates: ctx.pinStates,
     libraryState: ctx.libraryState,
     serialOutput: ctx.serialOutput,
     sketchCode: ctx.sketchCode,
@@ -206,15 +208,7 @@ export const boardMachine = setup({
       }),
     },
 
-    // ── Pins ──
-
-    SET_PIN_STATE: {
-      actions: assign(({ context, event }) => ({
-        pinStates: context.pinStates.map((ps) =>
-          ps.pin === event.pin ? { ...ps, ...event.changes } : ps
-        ),
-      })),
-    },
+    // ── Library state (servos, LCD) ──
 
     SET_LIBRARY_STATE: {
       actions: assign(({ context, event }) => ({
@@ -222,11 +216,17 @@ export const boardMachine = setup({
       })),
     },
 
+    // Reset runtime state: library state (servos/LCD) back to defaults
+    // AND delegate pin reset to the PinStateStore (side effect).
     RESET_PINS: {
-      actions: assign(() => ({
-        pinStates: createDefaultBoardState().pinStates,
-        libraryState: createDefaultBoardState().libraryState,
-      })),
+      actions: [
+        () => {
+          pinStateStore.resetValues();
+        },
+        assign(() => ({
+          libraryState: createDefaultBoardState().libraryState,
+        })),
+      ],
     },
 
     // ── Sketch ──
@@ -242,7 +242,10 @@ export const boardMachine = setup({
 
     APPEND_SERIAL: {
       actions: assign(({ context, event }) => ({
-        serialOutput: [...context.serialOutput, event.text],
+        serialOutput: [
+          ...context.serialOutput,
+          { text: event.text, ts: event.ts ?? Date.now() },
+        ],
       })),
     },
 
@@ -285,7 +288,6 @@ export const boardMachine = setup({
         const s = event.state;
         return {
           ...s,
-          pinStates: s.pinStates && s.pinStates.length > 0 ? s.pinStates : createDefaultPinStates(),
           libraryState: s.libraryState ?? { servos: {}, lcd: null, serialBaud: 0 },
           serialOutput: s.serialOutput ?? [],
           selectedId: null,

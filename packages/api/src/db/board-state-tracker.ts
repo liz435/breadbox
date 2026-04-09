@@ -53,9 +53,9 @@ function applyOp(board: BoardState, op: BoardOp): void {
       delete board.wires[op.payload.wireId];
       break;
     case "set_pin_mode":
-      if (board.pinStates[op.payload.pin]) {
-        board.pinStates[op.payload.pin].mode = op.payload.mode;
-      }
+      // Pin mode is runtime state on the client (owned by PinStateStore),
+      // not persisted on the server-side board snapshot. This op is forwarded
+      // to the client which applies it to its store directly.
       break;
     case "update_sketch":
       board.sketchCode = op.payload.code;

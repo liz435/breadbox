@@ -122,6 +122,7 @@ const NAV: NavGroup[] = [
       { label: "Sketch Editor", path: "/documentation/sketch" },
       { label: "Visual Programming", path: "/documentation/graph" },
       { label: "AI Agent", path: "/documentation/ai-agent" },
+      { label: "Agent Eval", path: "/documentation/agent-eval" },
       { label: "Adding Components", path: "/documentation/extending" },
     ],
   },
@@ -182,9 +183,9 @@ function Sidebar() {
         <BookOpen className="size-4 text-blue-400 flex-shrink-0" />
         <span className="text-sm font-semibold text-gray-200">Docs</span>
         <button
-          onClick={() => navigate("/")}
+          onClick={() => navigate("/editor")}
           className="ml-auto text-gray-500 hover:text-gray-300 transition-colors"
-          title="Back to app"
+          title="Back to editor"
         >
           <ChevronLeft className="size-4" />
         </button>

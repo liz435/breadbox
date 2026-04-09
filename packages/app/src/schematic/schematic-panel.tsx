@@ -3,9 +3,10 @@
 // Dockview panel that renders an auto-generated circuit schematic
 // from the current breadboard state. Read-only with zoom/pan.
 
-import React, { useMemo, useState, useCallback, useRef } from "react"
+import React, { useMemo, useState, useCallback, useRef, useSyncExternalStore } from "react"
 import { useBoardSelector, BoardContext } from "@/store/board-context"
 import { useCircuitAnalysis } from "@/simulator/circuit-analysis-hook"
+import { buttonPressStore } from "@/simulator/button-press-store"
 import { generateSchematicLayout } from "./schematic-layout"
 import { SchematicRenderer } from "./schematic-renderer"
 import { clamp } from "@/utils/math"
@@ -19,6 +20,14 @@ function SchematicPanelInner() {
   const selectedId = useBoardSelector((ctx) => ctx.selectedId)
   const boardSend = BoardContext.useActorRef().send
   const { analysis } = useCircuitAnalysis()
+
+  // Subscribe to button press state synchronously — useSyncExternalStore
+  // guarantees the component re-renders in the same flush as the store update,
+  // so the switch symbol closes without batching delay.
+  const pressedButtons = useSyncExternalStore(
+    buttonPressStore.subscribe,
+    buttonPressStore.getSnapshot,
+  )
 
   const layout = useMemo(
     () => generateSchematicLayout(components, wires),
@@ -125,6 +134,7 @@ function SchematicPanelInner() {
           <SchematicRenderer
             layout={layout}
             analysis={analysis}
+            pressedButtons={pressedButtons}
             selectedComponentId={selectedId}
             onSelectComponent={(id) => boardSend({ type: "SELECT", id })}
           />

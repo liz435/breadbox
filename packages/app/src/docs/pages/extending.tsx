@@ -235,6 +235,70 @@ function MySensorInspector({ component, onUpdate }) {
         />
       </Section>
 
+      <Section title="Environment-driven sensors (sensor-inputs.ts)">
+        <p className="text-sm text-gray-300 leading-relaxed mb-2">
+          Some components model physics the SPICE solver cannot handle: light on a photoresistor,
+          distance to an ultrasonic wall, a PIR trip, DHT temperature/humidity, an IR remote button
+          press. These components live outside SPICE and are driven by{" "}
+          <code>packages/app/src/simulator/sensor-inputs.ts</code>.
+        </p>
+        <Table
+          headers={["Component", "Input source", "Reaches the sketch via"]}
+          rows={[
+            ["photoresistor", "component.properties.light (Inspector slider)", "store.writeExternal → analogRead(pin)"],
+            ["temperature_sensor", "component.properties.temperature (Inspector slider)", "store.writeExternal → analogRead(pin)"],
+            ["ultrasonic_sensor", "component.properties.distance (Inspector slider)", "ultrasonicDistanceBus → pulseIn(echoPin, HIGH)"],
+            ["pir_sensor", "component.properties.motion (Inspector toggle)", "store.writeExternal → digitalRead(pin)"],
+            ["dht_sensor", "component.properties.temperature / humidity", "dhtSensorBus → DHTClass.readTemperature/Humidity"],
+            ["ir_receiver", "component.properties.pendingCode + pendingCodeAt", "irReceiverBus → IRrecvClass.decode"],
+          ]}
+        />
+        <p className="text-sm text-gray-400 mt-3 mb-2">
+          <strong>When to use sensor-inputs vs SPICE:</strong> if the reading isn't primarily
+          electrical (light, distance, humidity, RF codes), wire it through sensor-inputs instead
+          of growing the netlist. Put inspector state in <code>component.properties</code>, add a
+          <code>write...</code> function in <code>sensor-inputs.ts</code>, and dispatch from
+          <code>applySensorInputs()</code>. The tick loop calls it right after the circuit solver
+          so sensor values win over any stale SPICE-computed voltage on the same pin.
+        </p>
+        <p className="text-sm text-gray-400 mb-2">
+          <strong>Per-pin busses:</strong> for sensors that are polled by a library class or by
+          <code>pulseIn</code> rather than <code>analogRead</code>, export a module-level{" "}
+          <code>Map&lt;pin, value&gt;</code> from sensor-inputs and read from it in the matching
+          stdlib class. The existing <code>ultrasonicDistanceBus</code>, <code>dhtSensorBus</code>,
+          and <code>irReceiverBus</code> are the templates.
+        </p>
+        <Warn>
+          Any bus you add must be cleared in <code>resetSensorBuses()</code> — simulation-loop
+          calls this on both <code>play()</code> and <code>stop()</code> so stale values never
+          leak between runs.
+        </Warn>
+        <CodeBlock code={`// packages/app/src/simulator/sensor-inputs.ts
+export const myBus = new Map<number, number>()
+
+export function resetSensorBuses(): void {
+  // ... existing resets ...
+  myBus.clear()
+}
+
+function writeMySensor(comp: BoardComponent, wires: Record<string, Wire>): void {
+  const pin = resolveNamedPin(comp, "signal", wires)
+  if (pin == null) return
+  myBus.set(pin, (comp.properties.myValue as number) ?? 0)
+}
+
+export function applySensorInputs(components, wires, store): void {
+  for (const comp of Object.values(components)) {
+    switch (comp.type) {
+      // ... existing cases ...
+      case "my_sensor":
+        writeMySensor(comp, wires)
+        break
+    }
+  }
+}`} lang="ts" />
+      </Section>
+
       <Section title="Arduino library system">
         <p className="text-sm text-gray-300 leading-relaxed mb-2">
           Arduino libraries are provided as built-in JavaScript classes and objects injected into the
@@ -278,6 +342,8 @@ function MySensorInspector({ component, onUpdate }) {
             ["packages/app/src/components/registry.tsx", "Add ComponentDefinition object", "Always"],
             ["packages/app/src/breadboard/component-renderers/", "Add renderer file + register in index.tsx", "Optional — for custom visuals"],
             ["packages/app/src/panels/inspector.tsx", "Add inspector component + conditional render", "Optional — for custom property editors"],
+            ["packages/app/src/simulator/sensor-inputs.ts", "Add writer function + applySensorInputs case", "Only for environment-driven input sensors"],
+            ["packages/app/src/simulator/arduino-stdlib.ts", "Read from a sensor bus (pulseIn, DHTClass, etc.)", "Only when the sketch polls via a library class"],
             ["packages/app/src/docs/pages/components/", "Add documentation page", "Recommended"],
             ["packages/app/src/docs/docs-layout.tsx", "Add nav entry to NAV array", "If docs page added"],
             ["packages/app/src/docs/docs-router.tsx", "Add route to ROUTES map", "If docs page added"],

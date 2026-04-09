@@ -6,7 +6,7 @@ export function UltrasonicSensorPage() {
       <PageTitle
         title="Ultrasonic Sensor"
         subtitle="HC-SR04 distance sensor. Measures distance by echo time."
-        badge={<Badge variant="not-implemented">Visual Only</Badge>}
+        badge={<Badge variant="partial">Partial — Inspector-driven</Badge>}
       />
 
       <Section title="Pins">
@@ -25,6 +25,7 @@ export function UltrasonicSensorPage() {
         <Table
           headers={["Property", "Values", "Default"]}
           rows={[
+            ["Distance", "2 – 400 cm (slider)", "50 cm"],
             ["Trigger pin", "D0–D13", "None"],
             ["Echo pin", "D0–D13", "None"],
             ["VCC pin", "5V rail", "None"],
@@ -38,12 +39,16 @@ export function UltrasonicSensorPage() {
           headers={["Feature", "Status"]}
           rows={[
             ["Visual placement and rendering", "Implemented"],
-            ["SPICE electrical simulation", "Not implemented"],
-            ["Echo pulse timing simulation", "Not implemented"],
-            ["Distance measurement output", "Not implemented"],
-            ["pulseIn() returning measured time", "Not implemented"],
+            ["Distance slider in Inspector", "Implemented"],
+            ["pulseIn(echoPin, HIGH) returns distance × 58 µs", "Implemented — via sensor bus"],
+            ["SPICE electrical simulation", "Not included in netlist"],
+            ["Cone / obstacle interaction on the canvas", "Not implemented (coming in environment layer)"],
           ]}
         />
+        <Note>
+          <code>pulseIn(echoPin, HIGH)</code> returns <code>distance × 58 µs</code>, matching the
+          HC-SR04 datasheet. Adjust the distance slider in the Inspector to change what the sketch reads.
+        </Note>
       </Section>
 
       <Section title="Sketch patterns">

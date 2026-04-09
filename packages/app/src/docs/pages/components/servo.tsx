@@ -6,7 +6,7 @@ export function ServoPage() {
       <PageTitle
         title="Servo Motor"
         subtitle="Positional servo with 0–180° range. Requires a PWM pin and the Servo library."
-        badge={<Badge variant="partial">Visual Only</Badge>}
+        badge={<Badge variant="implemented">Simulated</Badge>}
       />
 
       <Section title="Pins">
@@ -42,12 +42,16 @@ export function ServoPage() {
         <Table
           headers={["Feature", "Status"]}
           rows={[
-            ["Visual arm rotation from angle property", "Implemented"],
-            ["Electrical SPICE simulation", "Not implemented — servo not in netlist"],
-            ["Angle driven by sketch analogWrite()", "Not implemented"],
+            ["Servo library (attach, write, read, attached, detach)", "Implemented"],
+            ["Arm rotation follows Servo.write(angle)", "Implemented — via libraryState.servos"],
+            ["Electrical SPICE simulation", "Not included (visual only in netlist)"],
             ["Current draw simulation", "Not implemented"],
           ]}
         />
+        <Note>
+          Use <code>Servo.write(angle)</code> (not <code>analogWrite</code>) to move the arm —
+          <code>analogWrite</code> on a servo pin is a no-op on the renderer side.
+        </Note>
       </Section>
 
       <Section title="Auto-generated sketch code">

@@ -10,6 +10,7 @@ import { renderSymbol, WireJunction, type SymbolProps } from "./schematic-symbol
 type SchematicRendererProps = {
   layout: SchematicLayout
   analysis: CircuitAnalysis | null
+  pressedButtons: ReadonlySet<string>
   selectedComponentId?: string | null
   onSelectComponent?: (id: string) => void
 }
@@ -125,7 +126,7 @@ function findJunctions(layout: SchematicLayout): Array<{ x: number; y: number }>
 
 // ── Main Renderer ──────────────────────────────────────────────────────
 
-export function SchematicRenderer({ layout, analysis, selectedComponentId, onSelectComponent }: SchematicRendererProps) {
+export function SchematicRenderer({ layout, analysis, pressedButtons, selectedComponentId, onSelectComponent }: SchematicRendererProps) {
   const junctions = findJunctions(layout)
 
   return (
@@ -149,6 +150,13 @@ export function SchematicRenderer({ layout, analysis, selectedComponentId, onSel
         const isSelected = node.componentId != null && node.componentId === selectedComponentId
         const clickable = node.componentId != null && onSelectComponent != null
 
+        // For buttons, use physical press state passed from parent (via
+        // useSyncExternalStore) — guarantees tear-free synchronous updates.
+        const isButtonPressed =
+          node.type === "button" && node.componentId != null
+            ? pressedButtons.has(node.componentId)
+            : undefined
+
         const symbolProps: SymbolProps = {
           x: node.x,
           y: node.y,
@@ -156,7 +164,7 @@ export function SchematicRenderer({ layout, analysis, selectedComponentId, onSel
           value: node.value,
           voltage: compState?.voltage,
           current: compState?.current,
-          isActive: compState?.isActive,
+          isActive: isButtonPressed ?? compState?.isActive,
         }
 
         return (

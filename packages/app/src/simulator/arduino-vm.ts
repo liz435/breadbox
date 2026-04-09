@@ -13,12 +13,11 @@ import { createStdlib, createStdlibState, type StdlibState } from "./arduino-std
 import { createAVRRunner, arduinoPinToPort, portToArduinoPin, type AVRRunner } from "./avr-runner"
 import { compileSketch } from "./avr-compiler"
 import { PinState } from "avr8js"
+import { pinStateStore, type PinStateStore } from "./pin-state-store"
 
 export type VMMode = "transpile" | "avr"
 
 export type ArduinoVMCallbacks = {
-  onPinWrite: (pin: number, value: number, isPwm: boolean) => void
-  onPinMode: (pin: number, mode: number) => void
   onSerialPrint: (text: string) => void
   onTone: (pin: number, frequency: number, duration?: number) => void
   onNoTone: (pin: number) => void
@@ -37,14 +36,14 @@ export type ArduinoVM = {
   loadSketchAsync: (code: string, customLibraries?: CustomLibraryMap) => Promise<{ success: boolean; error?: string }>
   runSetup: () => void
   runLoopIteration: () => boolean // returns false if delaying
-  setExternalPin: (pin: number, value: number) => void
-  setAnalogInput: (pin: number, value: number) => void
   getMillis: () => number
   getPinState: (pin: number) => PinSnapshot
   reset: () => void
   isDelaying: () => boolean
   getStdlibState: () => StdlibState
   getMode: () => VMMode
+  /** Access the shared pin state store (read-only access in normal code). */
+  getPinStore: () => PinStateStore
 }
 
 const MAX_LOOP_DURATION_MS = 100
@@ -56,6 +55,7 @@ const AVR_CYCLES_PER_FRAME = Math.round(16_000_000 / 60)
 export function createArduinoVM(
   callbacks: ArduinoVMCallbacks,
   mode: VMMode = "transpile",
+  store: PinStateStore = pinStateStore,
 ): ArduinoVM {
   // ── Shared state ────────────────────────────────────────────────
   let currentMode = mode
@@ -74,7 +74,7 @@ export function createArduinoVM(
   }
 
   // ── Transpile-mode state ────────────────────────────────────────
-  let stdlib = createStdlib(state, callbacks, getMillis)
+  let stdlib = createStdlib(state, callbacks, getMillis, store)
   let setupFn: (() => void) | null = null
   let loopFn: (() => void) | null = null
   // Generator-based loop: when loop() calls delay(), it yields control
@@ -97,7 +97,12 @@ export function createArduinoVM(
         if (arduinoPin === null) return
         avrPinDigital[arduinoPin] = value ? 1 : 0
         avrPinModes[arduinoPin] = 1 // if it's outputting, it's an output pin
-        callbacks.onPinWrite(arduinoPin, value ? 1 : 0, false)
+        // Mirror AVR runner pin state into the shared store so React UI and
+        // external writes see the same values as in transpile mode.
+        store.writeFromSketch(arduinoPin, {
+          digitalValue: value ? 1 : 0,
+          mode: "OUTPUT",
+        })
       },
       onSerialOutput: (char) => {
         callbacks.onSerialPrint(char)
@@ -364,36 +369,17 @@ return { setup: _setup, loop: _loop, genLoop: null };
   }
 
   // ── Pin access ──────────────────────────────────────────────────
-  function setExternalPin(pin: number, value: number): void {
-    if (pin < 0 || pin > 19) return
-
-    if (currentMode === "avr" && avrRunner) {
-      const mapped = arduinoPinToPort(pin)
-      if (mapped) {
-        avrRunner.setExternalPin(mapped.port, mapped.pin, value > 0)
-      }
-      return
-    }
-
-    state.pins[pin] = value
-
-    // Fire any registered interrupts on edge transitions
-    const checkInterrupts = stdlib.__checkInterrupts as (() => void) | undefined
-    if (checkInterrupts) checkInterrupts()
-  }
-
-  function setAnalogInput(pin: number, value: number): void {
-    if (pin < 0 || pin > 19) return
-    // Analog input is only tracked in transpile mode for now.
-    // AVR mode would need ADC peripheral support.
-    state.analogValues[pin] = Math.max(0, Math.min(1023, Math.round(value)))
-  }
+  //
+  // Pin reads/writes go through the shared PinStateStore. External callers
+  // (UI button presses, circuit solver analog feed) should call
+  // `vm.getPinStore().writeExternal(...)` directly — no VM-level wrappers.
 
   function getPinState(pin: number): PinSnapshot {
     if (pin < 0 || pin > 19) {
       return { digital: 0, analog: 0, pwm: 0, mode: 0 }
     }
 
+    // AVR mode: prefer the AVR runner's ground truth for digital/mode
     if (currentMode === "avr" && avrRunner) {
       const mapped = arduinoPinToPort(pin)
       if (mapped) {
@@ -402,19 +388,26 @@ return { setup: _setup, loop: _loop, genLoop: null };
         const isOutput = pinState === PinState.High || pinState === PinState.Low
         return {
           digital: isHigh ? 1 : 0,
-          analog: 0, // ADC not yet wired
-          pwm: 0, // PWM detection would need timer analysis
+          analog: store.readAnalog(pin),
+          pwm: 0,
           mode: isOutput ? 1 : 0,
         }
       }
       return { digital: 0, analog: 0, pwm: 0, mode: 0 }
     }
 
+    // Transpile mode: single source of truth is the store
+    const snap = store.getPin(pin)
+    if (!snap) return { digital: 0, analog: 0, pwm: 0, mode: 0 }
+    const modeNum =
+      snap.mode === "OUTPUT" ? 1 :
+      snap.mode === "INPUT_PULLUP" ? 2 :
+      snap.mode === "INPUT" ? 0 : 0
     return {
-      digital: state.pins[pin],
-      analog: state.analogValues[pin],
-      pwm: state.pwmValues[pin],
-      mode: state.pinModes[pin],
+      digital: snap.digitalValue,
+      analog: snap.analogValue,
+      pwm: snap.pwmValue,
+      mode: modeNum,
     }
   }
 
@@ -423,7 +416,7 @@ return { setup: _setup, loop: _loop, genLoop: null };
     simulationStartTime = Date.now()
     virtualMs = 0
     state = createStdlibState(simulationStartTime)
-    stdlib = createStdlib(state, callbacks, getMillis)
+    stdlib = createStdlib(state, callbacks, getMillis, store)
     setupFn = null
     loopFn = null
     loopGenerator = null
@@ -436,6 +429,9 @@ return { setup: _setup, loop: _loop, genLoop: null };
     // Reset AVR pin tracking
     avrPinDigital.fill(0)
     avrPinModes.fill(0)
+
+    // Reset shared pin store — all pins back to defaults
+    store.reset()
   }
 
   function isDelaying(): boolean {
@@ -454,18 +450,21 @@ return { setup: _setup, loop: _loop, genLoop: null };
     return currentMode
   }
 
+  function getPinStore(): PinStateStore {
+    return store
+  }
+
   return {
     loadSketch,
     loadSketchAsync,
     runSetup,
     runLoopIteration,
-    setExternalPin,
-    setAnalogInput,
     getMillis,
     getPinState,
     reset,
     isDelaying,
     getStdlibState,
     getMode,
+    getPinStore,
   }
 }

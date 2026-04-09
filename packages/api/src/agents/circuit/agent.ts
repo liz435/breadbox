@@ -136,7 +136,7 @@ export async function runCircuitAgent(ctx: AgentContext): Promise<AgentResult> {
     { role: "user", content: `Current board state:\n${summarizeBoardState(ctx.project)}\n\nTask: ${ctx.prompt}` },
   ];
 
-  const CIRCUIT_MODEL = "claude-haiku-4-5-20251001";
+  const CIRCUIT_MODEL = "claude-sonnet-4-6";
 
   let stepCount = 0;
   let totalInputTokens = 0;

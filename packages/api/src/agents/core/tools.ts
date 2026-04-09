@@ -3,12 +3,31 @@ import { z } from "zod";
 import type { ProjectFile } from "../../db/schemas";
 import type { AgentKind } from "../../db/schemas";
 import type { BoardOp } from "@dreamer/schemas";
+import { createDefaultBoardState } from "@dreamer/schemas";
 import { agentRunRepo } from "../../db/agent-run-repo";
 import { boardTracker } from "../../db/board-state-tracker";
 import { makeBoardOp } from "../make-op";
 import type { AgentRunner, DelegationContext } from "../types";
 import { runGraphAgent } from "../graph/agent";
 import { runCircuitAgent } from "../circuit/agent";
+// Cross-package import — transpiler is pure functions, no React deps
+import { transpile } from "../../../../app/src/simulator/arduino-transpiler";
+
+/** Validate sketch code through the transpiler. Returns errors or null if valid. */
+function validateSketch(code: string): { valid: boolean; error?: string; line?: number } {
+  if (!code.trim()) return { valid: true }
+  const result = transpile(code)
+  if (!result.success && result.error) {
+    return { valid: false, error: result.error.message, line: result.error.line }
+  }
+  // Also try JS compilation
+  try {
+    new Function(result.code)
+  } catch (e) {
+    return { valid: false, error: e instanceof Error ? e.message : "JS compilation failed" }
+  }
+  return { valid: true }
+}
 
 // ── All component types (kept in sync with schema) ──────────────────────
 
@@ -142,25 +161,60 @@ function makeDelegationTool(
 
 // ── Core tools ──────────────────────────────────────────────────────────
 
+export type ToolMode = "build" | "edit" | "all"
+
+/**
+ * Build mode: only propose_circuit + read tools.
+ *   For new circuits — agent describes the whole thing in one call.
+ *
+ * Edit mode: granular tools for modifying existing circuits.
+ *   No propose_circuit (would replace work), no place_component
+ *   (use update_component for existing items).
+ *
+ * All: every tool. Used as fallback when mode is unclear.
+ */
+const BUILD_MODE_TOOLS = new Set([
+  "get_board_state",
+  "get_wiring_guide",
+  "propose_circuit",
+  "delegate_to_graph_agent",
+  "delegate_to_circuit_agent",
+])
+
+const EDIT_MODE_TOOLS = new Set([
+  "get_board_state",
+  "get_wiring_guide",
+  "place_component",
+  "update_component",
+  "move_component",
+  "remove_component",
+  "connect_wire",
+  "wire_component_to_pin",
+  "remove_wire",
+  "update_wire",
+  "update_sketch",
+  "patch_sketch",
+  "delegate_to_graph_agent",
+  "delegate_to_circuit_agent",
+])
+
 export function createCoreTools(params: {
   project: ProjectFile;
   sceneId: string;
   ops: BoardOp[];
   delegation: DelegationContext;
+  mode?: ToolMode;
 }) {
-  const { project, sceneId, ops, delegation } = params;
+  const { project, sceneId, ops, delegation, mode = "all" } = params;
   const projectId = project.project.id;
   const expectedVersion = project.project.version;
   const opCtx = { projectId, sceneId, expectedVersion };
 
   // Working copy: prefer the live tracker (always current), fall back to project file.
   const trackedBoard = boardTracker.get(projectId);
-  const workingBoard = structuredClone(trackedBoard ?? project.boardState ?? {
-    components: {}, wires: {}, pinStates: [], libraryState: { servos: {}, lcd: null, serialBaud: 0 },
-    serialOutput: [], sketchCode: "", customLibraries: {},
-  });
+  const workingBoard = structuredClone(trackedBoard ?? project.boardState ?? createDefaultBoardState());
 
-  return {
+  const allTools = {
     // ── Read ────────────────────────────────────────────────────────
 
     get_board_state: tool({
@@ -486,11 +540,15 @@ Digital: D0-D13 | Analog: A0-A5 (=D14-19) | PWM: D3,5,6,9,10,11 | I2C: A4(SDA), 
     // ── Sketch ──────────────────────────────────────────────────────
 
     update_sketch: tool({
-      description: "Replace the full Arduino sketch. For small edits, use patch_sketch.",
+      description: "Replace the full Arduino sketch. For small edits, use patch_sketch. Code is validated before accepting.",
       inputSchema: z.object({
         code: z.string(),
       }),
       execute: async (input) => {
+        const check = validateSketch(input.code);
+        if (!check.valid) {
+          return { error: `Sketch has errors: ${check.error}${check.line ? ` (line ${check.line})` : ""}. Fix the code and retry.` };
+        }
         ops.push(makeBoardOp(opCtx, { kind: "update_sketch", payload: { code: input.code } }));
         workingBoard.sketchCode = input.code;
         return { updated: true, codeLength: input.code.length };
@@ -516,6 +574,11 @@ Digital: D0-D13 | Analog: A0-A5 (=D14-19) | PWM: D3,5,6,9,10,11 | I2C: A4(SDA), 
         const after = lines.slice(input.endLine);
         const patched = [...before, input.newCode, ...after].join("\n");
 
+        const check = validateSketch(patched);
+        if (!check.valid) {
+          return { error: `Patched sketch has errors: ${check.error}${check.line ? ` (line ${check.line})` : ""}. Fix and retry.` };
+        }
+
         ops.push(makeBoardOp(opCtx, { kind: "update_sketch", payload: { code: patched } }));
         workingBoard.sketchCode = patched;
 
@@ -523,6 +586,269 @@ Digital: D0-D13 | Analog: A0-A5 (=D14-19) | PWM: D3,5,6,9,10,11 | I2C: A4(SDA), 
           updated: true,
           linesReplaced: input.endLine - input.startLine + 1,
           newCodeLength: patched.length,
+        };
+      },
+    }),
+
+    // ── Plan-then-execute: propose_circuit ────────────────────────
+    //
+    // The model describes WHAT it wants (component types + wire connections).
+    // The tool handles HOW (positioning, ID generation, validation, wiring).
+    // No UUIDs, no grid coordinates — eliminates hallucination.
+
+    propose_circuit: tool({
+      description: `Build an entire circuit in one call. Describe components and wires — the tool handles positioning, IDs, and validation automatically.
+
+Components: list type + name + properties. They'll be auto-positioned on the breadboard.
+Wires: reference components by their INDEX in the components array (0, 1, 2...).
+  - Use "component:N" to wire an Arduino pin to a component's grid position.
+  - For LED circuits: pair each LED with a resistor — the tool wires LED→resistor→GND correctly.
+Sketch: provide full Arduino sketch code.
+
+Example — LED blink:
+  components: [{type:"led", name:"LED"}, {type:"resistor", name:"R1", properties:{resistance:220}}]
+  wires: [{arduinoPin:13, toComponent:0}]
+  ledResistorPairs: [{ledIndex:0, resistorIndex:1}]
+  sketch: "void setup(){...}"`,
+
+      inputSchema: z.object({
+        components: z.array(z.object({
+          type: z.enum(ALL_COMPONENT_TYPES),
+          name: z.string(),
+          properties: z.record(z.string(), z.unknown()).optional(),
+        })).describe("Components to place. Referenced by array index in wires."),
+
+        wires: z.array(z.object({
+          arduinoPin: z.number().describe("Arduino pin number (D0-D13=0-13, A0-A5=14-19, 5V=-1, GND=-3)"),
+          toComponent: z.number().int().min(0).describe("Index into components array"),
+          color: z.string().optional(),
+          pinOffset: z.number().int().optional().describe("Row offset from component position (0=signal, 1=vcc, 2=gnd for 3-pin components)"),
+        })).describe("Wires from Arduino pins to components"),
+
+        ledResistorPairs: z.array(z.object({
+          ledIndex: z.number().int().min(0).describe("Index of LED in components array"),
+          resistorIndex: z.number().int().min(0).describe("Index of its series resistor"),
+        })).optional().describe("LED+resistor pairs — tool auto-wires cathode→resistor→GND"),
+
+        sketch: z.string().optional().describe("Complete Arduino sketch code"),
+      }),
+
+      execute: async (input) => {
+        const errors: string[] = [];
+
+        // Validate indices
+        for (const wire of input.wires) {
+          if (wire.toComponent >= input.components.length) {
+            errors.push(`Wire references component index ${wire.toComponent} but only ${input.components.length} components defined.`);
+          }
+        }
+        for (const pair of input.ledResistorPairs ?? []) {
+          if (pair.ledIndex >= input.components.length) errors.push(`ledResistorPair references LED index ${pair.ledIndex} — out of range.`);
+          if (pair.resistorIndex >= input.components.length) errors.push(`ledResistorPair references resistor index ${pair.resistorIndex} — out of range.`);
+          if (input.components[pair.ledIndex]?.type !== "led" && input.components[pair.ledIndex]?.type !== "rgb_led") {
+            errors.push(`Component ${pair.ledIndex} is ${input.components[pair.ledIndex]?.type}, not an LED.`);
+          }
+          if (input.components[pair.resistorIndex]?.type !== "resistor") {
+            errors.push(`Component ${pair.resistorIndex} is ${input.components[pair.resistorIndex]?.type}, not a resistor.`);
+          }
+        }
+        if (errors.length > 0) return { success: false, errors };
+
+        // ── Auto-position components ──
+        // Build a working copy for position checks
+        const tempBoard = structuredClone(workingBoard);
+        const placedComponents: Array<{ id: string; type: string; name: string; row: number; col: number }> = [];
+        const pairedResistors = new Set((input.ledResistorPairs ?? []).map(p => p.resistorIndex));
+        const pairedLeds = new Set((input.ledResistorPairs ?? []).map(p => p.ledIndex));
+
+        let nextRow = 0;
+        // Find first open row
+        for (const c of Object.values(tempBoard.components)) {
+          if (c.type !== "arduino_uno") nextRow = Math.max(nextRow, c.y + 4);
+        }
+
+        // Component height in rows
+        function componentHeight(type: string): number {
+          if (type === "led" || type === "rgb_led") return 2;
+          if (type === "servo" || type === "potentiometer" || type === "temperature_sensor" || type === "capacitor") return 3;
+          if (type === "button") return 2;
+          if (type === "resistor") return 1;
+          return 1;
+        }
+
+        // Default column for component types
+        function componentCol(type: string): number {
+          if (type === "button") return 3; // straddles gap
+          return 2; // left strip
+        }
+
+        // Default pin map (all null)
+        function defaultPins(type: string): Record<string, null> {
+          const pinMaps: Record<string, string[]> = {
+            led: ["anode", "cathode"], rgb_led: ["red", "green", "blue", "common"],
+            button: ["a", "b"], resistor: ["a", "b"], capacitor: ["positive", "negative"],
+            potentiometer: ["vcc", "signal", "gnd"], buzzer: ["positive", "negative"],
+            servo: ["signal", "vcc", "gnd"], neopixel: ["din"],
+            pir_sensor: ["signal"], relay: ["signal"], dc_motor: ["signal"],
+            dht_sensor: ["signal"], ir_receiver: ["signal"],
+            shift_register: ["data", "clock", "latch"],
+            oled_display: ["sda", "scl"], lcd_16x2: ["rs", "en", "d4", "d5", "d6", "d7"],
+            seven_segment: ["a", "b", "c", "d", "e", "f", "g"],
+            ic: [], temperature_sensor: ["vcc", "signal", "gnd"],
+          };
+          const names = pinMaps[type] ?? [];
+          const result: Record<string, null> = {};
+          for (const n of names) result[n] = null;
+          return result;
+        }
+
+        for (let i = 0; i < input.components.length; i++) {
+          const comp = input.components[i];
+
+          // Skip resistors that are paired with LEDs — they'll be positioned with the LED
+          if (pairedResistors.has(i)) continue;
+
+          const col = componentCol(comp.type);
+          const row = nextRow;
+          const id = crypto.randomUUID();
+
+          placedComponents[i] = { id, type: comp.type, name: comp.name, row, col };
+
+          // If this is an LED with a paired resistor, place resistor in cathode row
+          if (pairedLeds.has(i)) {
+            const pair = (input.ledResistorPairs ?? []).find(p => p.ledIndex === i);
+            if (pair) {
+              const resComp = input.components[pair.resistorIndex];
+              const cathodeRow = row + 1;
+              const resId = crypto.randomUUID();
+              // Resistor at col 3, same row as cathode — spans gap to col 7
+              placedComponents[pair.resistorIndex] = {
+                id: resId, type: "resistor", name: resComp.name, row: cathodeRow, col: 3,
+              };
+              nextRow = cathodeRow + 2; // leave gap after LED+resistor pair
+            }
+          } else {
+            nextRow = row + componentHeight(comp.type) + 1;
+          }
+        }
+
+        // Fill in any remaining components that weren't positioned
+        for (let i = 0; i < input.components.length; i++) {
+          if (placedComponents[i]) continue;
+          const comp = input.components[i];
+          const col = componentCol(comp.type);
+          const id = crypto.randomUUID();
+          placedComponents[i] = { id, type: comp.type, name: comp.name, row: nextRow, col };
+          nextRow += componentHeight(comp.type) + 1;
+        }
+
+        // Validate all positions are on board
+        for (const pc of placedComponents) {
+          if (pc.row > 27) {
+            errors.push(`Component "${pc.name}" would be placed at row ${pc.row}, which is near the board edge. Board has 30 rows.`);
+          }
+        }
+        if (errors.length > 0) return { success: false, errors, hint: "Too many components for the board. Try reducing the circuit." };
+
+        // ── Generate ops ──
+        const generatedOps: BoardOp[] = [];
+
+        // Place components
+        for (let i = 0; i < input.components.length; i++) {
+          const comp = input.components[i];
+          const pos = placedComponents[i];
+          generatedOps.push(makeBoardOp(opCtx, {
+            kind: "place_component",
+            payload: {
+              component: {
+                id: pos.id,
+                type: comp.type,
+                name: comp.name,
+                x: pos.col,
+                y: pos.row,
+                rotation: 0,
+                pins: defaultPins(comp.type),
+                properties: comp.properties ?? {},
+              },
+            },
+          }));
+          // Update working state
+          workingBoard.components[pos.id] = {
+            id: pos.id, type: comp.type, name: comp.name,
+            x: pos.col, y: pos.row, rotation: 0,
+            pins: defaultPins(comp.type), properties: comp.properties ?? {},
+          } as typeof workingBoard.components[string];
+        }
+
+        // Wire Arduino pins to components
+        for (const wire of input.wires) {
+          const target = placedComponents[wire.toComponent];
+          const offset = wire.pinOffset ?? 0;
+          const wireId = crypto.randomUUID();
+          generatedOps.push(makeBoardOp(opCtx, {
+            kind: "connect_wire",
+            payload: {
+              wire: {
+                id: wireId,
+                fromRow: -999,
+                fromCol: wire.arduinoPin,
+                toRow: target.row + offset,
+                toCol: target.col,
+                color: wire.color ?? "#22c55e",
+              },
+            },
+          }));
+        }
+
+        // Auto-wire LED+resistor pairs: GND → resistor pin B (col 7, right strip)
+        for (const pair of input.ledResistorPairs ?? []) {
+          const res = placedComponents[pair.resistorIndex];
+          const wireId = crypto.randomUUID();
+          generatedOps.push(makeBoardOp(opCtx, {
+            kind: "connect_wire",
+            payload: {
+              wire: {
+                id: wireId,
+                fromRow: -999,
+                fromCol: -3, // GND
+                toRow: res.row,
+                toCol: 7, // resistor pin B on right strip
+                color: "#42a5f5",
+              },
+            },
+          }));
+        }
+
+        // Write sketch (validate first)
+        let sketchError: string | undefined;
+        if (input.sketch) {
+          const check = validateSketch(input.sketch);
+          if (!check.valid) {
+            sketchError = `${check.error}${check.line ? ` (line ${check.line})` : ""}`;
+          } else {
+            generatedOps.push(makeBoardOp(opCtx, {
+              kind: "update_sketch",
+              payload: { code: input.sketch },
+            }));
+            workingBoard.sketchCode = input.sketch;
+          }
+        }
+
+        // Push all ops
+        for (const op of generatedOps) ops.push(op);
+
+        // Build summary
+        const summary = placedComponents.map((pc, i) =>
+          `  [${i}] ${pc.name} (${pc.type}) → row=${pc.row} col=${pc.col} id=${pc.id}`
+        ).join("\n");
+
+        return {
+          success: true,
+          componentsPlaced: placedComponents.length,
+          wiresCreated: input.wires.length + (input.ledResistorPairs?.length ?? 0),
+          sketchUpdated: !!input.sketch && !sketchError,
+          sketchError,
+          layout: summary,
         };
       },
     }),
@@ -544,5 +870,17 @@ Digital: D0-D13 | Analog: A0-A5 (=D14-19) | PWM: D3,5,6,9,10,11 | I2C: A4(SDA), 
       delegation,
       ops,
     ),
-  };
+  } as const;
+
+  if (mode === "build") {
+    return Object.fromEntries(
+      Object.entries(allTools).filter(([name]) => BUILD_MODE_TOOLS.has(name)),
+    ) as typeof allTools;
+  }
+  if (mode === "edit") {
+    return Object.fromEntries(
+      Object.entries(allTools).filter(([name]) => EDIT_MODE_TOOLS.has(name)),
+    ) as typeof allTools;
+  }
+  return allTools;
 }

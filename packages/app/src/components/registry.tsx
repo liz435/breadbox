@@ -10,6 +10,8 @@
 
 import type React from "react"
 import { HOLE_SPACING } from "@/breadboard/breadboard-constants"
+import { findInputPinForComponent } from "@/breadboard/component-pin-resolver"
+import { buttonPressStore } from "@/simulator/button-press-store"
 import type { ComponentDefinition } from "./component-definition"
 
 // ── Icons ─────────────────────────────────────────────────────────────────
@@ -157,8 +159,13 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     defaultPins: { a: null, b: null },
     defaultProperties: { resistance: 220 },
     accentColor: "#d2b48c",
-    footprint: (row, col) => ({
-      points: [{ row, col }, { row, col: col + 4 }],
+    // Horizontal resistor that STRADDLES the center gap: one leg in the left
+    // half (col 3), the other in the right half (col 6). This matches how
+    // resistors are placed on a real breadboard and keeps the two legs in
+    // separate nets. The stored `x` (col) is ignored for pin placement — the
+    // `row` decides which row of 5 each leg lives in.
+    footprint: (row) => ({
+      points: [{ row, col: 3 }, { row, col: 6 }],
       width: HOLE_SPACING * 5,
       height: HOLE_SPACING,
     }),
@@ -250,11 +257,24 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
         <circle cx={12} cy={12} r={3} fill="#f59e0b" />
       </svg>
     ),
-    buildNetlist: (comp, { footprint, resolveNode, pinStates }) => {
+    buildNetlist: (comp, { footprint, resolveNode, pinStates, wires }) => {
       const leftNode = resolveNode(footprint.points[0])
       const rightNode = resolveNode(footprint.points[2])
-      const inputPin = comp.pins.a ?? comp.pins.input
-      const isPressed = inputPin != null && pinStates.some(ps => ps.pin === inputPin && ps.digitalValue === 1)
+      // Physical press (UI interaction) takes priority — works for pure hardware
+      // circuits with no Arduino pin connected.
+      let isPressed = buttonPressStore.isPressed(comp.id)
+      // Fallback: derive from Arduino pin state for sketch-controlled circuits
+      // (e.g. INPUT_PULLUP where the VM reads digitalRead and drives outputs).
+      if (!isPressed) {
+        const inputPin = findInputPinForComponent(comp, wires)
+        if (inputPin != null) {
+          const ps = pinStates[inputPin]
+          if (ps) {
+            const pressedValue = ps.mode === "INPUT_PULLUP" ? 0 : 1
+            isPressed = ps.digitalValue === pressedValue
+          }
+        }
+      }
       const resistance = isPressed ? 0.01 : 10_000_000
       return { lines: [`R_${sanitize(comp.id)} ${leftNode} ${rightNode} ${resistance}`], nodeA: leftNode, nodeB: rightNode }
     },
@@ -349,8 +369,10 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     label: "Buzzer",
     defaultPins: { positive: null, negative: null },
     accentColor: "#1a1a1a",
+    // Vertical layout: positive on top row, negative on row below.
+    // Keeps the two legs in separate nets on the breadboard.
     footprint: (row, col) => ({
-      points: [{ row, col }, { row, col: col + 1 }],
+      points: [{ row, col }, { row: row + 1, col }],
       width: HOLE_SPACING * 2,
       height: HOLE_SPACING * 2,
     }),
@@ -511,15 +533,16 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     description: "HC-SR04 distance sensor — measures 2-400cm via echo",
     label: "Ultrasonic Sensor",
     defaultPins: { trigger: null, echo: null, vcc: null, gnd: null },
+    // Vertical pin column: vcc → trig → echo → gnd, each in its own row.
     footprint: (row, col) => ({
       points: [
         { row, col },
-        { row, col: col + 1 },
-        { row, col: col + 2 },
-        { row, col: col + 3 },
+        { row: row + 1, col },
+        { row: row + 2, col },
+        { row: row + 3, col },
       ],
       width: HOLE_SPACING * 4,
-      height: HOLE_SPACING * 2,
+      height: HOLE_SPACING * 4,
     }),
     paletteIcon: (
       <svg viewBox="0 0 24 24" width={20} height={20}>
@@ -546,17 +569,20 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     description: "16x2 character LCD display",
     label: "LCD 16×2",
     defaultPins: { rs: null, en: null, d4: null, d5: null, d6: null, d7: null },
+    // Vertical pin column: each of rs/en/d4/d5/d6/d7 on its own breadboard row.
+    // On a real breadboard the LCD header is plugged into individual rows so
+    // every pin is its own net; a horizontal footprint would short them.
     footprint: (row, col) => ({
       points: [
         { row, col },
-        { row, col: col + 1 },
-        { row, col: col + 2 },
-        { row, col: col + 3 },
-        { row, col: col + 4 },
-        { row, col: col + 5 },
+        { row: row + 1, col },
+        { row: row + 2, col },
+        { row: row + 3, col },
+        { row: row + 4, col },
+        { row: row + 5, col },
       ],
       width: HOLE_SPACING * 6,
-      height: HOLE_SPACING * 2,
+      height: HOLE_SPACING * 6,
     }),
     paletteIcon: (
       <svg viewBox="0 0 24 24" width={20} height={20}>
@@ -590,18 +616,20 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     description: "7-segment numeric display (0-9)",
     label: "7-Segment Display",
     defaultPins: { a: null, b: null, c: null, d: null, e: null, f: null, g: null },
+    // Vertical pin column: a..g each in their own row so no two segment pins
+    // share a breadboard net.
     footprint: (row, col) => ({
       points: [
         { row, col },
-        { row, col: col + 1 },
-        { row, col: col + 2 },
-        { row, col: col + 3 },
-        { row, col: col + 4 },
-        { row, col: col + 5 },
-        { row, col: col + 6 },
+        { row: row + 1, col },
+        { row: row + 2, col },
+        { row: row + 3, col },
+        { row: row + 4, col },
+        { row: row + 5, col },
+        { row: row + 6, col },
       ],
-      width: HOLE_SPACING * 7,
-      height: HOLE_SPACING * 2,
+      width: HOLE_SPACING * 5,
+      height: HOLE_SPACING * 7,
     }),
     paletteIcon: (
       <svg viewBox="0 0 24 24" width={20} height={20}>
@@ -642,14 +670,15 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     defaultPins: { din: null },
     defaultProperties: { numLeds: 8 },
     accentColor: "#a855f7",
+    // Vertical header: din / 5v / gnd each on their own row.
     footprint: (row, col) => ({
       points: [
         { row, col },
-        { row, col: col + 1 },
-        { row, col: col + 2 },
+        { row: row + 1, col },
+        { row: row + 2, col },
       ],
-      width: HOLE_SPACING * 3,
-      height: HOLE_SPACING,
+      width: HOLE_SPACING * 5,
+      height: HOLE_SPACING * 3,
     }),
     paletteIcon: (
       <svg viewBox="0 0 24 24" width={20} height={20}>
@@ -696,14 +725,16 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     defaultPins: { signal: null },
     defaultProperties: {},
     accentColor: "#f59e0b",
+    // Vertical header: vcc / signal / gnd each on their own row so no two
+    // pins share a breadboard net.
     footprint: (row, col) => ({
       points: [
         { row, col },
-        { row, col: col + 1 },
-        { row, col: col + 2 },
+        { row: row + 1, col },
+        { row: row + 2, col },
       ],
-      width: HOLE_SPACING * 3,
-      height: HOLE_SPACING * 2,
+      width: HOLE_SPACING * 4,
+      height: HOLE_SPACING * 3,
     }),
     paletteIcon: (
       <svg viewBox="0 0 24 24" width={20} height={20}>
@@ -827,14 +858,15 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     defaultPins: { signal: null },
     defaultProperties: { variant: "DHT11" },
     accentColor: "#06b6d4",
+    // Vertical header: vcc / data / gnd each on their own row.
     footprint: (row, col) => ({
       points: [
         { row, col },
-        { row, col: col + 1 },
-        { row, col: col + 2 },
+        { row: row + 1, col },
+        { row: row + 2, col },
       ],
-      width: HOLE_SPACING * 3,
-      height: HOLE_SPACING * 2,
+      width: HOLE_SPACING * 4,
+      height: HOLE_SPACING * 3,
     }),
     paletteIcon: (
       <svg viewBox="0 0 24 24" width={20} height={20}>
@@ -880,14 +912,16 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     defaultPins: { signal: null },
     defaultProperties: {},
     accentColor: "#dc2626",
+    // Vertical pin column: out / gnd / vcc — matches the TSOP38238 pinout
+    // and keeps each lead in its own breadboard net.
     footprint: (row, col) => ({
       points: [
         { row, col },
-        { row, col: col + 1 },
-        { row, col: col + 2 },
+        { row: row + 1, col },
+        { row: row + 2, col },
       ],
       width: HOLE_SPACING * 3,
-      height: HOLE_SPACING,
+      height: HOLE_SPACING * 3,
     }),
     paletteIcon: (
       <svg viewBox="0 0 24 24" width={20} height={20}>
@@ -984,15 +1018,16 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     defaultPins: { sda: null, scl: null },
     defaultProperties: {},
     accentColor: "#06b6d4",
+    // Vertical 4-pin header: gnd / vcc / scl / sda.
     footprint: (row, col) => ({
       points: [
         { row, col },
-        { row, col: col + 1 },
-        { row, col: col + 2 },
-        { row, col: col + 3 },
+        { row: row + 1, col },
+        { row: row + 2, col },
+        { row: row + 3, col },
       ],
-      width: HOLE_SPACING * 4,
-      height: HOLE_SPACING * 3,
+      width: HOLE_SPACING * 6,
+      height: HOLE_SPACING * 4,
     }),
     paletteIcon: (
       <svg viewBox="0 0 24 24" width={20} height={20}>

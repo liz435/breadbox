@@ -46,8 +46,11 @@ function ResistorRendererInner({ component, isSelected, electricalState }: Resis
   const resistance = (component.properties.resistance as number) ?? 220;
   const bands = resistanceToBands(resistance);
 
-  const pinA = gridToPixel({ row: component.y, col: component.x });
-  const pinB = gridToPixel({ row: component.y, col: component.x + 4 });
+  // The resistor's footprint hardcodes its two legs to col 3 (left half) and
+  // col 6 (right half) so it always straddles the center gap — the placement
+  // col (component.x) is ignored for pin positions, only the row matters.
+  const pinA = gridToPixel({ row: component.y, col: 3 });
+  const pinB = gridToPixel({ row: component.y, col: 6 });
 
   const centerX = (pinA.x + pinB.x) / 2;
   const centerY = pinA.y;

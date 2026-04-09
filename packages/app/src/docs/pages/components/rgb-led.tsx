@@ -6,7 +6,7 @@ export function RgbLedPage() {
       <PageTitle
         title="RGB LED"
         subtitle="Common-cathode RGB LED with independent red, green, and blue channels."
-        badge={<Badge variant="implemented">Fully Simulated</Badge>}
+        badge={<Badge variant="implemented">Simulated</Badge>}
       />
 
       <Section title="Pins">
@@ -40,15 +40,24 @@ export function RgbLedPage() {
         <Table
           headers={["Feature", "Status"]}
           rows={[
-            ["Per-channel brightness from PWM current", "Implemented"],
-            ["Glow animation", "Implemented — uses LED renderer"],
-            ["Reverse polarity warning per channel", "Implemented"],
-            ["No-resistor warning", "Implemented"],
+            ["Per-channel PWM reading (red, green, blue)", "Implemented — renderer reads pins.red/green/blue directly"],
+            ["Color mixing (PWM → RGB dome color)", "Implemented — dome colour = rgb(R.pwm, G.pwm, B.pwm)"],
+            ["Live R,G,B readout on the breadboard", "Implemented"],
+            ["Brightness-scaled halo glow", "Implemented"],
+            ["SPICE simulation (single net)", "Partial — modeled as one resistor; per-channel current/reverse warnings not computed"],
+            ["No-resistor warning per channel", "Not implemented"],
           ]}
         />
+        <Note>
+          The dome color updates live as your sketch writes to the three PWM pins —
+          <code>analogWrite(redPin, 200); analogWrite(greenPin, 50); analogWrite(bluePin, 0);</code>
+          renders as <code>rgb(200, 50, 0)</code> (warm red-orange). Digital HIGH counts as full
+          brightness on that channel.
+        </Note>
         <Warn>
           Each color channel needs its own current-limiting resistor. Red needs ~100 Ω;
-          green and blue need ~68 Ω (higher forward voltage).
+          green and blue need ~68 Ω (higher forward voltage). The simulator does not yet
+          warn per channel, so it is up to you to include resistors in your schematic.
         </Warn>
       </Section>
 

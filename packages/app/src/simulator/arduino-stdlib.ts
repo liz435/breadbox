@@ -1,5 +1,9 @@
 // ── Arduino Standard Library (injectable globals for transpiled sketches) ───
 
+import type { PinStateStore } from "./pin-state-store"
+import type { PinMode } from "@dreamer/schemas"
+import { ultrasonicDistanceBus, dhtSensorBus, irReceiverBus } from "./sensor-inputs"
+
 /** Virtual I2C device that can be registered on the bus. */
 export type I2CDevice = {
   address: number
@@ -8,19 +12,17 @@ export type I2CDevice = {
 }
 
 export type StdlibCallbacks = {
-  onPinWrite: (pin: number, value: number, isPwm: boolean) => void
-  onPinMode: (pin: number, mode: number) => void
   onSerialPrint: (text: string) => void
   onTone: (pin: number, frequency: number, duration?: number) => void
   onNoTone: (pin: number) => void
 }
 
+/**
+ * Non-pin runtime state. Pin values live in the PinStateStore.
+ * This struct keeps everything else (serial buffers, LCD state, servos, etc.)
+ * that's private to the VM and not part of the cross-component pin state model.
+ */
 export type StdlibState = {
-  pins: number[] // 20 pins, digital values
-  prevPins: number[] // previous digital values (for edge detection)
-  pinModes: number[] // 20 pins, modes (0=INPUT, 1=OUTPUT, 2=INPUT_PULLUP)
-  analogValues: number[] // 20 pins, analog input values (0-1023)
-  pwmValues: number[] // 20 pins, PWM output values (0-255)
   serialBuffer: string[] // incoming serial data
   startTime: number // simulation start timestamp
   servos: Map<string, { pin: number; angle: number }>
@@ -40,11 +42,6 @@ export type StdlibState = {
 
 export function createStdlibState(startTime: number): StdlibState {
   return {
-    pins: new Array(20).fill(0),
-    prevPins: new Array(20).fill(0),
-    pinModes: new Array(20).fill(0),
-    analogValues: new Array(20).fill(0),
-    pwmValues: new Array(20).fill(0),
     serialBuffer: [],
     startTime,
     servos: new Map(),
@@ -57,6 +54,16 @@ export function createStdlibState(startTime: number): StdlibState {
   }
 }
 
+/** Map Arduino's numeric pinMode values to our PinMode enum. */
+function arduinoModeToPinMode(mode: number): PinMode {
+  switch (mode) {
+    case 0: return "INPUT"
+    case 1: return "OUTPUT"
+    case 2: return "INPUT_PULLUP"
+    default: return "UNSET"
+  }
+}
+
 /**
  * Create the full set of Arduino globals that get injected into the
  * transpiled sketch's execution scope.
@@ -65,38 +72,36 @@ export function createStdlib(
   state: StdlibState,
   callbacks: StdlibCallbacks,
   getMillis: () => number,
+  pinStore: PinStateStore,
 ): Record<string, unknown> {
   // ── Pin I/O ──────────────────────────────────────────────────────
+  //
+  // All pin reads/writes go through the PinStateStore — single source of truth.
 
   function pinMode(pin: number, mode: number): void {
-    if (pin < 0 || pin > 19) return
-    state.pinModes[pin] = mode
-    callbacks.onPinMode(pin, mode)
+    pinStore.writeFromSketch(pin, { mode: arduinoModeToPinMode(mode) })
   }
 
   function digitalWrite(pin: number, value: number): void {
-    if (pin < 0 || pin > 19) return
-    state.pins[pin] = value ? 1 : 0
-    state.pwmValues[pin] = 0
-    callbacks.onPinWrite(pin, state.pins[pin], false)
+    const v: 0 | 1 = value ? 1 : 0
+    pinStore.writeFromSketch(pin, { digitalValue: v, pwmValue: 0, isPwm: false })
   }
 
   function digitalRead(pin: number): number {
-    if (pin < 0 || pin > 19) return 0
-    return state.pins[pin]
+    return pinStore.readDigital(pin)
   }
 
   function analogWrite(pin: number, value: number): void {
-    if (pin < 0 || pin > 19) return
     const clamped = Math.max(0, Math.min(255, Math.round(value)))
-    state.pwmValues[pin] = clamped
-    state.pins[pin] = clamped > 0 ? 1 : 0
-    callbacks.onPinWrite(pin, clamped, true)
+    pinStore.writeFromSketch(pin, {
+      pwmValue: clamped,
+      isPwm: true,
+      digitalValue: clamped > 0 ? 1 : 0,
+    })
   }
 
   function analogRead(pin: number): number {
-    if (pin < 0 || pin > 19) return 0
-    return state.analogValues[pin]
+    return pinStore.readAnalog(pin)
   }
 
   // ── Timing ───────────────────────────────────────────────────────
@@ -177,9 +182,20 @@ export function createStdlib(
   }
 
   // ── Interrupts ───────────────────────────────────────────────────
+  //
+  // Interrupt registration is delegated to the PinStateStore, which fires
+  // edge-detection callbacks atomically whenever any write changes a digital
+  // value. No manual checkInterrupts() loop needed.
 
-  const interrupts: Map<number, { pin: number; mode: number; callback: () => void }> =
-    new Map()
+  function interruptModeFromArduino(mode: number): "RISING" | "FALLING" | "CHANGE" | "LOW" | "NONE" {
+    switch (mode) {
+      case 1: return "RISING"
+      case 2: return "FALLING"
+      case 3: return "CHANGE"
+      case 0: return "LOW"
+      default: return "NONE"
+    }
+  }
 
   function attachInterrupt(
     interruptNum: number,
@@ -187,11 +203,14 @@ export function createStdlib(
     mode: number,
   ): void {
     const pin = interruptNum === 0 ? 2 : interruptNum === 1 ? 3 : -1
-    interrupts.set(interruptNum, { pin, mode, callback })
+    if (pin < 0) return
+    pinStore.attachInterrupt(pin, interruptModeFromArduino(mode), callback)
   }
 
   function detachInterrupt(interruptNum: number): void {
-    interrupts.delete(interruptNum)
+    const pin = interruptNum === 0 ? 2 : interruptNum === 1 ? 3 : -1
+    if (pin < 0) return
+    pinStore.detachInterrupt(pin)
   }
 
   function digitalPinToInterrupt(pin: number): number {
@@ -200,31 +219,17 @@ export function createStdlib(
     return -1
   }
 
-  /** Check interrupt edges — called by VM after external pin updates. */
-  function checkInterrupts(): void {
-    for (const [, entry] of interrupts) {
-      if (entry.pin < 0 || entry.pin > 19) continue
-      const prev = state.prevPins[entry.pin]
-      const curr = state.pins[entry.pin]
-      if (prev === curr) continue
-      const shouldFire =
-        (entry.mode === 1 /* RISING */ && prev === 0 && curr === 1) ||
-        (entry.mode === 2 /* FALLING */ && prev === 1 && curr === 0) ||
-        (entry.mode === 3 /* CHANGE */)
-      if (shouldFire) {
-        try { entry.callback() } catch { /* ISR errors silenced */ }
-      }
-    }
-    for (let i = 0; i < 20; i++) state.prevPins[i] = state.pins[i]
-  }
-
   // ── pulseIn ─────────────────────────────────────────────────────
 
   function pulseIn(pin: number, _value: number, _timeout?: number): number {
     if (pin < 0 || pin > 19) return 0
-    // Simulated: analogValues can encode distance (cm) for ultrasonic sensors
-    const distance = state.analogValues[pin] || 50
-    return distance * 58 // 58 µs per cm round-trip
+    // Prefer the ultrasonic sensor bus: sensor-inputs.ts publishes the
+    // inspector distance (cm) keyed by echo pin. 58 µs per cm round-trip.
+    const cm = ultrasonicDistanceBus.get(pin)
+    if (cm != null) return Math.round(cm * 58)
+    // Legacy fallback: some sketches reuse analog values to fake a pulse width.
+    const distance = pinStore.readAnalog(pin) || 50
+    return distance * 58
   }
 
   // ── EEPROM ──────────────────────────────────────────────────────
@@ -329,12 +334,9 @@ export function createStdlib(
       this.position += steps
       // In simulation, energize pins in sequence to indicate movement
       if (this.pins.length >= 2 && this.speed > 0) {
-        const dir = steps > 0 ? 1 : 0
+        const dir: 0 | 1 = steps > 0 ? 1 : 0
         for (const p of this.pins) {
-          if (p >= 0 && p <= 19) {
-            state.pins[p] = dir
-            callbacks.onPinWrite(p, dir, false)
-          }
+          pinStore.writeFromSketch(p, { digitalValue: dir })
         }
       }
     }
@@ -354,10 +356,7 @@ export function createStdlib(
     }
 
     begin(): void {
-      if (this.pin >= 0 && this.pin <= 19) {
-        state.pins[this.pin] = 1
-        callbacks.onPinWrite(this.pin, 1, false)
-      }
+      pinStore.writeFromSketch(this.pin, { digitalValue: 1 })
     }
 
     show(): void { /* visual update would happen via libraryState */ }
@@ -402,10 +401,19 @@ export function createStdlib(
   // ── DHT Sensor ────────────────────────────────────────────────────
 
   class DHTClass {
-    constructor(_pin: number, _type: number | string) { /* no-op */ }
+    private pin: number
+    constructor(pin: number, _type: number | string) {
+      this.pin = pin
+    }
     begin(): void { /* no-op */ }
-    readTemperature(isFahrenheit?: boolean): number { return isFahrenheit ? 77 : 25 }
-    readHumidity(): number { return 50 }
+    readTemperature(isFahrenheit?: boolean): number {
+      const entry = dhtSensorBus.get(this.pin)
+      const c = entry?.temperatureC ?? 25
+      return isFahrenheit ? c * 9 / 5 + 32 : c
+    }
+    readHumidity(): number {
+      return dhtSensorBus.get(this.pin)?.humidity ?? 50
+    }
     computeHeatIndex(temp: number, hum: number): number { return temp + hum * 0.01 }
   }
 
@@ -413,14 +421,23 @@ export function createStdlib(
 
   class IRrecvClass {
     private enabled = false
-    constructor(_pin: number) { /* no-op */ }
+    private pin: number
+    constructor(pin: number) {
+      this.pin = pin
+    }
     enableIRIn(): void { this.enabled = true }
     decode(results: { value: number }): boolean {
-      if (this.enabled && Math.random() < 0.05) {
-        results.value = 0xFF00FF + Math.floor(Math.random() * 16)
-        return true
+      if (!this.enabled) return false
+      const entry = irReceiverBus.get(this.pin)
+      if (!entry) return false
+      if (Date.now() > entry.expiresAt) {
+        irReceiverBus.delete(this.pin)
+        return false
       }
-      return false
+      results.value = entry.code
+      // Consume the code so each Inspector Send button press is one event.
+      irReceiverBus.delete(this.pin)
+      return true
     }
     resume(): void { /* no-op */ }
   }
@@ -630,9 +647,6 @@ export function createStdlib(
     EEPROM,
     Wire,
     SPI,
-
-    // Internal (used by VM, not by user sketches)
-    __checkInterrupts: checkInterrupts,
 
     // Constants
     HIGH: 1,

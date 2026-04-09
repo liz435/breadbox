@@ -6,7 +6,7 @@ export function PhotoresistorPage() {
       <PageTitle
         title="Photoresistor (LDR)"
         subtitle="Light-Dependent Resistor. Resistance decreases as light increases."
-        badge={<Badge variant="partial">Partial — Fixed 10 kΩ</Badge>}
+        badge={<Badge variant="partial">Partial — Inspector-driven</Badge>}
       />
 
       <Section title="Pins">
@@ -24,6 +24,7 @@ export function PhotoresistorPage() {
         <Table
           headers={["Property", "Values", "Default"]}
           rows={[
+            ["Light Level", "0 – 100% (slider)", "50%"],
             ["Pin A", "D0–D13, A0–A5, power rails", "None"],
             ["Pin B", "A0–A5, GND", "None"],
           ]}
@@ -34,16 +35,17 @@ export function PhotoresistorPage() {
         <Table
           headers={["Feature", "Status"]}
           rows={[
-            ["Modeled as fixed 10 kΩ resistor (dark value)", "Implemented"],
+            ["Modeled as 10 kΩ resistor in SPICE", "Implemented"],
             ["Current / voltage from circuit solver", "Implemented"],
-            ["Light level parameter → resistance change", "Not implemented"],
-            ["analogRead returning light value", "Not implemented — ADC not wired"],
+            ["Light Level slider → analog pin value", "Implemented — injected via sensor bus"],
+            ["analogRead returning inverted light value", "Implemented (bright light → low value, typical of a divider to GND)"],
           ]}
         />
-        <Warn>
-          The photoresistor is always simulated as 10 kΩ regardless of any light level setting.
-          There is no way to vary the light input in the current simulator.
-        </Warn>
+        <Note>
+          Drag the Light Level slider in the Inspector to change what your sketch reads.
+          At 0% (dark) the photoresistor signal pin reads close to 1023; at 100% (bright)
+          it reads close to 0, matching a typical voltage-divider wiring to GND.
+        </Note>
       </Section>
 
       <Section title="Typical wiring (voltage divider)">

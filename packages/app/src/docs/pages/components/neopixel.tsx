@@ -35,12 +35,18 @@ export function NeoPixelPage() {
         <Table
           headers={["Feature", "Status"]}
           rows={[
-            ["Adafruit_NeoPixel class", "Implemented — begin, setPixelColor, show, Color, clear, fill"],
-            ["Individual LED colors", "Implemented in stdlib (not yet visualized on breadboard)"],
-            ["Brightness control", "Stub — setBrightness accepted but no visual effect"],
-            ["Chained strip rendering", "Not implemented — shows static colored dots"],
+            ["Adafruit_NeoPixel class", "Implemented — begin, setPixelColor, show, Color, clear, fill, numPixels"],
+            ["Per-pixel color tracking (inside the class)", "Implemented — stored on the instance"],
+            ["Rendered colors on the breadboard strip", "Not implemented — strip always shows a fixed rainbow"],
+            ["Brightness (setBrightness)", "Stub — accepted but no visual effect"],
+            ["Chained / cascading strips", "Not implemented — single strip per component"],
           ]}
         />
+        <Note>
+          Your sketch can <code>setPixelColor</code> and <code>show</code> without errors, and the
+          stored color array is correct — but the rendered strip currently draws a static rainbow.
+          Bridging instance state into the renderer (through <code>libraryState</code>) is planned.
+        </Note>
       </Section>
 
       <Section title="Auto-generated sketch code">
