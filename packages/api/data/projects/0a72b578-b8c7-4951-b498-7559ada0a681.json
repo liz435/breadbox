@@ -1,0 +1,366 @@
+{
+  "project": {
+    "id": "0a72b578-b8c7-4951-b498-7559ada0a681",
+    "name": "pure-hog-fern",
+    "version": 5,
+    "createdAt": "2026-04-09T16:41:48.685Z",
+    "updatedAt": "2026-04-09T23:36:04.670Z",
+    "threadId": "48a233bc-ca50-47d2-becb-d2dd9bca5cdb",
+    "activeSceneId": "b1c31361-a573-4bca-ae3f-3b9b20a9753f"
+  },
+  "scenes": {
+    "b1c31361-a573-4bca-ae3f-3b9b20a9753f": {
+      "id": "b1c31361-a573-4bca-ae3f-3b9b20a9753f",
+      "name": "Main Scene",
+      "version": 0,
+      "settings": {
+        "background": "#252525",
+        "gravity": {
+          "x": 0,
+          "y": 9.8
+        }
+      }
+    }
+  },
+  "entities": {},
+  "sceneEntityIds": {
+    "b1c31361-a573-4bca-ae3f-3b9b20a9753f": []
+  },
+  "components": {
+    "transform": {},
+    "sprite": {},
+    "tilemap": {},
+    "physicsBody": {},
+    "script": {},
+    "camera": {}
+  },
+  "assets": {},
+  "graph": {
+    "nodes": {
+      "node-1775752908727-pyo1on": {
+        "id": "node-1775752908727-pyo1on",
+        "type": "setup",
+        "name": "Setup",
+        "x": 60,
+        "y": 60,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      },
+      "node-1775752908727-1f5d2x": {
+        "id": "node-1775752908727-1f5d2x",
+        "type": "loop",
+        "name": "Loop",
+        "x": 60,
+        "y": 200,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      }
+    },
+    "edges": {}
+  },
+  "boardState": {
+    "components": {
+      "a752b22f-6882-42a7-810f-0aedead1e6cd": {
+        "id": "a752b22f-6882-42a7-810f-0aedead1e6cd",
+        "type": "led",
+        "name": "LED Top",
+        "x": 4,
+        "y": 0,
+        "rotation": 0,
+        "pins": {
+          "anode": null,
+          "cathode": null
+        },
+        "properties": {
+          "color": "#f97316"
+        }
+      },
+      "d7c5f940-66b9-42d7-a15b-a8ea3e3e51ab": {
+        "id": "d7c5f940-66b9-42d7-a15b-a8ea3e3e51ab",
+        "type": "led",
+        "name": "LED Top-Right",
+        "x": 7,
+        "y": 4,
+        "rotation": 0,
+        "pins": {
+          "anode": null,
+          "cathode": null
+        },
+        "properties": {
+          "color": "#f97316"
+        }
+      },
+      "f8c73873-fcf6-4a86-8e06-58220b07823c": {
+        "id": "f8c73873-fcf6-4a86-8e06-58220b07823c",
+        "type": "led",
+        "name": "LED Bottom-Right",
+        "x": 6,
+        "y": 10,
+        "rotation": 0,
+        "pins": {
+          "anode": null,
+          "cathode": null
+        },
+        "properties": {
+          "color": "#f97316"
+        }
+      },
+      "776970ac-aa5b-4f0b-a3b2-c785093da30e": {
+        "id": "776970ac-aa5b-4f0b-a3b2-c785093da30e",
+        "type": "led",
+        "name": "LED Bottom-Left",
+        "x": 2,
+        "y": 10,
+        "rotation": 0,
+        "pins": {
+          "anode": null,
+          "cathode": null
+        },
+        "properties": {
+          "color": "#f97316"
+        }
+      },
+      "f32f9c8a-2da4-4771-afc1-9e750a8cfc20": {
+        "id": "f32f9c8a-2da4-4771-afc1-9e750a8cfc20",
+        "type": "led",
+        "name": "LED Top-Left",
+        "x": 1,
+        "y": 4,
+        "rotation": 0,
+        "pins": {
+          "anode": null,
+          "cathode": null
+        },
+        "properties": {
+          "color": "#f97316"
+        }
+      },
+      "02f09e5e-7427-45ea-a79e-03cc82fecc17": {
+        "id": "02f09e5e-7427-45ea-a79e-03cc82fecc17",
+        "type": "resistor",
+        "name": "R1",
+        "x": 4,
+        "y": 2,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "60bf5635-0ee6-48c1-984a-5ad0797b7f11": {
+        "id": "60bf5635-0ee6-48c1-984a-5ad0797b7f11",
+        "type": "resistor",
+        "name": "R2",
+        "x": 7,
+        "y": 6,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "a517c489-dbeb-4649-95e9-d8cb223d36d9": {
+        "id": "a517c489-dbeb-4649-95e9-d8cb223d36d9",
+        "type": "resistor",
+        "name": "R3",
+        "x": 6,
+        "y": 12,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "d87aa3b6-c11f-4788-a568-4b948c07da00": {
+        "id": "d87aa3b6-c11f-4788-a568-4b948c07da00",
+        "type": "resistor",
+        "name": "R4",
+        "x": 3,
+        "y": 11,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "88b4c139-a9f8-418d-8a68-2b756e6a2aaa": {
+        "id": "88b4c139-a9f8-418d-8a68-2b756e6a2aaa",
+        "type": "resistor",
+        "name": "R5",
+        "x": 1,
+        "y": 6,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      }
+    },
+    "wires": {
+      "160bc42b-3db4-4383-8eec-b7fcf8f9b859": {
+        "id": "160bc42b-3db4-4383-8eec-b7fcf8f9b859",
+        "fromRow": -999,
+        "fromCol": 9,
+        "toRow": 0,
+        "toCol": 4,
+        "color": "#f97316"
+      },
+      "addb46dc-7629-44a0-897c-f7c1f14da02b": {
+        "id": "addb46dc-7629-44a0-897c-f7c1f14da02b",
+        "fromRow": -999,
+        "fromCol": 10,
+        "toRow": 4,
+        "toCol": 7,
+        "color": "#f97316"
+      },
+      "fb620a92-1879-4df0-a06f-7e4b69111c54": {
+        "id": "fb620a92-1879-4df0-a06f-7e4b69111c54",
+        "fromRow": -999,
+        "fromCol": 11,
+        "toRow": 10,
+        "toCol": 6,
+        "color": "#f97316"
+      },
+      "a372ad61-a82e-4c76-a1b4-956a8ab13078": {
+        "id": "a372ad61-a82e-4c76-a1b4-956a8ab13078",
+        "fromRow": -999,
+        "fromCol": 12,
+        "toRow": 10,
+        "toCol": 2,
+        "color": "#f97316"
+      },
+      "53a192ea-935b-4c2f-8842-429a61f1644d": {
+        "id": "53a192ea-935b-4c2f-8842-429a61f1644d",
+        "fromRow": -999,
+        "fromCol": 13,
+        "toRow": 4,
+        "toCol": 1,
+        "color": "#f97316"
+      },
+      "941698c7-e443-44fa-9b2b-0c3b033c09e5": {
+        "id": "941698c7-e443-44fa-9b2b-0c3b033c09e5",
+        "fromRow": -999,
+        "fromCol": -3,
+        "toRow": 2,
+        "toCol": 6,
+        "color": "#42a5f5"
+      },
+      "bf41045c-482e-49f8-8f7e-c5cec01856ff": {
+        "id": "bf41045c-482e-49f8-8f7e-c5cec01856ff",
+        "fromRow": -999,
+        "fromCol": -3,
+        "toRow": 6,
+        "toCol": 9,
+        "color": "#42a5f5"
+      },
+      "9a0e15ef-7e0d-4709-8495-50c0cfe1a805": {
+        "id": "9a0e15ef-7e0d-4709-8495-50c0cfe1a805",
+        "fromRow": -999,
+        "fromCol": -3,
+        "toRow": 12,
+        "toCol": 8,
+        "color": "#42a5f5"
+      },
+      "af8a1994-7ee9-4fe8-839a-157d38591398": {
+        "id": "af8a1994-7ee9-4fe8-839a-157d38591398",
+        "fromRow": -999,
+        "fromCol": -3,
+        "toRow": 12,
+        "toCol": 4,
+        "color": "#42a5f5"
+      },
+      "6f900427-923f-4a7f-add8-1dea7e8883c7": {
+        "id": "6f900427-923f-4a7f-add8-1dea7e8883c7",
+        "fromRow": -999,
+        "fromCol": -3,
+        "toRow": 6,
+        "toCol": 3,
+        "color": "#42a5f5"
+      },
+      "127b8c8d-7937-44f4-85ee-b5122c9b6622": {
+        "id": "127b8c8d-7937-44f4-85ee-b5122c9b6622",
+        "fromRow": 1,
+        "fromCol": 2,
+        "toRow": 2,
+        "toCol": 3,
+        "color": "#fbbf24"
+      },
+      "b29d59a0-70a4-4917-924d-d5c2b38f78d8": {
+        "id": "b29d59a0-70a4-4917-924d-d5c2b38f78d8",
+        "fromRow": 6,
+        "fromCol": 0,
+        "toRow": 5,
+        "toCol": 3,
+        "color": "#fbbf24"
+      },
+      "6667f3fd-1c6a-480c-ae21-7c17f9cf6540": {
+        "id": "6667f3fd-1c6a-480c-ae21-7c17f9cf6540",
+        "fromRow": 11,
+        "fromCol": 8,
+        "toRow": 12,
+        "toCol": 11,
+        "color": "#fbbf24"
+      },
+      "030bb9b6-aabc-4bc6-9c03-8e413a7c2cd4": {
+        "id": "030bb9b6-aabc-4bc6-9c03-8e413a7c2cd4",
+        "fromRow": 5,
+        "fromCol": 9,
+        "toRow": 6,
+        "toCol": 6,
+        "color": "#fbbf24"
+      }
+    },
+    "libraryState": {
+      "servos": {},
+      "lcd": null,
+      "serialBaud": 0
+    },
+    "serialOutput": [],
+    "sketchCode": "// Starfish LED Circuit — All Arms Blink Together\n// 5 arms: Top, Top-Right, Bottom-Right, Bottom-Left, Top-Left\nint pins[] = {9, 10, 11, 12, 13};\n\nvoid setup() {\n  for (int i = 0; i < 5; i++) {\n    pinMode(pins[i], OUTPUT);\n  }\n}\n\nvoid loop() {\n  // All 5 arms ON\n  for (int i = 0; i < 5; i++) digitalWrite(pins[i], HIGH);\n  delay(500);\n\n  // All 5 arms OFF\n  for (int i = 0; i < 5; i++) digitalWrite(pins[i], LOW);\n  delay(500);\n}\n",
+    "customLibraries": {
+      "Audio.h": {
+        "name": "Audio.h",
+        "code": "// Audio v1.0.6\n// Author: Arduino\n// Allows playing audio files from an SD card. For Arduino Due only.\n//\n// This is a placeholder. Add your implementation or\n// use the built-in shim if available.\n//\n// Original: https://downloads.arduino.cc/libraries/github.com/arduino-libraries/Audio-1.0.6.zip\n",
+        "description": "Allows playing audio files from an SD card. For Arduino Due only."
+      },
+      "AudioZero.h": {
+        "name": "AudioZero.h",
+        "code": "// AudioZero v1.1.2\n// Author: Arduino\n// Allows playing audio files from an SD card. For Arduino Zero, MKRZero and MKR1000 only.\n//\n// This is a placeholder. Add your implementation or\n// use the built-in shim if available.\n//\n// Original: https://downloads.arduino.cc/libraries/github.com/arduino-libraries/AudioZero-1.1.2.zip\n",
+        "description": "Allows playing audio files from an SD card. For Arduino Zero, MKRZero and MKR1000 only."
+      }
+    }
+  }
+}

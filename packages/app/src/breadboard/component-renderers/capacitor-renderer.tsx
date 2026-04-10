@@ -1,7 +1,9 @@
 import React from "react";
 import type { BoardComponent, PinState } from "@dreamer/schemas";
 import type { ComponentElectricalState } from "@/simulator/circuit-solver";
-import { gridToPixel, HOLE_SPACING } from "@/breadboard/breadboard-grid";
+import { gridToPixel } from "@/breadboard/breadboard-grid";
+import { LABEL_FONT_SIZE } from "@/breadboard/breadboard-constants";
+import { PinLabel } from "./pin-label";
 
 type CapacitorRendererProps = {
   component: BoardComponent;
@@ -62,12 +64,15 @@ function CapacitorRendererInner({ component, isSelected, electricalState }: Capa
           x={centerX + discWidth + 4}
           y={centerY + 2}
           textAnchor="start"
-          fontSize={6}
+          fontSize={LABEL_FONT_SIZE}
           fill="#888"
           fontFamily="monospace"
         >
           {component.name}
         </text>
+        {/* Pin labels */}
+        <PinLabel x={pinA.x} y={pinA.y} name="positive" side="left" />
+        <PinLabel x={pinB.x} y={pinB.y} name="negative" side="left" />
       </g>
     );
   }
@@ -159,12 +164,16 @@ function CapacitorRendererInner({ component, isSelected, electricalState }: Capa
       <circle cx={pinA.x} cy={pinA.y} r={2} fill="#3b82f6" opacity={0.5} />
       <circle cx={pinB.x} cy={pinB.y} r={2} fill="#3b82f6" opacity={0.5} />
 
+      {/* Pin labels */}
+      <PinLabel x={pinA.x} y={pinA.y} name="positive" side="left" />
+      <PinLabel x={pinB.x} y={pinB.y} name="negative" side="left" />
+
       {/* Label */}
       <text
         x={centerX + bodyWidth / 2 + 4}
         y={centerY + 2}
         textAnchor="start"
-        fontSize={6}
+        fontSize={LABEL_FONT_SIZE}
         fill="#888"
         fontFamily="monospace"
       >

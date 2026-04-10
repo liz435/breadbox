@@ -138,6 +138,20 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
     }
     return result;
   })
+  // ── Board state save ────────────────────────────────────────────────────
+  .post("/:id/board", async ({ params, body, set }) => {
+    const payload = body as Record<string, unknown> | null;
+    if (!payload) {
+      set.status = 400;
+      return { error: "Body must include board state" };
+    }
+    const result = await projectRepo.saveBoardState(params.id, payload);
+    if (!result) {
+      set.status = 404;
+      return { error: "Project not found" };
+    }
+    return result;
+  })
   // ── Asset upload ────────────────────────────────────────────────────────
   .post("/:id/assets", async ({ params, request, set }) => {
     const project = await projectRepo.readProject(params.id);

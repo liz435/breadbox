@@ -30,12 +30,11 @@ function createTestWire(overrides: Partial<Wire> = {}): Wire {
 }
 
 describe("boardMachine", () => {
-  test("initial context has empty board with 20 pins", () => {
+  test("initial context has empty board", () => {
     const actor = createActor(boardMachine).start();
     const ctx = actor.getSnapshot().context;
     expect(Object.keys(ctx.components)).toHaveLength(0);
     expect(Object.keys(ctx.wires)).toHaveLength(0);
-    expect(ctx.pinStates).toHaveLength(20);
     expect(ctx.selectedId).toBeNull();
     expect(ctx.sketchCode).toBe("");
     expect(ctx.serialOutput).toEqual([]);
@@ -84,14 +83,8 @@ describe("boardMachine", () => {
     actor.stop();
   });
 
-  test("SET_PIN_STATE updates specific pin", () => {
-    const actor = createActor(boardMachine).start();
-    actor.send({ type: "SET_PIN_STATE", pin: 13, changes: { mode: "OUTPUT", digitalValue: 1 } });
-    const pin13 = actor.getSnapshot().context.pinStates[13];
-    expect(pin13.mode).toBe("OUTPUT");
-    expect(pin13.digitalValue).toBe(1);
-    actor.stop();
-  });
+  // Pin state is now owned by the PinStateStore, not the board machine.
+  // Cross-reference tests for the store live in simulator/__tests__.
 
   test("UPDATE_SKETCH stores code", () => {
     const actor = createActor(boardMachine).start();
@@ -105,7 +98,8 @@ describe("boardMachine", () => {
     const actor = createActor(boardMachine).start();
     actor.send({ type: "APPEND_SERIAL", text: "Hello" });
     actor.send({ type: "APPEND_SERIAL", text: "World" });
-    expect(actor.getSnapshot().context.serialOutput).toEqual(["Hello", "World"]);
+    const out = actor.getSnapshot().context.serialOutput
+    expect(out.map((e) => e.text)).toEqual(["Hello", "World"]);
     actor.send({ type: "CLEAR_SERIAL" });
     expect(actor.getSnapshot().context.serialOutput).toEqual([]);
     actor.stop();
@@ -125,13 +119,10 @@ describe("boardMachine", () => {
     actor.stop();
   });
 
-  test("RESET_PINS restores all pins to defaults", () => {
+  test("RESET_PINS dispatches without error (pin state owned by PinStateStore)", () => {
     const actor = createActor(boardMachine).start();
-    actor.send({ type: "SET_PIN_STATE", pin: 13, changes: { mode: "OUTPUT", digitalValue: 1 } });
     actor.send({ type: "RESET_PINS" });
-    const pin13 = actor.getSnapshot().context.pinStates[13];
-    expect(pin13.mode).toBe("UNSET");
-    expect(pin13.digitalValue).toBe(0);
+    // No assertion on pinStates — they no longer live on the machine context.
     actor.stop();
   });
 
@@ -143,16 +134,16 @@ describe("boardMachine", () => {
       state: {
         components: { new1: createTestComponent({ id: "new1", name: "New LED" }) },
         wires: {},
-        pinStates: actor.getSnapshot().context.pinStates,
         libraryState: { servos: {}, lcd: null, serialBaud: 9600 },
-        serialOutput: ["loaded"],
+        serialOutput: [{ text: "loaded", ts: 0 }],
         sketchCode: "// loaded",
+        customLibraries: {},
       },
     });
     const ctx = actor.getSnapshot().context;
     expect(ctx.components["old"]).toBeUndefined();
     expect(ctx.components["new1"].name).toBe("New LED");
-    expect(ctx.serialOutput).toEqual(["loaded"]);
+    expect(ctx.serialOutput.map((e) => e.text)).toEqual(["loaded"]);
     expect(ctx.libraryState.serialBaud).toBe(9600);
     expect(ctx._past).toHaveLength(0); // history reset on load
     actor.stop();

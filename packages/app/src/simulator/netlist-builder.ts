@@ -10,6 +10,7 @@ import {
   type Net,
   type GridPoint,
 } from "@/breadboard/breadboard-grid"
+import { getComponentDef } from "@/components/registry"
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -75,6 +76,34 @@ export function buildNetlist(
     voltage: number
   }> = []
 
+  // Build a point→netId lookup for fast component-to-net resolution
+  const pointToNetId = new Map<string, string>()
+  for (const net of nets) {
+    for (const pt of net.points) {
+      pointToNetId.set(pointKey(pt), net.id)
+    }
+  }
+
+  // Build a set of component types per net for topology-based inference
+  const netComponentTypes = new Map<string, Set<string>>()
+  for (const comp of Object.values(components)) {
+    if (comp.type === "arduino_uno" || comp.type === "wire") continue
+    const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation)
+    for (const pt of footprint.points) {
+      const nid = pointToNetId.get(pointKey(pt))
+      if (nid) {
+        if (!netComponentTypes.has(nid)) netComponentTypes.set(nid, new Set())
+        netComponentTypes.get(nid)!.add(comp.type)
+      }
+    }
+  }
+
+  // Output component types — if one of these is on a net with a digital pin,
+  // infer the pin is OUTPUT HIGH when the sketch isn't running
+  const OUTPUT_COMPONENT_TYPES = new Set([
+    "led", "rgb_led", "buzzer", "servo", "dc_motor", "relay", "neopixel",
+  ])
+
   for (const net of nets) {
     for (const arduinoPin of net.arduinoPins) {
       // Power pins
@@ -89,10 +118,14 @@ export function buildNetlist(
         groundNetIds.add(net.id)
       } else if (arduinoPin === -5) {
         // VIN — treat as unregulated input, skip for now
+      } else if (arduinoPin === -6) {
+        // Second GND
+        groundNetIds.add(net.id)
       } else if (arduinoPin >= 0 && arduinoPin <= 19) {
-        // Digital/analog pin — check pin state
+        // Digital/analog pin — check pin state from simulation
         const ps = pinStates[arduinoPin]
         if (ps && ps.mode === "OUTPUT") {
+          // Sketch is running and has set this pin to OUTPUT
           if (ps.isPwm) {
             const voltage = (ps.pwmValue / 255) * 5
             voltageSourceNets.push({
@@ -109,6 +142,22 @@ export function buildNetlist(
           } else {
             // Pin is LOW → connect to ground
             groundNetIds.add(net.id)
+          }
+        } else if (!ps || ps.mode === "UNSET") {
+          // Sketch is NOT running — infer pin direction from wire topology.
+          // If this net contains an output component (LED, buzzer, etc.),
+          // assume the pin is driving it at 5V so the circuit analysis works
+          // even before the user clicks Run.
+          const compTypes = netComponentTypes.get(net.id)
+          if (compTypes) {
+            const hasOutputComponent = [...compTypes].some((t) => OUTPUT_COMPONENT_TYPES.has(t))
+            if (hasOutputComponent) {
+              voltageSourceNets.push({
+                label: `V_D${arduinoPin}`,
+                netId: net.id,
+                voltage: 5,
+              })
+            }
           }
         }
       }
@@ -136,115 +185,40 @@ export function buildNetlist(
   }
 
   // Build component elements
-  let hasLed = false
-
   for (const comp of Object.values(components)) {
     if (comp.type === "arduino_uno" || comp.type === "wire") continue
 
-    const footprint = getComponentFootprint(comp.type, comp.y, comp.x)
+    const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation)
+    const def = getComponentDef(comp.type)
 
-    switch (comp.type) {
-      case "resistor": {
-        // Two legs: first and last footprint point
-        const nodeA = resolveNode(nodeMap, footprint.points[0])
-        const nodeB = resolveNode(nodeMap, footprint.points[1])
-        const resistance = (comp.properties.resistance as number) ?? 220
-        lines.push(`R_${sanitize(comp.id)} ${nodeA} ${nodeB} ${resistance}`)
-        componentNodePairs.set(comp.id, { nodeA, nodeB })
-        break
+    if (def?.buildNetlist) {
+      const ctx = {
+        footprint,
+        resolveNode: (pt: GridPoint) => resolveNode(nodeMap, pt),
+        pinStates,
+        wires,
       }
-
-      case "led":
-      case "rgb_led": {
-        // Anode is first point, cathode is second
-        const anodeNode = resolveNode(nodeMap, footprint.points[0])
-        const cathodeNode = resolveNode(nodeMap, footprint.points[1])
-        lines.push(
-          `D_${sanitize(comp.id)} ${anodeNode} ${cathodeNode} DLED`,
-        )
-        componentNodePairs.set(comp.id, {
-          nodeA: anodeNode,
-          nodeB: cathodeNode,
-        })
-        hasLed = true
-        break
-      }
-
-      case "button": {
-        // DIP button: left pins (3) and right pins (6) are internally connected when pressed
-        // We model the connection between the left side net and right side net
-        const leftNode = resolveNode(nodeMap, footprint.points[0])
-        const rightNode = resolveNode(nodeMap, footprint.points[2])
-        const inputPin = comp.pins.a ?? comp.pins.input
-        const isPressed =
-          inputPin != null &&
-          pinStates.some(
-            (ps) => ps.pin === inputPin && ps.digitalValue === 1,
-          )
-
-        const resistance = isPressed ? 0.01 : 10_000_000
-        lines.push(
-          `R_${sanitize(comp.id)} ${leftNode} ${rightNode} ${resistance}`,
-        )
-        componentNodePairs.set(comp.id, {
-          nodeA: leftNode,
-          nodeB: rightNode,
-        })
-        break
-      }
-
-      case "buzzer": {
-        // Model as a resistor (piezo buzzer ~ 20-40 ohm impedance)
-        const posNode = resolveNode(nodeMap, footprint.points[0])
-        const negNode = resolveNode(
-          nodeMap,
-          footprint.points[1] ?? footprint.points[0],
-        )
-        lines.push(`R_${sanitize(comp.id)} ${posNode} ${negNode} 30`)
-        componentNodePairs.set(comp.id, { nodeA: posNode, nodeB: negNode })
-        break
-      }
-
-      case "potentiometer": {
-        // 3-pin: model as two resistors in series (voltage divider)
-        if (footprint.points.length >= 3) {
-          const n1 = resolveNode(nodeMap, footprint.points[0])
-          const n2 = resolveNode(nodeMap, footprint.points[1])
-          const n3 = resolveNode(nodeMap, footprint.points[2])
-          const totalR = 10000 // 10k pot
-          const ratio = 0.5 // default wiper position
-          lines.push(
-            `R_${sanitize(comp.id)}_A ${n1} ${n2} ${totalR * ratio}`,
-          )
-          lines.push(
-            `R_${sanitize(comp.id)}_B ${n2} ${n3} ${totalR * (1 - ratio)}`,
-          )
-          componentNodePairs.set(comp.id, { nodeA: n1, nodeB: n3 })
+      const result = def.buildNetlist(comp, ctx)
+      if (result) {
+        // Add a large bleed resistor (1GΩ) to ground for any floating node so
+        // the SPICE solver doesn't produce a singular matrix. This is better than
+        // skipping the component entirely — it keeps the component in the netlist
+        // (e.g. a button with one unwired side) without affecting circuit voltages.
+        let nodeA = result.nodeA
+        let nodeB = result.nodeB
+        let bleedIdx = lines.filter((l) => l.startsWith("R_bleed_")).length
+        if (nodeA.startsWith("unconnected_")) {
+          lines.push(`R_bleed_${bleedIdx} ${nodeA} 0 1000000000`)
+          bleedIdx++
         }
-        break
-      }
+        if (nodeB.startsWith("unconnected_")) {
+          lines.push(`R_bleed_${bleedIdx} ${nodeB} 0 1000000000`)
+        }
 
-      case "photoresistor": {
-        // Model as a fixed resistance (default dark: 10k)
-        const nodeA = resolveNode(nodeMap, footprint.points[0])
-        const nodeB = resolveNode(
-          nodeMap,
-          footprint.points[1] ?? footprint.points[0],
-        )
-        lines.push(`R_${sanitize(comp.id)} ${nodeA} ${nodeB} 10000`)
+        lines.push(...result.lines)
         componentNodePairs.set(comp.id, { nodeA, nodeB })
-        break
       }
-
-      default:
-        // Servo, LCD, sensors etc. — skip for SPICE simulation
-        break
     }
-  }
-
-  // Add LED model if any LEDs present
-  if (hasLed) {
-    lines.push(".model DLED D(Is=1e-14 N=1.8)")
   }
 
   // Transient analysis — short run for DC operating point

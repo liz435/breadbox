@@ -12,7 +12,7 @@ const ScrollArea = forwardRef<HTMLDivElement, ScrollAreaProps>(
         className={cn("relative overflow-hidden", className)}
         {...props}
       >
-        <BaseScrollArea.Viewport className="h-full w-full">
+        <BaseScrollArea.Viewport className="h-full max-h-[inherit] w-full overflow-y-auto">
           {children}
         </BaseScrollArea.Viewport>
         <BaseScrollArea.Scrollbar

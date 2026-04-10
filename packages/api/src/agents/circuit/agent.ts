@@ -4,6 +4,7 @@ import type { ModelMessage } from "ai";
 import { createCircuitTools } from "./tools";
 import type { AgentContext, AgentResult } from "../types";
 import type { BoardOp } from "@dreamer/schemas";
+import { summarizeBoardState } from "../core/tools";
 
 const SYSTEM_PROMPT = `You are a circuit design specialist for Dreamer, an Arduino simulator.
 
@@ -63,6 +64,16 @@ You help design and validate Arduino circuits. You know common circuit patterns,
 - **Photoresistor (LDR)**: Voltage divider with 10K resistor, connect to analog pin
 - **TMP36**: Vout to analog pin. Temp(C) = (voltage - 0.5) * 100
 - **HC-SR04**: Trigger (digital out), Echo (digital in). Distance = pulse_time * 0.034 / 2
+- **PIR (HC-SR501)**: Signal to digital pin, reads HIGH on motion. 60s warmup.
+- **DHT11/DHT22**: Signal to digital pin with 10K pull-up. DHT library.
+- **IR Receiver**: Signal to digital pin. IRremote library.
+
+### Output Components
+- **NeoPixel (WS2812)**: DIN to digital pin (300-470 ohm on data line). Adafruit_NeoPixel library. External 5V for long strips.
+- **Relay**: Signal to digital pin. Often active LOW. Switches high-power loads.
+- **DC Motor**: Signal to PWM pin through transistor/driver (L298N, L293D). analogWrite() for speed.
+- **OLED (SSD1306)**: I2C — SDA to A4, SCL to A5. Address 0x3C. Adafruit_SSD1306 library.
+- **Shift Register (74HC595)**: Data, Clock, Latch to 3 digital pins. shiftOut() for 8-bit parallel output.
 
 ## Validation Rules
 1. Every LED must have a current-limiting resistor
@@ -122,10 +133,10 @@ export async function runCircuitAgent(ctx: AgentContext): Promise<AgentResult> {
         anthropic: { cacheControl: { type: "ephemeral" } },
       },
     },
-    { role: "user", content: ctx.prompt },
+    { role: "user", content: `Current board state:\n${summarizeBoardState(ctx.project)}\n\nTask: ${ctx.prompt}` },
   ];
 
-  const CIRCUIT_MODEL = "claude-haiku-4-5-20251001";
+  const CIRCUIT_MODEL = "claude-sonnet-4-6";
 
   let stepCount = 0;
   let totalInputTokens = 0;

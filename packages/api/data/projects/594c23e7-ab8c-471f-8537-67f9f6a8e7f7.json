@@ -1,0 +1,84 @@
+{
+  "project": {
+    "id": "594c23e7-ab8c-471f-8537-67f9f6a8e7f7",
+    "name": "Untitled Project",
+    "version": 0,
+    "createdAt": "2026-04-07T02:25:00.470Z",
+    "updatedAt": "2026-04-07T02:25:10.098Z",
+    "threadId": "339f6fca-e5f4-4013-8144-79d6694f5cdb",
+    "activeSceneId": "eab0a8f8-b1af-4b3a-b068-ac8dd0839f1a"
+  },
+  "scenes": {
+    "eab0a8f8-b1af-4b3a-b068-ac8dd0839f1a": {
+      "id": "eab0a8f8-b1af-4b3a-b068-ac8dd0839f1a",
+      "name": "Main Scene",
+      "version": 0,
+      "settings": {
+        "background": "#252525",
+        "gravity": {
+          "x": 0,
+          "y": 9.8
+        }
+      }
+    }
+  },
+  "entities": {},
+  "sceneEntityIds": {
+    "eab0a8f8-b1af-4b3a-b068-ac8dd0839f1a": []
+  },
+  "components": {
+    "transform": {},
+    "sprite": {},
+    "tilemap": {},
+    "physicsBody": {},
+    "script": {},
+    "camera": {}
+  },
+  "assets": {},
+  "graph": {
+    "nodes": {
+      "node-1775528700504-qv0mg2": {
+        "id": "node-1775528700504-qv0mg2",
+        "type": "setup",
+        "name": "Setup",
+        "x": 60,
+        "y": 60,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      },
+      "node-1775528700504-u4lx9a": {
+        "id": "node-1775528700504-u4lx9a",
+        "type": "loop",
+        "name": "Loop",
+        "x": 60,
+        "y": 200,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      }
+    },
+    "edges": {}
+  },
+  "boardState": {
+    "components": {},
+    "wires": {},
+    "sketchCode": "void setup() {\n}\n\nvoid loop() {\n}\n"
+  }
+}

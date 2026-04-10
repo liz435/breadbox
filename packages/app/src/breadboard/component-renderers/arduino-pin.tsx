@@ -1,7 +1,6 @@
 import React, { useCallback } from "react";
 import type { ArduinoPinInfo } from "@/breadboard/breadboard-grid";
-import type { PinState } from "@dreamer/schemas";
-import { useBoardSelector } from "@/store/board-context";
+import { usePinState } from "@/simulator/use-pin-state";
 
 type ArduinoPinProps = {
   pin: ArduinoPinInfo;
@@ -46,10 +45,8 @@ function getPinTooltip(pin: ArduinoPinInfo): string {
 }
 
 function ArduinoPinInner({ pin, isWiring, onStartWire }: ArduinoPinProps) {
-  // Subscribe to only this pin's state from the board store
-  const pinState: PinState | undefined = useBoardSelector((s) =>
-    pin.pin >= 0 && pin.pin < s.pinStates.length ? s.pinStates[pin.pin] : undefined,
-  );
+  // Subscribe to only this pin's state via the PinStateStore.
+  const pinState = usePinState(pin.pin);
 
   const strokeColor = getPinStrokeColor(pin);
 

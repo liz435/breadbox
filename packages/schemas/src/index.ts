@@ -86,6 +86,8 @@ export {
   type Wire,
   boardStateSchema,
   type BoardState,
+  customLibrarySchema,
+  type CustomLibrary,
   createDefaultPinStates,
   createDefaultBoardState,
 } from "./arduino";

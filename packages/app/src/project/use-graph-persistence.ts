@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useProject } from "./project-context";
 import { useGraph } from "@/store/graph-context";
 import { saveProjectGraph } from "./api-client";
+import { toast } from "@/components/ui/toast";
 import { createGraphNode } from "@/graph/node-factory";
 import { getDefaultPorts } from "@dreamer/schemas";
 import type { GraphNodeType } from "@dreamer/schemas";
@@ -68,7 +69,7 @@ export function useGraphPersistence() {
         nodes: state.nodes,
         edges: state.edges,
       }).catch(() => {
-        // Best-effort save — don't block the UI
+        toast.error("Failed to auto-save graph")
       });
     }, SAVE_DEBOUNCE_MS);
 

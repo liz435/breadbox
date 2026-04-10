@@ -1,6 +1,7 @@
 import { join } from "path";
 import { mkdir, readdir } from "fs/promises";
 import { match } from "ts-pattern";
+import { generateUniqueProjectName } from "../utils/name-generator";
 import {
   applyOpsRequestSchema,
   assetSchema,
@@ -22,7 +23,8 @@ import {
 } from "./schemas";
 import { createDefaultBoardState } from "@dreamer/schemas";
 
-const PROJECTS_DIR = join(import.meta.dir, "../../data/projects");
+const DATA_DIR = process.env.DATA_DIR ?? join(import.meta.dir, "../../data");
+const PROJECTS_DIR = join(DATA_DIR, "projects");
 
 function now(): string {
   return new Date().toISOString();
@@ -123,10 +125,15 @@ async function createProject(params?: { id?: string; name?: string }) {
     throw new OpValidationError(`Project already exists: ${id}`);
   }
 
-  const project = buildInitialProject({
-    id,
-    name: params?.name ?? "Untitled Project",
-  });
+  // Generate a unique memorable name if none provided
+  let name = params?.name;
+  if (!name || name === "Untitled Project") {
+    const allProjects = await listProjects();
+    const existingNames = new Set(allProjects.map((p) => p.name));
+    name = generateUniqueProjectName(existingNames);
+  }
+
+  const project = buildInitialProject({ id, name });
   await writeProject(id, project);
   return project;
 }
@@ -476,9 +483,8 @@ function applyBoardOp(project: ProjectFile, op: BoardOp): void {
       delete board.wires[op.payload.wireId];
       break;
     case "set_pin_mode":
-      if (board.pinStates[op.payload.pin]) {
-        board.pinStates[op.payload.pin].mode = op.payload.mode;
-      }
+      // Pin mode is runtime state on the client. The op is still persisted
+      // in the project file (for eval/replay) but doesn't mutate board state.
       break;
     case "update_sketch":
       board.sketchCode = op.payload.code;
@@ -494,19 +500,10 @@ async function applyBoardOps(projectId: string, req: ApplyBoardOpsRequest) {
   const existing = await readProject(projectId);
   if (!existing) return null;
 
-  if (existing.project.version !== input.expectedVersion) {
-    throw new VersionConflictError(input.expectedVersion, existing.project.version);
-  }
-
   const working = structuredClone(existing);
 
   for (const rawOp of input.ops) {
     const op = boardOpSchema.parse(rawOp);
-    if (op.expectedVersion !== input.expectedVersion) {
-      throw new OpValidationError(
-        `Op ${op.opId} expectedVersion must equal batch expectedVersion`
-      );
-    }
     applyBoardOp(working, op);
   }
 
@@ -570,6 +567,21 @@ async function saveGraph(
   return { saved: true };
 }
 
+// ── Board state persistence ─────────────────────────────────────────────────
+
+async function saveBoardState(
+  projectId: string,
+  boardState: Record<string, unknown>,
+): Promise<{ saved: true } | null> {
+  const existing = await readProject(projectId);
+  if (!existing) return null;
+
+  existing.boardState = boardState as ProjectFile["boardState"];
+  existing.project.updatedAt = now();
+  await writeProject(projectId, existing);
+  return { saved: true };
+}
+
 // ── Rename project ──────────────────────────────────────────────────────────
 
 async function renameProject(
@@ -603,7 +615,7 @@ async function renameScene(
 
 // ── Asset directory ──────────────────────────────────────────────────────────
 
-const ASSETS_DIR = join(import.meta.dir, "../../data/assets");
+const ASSETS_DIR = join(DATA_DIR, "assets");
 
 function projectAssetsDir(projectId: string): string {
   return join(ASSETS_DIR, projectId);
@@ -650,6 +662,7 @@ export const projectRepo = {
   applyOps,
   applyBoardOps,
   saveGraph,
+  saveBoardState,
   renameProject,
   renameScene,
   deleteProject,

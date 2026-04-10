@@ -17,6 +17,14 @@ export const componentTypeSchema = z.enum([
   "photoresistor",
   "temperature_sensor",
   "ultrasonic_sensor",
+  "neopixel",
+  "pir_sensor",
+  "relay",
+  "dc_motor",
+  "dht_sensor",
+  "ir_receiver",
+  "shift_register",
+  "oled_display",
   "wire",
   "arduino_uno",
 ]);
@@ -83,8 +91,8 @@ export const boardComponentSchema = z.object({
   id: z.string().min(1),
   type: componentTypeSchema,
   name: z.string().min(1),
-  x: z.number(), // breadboard grid column
-  y: z.number(), // breadboard grid row
+  x: z.number().int(), // breadboard grid column (0-9 for terminal, -2/-1/10/11 for power rails)
+  y: z.number().int(), // breadboard grid row (0-29)
   rotation: z.number().default(0),
   pins: z.record(z.string(), z.number().nullable()), // component pin name -> Arduino pin number
   properties: z.record(z.string(), z.unknown()), // type-specific props
@@ -103,19 +111,47 @@ export const wireSchema = z.object({
 });
 export type Wire = z.infer<typeof wireSchema>;
 
-// ── Board State ──────────────────────────────────────────────────
+// ── Custom Library ───────────────────────────────────────────────
 
-export const boardStateSchema = z.object({
+export const customLibrarySchema = z.object({
+  name: z.string().min(1),
+  code: z.string(),
+  description: z.string().default(""),
+});
+export type CustomLibrary = z.infer<typeof customLibrarySchema>;
+
+// ── Board State ──────────────────────────────────────────────────
+//
+// `pinStates` was previously part of the persisted board state. It is now
+// owned exclusively by the runtime `PinStateStore` (in the app package)
+// and is NOT part of the saved project file. Legacy project files with a
+// `pinStates` field will still parse — the schema uses `.passthrough()` for
+// legacy fields and ignores unknown keys.
+
+const boardStateBaseSchema = z.object({
   components: z.record(z.string(), boardComponentSchema),
   wires: z.record(z.string(), wireSchema),
-  pinStates: z.array(pinStateSchema),
-  libraryState: libraryStateSchema,
-  serialOutput: z.array(z.string()),
+  libraryState: libraryStateSchema.default({ servos: {}, lcd: null, serialBaud: 0 }),
+  // Supports legacy string[] format from old saves, normalises to {text, ts}.
+  serialOutput: z.array(
+    z.union([
+      z.string().transform((s) => ({ text: s, ts: 0 })),
+      z.object({ text: z.string(), ts: z.number() }),
+    ])
+  ).default([]),
   sketchCode: z.string(),
+  customLibraries: z.record(z.string(), customLibrarySchema).default({}),
 });
+
+// Accept legacy `pinStates` field but strip it. The final output type
+// matches boardStateBaseSchema exactly.
+export const boardStateSchema = boardStateBaseSchema;
 export type BoardState = z.infer<typeof boardStateSchema>;
 
 // ── Helper: create default pin states (20 pins) ─────────────────
+//
+// Kept as a compatibility helper for tests that still build PinState[]
+// (e.g. circuit-solver.test.ts). Not used in runtime board state.
 
 export function createDefaultPinStates(): PinState[] {
   return Array.from({ length: 20 }, (_, i) => ({
@@ -134,9 +170,9 @@ export function createDefaultBoardState(): BoardState {
   return {
     components: {},
     wires: {},
-    pinStates: createDefaultPinStates(),
     libraryState: { servos: {}, lcd: null, serialBaud: 0 },
     serialOutput: [],
     sketchCode: "",
+    customLibraries: {},
   };
 }

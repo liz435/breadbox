@@ -8,6 +8,7 @@ import type { BoardComponent, Wire, PinState } from "@dreamer/schemas"
 import { simulate } from "spicey"
 import { buildNetlist } from "./netlist-builder"
 import { gridToPixel, getComponentFootprint } from "@/breadboard/breadboard-grid"
+import { getComponentDef } from "@/components/registry"
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -154,121 +155,47 @@ export function analyzeCircuit(
     const vB = getNodeVoltage(pair.nodeB)
     const voltageDrop = vA - vB
 
-    // Try to find element current using the sanitized ID
+    const def = getComponentDef(comp.type)
     const sanitizedId = comp.id.replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 20)
-    let prefix = "R"
-    if (comp.type === "led" || comp.type === "rgb_led") prefix = "D"
-    const elementName = `${prefix}_${sanitizedId}`
+    const spicePrefix = def?.spicePrefix ?? "R"
+    const elementName = `${spicePrefix}_${sanitizedId}`
     const currentA = Math.abs(getElementCurrent(elementName)) * 1000 // Convert to mA
+    const elCtx = { voltageDrop, currentMa: currentA, elementName }
 
-    switch (comp.type) {
-      case "led":
-      case "rgb_led": {
-        const isReversed = voltageDrop < -0.1
-        const isActive = currentA > 0.5 && !isReversed
-        const brightness = isActive
-          ? Math.min(1, Math.max(0, currentA / 20))
-          : 0
+    const result = def?.computeElectricalState
+      ? def.computeElectricalState(comp, elCtx)
+      : null
 
-        componentStates.set(comp.id, {
+    const state: ComponentElectricalState = result
+      ? {
           componentId: comp.id,
-          isActive,
-          voltage: voltageDrop,
-          current: currentA,
-          isReversed,
-          brightness,
-        })
-
-        if (isReversed) {
-          warnings.push({
-            componentId: comp.id,
-            type: "reverse_polarity",
-            message: `${comp.name} has reversed polarity`,
-          })
+          isActive: result.isActive,
+          voltage: result.voltage,
+          current: result.current,
+          isReversed: result.isReversed ?? false,
+          brightness: result.brightness ?? 0,
         }
-
-        if (isActive && currentA > 30) {
-          warnings.push({
-            componentId: comp.id,
-            type: "no_resistor",
-            message: `${comp.name} has excessive current (${currentA.toFixed(1)}mA). Add a series resistor.`,
-          })
-        }
-
-        // Build current path for animation
-        if (isActive) {
-          const footprint = getComponentFootprint(comp.type, comp.y, comp.x)
-          const points = footprint.points.map((pt) => gridToPixel(pt))
-          currentPaths.push({
-            fromNode: pair.nodeA,
-            toNode: pair.nodeB,
-            current: currentA,
-            points,
-          })
-        }
-        break
-      }
-
-      case "resistor": {
-        const isActive = currentA > 0.01
-        componentStates.set(comp.id, {
-          componentId: comp.id,
-          isActive,
-          voltage: voltageDrop,
-          current: currentA,
-          isReversed: false,
-          brightness: 0,
-        })
-
-        if (isActive) {
-          const footprint = getComponentFootprint(comp.type, comp.y, comp.x)
-          const points = footprint.points.map((pt) => gridToPixel(pt))
-          currentPaths.push({
-            fromNode: pair.nodeA,
-            toNode: pair.nodeB,
-            current: currentA,
-            points,
-          })
-        }
-        break
-      }
-
-      case "button": {
-        const isActive = currentA > 0.01
-        componentStates.set(comp.id, {
-          componentId: comp.id,
-          isActive,
-          voltage: voltageDrop,
-          current: currentA,
-          isReversed: false,
-          brightness: 0,
-        })
-        break
-      }
-
-      case "buzzer": {
-        const isActive = currentA > 0.5
-        componentStates.set(comp.id, {
-          componentId: comp.id,
-          isActive,
-          voltage: voltageDrop,
-          current: currentA,
-          isReversed: voltageDrop < -0.1,
-          brightness: isActive ? Math.min(1, currentA / 50) : 0,
-        })
-        break
-      }
-
-      default: {
-        componentStates.set(comp.id, {
+      : {
           componentId: comp.id,
           isActive: false,
           voltage: voltageDrop,
           current: currentA,
           isReversed: false,
           brightness: 0,
-        })
+        }
+
+    componentStates.set(comp.id, state)
+
+    if (result?.warnings) {
+      for (const w of result.warnings) {
+        warnings.push({ componentId: comp.id, ...w })
       }
+    }
+
+    if (result?.emitCurrentPath && state.isActive) {
+      const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation)
+      const points = footprint.points.map((pt) => gridToPixel(pt))
+      currentPaths.push({ fromNode: pair.nodeA, toNode: pair.nodeB, current: currentA, points })
     }
   }
 

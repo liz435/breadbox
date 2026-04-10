@@ -1,4 +1,4 @@
-import { useBoard } from "@/store/board-context"
+import { usePinStates } from "@/simulator/use-pin-state"
 import { cn } from "@/utils/classnames"
 
 function pinName(pin: number): string {
@@ -8,7 +8,7 @@ function pinName(pin: number): string {
 }
 
 export function PinInspector() {
-  const { state } = useBoard()
+  const pinStates = usePinStates()
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-card">
@@ -28,7 +28,7 @@ export function PinInspector() {
             </tr>
           </thead>
           <tbody>
-            {state.pinStates.map((ps) => {
+            {pinStates.map((ps) => {
               const isHigh = ps.digitalValue === 1
               const isPwmActive = ps.isPwm && ps.pwmValue > 0
               const isAnalogPin = ps.pin >= 14

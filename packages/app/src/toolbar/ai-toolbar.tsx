@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react"
+import Markdown from "react-markdown"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import { TokenTracker } from "@/chat/token-tracker"
@@ -55,7 +56,7 @@ export function AiToolbarHistory({ chat }: AiToolbarProps) {
             Hide
           </button>
         </div>
-        <ScrollArea className="max-h-72">
+        <ScrollArea className="max-h-96">
           <div className="px-3 py-2">
             {messages.map((msg) => {
               const text = getMessageText(msg)
@@ -67,10 +68,10 @@ export function AiToolbarHistory({ chat }: AiToolbarProps) {
                       "text-sm leading-relaxed rounded-md",
                       msg.role === "user"
                         ? "bg-accent px-2.5 py-1.5"
-                        : "text-muted-foreground py-1"
+                        : "text-muted-foreground py-1 prose prose-sm prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-strong:text-foreground prose-headings:text-foreground prose-code:text-foreground prose-code:bg-muted prose-code:px-1 prose-code:rounded"
                     )}
                   >
-                    {text}
+                    {msg.role === "user" ? text : <Markdown>{text}</Markdown>}
                   </div>
                 </div>
               )

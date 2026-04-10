@@ -89,24 +89,53 @@ export function ProjectLoader({ children }: { children: ReactNode }) {
 
   if (state.status === "loading") {
     return (
-      <div className="flex h-full w-full items-center justify-center text-neutral-400">
-        Loading project...
+      <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-neutral-400">
+        <div className="size-6 animate-spin rounded-full border-2 border-neutral-600 border-t-neutral-300" />
+        <p className="text-sm">Loading project...</p>
       </div>
     );
   }
 
   if (state.status === "error") {
+    const isNetworkError = state.message.includes("fetch") || state.message.includes("Failed") || state.message.includes("NetworkError");
     return (
-      <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-neutral-400">
-        <p>Failed to load project</p>
-        <p className="text-sm text-neutral-500">{state.message}</p>
-        <button
-          type="button"
-          onClick={() => load()}
-          className="rounded border border-neutral-600 px-3 py-1 text-sm text-neutral-300 hover:bg-neutral-700"
-        >
-          Retry
-        </button>
+      <div className="flex h-full w-full flex-col items-center justify-center gap-4 text-neutral-400 px-8">
+        <div className="rounded-full bg-red-500/10 p-4">
+          <svg viewBox="0 0 24 24" className="size-8 text-red-400" fill="none" stroke="currentColor" strokeWidth={1.5}>
+            <circle cx={12} cy={12} r={10} />
+            <line x1={12} y1={8} x2={12} y2={12} />
+            <line x1={12} y1={16} x2={12.01} y2={16} />
+          </svg>
+        </div>
+        <div className="text-center">
+          <p className="text-base font-medium text-neutral-300">
+            {isNetworkError ? "Can't connect to the server" : "Failed to load project"}
+          </p>
+          <p className="mt-1 text-sm text-neutral-500 max-w-sm">
+            {isNetworkError
+              ? "Make sure the API server is running on port 4111. Run `bun run dev:api` in a terminal."
+              : state.message}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => load()}
+            className="rounded bg-neutral-700 px-4 py-1.5 text-sm text-neutral-200 hover:bg-neutral-600 transition-colors"
+          >
+            Retry
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              localStorage.removeItem("dreamer:projectId");
+              load();
+            }}
+            className="rounded border border-neutral-700 px-4 py-1.5 text-sm text-neutral-400 hover:bg-neutral-800 transition-colors"
+          >
+            New Project
+          </button>
+        </div>
       </div>
     );
   }

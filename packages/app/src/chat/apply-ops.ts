@@ -1,6 +1,7 @@
 import type { SceneOp, BoardOp, LibraryState } from "@dreamer/schemas";
 import type { SceneEvent } from "@/store/scene-machine";
 import type { BoardEvent } from "@/store/board-machine";
+import { pinStateStore } from "@/simulator/pin-state-store";
 import type { Sprite } from "@/types";
 
 /**
@@ -268,11 +269,8 @@ export function applyBoardOpsToBoard(
         break;
       }
       case "set_pin_mode": {
-        send({
-          type: "SET_PIN_STATE",
-          pin: op.payload.pin,
-          changes: { mode: op.payload.mode },
-        });
+        // Pin mode is owned by the runtime PinStateStore, not the board machine.
+        pinStateStore.writeFromSketch(op.payload.pin, { mode: op.payload.mode });
         break;
       }
       case "update_sketch": {

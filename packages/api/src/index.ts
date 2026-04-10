@@ -5,6 +5,9 @@ import { projectRoutes } from "./routes/projects";
 import { agentRunRoutes } from "./routes/agent-run";
 import { chatRoutes } from "./routes/chat";
 import { compileRoutes } from "./routes/compile";
+import { flashRoutes } from "./routes/flash";
+import { boardRoutes } from "./routes/boards";
+import { evalRoutes } from "./routes/eval";
 import { APP_ORIGIN, API_PORT } from "@dreamer/config";
 
 const log = createLogger("server");
@@ -21,6 +24,9 @@ const app = new Elysia()
   .use(agentRunRoutes)
   .use(chatRoutes)
   .use(compileRoutes)
+  .use(flashRoutes)
+  .use(boardRoutes)
+  .use(evalRoutes)
   .listen(API_PORT);
 
 log.info(`listening on http://localhost:${app.server?.port}`);

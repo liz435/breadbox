@@ -7,12 +7,14 @@ import {
   type AgentKind,
   type AgentRunFile,
   type AgentRunRecord,
+  type CachedSummary,
   type ProjectThreadFile,
 } from "./schemas";
 import type { BoardOp } from "@dreamer/schemas";
 
-const THREADS_DIR = join(import.meta.dir, "../../data/threads");
-const RUNS_DIR = join(import.meta.dir, "../../data/runs");
+const DATA_DIR = process.env.DATA_DIR ?? join(import.meta.dir, "../../data");
+const THREADS_DIR = join(DATA_DIR, "threads");
+const RUNS_DIR = join(DATA_DIR, "runs");
 
 function now(): string {
   return new Date().toISOString();
@@ -138,6 +140,11 @@ async function completeRun(params: {
   if (params.tokenUsage) existing.tokenUsage = params.tokenUsage;
 
   await writeRun(existing.run.id, existing);
+
+  // Fire-and-forget: auto-evaluate the run
+  import("../eval/batch-evaluator").then(({ evaluateSingleRun }) => {
+    evaluateSingleRun(params.runId).catch(() => {});
+  }).catch(() => {});
 }
 
 async function attachRunToThread(threadId: string, runId: string) {
@@ -162,6 +169,19 @@ async function listRunsForThread(threadId: string): Promise<AgentRunFile[]> {
   return runs;
 }
 
+async function readThreadSummary(threadId: string): Promise<CachedSummary | undefined> {
+  const thread = await readThread(threadId);
+  return thread?.cachedSummary;
+}
+
+async function updateThreadSummary(threadId: string, summary: CachedSummary) {
+  const thread = await readThread(threadId);
+  if (!thread) return;
+  thread.cachedSummary = summary;
+  thread.thread.updatedAt = now();
+  await writeThread(threadId, thread);
+}
+
 export const agentRunRepo = {
   getOrCreateThread,
   createRun,
@@ -169,4 +189,6 @@ export const agentRunRepo = {
   attachRunToThread,
   readRun,
   listRunsForThread,
+  readThreadSummary,
+  updateThreadSummary,
 };

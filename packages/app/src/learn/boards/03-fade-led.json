@@ -1,0 +1,60 @@
+{
+  "components": {
+    "led-1": {
+      "id": "led-1",
+      "type": "led",
+      "name": "LED",
+      "x": 5,
+      "y": 6,
+      "rotation": 0,
+      "pins": {
+        "anode": null,
+        "cathode": null
+      },
+      "properties": {
+        "color": "#3b82f6"
+      }
+    },
+    "resistor-1": {
+      "id": "resistor-1",
+      "type": "resistor",
+      "name": "R1",
+      "x": 3,
+      "y": 6,
+      "rotation": 0,
+      "pins": {
+        "a": null,
+        "b": null
+      },
+      "properties": {
+        "resistance": 220
+      }
+    }
+  },
+  "wires": {
+    "wire-d9": {
+      "id": "wire-d9",
+      "fromRow": -999,
+      "fromCol": 9,
+      "toRow": 6,
+      "toCol": 3,
+      "color": "#3b82f6"
+    },
+    "wire-gnd": {
+      "id": "wire-gnd",
+      "fromRow": -999,
+      "fromCol": -3,
+      "toRow": 7,
+      "toCol": 9,
+      "color": "#1a1a1a"
+    }
+  },
+  "libraryState": {
+    "servos": {},
+    "lcd": null,
+    "serialBaud": 0
+  },
+  "serialOutput": [],
+  "sketchCode": "// Lesson 3 — Fade an LED with PWM\n// analogWrite() uses PWM to dim the LED smoothly.\n// Pin 9 is a PWM-capable pin on the Arduino Uno.\n\nint brightness = 0;\nint fadeAmount = 5;\n\nvoid setup() {\n  pinMode(9, OUTPUT);\n}\n\nvoid loop() {\n  analogWrite(9, brightness);\n  brightness += fadeAmount;\n  if (brightness <= 0 || brightness >= 255) {\n    fadeAmount = -fadeAmount;\n  }\n  delay(30);\n}\n",
+  "customLibraries": {}
+}
