@@ -1,5 +1,6 @@
 import { LearnLayout, LessonFooter, PageTitle, Section, Note } from "@/learn/learn-layout"
 import { BreadboardEmbed } from "@/learn/breadboard-embed"
+import { Term } from "@/learn/term"
 
 export function FadeLedLesson() {
   return (
@@ -11,11 +12,12 @@ export function FadeLedLesson() {
 
       <Section title="What you'll build">
         <p className="text-sm leading-relaxed">
-          An LED on pin <span className="text-gray-200 font-mono">D9</span> that fades
+          An <Term k="led" /> on pin{" "}
+          <span className="text-gray-200 font-mono">D9</span> that fades
           up from off to full brightness, then fades back down, over and over. Unlike
           the previous lesson where pin 13 was either fully on or fully off, this
-          lesson uses <strong>PWM</strong> (pulse-width modulation) to make the LED
-          appear to be at intermediate brightness levels.
+          lesson uses <Term k="pwm">PWM</Term> (pulse-width modulation) to make
+          the LED appear to be at intermediate brightness levels.
         </p>
       </Section>
 
@@ -31,15 +33,18 @@ export function FadeLedLesson() {
       <Section title="What is PWM?">
         <p className="text-sm leading-relaxed">
           Digital pins can only output HIGH (5V) or LOW (0V) — they can't actually
-          produce 2.5V. <strong>Pulse-width modulation</strong> fakes analog output by
-          switching the pin on and off very quickly. If the pin is HIGH for 50% of
-          the time and LOW for 50%, the LED's average brightness looks like half.
+          produce 2.5V. Pulse-width modulation fakes analog output by switching the
+          pin on and off very quickly. If the pin is HIGH for 50% of the time and
+          LOW for 50% (a <Term k="duty-cycle">50% duty cycle</Term>), the LED's
+          average brightness looks like half.
         </p>
         <p className="text-sm leading-relaxed">
-          <code className="text-gray-200">analogWrite(pin, value)</code> takes a
-          value from <code className="text-gray-200">0</code> (always off) to{" "}
-          <code className="text-gray-200">255</code> (always on). Anything in between
-          produces a proportionally bright output.
+          <Term k="analog-write">
+            <code className="text-gray-200">analogWrite(pin, value)</code>
+          </Term>{" "}
+          takes a value from <code className="text-gray-200">0</code> (always off)
+          to <code className="text-gray-200">255</code> (always on). Anything in
+          between produces a proportionally bright output.
         </p>
       </Section>
 

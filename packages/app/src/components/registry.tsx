@@ -323,7 +323,12 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
       const n2 = resolveNode(footprint.points[1])
       const n3 = resolveNode(footprint.points[2])
       const totalR = 10_000
-      const ratio = ((comp.properties.value as number) ?? 50) / 100
+      // Clamp the ratio away from 0 and 1 — a 0Ω element in the divider
+      // (e.g. wiper at an end stop) collapses a node in the conductance
+      // matrix and makes spicey throw "Singular matrix". 0.5Ω is electrically
+      // indistinguishable from the end stop at the pot's precision.
+      const rawRatio = ((comp.properties.value as number) ?? 50) / 100
+      const ratio = Math.max(0.00005, Math.min(0.99995, rawRatio))
       return {
         lines: [
           `R_${sanitize(comp.id)}_A ${n1} ${n2} ${totalR * ratio}`,

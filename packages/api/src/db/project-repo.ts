@@ -7,6 +7,7 @@ import {
   assetSchema,
   type ApplyOpsRequest,
   type ProjectFile,
+  type ProjectGraph,
   type SceneOp,
   projectFileSchema,
   sceneOpSchema,
@@ -21,7 +22,10 @@ import {
   type ApplyBoardOpsRequest,
   type BoardOp,
 } from "./schemas";
-import { createDefaultBoardState } from "@dreamer/schemas";
+import {
+  createDefaultBoardState,
+  type BoardState,
+} from "@dreamer/schemas";
 
 const DATA_DIR = process.env.DATA_DIR ?? join(import.meta.dir, "../../data");
 const PROJECTS_DIR = join(DATA_DIR, "projects");
@@ -556,12 +560,12 @@ async function listProjects(): Promise<ProjectSummary[]> {
 
 async function saveGraph(
   projectId: string,
-  graph: { nodes: Record<string, unknown>; edges: Record<string, unknown> }
+  graph: ProjectGraph,
 ): Promise<{ saved: true } | null> {
   const existing = await readProject(projectId);
   if (!existing) return null;
 
-  existing.graph = graph as ProjectFile["graph"];
+  existing.graph = graph;
   existing.project.updatedAt = now();
   await writeProject(projectId, existing);
   return { saved: true };
@@ -571,12 +575,40 @@ async function saveGraph(
 
 async function saveBoardState(
   projectId: string,
-  boardState: Record<string, unknown>,
+  boardState: BoardState,
 ): Promise<{ saved: true } | null> {
   const existing = await readProject(projectId);
   if (!existing) return null;
 
-  existing.boardState = boardState as ProjectFile["boardState"];
+  existing.boardState = boardState;
+  existing.project.updatedAt = now();
+  await writeProject(projectId, existing);
+  return { saved: true };
+}
+
+// ── Atomic board + graph persistence ────────────────────────────────────────
+//
+// Why a combined method exists:
+//   The client needs to save board state and graph state together. If they
+//   were saved through two separate read-mutate-write cycles, two concurrent
+//   requests reading the same base snapshot would each clobber the other's
+//   field on write — silently dropping half of the save.
+//
+//   This method reads once, applies BOTH mutations, and writes once, so the
+//   on-disk file always reflects both fields atomically.
+async function saveBoardAndGraph(
+  projectId: string,
+  payload: { boardState?: BoardState; graph?: ProjectGraph },
+): Promise<{ saved: true } | null> {
+  const existing = await readProject(projectId);
+  if (!existing) return null;
+
+  if (payload.boardState !== undefined) {
+    existing.boardState = payload.boardState;
+  }
+  if (payload.graph !== undefined) {
+    existing.graph = payload.graph;
+  }
   existing.project.updatedAt = now();
   await writeProject(projectId, existing);
   return { saved: true };
@@ -663,6 +695,7 @@ export const projectRepo = {
   applyBoardOps,
   saveGraph,
   saveBoardState,
+  saveBoardAndGraph,
   renameProject,
   renameScene,
   deleteProject,

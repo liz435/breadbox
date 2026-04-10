@@ -103,11 +103,13 @@ function AppInner() {
   useGraphPersistence();
   const { saveNow } = useBoardPersistence();
   const dockviewApiRef = useRef<DockviewApi | null>(null);
-  const boardHydratedRef = useRef(false);
+  // Track which projectId we have already hydrated for. switchProject() now
+  // re-runs hydration cleanly without leaking state from the previous project.
+  const boardHydratedForRef = useRef<string | null>(null);
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
-  // Hydrate board state on first render.
+  // Hydrate board state on first render — and again after switchProject().
   //
   // Two paths:
   // 1. Normal: load from the user's project file (API-backed).
@@ -118,8 +120,8 @@ function AppInner() {
   //    hydration grace window, which gives users a moment to navigate away
   //    before the lesson board overwrites their saved project.
   useEffect(() => {
-    if (boardHydratedRef.current) return;
-    boardHydratedRef.current = true;
+    if (boardHydratedForRef.current === project.projectId) return;
+    boardHydratedForRef.current = project.projectId;
 
     const url = new URL(window.location.href);
     const learnKey = url.searchParams.get("learn");
@@ -135,29 +137,38 @@ function AppInner() {
     if (pf.boardState) {
       boardSend({ type: "LOAD_BOARD", state: pf.boardState });
     }
-  }, [project.projectFile, boardSend]);
+  }, [project.projectId, project.projectFile, boardSend]);
 
   // Sync codegen to board whenever graph nodes/edges change.
   // Skip during the initial hydration — graph persistence replays saved nodes,
-  // which would trigger codegen and overwrite the loaded sketchCode.
+  // which would trigger codegen and overwrite the loaded sketchCode. The skip
+  // guard is keyed by projectId so a switchProject() also gets a clean replay.
   const prevNodesRef = useRef(graphState.nodes);
   const prevEdgesRef = useRef(graphState.edges);
-  const graphHydratedRef = useRef(false);
+  const graphHydratedForRef = useRef<string | null>(null);
   useEffect(() => {
+    // Reset prev refs and hydration flag whenever the project changes so the
+    // next hydration replay isn't mistaken for a user edit.
+    if (graphHydratedForRef.current !== project.projectId) {
+      graphHydratedForRef.current = null;
+      prevNodesRef.current = graphState.nodes;
+      prevEdgesRef.current = graphState.edges;
+    }
+
     if (
       graphState.nodes !== prevNodesRef.current ||
       graphState.edges !== prevEdgesRef.current
     ) {
       prevNodesRef.current = graphState.nodes;
       prevEdgesRef.current = graphState.edges;
-      // Skip the first change (hydration replay from useGraphPersistence)
-      if (!graphHydratedRef.current) {
-        graphHydratedRef.current = true;
+      // Skip the first change after hydration (graph replay)
+      if (graphHydratedForRef.current !== project.projectId) {
+        graphHydratedForRef.current = project.projectId;
         return;
       }
       syncCodegenToBoard(graphState.nodes, graphState.edges, boardSend);
     }
-  }, [graphState.nodes, graphState.edges, boardSend]);
+  }, [graphState.nodes, graphState.edges, boardSend, project.projectId]);
 
   // Auto-generate sketch from board components when sketch is empty/auto-generated.
   // Skips regeneration when both components AND sketch changed in the same update

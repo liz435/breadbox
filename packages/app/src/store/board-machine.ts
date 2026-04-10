@@ -8,6 +8,53 @@ import type {
 } from "@dreamer/schemas";
 import { createDefaultBoardState } from "@dreamer/schemas";
 import { pinStateStore } from "@/simulator/pin-state-store";
+import { getComponentFootprint, areConnected } from "@/breadboard/breadboard-grid";
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+/**
+ * Find every wire that has at least one endpoint electrically attached to
+ * `component`'s footprint. Used by REMOVE_COMPONENT so we don't leave
+ * orphaned wires pointing at a hole that no longer hosts a pin.
+ *
+ * "Electrically attached" means the wire endpoint is on the same breadboard
+ * net (same row of 5 in the same half, same power rail, etc.) as one of the
+ * component's pin holes — not just exact-coordinate matches.
+ *
+ * Arduino-pin wires (`fromRow === -999`) only land on the breadboard at their
+ * `to` end; their `from` is a virtual Arduino pin coordinate, so we only test
+ * the `to` endpoint for those.
+ */
+function wiresAttachedToComponent(
+  component: BoardComponent,
+  wires: Record<string, Wire>,
+): string[] {
+  const footprint = getComponentFootprint(
+    component.type,
+    component.y,
+    component.x,
+    component.rotation,
+  );
+  const attached: string[] = [];
+  for (const [id, wire] of Object.entries(wires)) {
+    const isArduinoPinWire = wire.fromRow === -999;
+    const toPoint = { row: wire.toRow, col: wire.toCol };
+    for (const fp of footprint.points) {
+      if (areConnected(toPoint, fp)) {
+        attached.push(id);
+        break;
+      }
+      if (!isArduinoPinWire) {
+        const fromPoint = { row: wire.fromRow, col: wire.fromCol };
+        if (areConnected(fromPoint, fp)) {
+          attached.push(id);
+          break;
+        }
+      }
+    }
+  }
+  return attached;
+}
 
 // ── Events ─────────────────────────────────────────────────────────────────
 
@@ -140,10 +187,28 @@ export const boardMachine = setup({
 
     REMOVE_COMPONENT: {
       actions: assign(({ context, event }) => {
-        const { [event.id]: _, ...rest } = context.components;
+        const removed = context.components[event.id];
+        const { [event.id]: _, ...remainingComponents } = context.components;
+
+        // Drop any wires whose endpoint landed on this component's footprint.
+        // Without this, deleting a component leaves orphaned wires pointing
+        // at empty holes — they'd survive into codegen, the netlist, and the
+        // schematic view as bogus connections.
+        let remainingWires = context.wires;
+        if (removed) {
+          const orphanedIds = wiresAttachedToComponent(removed, context.wires);
+          if (orphanedIds.length > 0) {
+            remainingWires = { ...context.wires };
+            for (const wireId of orphanedIds) {
+              delete remainingWires[wireId];
+            }
+          }
+        }
+
         return {
           ...pushHistory(context),
-          components: rest,
+          components: remainingComponents,
+          wires: remainingWires,
           selectedId: context.selectedId === event.id ? null : context.selectedId,
         };
       }),

@@ -27,6 +27,8 @@ export {
   assetTypeSchema,
   assetSchema,
   type Asset,
+  projectGraphSchema,
+  type ProjectGraph,
   projectFileSchema,
   type ProjectFile,
 } from "./project";
