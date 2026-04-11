@@ -8,6 +8,8 @@ import { ResistorRenderer } from "./resistor-renderer";
 import { CapacitorRenderer } from "./capacitor-renderer";
 import { IcRenderer } from "./ic-renderer";
 import { ServoRenderer } from "./servo-renderer";
+import { PowerSupplyRenderer } from "./power-supply-renderer";
+import { MultimeterRenderer } from "./multimeter-renderer";
 import { GenericRenderer } from "./generic-renderer";
 
 export type ComponentRendererProps = {
@@ -29,6 +31,8 @@ const RENDERER_MAP: Record<
   capacitor: CapacitorRenderer,
   ic: IcRenderer,
   servo: ServoRenderer,
+  power_supply: PowerSupplyRenderer,
+  multimeter: MultimeterRenderer,
   // arduino_uno is rendered as a fixed board, not as a component
 };
 

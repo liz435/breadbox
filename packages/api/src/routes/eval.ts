@@ -36,7 +36,11 @@ export const evalRoutes = new Elysia()
 
   .get("/api/eval/all", async () => {
     const result = await runBatchEval()
-    return result.evals.sort((a, b) => b.score.total - a.score.total)
+    return result.evals.sort((a, b) => {
+      const sa = a.score?.total ?? -1
+      const sb = b.score?.total ?? -1
+      return sb - sa
+    })
   })
 
   .post("/api/eval/refresh", async () => {

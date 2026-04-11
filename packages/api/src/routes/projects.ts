@@ -1,13 +1,38 @@
-import { join } from "path";
+import { join, resolve, sep } from "path";
 import { Elysia } from "elysia";
-import { ZodError } from "zod";
-import { applyOpsRequestSchema } from "../db/schemas";
+import { z, ZodError } from "zod";
+import {
+  applyOpsRequestSchema,
+  projectGraphSchema,
+} from "../db/schemas";
+import { boardStateSchema } from "@dreamer/schemas";
 import {
   OpValidationError,
   projectRepo,
   VersionConflictError,
 } from "../db/project-repo";
 import type { Asset } from "../db/schemas";
+
+// Combined save payload — both fields optional so the client can omit one
+// when nothing changed in that half. At least one must be present.
+const saveStateRequestSchema = z
+  .object({
+    boardState: boardStateSchema.optional(),
+    graph: projectGraphSchema.optional(),
+  })
+  .refine(
+    (v) => v.boardState !== undefined || v.graph !== undefined,
+    { message: "Must include at least one of boardState or graph" },
+  );
+
+function badRequest(
+  set: { status?: number | string },
+  error: ZodError | string,
+) {
+  set.status = 400;
+  if (typeof error === "string") return { error };
+  return { error: "Invalid request payload", details: error.flatten() };
+}
 
 function mimeToAssetType(mimeType: string, ext: string): Asset["type"] {
   if (mimeType.startsWith("image/") || ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico"].includes(ext)) return "sprite";
@@ -121,36 +146,58 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
       throw error;
     }
   })
-  // ── Graph save ──────────────────────────────────────────────────────────
+  // ── Graph save (legacy single-field endpoint) ───────────────────────────
+  //
+  // Prefer POST /:id/state for new clients — it persists board and graph
+  // atomically in one read-modify-write cycle. This endpoint stays for
+  // sendBeacon flushes and any clients that only need to update one field.
   .post("/:id/graph", async ({ params, body, set }) => {
-    const payload = body as {
-      nodes: Record<string, unknown>;
-      edges: Record<string, unknown>;
-    } | null;
-    if (!payload || !payload.nodes || !payload.edges) {
-      set.status = 400;
-      return { error: "Body must include nodes and edges" };
+    try {
+      const graph = projectGraphSchema.parse(body);
+      const result = await projectRepo.saveGraph(params.id, graph);
+      if (!result) {
+        set.status = 404;
+        return { error: "Project not found" };
+      }
+      return result;
+    } catch (err) {
+      if (err instanceof ZodError) return badRequest(set, err);
+      throw err;
     }
-    const result = await projectRepo.saveGraph(params.id, payload);
-    if (!result) {
-      set.status = 404;
-      return { error: "Project not found" };
-    }
-    return result;
   })
-  // ── Board state save ────────────────────────────────────────────────────
+  // ── Board state save (legacy single-field endpoint) ─────────────────────
   .post("/:id/board", async ({ params, body, set }) => {
-    const payload = body as Record<string, unknown> | null;
-    if (!payload) {
-      set.status = 400;
-      return { error: "Body must include board state" };
+    try {
+      const boardState = boardStateSchema.parse(body);
+      const result = await projectRepo.saveBoardState(params.id, boardState);
+      if (!result) {
+        set.status = 404;
+        return { error: "Project not found" };
+      }
+      return result;
+    } catch (err) {
+      if (err instanceof ZodError) return badRequest(set, err);
+      throw err;
     }
-    const result = await projectRepo.saveBoardState(params.id, payload);
-    if (!result) {
-      set.status = 404;
-      return { error: "Project not found" };
+  })
+  // ── Atomic board + graph save ───────────────────────────────────────────
+  //
+  // Single read-modify-write that updates both `boardState` and `graph` in
+  // one pass. Use this for the normal autosave / Cmd+S flow so two
+  // concurrent saves can't clobber each other's field.
+  .post("/:id/state", async ({ params, body, set }) => {
+    try {
+      const payload = saveStateRequestSchema.parse(body);
+      const result = await projectRepo.saveBoardAndGraph(params.id, payload);
+      if (!result) {
+        set.status = 404;
+        return { error: "Project not found" };
+      }
+      return result;
+    } catch (err) {
+      if (err instanceof ZodError) return badRequest(set, err);
+      throw err;
     }
-    return result;
   })
   // ── Asset upload ────────────────────────────────────────────────────────
   .post("/:id/assets", async ({ params, request, set }) => {
@@ -270,10 +317,32 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
   })
   // ── Asset serve ─────────────────────────────────────────────────────────
   .get("/:id/assets/:filename", async ({ params, set }) => {
-    const dir = projectRepo.projectAssetsDir(params.id);
-    const filePath = join(dir, params.filename);
-    const file = Bun.file(filePath);
+    // Containment check: reject anything that isn't a bare basename, then
+    // verify the resolved path stays inside the project's asset directory.
+    // Without this, ".." segments or absolute paths in `:filename` could
+    // escape the directory and read arbitrary local files (path traversal).
+    const filename = params.filename;
+    if (
+      filename.length === 0 ||
+      filename.includes("/") ||
+      filename.includes("\\") ||
+      filename.includes("\0") ||
+      filename === "." ||
+      filename === ".."
+    ) {
+      set.status = 400;
+      return { error: "Invalid asset filename" };
+    }
 
+    const dir = projectRepo.projectAssetsDir(params.id);
+    const dirResolved = resolve(dir);
+    const filePath = resolve(join(dir, filename));
+    if (filePath !== dirResolved && !filePath.startsWith(dirResolved + sep)) {
+      set.status = 400;
+      return { error: "Invalid asset filename" };
+    }
+
+    const file = Bun.file(filePath);
     if (!(await file.exists())) {
       set.status = 404;
       return { error: "Asset not found" };

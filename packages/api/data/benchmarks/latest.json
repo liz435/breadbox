@@ -1,0 +1,84 @@
+{
+  "generatedAt": "2026-04-11T00:09:16.827Z",
+  "suite": "smoke",
+  "isolatedDataDir": "/var/folders/m_/tx6g14_s1tq5t5ws7rlvzc0w0000gn/T/dreamer-agent-benchmark-7B0pSl",
+  "scenarios": [
+    {
+      "id": "template-smoke",
+      "title": "Template Smoke",
+      "description": "Offline smoke test for the benchmark runner using the deterministic template path only.",
+      "tags": [
+        "smoke",
+        "template",
+        "offline"
+      ],
+      "projectId": "bbffc48e-8265-43c3-a31e-f04713f96d7c",
+      "threadId": "28c01c10-9a12-4c4a-ab00-ee6d2cdd18a2",
+      "turns": [
+        {
+          "turn": 1,
+          "prompt": "Build a traffic light circuit with red, yellow, and green LEDs.",
+          "runId": "03909b1c-66b9-4b09-abcf-9229dab68d9c",
+          "status": "completed",
+          "agent": "core",
+          "model": "template",
+          "domain": "template",
+          "category": "template",
+          "latencyMs": 7.89,
+          "score": 100,
+          "totalTokens": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "childTokens": 0,
+          "overheadTokens": 0,
+          "estimatedCost": 0,
+          "toolCalls": 0,
+          "toolErrors": 0,
+          "hallucinations": 0,
+          "proposedOps": 13,
+          "appliedOps": 13,
+          "assistantPreview": "Created traffic light: Red (D11), Yellow (D10), Green (D9). Each LED → 220Ω → GND. Cycles green → yellow → red."
+        }
+      ],
+      "summary": {
+        "runs": 1,
+        "avgScore": 100,
+        "avgLatencyMs": 7.89,
+        "avgTokens": 0,
+        "totalCost": 0,
+        "byDomain": {
+          "template": 1
+        },
+        "byModel": {
+          "template": {
+            "runs": 1,
+            "avgTokens": 0,
+            "totalCost": 0
+          }
+        }
+      }
+    }
+  ],
+  "overall": {
+    "runs": 1,
+    "scored": 1,
+    "avgScore": 100,
+    "avgLatencyMs": 7.89,
+    "avgTokens": 0,
+    "totalTokens": 0,
+    "totalCost": 0,
+    "byDomain": {
+      "template": 1
+    },
+    "byCategory": {
+      "template": 1
+    },
+    "byModel": {
+      "template": {
+        "runs": 1,
+        "avgTokens": 0,
+        "totalCost": 0
+      }
+    }
+  }
+}

@@ -125,6 +125,22 @@ async function completeRun(params: {
     outputTokens: number;
     totalTokens: number;
     model: string;
+    children?: Array<{
+      agent: AgentKind;
+      runId: string;
+      inputTokens: number;
+      outputTokens: number;
+      totalTokens: number;
+      model: string;
+      error?: string;
+    }>;
+    overhead?: Array<{
+      kind: "summarizer_live" | "summarizer_background";
+      inputTokens: number;
+      outputTokens: number;
+      totalTokens: number;
+      model: string;
+    }>;
   };
 }) {
   const existing = await readRun(params.runId);
@@ -145,6 +161,35 @@ async function completeRun(params: {
   import("../eval/batch-evaluator").then(({ evaluateSingleRun }) => {
     evaluateSingleRun(params.runId).catch(() => {});
   }).catch(() => {});
+}
+
+/**
+ * Record the router's decision on a run file. Called by the core agent
+ * immediately after routing, so the decision is persisted even if the
+ * run later fails.
+ */
+async function setRouting(
+  runId: string,
+  routing: {
+    model: string;
+    toolMode: "build" | "edit" | "circuit" | "all";
+    domain: "breadboard" | "graph" | "mixed" | "ambiguous";
+    requestType: "additive" | "surgical" | "rebuild" | "debug" | "question";
+    complexity: "simple" | "complex";
+    reasons: string[];
+    signals: {
+      boardComponentCount: number;
+      graphNodeCount: number;
+      promptLength: number;
+      recentFailures: number;
+      componentsMentioned: number;
+    };
+  }
+) {
+  const existing = await readRun(runId);
+  if (!existing) return;
+  existing.routing = routing;
+  await writeRun(runId, existing);
 }
 
 async function attachRunToThread(threadId: string, runId: string) {
@@ -182,13 +227,55 @@ async function updateThreadSummary(threadId: string, summary: CachedSummary) {
   await writeThread(threadId, thread);
 }
 
+/**
+ * Append an overhead entry (e.g. background summarizer) to a completed run
+ * and update its totalTokens. Used by fire-and-forget tasks that want to
+ * attribute their cost to the run that triggered them.
+ */
+async function appendOverhead(
+  runId: string,
+  overhead: {
+    kind: "summarizer_live" | "summarizer_background";
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    model: string;
+  }
+) {
+  const existing = await readRun(runId);
+  if (!existing) return;
+
+  // Seed tokenUsage if missing
+  if (!existing.tokenUsage) {
+    existing.tokenUsage = {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      model: "unknown",
+    };
+  }
+
+  const existingOverhead = existing.tokenUsage.overhead ?? [];
+  existing.tokenUsage.overhead = [...existingOverhead, overhead];
+  existing.tokenUsage.totalTokens = existing.tokenUsage.totalTokens + overhead.totalTokens;
+
+  await writeRun(runId, existing);
+
+  // Re-run eval so the summary picks up the corrected total
+  import("../eval/batch-evaluator").then(({ evaluateSingleRun }) => {
+    evaluateSingleRun(runId).catch(() => {});
+  }).catch(() => {});
+}
+
 export const agentRunRepo = {
   getOrCreateThread,
   createRun,
   completeRun,
+  setRouting,
   attachRunToThread,
   readRun,
   listRunsForThread,
   readThreadSummary,
   updateThreadSummary,
+  appendOverhead,
 };

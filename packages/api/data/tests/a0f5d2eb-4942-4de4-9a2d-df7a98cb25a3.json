@@ -1,9 +1,12 @@
 {
   "runId": "a0f5d2eb-4942-4de4-9a2d-df7a98cb25a3",
-  "evaluatedAt": "2026-04-09T22:24:11.470Z",
+  "evaluatedAt": "2026-04-10T23:57:35.007Z",
   "agent": "core",
   "prompt": "clear circuit. create a starfish using blinking LEDs",
   "status": "completed",
+  "evaluable": true,
+  "domain": "breadboard",
+  "category": "top_level",
   "path": {
     "stepCount": 34,
     "stepLimit": 10,
@@ -1117,6 +1120,8 @@
     "inputTokens": 73362,
     "outputTokens": 4193,
     "totalTokens": 77555,
+    "childTokens": 0,
+    "overheadTokens": 0,
     "estimatedCost": 0.283,
     "wastedTokens": 6400,
     "wasteDetails": [
@@ -1154,9 +1159,10 @@
     "totalCalls": 34,
     "errors": 0,
     "errorRate": 0,
-    "hallucatedIds": 0,
+    "hallucinatedIds": 0,
     "wrongPinNames": 0,
     "invalidPositions": 0,
+    "invalidGraphConnections": 0,
     "details": [
       {
         "tool": "get_board_state",
@@ -1781,6 +1787,7 @@
     ],
     "sketch": "// Starfish LED Circuit\n// 5 arms: Top, Top-Right, Bottom-Right, Bottom-Left, Top-Left\nint pins[] = {9, 10, 11, 12, 13};\n\nvoid setup() {\n  for (int i = 0; i < 5; i++) {\n    pinMode(pins[i], OUTPUT);\n  }\n}\n\n// Ripple outward from center — one arm at a time (clockwise)\nvoid ripple() {\n  for (int i = 0; i < 5; i++) {\n    digitalWrite(pins[i], HIGH);\n    delay(150);\n    digitalWrite(pins[i], LOW);\n    delay(50);\n  }\n}\n\n// All arms flash together\nvoid allFlash(int times) {\n  for (int t = 0; t < times; t++) {\n    for (int i = 0; i < 5; i++) digitalWrite(pins[i], HIGH);\n    delay(200);\n    for (int i = 0; i < 5; i++) digitalWrite(pins[i], LOW);\n    delay(200);\n  }\n}\n\n// Twinkle: random arms blink\nvoid twinkle() {\n  for (int t = 0; t < 15; t++) {\n    int arm = random(0, 5);\n    digitalWrite(pins[arm], HIGH);\n    delay(100);\n    digitalWrite(pins[arm], LOW);\n    delay(50);\n  }\n}\n\nvoid loop() {\n  ripple();       // Wave around the starfish arms\n  ripple();\n  ripple();\n  allFlash(3);    // All arms flash 3 times\n  twinkle();      // Random twinkling\n  allFlash(2);    // Final flash\n  delay(500);\n}\n"
   },
+  "graph": null,
   "score": {
     "total": 96,
     "breakdown": {

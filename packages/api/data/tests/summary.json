@@ -1,41 +1,102 @@
 {
-  "generatedAt": "2026-04-09T16:21:08.870Z",
-  "totalRuns": 38,
-  "byModel": {
+  "generatedAt": "2026-04-10T23:57:35.022Z",
+  "totalRuns": 43,
+  "notEvaluable": 0,
+  "categories": {
     "template": {
-      "runs": 8,
-      "avgScore": 93,
-      "totalTokens": 0,
-      "totalCost": 0
+      "runs": 10,
+      "scored": 10,
+      "avgScore": 100,
+      "avgToolErrorRate": 0,
+      "avgTokensPerRun": 0,
+      "hallucinationRate": 0,
+      "totalCost": 0,
+      "byModel": {
+        "template": {
+          "runs": 10,
+          "avgScore": 100,
+          "totalTokens": 0,
+          "totalCost": 0
+        }
+      }
     },
-    "claude-haiku-4-5-20251001": {
-      "runs": 13,
-      "avgScore": 74,
-      "totalTokens": 324265,
-      "totalCost": 0.3069
+    "topLevel": {
+      "runs": 31,
+      "scored": 31,
+      "avgScore": 79,
+      "avgToolErrorRate": 0.04,
+      "avgTokensPerRun": 35252,
+      "hallucinationRate": 16,
+      "totalCost": 3.0068,
+      "byModel": {
+        "claude-sonnet-4-6": {
+          "runs": 17,
+          "avgScore": 81,
+          "totalTokens": 794803,
+          "totalCost": 2.7276
+        },
+        "claude-haiku-4-5-20251001": {
+          "runs": 12,
+          "avgScore": 80,
+          "totalTokens": 298011,
+          "totalCost": 0.2792
+        },
+        "unknown": {
+          "runs": 2,
+          "avgScore": 55,
+          "totalTokens": 0,
+          "totalCost": 0
+        }
+      }
     },
-    "claude-sonnet-4-6": {
-      "runs": 14,
-      "avgScore": 75,
-      "totalTokens": 608281,
-      "totalCost": 2.0794
+    "delegated": {
+      "runs": 2,
+      "scored": 2,
+      "avgScore": 56,
+      "avgToolErrorRate": 0,
+      "avgTokensPerRun": 13127,
+      "hallucinationRate": 0,
+      "totalCost": 0.0277,
+      "byModel": {
+        "claude-haiku-4-5-20251001": {
+          "runs": 1,
+          "avgScore": 71,
+          "totalTokens": 26254,
+          "totalCost": 0.0277
+        },
+        "unknown": {
+          "runs": 1,
+          "avgScore": 40,
+          "totalTokens": 0,
+          "totalCost": 0
+        }
+      }
     },
-    "unknown": {
-      "runs": 3,
-      "avgScore": 63,
-      "totalTokens": 0,
-      "totalCost": 0
+    "specialist": {
+      "runs": 0,
+      "scored": 0,
+      "avgScore": 0,
+      "avgToolErrorRate": 0,
+      "avgTokensPerRun": 0,
+      "hallucinationRate": 0,
+      "totalCost": 0,
+      "byModel": {}
     }
   },
-  "avgScore": 77,
-  "avgToolErrorRate": 0.03,
-  "avgTokensPerRun": 24541,
-  "hallucationRate": 13,
-  "proposeCircuitAdoption": 8,
+  "byDomain": {
+    "template": 10,
+    "breadboard": 26,
+    "chat_only": 5,
+    "graph": 2
+  },
   "topIssues": [
     {
+      "issue": "Orphan nodes",
+      "count": 28
+    },
+    {
       "issue": "Missing resistors",
-      "count": 33
+      "count": 24
     },
     {
       "issue": "Hallucination",
@@ -43,7 +104,7 @@
     },
     {
       "issue": "Floating components",
-      "count": 13
+      "count": 12
     },
     {
       "issue": "Tool errors",
@@ -56,29 +117,59 @@
   ],
   "worstRuns": [
     {
-      "runId": "bbb75b9e-2f71-4b8b-8f09-4f88d265d667",
-      "score": 25,
-      "issue": "Low score"
-    },
-    {
-      "runId": "88f74485-72dd-406f-acf2-87da056f31a5",
-      "score": 25,
-      "issue": "Low score"
-    },
-    {
-      "runId": "0b5a2ac0-df1b-4ff9-8a73-1721eccec19c",
-      "score": 25,
-      "issue": "Low score"
+      "runId": "8e0ad33d-e59b-48e0-b271-a053916de3ed",
+      "score": 40,
+      "issue": "Orphan node: Player (sprite) has no connections",
+      "category": "top_level"
     },
     {
       "runId": "4a062b27-5dff-4a32-81b0-489095e4a8f3",
       "score": 53,
-      "issue": "wire_component_to_pin: Component d136103b-7a87-4f07-9b84-541f13d5c4d5 not found."
+      "issue": "wire_component_to_pin: Component d136103b-7a87-4f07-9b84-541f13d5c4d5 not found.",
+      "category": "top_level"
+    },
+    {
+      "runId": "bbb75b9e-2f71-4b8b-8f09-4f88d265d667",
+      "score": 60,
+      "issue": "Low score",
+      "category": "top_level"
     },
     {
       "runId": "873677ae-cc23-4d24-9385-1464f8b4349d",
       "score": 60,
-      "issue": "Low score"
+      "issue": "Low score",
+      "category": "top_level"
+    },
+    {
+      "runId": "2b2d6d74-96b6-45ae-aa5a-ad3b93d57dc1",
+      "score": 60,
+      "issue": "Pin name \"pin1\" not valid for resistor (expected: a, b)",
+      "category": "top_level"
     }
-  ]
+  ],
+  "avgScore": 79,
+  "avgToolErrorRate": 0.04,
+  "avgTokensPerRun": 35252,
+  "hallucinationRate": 16,
+  "proposeCircuitAdoption": 13,
+  "byModel": {
+    "claude-sonnet-4-6": {
+      "runs": 17,
+      "avgScore": 81,
+      "totalTokens": 794803,
+      "totalCost": 2.7276
+    },
+    "claude-haiku-4-5-20251001": {
+      "runs": 12,
+      "avgScore": 80,
+      "totalTokens": 298011,
+      "totalCost": 0.2792
+    },
+    "unknown": {
+      "runs": 2,
+      "avgScore": 55,
+      "totalTokens": 0,
+      "totalCost": 0
+    }
+  }
 }

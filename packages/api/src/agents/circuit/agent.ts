@@ -1,128 +1,93 @@
 import { streamText, stepCountIs } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import type { ModelMessage } from "ai";
-import { createCircuitTools } from "./tools";
-import type { AgentContext, AgentResult } from "../types";
-import type { BoardOp } from "@dreamer/schemas";
-import { summarizeBoardState } from "../core/tools";
+import { createCoreTools, summarizeBoardState } from "../core/tools";
+import type { AgentContext, AgentResult, DelegationContext } from "../types";
+import type { BoardOp, BoardState } from "@dreamer/schemas";
+import { createDefaultBoardState } from "@dreamer/schemas";
 
-const SYSTEM_PROMPT = `You are a circuit design specialist for Dreamer, an Arduino simulator.
+// ── Circuit Specialist ────────────────────────────────────────────────────
+//
+// The circuit specialist uses the SAME tool layer as the core agent
+// (`createCoreTools` in "circuit" mode). That guarantees one wiring contract
+// — pins are set to null, all connections come from wires, and the specialist
+// sees the parent's tentative working board so it can verify or repair the
+// parent's in-progress work.
+//
+// It cannot delegate further (no recursion) and cannot write sketches — it
+// validates and repairs wiring only.
 
-## Your Role
-You help design and validate Arduino circuits. You know common circuit patterns, correct resistor values, proper pin assignments, and safe wiring practices. You suggest components and validate existing wiring.
+const SYSTEM_PROMPT = `You are a circuit design specialist for Dreamer, an Arduino Uno simulator.
 
-## Arduino Uno Pin Reference
-- **Digital I/O**: D0-D13 (D0/D1 reserved for serial TX/RX)
-- **Analog Input**: A0-A5 (also usable as digital 14-19)
-- **PWM Output**: D3, D5, D6, D9, D10, D11
-- **Interrupts**: D2 (INT0), D3 (INT1)
-- **SPI**: D10 (SS), D11 (MOSI), D12 (MISO), D13 (SCK)
-- **I2C**: A4 (SDA), A5 (SCL)
-- **Max current per pin**: 20mA (absolute max 40mA)
-- **Total current (all pins)**: 200mA max
-- **Operating voltage**: 5V
+## Wiring contract (identical to the core agent)
+- ALL connections come from WIRES, not from component.pins. When placing a component, set every pin to null.
+- Same-row cols 0-4 are connected (left bus). Same-row cols 5-9 are connected (right bus). No wire needed within a bus.
+- LED: always add a 220-330Ω resistor in series. Place LED at col 2 row N, resistor at col 3 row N+1 (cathode row). Wire signal→(N,2), GND→(N+1,7).
+- 3-pin components (servo/pot/sensor): each pin on a SEPARATE ROW or they short via the bus. Wire signal→(row,x), 5V→(row+1,x), GND→(row+2,x).
+- Resistor spans 5 cols: place at col 3 to bridge the gap between the left and right strips.
 
-## Component Knowledge
+## Arduino Uno reference
+- Digital: D0–D13 (D0/D1 reserved for serial)
+- Analog: A0–A5 (= pins 14–19 as digital)
+- PWM: D3, D5, D6, D9, D10, D11
+- I²C: A4 (SDA), A5 (SCL)
+- Special pin numbers in wires: 5V=-1, 3V3=-2, GND=-3
+- Max current per pin: 20 mA; total across all pins: 200 mA
 
-### LEDs
-- Forward voltage: Red ~1.8V, Green ~2.0V, Blue ~3.0V, White ~3.0V
-- Forward current: Typical 20mA, max varies by LED
-- Resistor formula: R = (Vcc - Vf) / If
-- For red LED on 5V: R = (5 - 1.8) / 0.02 = 160 ohm -> use 220 ohm (standard value, safe margin)
-- For blue/white LED on 5V: R = (5 - 3.0) / 0.02 = 100 ohm -> use 100-150 ohm
+## Your role
+You validate and repair circuit wiring. The board state below reflects the parent agent's tentative work this turn — you see their latest changes. Make targeted fixes using the granular CRUD tools (place_component, connect_wire, remove_wire, update_wire, update_component, remove_component, move_component). Do NOT write sketch code.
 
-### Buttons/Switches
-- Use INPUT_PULLUP mode: button between pin and GND (active LOW)
-- External pull-down: 10K resistor to GND, button between pin and 5V (active HIGH)
-- Software debounce: ~50ms delay after state change
-
-### Resistors (common values)
-- 100, 150, 220, 330, 470, 680 ohm (low range)
-- 1K, 2.2K, 4.7K, 10K, 22K, 47K, 100K ohm (mid range)
-- LED current limiting: 220-330 ohm typical
-- Pull-up/pull-down: 10K typical
-- Voltage divider: depends on ratio needed
-
-### Potentiometers
-- Typically 10K ohm
-- Three terminals: one side to 5V, other to GND, wiper to analog pin
-- Analog reading: 0 (0V) to 1023 (5V)
-
-### Servos
-- Signal: PWM pin (D3, D5, D6, D9, D10, D11)
-- Power: 5V (small servos) or external supply (larger servos)
-- Range: 0-180 degrees typical
-- Avoid powering from Arduino 5V pin for multiple/large servos
-
-### LCD 16x2 (4-bit mode)
-- RS, EN, D4-D7: any digital pins
-- V0 (contrast): 10K potentiometer wiper
-- Power: 5V, GND
-- Backlight: through 220 ohm resistor to 5V
-
-### Sensors
-- **Photoresistor (LDR)**: Voltage divider with 10K resistor, connect to analog pin
-- **TMP36**: Vout to analog pin. Temp(C) = (voltage - 0.5) * 100
-- **HC-SR04**: Trigger (digital out), Echo (digital in). Distance = pulse_time * 0.034 / 2
-- **PIR (HC-SR501)**: Signal to digital pin, reads HIGH on motion. 60s warmup.
-- **DHT11/DHT22**: Signal to digital pin with 10K pull-up. DHT library.
-- **IR Receiver**: Signal to digital pin. IRremote library.
-
-### Output Components
-- **NeoPixel (WS2812)**: DIN to digital pin (300-470 ohm on data line). Adafruit_NeoPixel library. External 5V for long strips.
-- **Relay**: Signal to digital pin. Often active LOW. Switches high-power loads.
-- **DC Motor**: Signal to PWM pin through transistor/driver (L298N, L293D). analogWrite() for speed.
-- **OLED (SSD1306)**: I2C — SDA to A4, SCL to A5. Address 0x3C. Adafruit_SSD1306 library.
-- **Shift Register (74HC595)**: Data, Clock, Latch to 3 digital pins. shiftOut() for 8-bit parallel output.
-
-## Validation Rules
-1. Every LED must have a current-limiting resistor
-2. No pin should source/sink more than 20mA
-3. Total current draw should not exceed 200mA from Arduino
-4. Serial pins (D0/D1) should not be used for general I/O if serial is needed
-5. Analog pins A0-A5 can be digital outputs but lose analog input capability
-6. PWM only available on D3, D5, D6, D9, D10, D11
-7. Multiple components should not share the same pin (unless multiplexed)
-8. Power-hungry components (servos, motors) need external power supply
-
-## Common Circuits
-
-### Traffic Light
-- 3 LEDs (red, yellow, green) + 3x 220 ohm resistors
-- Pins: D11 (red), D10 (yellow), D9 (green)
-
-### Analog Sensor with LED Indicator
-- Potentiometer on A0
-- LED on D9 (PWM) with 220 ohm resistor
-- Map analog reading to PWM brightness
-
-### Servo with Button
-- Servo signal on D9
-- Button on D2 (INPUT_PULLUP)
-- Press button to toggle servo position
-
-## Guidelines
-- Always validate wiring before suggesting sketch code
-- Suggest standard resistor values (E12 or E24 series)
-- Prefer INPUT_PULLUP for buttons (simpler wiring)
-- Flag potential overcurrent situations
-- Suggest external power for motors and multiple servos
+## Common validation rules
+1. Every LED must have a current-limiting resistor on its cathode path.
+2. No pin should source/sink more than 20 mA.
+3. Serial pins (D0/D1) should not be used for general I/O when Serial is needed.
+4. PWM components (servo, motor) must use D3/D5/D6/D9/D10/D11.
+5. OLED/LCD: SDA→A4, SCL→A5.
+6. Multiple signal sources must not land on the same breadboard bus row (bus short).
+7. Components on separate rows should each have their own wires — check floating components.
 
 ## Important
-- You are a specialist agent. You cannot delegate to other agents.
-- Focus only on circuit design, component selection, and wiring validation.`;
+You are a specialist agent. You cannot delegate further. Focus only on circuit wiring — sketch code is outside your scope.`;
+
+const CIRCUIT_MODEL = "claude-sonnet-4-6";
 
 export async function runCircuitAgent(ctx: AgentContext): Promise<AgentResult> {
   const log = ctx.parentLog.child("circuit-agent");
   const start = performance.now();
-  const ops: BoardOp[] = [];
+
+  // Share parent's working board and ops when delegated; otherwise own them.
+  const ops: BoardOp[] = ctx.sharedOps ?? [];
+  const workingBoard: BoardState =
+    ctx.sharedWorkingBoard ??
+    structuredClone(ctx.project.boardState ?? createDefaultBoardState());
 
   log.info(`starting — prompt: ${ctx.prompt.slice(0, 100)}`);
 
-  const tools = createCircuitTools({
+  // The circuit specialist can't delegate (no recursion), so we stub
+  // DelegationContext with unusable runners — the filtered tool set for
+  // circuit mode excludes delegation tools anyway.
+  const delegation: DelegationContext = {
+    project: ctx.project,
+    sceneId: ctx.sceneId,
+    threadId: ctx.threadId,
+    projectId: ctx.projectId,
+    sessionId: ctx.sessionId,
+    parentRunId: ctx.runId,
+    parentLog: log,
+    childUsage: [],
+    getWorkingProject: () => ({
+      ...ctx.project,
+      boardState: structuredClone(workingBoard),
+    }),
+  };
+
+  const tools = createCoreTools({
     project: ctx.project,
     sceneId: ctx.sceneId,
     ops,
+    mode: "circuit",
+    workingBoard,
+    delegation,
   });
 
   const messages: ModelMessage[] = [
@@ -133,10 +98,11 @@ export async function runCircuitAgent(ctx: AgentContext): Promise<AgentResult> {
         anthropic: { cacheControl: { type: "ephemeral" } },
       },
     },
-    { role: "user", content: `Current board state:\n${summarizeBoardState(ctx.project)}\n\nTask: ${ctx.prompt}` },
+    {
+      role: "user",
+      content: `Current board state:\n${summarizeBoardState({ ...ctx.project, boardState: workingBoard })}\n\nTask: ${ctx.prompt}`,
+    },
   ];
-
-  const CIRCUIT_MODEL = "claude-sonnet-4-6";
 
   let stepCount = 0;
   let totalInputTokens = 0;

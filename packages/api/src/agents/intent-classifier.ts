@@ -120,6 +120,7 @@ export function classifyIntent(prompt: string): ClassifiedIntent {
 
 /** Patterns that signal a complex request requiring Sonnet. */
 const COMPLEX_PATTERNS = /\bdebug\b|\bfix\b|\bwhy\b|\bwhat'?s wrong\b|\bnot working\b|\brefactor\b|\bredesign\b|\boptimize\b|\bcomplex\b|\bmultiple\b|\bcircuit\b|\banalyze\b|\bvalidat|\bexplain\b|\bi2c\b|\bspi\b|\binterrupt\b|\bshift.?reg|\bneopixel\b|\blcd\b|\boled\b|\bgraph\b|\bnode.?block\b|\bvisual\b/
+const COMPLEX_LAYOUT_PATTERNS = /\bstarfish\b|\bshape\b|\bpattern\b|\barrange\b|\blayout\b|\bsymmetr(?:y|ical)\b|\ball\s+leds?\b|\bsimultaneous(?:ly)?\b/
 
 /** Patterns that signal a simple request Haiku can handle. */
 const SIMPLE_PATTERNS = /\badd\s+(a|an|one|another)\b|\bremove\b|\bdelete\b|\bchange\s+(the\s+)?color\b|\bmove\b|\brename\b|\bturn\s+(on|off)\b|\balways\s+on\b|\bupdate\s+(the\s+)?sketch\b|\bi\s+want\s+(a|an|one|another)\b/
@@ -133,8 +134,18 @@ export function classifyComplexity(prompt: string): AgentComplexity {
   // Greetings / trivial messages — always simple
   if (GREETING_PATTERNS.test(p)) return "simple"
 
+  // Explicit simple override:
+  // Shape-only LED art requests (e.g. starfish) with basic blink behavior
+  // are cheap build tasks and should not escalate by default.
+  const isSimpleLedShape =
+    /\bstarfish\b/.test(p) &&
+    /\bleds?\b/.test(p) &&
+    /\bblink(?:ing)?\b/.test(p) &&
+    !/\b(debug|fix|not working|analyze|validate|neopixel|servo|motor|sensor|lcd|oled|graph)\b/.test(p)
+  if (isSimpleLedShape) return "simple"
+
   // Complex patterns take priority
-  if (COMPLEX_PATTERNS.test(p)) return "complex"
+  if (COMPLEX_PATTERNS.test(p) || COMPLEX_LAYOUT_PATTERNS.test(p)) return "complex"
 
   // Count component types mentioned — multiple types = complex
   const componentMentions = [

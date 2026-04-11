@@ -53,14 +53,78 @@ export const agentRunRecordSchema = z.object({
 
 export type AgentRunRecord = z.infer<typeof agentRunRecordSchema>;
 
-export const tokenUsageSchema = z.object({
+/**
+ * Breakdown of a single delegated child-run's token cost. The parent rolls
+ * these up so evals and dashboards see the full end-to-end spend.
+ */
+export const childTokenUsageSchema = z.object({
+  agent: agentKindSchema,
+  runId: nonEmptyStringSchema,
+  inputTokens: z.number().int().nonnegative(),
+  outputTokens: z.number().int().nonnegative(),
+  totalTokens: z.number().int().nonnegative(),
+  model: z.string(),
+  error: z.string().optional(),
+});
+
+export type ChildTokenUsageRecord = z.infer<typeof childTokenUsageSchema>;
+
+/**
+ * Overhead costs outside the main stream and delegated specialists —
+ * e.g. history summarization calls. Attributed to the run that triggered
+ * them so evals see the true per-turn cost.
+ */
+export const overheadUsageSchema = z.object({
+  kind: z.enum(["summarizer_live", "summarizer_background"]),
   inputTokens: z.number().int().nonnegative(),
   outputTokens: z.number().int().nonnegative(),
   totalTokens: z.number().int().nonnegative(),
   model: z.string(),
 });
 
+export type OverheadUsageRecord = z.infer<typeof overheadUsageSchema>;
+
+export const tokenUsageSchema = z.object({
+  /** Parent-only input tokens (the top-level stream). */
+  inputTokens: z.number().int().nonnegative(),
+  /** Parent-only output tokens. */
+  outputTokens: z.number().int().nonnegative(),
+  /**
+   * End-to-end total — parent tokens + every delegated child-run's total +
+   * all overhead calls attributed to this run. This is what
+   * eval/token-analyzer should score.
+   */
+  totalTokens: z.number().int().nonnegative(),
+  model: z.string(),
+  /** Individual child-run breakdowns, if this run spawned any specialists. */
+  children: z.array(childTokenUsageSchema).optional(),
+  /** Overhead calls (summarizer, etc.) attributed to this run. */
+  overhead: z.array(overheadUsageSchema).optional(),
+});
+
 export type TokenUsageRecord = z.infer<typeof tokenUsageSchema>;
+
+/**
+ * Routing decision recorded on each run so post-hoc eval can measure router
+ * quality (were escalations warranted? were cheap runs stable?).
+ */
+export const routingDecisionSchema = z.object({
+  model: z.string(),
+  toolMode: z.enum(["build", "edit", "circuit", "all"]),
+  domain: z.enum(["breadboard", "graph", "mixed", "ambiguous"]),
+  requestType: z.enum(["additive", "surgical", "rebuild", "debug", "question"]),
+  complexity: z.enum(["simple", "complex"]),
+  reasons: z.array(z.string()),
+  signals: z.object({
+    boardComponentCount: z.number(),
+    graphNodeCount: z.number(),
+    promptLength: z.number(),
+    recentFailures: z.number(),
+    componentsMentioned: z.number(),
+  }),
+});
+
+export type RoutingDecisionRecord = z.infer<typeof routingDecisionSchema>;
 
 export const agentRunFileSchema = z.object({
   run: agentRunRecordSchema,
@@ -70,6 +134,8 @@ export const agentRunFileSchema = z.object({
   proposedOps: z.array(z.union([boardOpSchema, z.record(z.string(), z.unknown())])),
   appliedOps: z.array(z.union([boardOpSchema, z.record(z.string(), z.unknown())])),
   tokenUsage: tokenUsageSchema.optional(),
+  /** Recorded by the core agent; absent for templates and specialists. */
+  routing: routingDecisionSchema.optional(),
 });
 
 export type AgentRunFile = z.infer<typeof agentRunFileSchema>;

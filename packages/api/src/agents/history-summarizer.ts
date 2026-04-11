@@ -7,11 +7,29 @@ import { createLogger } from "../logger";
 
 const log = createLogger("history-summarizer");
 
+/** Model used for summarization — cheap, consistent. Tracked separately in eval. */
+const SUMMARIZER_MODEL = "claude-haiku-4-5-20251001";
+
 /** Maximum number of recent runs to keep as full messages. */
 const RECENT_RUNS_TO_KEEP = 2;
 
 /** Minimum number of completed core runs before we bother summarizing. */
 const MIN_RUNS_FOR_SUMMARY = 4;
+
+/**
+ * Token usage of a single summarizer invocation. Chat.ts rolls these into
+ * the parent run's tokenUsage as "overhead" so evals see the true per-turn
+ * cost. The parent's own input/output tokens are not mutated — these surface
+ * via a dedicated `overhead` breakdown on the token usage record.
+ */
+export type SummarizerUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  model: string;
+  /** "live" on cache miss (blocks the request), "background" on post-turn cache refresh. */
+  source: "live" | "background";
+};
 
 /**
  * Filters to completed core runs only.
@@ -24,8 +42,13 @@ function getCoreRuns(runs: AgentRunFile[]): AgentRunFile[] {
 
 /**
  * Calls haiku to summarize a list of older runs into a compact text block.
+ * Returns both the summary text and the token usage so callers can account
+ * for the overhead.
  */
-async function summarizeRuns(runs: AgentRunFile[]): Promise<string> {
+async function summarizeRuns(
+  runs: AgentRunFile[],
+  source: "live" | "background",
+): Promise<{ text: string; usage: SummarizerUsage }> {
   const transcript = runs
     .map((run, i) => {
       const userText = run.prompt;
@@ -35,7 +58,7 @@ async function summarizeRuns(runs: AgentRunFile[]): Promise<string> {
     .join("\n\n");
 
   const result = await generateText({
-    model: anthropic("claude-haiku-4-5-20251001"),
+    model: anthropic(SUMMARIZER_MODEL),
     messages: [
       {
         role: "user",
@@ -52,27 +75,45 @@ ${transcript}`,
       },
     ],
   });
-  return result.text;
+
+  const inputTokens = result.usage?.inputTokens ?? 0;
+  const outputTokens = result.usage?.outputTokens ?? 0;
+
+  return {
+    text: result.text,
+    usage: {
+      inputTokens,
+      outputTokens,
+      totalTokens: inputTokens + outputTokens,
+      model: SUMMARIZER_MODEL,
+      source,
+    },
+  };
 }
 
 /**
  * Builds conversation history using a cached summary when available.
  * If no cache exists or it's stale, falls back to a live haiku call.
+ *
+ * Returns the history messages along with any summarizer token usage incurred
+ * (null when we hit the cache or when there weren't enough runs to summarize).
+ * Callers should add this usage to the parent run's overhead total.
  */
 export async function buildSummarizedHistory(
   completedRuns: AgentRunFile[],
   cachedSummary?: CachedSummary
-): Promise<ModelMessage[]> {
+): Promise<{ messages: ModelMessage[]; usage: SummarizerUsage | null }> {
   const coreRuns = getCoreRuns(completedRuns);
 
   if (coreRuns.length < MIN_RUNS_FOR_SUMMARY) {
-    return buildModelMessagesFromRuns(completedRuns);
+    return { messages: buildModelMessagesFromRuns(completedRuns), usage: null };
   }
 
   const oldRuns = coreRuns.slice(0, -RECENT_RUNS_TO_KEEP);
   const recentRuns = coreRuns.slice(-RECENT_RUNS_TO_KEEP);
 
   let summary: string;
+  let usage: SummarizerUsage | null = null;
 
   // Use cached summary if it covers the right number of old runs
   if (cachedSummary && cachedSummary.runCount === oldRuns.length) {
@@ -85,9 +126,13 @@ export async function buildSummarizedHistory(
     );
     const start = performance.now();
     try {
-      summary = await summarizeRuns(oldRuns);
+      const result = await summarizeRuns(oldRuns, "live");
+      summary = result.text;
+      usage = result.usage;
       const elapsed = (performance.now() - start).toFixed(0);
-      log.info(`live summary in ${elapsed}ms (${summary.length} chars)`);
+      log.info(
+        `live summary in ${elapsed}ms (${summary.length} chars, ${result.usage.totalTokens} tokens)`
+      );
     } catch (err) {
       log.warn(`summarization failed, falling back to compact transcript: ${err}`);
       summary = oldRuns
@@ -98,28 +143,35 @@ export async function buildSummarizedHistory(
 
   const recentMessages = buildModelMessagesFromRuns(recentRuns);
 
-  return [
-    {
-      role: "user" as const,
-      content: `[Earlier conversation summary]\n${summary}`,
-    },
-    {
-      role: "assistant" as const,
-      content:
-        "Got it — I have the context from our earlier conversation. How can I help?",
-    },
-    ...recentMessages,
-  ];
+  return {
+    messages: [
+      {
+        role: "user" as const,
+        content: `[Earlier conversation summary]\n${summary}`,
+      },
+      {
+        role: "assistant" as const,
+        content:
+          "Got it — I have the context from our earlier conversation. How can I help?",
+      },
+      ...recentMessages,
+    ],
+    usage,
+  };
 }
 
 /**
  * Generates a fresh summary for a thread's history and returns it.
  * Intended to be called in the background after a run completes,
  * so the summary is pre-cached for the next request.
+ *
+ * Returns both the cached summary envelope AND the token usage, so callers
+ * (chat.ts) can attribute the background-refresh cost to the run that
+ * triggered it — eliminating the "hidden" summarizer overhead.
  */
 export async function generateThreadSummary(
   completedRuns: AgentRunFile[]
-): Promise<CachedSummary | null> {
+): Promise<{ summary: CachedSummary; usage: SummarizerUsage } | null> {
   const coreRuns = getCoreRuns(completedRuns);
 
   // After this run, the next request will have coreRuns.length runs.
@@ -133,12 +185,15 @@ export async function generateThreadSummary(
 
   const start = performance.now();
   try {
-    const text = await summarizeRuns(oldRuns);
+    const result = await summarizeRuns(oldRuns, "background");
     const elapsed = (performance.now() - start).toFixed(0);
     log.info(
-      `background summary: ${oldRuns.length} runs in ${elapsed}ms (${text.length} chars)`
+      `background summary: ${oldRuns.length} runs in ${elapsed}ms (${result.text.length} chars, ${result.usage.totalTokens} tokens)`
     );
-    return { text, runCount: oldRuns.length };
+    return {
+      summary: { text: result.text, runCount: oldRuns.length },
+      usage: result.usage,
+    };
   } catch (err) {
     log.warn(`background summarization failed: ${err}`);
     return null;

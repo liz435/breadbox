@@ -1,9 +1,12 @@
 {
   "runId": "42090537-6fed-4941-a4b4-ee15ebb35c7d",
-  "evaluatedAt": "2026-04-09T16:21:08.867Z",
+  "evaluatedAt": "2026-04-10T23:57:35.011Z",
   "agent": "core",
   "prompt": "add a red led light thats alway on",
   "status": "completed",
+  "evaluable": true,
+  "domain": "breadboard",
+  "category": "top_level",
   "path": {
     "stepCount": 4,
     "stepLimit": 10,
@@ -132,6 +135,8 @@
     "inputTokens": 29481,
     "outputTokens": 688,
     "totalTokens": 30169,
+    "childTokens": 0,
+    "overheadTokens": 0,
     "estimatedCost": 0.0988,
     "wastedTokens": 400,
     "wasteDetails": [
@@ -143,9 +148,10 @@
     "totalCalls": 4,
     "errors": 0,
     "errorRate": 0,
-    "hallucatedIds": 0,
+    "hallucinatedIds": 0,
     "wrongPinNames": 0,
     "invalidPositions": 0,
+    "invalidGraphConnections": 0,
     "details": [
       {
         "tool": "place_component",
@@ -270,6 +276,7 @@
     ],
     "sketch": ""
   },
+  "graph": null,
   "score": {
     "total": 89,
     "breakdown": {

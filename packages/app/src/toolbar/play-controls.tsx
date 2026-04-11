@@ -7,6 +7,7 @@ import { useBoard } from "@/store/board-context"
 import { useDockviewApi } from "@/store/dockview-context"
 import { useSimulation } from "@/simulator/simulation-loop"
 import { useBoardConnection } from "@/simulator/use-board-connection"
+import { useElectricalReport } from "@/electrical/power-budget"
 import { cn } from "@/utils/classnames"
 import { markSerialUnread } from "./edit-toolbar"
 import { simulationRef } from "@/simulator/simulation-ref"
@@ -19,6 +20,7 @@ export function PlayControls() {
   const { state, send: boardSend } = useBoard()
   const dockviewApi = useDockviewApi()
   const { selectedPort } = useBoardConnection()
+  const electrical = useElectricalReport()
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>("idle")
   const [uploadError, setUploadError] = useState<string | null>(null)
 
@@ -50,6 +52,7 @@ export function PlayControls() {
   sketchCodeRef.current = state.sketchCode
 
   const handlePlay = useCallback(() => {
+    if (electrical.hasErrors) return
     if (status === "paused") {
       resume()
       return
@@ -71,7 +74,7 @@ export function PlayControls() {
         })
       }
     }
-  }, [status, play, resume, dockviewApi])
+  }, [electrical.hasErrors, status, play, resume, dockviewApi])
 
   const handlePause = useCallback(() => {
     pause()
@@ -83,6 +86,7 @@ export function PlayControls() {
   }, [stop, boardSend])
 
   const handleUpload = useCallback(async () => {
+    if (electrical.hasErrors) return
     if (!selectedPort || !sketchCodeRef.current) return
     setUploadError(null)
     setUploadStatus("compiling")
@@ -105,13 +109,14 @@ export function PlayControls() {
       setUploadError(err instanceof Error ? err.message : "Upload failed")
       setUploadStatus("error")
     }
-  }, [selectedPort])
+  }, [electrical.hasErrors, selectedPort])
 
   const isRunning = status === "running"
   const isPaused = status === "paused"
   const isCompiling = status === "compiling"
   const isStopped = status === "stopped"
   const isError = status === "error"
+  const electricalBlockReason = electrical.issues.find((issue) => issue.severity === "error")?.message
 
   return (
     <div className="flex items-center gap-1">
@@ -135,7 +140,7 @@ export function PlayControls() {
                 variant="ghost"
                 size="icon"
                 onClick={handlePlay}
-                disabled={isCompiling}
+                disabled={isCompiling || electrical.hasErrors}
               />
             }
           >
@@ -151,7 +156,9 @@ export function PlayControls() {
             )}
           </TooltipTrigger>
           <TooltipContent>
-            {isPaused ? "Resume" : isCompiling ? "Compiling..." : "Compile & Run"}
+            {electrical.hasErrors
+              ? "Electrical issue blocks Run"
+              : isPaused ? "Resume" : isCompiling ? "Compiling..." : "Compile & Run"}
           </TooltipContent>
         </Tooltip>
       )}
@@ -191,6 +198,11 @@ export function PlayControls() {
           {error}
         </span>
       )}
+      {electrical.hasErrors && electricalBlockReason && (
+        <span className="ml-1 max-w-[240px] truncate text-[10px] text-red-400" title={electricalBlockReason}>
+          Electrical: {electricalBlockReason}
+        </span>
+      )}
 
       {/* Upload to Arduino — only shown when a port is selected */}
       {selectedPort && (
@@ -203,7 +215,12 @@ export function PlayControls() {
                   variant="ghost"
                   size="icon"
                   onClick={handleUpload}
-                  disabled={uploadStatus === "compiling" || uploadStatus === "flashing" || uploadStatus === "reconnecting"}
+                  disabled={
+                    electrical.hasErrors ||
+                    uploadStatus === "compiling" ||
+                    uploadStatus === "flashing" ||
+                    uploadStatus === "reconnecting"
+                  }
                 />
               }
             >
@@ -227,6 +244,7 @@ export function PlayControls() {
               {uploadStatus === "compiling" ? "Compiling…"
                 : uploadStatus === "flashing" ? "Flashing…"
                 : uploadStatus === "reconnecting" ? "Reconnecting…"
+                : electrical.hasErrors ? (electricalBlockReason ?? "Electrical issue blocks upload")
                 : uploadStatus === "error" ? (uploadError ?? "Upload failed")
                 : "Compile & Upload to Arduino"}
             </TooltipContent>

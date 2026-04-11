@@ -4,7 +4,7 @@
     "name": "green-seal-sail",
     "version": 6,
     "createdAt": "2026-04-08T21:32:09.097Z",
-    "updatedAt": "2026-04-09T03:39:32.869Z",
+    "updatedAt": "2026-04-10T00:59:55.158Z",
     "threadId": "bf167d24-8be0-420d-ab57-3c015e617cca",
     "activeSceneId": "e337f89d-613b-45ed-a6c1-839faa91752e"
   },
@@ -104,7 +104,9 @@
           "signal": null,
           "gnd": null
         },
-        "properties": {}
+        "properties": {
+          "value": 79
+        }
       },
       "72264b1c-44d2-4846-8246-1129b07a156a": {
         "id": "72264b1c-44d2-4846-8246-1129b07a156a",
@@ -387,208 +389,6 @@
         "color": "#42a5f5"
       }
     },
-    "pinStates": [
-      {
-        "pin": 0,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 1,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 2,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 3,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 4,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 5,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 6,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 7,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 8,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 9,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 10,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 11,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 12,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 13,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 14,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 15,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 16,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 17,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 18,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 19,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      }
-    ],
     "libraryState": {
       "servos": {},
       "lcd": null,

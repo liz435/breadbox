@@ -1,9 +1,12 @@
 {
   "runId": "cafabec7-a450-40c4-ab5c-995fe3e6041f",
-  "evaluatedAt": "2026-04-09T16:21:08.854Z",
+  "evaluatedAt": "2026-04-10T23:57:34.991Z",
   "agent": "core",
   "prompt": "traffic",
   "status": "completed",
+  "evaluable": true,
+  "domain": "breadboard",
+  "category": "top_level",
   "path": {
     "stepCount": 2,
     "stepLimit": 10,
@@ -72,6 +75,8 @@
     "inputTokens": 30024,
     "outputTokens": 517,
     "totalTokens": 30541,
+    "childTokens": 0,
+    "overheadTokens": 0,
     "estimatedCost": 0.0978,
     "wastedTokens": 0,
     "wasteDetails": []
@@ -80,9 +85,10 @@
     "totalCalls": 2,
     "errors": 0,
     "errorRate": 0,
-    "hallucatedIds": 0,
+    "hallucinatedIds": 0,
     "wrongPinNames": 0,
     "invalidPositions": 0,
+    "invalidGraphConnections": 0,
     "details": [
       {
         "tool": "get_sketch",
@@ -99,6 +105,7 @@
     ]
   },
   "circuit": null,
+  "graph": null,
   "score": {
     "total": 85,
     "breakdown": {

@@ -1,9 +1,12 @@
 {
   "runId": "e999ae62-9d9c-40d5-8a8c-71768f726b50",
-  "evaluatedAt": "2026-04-09T16:21:08.851Z",
+  "evaluatedAt": "2026-04-10T23:57:34.986Z",
   "agent": "core",
   "prompt": "make a circuit that pot controls servo",
   "status": "completed",
+  "evaluable": true,
+  "domain": "breadboard",
+  "category": "top_level",
   "path": {
     "stepCount": 1,
     "stepLimit": 10,
@@ -94,6 +97,8 @@
     "inputTokens": 20722,
     "outputTokens": 597,
     "totalTokens": 21319,
+    "childTokens": 0,
+    "overheadTokens": 0,
     "estimatedCost": 0.019,
     "wastedTokens": 0,
     "wasteDetails": []
@@ -102,9 +107,10 @@
     "totalCalls": 1,
     "errors": 0,
     "errorRate": 0,
-    "hallucatedIds": 0,
+    "hallucinatedIds": 0,
     "wrongPinNames": 0,
     "invalidPositions": 0,
+    "invalidGraphConnections": 0,
     "details": [
       {
         "tool": "propose_circuit",
@@ -258,6 +264,7 @@
     ],
     "sketch": "#include <Servo.h>\n\nconst int SERVO_PIN = 6;\nconst int POT_PIN = A0;\n\nServo servo;\n\nvoid setup() {\n  servo.attach(SERVO_PIN);\n  Serial.begin(9600);\n}\n\nvoid loop() {\n  int potValue = analogRead(POT_PIN);\n  int angle = map(potValue, 0, 1023, 0, 180);\n  servo.write(angle);\n  \n  Serial.print(\"Pot: \");\n  Serial.print(potValue);\n  Serial.print(\" -> Angle: \");\n  Serial.println(angle);\n  \n  delay(50);\n}"
   },
+  "graph": null,
   "score": {
     "total": 100,
     "breakdown": {

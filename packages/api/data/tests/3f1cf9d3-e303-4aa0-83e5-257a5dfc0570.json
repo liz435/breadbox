@@ -1,9 +1,12 @@
 {
   "runId": "3f1cf9d3-e303-4aa0-83e5-257a5dfc0570",
-  "evaluatedAt": "2026-04-09T16:21:08.861Z",
+  "evaluatedAt": "2026-04-10T23:57:34.999Z",
   "agent": "core",
   "prompt": "can you help me design a simple LED blink",
   "status": "completed",
+  "evaluable": true,
+  "domain": "breadboard",
+  "category": "top_level",
   "path": {
     "stepCount": 6,
     "stepLimit": 10,
@@ -204,6 +207,8 @@
     "inputTokens": 0,
     "outputTokens": 0,
     "totalTokens": 0,
+    "childTokens": 0,
+    "overheadTokens": 0,
     "estimatedCost": 0,
     "wastedTokens": 1400,
     "wasteDetails": [
@@ -216,9 +221,10 @@
     "totalCalls": 6,
     "errors": 0,
     "errorRate": 0,
-    "hallucatedIds": 0,
+    "hallucinatedIds": 0,
     "wrongPinNames": 2,
     "invalidPositions": 0,
+    "invalidGraphConnections": 0,
     "details": [
       {
         "tool": "get_board_state",
@@ -258,7 +264,7 @@
           }
         },
         "result": "error",
-        "issue": "Pin name \"pin2\" not valid for resistor (expected: a, b)"
+        "issue": "Pin name \"pin1\" not valid for resistor (expected: a, b)"
       },
       {
         "tool": "connect_wire",
@@ -356,6 +362,7 @@
     ],
     "sketch": "// Simple LED Blink Circuit\n// Red LED on pin 13 with 220Ω resistor\n\nvoid setup() {\n  // Configure pin 13 as an output\n  pinMode(13, OUTPUT);\n}\n\nvoid loop() {\n  // Turn the LED on\n  digitalWrite(13, HIGH);\n  delay(1000);  // Wait 1 second (1000 milliseconds)\n  \n  // Turn the LED off\n  digitalWrite(13, LOW);\n  delay(1000);  // Wait 1 second\n}\n"
   },
+  "graph": null,
   "score": {
     "total": 70,
     "breakdown": {

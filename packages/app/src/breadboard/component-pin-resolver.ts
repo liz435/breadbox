@@ -33,6 +33,7 @@ export function findArduinoPinsForComponent(
     component.y,
     component.x,
     component.rotation,
+    component.properties,
   )
   const pins = new Set<number>()
 

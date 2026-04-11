@@ -1,9 +1,12 @@
 {
   "runId": "dd9c31a2-ac96-41a0-8df6-c734fce3ff8f",
-  "evaluatedAt": "2026-04-09T16:42:07.390Z",
+  "evaluatedAt": "2026-04-10T23:57:34.985Z",
   "agent": "core",
   "prompt": "build me a led circuit",
   "status": "completed",
+  "evaluable": true,
+  "domain": "breadboard",
+  "category": "top_level",
   "path": {
     "stepCount": 1,
     "stepLimit": 10,
@@ -76,6 +79,8 @@
     "inputTokens": 5238,
     "outputTokens": 516,
     "totalTokens": 5754,
+    "childTokens": 0,
+    "overheadTokens": 0,
     "estimatedCost": 0.0235,
     "wastedTokens": 0,
     "wasteDetails": []
@@ -84,9 +89,10 @@
     "totalCalls": 1,
     "errors": 0,
     "errorRate": 0,
-    "hallucatedIds": 0,
+    "hallucinatedIds": 0,
     "wrongPinNames": 0,
     "invalidPositions": 0,
+    "invalidGraphConnections": 0,
     "details": [
       {
         "tool": "propose_circuit",
@@ -189,6 +195,7 @@
     ],
     "sketch": "void setup() {\n  pinMode(13, OUTPUT);\n}\n\nvoid loop() {\n  digitalWrite(13, HIGH);  // Turn LED on\n  delay(1000);              // Wait 1 second\n  digitalWrite(13, LOW);   // Turn LED off\n  delay(1000);              // Wait 1 second\n}"
   },
+  "graph": null,
   "score": {
     "total": 100,
     "breakdown": {

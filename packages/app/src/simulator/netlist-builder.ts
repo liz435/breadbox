@@ -88,7 +88,7 @@ export function buildNetlist(
   const netComponentTypes = new Map<string, Set<string>>()
   for (const comp of Object.values(components)) {
     if (comp.type === "arduino_uno" || comp.type === "wire") continue
-    const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation)
+    const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties)
     for (const pt of footprint.points) {
       const nid = pointToNetId.get(pointKey(pt))
       if (nid) {
@@ -166,6 +166,41 @@ export function buildNetlist(
 
   const nodeMap = buildNodeMap(nets, groundNetIds)
 
+  // Bleed every floating net (no voltage source, no ground, at least one
+  // component pin touching it) to ground via a large resistor.
+  //
+  // Why:
+  //   spicey's modified-nodal-analysis solver needs every node to have a DC
+  //   path to ground. A pair of floating nets connected only by a resistor
+  //   (classic example: a resistor sitting on an unwired row of the
+  //   breadboard) has no absolute voltage reference and produces a singular
+  //   conductance matrix — spicey throws "Singular matrix (real)" and the
+  //   ENTIRE solve fails. That means one dangling resistor silently breaks
+  //   every unrelated component on the board: the pot stops reading, LEDs
+  //   stop updating, analogRead returns stale values forever.
+  //
+  //   A 1 GΩ bleed to ground is large enough that it doesn't perturb real
+  //   circuit voltages (leakage on that scale is nanoamps) but guarantees
+  //   every node has a path to ground, so the solver always converges.
+  //
+  // What counts as "floating":
+  //   - Not already tied to ground by an Arduino GND pin.
+  //   - No voltage source driving it (5V pin, 3V3 pin, OUTPUT-HIGH digital
+  //     pin, PWM pin, etc.).
+  //   - Has at least one component footprint point on it — otherwise it's
+  //     purely an unused breadboard bus and doesn't need a bleed.
+  const voltageSourceNetIds = new Set(voltageSourceNets.map((v) => v.netId))
+  for (const net of nets) {
+    if (groundNetIds.has(net.id)) continue
+    if (voltageSourceNetIds.has(net.id)) continue
+    if (!netComponentTypes.has(net.id)) continue
+    // Use the net's first point to look up its SPICE node name.
+    const representativeKey = pointKey(net.points[0])
+    const nodeName = nodeMap.get(representativeKey)
+    if (!nodeName || nodeName === "0") continue
+    lines.push(`R_bleed_float_${net.id} ${nodeName} 0 1000000000`)
+  }
+
   // Deduplicate voltage sources: only one source per unique node name
   const seenSourceNodes = new Set<string>()
   let vsIndex = 0
@@ -188,7 +223,7 @@ export function buildNetlist(
   for (const comp of Object.values(components)) {
     if (comp.type === "arduino_uno" || comp.type === "wire") continue
 
-    const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation)
+    const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties)
     const def = getComponentDef(comp.type)
 
     if (def?.buildNetlist) {
@@ -204,8 +239,8 @@ export function buildNetlist(
         // the SPICE solver doesn't produce a singular matrix. This is better than
         // skipping the component entirely — it keeps the component in the netlist
         // (e.g. a button with one unwired side) without affecting circuit voltages.
-        let nodeA = result.nodeA
-        let nodeB = result.nodeB
+        const nodeA = result.nodeA
+        const nodeB = result.nodeB
         let bleedIdx = lines.filter((l) => l.startsWith("R_bleed_")).length
         if (nodeA.startsWith("unconnected_")) {
           lines.push(`R_bleed_${bleedIdx} ${nodeA} 0 1000000000`)
@@ -215,7 +250,21 @@ export function buildNetlist(
           lines.push(`R_bleed_${bleedIdx} ${nodeB} 0 1000000000`)
         }
 
-        lines.push(...result.lines)
+        // If both pins resolve to the same SPICE node, emitting the element
+        // would create a self-loop (e.g. "R_led1 0 0 120"), which collapses a
+        // row in the conductance matrix and makes spicey throw "Singular
+        // matrix (real)". That one failure then aborts the whole solve so
+        // *every other component* — including unrelated potentiometers —
+        // reads as inactive, which shows up to the user as "analogRead never
+        // changes". Drop the element lines but still register the pair so
+        // downstream code reports the component as present (inactive).
+        //
+        // This most commonly happens when an LED is wired anode→D<n> and
+        // cathode→GND but the sketch pulls D<n> LOW: both ends collapse to
+        // node "0".
+        if (nodeA !== nodeB) {
+          lines.push(...result.lines)
+        }
         componentNodePairs.set(comp.id, { nodeA, nodeB })
       }
     }

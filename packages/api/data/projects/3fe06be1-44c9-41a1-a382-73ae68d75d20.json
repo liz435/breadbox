@@ -4,7 +4,7 @@
     "name": "echo-ox-horn",
     "version": 1,
     "createdAt": "2026-04-07T02:27:23.305Z",
-    "updatedAt": "2026-04-08T04:17:58.936Z",
+    "updatedAt": "2026-04-10T20:20:20.930Z",
     "threadId": "93118918-2f59-48c4-a1d2-6301ff8a4537",
     "activeSceneId": "20968fd8-771e-437d-a12c-1ae9051ed094"
   },
@@ -93,22 +93,6 @@
           "color": "#ef4444"
         }
       },
-      "dc3da59f-5e4f-4152-9964-fee12efac547": {
-        "id": "dc3da59f-5e4f-4152-9964-fee12efac547",
-        "type": "potentiometer",
-        "name": "Potentiometer",
-        "x": 1,
-        "y": 4,
-        "rotation": 1,
-        "pins": {
-          "vcc": null,
-          "signal": null,
-          "gnd": null
-        },
-        "properties": {
-          "value": 24
-        }
-      },
       "c01c7ca5-74d3-4525-9aa6-7e991dbc003a": {
         "id": "c01c7ca5-74d3-4525-9aa6-7e991dbc003a",
         "type": "led",
@@ -171,20 +155,33 @@
           "color": "green"
         }
       },
-      "bfa40d76-df7c-44e0-8e81-2093faa104cb": {
-        "id": "bfa40d76-df7c-44e0-8e81-2093faa104cb",
-        "type": "resistor",
-        "name": "R3 - 220Ω (Red LED 2)",
-        "x": 7,
-        "y": 16,
+      "0fcaee7a-19f8-4143-8857-f46147d5d7ec": {
+        "id": "0fcaee7a-19f8-4143-8857-f46147d5d7ec",
+        "type": "potentiometer",
+        "name": "Potentiometer",
+        "x": 3,
+        "y": 4,
         "rotation": 0,
         "pins": {
-          "pin1": null,
-          "pin2": null
+          "vcc": null,
+          "signal": 14,
+          "gnd": null
         },
         "properties": {
-          "resistance": 220,
-          "color": "red"
+          "value": 100
+        }
+      },
+      "aa8166f7-b3bd-4450-aefe-0dd60acdaf92": {
+        "id": "aa8166f7-b3bd-4450-aefe-0dd60acdaf92",
+        "type": "power_supply",
+        "name": "Power Supply",
+        "x": -2,
+        "y": 0,
+        "rotation": 0,
+        "pins": {},
+        "properties": {
+          "leftVoltage": 5,
+          "rightVoltage": 3.3
         }
       }
     },
@@ -196,14 +193,6 @@
         "toRow": 6,
         "toCol": 0,
         "color": "#42a5f5"
-      },
-      "9ec404b4-0cb4-4f4c-aa9f-4e6feca80e50": {
-        "id": "9ec404b4-0cb4-4f4c-aa9f-4e6feca80e50",
-        "fromRow": -999,
-        "fromCol": -1,
-        "toRow": 4,
-        "toCol": 0,
-        "color": "#ef5350"
       },
       "68c39d9a-2851-4c8e-9cb7-20b6d46fda95": {
         "id": "68c39d9a-2851-4c8e-9cb7-20b6d46fda95",
@@ -229,14 +218,6 @@
         "toCol": 1,
         "color": "#42a5f5"
       },
-      "e93a12ba-d458-4119-9f49-52b6ea75acc0": {
-        "id": "e93a12ba-d458-4119-9f49-52b6ea75acc0",
-        "fromRow": 9,
-        "fromCol": 6,
-        "toRow": 14,
-        "toCol": 6,
-        "color": "#ef4444"
-      },
       "90f79dd1-37d2-4cfd-91b0-6dde49922202": {
         "id": "90f79dd1-37d2-4cfd-91b0-6dde49922202",
         "fromRow": 13,
@@ -244,8 +225,22 @@
         "toRow": 10,
         "toCol": 2,
         "color": "#1a1a1a"
+      },
+      "0f58d3e9-6cba-44a7-9f0c-fbf8d4a99129": {
+        "id": "0f58d3e9-6cba-44a7-9f0c-fbf8d4a99129",
+        "fromRow": -999,
+        "fromCol": -1,
+        "toRow": 4,
+        "toCol": 0,
+        "color": "#ef5350"
       }
     },
+    "libraryState": {
+      "servos": {},
+      "lcd": null,
+      "serialBaud": 0
+    },
+    "serialOutput": [],
     "sketchCode": "int potPin = A0;\nint ledPin = 9;\nint potValue = 0;\nint brightness = 255;\n\nvoid setup() {\n  pinMode(ledPin, OUTPUT);\n  pinMode(14, INPUT);\n  Serial.begin(9600);\n}\n\nvoid loop() {\n  potValue = analogRead(potPin);\n  Serial.print(potValue);\n  brightness = map(potValue, 0, 1023, 0, 255);\n  analogWrite(ledPin, brightness);\n  delay(10);\n}\n\n",
     "customLibraries": {}
   }

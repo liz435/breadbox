@@ -239,7 +239,7 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
           if (comp.type === "arduino_uno" || comp.type === "wire") continue
           const compState = result.componentStates.get(comp.id)
           if (!compState) continue
-          const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation)
+          const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties)
           if (footprint.points.some(pt => areConnected(wireTo, pt))) {
             store.writeExternal(arduinoPin, { analogValue: voltsToAnalog(compState.voltage) })
             break

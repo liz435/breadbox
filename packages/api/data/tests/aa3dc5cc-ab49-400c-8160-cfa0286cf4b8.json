@@ -1,9 +1,12 @@
 {
   "runId": "aa3dc5cc-ab49-400c-8160-cfa0286cf4b8",
-  "evaluatedAt": "2026-04-09T22:26:31.266Z",
+  "evaluatedAt": "2026-04-10T23:57:35.021Z",
   "agent": "core",
   "prompt": "make all LEDs blink at the same time, also I want the LEDs to be in a startfish shape",
   "status": "completed",
+  "evaluable": true,
+  "domain": "breadboard",
+  "category": "top_level",
   "path": {
     "stepCount": 22,
     "stepLimit": 10,
@@ -790,6 +793,8 @@
     "inputTokens": 100545,
     "outputTokens": 2668,
     "totalTokens": 103213,
+    "childTokens": 0,
+    "overheadTokens": 0,
     "estimatedCost": 0.3417,
     "wastedTokens": 4600,
     "wasteDetails": [
@@ -818,9 +823,10 @@
     "totalCalls": 22,
     "errors": 0,
     "errorRate": 0,
-    "hallucatedIds": 0,
+    "hallucinatedIds": 0,
     "wrongPinNames": 0,
     "invalidPositions": 0,
+    "invalidGraphConnections": 0,
     "details": [
       {
         "tool": "get_board_state",
@@ -1027,6 +1033,7 @@
     ]
   },
   "circuit": null,
+  "graph": null,
   "score": {
     "total": 83,
     "breakdown": {

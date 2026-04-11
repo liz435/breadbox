@@ -1,9 +1,12 @@
 {
   "runId": "fd2ce250-d878-423d-a189-5f625fa3835e",
-  "evaluatedAt": "2026-04-09T16:21:08.850Z",
+  "evaluatedAt": "2026-04-10T23:57:34.979Z",
   "agent": "core",
   "prompt": "traffic light",
   "status": "completed",
+  "evaluable": true,
+  "domain": "template",
+  "category": "template",
   "path": {
     "stepCount": 0,
     "stepLimit": 10,
@@ -18,6 +21,8 @@
     "inputTokens": 0,
     "outputTokens": 0,
     "totalTokens": 0,
+    "childTokens": 0,
+    "overheadTokens": 0,
     "estimatedCost": 0,
     "wastedTokens": 0,
     "wasteDetails": []
@@ -26,180 +31,20 @@
     "totalCalls": 0,
     "errors": 0,
     "errorRate": 0,
-    "hallucatedIds": 0,
+    "hallucinatedIds": 0,
     "wrongPinNames": 0,
     "invalidPositions": 0,
+    "invalidGraphConnections": 0,
     "details": []
   },
-  "circuit": {
-    "componentsPlaced": 6,
-    "wiresCreated": 6,
-    "floatingComponents": 0,
-    "busShorts": 0,
-    "missingResistors": 3,
-    "sketchPinMatch": true,
-    "sketchCompiles": true,
-    "issues": [
-      "Red LED has no resistor in its circuit path (cathode row 7)",
-      "Yellow LED has no resistor in its circuit path (cathode row 13)",
-      "Green LED has no resistor in its circuit path (cathode row 19)"
-    ],
-    "components": [
-      {
-        "id": "f9e22f79-e843-439f-b619-3307356b7b43",
-        "type": "led",
-        "name": "Red LED",
-        "x": 2,
-        "y": 6,
-        "pins": {
-          "anode": 11,
-          "cathode": null
-        },
-        "properties": {
-          "color": "#ef4444"
-        }
-      },
-      {
-        "id": "4e6c95bc-6542-4900-80ff-5d7b2201a3df",
-        "type": "resistor",
-        "name": "R1 (220Ω)",
-        "x": 0,
-        "y": 9,
-        "pins": {
-          "a": null,
-          "b": null
-        },
-        "properties": {
-          "resistance": 220
-        }
-      },
-      {
-        "id": "bb76d8a5-f490-40b8-be7d-9b24b84ce632",
-        "type": "led",
-        "name": "Yellow LED",
-        "x": 2,
-        "y": 12,
-        "pins": {
-          "anode": 10,
-          "cathode": null
-        },
-        "properties": {
-          "color": "#facc15"
-        }
-      },
-      {
-        "id": "bdbbcc75-457b-423d-892f-b1be172aa5d9",
-        "type": "resistor",
-        "name": "R2 (220Ω)",
-        "x": 0,
-        "y": 15,
-        "pins": {
-          "a": null,
-          "b": null
-        },
-        "properties": {
-          "resistance": 220
-        }
-      },
-      {
-        "id": "f9d7edf1-67c5-4e52-9603-1f068d82029a",
-        "type": "led",
-        "name": "Green LED",
-        "x": 2,
-        "y": 18,
-        "pins": {
-          "anode": 9,
-          "cathode": null
-        },
-        "properties": {
-          "color": "#22c55e"
-        }
-      },
-      {
-        "id": "61168e08-ffc4-43c7-908b-8e8748c0f017",
-        "type": "resistor",
-        "name": "R3 (220Ω)",
-        "x": 0,
-        "y": 21,
-        "pins": {
-          "a": null,
-          "b": null
-        },
-        "properties": {
-          "resistance": 220
-        }
-      }
-    ],
-    "wires": [
-      {
-        "id": "01756b0b-b854-4a71-848d-11de94c05e7e",
-        "fromRow": -999,
-        "fromCol": 11,
-        "toRow": 6,
-        "toCol": 2,
-        "color": "#ef4444",
-        "fromLabel": "D11",
-        "toLabel": "(6,2)"
-      },
-      {
-        "id": "6995dd55-72e3-462b-95d5-fc2c54afa6a1",
-        "fromRow": -999,
-        "fromCol": 10,
-        "toRow": 12,
-        "toCol": 2,
-        "color": "#facc15",
-        "fromLabel": "D10",
-        "toLabel": "(12,2)"
-      },
-      {
-        "id": "8fa7b81a-f61e-4917-a656-870acdf68397",
-        "fromRow": -999,
-        "fromCol": 9,
-        "toRow": 18,
-        "toCol": 2,
-        "color": "#22c55e",
-        "fromLabel": "D9",
-        "toLabel": "(18,2)"
-      },
-      {
-        "id": "9d339135-2b57-474f-94d1-32870062b954",
-        "fromRow": -999,
-        "fromCol": -3,
-        "toRow": 9,
-        "toCol": 0,
-        "color": "#42a5f5",
-        "fromLabel": "GND",
-        "toLabel": "(9,0)"
-      },
-      {
-        "id": "cc40e2c9-e2f5-49c0-b702-e6c6f53821a9",
-        "fromRow": -999,
-        "fromCol": -3,
-        "toRow": 15,
-        "toCol": 0,
-        "color": "#42a5f5",
-        "fromLabel": "GND",
-        "toLabel": "(15,0)"
-      },
-      {
-        "id": "adcdf02b-6c86-4f3a-a59c-982e799428fc",
-        "fromRow": -999,
-        "fromCol": -3,
-        "toRow": 21,
-        "toCol": 0,
-        "color": "#42a5f5",
-        "fromLabel": "GND",
-        "toLabel": "(21,0)"
-      }
-    ],
-    "sketch": "int redPin = 11;\nint yellowPin = 10;\nint greenPin = 9;\n\nvoid setup() {\n  pinMode(redPin, OUTPUT);\n  pinMode(yellowPin, OUTPUT);\n  pinMode(greenPin, OUTPUT);\n}\n\nvoid loop() {\n  // Green\n  digitalWrite(greenPin, HIGH);\n  delay(3000);\n  digitalWrite(greenPin, LOW);\n\n  // Yellow\n  digitalWrite(yellowPin, HIGH);\n  delay(1000);\n  digitalWrite(yellowPin, LOW);\n\n  // Red\n  digitalWrite(redPin, HIGH);\n  delay(3000);\n  digitalWrite(redPin, LOW);\n}\n"
-  },
+  "circuit": null,
+  "graph": null,
   "score": {
-    "total": 85,
+    "total": 100,
     "breakdown": {
       "accuracy": 25,
       "efficiency": 25,
-      "quality": 10,
+      "quality": 25,
       "completeness": 25
     }
   }

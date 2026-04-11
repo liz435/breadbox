@@ -1,29 +1,32 @@
 import { useEffect, useRef } from "react";
 import { useProject } from "./project-context";
 import { useGraph } from "@/store/graph-context";
-import { saveProjectGraph } from "./api-client";
-import { toast } from "@/components/ui/toast";
 import { createGraphNode } from "@/graph/node-factory";
 import { getDefaultPorts } from "@dreamer/schemas";
 import type { GraphNodeType } from "@dreamer/schemas";
 
-const SAVE_DEBOUNCE_MS = 2000;
-
 /**
- * Hydrates graph state from the project file on mount,
- * then auto-saves graph changes back to the server.
+ * Hydrates graph state from the project file when the project loads or
+ * changes. Autosave is handled centrally by `useBoardPersistence`, which
+ * persists board and graph atomically through a single `/state` request.
+ *
+ * Why two hooks share one save path:
+ *   When board and graph were saved through separate POSTs, two concurrent
+ *   read-modify-write cycles on the same project file would silently drop
+ *   one half of the save. The combined endpoint reads once, applies both
+ *   mutations, and writes once.
  */
 export function useGraphPersistence() {
   const { projectFile, projectId } = useProject();
-  const { state, send } = useGraph();
-  const hasHydrated = useRef(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const lastSavedRef = useRef<string>("");
+  const { send } = useGraph();
+  // Track which projectId we have already hydrated for. Switching projects
+  // changes `projectId`, which clears this guard and triggers a fresh
+  // hydration into the (also fresh, via Provider remount) graph actor.
+  const hydratedForRef = useRef<string | null>(null);
 
-  // Hydrate graph state from project file on mount
   useEffect(() => {
-    if (hasHydrated.current) return;
-    hasHydrated.current = true;
+    if (hydratedForRef.current === projectId) return;
+    hydratedForRef.current = projectId;
 
     const graph = projectFile.graph;
     if (!graph) return;
@@ -41,8 +44,8 @@ export function useGraphPersistence() {
       return;
     }
 
-    // Replay saved nodes and edges into the graph machine
-    // Refresh ports from current schema so saved projects pick up new ports
+    // Replay saved nodes and edges into the graph machine.
+    // Refresh ports from the current schema so saved projects pick up new ports.
     for (const node of nodeEntries) {
       node.ports = getDefaultPorts(node.type as GraphNodeType);
       send({ type: "ADD_NODE", node });
@@ -51,28 +54,5 @@ export function useGraphPersistence() {
       send({ type: "ADD_EDGE", edge });
     }
     send({ type: "CLEAR_SELECTION" });
-  }, [projectFile, send]);
-
-  // Auto-save graph changes to server (debounced)
-  useEffect(() => {
-    if (!hasHydrated.current) return;
-
-    const snapshot = JSON.stringify({ nodes: state.nodes, edges: state.edges });
-
-    // Skip if nothing changed since last save
-    if (snapshot === lastSavedRef.current) return;
-
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      lastSavedRef.current = snapshot;
-      saveProjectGraph(projectId, {
-        nodes: state.nodes,
-        edges: state.edges,
-      }).catch(() => {
-        toast.error("Failed to auto-save graph")
-      });
-    }, SAVE_DEBOUNCE_MS);
-
-    return () => clearTimeout(debounceRef.current);
-  }, [state.nodes, state.edges, projectId]);
+  }, [projectFile, projectId, send]);
 }

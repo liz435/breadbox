@@ -2,7 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { ProjectFile } from "../../db/schemas";
 import type { AgentKind } from "../../db/schemas";
-import type { BoardOp } from "@dreamer/schemas";
+import type { BoardOp, BoardState } from "@dreamer/schemas";
 import { createDefaultBoardState } from "@dreamer/schemas";
 import { agentRunRepo } from "../../db/agent-run-repo";
 import { boardTracker } from "../../db/board-state-tracker";
@@ -10,6 +10,7 @@ import { makeBoardOp } from "../make-op";
 import type { AgentRunner, DelegationContext } from "../types";
 import { runGraphAgent } from "../graph/agent";
 import { runCircuitAgent } from "../circuit/agent";
+import { analyzePowerBudget } from "../../electrical/power-budget-analyzer";
 // Cross-package import — transpiler is pure functions, no React deps
 import { transpile } from "../../../../app/src/simulator/arduino-transpiler";
 
@@ -41,8 +42,46 @@ const ALL_COMPONENT_TYPES = [
 
 // ── Board state summary for system prompt injection ─────────────────────
 
+function formatArduinoPin(pin: number): string {
+  if (pin === -1) return "5V";
+  if (pin === -2) return "3V3";
+  if (pin === -3 || pin === -4 || pin === -6) return "GND";
+  if (pin >= 14 && pin <= 19) return `A${pin - 14}`;
+  return `D${pin}`;
+}
+
+function summarizeSketchCode(sketch: string): string {
+  const trimmed = sketch.trim();
+  if (!trimmed) return "No sketch code.";
+
+  const lines = trimmed.split(/\r?\n/).length;
+  const includes = [...trimmed.matchAll(/#include\s*<([^>]+)>/g)].map((m) => m[1]);
+  const pinModes = [...trimmed.matchAll(/pinMode\s*\(\s*([A-Za-z0-9_]+)\s*,\s*([A-Z_]+)/g)]
+    .slice(0, 5)
+    .map((m) => `${m[1]}=${m[2]}`);
+
+  const features: string[] = [];
+  if (/\banalogRead\s*\(/.test(trimmed)) features.push("analogRead");
+  if (/\banalogWrite\s*\(/.test(trimmed)) features.push("analogWrite");
+  if (/\bdigitalRead\s*\(/.test(trimmed)) features.push("digitalRead");
+  if (/\bdigitalWrite\s*\(/.test(trimmed)) features.push("digitalWrite");
+  if (/\bSerial\./.test(trimmed)) features.push("Serial");
+  if (/\btone\s*\(/.test(trimmed)) features.push("tone");
+  if (/\bdelay\s*\(/.test(trimmed)) features.push("delay");
+
+  const parts = [`${lines} line(s)`];
+  if (includes.length > 0) parts.push(`includes: ${includes.slice(0, 3).join(", ")}`);
+  if (pinModes.length > 0) parts.push(`pinMode: ${pinModes.join(", ")}`);
+  if (features.length > 0) parts.push(`uses: ${features.join(", ")}`);
+  return parts.join(" | ");
+}
+
 export function summarizeBoardState(project: ProjectFile): string {
-  const board = boardTracker.get(project.project.id) ?? project.boardState;
+  // Prefer the project file's board state when present — it's the freshest
+  // view, including any tentative mutations folded in by the delegation
+  // tool's getWorkingProject(). Fall back to the tracker only when the
+  // project file has no boardState attached.
+  const board = project.boardState ?? boardTracker.get(project.project.id);
   if (!board) return "Board is empty — no components or wires.";
 
   const comps = Object.values(board.components);
@@ -53,28 +92,34 @@ export function summarizeBoardState(project: ProjectFile): string {
   }
 
   const lines: string[] = [];
-  lines.push(`Components (${comps.length}):`);
-  for (const c of comps) {
+  const nonArduino = comps.filter((c) => c.type !== "arduino_uno");
+  lines.push(`Components: ${nonArduino.length}. Wires: ${wires.length}.`);
+  if (nonArduino.length > 0) lines.push("Components:");
+  for (const c of nonArduino.slice(0, 8)) {
     if (c.type === "arduino_uno") continue;
     const pins = Object.entries(c.pins)
-      .filter(([, v]) => v != null)
-      .map(([k, v]) => `${k}=D${v}`)
+      .filter((entry): entry is [string, number] => entry[1] != null)
+      .map(([k, v]) => `${k}=${formatArduinoPin(v)}`)
       .join(", ");
     lines.push(`  - ${c.name} (${c.type}, id=${c.id}) at row=${c.y} col=${c.x}${pins ? ` pins: ${pins}` : ""}`);
   }
+  if (nonArduino.length > 8) {
+    lines.push(`  - ... ${nonArduino.length - 8} more component(s)`);
+  }
 
   if (wires.length > 0) {
-    lines.push(`Wires (${wires.length}):`);
-    for (const w of wires) {
-      const from = w.fromRow === -999 ? `Arduino pin ${w.fromCol}` : `row=${w.fromRow} col=${w.fromCol}`;
+    lines.push("Wires:");
+    for (const w of wires.slice(0, 6)) {
+      const from = w.fromRow === -999 ? formatArduinoPin(w.fromCol) : `row=${w.fromRow} col=${w.fromCol}`;
       lines.push(`  - ${from} → row=${w.toRow} col=${w.toCol} (${w.color})`);
+    }
+    if (wires.length > 6) {
+      lines.push(`  - ... ${wires.length - 6} more wire(s)`);
     }
   }
 
   const sketch = board.sketchCode ?? "";
-  if (sketch.length > 0) {
-    lines.push(`Sketch:\n\`\`\`cpp\n${sketch}\n\`\`\``);
-  }
+  lines.push(`Sketch summary: ${summarizeSketchCode(sketch)}`);
 
   return lines.join("\n");
 }
@@ -87,6 +132,13 @@ function makeDelegationTool(
   description: string,
   delegation: DelegationContext,
   ops: BoardOp[],
+  /**
+   * Parent's shared working board. When passed, the specialist mutates this
+   * directly via the unified `createCoreTools({ mode: "circuit" })` layer,
+   * so both parent and child see the same tentative state and there's only
+   * one ops array to coordinate.
+   */
+  sharedWorkingBoard?: BoardState,
 ) {
   return tool({
     description,
@@ -95,6 +147,34 @@ function makeDelegationTool(
     }),
     execute: async (input) => {
       const log = delegation.parentLog.child(`delegate:${agentName}`);
+      const task = input.task.trim();
+
+      // Cost guardrail: circuit specialist is wiring-only. Reject sketch/code
+      // handoffs early to avoid expensive dead-end child runs.
+      if (
+        agentName === "circuit" &&
+        /\b(sketch|code|compile|transpil|update_sketch|patch_sketch|void\s+setup\s*\(|#include)\b/i.test(task)
+      ) {
+        log.warn("skipping circuit delegation: task is sketch/code oriented");
+        return {
+          error: "Circuit specialist handles wiring only. Use update_sketch/patch_sketch directly in the parent agent.",
+          opsCount: 0,
+          skipped: true,
+        };
+      }
+
+      // Cost guardrail: cap repeated delegations to the same specialist in a
+      // single parent turn. This prevents recursion-like token burn loops.
+      const priorDelegationsToSameAgent = delegation.childUsage.filter((c) => c.agent === agentName).length;
+      if (priorDelegationsToSameAgent >= 1) {
+        log.warn(`skipping ${agentName} delegation: per-turn limit reached`);
+        return {
+          error: `Skipped ${agentName} delegation to avoid token loops (limit reached this turn).`,
+          opsCount: 0,
+          skipped: true,
+        };
+      }
+
       log.info(`delegating: ${input.task.slice(0, 100)}`);
 
       const childRun = await agentRunRepo.createRun({
@@ -109,20 +189,41 @@ function makeDelegationTool(
       await agentRunRepo.attachRunToThread(delegation.threadId, childRun.run.id);
 
       try {
+        // Pass the parent's current working project so the specialist sees
+        // any tentative mutations the parent has already made this turn.
+        const workingProject = delegation.getWorkingProject();
         const result = await runner({
           prompt: input.task,
-          project: delegation.project,
+          project: workingProject,
           sceneId: delegation.sceneId,
           runId: childRun.run.id,
           threadId: delegation.threadId,
           projectId: delegation.projectId,
           sessionId: delegation.sessionId,
           parentLog: log,
+          // Share the parent's workingBoard + ops with the circuit specialist
+          // so mutations flow through one tool layer, one contract.
+          sharedWorkingBoard,
+          sharedOps: sharedWorkingBoard ? ops : undefined,
         });
 
-        for (const op of result.proposedOps) {
-          ops.push(op);
+        // When not sharing state, the specialist returns its own ops; append
+        // them. When sharing, ops are already in the parent's array.
+        if (!sharedWorkingBoard) {
+          for (const op of result.proposedOps) {
+            ops.push(op);
+          }
         }
+
+        // Record this child's cost for roll-up into the parent's tokenUsage
+        delegation.childUsage.push({
+          agent: agentName,
+          runId: childRun.run.id,
+          inputTokens: result.tokenUsage.inputTokens,
+          outputTokens: result.tokenUsage.outputTokens,
+          totalTokens: result.tokenUsage.totalTokens,
+          model: result.tokenUsage.model,
+        });
 
         await agentRunRepo.completeRun({
           runId: childRun.run.id,
@@ -144,6 +245,16 @@ function makeDelegationTool(
         };
       } catch (err) {
         log.error(`${agentName} agent failed`, err);
+        // Record the failure so the parent's roll-up still surfaces it
+        delegation.childUsage.push({
+          agent: agentName,
+          runId: childRun.run.id,
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          model: "unknown",
+          error: err instanceof Error ? err.message : String(err),
+        });
         await agentRunRepo.completeRun({
           runId: childRun.run.id,
           proposedOps: [],
@@ -161,7 +272,7 @@ function makeDelegationTool(
 
 // ── Core tools ──────────────────────────────────────────────────────────
 
-export type ToolMode = "build" | "edit" | "all"
+export type ToolMode = "build" | "edit" | "circuit" | "all"
 
 /**
  * Build mode: only propose_circuit + read tools.
@@ -171,10 +282,20 @@ export type ToolMode = "build" | "edit" | "all"
  *   No propose_circuit (would replace work), no place_component
  *   (use update_component for existing items).
  *
+ * Circuit mode: the circuit specialist's view. Same granular CRUD as edit
+ *   plus place_component, but NO delegation (no recursion) and NO sketch
+ *   tools (the specialist validates/repairs wiring, not code).
+ *
  * All: every tool. Used as fallback when mode is unclear.
  */
 const BUILD_MODE_TOOLS = new Set([
+  "get_board_overview",
+  "list_components",
+  "list_wires",
+  "get_component_details",
+  "get_sketch_code",
   "get_board_state",
+  "analyze_power_budget",
   "get_wiring_guide",
   "propose_circuit",
   "delegate_to_graph_agent",
@@ -182,7 +303,13 @@ const BUILD_MODE_TOOLS = new Set([
 ])
 
 const EDIT_MODE_TOOLS = new Set([
+  "get_board_overview",
+  "list_components",
+  "list_wires",
+  "get_component_details",
+  "get_sketch_code",
   "get_board_state",
+  "analyze_power_budget",
   "get_wiring_guide",
   "place_component",
   "update_component",
@@ -198,33 +325,135 @@ const EDIT_MODE_TOOLS = new Set([
   "delegate_to_circuit_agent",
 ])
 
+const CIRCUIT_MODE_TOOLS = new Set([
+  "get_board_overview",
+  "list_components",
+  "list_wires",
+  "get_component_details",
+  "get_board_state",
+  "analyze_power_budget",
+  "get_wiring_guide",
+  "place_component",
+  "update_component",
+  "move_component",
+  "remove_component",
+  "connect_wire",
+  "wire_component_to_pin",
+  "remove_wire",
+  "update_wire",
+])
+
 export function createCoreTools(params: {
   project: ProjectFile;
   sceneId: string;
   ops: BoardOp[];
   delegation: DelegationContext;
   mode?: ToolMode;
+  /**
+   * Pre-existing mutable working board. The core agent creates this once and
+   * passes it here so the delegation context can also expose it to specialist
+   * children. If omitted, a fresh clone is made from the project + tracker.
+   */
+  workingBoard?: BoardState;
 }) {
   const { project, sceneId, ops, delegation, mode = "all" } = params;
   const projectId = project.project.id;
   const expectedVersion = project.project.version;
   const opCtx = { projectId, sceneId, expectedVersion };
 
-  // Working copy: prefer the live tracker (always current), fall back to project file.
+  // Working copy: prefer the one passed in (shared with delegation), else the
+  // live tracker, else fall back to the project file.
   const trackedBoard = boardTracker.get(projectId);
-  const workingBoard = structuredClone(trackedBoard ?? project.boardState ?? createDefaultBoardState());
+  const workingBoard: BoardState = params.workingBoard ?? structuredClone(
+    trackedBoard ?? project.boardState ?? createDefaultBoardState()
+  );
 
   const allTools = {
     // ── Read ────────────────────────────────────────────────────────
 
+    get_board_overview: tool({
+      description: "Cheap summary of the board: component count, key IDs, representative wires, and a short sketch summary. Prefer this before get_board_state.",
+      inputSchema: z.object({}),
+      execute: async () => ({
+        summary: summarizeBoardState({ ...project, boardState: workingBoard }),
+      }),
+    }),
+
+    list_components: tool({
+      description: "List components on the board with ids, types, positions, and assigned pins. Much cheaper than get_board_state.",
+      inputSchema: z.object({}),
+      execute: async () => ({
+        components: Object.values(workingBoard.components)
+          .filter((component) => component.type !== "arduino_uno")
+          .map((component) => ({
+            id: component.id,
+            type: component.type,
+            name: component.name,
+            x: component.x,
+            y: component.y,
+            pins: component.pins,
+            properties: component.properties,
+          })),
+      }),
+    }),
+
+    list_wires: tool({
+      description: "List wires only. Use this when you need wiring detail without the full board payload.",
+      inputSchema: z.object({}),
+      execute: async () => ({
+        wires: Object.values(workingBoard.wires).map((wire) => ({
+          id: wire.id,
+          fromRow: wire.fromRow,
+          fromCol: wire.fromCol,
+          toRow: wire.toRow,
+          toCol: wire.toCol,
+          color: wire.color,
+        })),
+      }),
+    }),
+
+    get_component_details: tool({
+      description: "Fetch one component by id, including its pins and properties.",
+      inputSchema: z.object({
+        componentId: z.string(),
+      }),
+      execute: async (input) => {
+        const component = workingBoard.components[input.componentId];
+        if (!component) {
+          return { error: `Component ${input.componentId} not found.` };
+        }
+        return { component };
+      },
+    }),
+
+    get_sketch_code: tool({
+      description: "Read the full sketch code. Use only when you need the exact code, not just a summary.",
+      inputSchema: z.object({}),
+      execute: async () => ({
+        sketchCode: workingBoard.sketchCode ?? "",
+      }),
+    }),
+
     get_board_state: tool({
-      description: "Read current board state (components, wires, sketch). Board state is also in the system prompt — only call if you need a refresh mid-turn.",
+      description: "Read the full board payload (components, wires, full sketch). Expensive. Prefer get_board_overview, list_components, list_wires, get_component_details, or get_sketch_code first.",
       inputSchema: z.object({}),
       execute: async () => {
         return {
           components: workingBoard.components,
           wires: workingBoard.wires,
           sketchCode: workingBoard.sketchCode,
+        };
+      },
+    }),
+
+    analyze_power_budget: tool({
+      description: "Analyze electrical safety and power budget: per-pin load, rail load, and whether external supply is required.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const report = analyzePowerBudget(workingBoard);
+        return {
+          safe: report.issues.every((issue) => issue.severity !== "error"),
+          report,
         };
       },
     }),
@@ -238,6 +467,10 @@ export function createCoreTools(params: {
 - Same-row cols 0-4 are connected (left bus). Same-row cols 5-9 are connected (right bus). No wire needed within a bus.
 - LED: always add 220Ω resistor. Place LED at col 2 row N, resistor at col 3 row N+1 (cathode row). Wire pin→(N,2), GND→(N+1,7). Cathode and resistor share left bus.
 - 3-pin components (servo/pot/sensor): each pin on a SEPARATE ROW or they short via bus. Wire signal→(row,x), 5V→(row+1,x), GND→(row+2,x).
+- High-current loads (servo, motor, relay, large LED arrays) should use external power_supply with common ground to Arduino GND.
+- power_supply (MB102) anchors on fixed rail columns, not component.x:
+  top row y: left+=(-2), left-=(-1), right-=(10), right+=(11)
+  bottom row y+1: left+=(-2), left-=(-1), right-=(10), right+=(11)
 - Resistor spans 5 cols: place at col 3 to bridge gap (pinA at col 3, pinB at col 7).
 
 ## Footprints
@@ -622,7 +855,7 @@ Example — LED blink:
           arduinoPin: z.number().describe("Arduino pin number (D0-D13=0-13, A0-A5=14-19, 5V=-1, GND=-3)"),
           toComponent: z.number().int().min(0).describe("Index into components array"),
           color: z.string().optional(),
-          pinOffset: z.number().int().optional().describe("Row offset from component position (0=signal, 1=vcc, 2=gnd for 3-pin components)"),
+          pinOffset: z.number().int().optional().describe("Row offset for most parts. For power_supply: 0=L+, 1=L-, 2=R-, 3=R+, 4=L+ (bottom), 5=L- (bottom), 6=R- (bottom), 7=R+ (bottom)."),
         })).describe("Wires from Arduino pins to components"),
 
         ledResistorPairs: z.array(z.object({
@@ -780,10 +1013,35 @@ Example — LED blink:
           } as typeof workingBoard.components[string];
         }
 
+        function resolveWireTarget(
+          target: { type: string; row: number; col: number },
+          pinOffset: number | undefined,
+        ): { row: number; col: number } {
+          if (target.type !== "power_supply") {
+            return {
+              row: target.row + (pinOffset ?? 0),
+              col: target.col,
+            };
+          }
+
+          const slot = pinOffset ?? 0;
+          const slots: Array<{ row: number; col: number }> = [
+            { row: target.row, col: -2 },      // left+ top
+            { row: target.row, col: -1 },      // left- top
+            { row: target.row, col: 10 },      // right- top
+            { row: target.row, col: 11 },      // right+ top
+            { row: target.row + 1, col: -2 },  // left+ bottom
+            { row: target.row + 1, col: -1 },  // left- bottom
+            { row: target.row + 1, col: 10 },  // right- bottom
+            { row: target.row + 1, col: 11 },  // right+ bottom
+          ];
+          return slots[Math.max(0, Math.min(7, slot))] ?? slots[0]!;
+        }
+
         // Wire Arduino pins to components
         for (const wire of input.wires) {
           const target = placedComponents[wire.toComponent];
-          const offset = wire.pinOffset ?? 0;
+          const to = resolveWireTarget(target, wire.pinOffset);
           const wireId = crypto.randomUUID();
           generatedOps.push(makeBoardOp(opCtx, {
             kind: "connect_wire",
@@ -792,8 +1050,8 @@ Example — LED blink:
                 id: wireId,
                 fromRow: -999,
                 fromCol: wire.arduinoPin,
-                toRow: target.row + offset,
-                toCol: target.col,
+                toRow: to.row,
+                toCol: to.col,
                 color: wire.color ?? "#22c55e",
               },
             },
@@ -866,9 +1124,12 @@ Example — LED blink:
     delegate_to_circuit_agent: makeDelegationTool(
       "circuit",
       runCircuitAgent,
-      "Delegate to circuit agent for complex circuit validation.",
+      "Delegate to circuit specialist for wiring validation or repair. The specialist shares this turn's working board and uses the same tool contract you do.",
       delegation,
       ops,
+      // Share the parent's working board with the circuit specialist so both
+      // sides mutate one state through one tool layer.
+      workingBoard,
     ),
   } as const;
 
@@ -880,6 +1141,11 @@ Example — LED blink:
   if (mode === "edit") {
     return Object.fromEntries(
       Object.entries(allTools).filter(([name]) => EDIT_MODE_TOOLS.has(name)),
+    ) as typeof allTools;
+  }
+  if (mode === "circuit") {
+    return Object.fromEntries(
+      Object.entries(allTools).filter(([name]) => CIRCUIT_MODE_TOOLS.has(name)),
     ) as typeof allTools;
   }
   return allTools;

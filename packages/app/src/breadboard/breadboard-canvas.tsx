@@ -55,62 +55,116 @@ const TERMINAL_ORIGIN_Y = BOARD_PADDING + POWER_RAIL_HEIGHT;
 
 // ── Static board background (holes + labels + rails) ────────────
 
+/**
+ * A single breadboard hole. Drawn as a tiny well: a dark inset rim
+ * gives the illusion of depth, with a slightly lighter inner fill so
+ * the metal clip beneath catches the light. Pulled out as its own
+ * function so all ~340 holes use the exact same render path.
+ */
+function Hole({ x, y }: { x: number; y: number }) {
+  return (
+    <g key={`hole-${x}-${y}`}>
+      {/* Dark recess (well) */}
+      <circle cx={x} cy={y} r={HOLE_RADIUS + 0.4} fill="#1a1a1a" />
+      {/* Inner cavity — slight gradient for depth */}
+      <circle cx={x} cy={y} r={HOLE_RADIUS} fill="url(#hole-fill)" />
+      {/* Tiny highlight on the upper-left to suggest a metal clip */}
+      <circle
+        cx={x - 0.4}
+        cy={y - 0.4}
+        r={HOLE_RADIUS * 0.45}
+        fill="#ffffff"
+        opacity={0.18}
+      />
+    </g>
+  );
+}
+
 function buildBreadboardBackground(): React.ReactElement[] {
   const elements: React.ReactElement[] = [];
 
-  for (let col = 0; col < 5; col++) {
+  // Column letters (a–j) along the top of the terminal area
+  for (let col = 0; col < 10; col++) {
     const { x } = gridToPixel({ row: 0, col });
-    const letterY = TERMINAL_ORIGIN_Y - 10;
+    const letterY = TERMINAL_ORIGIN_Y - 8;
     elements.push(
-      <text key={`cl-${col}`} x={x} y={letterY}
-        textAnchor="middle" fontSize={5} fill="#b0b0b0" fontFamily="sans-serif">
+      <text
+        key={`cl-top-${col}`}
+        x={x}
+        y={letterY}
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fontSize={4.5}
+        fill="#7a7670"
+        fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+        fontWeight={500}
+      >
         {COL_LETTERS[col]}
-      </text>
+      </text>,
     );
   }
-  for (let col = 5; col < 10; col++) {
+  // Mirror the column letters along the bottom
+  const bottomLetterY =
+    TERMINAL_ORIGIN_Y + (ROWS - 1) * HOLE_SPACING + 8;
+  for (let col = 0; col < 10; col++) {
     const { x } = gridToPixel({ row: 0, col });
-    const letterY = TERMINAL_ORIGIN_Y - 10;
     elements.push(
-      <text key={`cl-${col}`} x={x} y={letterY}
-        textAnchor="middle" fontSize={5} fill="#b0b0b0" fontFamily="sans-serif">
+      <text
+        key={`cl-bot-${col}`}
+        x={x}
+        y={bottomLetterY}
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fontSize={4.5}
+        fill="#7a7670"
+        fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+        fontWeight={500}
+      >
         {COL_LETTERS[col]}
-      </text>
+      </text>,
     );
   }
 
-  const gapCenterX = (gridToPixel({ row: 0, col: 4 }).x + gridToPixel({ row: 0, col: 5 }).x) / 2;
+  // Row numbers (1, 5, 10, 15, …) inside the center gap, plus mirrored
+  // row numbers on the far left and right edges.
+  const gapCenterX =
+    (gridToPixel({ row: 0, col: 4 }).x + gridToPixel({ row: 0, col: 5 }).x) /
+    2;
   for (let row = 0; row < ROWS; row++) {
     const { y } = gridToPixel({ row, col: 0 });
     if (row === 0 || (row + 1) % 5 === 0) {
       elements.push(
-        <text key={`rn-${row}`} x={gapCenterX} y={y + 1.5}
-          textAnchor="middle" dominantBaseline="middle"
-          fontSize={4.5} fill="#c44" fontFamily="sans-serif">
+        <text
+          key={`rn-${row}`}
+          x={gapCenterX}
+          y={y}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize={4}
+          fill="#7a7670"
+          fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+          fontWeight={500}
+        >
           {row + 1}
-        </text>
+        </text>,
       );
     }
   }
 
+  // Terminal-strip holes (cols 0-9)
   for (let row = 0; row < ROWS; row++) {
     for (let col = 0; col < COLS; col++) {
       const { x, y } = gridToPixel({ row, col });
-      elements.push(
-        <circle key={`h-${row}-${col}`} cx={x} cy={y} r={HOLE_RADIUS}
-          fill="#B8B6B4" stroke="#A8A6A4" strokeWidth={0.4} />
-      );
+      elements.push(<Hole key={`h-${row}-${col}`} x={x} y={y} />);
     }
   }
 
+  // Power rail holes (cols -2, -1, 10, 11)
   const railCols = [-2, -1, 10, 11];
   for (const col of railCols) {
     for (let row = 0; row < ROWS; row++) {
       const { x, y } = gridToPixel({ row, col });
-      elements.push(
-        <circle key={`r-${row}-${col}`} cx={x} cy={y} r={HOLE_RADIUS}
-          fill="#B8B6B4" stroke="#A8A6A4" strokeWidth={0.4} />
-      );
+      elements.push(<Hole key={`r-${row}-${col}`} x={x} y={y} />);
     }
   }
 
@@ -119,19 +173,91 @@ function buildBreadboardBackground(): React.ReactElement[] {
 
 // ── Power rail stripe decorations ───────────────────────────────
 
+/**
+ * The colored guide lines that run alongside each pair of power-rail
+ * holes, plus the +/− labels at each end. On a real breadboard these
+ * are silkscreened to tell you which column is +V and which is GND.
+ */
 function PowerRailStripes() {
-  const topRailY = TERMINAL_ORIGIN_Y - POWER_RAIL_HEIGHT / 2 - 2;
-  const bottomRailY = TERMINAL_ORIGIN_Y + (ROWS - 1) * HOLE_SPACING + POWER_RAIL_HEIGHT / 2 + 2;
-  const leftX = gridToPixel({ row: 0, col: -2 }).x - 6;
-  const rightX = gridToPixel({ row: 0, col: 11 }).x + 6;
-  const stripeWidth = rightX - leftX;
+  const leftPlusX = gridToPixel({ row: 0, col: -2 }).x;
+  const leftMinusX = gridToPixel({ row: 0, col: -1 }).x;
+  const rightPlusX = gridToPixel({ row: 0, col: 10 }).x;
+  const rightMinusX = gridToPixel({ row: 0, col: 11 }).x;
+
+  const topY = gridToPixel({ row: 0, col: -2 }).y;
+  const bottomY = gridToPixel({ row: ROWS - 1, col: -2 }).y;
+  const stripeInset = 5; // distance from the holes
+  const stripeLen = bottomY - topY + 8;
+  const stripeStartY = topY - 4;
+
+  // Render order: a soft stripe band, then the colored rule line, then
+  // the +/− labels. Doing the band as a thick translucent line + the
+  // rule as a thinner solid line gives a "printed-on-plastic" feel.
+  const renderRail = (
+    cx: number,
+    color: string,
+    side: "outer" | "inner",
+    sign: "+" | "−",
+    keyPrefix: string,
+  ) => {
+    const offset = side === "outer" ? -stripeInset : stripeInset;
+    const x = cx + offset;
+    return (
+      <g key={keyPrefix}>
+        <line
+          x1={x}
+          y1={stripeStartY}
+          x2={x}
+          y2={stripeStartY + stripeLen}
+          stroke={color}
+          strokeWidth={3}
+          strokeLinecap="round"
+          opacity={0.18}
+        />
+        <line
+          x1={x}
+          y1={stripeStartY}
+          x2={x}
+          y2={stripeStartY + stripeLen}
+          stroke={color}
+          strokeWidth={1}
+          strokeLinecap="round"
+          opacity={0.95}
+        />
+        <text
+          x={x + (side === "outer" ? -3.5 : 3.5)}
+          y={stripeStartY - 2}
+          textAnchor={side === "outer" ? "end" : "start"}
+          dominantBaseline="middle"
+          fontSize={5}
+          fill={color}
+          fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+          fontWeight={700}
+        >
+          {sign}
+        </text>
+        <text
+          x={x + (side === "outer" ? -3.5 : 3.5)}
+          y={stripeStartY + stripeLen + 2}
+          textAnchor={side === "outer" ? "end" : "start"}
+          dominantBaseline="middle"
+          fontSize={5}
+          fill={color}
+          fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+          fontWeight={700}
+        >
+          {sign}
+        </text>
+      </g>
+    );
+  };
 
   return (
     <g>
-      <line x1={leftX} y1={topRailY} x2={leftX + stripeWidth} y2={topRailY}
-        stroke="#D44" strokeWidth={1.5} opacity={0.7} />
-      <line x1={leftX} y1={bottomRailY} x2={leftX + stripeWidth} y2={bottomRailY}
-        stroke="#44D" strokeWidth={1.5} opacity={0.7} />
+      {renderRail(leftPlusX, "#dc2626", "outer", "+", "left-plus")}
+      {renderRail(leftMinusX, "#2563eb", "inner", "−", "left-minus")}
+      {renderRail(rightPlusX, "#2563eb", "outer", "−", "right-minus")}
+      {renderRail(rightMinusX, "#dc2626", "inner", "+", "right-plus")}
     </g>
   );
 }
@@ -167,15 +293,96 @@ const StaticBackground = React.memo(function StaticBackground() {
   const elements = useMemo(() => buildBreadboardBackground(), []);
   const bbX = BREADBOARD_OFFSET_X;
   const gapX = TERMINAL_ORIGIN_X + TERMINAL_WIDTH;
-  const gapY = TERMINAL_ORIGIN_Y - 4;
-  const gapHeight = (ROWS - 1) * HOLE_SPACING + 8;
+  const gapY = TERMINAL_ORIGIN_Y - 6;
+  const gapHeight = (ROWS - 1) * HOLE_SPACING + 12;
 
   return (
     <g>
-      <rect x={bbX} y={0} width={BREADBOARD_WIDTH} height={BREADBOARD_HEIGHT}
-        rx={3} fill="#E8E4DE" stroke="#D0CCC6" strokeWidth={1} />
-      <rect x={gapX + 3} y={gapY} width={GAP_WIDTH - 6} height={gapHeight}
-        fill="#DAD6D0" rx={2} />
+      {/* SVG defs for gradients used by the board body, holes, and gap. */}
+      <defs>
+        <linearGradient id="board-fill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#f5f1ea" />
+          <stop offset="50%" stopColor="#ece7df" />
+          <stop offset="100%" stopColor="#e0dbd2" />
+        </linearGradient>
+        <radialGradient id="hole-fill" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0%" stopColor="#0a0a0a" />
+          <stop offset="60%" stopColor="#1f1f1f" />
+          <stop offset="100%" stopColor="#2a2a2a" />
+        </radialGradient>
+        <linearGradient id="gap-fill" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#cfc9bf" />
+          <stop offset="50%" stopColor="#dcd6cc" />
+          <stop offset="100%" stopColor="#cfc9bf" />
+        </linearGradient>
+      </defs>
+
+      {/* Soft drop shadow under the board */}
+      <rect
+        x={bbX + 2}
+        y={4}
+        width={BREADBOARD_WIDTH}
+        height={BREADBOARD_HEIGHT}
+        rx={4}
+        fill="#000000"
+        opacity={0.25}
+      />
+
+      {/* Main board body */}
+      <rect
+        x={bbX}
+        y={0}
+        width={BREADBOARD_WIDTH}
+        height={BREADBOARD_HEIGHT}
+        rx={4}
+        fill="url(#board-fill)"
+        stroke="#b8b3a8"
+        strokeWidth={0.8}
+      />
+
+      {/* Inner bevel — a thin lighter rect inset slightly */}
+      <rect
+        x={bbX + 1.5}
+        y={1.5}
+        width={BREADBOARD_WIDTH - 3}
+        height={BREADBOARD_HEIGHT - 3}
+        rx={3}
+        fill="none"
+        stroke="#ffffff"
+        strokeWidth={0.6}
+        opacity={0.5}
+      />
+
+      {/* Center gap (DIP channel) — recessed look via fill + inner shadow */}
+      <rect
+        x={gapX + 2}
+        y={gapY}
+        width={GAP_WIDTH - 4}
+        height={gapHeight}
+        fill="url(#gap-fill)"
+        rx={1.5}
+      />
+      {/* Top inner shadow on the gap */}
+      <line
+        x1={gapX + 2}
+        y1={gapY}
+        x2={gapX + GAP_WIDTH - 2}
+        y2={gapY}
+        stroke="#000000"
+        strokeWidth={0.6}
+        opacity={0.18}
+      />
+      {/* Bottom highlight on the gap */}
+      <line
+        x1={gapX + 2}
+        y1={gapY + gapHeight}
+        x2={gapX + GAP_WIDTH - 2}
+        y2={gapY + gapHeight}
+        stroke="#ffffff"
+        strokeWidth={0.6}
+        opacity={0.4}
+      />
+
       <PowerRailStripes />
       <g>{elements}</g>
     </g>
@@ -225,7 +432,7 @@ const ComponentLayer = React.memo(function ComponentLayer({
     <g>
       {components.map((comp) => {
         const isDragging = draggingId === comp.id;
-        const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation);
+        const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties);
         const primaryPos = gridToPixel({ row: comp.y, col: comp.x });
         const rot = comp.rotation ?? 0;
 
@@ -259,7 +466,7 @@ const ComponentLayer = React.memo(function ComponentLayer({
       })}
 
       {components.map((comp) => {
-        const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation);
+        const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties);
         const accentColor = getAccentColor(comp.type as ComponentType) ?? "#60a5fa";
         return footprint.points.map((pt, i) => {
           const pos = gridToPixel(pt);
@@ -352,7 +559,58 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
 
       if (e.button === 0 && wire.handlePlacementPointerDown(e)) return;
 
-      // Component placement (non-wire)
+      // Multimeter placement — uses the same click-twice flow as wires.
+      // First click sets probe A, second click sets probe B and creates
+      // the component with both probe positions baked into properties.
+      if (
+        e.button === 0 &&
+        wire.interactionMode === "placing" &&
+        wire.placingType === "multimeter"
+      ) {
+        const rect = svgRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const board = screenToBoard(e.clientX - rect.left, e.clientY - rect.top);
+        const grid = pixelToGrid(board.x, board.y);
+
+        const snap = breadboardInteractionActor.getSnapshot();
+        if (!snap.context.wireStartSet) {
+          // First click — anchor probe A
+          breadboardInteractionActor.send({
+            type: "SET_WIRE_START",
+            row: grid.row,
+            col: grid.col,
+          });
+          return;
+        }
+
+        // Second click — create the multimeter component
+        const probeARow = snap.context.fromRow!;
+        const probeACol = snap.context.fromCol!;
+        if (probeARow === grid.row && probeACol === grid.col) {
+          // Same hole twice — ignore so the user can't create a meter with
+          // both probes on the same point (which would always read 0V).
+          return;
+        }
+        const component: BoardComponent = {
+          id: crypto.randomUUID(),
+          type: "multimeter",
+          name: "Multimeter",
+          x: probeACol,
+          y: probeARow,
+          rotation: 0,
+          pins: getDefaultPins("multimeter"),
+          properties: {
+            ...getDefaultProperties("multimeter"),
+            probeBRow: grid.row,
+            probeBCol: grid.col,
+          },
+        };
+        send({ type: "PLACE_COMPONENT", component });
+        breadboardInteractionActor.send({ type: "POINTER_UP" });
+        return;
+      }
+
+      // Component placement (non-wire, non-multimeter)
       if (e.button === 0 && wire.interactionMode === "placing" && wire.placingType && wire.placingType !== "wire") {
         const rect = svgRef.current?.getBoundingClientRect();
         if (!rect) return;
@@ -642,8 +900,9 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
           );
         })()}
 
-        {/* Ghost preview while placing */}
-        {wire.interactionMode === "placing" && wire.ghostPos && wire.placingType && wire.placingType !== "wire" && (
+        {/* Ghost preview while placing — skipped for wire and multimeter,
+            both of which use the click-twice flow with their own preview. */}
+        {wire.interactionMode === "placing" && wire.ghostPos && wire.placingType && wire.placingType !== "wire" && wire.placingType !== "multimeter" && (
           <GhostPreview
             row={wire.ghostPos.row} col={wire.ghostPos.col}
             componentType={wire.placingType} rotation={wire.placingRotation}
@@ -676,6 +935,40 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
               <text x={pos.x} y={pos.y - 10} textAnchor="middle"
                 fontSize={7} fill="#fbbf24" fontFamily="monospace">
                 click start
+              </text>
+            </g>
+          );
+        })()}
+
+        {/* Multimeter placement: ghost before first click */}
+        {wire.interactionMode === "placing" && wire.placingType === "multimeter" && wire.ghostPos && !wire.wireStart && (() => {
+          const pos = gridToPixel(wire.ghostPos);
+          return (
+            <g pointerEvents="none">
+              <circle cx={pos.x} cy={pos.y} r={5} fill="#ef4444" fillOpacity={0.35} stroke="#ef4444" strokeWidth={1.2} />
+              <text x={pos.x} y={pos.y - 10} textAnchor="middle"
+                fontSize={6} fill="#ef4444" fontFamily="monospace">
+                click probe A (+)
+              </text>
+            </g>
+          );
+        })()}
+
+        {/* Multimeter placement: preview line after first click */}
+        {wire.interactionMode === "placing" && wire.placingType === "multimeter" && wire.ghostPos && wire.wireStart && (() => {
+          const startPos = gridToPixel(wire.wireStart);
+          const endPos = gridToPixel(wire.ghostPos);
+          return (
+            <g pointerEvents="none">
+              <line x1={startPos.x} y1={startPos.y} x2={endPos.x} y2={endPos.y}
+                stroke="#fbbf24" strokeWidth={2} strokeLinecap="round"
+                strokeDasharray="3 3" opacity={0.8} />
+              <circle cx={startPos.x} cy={startPos.y} r={4} fill="#ef4444" opacity={0.7} />
+              <circle cx={endPos.x} cy={endPos.y} r={4} fill="#1f2937" fillOpacity={0.5}
+                stroke="#1f2937" strokeWidth={1.2} />
+              <text x={endPos.x} y={endPos.y - 10} textAnchor="middle"
+                fontSize={6} fill="#9ca3af" fontFamily="monospace">
+                click probe B (−)
               </text>
             </g>
           );

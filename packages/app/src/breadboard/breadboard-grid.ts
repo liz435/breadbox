@@ -349,9 +349,10 @@ export function getComponentFootprint(
   row: number,
   col: number,
   rotation?: number,
+  properties?: Record<string, unknown>,
 ): ComponentFootprint {
   const def = getComponentDef(type)
-  const base = def ? def.footprint(row, col) : null;
+  const base = def ? def.footprint(row, col, properties) : null;
   if (base) return rotation ? rotateFootprint(base, rotation) : base;
 
   let fallback: ComponentFootprint;
@@ -571,7 +572,7 @@ export function resolveNets(
   const componentFootprintPoints = new Set<string>();
   for (const comp of Object.values(components)) {
     if (comp.type === "arduino_uno" || comp.type === "wire") continue;
-    const fp = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation);
+    const fp = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties);
     for (const pt of fp.points) {
       componentFootprintPoints.add(pointKey(pt));
     }

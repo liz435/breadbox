@@ -1,5 +1,6 @@
 import { LearnLayout, LessonFooter, PageTitle, Section, Note } from "@/learn/learn-layout"
 import { BreadboardEmbed } from "@/learn/breadboard-embed"
+import { Term } from "@/learn/term"
 
 export function BlinkLedLesson() {
   return (
@@ -11,9 +12,11 @@ export function BlinkLedLesson() {
 
       <Section title="What you'll build">
         <p className="text-sm leading-relaxed">
-          An LED wired to pin <span className="text-gray-200 font-mono">D13</span> that
-          blinks once per second. The circuit has an LED, a 220Ω resistor (to limit
-          current so the LED doesn't burn out), and two wires.
+          An <Term k="led" /> wired to pin{" "}
+          <span className="text-gray-200 font-mono">D13</span> that blinks once per
+          second. The circuit has an LED, a 220Ω{" "}
+          <Term k="resistor" /> (to limit current so the LED doesn't burn out),
+          and two wires.
         </p>
       </Section>
 
@@ -30,14 +33,17 @@ export function BlinkLedLesson() {
         <p className="text-sm leading-relaxed">
           The Arduino <code className="text-gray-200">setup()</code> function runs once
           when the board powers on. It calls{" "}
-          <code className="text-gray-200">pinMode(13, OUTPUT)</code> to tell pin 13 that
-          it will be driving a signal out to the LED.
+          <Term k="pin-mode">
+            <code className="text-gray-200">pinMode(13, OUTPUT)</code>
+          </Term>{" "}
+          to tell pin 13 that it will be driving a signal out to the LED.
         </p>
         <p className="text-sm leading-relaxed">
           The <code className="text-gray-200">loop()</code> function runs over and over,
-          forever. It sets pin 13 HIGH (turning the LED on), waits 500 milliseconds,
-          sets pin 13 LOW (turning it off), and waits another 500 ms. The result: a
-          steady 1 Hz blink.
+          forever. It{" "}
+          <Term k="digital-write">sets pin 13 HIGH</Term> (turning the LED on), waits
+          500 milliseconds, sets pin 13 LOW (turning it off), and waits another
+          500 ms. The result: a steady 1 Hz blink.
         </p>
       </Section>
 
@@ -46,7 +52,10 @@ export function BlinkLedLesson() {
           LEDs are low-resistance devices — if you connected one directly to 5V, it
           would draw too much current and burn out almost instantly. A{" "}
           <strong>current-limiting resistor</strong> (220Ω is a common choice) keeps
-          the current at a safe level (around 15–20 mA) for a typical LED.
+          the current at a safe level (around 15–20 mA) for a typical LED. See{" "}
+          <Term k="ohms-law" /> for the math, or the{" "}
+          <Term k="led">LED reference page</Term> for the full story on why Vf
+          matters.
         </p>
       </Section>
 

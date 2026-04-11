@@ -94,81 +94,140 @@ describe("createGraphTools", () => {
     }
   });
 
-  test("delete_graph_node produces a delete op", async () => {
+  test("delete_graph_node cascades and produces a delete op", async () => {
     const { ops, tools } = makeTools();
-    const execute = tools.delete_graph_node.execute as AnyExecute;
-    const result = await execute(
-      { nodeId: "node-123" },
+    // Seed a node via create_graph_node so the working graph has something
+    const create = tools.create_graph_node.execute as AnyExecute;
+    const created = await create(
+      { type: "setup", name: "Init" },
       { toolCallId: "tc-1", messages: [] }
     );
 
-    expect(result.deleted).toBe("node-123");
-    expect(ops).toHaveLength(1);
-    expect(ops[0].kind).toBe("delete_graph_node");
+    const del = tools.delete_graph_node.execute as AnyExecute;
+    const result = await del(
+      { nodeId: created.nodeId },
+      { toolCallId: "tc-2", messages: [] }
+    );
+
+    expect(result.deleted).toBe(created.nodeId);
+    expect(ops).toHaveLength(2);
+    expect(ops[1].kind).toBe("delete_graph_node");
+  });
+
+  test("delete_graph_node errors on unknown nodeId", async () => {
+    const { ops, tools } = makeTools();
+    const del = tools.delete_graph_node.execute as AnyExecute;
+    const result = await del(
+      { nodeId: "ghost" },
+      { toolCallId: "tc-1", messages: [] }
+    );
+    expect(result.error).toBeTruthy();
+    expect(ops).toHaveLength(0);
   });
 
   test("connect_nodes produces an edge op", async () => {
     const { ops, tools } = makeTools();
+    const create = tools.create_graph_node.execute as AnyExecute;
+    // setup has flow_out; pin_mode has flow_in — these can be wired together
+    const a = await create({ type: "setup", name: "A" }, { toolCallId: "tc-1", messages: [] });
+    const b = await create({ type: "pin_mode", name: "B" }, { toolCallId: "tc-2", messages: [] });
+
     const execute = tools.connect_nodes.execute as AnyExecute;
     const result = await execute(
       {
-        sourceNodeId: "node-a",
+        sourceNodeId: a.nodeId,
         sourcePortId: "flow_out",
-        targetNodeId: "node-b",
+        targetNodeId: b.nodeId,
+        targetPortId: "flow_in",
+      },
+      { toolCallId: "tc-3", messages: [] }
+    );
+
+    expect(result.edgeId).toBeTruthy();
+    const edgeOp = ops.find((o) => o.kind === "create_edge");
+    expect(edgeOp).toBeTruthy();
+    if (edgeOp && edgeOp.kind === "create_edge") {
+      expect(edgeOp.payload.edge.sourceNodeId).toBe(a.nodeId);
+      expect(edgeOp.payload.edge.targetNodeId).toBe(b.nodeId);
+    }
+  });
+
+  test("connect_nodes errors on unknown node", async () => {
+    const { ops, tools } = makeTools();
+    const execute = tools.connect_nodes.execute as AnyExecute;
+    const result = await execute(
+      {
+        sourceNodeId: "ghost-a",
+        sourcePortId: "flow_out",
+        targetNodeId: "ghost-b",
         targetPortId: "flow_in",
       },
       { toolCallId: "tc-1", messages: [] }
     );
-
-    expect(result.edgeId).toBeTruthy();
-    expect(ops).toHaveLength(1);
-    expect(ops[0].kind).toBe("create_edge");
-    if (ops[0].kind === "create_edge") {
-      expect(ops[0].payload.edge.sourceNodeId).toBe("node-a");
-      expect(ops[0].payload.edge.targetNodeId).toBe("node-b");
-    }
+    expect(result.error).toBeTruthy();
+    expect(ops).toHaveLength(0);
   });
 
   test("disconnect_nodes produces a delete edge op", async () => {
     const { ops, tools } = makeTools();
-    const execute = tools.disconnect_nodes.execute as AnyExecute;
-    const result = await execute(
-      { edgeId: "edge-123" },
-      { toolCallId: "tc-1", messages: [] }
+    const create = tools.create_graph_node.execute as AnyExecute;
+    const a = await create({ type: "setup", name: "A" }, { toolCallId: "tc-1", messages: [] });
+    const b = await create({ type: "pin_mode", name: "B" }, { toolCallId: "tc-2", messages: [] });
+    const connect = tools.connect_nodes.execute as AnyExecute;
+    const conn = await connect(
+      { sourceNodeId: a.nodeId, sourcePortId: "flow_out", targetNodeId: b.nodeId, targetPortId: "flow_in" },
+      { toolCallId: "tc-3", messages: [] }
     );
 
-    expect(result.disconnected).toBe("edge-123");
-    expect(ops).toHaveLength(1);
-    expect(ops[0].kind).toBe("delete_edge");
+    const disconnect = tools.disconnect_nodes.execute as AnyExecute;
+    const result = await disconnect(
+      { edgeId: conn.edgeId },
+      { toolCallId: "tc-4", messages: [] }
+    );
+
+    expect(result.disconnected).toBe(conn.edgeId);
+    const deleteOp = ops.find((o) => o.kind === "delete_edge");
+    expect(deleteOp).toBeTruthy();
   });
 
   test("update_node_data produces an update op", async () => {
     const { ops, tools } = makeTools();
-    const execute = tools.update_node_data.execute as AnyExecute;
-    const result = await execute(
-      { nodeId: "node-1", patch: { pin: 7, value: "LOW" } },
+    const create = tools.create_graph_node.execute as AnyExecute;
+    const n = await create(
+      { type: "digital_write", name: "Blink" },
       { toolCallId: "tc-1", messages: [] }
     );
 
-    expect(result.updated).toBe("node-1");
-    expect(ops).toHaveLength(1);
-    expect(ops[0].kind).toBe("update_graph_node_data");
+    const execute = tools.update_node_data.execute as AnyExecute;
+    const result = await execute(
+      { nodeId: n.nodeId, patch: { pin: 7, value: "LOW" } },
+      { toolCallId: "tc-2", messages: [] }
+    );
+
+    expect(result.updated).toBe(n.nodeId);
+    expect(ops.some((o) => o.kind === "update_graph_node_data")).toBe(true);
   });
 
   test("move_graph_node produces a move op", async () => {
     const { ops, tools } = makeTools();
-    const execute = tools.move_graph_node.execute as AnyExecute;
-    const result = await execute(
-      { nodeId: "node-1", x: 300, y: 400 },
+    const create = tools.create_graph_node.execute as AnyExecute;
+    const n = await create(
+      { type: "setup", name: "Init" },
       { toolCallId: "tc-1", messages: [] }
     );
 
-    expect(result.moved).toBe("node-1");
-    expect(ops).toHaveLength(1);
-    expect(ops[0].kind).toBe("move_graph_node");
-    if (ops[0].kind === "move_graph_node") {
-      expect(ops[0].payload.x).toBe(300);
-      expect(ops[0].payload.y).toBe(400);
+    const execute = tools.move_graph_node.execute as AnyExecute;
+    const result = await execute(
+      { nodeId: n.nodeId, x: 300, y: 400 },
+      { toolCallId: "tc-2", messages: [] }
+    );
+
+    expect(result.moved).toBe(n.nodeId);
+    const moveOp = ops.find((o) => o.kind === "move_graph_node");
+    expect(moveOp).toBeTruthy();
+    if (moveOp && moveOp.kind === "move_graph_node") {
+      expect(moveOp.payload.x).toBe(300);
+      expect(moveOp.payload.y).toBe(400);
     }
   });
 

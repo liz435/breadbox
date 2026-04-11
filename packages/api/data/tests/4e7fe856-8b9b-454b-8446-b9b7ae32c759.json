@@ -1,9 +1,12 @@
 {
   "runId": "4e7fe856-8b9b-454b-8446-b9b7ae32c759",
-  "evaluatedAt": "2026-04-09T16:21:08.854Z",
+  "evaluatedAt": "2026-04-10T23:57:34.993Z",
   "agent": "core",
   "prompt": "you placed the GND wired at the wrong place, it suppose to be connected with resistor, this current set up resistor is not connected to the circuit",
   "status": "completed",
+  "evaluable": true,
+  "domain": "breadboard",
+  "category": "top_level",
   "path": {
     "stepCount": 15,
     "stepLimit": 10,
@@ -344,6 +347,8 @@
     "inputTokens": 22260,
     "outputTokens": 1364,
     "totalTokens": 23624,
+    "childTokens": 0,
+    "overheadTokens": 0,
     "estimatedCost": 0.0233,
     "wastedTokens": 2600,
     "wasteDetails": [
@@ -366,9 +371,10 @@
     "totalCalls": 15,
     "errors": 0,
     "errorRate": 0,
-    "hallucatedIds": 0,
+    "hallucinatedIds": 0,
     "wrongPinNames": 0,
     "invalidPositions": 0,
+    "invalidGraphConnections": 0,
     "details": [
       {
         "tool": "remove_wire",
@@ -508,6 +514,7 @@
     ]
   },
   "circuit": null,
+  "graph": null,
   "score": {
     "total": 79,
     "breakdown": {

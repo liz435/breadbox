@@ -108,8 +108,17 @@ export type ComponentDefinition = {
   /**
    * Physical grid footprint: which holes the component occupies and its pixel dimensions.
    * row/col are the component's placement position on the breadboard.
+   *
+   * `properties` lets a component derive extra footprint points from its own
+   * state — used by the multimeter, which stores its second probe in
+   * `properties.probeBRow / probeBCol` so the user can drop the two probes
+   * on any two grid points (jumper-wire-style placement).
    */
-  footprint: (row: number, col: number) => ComponentFootprint
+  footprint: (
+    row: number,
+    col: number,
+    properties?: Record<string, unknown>,
+  ) => ComponentFootprint
 
   // ── Visual ────────────────────────────────────────────────────────────
 

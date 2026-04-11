@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { ProjectFile } from "../../db/schemas";
-import type { GraphOp } from "@dreamer/schemas";
+import type { GraphOp, GraphState, GraphNode } from "@dreamer/schemas";
 import { getDefaultPorts, arePortsCompatible } from "@dreamer/schemas";
 import type { GraphNodeType, PortDataType } from "@dreamer/schemas";
 
@@ -42,17 +42,21 @@ export function createGraphTools(params: {
   const expectedVersion = project.project.version;
   const opCtx = { projectId, sceneId, expectedVersion };
 
+  // In-turn mutable working graph state. The specialist reads and writes
+  // against this so it sees its own prior mutations (and the parent's
+  // tentative mutations, folded in via `project.graph` by the delegation
+  // tool's getWorkingProject).
+  const workingGraph: GraphState = structuredClone(
+    project.graph ?? { nodes: {}, edges: {} }
+  );
+
   return {
     list_graph: tool({
       description:
         "List all graph nodes and edges in the current project. Use this to understand the graph structure before making changes.",
       inputSchema: z.object({}),
       execute: async () => {
-        const graph = project.graph;
-        if (!graph) {
-          return { nodes: [], edges: [], message: "No graph data in project yet." };
-        }
-        const nodes = Object.values(graph.nodes).map((n) => ({
+        const nodes = Object.values(workingGraph.nodes).map((n) => ({
           id: n.id,
           type: n.type,
           name: n.name,
@@ -65,7 +69,7 @@ export function createGraphTools(params: {
             dataType: p.dataType,
           })),
         }));
-        const edges = Object.values(graph.edges).map((e) => ({
+        const edges = Object.values(workingGraph.edges).map((e) => ({
           id: e.id,
           sourceNodeId: e.sourceNodeId,
           sourcePortId: e.sourcePortId,
@@ -129,7 +133,7 @@ export function createGraphTools(params: {
         // Type-specific sizes
         const { width, height } = getDefaultSizeForType(type);
 
-        const node = {
+        const node: GraphNode = {
           id: nodeId,
           type,
           name: input.name,
@@ -141,6 +145,7 @@ export function createGraphTools(params: {
           data,
         };
 
+        workingGraph.nodes[nodeId] = node;
         ops.push(
           makeGraphOp(opCtx, {
             kind: "create_graph_node",
@@ -163,6 +168,16 @@ export function createGraphTools(params: {
         nodeId: z.string().describe("ID of the node to delete"),
       }),
       execute: async (input) => {
+        if (!workingGraph.nodes[input.nodeId]) {
+          return { error: `Node ${input.nodeId} not found` };
+        }
+        // Cascade: drop edges that touched this node
+        for (const [edgeId, edge] of Object.entries(workingGraph.edges)) {
+          if (edge.sourceNodeId === input.nodeId || edge.targetNodeId === input.nodeId) {
+            delete workingGraph.edges[edgeId];
+          }
+        }
+        delete workingGraph.nodes[input.nodeId];
         ops.push(
           makeGraphOp(opCtx, {
             kind: "delete_graph_node",
@@ -183,56 +198,53 @@ export function createGraphTools(params: {
         targetPortId: z.string().describe("ID of the input port on the target node"),
       }),
       execute: async (input) => {
-        // Validate port compatibility if graph data is available
-        const graph = project.graph;
-        if (graph) {
-          const sourceNode = graph.nodes[input.sourceNodeId];
-          const targetNode = graph.nodes[input.targetNodeId];
-          if (sourceNode && targetNode) {
-            const sourcePort = sourceNode.ports.find(
-              (p) => p.id === input.sourcePortId
-            );
-            const targetPort = targetNode.ports.find(
-              (p) => p.id === input.targetPortId
-            );
-            if (!sourcePort) {
-              return { error: `Source port '${input.sourcePortId}' not found on node '${sourceNode.name}'` };
-            }
-            if (!targetPort) {
-              return { error: `Target port '${input.targetPortId}' not found on node '${targetNode.name}'` };
-            }
-            if (sourcePort.direction !== "out") {
-              return { error: `Port '${input.sourcePortId}' is not an output port` };
-            }
-            if (targetPort.direction !== "in") {
-              return { error: `Port '${input.targetPortId}' is not an input port` };
-            }
-            if (
-              !arePortsCompatible(
-                sourcePort.dataType as PortDataType,
-                targetPort.dataType as PortDataType
-              )
-            ) {
-              return {
-                error: `Incompatible types: ${sourcePort.dataType} → ${targetPort.dataType}`,
-              };
-            }
-          }
+        // Validate against the live working graph (sees prior mutations)
+        const sourceNode = workingGraph.nodes[input.sourceNodeId];
+        const targetNode = workingGraph.nodes[input.targetNodeId];
+        if (!sourceNode) {
+          return { error: `Source node '${input.sourceNodeId}' not found` };
+        }
+        if (!targetNode) {
+          return { error: `Target node '${input.targetNodeId}' not found` };
+        }
+        const sourcePort = sourceNode.ports.find((p) => p.id === input.sourcePortId);
+        const targetPort = targetNode.ports.find((p) => p.id === input.targetPortId);
+        if (!sourcePort) {
+          return { error: `Source port '${input.sourcePortId}' not found on node '${sourceNode.name}'` };
+        }
+        if (!targetPort) {
+          return { error: `Target port '${input.targetPortId}' not found on node '${targetNode.name}'` };
+        }
+        if (sourcePort.direction !== "out") {
+          return { error: `Port '${input.sourcePortId}' is not an output port` };
+        }
+        if (targetPort.direction !== "in") {
+          return { error: `Port '${input.targetPortId}' is not an input port` };
+        }
+        if (
+          !arePortsCompatible(
+            sourcePort.dataType as PortDataType,
+            targetPort.dataType as PortDataType
+          )
+        ) {
+          return {
+            error: `Incompatible types: ${sourcePort.dataType} → ${targetPort.dataType}`,
+          };
         }
 
         const edgeId = `edge-${crypto.randomUUID()}`;
+        const edge = {
+          id: edgeId,
+          sourceNodeId: input.sourceNodeId,
+          sourcePortId: input.sourcePortId,
+          targetNodeId: input.targetNodeId,
+          targetPortId: input.targetPortId,
+        };
+        workingGraph.edges[edgeId] = edge;
         ops.push(
           makeGraphOp(opCtx, {
             kind: "create_edge",
-            payload: {
-              edge: {
-                id: edgeId,
-                sourceNodeId: input.sourceNodeId,
-                sourcePortId: input.sourcePortId,
-                targetNodeId: input.targetNodeId,
-                targetPortId: input.targetPortId,
-              },
-            },
+            payload: { edge },
           })
         );
 
@@ -246,6 +258,10 @@ export function createGraphTools(params: {
         edgeId: z.string().describe("ID of the edge to remove"),
       }),
       execute: async (input) => {
+        if (!workingGraph.edges[input.edgeId]) {
+          return { error: `Edge ${input.edgeId} not found` };
+        }
+        delete workingGraph.edges[input.edgeId];
         ops.push(
           makeGraphOp(opCtx, {
             kind: "delete_edge",
@@ -266,6 +282,11 @@ export function createGraphTools(params: {
           .describe("Data fields to update"),
       }),
       execute: async (input) => {
+        const existing = workingGraph.nodes[input.nodeId];
+        if (!existing) {
+          return { error: `Node ${input.nodeId} not found` };
+        }
+        existing.data = { ...existing.data, ...input.patch };
         ops.push(
           makeGraphOp(opCtx, {
             kind: "update_graph_node_data",
@@ -284,6 +305,12 @@ export function createGraphTools(params: {
         y: z.number().describe("New Y position"),
       }),
       execute: async (input) => {
+        const existing = workingGraph.nodes[input.nodeId];
+        if (!existing) {
+          return { error: `Node ${input.nodeId} not found` };
+        }
+        existing.x = input.x;
+        existing.y = input.y;
         ops.push(
           makeGraphOp(opCtx, {
             kind: "move_graph_node",

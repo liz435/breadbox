@@ -4,7 +4,7 @@
     "name": "pure-hog-fern",
     "version": 5,
     "createdAt": "2026-04-09T16:41:48.685Z",
-    "updatedAt": "2026-04-09T23:36:04.670Z",
+    "updatedAt": "2026-04-10T00:59:32.022Z",
     "threadId": "48a233bc-ca50-47d2-becb-d2dd9bca5cdb",
     "activeSceneId": "b1c31361-a573-4bca-ae3f-3b9b20a9753f"
   },
@@ -290,8 +290,8 @@
         "id": "9a0e15ef-7e0d-4709-8495-50c0cfe1a805",
         "fromRow": -999,
         "fromCol": -3,
-        "toRow": 12,
-        "toCol": 8,
+        "toRow": 11,
+        "toCol": 0,
         "color": "#42a5f5"
       },
       "af8a1994-7ee9-4fe8-839a-157d38591398": {
@@ -330,7 +330,7 @@
         "id": "6667f3fd-1c6a-480c-ae21-7c17f9cf6540",
         "fromRow": 11,
         "fromCol": 8,
-        "toRow": 12,
+        "toRow": 13,
         "toCol": 11,
         "color": "#fbbf24"
       },

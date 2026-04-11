@@ -1,0 +1,176 @@
+import { describe, expect, test } from "bun:test";
+import { createDefaultBoardState, type BoardComponent, type BoardState } from "@dreamer/schemas";
+import { analyzePowerBudget } from "../power-budget-analyzer";
+
+function place(board: BoardState, component: BoardComponent) {
+  board.components[component.id] = component;
+}
+
+function connect(
+  board: BoardState,
+  id: string,
+  fromRow: number,
+  fromCol: number,
+  toRow: number,
+  toCol: number
+) {
+  board.wires[id] = { id, fromRow, fromCol, toRow, toCol, color: "#22c55e" };
+}
+
+describe("analyzePowerBudget", () => {
+  test("flags servo powered from Arduino 5V without external supply", () => {
+    const board = createDefaultBoardState();
+    place(board, {
+      id: "servo-1",
+      type: "servo",
+      name: "Servo",
+      x: 2,
+      y: 5,
+      rotation: 0,
+      pins: { signal: null, vcc: null, gnd: null },
+      properties: {},
+    });
+
+    connect(board, "w-signal", -999, 9, 5, 2);
+    connect(board, "w-vcc", -999, -1, 6, 2);
+    connect(board, "w-gnd", -999, -3, 7, 2);
+
+    const report = analyzePowerBudget(board);
+    const codes = report.issues.map((i) => i.code);
+    expect(codes).toContain("EXTERNAL_POWER_REQUIRED");
+    expect(codes).toContain("HIGH_CURRENT_ON_ARDUINO_5V");
+  });
+
+  test("passes external-supply servo topology with common ground", () => {
+    const board = createDefaultBoardState();
+    place(board, {
+      id: "servo-1",
+      type: "servo",
+      name: "Servo",
+      x: 2,
+      y: 5,
+      rotation: 0,
+      pins: { signal: null, vcc: null, gnd: null },
+      properties: {},
+    });
+    place(board, {
+      id: "supply-1",
+      type: "power_supply",
+      name: "Supply",
+      x: 8,
+      y: 12,
+      rotation: 0,
+      pins: { positive: null, negative: null },
+      properties: {},
+    });
+
+    connect(board, "w-signal", -999, 9, 5, 2);
+    connect(board, "w-pwr", 12, 8, 6, 2);
+    connect(board, "w-neg", 13, 8, 7, 2);
+    connect(board, "w-common-gnd", -999, -3, 13, 8);
+
+    const report = analyzePowerBudget(board);
+    const errorCodes = report.issues.filter((i) => i.severity === "error").map((i) => i.code);
+    expect(errorCodes).not.toContain("EXTERNAL_POWER_REQUIRED");
+    expect(errorCodes).not.toContain("HIGH_CURRENT_ON_ARDUINO_5V");
+  });
+
+  test("recognizes MB102 rail-based supply wiring as external power", () => {
+    const board = createDefaultBoardState();
+    place(board, {
+      id: "servo-1",
+      type: "servo",
+      name: "Servo",
+      x: 2,
+      y: 5,
+      rotation: 0,
+      pins: { signal: null, vcc: null, gnd: null },
+      properties: {},
+    });
+    place(board, {
+      id: "supply-1",
+      type: "power_supply",
+      name: "MB102",
+      x: -1,
+      y: 20,
+      rotation: 0,
+      pins: {},
+      properties: { leftVoltage: 5, rightVoltage: 3.3 },
+    });
+
+    connect(board, "w-signal", -999, 9, 5, 2);
+    // MB102 positive rail (-2) to servo VCC row; row bus links col 4 -> col 2.
+    connect(board, "w-ext-vcc", 20, -2, 6, 4);
+    // Common ground: Arduino GND to MB102 negative rail (-1).
+    connect(board, "w-common-gnd", -999, -3, 20, -1);
+    // MB102 negative rail to servo ground row.
+    connect(board, "w-servo-gnd", 20, -1, 7, 4);
+
+    const report = analyzePowerBudget(board);
+    const errorCodes = report.issues.filter((i) => i.severity === "error").map((i) => i.code);
+    expect(errorCodes).not.toContain("EXTERNAL_POWER_REQUIRED");
+    expect(errorCodes).not.toContain("HIGH_CURRENT_ON_ARDUINO_5V");
+  });
+
+  test("recognizes external power across different rows on the same rail", () => {
+    const board = createDefaultBoardState();
+    place(board, {
+      id: "servo-1",
+      type: "servo",
+      name: "Servo",
+      x: 2,
+      y: 5,
+      rotation: 0,
+      pins: { signal: null, vcc: null, gnd: null },
+      properties: {},
+    });
+    place(board, {
+      id: "supply-1",
+      type: "power_supply",
+      name: "MB102",
+      x: -1,
+      y: 20,
+      rotation: 0,
+      pins: {},
+      properties: { leftVoltage: 5, rightVoltage: 3.3 },
+    });
+
+    connect(board, "w-signal", -999, 9, 5, 2);
+    // Supply+ on one row of the + rail.
+    connect(board, "w-rail-source", 20, -2, 20, 0);
+    // Servo VCC tied to a different row of the same + rail.
+    connect(board, "w-servo-vcc", 25, -2, 6, 2);
+    // Common ground and servo return on a different rail row.
+    connect(board, "w-common-gnd", -999, -3, 20, -1);
+    connect(board, "w-servo-gnd", 27, -1, 7, 2);
+
+    const report = analyzePowerBudget(board);
+    const errorCodes = report.issues.filter((i) => i.severity === "error").map((i) => i.code);
+    expect(errorCodes).not.toContain("EXTERNAL_POWER_REQUIRED");
+    expect(errorCodes).not.toContain("HIGH_CURRENT_ON_ARDUINO_5V");
+  });
+
+  test("flags per-pin overcurrent for ten LEDs on one pin", () => {
+    const board = createDefaultBoardState();
+
+    for (let i = 0; i < 10; i++) {
+      const row = i * 2;
+      place(board, {
+        id: `led-${i}`,
+        type: "led",
+        name: `LED ${i}`,
+        x: 2,
+        y: row,
+        rotation: 0,
+        pins: { anode: null, cathode: null },
+        properties: { color: "#ef4444" },
+      });
+      connect(board, `w-led-${i}`, -999, 9, row, 2);
+    }
+
+    const report = analyzePowerBudget(board);
+    const overcurrentIssues = report.issues.filter((issue) => issue.code === "PIN_OVERCURRENT");
+    expect(overcurrentIssues.length).toBeGreaterThan(0);
+    expect(overcurrentIssues.some((issue) => issue.pin === 9)).toBe(true);
+  });
+});

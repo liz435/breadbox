@@ -1,9 +1,12 @@
 {
   "runId": "4395ed41-8266-4821-9c02-131236514fcf",
-  "evaluatedAt": "2026-04-09T16:21:08.868Z",
+  "evaluatedAt": "2026-04-10T23:57:35.015Z",
   "agent": "core",
   "prompt": "create 5 flashing LED, flash in sequence, use different colored leds",
   "status": "completed",
+  "evaluable": true,
+  "domain": "breadboard",
+  "category": "top_level",
   "path": {
     "stepCount": 1,
     "stepLimit": 10,
@@ -201,6 +204,8 @@
     "inputTokens": 14074,
     "outputTokens": 1220,
     "totalTokens": 15294,
+    "childTokens": 0,
+    "overheadTokens": 0,
     "estimatedCost": 0.0161,
     "wastedTokens": 0,
     "wasteDetails": []
@@ -209,9 +214,10 @@
     "totalCalls": 1,
     "errors": 0,
     "errorRate": 0,
-    "hallucatedIds": 0,
+    "hallucinatedIds": 0,
     "wrongPinNames": 0,
     "invalidPositions": 0,
+    "invalidGraphConnections": 0,
     "details": [
       {
         "tool": "propose_circuit",
@@ -717,6 +723,7 @@
     ],
     "sketch": "#include <Servo.h>\n\nconst int SERVO_PIN = 6;\nconst int POT_PIN = A0;\n\nconst int LED_PINS[] = {9, 10, 11, 12, 13};\nconst int NUM_LEDS = 5;\nconst int FLASH_DELAY = 300;\n\nServo servo;\n\nvoid setup() {\n  servo.attach(SERVO_PIN);\n  Serial.begin(9600);\n  \n  for (int i = 0; i < NUM_LEDS; i++) {\n    pinMode(LED_PINS[i], OUTPUT);\n    digitalWrite(LED_PINS[i], LOW);\n  }\n}\n\nvoid loop() {\n  // Read potentiometer and control servo\n  int potValue = analogRead(POT_PIN);\n  int angle = map(potValue, 0, 1023, 0, 180);\n  servo.write(angle);\n  \n  Serial.print(\"Pot: \");\n  Serial.print(potValue);\n  Serial.print(\" -> Angle: \");\n  Serial.println(angle);\n  \n  // Flash LEDs in sequence\n  for (int i = 0; i < NUM_LEDS; i++) {\n    digitalWrite(LED_PINS[i], HIGH);\n    delay(FLASH_DELAY);\n    digitalWrite(LED_PINS[i], LOW);\n  }\n}"
   },
+  "graph": null,
   "score": {
     "total": 100,
     "breakdown": {

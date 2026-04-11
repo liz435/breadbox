@@ -4,7 +4,7 @@
       "id": "led-1",
       "type": "led",
       "name": "LED",
-      "x": 5,
+      "x": 7,
       "y": 4,
       "rotation": 0,
       "pins": {

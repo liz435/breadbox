@@ -181,6 +181,7 @@ export function EditToolbar() {
   const serialOpen = isPanelOpen(dockviewApi, "serialMonitor")
   const sketchOpen = isPanelOpen(dockviewApi, "sketchEditor", "graph", "schematic", "libraryManager")
   const inspectorOpen = isPanelOpen(dockviewApi, "inspector", "pinInspector")
+  const electricalOpen = isPanelOpen(dockviewApi, "electricalReport")
 
   const handleProject = useCallback(() => {
     togglePanel(dockviewApi, "projectFiles", "projectFiles", "Project")
@@ -204,6 +205,7 @@ export function EditToolbar() {
     togglePanelGroup(dockviewApi, [
       { id: "inspector", component: "inspector", title: "Inspector" },
       { id: "pinInspector", component: "pinInspector", title: "Pin Inspector" },
+      { id: "electricalReport", component: "electricalReport", title: "Electrical" },
     ])
   }, [dockviewApi])
 
@@ -274,7 +276,7 @@ export function EditToolbar() {
               variant="ghost"
               size="icon"
               onClick={handleInspector}
-              className={cn(inspectorOpen && "bg-neutral-700/60")}
+              className={cn((inspectorOpen || electricalOpen) && "bg-neutral-700/60")}
             />
           }
         >

@@ -1,9 +1,12 @@
 {
   "runId": "e119e04f-e70c-4c28-8133-1ff72ca32264",
-  "evaluatedAt": "2026-04-09T16:21:08.863Z",
+  "evaluatedAt": "2026-04-10T23:57:35.002Z",
   "agent": "core",
   "prompt": "add a led thats always on",
   "status": "completed",
+  "evaluable": true,
+  "domain": "breadboard",
+  "category": "top_level",
   "path": {
     "stepCount": 4,
     "stepLimit": 10,
@@ -132,6 +135,8 @@
     "inputTokens": 35291,
     "outputTokens": 684,
     "totalTokens": 35975,
+    "childTokens": 0,
+    "overheadTokens": 0,
     "estimatedCost": 0.1161,
     "wastedTokens": 400,
     "wasteDetails": [
@@ -143,9 +148,10 @@
     "totalCalls": 4,
     "errors": 0,
     "errorRate": 0,
-    "hallucatedIds": 0,
+    "hallucinatedIds": 0,
     "wrongPinNames": 0,
     "invalidPositions": 0,
+    "invalidGraphConnections": 0,
     "details": [
       {
         "tool": "place_component",
@@ -270,6 +276,7 @@
     ],
     "sketch": ""
   },
+  "graph": null,
   "score": {
     "total": 89,
     "breakdown": {

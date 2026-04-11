@@ -221,8 +221,15 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
   const completedRuns = priorRuns.filter(
     (r) => r.run.id !== runFile.run.id && r.run.status === "completed"
   );
-  const history = await buildSummarizedHistory(completedRuns, cachedSummary);
+  const historyResult = await buildSummarizedHistory(completedRuns, cachedSummary);
+  const history = historyResult.messages;
+  const liveSummarizerUsage = historyResult.usage;
   reqLog.debug(`rebuilt ${history.length} history message(s) from ${completedRuns.length} prior run(s)`);
+  if (liveSummarizerUsage) {
+    reqLog.info(
+      `live summarizer overhead: ${liveSummarizerUsage.totalTokens} tokens (${liveSummarizerUsage.model})`
+    );
+  }
 
   // 6. Start streaming agent
   const agentStream = streamCoreAgent({
@@ -235,6 +242,7 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
     sessionId: input.sessionId,
     parentLog: reqLog,
     history,
+    priorRuns: completedRuns,
   });
 
   // Capture values for the stream execute callback
@@ -301,6 +309,27 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
         }
       }
 
+      // Roll up overhead (summarizer) into the parent run's tokenUsage so
+      // eval sees the true per-turn cost. Live summarizer runs blocked this
+      // request; background ones don't (yet) but we reserve the slot.
+      const overhead = liveSummarizerUsage
+        ? [{
+            kind: "summarizer_live" as const,
+            inputTokens: liveSummarizerUsage.inputTokens,
+            outputTokens: liveSummarizerUsage.outputTokens,
+            totalTokens: liveSummarizerUsage.totalTokens,
+            model: liveSummarizerUsage.model,
+          }]
+        : undefined;
+      const overheadTotal = overhead
+        ? overhead.reduce((acc, o) => acc + o.totalTokens, 0)
+        : 0;
+      const tokenUsageWithOverhead = {
+        ...result.tokenUsage,
+        totalTokens: result.tokenUsage.totalTokens + overheadTotal,
+        overhead,
+      };
+
       // Persist completed run
       await agentRunRepo.completeRun({
         runId: runFile.run.id,
@@ -308,7 +337,7 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
         messages: result.messages,
         proposedOps: result.proposedOps,
         appliedOps,
-        tokenUsage: result.tokenUsage,
+        tokenUsage: tokenUsageWithOverhead,
       });
 
       const elapsed = (performance.now() - start).toFixed(1);
@@ -316,13 +345,23 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
         `completed — ${result.proposedOps.length} proposed (${graphOps.length} graph), ${appliedOps.length} applied, v${newVersion}, ${elapsed}ms`
       );
 
-      // Fire-and-forget: pre-cache history summary for next turn
-      agentRunRepo.listRunsForThread(input.threadId).then((allThreadRuns) => {
+      // Fire-and-forget: pre-cache history summary for next turn. The tokens
+      // burned here are attributed to THIS run's overhead — otherwise they're
+      // invisible to eval/token-analyzer.
+      const runIdForBackground = runFile.run.id;
+      agentRunRepo.listRunsForThread(input.threadId).then(async (allThreadRuns) => {
         const allCompleted = allThreadRuns.filter((r) => r.run.status === "completed");
-        return generateThreadSummary(allCompleted).then((summary) => {
-          if (summary) {
-            return agentRunRepo.updateThreadSummary(input.threadId, summary);
-          }
+        const result = await generateThreadSummary(allCompleted);
+        if (!result) return;
+
+        await agentRunRepo.updateThreadSummary(input.threadId, result.summary);
+        // Attribute the background summarizer cost to the run that triggered it
+        await agentRunRepo.appendOverhead(runIdForBackground, {
+          kind: "summarizer_background",
+          inputTokens: result.usage.inputTokens,
+          outputTokens: result.usage.outputTokens,
+          totalTokens: result.usage.totalTokens,
+          model: result.usage.model,
         });
       }).catch((err) => {
         reqLog.warn(`background summary cache failed: ${err}`);
