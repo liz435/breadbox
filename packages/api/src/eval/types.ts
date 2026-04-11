@@ -139,6 +139,11 @@ export type ElectricalAnalysis = {
   pinOvercurrent: number
   railOvercurrent: number
   missingExternalSupply: number
+  maxPinFanout: number
+  pinsOverDirectFanout: number
+  directGroundCount: number
+  directPowerCount: number
+  railDistributionViolations: number
   errors: number
   warnings: number
   issues: string[]

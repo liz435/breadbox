@@ -197,6 +197,7 @@ function SketchEditorInner() {
     return () => clearInterval(id)
   }, [])
   const sim = simulationRef.current ?? { status: "stopped" as const, error: null, play: () => {}, pause: () => {}, resume: () => {}, stop: () => {}, sendSerialInput: () => {}, vm: null }
+  const transpileErr = transpileErrorRef.current
 
   const lastCodeRef = useRef(boardState.sketchCode)
   lastCodeRef.current = boardState.sketchCode
@@ -345,6 +346,8 @@ function SketchEditorInner() {
   const isPaused = sim.status === "paused"
   const isCompiling = sim.status === "compiling"
   const isStopped = sim.status === "stopped"
+  const electricalErrors = electrical.issues.filter((i) => i.severity === "error")
+  const outputHasErrors = Boolean(sim.error || transpileErr || electricalErrors.length > 0)
 
   return (
     <div className="flex h-full w-full flex-col bg-[#1e1e1e]">
@@ -414,6 +417,44 @@ function SketchEditorInner() {
 
       {/* Editor container */}
       <div ref={containerRef} className="min-h-0 flex-1" />
+
+      {/* Code output window */}
+      <div className="h-32 border-t border-neutral-700 bg-[#161616]">
+        <div className="flex items-center justify-between border-b border-neutral-800 px-3 py-1.5">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-300">Code Output</span>
+          {outputHasErrors ? (
+            <span className="text-[10px] text-red-400">errors</span>
+          ) : (
+            <span className="text-[10px] text-neutral-500">no errors</span>
+          )}
+        </div>
+        <div className="h-[calc(100%-29px)] overflow-auto px-3 py-2 font-mono text-[11px] leading-5">
+          {!outputHasErrors && (
+            <div className="text-neutral-500">Build and runtime messages will appear here.</div>
+          )}
+
+          {transpileErr && (
+            <div className="text-red-400">
+              <span className="text-red-300">[TRANSPILER]</span>{" "}
+              {`line ${transpileErr.line}: ${transpileErr.message}`}
+            </div>
+          )}
+
+          {sim.error && (
+            <div className="text-red-400">
+              <span className="text-red-300">[SIMULATION]</span>{" "}
+              {sim.error}
+            </div>
+          )}
+
+          {electricalErrors.map((issue) => (
+            <div key={`${issue.code}-${issue.componentId ?? ""}-${issue.pin ?? ""}`} className="text-red-400">
+              <span className="text-red-300">[ELECTRICAL]</span>{" "}
+              {issue.message}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }

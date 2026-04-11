@@ -1,0 +1,253 @@
+{
+  "project": {
+    "id": "94f807c7-aefc-42b3-90b7-9c09767ec6df",
+    "name": "iron-mole-cone",
+    "version": 1,
+    "createdAt": "2026-04-11T22:06:44.101Z",
+    "updatedAt": "2026-04-11T22:08:04.032Z",
+    "threadId": "a47d7912-8ff1-4fa0-b41f-b5739f708894",
+    "activeSceneId": "90c1cb34-106d-484f-9030-a75f66cc0f56"
+  },
+  "scenes": {
+    "90c1cb34-106d-484f-9030-a75f66cc0f56": {
+      "id": "90c1cb34-106d-484f-9030-a75f66cc0f56",
+      "name": "Main Scene",
+      "version": 0,
+      "settings": {
+        "background": "#252525",
+        "gravity": {
+          "x": 0,
+          "y": 9.8
+        }
+      }
+    }
+  },
+  "entities": {},
+  "sceneEntityIds": {
+    "90c1cb34-106d-484f-9030-a75f66cc0f56": []
+  },
+  "components": {
+    "transform": {},
+    "sprite": {},
+    "tilemap": {},
+    "physicsBody": {},
+    "script": {},
+    "camera": {}
+  },
+  "assets": {},
+  "graph": {
+    "nodes": {
+      "node-1775945204133-k61d05": {
+        "id": "node-1775945204133-k61d05",
+        "type": "setup",
+        "name": "Setup",
+        "x": 60,
+        "y": 60,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      },
+      "node-1775945204133-58fd1u": {
+        "id": "node-1775945204133-58fd1u",
+        "type": "loop",
+        "name": "Loop",
+        "x": 60,
+        "y": 200,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      }
+    },
+    "edges": {}
+  },
+  "boardState": {
+    "components": {
+      "2fe1e430-405b-4e72-98e1-d36c6a108595": {
+        "id": "2fe1e430-405b-4e72-98e1-d36c6a108595",
+        "type": "led",
+        "name": "LED1",
+        "x": 2,
+        "y": 0,
+        "rotation": 0,
+        "pins": {
+          "anode": null,
+          "cathode": null
+        },
+        "properties": {
+          "color": "#ef4444"
+        }
+      },
+      "fee01d8d-0093-4f53-9aca-608b2670cc30": {
+        "id": "fee01d8d-0093-4f53-9aca-608b2670cc30",
+        "type": "resistor",
+        "name": "R1",
+        "x": 3,
+        "y": 1,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "a8bfa822-6586-4531-b435-d5af1fb60b7d": {
+        "id": "a8bfa822-6586-4531-b435-d5af1fb60b7d",
+        "type": "led",
+        "name": "LED2",
+        "x": 2,
+        "y": 3,
+        "rotation": 0,
+        "pins": {
+          "anode": null,
+          "cathode": null
+        },
+        "properties": {
+          "color": "#3b82f6"
+        }
+      },
+      "e4bcc680-ee23-4867-ba23-9a3cbed98df3": {
+        "id": "e4bcc680-ee23-4867-ba23-9a3cbed98df3",
+        "type": "resistor",
+        "name": "R2",
+        "x": 3,
+        "y": 4,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "3d510e7d-e0d3-43c9-b441-615284c982bb": {
+        "id": "3d510e7d-e0d3-43c9-b441-615284c982bb",
+        "type": "button",
+        "name": "BTN1",
+        "x": 3,
+        "y": 6,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {}
+      },
+      "a9c56109-012d-4575-83a0-86f861de0e05": {
+        "id": "a9c56109-012d-4575-83a0-86f861de0e05",
+        "type": "resistor",
+        "name": "R3",
+        "x": 2,
+        "y": 9,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 10000
+        }
+      }
+    },
+    "wires": {
+      "5b6a661d-32d2-483f-93f2-89c13e1dc633": {
+        "id": "5b6a661d-32d2-483f-93f2-89c13e1dc633",
+        "fromRow": -999,
+        "fromCol": 12,
+        "toRow": 0,
+        "toCol": 2,
+        "color": "red"
+      },
+      "3932245c-3046-4318-b85b-7d94d6159b32": {
+        "id": "3932245c-3046-4318-b85b-7d94d6159b32",
+        "fromRow": -999,
+        "fromCol": 11,
+        "toRow": 3,
+        "toCol": 2,
+        "color": "blue"
+      },
+      "4e83fe1d-5e49-460c-aad3-7d3da81f13f3": {
+        "id": "4e83fe1d-5e49-460c-aad3-7d3da81f13f3",
+        "fromRow": -999,
+        "fromCol": 2,
+        "toRow": 6,
+        "toCol": 3,
+        "color": "yellow"
+      },
+      "463d78a9-0599-40c8-895b-50d6e0894845": {
+        "id": "463d78a9-0599-40c8-895b-50d6e0894845",
+        "fromRow": -999,
+        "fromCol": -1,
+        "toRow": 7,
+        "toCol": 3,
+        "color": "red"
+      },
+      "65ae0c80-27ff-4b13-b833-5b33046f7ae9": {
+        "id": "65ae0c80-27ff-4b13-b833-5b33046f7ae9",
+        "fromRow": -999,
+        "fromCol": -3,
+        "toRow": 0,
+        "toCol": -1,
+        "color": "black"
+      },
+      "747c5849-e88c-4a30-8cca-ca6ab3529022": {
+        "id": "747c5849-e88c-4a30-8cca-ca6ab3529022",
+        "fromRow": 9,
+        "fromCol": -1,
+        "toRow": 9,
+        "toCol": 2,
+        "color": "black"
+      },
+      "ab1e93fa-66c0-4d9a-9fce-bf9f827b59c8": {
+        "id": "ab1e93fa-66c0-4d9a-9fce-bf9f827b59c8",
+        "fromRow": 8,
+        "fromCol": -1,
+        "toRow": 8,
+        "toCol": 3,
+        "color": "black"
+      },
+      "9cbf2bb6-cd90-44aa-b4bc-d5f45fede3fd": {
+        "id": "9cbf2bb6-cd90-44aa-b4bc-d5f45fede3fd",
+        "fromRow": -999,
+        "fromCol": -3,
+        "toRow": 1,
+        "toCol": 7,
+        "color": "#42a5f5"
+      },
+      "8dd5e50d-18b9-49d3-b22b-037aca1d73db": {
+        "id": "8dd5e50d-18b9-49d3-b22b-037aca1d73db",
+        "fromRow": -999,
+        "fromCol": -3,
+        "toRow": 4,
+        "toCol": 7,
+        "color": "#42a5f5"
+      }
+    },
+    "libraryState": {
+      "servos": {},
+      "lcd": null,
+      "serialBaud": 0
+    },
+    "serialOutput": [],
+    "sketchCode": "// Two LEDs + Pushbutton Demo\n// LED1 (Red)  -> D12 via 220Ω\n// LED2 (Blue) -> D11 via 220Ω\n// BTN1        -> D2  with 10kΩ pull-down\n\nconst int LED1_PIN  = 12;\nconst int LED2_PIN  = 11;\nconst int BTN_PIN   =  2;\n\nvoid setup() {\n  pinMode(LED1_PIN, OUTPUT);\n  pinMode(LED2_PIN, OUTPUT);\n  pinMode(BTN_PIN,  INPUT);   // pull-down resistor keeps this LOW when not pressed\n  digitalWrite(LED1_PIN, LOW);\n  digitalWrite(LED2_PIN, LOW);\n}\n\nvoid loop() {\n  bool btnPressed = digitalRead(BTN_PIN) == HIGH;\n\n  if (!btnPressed) {\n    // Idle: blink LED1 slowly, LED2 off\n    digitalWrite(LED1_PIN, HIGH);\n    digitalWrite(LED2_PIN, LOW);\n    delay(700);\n    digitalWrite(LED1_PIN, LOW);\n    delay(700);\n  } else {\n    // Button held: both LEDs on solid\n    digitalWrite(LED1_PIN, HIGH);\n    digitalWrite(LED2_PIN, HIGH);\n    delay(50);   // small debounce dwell\n  }\n}",
+    "customLibraries": {}
+  }
+}

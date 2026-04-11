@@ -465,9 +465,11 @@ export function createCoreTools(params: {
         guide: `## Wiring Rules
 - ALL connections come from WIRES, not pin assignments. Set all component pins to null.
 - Same-row cols 0-4 are connected (left bus). Same-row cols 5-9 are connected (right bus). No wire needed within a bus.
+- Use ONE direct wire per Arduino pin. If a net fans out (multiple loads), land one wire on a breadboard row/rail and branch from there.
 - LED: always add 220Ω resistor. Place LED at col 2 row N, resistor at col 3 row N+1 (cathode row). Wire pin→(N,2), GND→(N+1,7). Cathode and resistor share left bus.
 - 3-pin components (servo/pot/sensor): each pin on a SEPARATE ROW or they short via bus. Wire signal→(row,x), 5V→(row+1,x), GND→(row+2,x).
 - High-current loads (servo, motor, relay, large LED arrays) should use external power_supply with common ground to Arduino GND.
+- For shared GND or shared power, prefer rail distribution: Arduino GND/5V → rail once, then rail → each component.
 - power_supply (MB102) anchors on fixed rail columns, not component.x:
   top row y: left+=(-2), left-=(-1), right-=(10), right+=(11)
   bottom row y+1: left+=(-2), left-=(-1), right-=(10), right+=(11)
@@ -1039,23 +1041,130 @@ Example — LED blink:
         }
 
         // Wire Arduino pins to components
+        const wiresByPin = new Map<number, Array<{
+          target: { row: number; col: number };
+          color: string;
+        }>>();
+
         for (const wire of input.wires) {
           const target = placedComponents[wire.toComponent];
           const to = resolveWireTarget(target, wire.pinOffset);
-          const wireId = crypto.randomUUID();
+          const color = wire.color ?? "#22c55e";
+          if (!wiresByPin.has(wire.arduinoPin)) wiresByPin.set(wire.arduinoPin, []);
+          wiresByPin.get(wire.arduinoPin)!.push({ target: to, color });
+        }
+
+        function railColForPin(pin: number): number {
+          if (pin === -3 || pin === -4 || pin === -6) return -1;
+          if (pin === -1) return -2;
+          if (pin === -2) return 11;
+          return -1;
+        }
+
+        function sameStrip(a: { row: number; col: number }, b: { row: number; col: number }): boolean {
+          if (a.row !== b.row) return false;
+          const aLeft = a.col >= 0 && a.col <= 4;
+          const aRight = a.col >= 5 && a.col <= 9;
+          const bLeft = b.col >= 0 && b.col <= 4;
+          const bRight = b.col >= 5 && b.col <= 9;
+          return (aLeft && bLeft) || (aRight && bRight);
+        }
+
+        for (const [pin, fanout] of wiresByPin.entries()) {
+          if (fanout.length === 0) continue;
+          if (fanout.length === 1) {
+            const only = fanout[0]!;
+            const wireId = crypto.randomUUID();
+            generatedOps.push(makeBoardOp(opCtx, {
+              kind: "connect_wire",
+              payload: {
+                wire: {
+                  id: wireId,
+                  fromRow: -999,
+                  fromCol: pin,
+                  toRow: only.target.row,
+                  toCol: only.target.col,
+                  color: only.color,
+                },
+              },
+            }));
+            continue;
+          }
+
+          const isPowerOrGround = pin < 0;
+          if (isPowerOrGround) {
+            const railCol = railColForPin(pin);
+            const sourceId = crypto.randomUUID();
+            generatedOps.push(makeBoardOp(opCtx, {
+              kind: "connect_wire",
+              payload: {
+                wire: {
+                  id: sourceId,
+                  fromRow: -999,
+                  fromCol: pin,
+                  toRow: 0,
+                  toCol: railCol,
+                  color: fanout[0]!.color,
+                },
+              },
+            }));
+
+            for (const branch of fanout) {
+              if (branch.target.col === railCol) continue;
+              const branchId = crypto.randomUUID();
+              generatedOps.push(makeBoardOp(opCtx, {
+                kind: "connect_wire",
+                payload: {
+                  wire: {
+                    id: branchId,
+                    fromRow: branch.target.row,
+                    fromCol: railCol,
+                    toRow: branch.target.row,
+                    toCol: branch.target.col,
+                    color: branch.color,
+                  },
+                },
+              }));
+            }
+            continue;
+          }
+
+          const anchor = {
+            row: fanout[0]!.target.row,
+            col: fanout[0]!.target.col <= 4 ? 0 : 5,
+          };
+          const sourceId = crypto.randomUUID();
           generatedOps.push(makeBoardOp(opCtx, {
             kind: "connect_wire",
             payload: {
               wire: {
-                id: wireId,
+                id: sourceId,
                 fromRow: -999,
-                fromCol: wire.arduinoPin,
-                toRow: to.row,
-                toCol: to.col,
-                color: wire.color ?? "#22c55e",
+                fromCol: pin,
+                toRow: anchor.row,
+                toCol: anchor.col,
+                color: fanout[0]!.color,
               },
             },
           }));
+
+          for (const branch of fanout) {
+            if (sameStrip(anchor, branch.target)) continue;
+            const branchId = crypto.randomUUID();
+            generatedOps.push(makeBoardOp(opCtx, {
+              kind: "connect_wire",
+              payload: {
+                wire: {
+                  id: branchId,
+                  fromRow: anchor.row,
+                  fromCol: anchor.col,
+                  toRow: branch.target.row,
+                  toCol: branch.target.col,
+                  color: branch.color,
+                },
+              },
+            }));
+          }
         }
 
         // Auto-wire LED+resistor pairs: GND → resistor pin B (col 7, right strip)
@@ -1103,7 +1212,7 @@ Example — LED blink:
         return {
           success: true,
           componentsPlaced: placedComponents.length,
-          wiresCreated: input.wires.length + (input.ledResistorPairs?.length ?? 0),
+          wiresCreated: generatedOps.filter((op) => op.kind === "connect_wire").length,
           sketchUpdated: !!input.sketch && !sketchError,
           sketchError,
           layout: summary,

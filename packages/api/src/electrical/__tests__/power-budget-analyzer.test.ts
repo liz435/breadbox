@@ -173,4 +173,17 @@ describe("analyzePowerBudget", () => {
     expect(overcurrentIssues.length).toBeGreaterThan(0);
     expect(overcurrentIssues.some((issue) => issue.pin === 9)).toBe(true);
   });
+
+  test("flags direct-fanout wiring that should be rail/bus distributed", () => {
+    const board = createDefaultBoardState();
+    connect(board, "w-gnd-1", -999, -3, 5, 2);
+    connect(board, "w-gnd-2", -999, -3, 9, 2);
+    connect(board, "w-sig-1", -999, 9, 4, 2);
+    connect(board, "w-sig-2", -999, 9, 10, 2);
+
+    const report = analyzePowerBudget(board);
+    const codes = report.issues.map((i) => i.code);
+    expect(codes).toContain("PIN_DIRECT_FANOUT");
+    expect(codes).toContain("GROUND_NOT_RAIL_DISTRIBUTED");
+  });
 });

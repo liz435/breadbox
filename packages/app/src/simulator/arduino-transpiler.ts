@@ -392,6 +392,13 @@ function processCodeLine(indent: string, trimmed: string): string {
 function substituteConstants(line: string): string {
   // Replace whole-word occurrences of Arduino constants
   let result = line
+  // Arduino flash-string macro: F("text") -> "text" in JS runtime.
+  // Keep this narrow to string-literal arguments so normal identifiers named
+  // `F` are untouched.
+  result = result.replace(
+    /\bF\s*\(\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')\s*\)/g,
+    "$1",
+  )
   result = result.replace(/\bHIGH\b/g, "1")
   result = result.replace(/\bLOW\b/g, "0")
   result = result.replace(/\bINPUT\b/g, "0")
@@ -463,4 +470,3 @@ export function injectDebugShim(code: string): string {
   const instrumented = code.replace(loopBodyRe, (match) => `${match}\n  __d_report();`)
   return DEBUG_SHIM + instrumented
 }
-

@@ -9,6 +9,7 @@ import type {
 } from "@dreamer/schemas";
 import { ARDUINO_UNO_ELECTRICAL_PROFILE } from "./profiles/arduino-uno";
 import { getComponentElectricalProfile } from "./profiles/components";
+import { analyzeRoutingPolicy } from "./routing-policy";
 
 type Point = { row: number; col: number };
 
@@ -370,6 +371,22 @@ export function analyzePowerBudget(board: BoardState): PowerBudgetReport {
       connectedComponentIds: [...value.componentIds.values()],
     }))
     .sort((a, b) => a.rail.localeCompare(b.rail));
+
+  const routing = analyzeRoutingPolicy(board);
+  for (const violation of routing.violations) {
+    issues.push({
+      severity: "error",
+      code: violation.code,
+      message: violation.message,
+      pin: violation.pin,
+    });
+  }
+  if (routing.violations.length > 0) {
+    recommendations.set(
+      "distribute_pin_fanout",
+      "Use one wire from each Arduino pin to a breadboard bus/rail, then branch from the bus/rail to loads."
+    );
+  }
 
   return {
     board: ARDUINO_UNO_ELECTRICAL_PROFILE,

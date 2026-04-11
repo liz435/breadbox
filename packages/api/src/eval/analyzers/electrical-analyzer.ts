@@ -1,6 +1,7 @@
 import type { BoardState } from "@dreamer/schemas";
 import { createDefaultBoardState } from "@dreamer/schemas";
 import { analyzePowerBudget } from "../../electrical/power-budget-analyzer";
+import { analyzeRoutingPolicy } from "../../electrical/routing-policy";
 import type { ElectricalAnalysis, RunFile } from "../types";
 
 function replayBoardFromOps(run: RunFile): BoardState {
@@ -67,10 +68,12 @@ export function analyzeElectrical(run: RunFile): ElectricalAnalysis {
 
   const board = replayBoardFromOps(run);
   const report = analyzePowerBudget(board);
+  const routing = analyzeRoutingPolicy(board);
 
   let pinOvercurrent = 0;
   let railOvercurrent = 0;
   let missingExternalSupply = 0;
+  let railDistributionViolations = 0;
   let errors = 0;
   let warnings = 0;
   const issues: string[] = [];
@@ -81,6 +84,13 @@ export function analyzeElectrical(run: RunFile): ElectricalAnalysis {
     if (issue.code === "PIN_OVERCURRENT") pinOvercurrent++;
     if (issue.code.startsWith("RAIL_OVERCURRENT") || issue.code === "BOARD_TOTAL_OVERCURRENT") railOvercurrent++;
     if (issue.code === "EXTERNAL_POWER_REQUIRED" || issue.code === "HIGH_CURRENT_ON_ARDUINO_5V") missingExternalSupply++;
+    if (
+      issue.code === "PIN_DIRECT_FANOUT" ||
+      issue.code === "GROUND_NOT_RAIL_DISTRIBUTED" ||
+      issue.code === "POWER_NOT_RAIL_DISTRIBUTED"
+    ) {
+      railDistributionViolations++;
+    }
     issues.push(issue.message);
   }
 
@@ -88,9 +98,13 @@ export function analyzeElectrical(run: RunFile): ElectricalAnalysis {
     pinOvercurrent,
     railOvercurrent,
     missingExternalSupply,
+    maxPinFanout: routing.maxPinFanout,
+    pinsOverDirectFanout: routing.pinsOverDirectFanout,
+    directGroundCount: routing.directGroundCount,
+    directPowerCount: routing.directPowerCount,
+    railDistributionViolations,
     errors,
     warnings,
     issues,
   };
 }
-

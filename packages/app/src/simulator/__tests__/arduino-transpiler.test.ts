@@ -247,6 +247,10 @@ describe("transpile", () => {
       expect(ok("pinMode(2, INPUT_PULLUP);")).toContain("pinMode(2, 2);")
     })
 
+    test('F("...") macro unwraps to a plain string literal', () => {
+      expect(ok('Serial.println(F("hello"));')).toContain('Serial.println("hello");')
+    })
+
     test("multiple constants in one line", () => {
       const code = ok("if (digitalRead(2) == HIGH) digitalWrite(13, LOW);")
       expect(code).toContain("== 1")

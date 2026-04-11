@@ -9,6 +9,7 @@ import { routeRequest, type RoutingDecision } from "../router";
 import { boardTracker } from "../../db/board-state-tracker";
 import { agentRunRepo } from "../../db/agent-run-repo";
 import { analyzePowerBudget } from "../../electrical/power-budget-analyzer";
+import { analyzeRoutingPolicy, normalizeDirectPinFanout } from "../../electrical/routing-policy";
 import { makeBoardOp } from "../make-op";
 import { normalizeAgentPrompt } from "../prompt-normalizer";
 
@@ -38,6 +39,8 @@ You have ONE primary tool: propose_circuit. Use it to describe the entire circui
 ## propose_circuit reference
 - Components: list type + name + optional properties. Auto-positioned on breadboard.
 - Wires: reference components by array INDEX (0, 1, 2...), not by ID. Specify arduinoPin number and optional pinOffset for 3-pin components (0=signal, 1=vcc, 2=gnd).
+- One direct wire per Arduino pin. If a pin fans out, route one wire to a breadboard row/rail and branch from there.
+- Shared GND/power must be rail-distributed: Arduino GND/5V to rail once, then rail to each load.
 - ledResistorPairs: pair LED index with resistor index — auto-wires cathode→resistor→GND.
 - sketch: full Arduino code.
 
@@ -386,40 +389,51 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
     log.info(
       `completed — ${ops.length} ops, ${stepCount} steps, ${elapsed}ms, parent tokens: ${totalInputTokens + totalOutputTokens}, child tokens: ${childTotalTokens}, children: ${childUsage.length}`
     );
+    const remediationNotes: string[] = [];
+    const maxAutoFixPasses = 2;
+    const opCtx = {
+      projectId: ctx.projectId,
+      sceneId: ctx.sceneId,
+      expectedVersion: ctx.project.project.version,
+    };
 
-    let powerReport = analyzePowerBudget(workingBoard);
-    let powerErrors = powerReport.issues.filter((issue) => issue.severity === "error");
-    if (powerErrors.length > 0 && ops.length > 0) {
-      const autoFix = tryAutoFixLedPinOvercurrent({
-        workingBoard,
-        projectId: ctx.projectId,
-        sceneId: ctx.sceneId,
-        expectedVersion: ctx.project.project.version,
-        powerErrors: powerErrors.map((e) => ({ code: e.code, pin: e.pin })),
-      });
-      if (autoFix) {
-        ops.push(...autoFix.ops);
-        powerReport = analyzePowerBudget(workingBoard);
-        powerErrors = powerReport.issues.filter((issue) => issue.severity === "error");
-        if (powerErrors.length === 0) {
-          log.info(`auto-fixed electrical overcurrent with ${autoFix.ops.length} remediation op(s)`);
-          return {
-            assistantText: `${text}\n\nSafety note: ${autoFix.note}`,
-            proposedOps: ops,
-            messages: allMessages,
-            tokenUsage: {
-              inputTokens: totalInputTokens,
-              outputTokens: totalOutputTokens,
-              totalTokens: endToEndTotal,
-              model: CORE_MODEL,
-              children: childUsage.length > 0 ? childUsage.slice() : undefined,
-            },
-          };
+    if (ops.length > 0) {
+      for (let pass = 0; pass < maxAutoFixPasses; pass++) {
+        let changed = false;
+
+        const routingFix = normalizeDirectPinFanout({ board: workingBoard, opCtx });
+        if (routingFix) {
+          ops.push(...routingFix.ops);
+          remediationNotes.push(...routingFix.notes);
+          changed = true;
         }
-      }
 
-      const topErrors = powerErrors.slice(0, 3).map((issue) => `- ${issue.message}`).join("\n");
-      const recs = powerReport.recommendations.slice(0, 2).map((r) => `- ${r.message}`).join("\n");
+        const report = analyzePowerBudget(workingBoard);
+        const powerErrors = report.issues.filter((issue) => issue.severity === "error");
+        const ledFix = tryAutoFixLedPinOvercurrent({
+          workingBoard,
+          projectId: ctx.projectId,
+          sceneId: ctx.sceneId,
+          expectedVersion: ctx.project.project.version,
+          powerErrors: powerErrors.map((e) => ({ code: e.code, pin: e.pin })),
+        });
+        if (ledFix) {
+          ops.push(...ledFix.ops);
+          remediationNotes.push(ledFix.note);
+          changed = true;
+        }
+
+        if (!changed) break;
+      }
+    }
+
+    const powerReport = analyzePowerBudget(workingBoard);
+    const powerErrors = powerReport.issues.filter((issue) => issue.severity === "error");
+    const routing = analyzeRoutingPolicy(workingBoard);
+
+    if (powerErrors.length > 0 && ops.length > 0) {
+      const topErrors = powerErrors.slice(0, 4).map((issue) => `- ${issue.message}`).join("\n");
+      const recs = powerReport.recommendations.slice(0, 3).map((r) => `- ${r.message}`).join("\n");
       const blockedText = [
         "I couldn't apply this change because it violates electrical safety constraints.",
         "",
@@ -427,9 +441,11 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
         topErrors || "- Unknown electrical error.",
         "",
         "Recommended fix:",
-        recs || "- Add external power for high-current loads and tie grounds together.",
+        recs || "- Use one Arduino lead per net, distribute with breadboard rails, and power high-current loads externally.",
       ].join("\n");
-      log.warn(`blocked unsafe plan — ${powerErrors.length} electrical error(s)`);
+      log.warn(
+        `blocked unsafe plan — ${powerErrors.length} electrical error(s), max fanout=${routing.maxPinFanout}`
+      );
       return {
         assistantText: blockedText,
         proposedOps: [],
@@ -444,8 +460,13 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
       };
     }
 
+    const finalText =
+      remediationNotes.length > 0
+        ? `${text}\n\nSafety note: ${remediationNotes.join(" ")}`
+        : text;
+
     return {
-      assistantText: text,
+      assistantText: finalText,
       proposedOps: ops,
       messages: allMessages,
       tokenUsage: {

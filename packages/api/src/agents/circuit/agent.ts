@@ -22,6 +22,8 @@ const SYSTEM_PROMPT = `You are a circuit design specialist for Dreamer, an Ardui
 ## Wiring contract (identical to the core agent)
 - ALL connections come from WIRES, not from component.pins. When placing a component, set every pin to null.
 - Same-row cols 0-4 are connected (left bus). Same-row cols 5-9 are connected (right bus). No wire needed within a bus.
+- Use one direct wire per Arduino pin. For fan-out, land once on a tie row/rail, then branch from the bus.
+- Shared GND and VCC must be rail-distributed (single Arduino feed wire per rail net).
 - LED: always add a 220-330Ω resistor in series. Place LED at col 2 row N, resistor at col 3 row N+1 (cathode row). Wire signal→(N,2), GND→(N+1,7).
 - 3-pin components (servo/pot/sensor): each pin on a SEPARATE ROW or they short via the bus. Wire signal→(row,x), 5V→(row+1,x), GND→(row+2,x).
 - Resistor spans 5 cols: place at col 3 to bridge the gap between the left and right strips.
