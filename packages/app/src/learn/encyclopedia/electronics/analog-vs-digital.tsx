@@ -5,6 +5,7 @@ import {
   PageTitle,
   Section,
   Note,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -48,6 +49,10 @@ export function AnalogVsDigitalPage() {
           . A reading of 512 means "somewhere between 2.495 V and
           2.500 V" — you can't tell the two apart.
         </p>
+
+        <Figure caption="Left: smooth analog waveform. Right: the same wave after 10-bit quantization — every sample snaps to one of 1024 legal steps.">
+          <AnalogDigitalDiagram />
+        </Figure>
       </Section>
 
       <Section title="Why it matters">
@@ -80,5 +85,76 @@ export function AnalogVsDigitalPage() {
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── Analog vs digital waveform diagram ─────────────────────────────────
+
+function AnalogDigitalDiagram() {
+  const w = 460
+  const h = 180
+  const plotW = 200
+  const plotH = 120
+  const topY = 40
+  const leftX = 20
+  const rightX = w - leftX - plotW
+  const steps = 16 // visual quantization
+  const analogPts: [number, number][] = []
+  const digitalPts: [number, number][] = []
+  const samples = 80
+  for (let i = 0; i <= samples; i++) {
+    const t = i / samples
+    const v = 0.5 + 0.45 * Math.sin(t * Math.PI * 2)
+    analogPts.push([leftX + t * plotW, topY + plotH - v * plotH])
+    const quant = Math.round(v * steps) / steps
+    digitalPts.push([rightX + t * plotW, topY + plotH - quant * plotH])
+  }
+  const analogD = analogPts.map((pt, i) => `${i === 0 ? "M" : "L"} ${pt[0]} ${pt[1]}`).join(" ")
+  // Stair-step path
+  const stairPts: [number, number][] = []
+  for (let i = 0; i < digitalPts.length; i++) {
+    const cur = digitalPts[i]!
+    if (i === 0) {
+      stairPts.push(cur)
+    } else {
+      const prev = digitalPts[i - 1]!
+      stairPts.push([cur[0], prev[1]])
+      stairPts.push(cur)
+    }
+  }
+  const stairD = stairPts.map((pt, i) => `${i === 0 ? "M" : "L"} ${pt[0]} ${pt[1]}`).join(" ")
+
+  return (
+    <div className="flex justify-center">
+      <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} xmlns="http://www.w3.org/2000/svg" className="max-w-full">
+        <rect x={0} y={0} width={w} height={h} fill="#0f0f0f" />
+        {/* Axes left */}
+        <line x1={leftX} y1={topY + plotH} x2={leftX + plotW} y2={topY + plotH} stroke="#6b7280" strokeWidth={1} />
+        <line x1={leftX} y1={topY} x2={leftX} y2={topY + plotH} stroke="#6b7280" strokeWidth={1} />
+        <path d={analogD} fill="none" stroke="#60a5fa" strokeWidth={2} />
+        <text x={leftX + plotW / 2} y={topY - 12} textAnchor="middle" fontSize={11} fill="#60a5fa" fontFamily="ui-monospace, Menlo, monospace">
+          Analog (continuous)
+        </text>
+        {/* Axes right */}
+        <line x1={rightX} y1={topY + plotH} x2={rightX + plotW} y2={topY + plotH} stroke="#6b7280" strokeWidth={1} />
+        <line x1={rightX} y1={topY} x2={rightX} y2={topY + plotH} stroke="#6b7280" strokeWidth={1} />
+        {/* Faint quantization grid */}
+        {Array.from({ length: steps + 1 }, (_, i) => (
+          <line
+            key={i}
+            x1={rightX}
+            y1={topY + (i / steps) * plotH}
+            x2={rightX + plotW}
+            y2={topY + (i / steps) * plotH}
+            stroke="#1f2937"
+            strokeWidth={0.6}
+          />
+        ))}
+        <path d={stairD} fill="none" stroke="#a78bfa" strokeWidth={2} />
+        <text x={rightX + plotW / 2} y={topY - 12} textAnchor="middle" fontSize={11} fill="#a78bfa" fontFamily="ui-monospace, Menlo, monospace">
+          Digital (quantized)
+        </text>
+      </svg>
+    </div>
   )
 }

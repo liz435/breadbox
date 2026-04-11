@@ -88,7 +88,7 @@ export function buildNetlist(
   const netComponentTypes = new Map<string, Set<string>>()
   for (const comp of Object.values(components)) {
     if (comp.type === "arduino_uno" || comp.type === "wire") continue
-    const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation)
+    const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties)
     for (const pt of footprint.points) {
       const nid = pointToNetId.get(pointKey(pt))
       if (nid) {
@@ -223,7 +223,7 @@ export function buildNetlist(
   for (const comp of Object.values(components)) {
     if (comp.type === "arduino_uno" || comp.type === "wire") continue
 
-    const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation)
+    const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties)
     const def = getComponentDef(comp.type)
 
     if (def?.buildNetlist) {

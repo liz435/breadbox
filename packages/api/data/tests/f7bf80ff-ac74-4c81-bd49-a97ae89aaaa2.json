@@ -1,9 +1,12 @@
 {
   "runId": "f7bf80ff-ac74-4c81-bd49-a97ae89aaaa2",
-  "evaluatedAt": "2026-04-09T16:21:08.868Z",
+  "evaluatedAt": "2026-04-10T23:57:35.012Z",
   "agent": "core",
   "prompt": "buzzer",
   "status": "completed",
+  "evaluable": true,
+  "domain": "breadboard",
+  "category": "top_level",
   "path": {
     "stepCount": 6,
     "stepLimit": 10,
@@ -509,6 +512,8 @@
     "inputTokens": 77298,
     "outputTokens": 1070,
     "totalTokens": 78368,
+    "childTokens": 0,
+    "overheadTokens": 0,
     "estimatedCost": 0.2479,
     "wastedTokens": 2200,
     "wasteDetails": [
@@ -520,9 +525,10 @@
     "totalCalls": 6,
     "errors": 0,
     "errorRate": 0,
-    "hallucatedIds": 0,
+    "hallucinatedIds": 0,
     "wrongPinNames": 0,
     "invalidPositions": 0,
+    "invalidGraphConnections": 0,
     "details": [
       {
         "tool": "get_board_state",
@@ -626,6 +632,7 @@
     ],
     "sketch": "int redPin = 11;\nint yellowPin = 10;\nint greenPin = 9;\nint buzzerPin = 6;\n\nvoid setup() {\n  pinMode(redPin, OUTPUT);\n  pinMode(yellowPin, OUTPUT);\n  pinMode(greenPin, OUTPUT);\n  pinMode(buzzerPin, OUTPUT);\n}\n\nvoid loop() {\n  // GREEN — go\n  digitalWrite(greenPin, HIGH);\n  digitalWrite(yellowPin, LOW);\n  digitalWrite(redPin, LOW);\n  noTone(buzzerPin);\n  delay(3000);\n\n  // YELLOW — caution (buzzer beeps)\n  digitalWrite(greenPin, LOW);\n  digitalWrite(yellowPin, HIGH);\n  digitalWrite(redPin, LOW);\n  for (int i = 0; i < 5; i++) {\n    tone(buzzerPin, 1000);\n    delay(100);\n    noTone(buzzerPin);\n    delay(100);\n  }\n\n  // RED — stop\n  digitalWrite(greenPin, LOW);\n  digitalWrite(yellowPin, LOW);\n  digitalWrite(redPin, HIGH);\n  noTone(buzzerPin);\n  delay(3000);\n}\n"
   },
+  "graph": null,
   "score": {
     "total": 99,
     "breakdown": {

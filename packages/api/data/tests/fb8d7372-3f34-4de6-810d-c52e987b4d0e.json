@@ -1,9 +1,12 @@
 {
   "runId": "fb8d7372-3f34-4de6-810d-c52e987b4d0e",
-  "evaluatedAt": "2026-04-09T16:21:08.854Z",
+  "evaluatedAt": "2026-04-10T23:57:34.992Z",
   "agent": "core",
   "prompt": "create 5 flashing LED, flash in sequence, use different colored leds",
   "status": "completed",
+  "evaluable": true,
+  "domain": "breadboard",
+  "category": "top_level",
   "path": {
     "stepCount": 27,
     "stepLimit": 10,
@@ -731,6 +734,8 @@
     "inputTokens": 28684,
     "outputTokens": 3624,
     "totalTokens": 32308,
+    "childTokens": 0,
+    "overheadTokens": 0,
     "estimatedCost": 0.0374,
     "wastedTokens": 4200,
     "wasteDetails": [
@@ -761,9 +766,10 @@
     "totalCalls": 27,
     "errors": 0,
     "errorRate": 0,
-    "hallucatedIds": 0,
+    "hallucinatedIds": 0,
     "wrongPinNames": 0,
     "invalidPositions": 0,
+    "invalidGraphConnections": 0,
     "details": [
       {
         "tool": "get_wiring_guide",
@@ -1394,6 +1400,7 @@
     ],
     "sketch": "// 5 LEDs flashing in sequence\n\nconst int LED_RED = 9;\nconst int LED_YELLOW = 10;\nconst int LED_GREEN = 11;\nconst int LED_BLUE = 12;\nconst int LED_PURPLE = 13;\n\nconst int DELAY_MS = 300;\n\nvoid setup() {\n  pinMode(LED_RED, OUTPUT);\n  pinMode(LED_YELLOW, OUTPUT);\n  pinMode(LED_GREEN, OUTPUT);\n  pinMode(LED_BLUE, OUTPUT);\n  pinMode(LED_PURPLE, OUTPUT);\n}\n\nvoid loop() {\n  // Flash each LED in sequence\n  digitalWrite(LED_RED, HIGH);\n  delay(DELAY_MS);\n  digitalWrite(LED_RED, LOW);\n  \n  digitalWrite(LED_YELLOW, HIGH);\n  delay(DELAY_MS);\n  digitalWrite(LED_YELLOW, LOW);\n  \n  digitalWrite(LED_GREEN, HIGH);\n  delay(DELAY_MS);\n  digitalWrite(LED_GREEN, LOW);\n  \n  digitalWrite(LED_BLUE, HIGH);\n  delay(DELAY_MS);\n  digitalWrite(LED_BLUE, LOW);\n  \n  digitalWrite(LED_PURPLE, HIGH);\n  delay(DELAY_MS);\n  digitalWrite(LED_PURPLE, LOW);\n  \n  delay(100); // Pause before next cycle\n}\n"
   },
+  "graph": null,
   "score": {
     "total": 94,
     "breakdown": {

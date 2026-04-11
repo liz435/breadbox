@@ -7,6 +7,8 @@ import {
   Warn,
   Note,
   Table,
+  Schematic,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -40,6 +42,16 @@ export function PowerPage() {
           pushing 20 mA through a resistor delivers 5 × 0.020 = 0.1 W
           to that resistor. All of that becomes heat.
         </p>
+
+        <Figure caption="A resistor on a 5 V rail. Whatever V × I works out to leaves the resistor as heat.">
+          <Schematic cols={10} rows={6}>
+            <Schematic.Vcc at={[3, 1]} label="+5V" />
+            <Schematic.Wire points={[[3, 1], [3, 2]]} />
+            <Schematic.Resistor from={[3, 2]} to={[3, 4]} label="P = V × I" />
+            <Schematic.Wire points={[[3, 4], [3, 5]]} />
+            <Schematic.Ground at={[3, 5]} />
+          </Schematic>
+        </Figure>
       </Section>
 
       <Section title="Why components heat up">
@@ -103,6 +115,10 @@ export function PowerPage() {
           well inside the safe range and leaves margin for component
           variation.
         </Note>
+
+        <Figure caption="Current budget for a USB-powered Uno. Total draw must stay below ~500 mA.">
+          <CurrentBudgetChart />
+        </Figure>
       </Section>
 
       <SeeAlso
@@ -114,5 +130,64 @@ export function PowerPage() {
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── Current budget bar chart ───────────────────────────────────────────
+
+function CurrentBudgetChart() {
+  const w = 440
+  const h = 180
+  const rows = [
+    { label: "Per pin (safe)", value: 20, max: 500, color: "#60a5fa" },
+    { label: "Per pin (max)", value: 40, max: 500, color: "#a78bfa" },
+    { label: "Per port group", value: 100, max: 500, color: "#10b981" },
+    { label: "Whole chip", value: 200, max: 500, color: "#f59e0b" },
+    { label: "USB total", value: 500, max: 500, color: "#ef4444" },
+  ]
+  const labelW = 128
+  const barW = w - labelW - 70
+  const rowH = 24
+  return (
+    <div className="flex justify-center">
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        width={w}
+        height={h}
+        xmlns="http://www.w3.org/2000/svg"
+        className="max-w-full"
+      >
+        <rect x={0} y={0} width={w} height={h} fill="#0f0f0f" />
+        {rows.map((row, i) => {
+          const y = 14 + i * (rowH + 6)
+          const filled = (row.value / row.max) * barW
+          return (
+            <g key={row.label}>
+              <text
+                x={labelW - 6}
+                y={y + rowH / 2 + 4}
+                textAnchor="end"
+                fontSize={10}
+                fill="#d1d5db"
+                fontFamily="ui-monospace, Menlo, monospace"
+              >
+                {row.label}
+              </text>
+              <rect x={labelW} y={y} width={barW} height={rowH} fill="#1f2937" stroke="#374151" strokeWidth={1} />
+              <rect x={labelW} y={y} width={filled} height={rowH} fill={row.color} fillOpacity={0.8} />
+              <text
+                x={labelW + barW + 6}
+                y={y + rowH / 2 + 4}
+                fontSize={10}
+                fill="#9ca3af"
+                fontFamily="ui-monospace, Menlo, monospace"
+              >
+                {row.value} mA
+              </text>
+            </g>
+          )
+        })}
+      </svg>
+    </div>
   )
 }

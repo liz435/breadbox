@@ -1,0 +1,305 @@
+{
+  "project": {
+    "id": "a6933a38-6422-4c86-b27b-3526938f7bd4",
+    "name": "slate-toad-cape",
+    "version": 0,
+    "createdAt": "2026-04-11T00:55:46.854Z",
+    "updatedAt": "2026-04-11T01:21:54.153Z",
+    "threadId": "6d1f9413-5b40-4cf3-aa31-b267ab8e8617",
+    "activeSceneId": "c75964b1-7035-4169-a5f9-1745dff07a45"
+  },
+  "scenes": {
+    "c75964b1-7035-4169-a5f9-1745dff07a45": {
+      "id": "c75964b1-7035-4169-a5f9-1745dff07a45",
+      "name": "Main Scene",
+      "version": 0,
+      "settings": {
+        "background": "#252525",
+        "gravity": {
+          "x": 0,
+          "y": 9.8
+        }
+      }
+    }
+  },
+  "entities": {},
+  "sceneEntityIds": {
+    "c75964b1-7035-4169-a5f9-1745dff07a45": []
+  },
+  "components": {
+    "transform": {},
+    "sprite": {},
+    "tilemap": {},
+    "physicsBody": {},
+    "script": {},
+    "camera": {}
+  },
+  "assets": {},
+  "graph": {
+    "nodes": {
+      "node-1775868946879-pdojet": {
+        "id": "node-1775868946879-pdojet",
+        "type": "setup",
+        "name": "Setup",
+        "x": 60,
+        "y": 60,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      },
+      "node-1775868946879-dwebpp": {
+        "id": "node-1775868946879-dwebpp",
+        "type": "loop",
+        "name": "Loop",
+        "x": 60,
+        "y": 200,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      }
+    },
+    "edges": {}
+  },
+  "boardState": {
+    "components": {
+      "144f18ce-c13c-4284-bf35-7cc36fda11d9": {
+        "id": "144f18ce-c13c-4284-bf35-7cc36fda11d9",
+        "type": "led",
+        "name": "LED Red (Left)",
+        "x": 2,
+        "y": 4,
+        "rotation": 0,
+        "pins": {
+          "anode": null,
+          "cathode": null
+        },
+        "properties": {
+          "color": "#ef4444"
+        }
+      },
+      "3b74d41e-b8f4-4edd-a60e-c457e24a0ad3": {
+        "id": "3b74d41e-b8f4-4edd-a60e-c457e24a0ad3",
+        "type": "resistor",
+        "name": "R1 - Red LED",
+        "x": 3,
+        "y": 5,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "e4b66da2-9ff6-495e-8c2e-46e2f7bfb48c": {
+        "id": "e4b66da2-9ff6-495e-8c2e-46e2f7bfb48c",
+        "type": "led",
+        "name": "LED Yellow (Center)",
+        "x": 2,
+        "y": 7,
+        "rotation": 0,
+        "pins": {
+          "anode": null,
+          "cathode": null
+        },
+        "properties": {
+          "color": "#eab308"
+        }
+      },
+      "5c5a22c8-55e4-41c4-9e40-4bf999213811": {
+        "id": "5c5a22c8-55e4-41c4-9e40-4bf999213811",
+        "type": "resistor",
+        "name": "R2 - Yellow LED",
+        "x": 3,
+        "y": 8,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "fccc962e-0650-4c1c-bbca-ca91fc4937e3": {
+        "id": "fccc962e-0650-4c1c-bbca-ca91fc4937e3",
+        "type": "led",
+        "name": "LED Green (Right)",
+        "x": 2,
+        "y": 10,
+        "rotation": 0,
+        "pins": {
+          "anode": null,
+          "cathode": null
+        },
+        "properties": {
+          "color": "#22c55e"
+        }
+      },
+      "621961a8-21ab-4f66-b7ac-3e459645b05a": {
+        "id": "621961a8-21ab-4f66-b7ac-3e459645b05a",
+        "type": "resistor",
+        "name": "R3 - Green LED",
+        "x": 3,
+        "y": 11,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "17b1fca4-4654-4580-9d6d-b67ff53eb3a0": {
+        "id": "17b1fca4-4654-4580-9d6d-b67ff53eb3a0",
+        "type": "button",
+        "name": "Pause Button",
+        "x": 3,
+        "y": 13,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {}
+      },
+      "3a9dd99b-811e-4787-868c-31d2f4309b35": {
+        "id": "3a9dd99b-811e-4787-868c-31d2f4309b35",
+        "type": "power_supply",
+        "name": "Power Supply",
+        "x": -1,
+        "y": 27,
+        "rotation": 0,
+        "pins": {},
+        "properties": {
+          "leftVoltage": 5,
+          "rightVoltage": 3.3
+        }
+      },
+      "adfc584e-11a6-4a8e-94a6-6e5264284e49": {
+        "id": "adfc584e-11a6-4a8e-94a6-6e5264284e49",
+        "type": "servo",
+        "name": "Servo",
+        "x": 3,
+        "y": 0,
+        "rotation": 0,
+        "pins": {
+          "signal": null,
+          "vcc": null,
+          "gnd": null
+        },
+        "properties": {
+          "angle": 90
+        }
+      }
+    },
+    "wires": {
+      "3969b8ea-1ed4-48d0-970b-78a8db1943fd": {
+        "id": "3969b8ea-1ed4-48d0-970b-78a8db1943fd",
+        "fromRow": -999,
+        "fromCol": 9,
+        "toRow": 0,
+        "toCol": 2,
+        "color": "#f97316"
+      },
+      "8cfb5303-6ff1-457f-a307-113cc1fd3c0f": {
+        "id": "8cfb5303-6ff1-457f-a307-113cc1fd3c0f",
+        "fromRow": -999,
+        "fromCol": 6,
+        "toRow": 7,
+        "toCol": 2,
+        "color": "#eab308"
+      },
+      "434f46df-3594-4217-a4cf-a7e5e1dacff3": {
+        "id": "434f46df-3594-4217-a4cf-a7e5e1dacff3",
+        "fromRow": -999,
+        "fromCol": 7,
+        "toRow": 10,
+        "toCol": 2,
+        "color": "#22c55e"
+      },
+      "e4bf3abc-24ca-4244-9e9d-423ed633a548": {
+        "id": "e4bf3abc-24ca-4244-9e9d-423ed633a548",
+        "fromRow": -999,
+        "fromCol": 2,
+        "toRow": 13,
+        "toCol": 3,
+        "color": "#a855f7"
+      },
+      "4aa37ff9-a5fc-43dd-96f2-998937a1b0e2": {
+        "id": "4aa37ff9-a5fc-43dd-96f2-998937a1b0e2",
+        "fromRow": -999,
+        "fromCol": -3,
+        "toRow": 14,
+        "toCol": 3,
+        "color": "#1d4ed8"
+      },
+      "5bce55fa-328b-413a-8afc-b3db287368fc": {
+        "id": "5bce55fa-328b-413a-8afc-b3db287368fc",
+        "fromRow": -999,
+        "fromCol": -3,
+        "toRow": 5,
+        "toCol": 7,
+        "color": "#42a5f5"
+      },
+      "0c6f66b4-dcd3-421b-8820-c73d2d37d544": {
+        "id": "0c6f66b4-dcd3-421b-8820-c73d2d37d544",
+        "fromRow": -999,
+        "fromCol": -3,
+        "toRow": 8,
+        "toCol": 7,
+        "color": "#42a5f5"
+      },
+      "91d2ddd7-506d-4816-a84e-50e96eb89d77": {
+        "id": "91d2ddd7-506d-4816-a84e-50e96eb89d77",
+        "fromRow": -999,
+        "fromCol": -3,
+        "toRow": 11,
+        "toCol": 7,
+        "color": "#42a5f5"
+      },
+      "7eb48ed7-e657-4c70-9c46-e64bfcefb261": {
+        "id": "7eb48ed7-e657-4c70-9c46-e64bfcefb261",
+        "fromRow": 1,
+        "fromCol": 0,
+        "toRow": 1,
+        "toCol": -2,
+        "color": "#fbbf24"
+      },
+      "6d3293a4-5336-4d9d-b4b1-9c99d2cc803b": {
+        "id": "6d3293a4-5336-4d9d-b4b1-9c99d2cc803b",
+        "fromRow": 2,
+        "fromCol": 0,
+        "toRow": 2,
+        "toCol": -1,
+        "color": "#fbbf24"
+      }
+    },
+    "libraryState": {
+      "servos": {},
+      "lcd": null,
+      "serialBaud": 0
+    },
+    "serialOutput": [],
+    "sketchCode": "// Auto-generated from board layout\n// Components placed on the breadboard:\n//   - LED Red (Left) (led)\n//   - R1 - Red LED (resistor)\n//   - LED Yellow (Center) (led)\n//   - R2 - Yellow LED (resistor)\n//   - LED Green (Right) (led)\n//   - R3 - Green LED (resistor)\n//   - Pause Button (button)\n//   - Power Supply (power_supply)\n//   - Servo (servo)\n//\n// Assign pins in the Inspector panel to generate setup code.\n\nvoid setup() {\n}\n\nvoid loop() {\n}\n",
+    "customLibraries": {}
+  }
+}

@@ -6,6 +6,7 @@ import {
   Section,
   Note,
   Table,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -46,6 +47,10 @@ export function SpiConceptsPage() {
             ["SS", "Master → peripheral", "Slave select, active LOW"],
           ]}
         />
+
+        <Figure caption="Master and one peripheral connected by SCK, MOSI, MISO, and SS. The arrows show which side drives which line.">
+          <SpiWiringDiagram />
+        </Figure>
       </Section>
 
       <Section title="One peripheral at a time">
@@ -91,5 +96,59 @@ export function SpiConceptsPage() {
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── SPI wiring diagram ─────────────────────────────────────────────────
+
+function SpiWiringDiagram() {
+  const w = 500
+  const h = 230
+  const masterX = 60
+  const slaveX = 320
+  const boxW = 120
+  const boxH = 170
+  const boxY = 30
+  const lines = [
+    { y: 60, label: "SCK",  color: "#60a5fa", direction: "→" },
+    { y: 100, label: "MOSI", color: "#a78bfa", direction: "→" },
+    { y: 140, label: "MISO", color: "#10b981", direction: "←" },
+    { y: 180, label: "SS",   color: "#f59e0b", direction: "→" },
+  ]
+  return (
+    <div className="flex justify-center">
+      <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} xmlns="http://www.w3.org/2000/svg" className="max-w-full">
+        <rect x={0} y={0} width={w} height={h} fill="#0f0f0f" />
+        {/* Master box */}
+        <rect x={masterX} y={boxY} width={boxW} height={boxH} rx={4} fill="#1f2937" stroke="#60a5fa" strokeWidth={1.8} />
+        <text x={masterX + boxW / 2} y={boxY + 24} textAnchor="middle" fontSize={13} fill="#60a5fa" fontFamily="ui-monospace, Menlo, monospace">Master</text>
+        <text x={masterX + boxW / 2} y={boxY + 38} textAnchor="middle" fontSize={9} fill="#9ca3af" fontFamily="ui-monospace, Menlo, monospace">(Arduino)</text>
+
+        {/* Slave box */}
+        <rect x={slaveX} y={boxY} width={boxW} height={boxH} rx={4} fill="#1f2937" stroke="#a78bfa" strokeWidth={1.8} />
+        <text x={slaveX + boxW / 2} y={boxY + 24} textAnchor="middle" fontSize={13} fill="#a78bfa" fontFamily="ui-monospace, Menlo, monospace">Slave</text>
+        <text x={slaveX + boxW / 2} y={boxY + 38} textAnchor="middle" fontSize={9} fill="#9ca3af" fontFamily="ui-monospace, Menlo, monospace">(peripheral)</text>
+
+        {/* Four lines */}
+        {lines.map((ln) => {
+          const x1 = masterX + boxW
+          const x2 = slaveX
+          const midX = (x1 + x2) / 2
+          return (
+            <g key={ln.label}>
+              <line x1={x1} y1={ln.y} x2={x2} y2={ln.y} stroke={ln.color} strokeWidth={1.8} />
+              <text x={midX} y={ln.y - 4} textAnchor="middle" fontSize={10} fill={ln.color} fontFamily="ui-monospace, Menlo, monospace">
+                {ln.label}
+              </text>
+              {ln.direction === "→" ? (
+                <polyline points={`${x2 - 8},${ln.y - 4} ${x2},${ln.y} ${x2 - 8},${ln.y + 4}`} fill="none" stroke={ln.color} strokeWidth={1.5} strokeLinejoin="round" />
+              ) : (
+                <polyline points={`${x1 + 8},${ln.y - 4} ${x1},${ln.y} ${x1 + 8},${ln.y + 4}`} fill="none" stroke={ln.color} strokeWidth={1.5} strokeLinejoin="round" />
+              )}
+            </g>
+          )
+        })}
+      </svg>
+    </div>
   )
 }

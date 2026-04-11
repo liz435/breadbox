@@ -6,6 +6,7 @@ import {
   Section,
   Note,
   CodeBlock,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -23,6 +24,10 @@ export function StateMachinesPage() {
         title="State machines for blinking patterns"
         subtitle="When one blink period isn't enough, move from a timer to a list of named states."
       />
+
+      <Figure caption="Three states, three timeouts. Each arrow is the transition that fires when its timer expires.">
+        <TrafficStateDiagram />
+      </Figure>
 
       <Section title="From one interval to many">
         <p className="text-sm leading-relaxed">
@@ -99,5 +104,53 @@ void loop() {
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── Traffic light FSM diagram ──────────────────────────────────────────
+
+function TrafficStateDiagram() {
+  const w = 500
+  const h = 260
+  const mono = "ui-monospace, SFMono-Regular, Menlo, monospace"
+  const bubble = (cx: number, cy: number, label: string, color: string) => (
+    <g>
+      <circle cx={cx} cy={cy} r={38} fill="#0f0f0f" stroke={color} strokeWidth={2.5} />
+      <text x={cx} y={cy + 5} textAnchor="middle" fontSize={13} fill={color} fontFamily={mono}>{label}</text>
+    </g>
+  )
+  return (
+    <div className="flex justify-center">
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        width={w}
+        height={h}
+        xmlns="http://www.w3.org/2000/svg"
+        className="max-w-full"
+      >
+        {/* 3 bubbles */}
+        {bubble(100, 130, "GREEN", "#10b981")}
+        {bubble(250, 130, "YELLOW", "#f59e0b")}
+        {bubble(400, 130, "RED", "#ef4444")}
+
+        {/* Arrows GREEN → YELLOW */}
+        <path d="M 138 130 Q 175 85 212 130" fill="none" stroke="#9ca3af" strokeWidth={1.5} />
+        <polyline points="207,125 212,130 207,135" fill="none" stroke="#9ca3af" strokeWidth={1.5} />
+        <text x={175} y={78} textAnchor="middle" fontSize={10} fill="#9ca3af" fontFamily={mono}>3000 ms</text>
+
+        {/* YELLOW → RED */}
+        <path d="M 288 130 Q 325 85 362 130" fill="none" stroke="#9ca3af" strokeWidth={1.5} />
+        <polyline points="357,125 362,130 357,135" fill="none" stroke="#9ca3af" strokeWidth={1.5} />
+        <text x={325} y={78} textAnchor="middle" fontSize={10} fill="#9ca3af" fontFamily={mono}>1000 ms</text>
+
+        {/* RED → GREEN (wrap back below) */}
+        <path d="M 362 155 Q 250 230 138 155" fill="none" stroke="#9ca3af" strokeWidth={1.5} />
+        <polyline points="143,160 138,155 143,150" fill="none" stroke="#9ca3af" strokeWidth={1.5} />
+        <text x={250} y={220} textAnchor="middle" fontSize={10} fill="#9ca3af" fontFamily={mono}>3000 ms</text>
+
+        {/* Title */}
+        <text x={w / 2} y={30} textAnchor="middle" fontSize={11} fill="#a78bfa" fontFamily={mono}>traffic light FSM</text>
+      </svg>
+    </div>
   )
 }

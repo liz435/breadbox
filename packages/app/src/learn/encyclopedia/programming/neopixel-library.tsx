@@ -7,6 +7,7 @@ import {
   Note,
   Warn,
   CodeBlock,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -46,6 +47,10 @@ void setup() {
   strip.setBrightness(64);   // 0..255
   strip.show();              // clear on boot
 }`} />
+
+        <Figure caption="Data flows serially from DIN through each pixel to DOUT — the first pixel consumes the first 24 bits and forwards the rest.">
+          <NeopixelChainDiagram />
+        </Figure>
       </Section>
 
       <Section title="Setting pixels and show()">
@@ -94,5 +99,59 @@ void setup() {
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── NeoPixel chain diagram ─────────────────────────────────────────────
+
+function NeopixelChainDiagram() {
+  const w = 560
+  const h = 180
+  const mono = "ui-monospace, SFMono-Regular, Menlo, monospace"
+  const startX = 70
+  const gap = 58
+  const cy = 100
+  const colors = ["#ef4444", "#f59e0b", "#10b981", "#60a5fa", "#a78bfa", "#ef4444", "#f59e0b", "#10b981"]
+  return (
+    <div className="flex justify-center">
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        width={w}
+        height={h}
+        xmlns="http://www.w3.org/2000/svg"
+        className="max-w-full"
+      >
+        {/* DIN label */}
+        <text x={20} y={cy + 4} textAnchor="start" fontSize={11} fill="#a78bfa" fontFamily={mono}>DIN</text>
+        <line x1={45} y1={cy} x2={startX - 14} y2={cy} stroke="#a78bfa" strokeWidth={1.8} />
+        <polyline points={`${startX - 18},${cy - 4} ${startX - 14},${cy} ${startX - 18},${cy + 4}`} fill="none" stroke="#a78bfa" strokeWidth={1.8} />
+
+        {/* LEDs */}
+        {colors.map((c, i) => {
+          const cx = startX + i * gap
+          return (
+            <g key={i}>
+              <circle cx={cx} cy={cy} r={18} fill={c} fillOpacity={0.4} stroke={c} strokeWidth={2} />
+              <text x={cx} y={cy + 4} textAnchor="middle" fontSize={10} fill="#d1d5db" fontFamily={mono}>{i}</text>
+              {i < colors.length - 1 && (
+                <>
+                  <line x1={cx + 18} y1={cy} x2={cx + gap - 18} y2={cy} stroke="#a78bfa" strokeWidth={1.8} />
+                  <polyline points={`${cx + gap - 22},${cy - 4} ${cx + gap - 18},${cy} ${cx + gap - 22},${cy + 4}`} fill="none" stroke="#a78bfa" strokeWidth={1.8} />
+                </>
+              )}
+            </g>
+          )
+        })}
+
+        {/* DOUT */}
+        <line x1={startX + (colors.length - 1) * gap + 18} y1={cy} x2={startX + (colors.length - 1) * gap + 50} y2={cy} stroke="#a78bfa" strokeWidth={1.8} />
+        <text x={startX + (colors.length - 1) * gap + 55} y={cy + 4} fontSize={11} fill="#a78bfa" fontFamily={mono}>DOUT</text>
+
+        {/* Bottom caption */}
+        <text x={w / 2} y={150} textAnchor="middle" fontSize={10} fill="#6b7280" fontFamily={mono}>
+          single data line, 800 kHz — each pixel shifts the next 24 bits down the chain
+        </text>
+      </svg>
+    </div>
   )
 }

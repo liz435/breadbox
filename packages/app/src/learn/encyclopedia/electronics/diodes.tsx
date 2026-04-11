@@ -6,6 +6,8 @@ import {
   Section,
   Note,
   Table,
+  Schematic,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -35,6 +37,18 @@ export function DiodesPage() {
           the voltage and almost no current flows (until you exceed
           its reverse breakdown voltage, which you shouldn't).
         </p>
+
+        <Figure caption="Forward-biased: the triangle points toward the cathode, in the direction current flows.">
+          <Schematic cols={12} rows={5}>
+            <Schematic.Vcc at={[2, 1]} label="+5V" />
+            <Schematic.Wire points={[[2, 1], [2, 2]]} />
+            <Schematic.Wire points={[[2, 2], [4, 2]]} />
+            <Schematic.Diode from={[4, 2]} to={[7, 2]} label="1N4148" />
+            <Schematic.Wire points={[[7, 2], [9, 2]]} />
+            <Schematic.Resistor from={[9, 2]} to={[9, 4]} label="1kΩ" />
+            <Schematic.Ground at={[9, 4]} />
+          </Schematic>
+        </Figure>
       </Section>
 
       <Section title="Forward voltage drops">
@@ -69,6 +83,25 @@ export function DiodesPage() {
           "kickback diode" or "freewheeling diode"). A 1N4001 across
           a 5 V relay coil is the canonical example.
         </p>
+
+        <Figure caption="Flyback diode across a coil: the spike circulates through the diode instead of into the driver.">
+          <Schematic cols={14} rows={6}>
+            <Schematic.Vcc at={[3, 1]} label="+V" />
+            <Schematic.Wire points={[[3, 1], [3, 2]]} />
+            <Schematic.Junction at={[3, 2]} />
+            {/* Coil (top branch) */}
+            <Schematic.Resistor from={[3, 2]} to={[10, 2]} label="COIL" />
+            {/* Flyback diode (bottom branch) — anode on right, cathode on left */}
+            <Schematic.Wire points={[[3, 2], [3, 4]]} />
+            <Schematic.Wire points={[[10, 2], [10, 4]]} />
+            <Schematic.Diode from={[10, 4]} to={[3, 4]} label="1N4001" />
+            {/* Load continues from right side */}
+            <Schematic.Junction at={[10, 2]} />
+            <Schematic.Wire points={[[10, 2], [12, 2]]} />
+            <Schematic.Wire points={[[12, 2], [12, 5]]} />
+            <Schematic.Ground at={[12, 5]} />
+          </Schematic>
+        </Figure>
 
         <Note>
           LEDs are themselves diodes — the "LED" in the name is

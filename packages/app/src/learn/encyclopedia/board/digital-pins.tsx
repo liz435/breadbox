@@ -7,6 +7,8 @@ import {
   Note,
   Warn,
   Table,
+  Schematic,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -40,6 +42,17 @@ export function DigitalPinsPage() {
           either at 5 V or 0 V, and that's how your sketch sees it when
           it calls <Term k="digital-read">digitalRead()</Term>.
         </p>
+
+        <Figure caption="A digital output pin driving an LED through a current-limiting resistor to ground.">
+          <Schematic cols={10} rows={5}>
+            <Schematic.ArduinoPin at={[2, 2]} pin="D13" />
+            <Schematic.Wire points={[[2, 2], [3, 2]]} />
+            <Schematic.Resistor from={[3, 2]} to={[6, 2]} label="220Ω" />
+            <Schematic.Led from={[6, 2]} to={[8, 2]} />
+            <Schematic.Wire points={[[8, 2], [8, 4]]} />
+            <Schematic.Ground at={[8, 4]} />
+          </Schematic>
+        </Figure>
       </Section>
 
       <Section title="Not all pins are equal">

@@ -7,6 +7,7 @@ import {
   Note,
   Table,
   CodeBlock,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -57,6 +58,10 @@ Serial.println(255, BIN);   // prints "11111111"`} />
           base: <code>DEC</code>, <code>HEX</code>, <code>OCT</code>, or{" "}
           <code>BIN</code>. Handy when debugging bit patterns.
         </Note>
+
+        <Figure caption="Each println() appears as a fresh line in the Serial Monitor — one message per second.">
+          <SerialMonitorDiagram />
+        </Figure>
       </Section>
 
       <Section title="Reading — available() and read()">
@@ -98,5 +103,49 @@ Serial.println(255, BIN);   // prints "11111111"`} />
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── Serial monitor mockup ──────────────────────────────────────────────
+
+function SerialMonitorDiagram() {
+  const w = 440
+  const h = 220
+  const mono = "ui-monospace, SFMono-Regular, Menlo, monospace"
+  const lines = ["Counter: 1", "Counter: 2", "Counter: 3", "Counter: 4", "Counter: 5", "Counter: 6"]
+  return (
+    <div className="flex justify-center">
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        width={w}
+        height={h}
+        xmlns="http://www.w3.org/2000/svg"
+        className="max-w-full"
+      >
+        {/* Window chrome */}
+        <rect x={20} y={20} width={400} height={180} rx={6} fill="#0f0f0f" stroke="#6b7280" strokeWidth={1.5} />
+        <rect x={20} y={20} width={400} height={26} rx={6} fill="#0f0f0f" stroke="#6b7280" strokeWidth={1.5} />
+        <circle cx={36} cy={33} r={4} fill="#ef4444" />
+        <circle cx={50} cy={33} r={4} fill="#f59e0b" />
+        <circle cx={64} cy={33} r={4} fill="#10b981" />
+        <text x={220} y={38} textAnchor="middle" fontSize={10} fill="#9ca3af" fontFamily={mono}>Serial Monitor — 9600 baud</text>
+
+        {/* Lines */}
+        {lines.map((line, i) => (
+          <text
+            key={i}
+            x={35}
+            y={70 + i * 22}
+            fontSize={12}
+            fill={i === lines.length - 1 ? "#60a5fa" : "#d1d5db"}
+            fontFamily={mono}
+          >
+            {line}
+          </text>
+        ))}
+        {/* Blinking cursor */}
+        <rect x={125} y={195 - 12} width={6} height={12} fill="#60a5fa" />
+      </svg>
+    </div>
   )
 }

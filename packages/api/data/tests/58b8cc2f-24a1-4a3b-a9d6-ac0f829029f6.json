@@ -1,9 +1,12 @@
 {
   "runId": "58b8cc2f-24a1-4a3b-a9d6-ac0f829029f6",
-  "evaluatedAt": "2026-04-09T16:21:08.860Z",
+  "evaluatedAt": "2026-04-10T23:57:34.998Z",
   "agent": "core",
   "prompt": "I want a blue LED",
   "status": "completed",
+  "evaluable": true,
+  "domain": "breadboard",
+  "category": "top_level",
   "path": {
     "stepCount": 4,
     "stepLimit": 10,
@@ -142,6 +145,8 @@
     "inputTokens": 12543,
     "outputTokens": 642,
     "totalTokens": 13185,
+    "childTokens": 0,
+    "overheadTokens": 0,
     "estimatedCost": 0.0473,
     "wastedTokens": 400,
     "wasteDetails": [
@@ -153,9 +158,10 @@
     "totalCalls": 4,
     "errors": 0,
     "errorRate": 0,
-    "hallucatedIds": 0,
+    "hallucinatedIds": 0,
     "wrongPinNames": 2,
     "invalidPositions": 0,
+    "invalidGraphConnections": 0,
     "details": [
       {
         "tool": "place_component",
@@ -190,7 +196,7 @@
           }
         },
         "result": "error",
-        "issue": "Pin name \"pin2\" not valid for resistor (expected: a, b)"
+        "issue": "Pin name \"pin1\" not valid for resistor (expected: a, b)"
       },
       {
         "tool": "connect_wire",
@@ -281,6 +287,7 @@
     ],
     "sketch": ""
   },
+  "graph": null,
   "score": {
     "total": 88,
     "breakdown": {

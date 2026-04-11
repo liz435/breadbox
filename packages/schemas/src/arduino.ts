@@ -25,6 +25,8 @@ export const componentTypeSchema = z.enum([
   "ir_receiver",
   "shift_register",
   "oled_display",
+  "power_supply",
+  "multimeter",
   "wire",
   "arduino_uno",
 ]);

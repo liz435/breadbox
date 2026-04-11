@@ -6,6 +6,7 @@ import {
   Section,
   Note,
   CodeBlock,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -41,6 +42,10 @@ void setup() {
   Serial.begin(9600);
   dht.begin();
 }`} />
+
+        <Figure caption="DHT22 pinout: VCC, DATA (with a 10k pull-up to VCC), and GND. DATA goes to any digital pin.">
+          <DhtSensorDiagram />
+        </Figure>
       </Section>
 
       <Section title="Reading temperature and humidity">
@@ -90,5 +95,55 @@ void setup() {
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── DHT sensor wiring diagram ──────────────────────────────────────────
+
+function DhtSensorDiagram() {
+  const w = 500
+  const h = 260
+  const mono = "ui-monospace, SFMono-Regular, Menlo, monospace"
+  return (
+    <div className="flex justify-center">
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        width={w}
+        height={h}
+        xmlns="http://www.w3.org/2000/svg"
+        className="max-w-full"
+      >
+        {/* Sensor body */}
+        <rect x={160} y={40} width={180} height={180} rx={6} fill="#0f0f0f" stroke="#60a5fa" strokeWidth={2} />
+        <text x={250} y={65} textAnchor="middle" fontSize={11} fill="#60a5fa" fontFamily={mono}>DHT22</text>
+        {/* Grille pattern */}
+        {Array.from({ length: 5 }, (_, i) => (
+          <line key={i} x1={190} y1={85 + i * 16} x2={310} y2={85 + i * 16} stroke="#27272a" strokeWidth={2} />
+        ))}
+        <text x={250} y={195} textAnchor="middle" fontSize={10} fill="#9ca3af" fontFamily={mono}>temp + humidity</text>
+
+        {/* Pin stubs */}
+        <line x1={180} y1={220} x2={180} y2={245} stroke="#ef4444" strokeWidth={2} />
+        <text x={180} y={258} textAnchor="middle" fontSize={10} fill="#ef4444" fontFamily={mono}>VCC</text>
+
+        <line x1={250} y1={220} x2={250} y2={245} stroke="#f59e0b" strokeWidth={2} />
+        <text x={250} y={258} textAnchor="middle" fontSize={10} fill="#f59e0b" fontFamily={mono}>DATA</text>
+
+        <line x1={320} y1={220} x2={320} y2={245} stroke="#9ca3af" strokeWidth={2} />
+        <text x={320} y={258} textAnchor="middle" fontSize={10} fill="#9ca3af" fontFamily={mono}>GND</text>
+
+        {/* Pull-up resistor between VCC and DATA */}
+        <line x1={180} y1={90} x2={90} y2={90} stroke="#ef4444" strokeWidth={1.5} />
+        <line x1={90} y1={90} x2={90} y2={130} stroke="#ef4444" strokeWidth={1.5} />
+        <rect x={75} y={130} width={30} height={16} fill="#0f0f0f" stroke="#f59e0b" strokeWidth={1.5} />
+        <text x={50} y={144} textAnchor="end" fontSize={10} fill="#f59e0b" fontFamily={mono}>10k</text>
+        <line x1={90} y1={146} x2={90} y2={170} stroke="#f59e0b" strokeWidth={1.5} />
+        <line x1={90} y1={170} x2={180} y2={170} stroke="#f59e0b" strokeWidth={1.5} />
+        <line x1={180} y1={170} x2={180} y2={220} stroke="#f59e0b" strokeWidth={1.5} />
+
+        {/* Note: data line connects to DATA pin through pull-up */}
+        <text x={w - 20} y={160} textAnchor="end" fontSize={9} fill="#6b7280" fontFamily={mono}>pull-up keeps DATA HIGH when idle</text>
+      </svg>
+    </div>
   )
 }

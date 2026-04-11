@@ -1,13 +1,16 @@
 {
   "runId": "b1ae23b8-4b0b-4dc8-af05-f87dad008af0",
-  "evaluatedAt": "2026-04-09T16:21:08.869Z",
+  "evaluatedAt": "2026-04-10T23:57:35.016Z",
   "agent": "core",
   "prompt": "can you add a servo, where 0 degree when the first LED is lit, 180 when the last is lit. rotate back and force",
   "status": "completed",
+  "evaluable": true,
+  "domain": "breadboard",
+  "category": "top_level",
   "path": {
     "stepCount": 8,
     "stepLimit": 10,
-    "retryCount": 1,
+    "retryCount": 0,
     "hallucinations": [
       "wire_component_to_pin: Component servo_id not found.",
       "wire_component_to_pin: Component servo_id not found.",
@@ -230,6 +233,8 @@
     "inputTokens": 53376,
     "outputTokens": 1483,
     "totalTokens": 54859,
+    "childTokens": 0,
+    "overheadTokens": 0,
     "estimatedCost": 0.0486,
     "wastedTokens": 1000,
     "wasteDetails": [
@@ -244,9 +249,10 @@
     "totalCalls": 8,
     "errors": 3,
     "errorRate": 0.38,
-    "hallucatedIds": 6,
+    "hallucinatedIds": 6,
     "wrongPinNames": 0,
     "invalidPositions": 0,
+    "invalidGraphConnections": 0,
     "details": [
       {
         "tool": "place_component",
@@ -389,6 +395,7 @@
     ],
     "sketch": "// 5 LEDs flashing in sequence with servo rotation\n\n#include <Servo.h>\n\nconst int LED_RED = 9;\nconst int LED_YELLOW = 10;\nconst int LED_GREEN = 11;\nconst int LED_BLUE = 12;\nconst int LED_PURPLE = 13;\nconst int SERVO_PIN = 6;\n\nconst int DELAY_MS = 300;\n\nServo servo;\n\nvoid setup() {\n  pinMode(LED_RED, OUTPUT);\n  pinMode(LED_YELLOW, OUTPUT);\n  pinMode(LED_GREEN, OUTPUT);\n  pinMode(LED_BLUE, OUTPUT);\n  pinMode(LED_PURPLE, OUTPUT);\n  \n  servo.attach(SERVO_PIN);\n  servo.write(0); // Start at 0 degrees\n}\n\nvoid loop() {\n  // Flash each LED in sequence and rotate servo\n  \n  // Red LED - 0 degrees\n  digitalWrite(LED_RED, HIGH);\n  servo.write(0);\n  delay(DELAY_MS);\n  digitalWrite(LED_RED, LOW);\n  \n  // Yellow LED - 45 degrees\n  digitalWrite(LED_YELLOW, HIGH);\n  servo.write(45);\n  delay(DELAY_MS);\n  digitalWrite(LED_YELLOW, LOW);\n  \n  // Green LED - 90 degrees\n  digitalWrite(LED_GREEN, HIGH);\n  servo.write(90);\n  delay(DELAY_MS);\n  digitalWrite(LED_GREEN, LOW);\n  \n  // Blue LED - 135 degrees\n  digitalWrite(LED_BLUE, HIGH);\n  servo.write(135);\n  delay(DELAY_MS);\n  digitalWrite(LED_BLUE, LOW);\n  \n  // Purple LED - 180 degrees\n  digitalWrite(LED_PURPLE, HIGH);\n  servo.write(180);\n  delay(DELAY_MS);\n  digitalWrite(LED_PURPLE, LOW);\n  \n  delay(100); // Pause before next cycle\n  \n  // Rotate back to 0 degrees\n  servo.write(0);\n  delay(500); // Extra pause for return\n}\n"
   },
+  "graph": null,
   "score": {
     "total": 75,
     "breakdown": {

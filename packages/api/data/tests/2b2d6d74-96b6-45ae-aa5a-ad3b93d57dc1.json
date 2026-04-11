@@ -1,9 +1,12 @@
 {
   "runId": "2b2d6d74-96b6-45ae-aa5a-ad3b93d57dc1",
-  "evaluatedAt": "2026-04-09T16:21:08.862Z",
+  "evaluatedAt": "2026-04-10T23:57:35.001Z",
   "agent": "core",
   "prompt": "add resistor so the LED dont overload",
   "status": "completed",
+  "evaluable": true,
+  "domain": "breadboard",
+  "category": "top_level",
   "path": {
     "stepCount": 4,
     "stepLimit": 10,
@@ -495,6 +498,8 @@
     "inputTokens": 14330,
     "outputTokens": 878,
     "totalTokens": 15208,
+    "childTokens": 0,
+    "overheadTokens": 0,
     "estimatedCost": 0.0562,
     "wastedTokens": 1400,
     "wasteDetails": [
@@ -507,9 +512,10 @@
     "totalCalls": 4,
     "errors": 0,
     "errorRate": 0,
-    "hallucatedIds": 0,
+    "hallucinatedIds": 0,
     "wrongPinNames": 6,
     "invalidPositions": 0,
+    "invalidGraphConnections": 0,
     "details": [
       {
         "tool": "get_board_state",
@@ -533,7 +539,7 @@
           }
         },
         "result": "error",
-        "issue": "Pin name \"pin2\" not valid for resistor (expected: a, b)"
+        "issue": "Pin name \"pin1\" not valid for resistor (expected: a, b)"
       },
       {
         "tool": "place_component",
@@ -552,7 +558,7 @@
           }
         },
         "result": "error",
-        "issue": "Pin name \"pin2\" not valid for resistor (expected: a, b)"
+        "issue": "Pin name \"pin1\" not valid for resistor (expected: a, b)"
       },
       {
         "tool": "place_component",
@@ -571,7 +577,7 @@
           }
         },
         "result": "error",
-        "issue": "Pin name \"pin2\" not valid for resistor (expected: a, b)"
+        "issue": "Pin name \"pin1\" not valid for resistor (expected: a, b)"
       }
     ]
   },
@@ -639,6 +645,7 @@
     "wires": [],
     "sketch": ""
   },
+  "graph": null,
   "score": {
     "total": 60,
     "breakdown": {

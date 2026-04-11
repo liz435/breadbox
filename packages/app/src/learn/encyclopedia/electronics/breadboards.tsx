@@ -5,6 +5,7 @@ import {
   PageTitle,
   Section,
   Note,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -31,6 +32,10 @@ export function BreadboardsPage() {
           down the sides. Underneath each row is a metal clip that
           electrically ties all five holes together into a single net.
         </p>
+
+        <Figure caption="Half-size breadboard, top-down. Highlighted groups share one net underneath.">
+          <BreadboardDiagram />
+        </Figure>
       </Section>
 
       <Section title="Rows of five">
@@ -104,5 +109,126 @@ export function BreadboardsPage() {
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── Breadboard top-down diagram ────────────────────────────────────────
+
+function BreadboardDiagram() {
+  const pitch = 14
+  const cols = 30
+  const padX = 24
+  const padY = 22
+  const w = padX * 2 + cols * pitch
+  const h = 240
+
+  const railRow1Y = padY
+  const railRow2Y = padY + pitch
+  const mainTopY = padY + pitch * 3
+  const gapY = mainTopY + pitch * 5 + pitch / 2
+  const mainBotY = gapY + pitch / 2
+  const railRow3Y = mainBotY + pitch * 5 + pitch / 2
+  const railRow4Y = railRow3Y + pitch
+
+  const holes: { x: number; y: number; fill?: string }[] = []
+
+  // Top power rails
+  for (let c = 0; c < cols; c++) {
+    holes.push({ x: padX + c * pitch, y: railRow1Y })
+    holes.push({ x: padX + c * pitch, y: railRow2Y })
+  }
+  // Main area top half (5 rows)
+  for (let r = 0; r < 5; r++) {
+    for (let c = 0; c < cols; c++) {
+      holes.push({ x: padX + c * pitch, y: mainTopY + r * pitch })
+    }
+  }
+  // Main area bottom half (5 rows)
+  for (let r = 0; r < 5; r++) {
+    for (let c = 0; c < cols; c++) {
+      holes.push({ x: padX + c * pitch, y: mainBotY + r * pitch })
+    }
+  }
+  // Bottom power rails
+  for (let c = 0; c < cols; c++) {
+    holes.push({ x: padX + c * pitch, y: railRow3Y })
+    holes.push({ x: padX + c * pitch, y: railRow4Y })
+  }
+
+  // Highlight columns (row-of-5 groups) — highlight col 4 top and col 10 bottom
+  const highlightTopCol = 5
+  const highlightBotCol = 12
+
+  return (
+    <div className="flex justify-center">
+      <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} xmlns="http://www.w3.org/2000/svg" className="max-w-full">
+        {/* Board body */}
+        <rect x={4} y={4} width={w - 8} height={h - 8} rx={4} fill="#1a1a1a" stroke="#374151" strokeWidth={1.2} />
+
+        {/* Power rail stripes */}
+        <rect x={padX - 8} y={railRow1Y - 6} width={cols * pitch + 16} height={1} fill="#ef4444" opacity={0.6} />
+        <text x={padX - 12} y={railRow1Y + 3} textAnchor="end" fontSize={10} fill="#ef4444" fontFamily="ui-monospace, Menlo, monospace">+</text>
+        <rect x={padX - 8} y={railRow2Y + 6} width={cols * pitch + 16} height={1} fill="#60a5fa" opacity={0.6} />
+        <text x={padX - 12} y={railRow2Y + 4} textAnchor="end" fontSize={10} fill="#60a5fa" fontFamily="ui-monospace, Menlo, monospace">−</text>
+
+        <rect x={padX - 8} y={railRow3Y - 6} width={cols * pitch + 16} height={1} fill="#ef4444" opacity={0.6} />
+        <text x={padX - 12} y={railRow3Y + 3} textAnchor="end" fontSize={10} fill="#ef4444" fontFamily="ui-monospace, Menlo, monospace">+</text>
+        <rect x={padX - 8} y={railRow4Y + 6} width={cols * pitch + 16} height={1} fill="#60a5fa" opacity={0.6} />
+        <text x={padX - 12} y={railRow4Y + 4} textAnchor="end" fontSize={10} fill="#60a5fa" fontFamily="ui-monospace, Menlo, monospace">−</text>
+
+        {/* Highlighted rail trace (top red rail) */}
+        <rect
+          x={padX - 4}
+          y={railRow1Y - 3}
+          width={cols * pitch + 8}
+          height={6}
+          fill="#ef4444"
+          fillOpacity={0.18}
+          stroke="#ef4444"
+          strokeWidth={0.8}
+          strokeDasharray="2 2"
+        />
+
+        {/* Highlighted row-of-5 top */}
+        <rect
+          x={padX + highlightTopCol * pitch - 5}
+          y={mainTopY - 3}
+          width={10}
+          height={5 * pitch}
+          fill="#60a5fa"
+          fillOpacity={0.22}
+          stroke="#60a5fa"
+          strokeWidth={0.8}
+          strokeDasharray="2 2"
+        />
+
+        {/* Highlighted row-of-5 bottom */}
+        <rect
+          x={padX + highlightBotCol * pitch - 5}
+          y={mainBotY - 3}
+          width={10}
+          height={5 * pitch}
+          fill="#a78bfa"
+          fillOpacity={0.22}
+          stroke="#a78bfa"
+          strokeWidth={0.8}
+          strokeDasharray="2 2"
+        />
+
+        {/* Center gap label */}
+        <line x1={padX - 4} y1={gapY} x2={padX + cols * pitch + 4} y2={gapY} stroke="#6b7280" strokeWidth={0.6} strokeDasharray="3 3" />
+        <text x={w - 6} y={gapY + 4} textAnchor="end" fontSize={9} fill="#6b7280" fontFamily="ui-monospace, Menlo, monospace">DIP gap</text>
+
+        {/* Holes */}
+        {holes.map((hole, i) => (
+          <circle key={i} cx={hole.x} cy={hole.y} r={1.8} fill="#0f0f0f" stroke="#4b5563" strokeWidth={0.5} />
+        ))}
+
+        {/* Annotations */}
+        <text x={padX + highlightTopCol * pitch + 14} y={mainTopY + 8} fontSize={9} fill="#60a5fa" fontFamily="ui-monospace, Menlo, monospace">row of 5 (one net)</text>
+        <text x={padX + highlightBotCol * pitch + 14} y={mainBotY + 8} fontSize={9} fill="#a78bfa" fontFamily="ui-monospace, Menlo, monospace">another row of 5</text>
+        <text x={padX + cols * pitch + 20} y={railRow1Y + 4} fontSize={9} fill="#ef4444" fontFamily="ui-monospace, Menlo, monospace">rail runs the length</text>
+      </svg>
+    </div>
   )
 }

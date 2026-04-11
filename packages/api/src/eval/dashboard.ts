@@ -108,17 +108,40 @@ function renderSummary(s) {
     '<tr class="run-row" onclick="toggleRun(this,\\'' + r.runId + '\\')"><td style="font-family:monospace;font-size:0.7rem;">' + r.runId.slice(0,8) + '</td><td><span style="color:' + scoreColor(r.score) + '">' + r.score + '</span></td><td style="color:#737373">' + r.issue.slice(0,80) + '</td></tr><tr class="run-detail" id="detail-' + r.runId + '"><td colspan="3"><div class="trace" id="trace-' + r.runId + '">Loading...</div></td></tr>'
   ).join('');
 
+  // Category breakdown — critical to not compare like-with-unlike
+  const catRow = (label, agg) => '<tr><td>' + label + '</td><td>' + agg.runs + '</td><td>' + agg.scored + '</td><td>' + agg.avgScore + '</td><td>' + agg.avgTokensPerRun.toLocaleString() + '</td><td>' + (agg.avgToolErrorRate * 100).toFixed(0) + '%</td><td>' + agg.hallucinationRate + '%</td><td>$' + agg.totalCost.toFixed(4) + '</td></tr>';
+  const categoriesTable =
+    '<table><tr><th>Category</th><th>Runs</th><th>Scored</th><th>Avg Score</th><th>Avg Tokens</th><th>Err Rate</th><th>Halluc.</th><th>Cost</th></tr>' +
+    catRow('Top-level', s.categories.topLevel) +
+    catRow('Template', s.categories.template) +
+    catRow('Delegated child', s.categories.delegated) +
+    catRow('Specialist', s.categories.specialist) +
+    '</table>';
+
+  const domainRows = Object.entries(s.byDomain).map(([d, n]) =>
+    '<tr><td>' + d + '</td><td>' + n + '</td></tr>'
+  ).join('');
+  const domainTable = '<table><tr><th>Domain</th><th>Runs</th></tr>' + domainRows + '</table>';
+
   document.getElementById('content').innerHTML = [
     '<div class="grid">',
     card('Total Runs', s.totalRuns, ''),
     card('Avg Score', s.avgScore + '/100', '', scoreColor(s.avgScore)),
     card('Avg Tokens/Run', s.avgTokensPerRun.toLocaleString(), ''),
     card('Tool Error Rate', (s.avgToolErrorRate * 100).toFixed(0) + '%', '', s.avgToolErrorRate > 0.1 ? '#ef4444' : '#22c55e'),
-    card('Hallucination Rate', s.hallucationRate + '%', '', s.hallucationRate > 10 ? '#ef4444' : '#22c55e'),
+    card('Hallucination Rate', s.hallucinationRate + '%', '', s.hallucinationRate > 10 ? '#ef4444' : '#22c55e'),
     card('propose_circuit', s.proposeCircuitAdoption + '%', 'adoption rate', s.proposeCircuitAdoption > 50 ? '#22c55e' : '#eab308'),
     '</div>',
 
-    '<h2>By Model</h2>',
+    '<h2>By Category</h2>',
+    '<p style="color:#737373;font-size:0.8rem;margin-bottom:8px">Headline numbers above reflect <strong>top-level runs only</strong> — templates and delegated children are bucketed separately so they don\\'t inflate averages.</p>',
+    categoriesTable,
+    s.notEvaluable > 0 ? '<p style="color:#eab308;font-size:0.75rem;margin-top:4px">' + s.notEvaluable + ' run(s) not evaluable (unknown domain)</p>' : '',
+
+    '<h2>By Domain</h2>',
+    domainTable,
+
+    '<h2>By Model (top-level only)</h2>',
     '<table><tr><th>Model</th><th>Runs</th><th>Avg Score</th><th>Total Tokens</th><th>Cost</th></tr>' + models + '</table>',
 
     '<h2>Top Issues</h2>',
@@ -152,6 +175,34 @@ async function toggleRun(row, runId) {
 }
 
 function renderRunDetail(e) {
+  // Not-evaluable runs have no score — show a notice and skip the score cards
+  if (!e.score) {
+    const traceHtml = e.path.trace.map(s => {
+      const cls = s.type + (s.succeeded === false ? ' error' : s.succeeded === true ? ' success' : '');
+      let body = '';
+      if (s.type === 'tool_call') {
+        const inputStr = JSON.stringify(s.toolInput, null, 2);
+        body = '<strong>' + s.toolName + '</strong><pre>' + inputStr.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</pre>';
+      } else if (s.type === 'tool_result') {
+        const icon = s.succeeded ? '✓' : '✗';
+        const color = s.succeeded ? '#22c55e' : '#ef4444';
+        const resultStr = s.error || JSON.stringify(s.toolResult, null, 2);
+        body = '<span style="color:' + color + '">' + icon + '</span><pre>' + resultStr.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</pre>';
+      } else if (s.type === 'text') {
+        body = '<span style="color:#a3a3a3">' + (s.text || '').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</span>';
+      }
+      return '<div class="trace-step ' + cls + '"><span class="trace-num">' + s.step + '</span><span class="trace-type">' + s.type.replace('_', ' ') + '</span><span class="trace-body">' + body + '</span></div>';
+    }).join('');
+    return [
+      '<div class="badge badge-red">NOT EVALUABLE</div>',
+      '<div style="color:#737373;font-size:0.8rem;margin:8px 0">' + (e.notEvaluableReason || ('Domain "' + e.domain + '" has no analyzer.')) + '</div>',
+      '<div style="font-size:0.75rem;color:#525252;margin-bottom:8px">Agent: ' + e.agent + ' · Category: ' + e.category + ' · Domain: ' + e.domain + '</div>',
+      e.prompt ? '<div style="margin-bottom:8px;font-size:0.8rem;color:#525252">Prompt: ' + e.prompt.slice(0, 150) + '</div>' : '',
+      '<h2 style="margin-top:8px">Execution Trace</h2>',
+      traceHtml,
+    ].join('');
+  }
+
   const traceHtml = e.path.trace.map(s => {
     const cls = s.type + (s.succeeded === false ? ' error' : s.succeeded === true ? ' success' : '');
     let body = '';
@@ -232,11 +283,16 @@ async function loadAllRuns() {
   const res2 = await fetch(API + '/api/eval/all');
   const all = await res2.json();
 
-  let rows = all.map(e =>
-    '<tr class="run-row" onclick="toggleRun(this,\\'' + e.runId + '\\')"><td style="font-family:monospace;font-size:0.7rem">' + e.runId.slice(0,8) + '</td><td>' + e.agent + '</td><td style="color:' + scoreColor(e.score.total) + '">' + e.score.total + '</td><td>' + e.tokens.model.replace('claude-','').slice(0,10) + '</td><td>' + e.tokens.totalTokens.toLocaleString() + '</td><td>' + e.path.stepCount + '</td><td>' + (e.path.hallucinations.length > 0 ? '<span class="badge badge-red">'+e.path.hallucinations.length+'</span>' : '-') + '</td><td style="color:#525252;font-size:0.7rem">' + (e.prompt||'').slice(0,40) + '</td></tr><tr class="run-detail" id="detail-' + e.runId + '"><td colspan="8"><div class="trace" id="trace-' + e.runId + '">Loading...</div></td></tr>'
-  ).join('');
+  let rows = all.map(e => {
+    const scoreCell = e.score
+      ? '<td style="color:' + scoreColor(e.score.total) + '">' + e.score.total + '</td>'
+      : '<td style="color:#525252;font-size:0.7rem">n/a</td>';
+    const categoryBadge = '<span class="badge badge-blue">' + e.category + '</span>';
+    const domainBadge = '<span style="color:#737373;font-size:0.7rem">' + e.domain + '</span>';
+    return '<tr class="run-row" onclick="toggleRun(this,\\'' + e.runId + '\\')"><td style="font-family:monospace;font-size:0.7rem">' + e.runId.slice(0,8) + '</td><td>' + e.agent + '</td><td>' + categoryBadge + '</td><td>' + domainBadge + '</td>' + scoreCell + '<td>' + e.tokens.model.replace('claude-','').slice(0,10) + '</td><td>' + e.tokens.totalTokens.toLocaleString() + '</td><td>' + e.path.stepCount + '</td><td>' + (e.path.hallucinations.length > 0 ? '<span class="badge badge-red">'+e.path.hallucinations.length+'</span>' : '-') + '</td><td style="color:#525252;font-size:0.7rem">' + (e.prompt||'').slice(0,40) + '</td></tr><tr class="run-detail" id="detail-' + e.runId + '"><td colspan="10"><div class="trace" id="trace-' + e.runId + '">Loading...</div></td></tr>';
+  }).join('');
 
-  el.innerHTML = '<table><tr><th>Run</th><th>Agent</th><th>Score</th><th>Model</th><th>Tokens</th><th>Steps</th><th>Halluc.</th><th>Prompt</th></tr>' + rows + '</table>';
+  el.innerHTML = '<table><tr><th>Run</th><th>Agent</th><th>Category</th><th>Domain</th><th>Score</th><th>Model</th><th>Tokens</th><th>Steps</th><th>Halluc.</th><th>Prompt</th></tr>' + rows + '</table>';
 }
 
 loadDashboard();

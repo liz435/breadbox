@@ -193,7 +193,7 @@ export function analyzeCircuit(
     }
 
     if (result?.emitCurrentPath && state.isActive) {
-      const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation)
+      const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties)
       const points = footprint.points.map((pt) => gridToPixel(pt))
       currentPaths.push({ fromNode: pair.nodeA, toNode: pair.nodeB, current: currentA, points })
     }

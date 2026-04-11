@@ -353,6 +353,112 @@ function CapacitorInspector({ component, onUpdate }: {
   );
 }
 
+function PowerSupplyInspector({ component, onUpdate }: {
+  component: BoardComponent;
+  onUpdate: (changes: Partial<BoardComponent>) => void;
+}) {
+  const leftVoltage = (component.properties.leftVoltage as number) ?? 5;
+  const rightVoltage = (component.properties.rightVoltage as number) ?? 3.3;
+
+  const VoltagePicker = ({
+    label,
+    value,
+    onChange,
+  }: {
+    label: string;
+    value: number;
+    onChange: (v: number) => void;
+  }) => (
+    <PropertyRow label={label}>
+      <div className="flex gap-1">
+        {[5, 3.3].map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => onChange(v)}
+            className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+              value === v
+                ? "bg-emerald-600 text-white"
+                : "bg-zinc-800 text-neutral-300 hover:bg-zinc-700"
+            }`}
+          >
+            {v}V
+          </button>
+        ))}
+      </div>
+    </PropertyRow>
+  );
+
+  return (
+    <>
+      <VoltagePicker
+        label="Left Rail"
+        value={leftVoltage}
+        onChange={(v) =>
+          onUpdate({
+            properties: { ...component.properties, leftVoltage: v },
+          })
+        }
+      />
+      <VoltagePicker
+        label="Right Rail"
+        value={rightVoltage}
+        onChange={(v) =>
+          onUpdate({
+            properties: { ...component.properties, rightVoltage: v },
+          })
+        }
+      />
+      <p className="text-[10px] text-neutral-500 leading-snug mt-1">
+        Each side feeds the adjacent + and − power rails on the breadboard.
+        No wiring required — drop the module on and the rails are live.
+      </p>
+    </>
+  );
+}
+
+function MultimeterInspector({ component, onUpdate }: {
+  component: BoardComponent;
+  onUpdate: (changes: Partial<BoardComponent>) => void;
+}) {
+  const mode = (component.properties.mode as string | undefined) ?? "volts";
+  const modes: Array<{ key: "volts" | "amps" | "ohms"; label: string; hint: string }> = [
+    { key: "volts", label: "DC V", hint: "Voltage drop between probes (high-Z)" },
+    { key: "amps", label: "DC A", hint: "Series current (near-short — put in the current path)" },
+    { key: "ohms", label: "Ω", hint: "Resistance between probes (reads component value)" },
+  ];
+  const activeHint = modes.find((m) => m.key === mode)?.hint ?? "";
+  return (
+    <>
+      <PropertyRow label="Mode">
+        <div className="flex gap-1">
+          {modes.map((m) => (
+            <button
+              key={m.key}
+              type="button"
+              onClick={() =>
+                onUpdate({
+                  properties: { ...component.properties, mode: m.key },
+                })
+              }
+              className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                mode === m.key
+                  ? "bg-amber-600 text-white"
+                  : "bg-zinc-800 text-neutral-300 hover:bg-zinc-700"
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      </PropertyRow>
+      <p className="text-[10px] text-neutral-500 leading-snug mt-1">
+        {activeHint}
+      </p>
+    </>
+  );
+}
+
 function PotentiometerInspector({ component, onUpdate }: {
   component: BoardComponent;
   onUpdate: (changes: Partial<BoardComponent>) => void;
@@ -818,9 +924,11 @@ function ComponentInspector({ component, onUpdate }: {
       {component.type === "pir_sensor" && <PirSensorInspector component={component} onUpdate={onUpdate} />}
       {component.type === "dht_sensor" && <DhtSensorInspector component={component} onUpdate={onUpdate} />}
       {component.type === "ir_receiver" && <IrReceiverInspector component={component} onUpdate={onUpdate} />}
+      {component.type === "power_supply" && <PowerSupplyInspector component={component} onUpdate={onUpdate} />}
+      {component.type === "multimeter" && <MultimeterInspector component={component} onUpdate={onUpdate} />}
 
       {/* Generic pin inspector for any remaining types */}
-      {!["led", "rgb_led", "resistor", "button", "servo", "buzzer", "capacitor", "potentiometer", "temperature_sensor", "photoresistor", "ultrasonic_sensor", "lcd_16x2", "seven_segment", "pir_sensor", "dht_sensor", "ir_receiver"].includes(component.type) && (
+      {!["led", "rgb_led", "resistor", "button", "servo", "buzzer", "capacitor", "potentiometer", "temperature_sensor", "photoresistor", "ultrasonic_sensor", "lcd_16x2", "seven_segment", "pir_sensor", "dht_sensor", "ir_receiver", "power_supply", "multimeter"].includes(component.type) && (
         <GenericPinInspector component={component} onUpdate={onUpdate} />
       )}
     </div>

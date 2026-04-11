@@ -4,7 +4,7 @@
     "name": "echo-ox-horn",
     "version": 1,
     "createdAt": "2026-04-07T02:27:23.305Z",
-    "updatedAt": "2026-04-10T02:46:06.698Z",
+    "updatedAt": "2026-04-10T20:20:20.930Z",
     "threadId": "93118918-2f59-48c4-a1d2-6301ff8a4537",
     "activeSceneId": "20968fd8-771e-437d-a12c-1ae9051ed094"
   },
@@ -168,7 +168,20 @@
           "gnd": null
         },
         "properties": {
-          "value": 95
+          "value": 100
+        }
+      },
+      "aa8166f7-b3bd-4450-aefe-0dd60acdaf92": {
+        "id": "aa8166f7-b3bd-4450-aefe-0dd60acdaf92",
+        "type": "power_supply",
+        "name": "Power Supply",
+        "x": -2,
+        "y": 0,
+        "rotation": 0,
+        "pins": {},
+        "properties": {
+          "leftVoltage": 5,
+          "rightVoltage": 3.3
         }
       }
     },

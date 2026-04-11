@@ -6,6 +6,7 @@ import {
   Section,
   Note,
   CodeBlock,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -35,6 +36,10 @@ export function SmoothingPage() {
           real underlying signal.
         </p>
       </Section>
+
+      <Figure caption="Raw analog jitter (red) vs a smoothed line (green) running through its middle.">
+        <SmoothingWaveDiagram />
+      </Figure>
 
       <Section title="Moving average">
         <p className="text-sm leading-relaxed">
@@ -102,5 +107,53 @@ int smoothedRead(int pin) {
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── Smoothing waveform diagram ─────────────────────────────────────────
+
+function SmoothingWaveDiagram() {
+  const w = 560
+  const h = 200
+  const mono = "ui-monospace, SFMono-Regular, Menlo, monospace"
+  const leftX = 40
+  const rightX = 540
+  const baseY = 100
+  const amp = 40
+  // Raw: base sine + jitter
+  const N = 80
+  const rawPts: string[] = []
+  const smoothedPts: string[] = []
+  for (let i = 0; i <= N; i++) {
+    const t = i / N
+    const x = leftX + t * (rightX - leftX)
+    const base = Math.sin(t * Math.PI * 2.5) * amp
+    const jitter = (Math.sin(i * 17.3) + Math.cos(i * 9.1) + Math.sin(i * 4.7)) * 6
+    rawPts.push(`${x.toFixed(1)},${(baseY + base + jitter).toFixed(1)}`)
+    smoothedPts.push(`${x.toFixed(1)},${(baseY + base).toFixed(1)}`)
+  }
+  return (
+    <div className="flex justify-center">
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        width={w}
+        height={h}
+        xmlns="http://www.w3.org/2000/svg"
+        className="max-w-full"
+      >
+        {/* Axis */}
+        <line x1={leftX} y1={baseY + 60} x2={rightX} y2={baseY + 60} stroke="#27272a" strokeWidth={1} />
+        {/* Raw */}
+        <polyline points={rawPts.join(" ")} fill="none" stroke="#ef4444" strokeWidth={1.3} />
+        {/* Smoothed */}
+        <polyline points={smoothedPts.join(" ")} fill="none" stroke="#10b981" strokeWidth={2.5} />
+
+        {/* Legend */}
+        <rect x={leftX} y={170} width={14} height={3} fill="#ef4444" />
+        <text x={leftX + 20} y={175} fontSize={10} fill="#ef4444" fontFamily={mono}>raw analogRead</text>
+        <rect x={200} y={170} width={14} height={3} fill="#10b981" />
+        <text x={220} y={175} fontSize={10} fill="#10b981" fontFamily={mono}>smoothed output</text>
+      </svg>
+    </div>
   )
 }

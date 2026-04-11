@@ -5,6 +5,7 @@ import {
   PageTitle,
   Section,
   Note,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -40,6 +41,10 @@ export function I2cConceptsPage() {
           register on a display driver, or stream bytes to an
           RTC, all over the same pair of wires.
         </p>
+
+        <Figure caption="One master and two peripherals share SDA and SCL. The pull-ups let any device drag the line LOW without a fight.">
+          <I2cBusTopology />
+        </Figure>
       </Section>
 
       <Section title="Addresses">
@@ -87,5 +92,64 @@ export function I2cConceptsPage() {
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── I2C bus topology diagram ───────────────────────────────────────────
+
+function I2cBusTopology() {
+  const w = 500
+  const h = 240
+  const sdaY = 70
+  const sclY = 110
+  const busStart = 90
+  const busEnd = w - 30
+  const devices = [
+    { x: 130, label: "Master", sub: "(Uno)", color: "#60a5fa" },
+    { x: 260, label: "Slave", sub: "0x3C", color: "#a78bfa" },
+    { x: 390, label: "Slave", sub: "0x68", color: "#10b981" },
+  ]
+  return (
+    <div className="flex justify-center">
+      <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} xmlns="http://www.w3.org/2000/svg" className="max-w-full">
+        <rect x={0} y={0} width={w} height={h} fill="#0f0f0f" />
+        {/* +V rail */}
+        <line x1={30} y1={30} x2={busEnd} y2={30} stroke="#ef4444" strokeWidth={1.4} />
+        <text x={30} y={22} fontSize={10} fill="#ef4444" fontFamily="ui-monospace, Menlo, monospace">+5V</text>
+        {/* Pull-up resistors (simplified as zig-zag boxes) */}
+        <g>
+          <line x1={50} y1={30} x2={50} y2={40} stroke="#9ca3af" strokeWidth={1.4} />
+          <rect x={44} y={40} width={12} height={20} fill="#0f0f0f" stroke="#9ca3af" strokeWidth={1.4} />
+          <line x1={50} y1={60} x2={50} y2={sdaY} stroke="#9ca3af" strokeWidth={1.4} />
+          <text x={58} y={54} fontSize={9} fill="#9ca3af" fontFamily="ui-monospace, Menlo, monospace">4.7kΩ</text>
+          <line x1={72} y1={30} x2={72} y2={80} stroke="#9ca3af" strokeWidth={1.4} />
+          <rect x={66} y={80} width={12} height={20} fill="#0f0f0f" stroke="#9ca3af" strokeWidth={1.4} />
+          <line x1={72} y1={100} x2={72} y2={sclY} stroke="#9ca3af" strokeWidth={1.4} />
+          <text x={80} y={94} fontSize={9} fill="#9ca3af" fontFamily="ui-monospace, Menlo, monospace">4.7kΩ</text>
+        </g>
+
+        {/* SDA bus */}
+        <line x1={busStart} y1={sdaY} x2={busEnd} y2={sdaY} stroke="#60a5fa" strokeWidth={2} />
+        <text x={busEnd + 4} y={sdaY + 4} fontSize={10} fill="#60a5fa" fontFamily="ui-monospace, Menlo, monospace">SDA</text>
+        {/* SCL bus */}
+        <line x1={busStart} y1={sclY} x2={busEnd} y2={sclY} stroke="#f59e0b" strokeWidth={2} />
+        <text x={busEnd + 4} y={sclY + 4} fontSize={10} fill="#f59e0b" fontFamily="ui-monospace, Menlo, monospace">SCL</text>
+
+        {/* Devices */}
+        {devices.map((d) => (
+          <g key={d.label + d.sub}>
+            <line x1={d.x - 8} y1={sdaY} x2={d.x - 8} y2={150} stroke="#60a5fa" strokeWidth={1.2} />
+            <line x1={d.x + 8} y1={sclY} x2={d.x + 8} y2={150} stroke="#f59e0b" strokeWidth={1.2} />
+            <rect x={d.x - 34} y={150} width={68} height={48} rx={4} fill="#1f2937" stroke={d.color} strokeWidth={1.6} />
+            <text x={d.x} y={172} textAnchor="middle" fontSize={11} fill={d.color} fontFamily="ui-monospace, Menlo, monospace">
+              {d.label}
+            </text>
+            <text x={d.x} y={188} textAnchor="middle" fontSize={9} fill="#9ca3af" fontFamily="ui-monospace, Menlo, monospace">
+              {d.sub}
+            </text>
+          </g>
+        ))}
+      </svg>
+    </div>
   )
 }

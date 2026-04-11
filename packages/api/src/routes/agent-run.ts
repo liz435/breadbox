@@ -1,9 +1,9 @@
 import { Elysia } from "elysia";
 import { ZodError } from "zod";
 import { runCoreAgent } from "../agents/core/agent";
+import { buildSummarizedHistory } from "../agents/history-summarizer";
 import { agentRunRepo } from "../db/agent-run-repo";
 import { agentRunRequestSchema } from "../db/schemas";
-import { buildModelMessagesFromRuns } from "../db/messages";
 import {
   OpValidationError,
   projectRepo,
@@ -49,7 +49,8 @@ export const agentRunRoutes = new Elysia({ prefix: "/agent" }).post(
       const completedRuns = priorRuns.filter(
         (r) => r.run.id !== runFile.run.id && r.run.status === "completed"
       );
-      const history = buildModelMessagesFromRuns(completedRuns);
+      const historyResult = await buildSummarizedHistory(completedRuns);
+      const history = historyResult.messages;
 
       const result = await runCoreAgent({
         prompt: input.prompt,
@@ -61,6 +62,7 @@ export const agentRunRoutes = new Elysia({ prefix: "/agent" }).post(
         sessionId: input.sessionId,
         parentLog: log,
         history,
+        priorRuns: completedRuns,
       });
 
       let newVersion = project.project.version;
@@ -90,6 +92,7 @@ export const agentRunRoutes = new Elysia({ prefix: "/agent" }).post(
         messages: result.messages,
         proposedOps: result.proposedOps,
         appliedOps,
+        tokenUsage: result.tokenUsage,
       });
 
       return {

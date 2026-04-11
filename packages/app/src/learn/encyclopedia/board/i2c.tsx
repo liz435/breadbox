@@ -6,6 +6,8 @@ import {
   Section,
   Note,
   Table,
+  Schematic,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -40,6 +42,54 @@ export function BoardI2cPage() {
             ["A5", "SCL — clock from master"],
           ]}
         />
+
+        <Figure caption="The I2C bus — SDA and SCL pulled HIGH through resistors to 5 V, then tapped by every slave that shares the bus.">
+          <Schematic cols={14} rows={8}>
+            {/* Vcc rail across the top with pull-ups */}
+            <Schematic.Vcc at={[6, 0]} label="+5V" />
+            <Schematic.Vcc at={[8, 0]} label="+5V" />
+            <Schematic.Resistor from={[6, 0]} to={[6, 2]} label="4.7kΩ" />
+            <Schematic.Resistor from={[8, 0]} to={[8, 2]} label="4.7kΩ" />
+
+            {/* Master pins on the left */}
+            <Schematic.ArduinoPin at={[2, 2]} pin="A4" />
+            <Schematic.ArduinoPin at={[2, 4]} pin="A5" />
+
+            {/* SDA bus line (row 2) */}
+            <Schematic.Wire points={[[2, 2], [13, 2]]} />
+            {/* SCL bus line (row 4) */}
+            <Schematic.Wire points={[[2, 4], [13, 4]]} />
+
+            {/* Junctions where pull-ups meet bus */}
+            <Schematic.Junction at={[6, 2]} />
+            <Schematic.Junction at={[8, 2]} />
+
+            {/* Bus labels */}
+            <Schematic.Label at={[13, 2]} text="SDA" anchor="start" dy={-4} />
+            <Schematic.Label at={[13, 4]} text="SCL" anchor="start" dy={-4} />
+
+            {/* Slave 1: OLED — two vertical taps at cols 4,4 and 4,4 */}
+            <Schematic.Junction at={[4, 2]} />
+            <Schematic.Junction at={[4, 4]} />
+            <Schematic.Wire points={[[4, 2], [4, 6]]} />
+            <Schematic.Wire points={[[4, 4], [4, 6]]} />
+            <Schematic.Label at={[4, 7]} text="OLED" />
+
+            {/* Slave 2: RTC */}
+            <Schematic.Junction at={[7, 2]} />
+            <Schematic.Junction at={[7, 4]} />
+            <Schematic.Wire points={[[7, 2], [7, 6]]} />
+            <Schematic.Wire points={[[7, 4], [7, 6]]} />
+            <Schematic.Label at={[7, 7]} text="RTC" />
+
+            {/* Slave 3: Sensor */}
+            <Schematic.Junction at={[11, 2]} />
+            <Schematic.Junction at={[11, 4]} />
+            <Schematic.Wire points={[[11, 2], [11, 6]]} />
+            <Schematic.Wire points={[[11, 4], [11, 6]]} />
+            <Schematic.Label at={[11, 7]} text="Sensor" />
+          </Schematic>
+        </Figure>
       </Section>
 
       <Section title="One bus, many devices">

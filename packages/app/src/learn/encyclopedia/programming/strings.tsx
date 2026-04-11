@@ -7,6 +7,7 @@ import {
   Note,
   Warn,
   CodeBlock,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -45,6 +46,10 @@ Serial.println(name);
 char label[16] = "Arduino";
 strcat(label, " Uno");
 Serial.println(label);`} />
+
+        <Figure caption="char[] is a flat run of bytes ending in '\\0'. String is a tiny handle on the stack pointing at a heap block with a length.">
+          <StringLayoutDiagram />
+        </Figure>
       </Section>
 
       <Section title="Heap fragmentation on 2 KB of SRAM">
@@ -96,5 +101,57 @@ Serial.println(label);`} />
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── String memory layout diagram ───────────────────────────────────────
+
+function StringLayoutDiagram() {
+  const w = 540
+  const h = 200
+  const mono = "ui-monospace, SFMono-Regular, Menlo, monospace"
+  const cellW = 26
+  const chars = ["H", "e", "l", "l", "o", "\\0"]
+  return (
+    <div className="flex justify-center">
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        width={w}
+        height={h}
+        xmlns="http://www.w3.org/2000/svg"
+        className="max-w-full"
+      >
+        {/* char[] side */}
+        <text x={120} y={25} textAnchor="middle" fontSize={11} fill="#60a5fa" fontFamily={mono}>char[]</text>
+        {chars.map((c, i) => (
+          <g key={i}>
+            <rect x={10 + i * cellW} y={45} width={cellW} height={30} fill="#0f0f0f" stroke="#60a5fa" strokeWidth={1.5} />
+            <text x={10 + i * cellW + cellW / 2} y={65} textAnchor="middle" fontSize={12} fill={i === chars.length - 1 ? "#ef4444" : "#d1d5db"} fontFamily={mono}>{c}</text>
+          </g>
+        ))}
+        <text x={120} y={105} textAnchor="middle" fontSize={10} fill="#9ca3af" fontFamily={mono}>flat, fixed-size</text>
+        <text x={120} y={120} textAnchor="middle" fontSize={10} fill="#9ca3af" fontFamily={mono}>lives on stack</text>
+        <text x={120} y={135} textAnchor="middle" fontSize={9} fill="#6b7280" fontFamily={mono}>ends in '\\0'</text>
+
+        {/* String side */}
+        <text x={400} y={25} textAnchor="middle" fontSize={11} fill="#a78bfa" fontFamily={mono}>String</text>
+        {/* Stack handle */}
+        <rect x={300} y={45} width={70} height={40} fill="#0f0f0f" stroke="#a78bfa" strokeWidth={1.5} />
+        <text x={335} y={60} textAnchor="middle" fontSize={10} fill="#d1d5db" fontFamily={mono}>ptr ──┐</text>
+        <text x={335} y={78} textAnchor="middle" fontSize={10} fill="#9ca3af" fontFamily={mono}>len=5</text>
+        <text x={335} y={100} textAnchor="middle" fontSize={9} fill="#6b7280" fontFamily={mono}>stack</text>
+
+        {/* Arrow to heap */}
+        <line x1={370} y1={55} x2={410} y2={55} stroke="#a78bfa" strokeWidth={1.5} />
+        <line x1={410} y1={55} x2={410} y2={130} stroke="#a78bfa" strokeWidth={1.5} />
+        <line x1={410} y1={130} x2={440} y2={130} stroke="#a78bfa" strokeWidth={1.5} />
+        <polyline points="435,125 440,130 435,135" fill="none" stroke="#a78bfa" strokeWidth={1.5} />
+
+        {/* Heap block */}
+        <rect x={440} y={115} width={90} height={35} fill="#0f0f0f" stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="3,2" />
+        <text x={485} y={137} textAnchor="middle" fontSize={11} fill="#d1d5db" fontFamily={mono}>Hello\0</text>
+        <text x={485} y={170} textAnchor="middle" fontSize={9} fill="#6b7280" fontFamily={mono}>heap</text>
+      </svg>
+    </div>
   )
 }

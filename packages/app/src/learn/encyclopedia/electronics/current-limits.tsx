@@ -7,6 +7,7 @@ import {
   Note,
   Warn,
   Table,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -44,6 +45,10 @@ export function CurrentLimitsPage() {
             ["5V pin from barrel jack", "~800 mA", "Limited by onboard regulator."],
           ]}
         />
+
+        <Figure caption="The nested ceilings — stay under all of them at once.">
+          <NestedLimitsDiagram />
+        </Figure>
       </Section>
 
       <Section title="Port groups catch you by surprise">
@@ -95,5 +100,51 @@ export function CurrentLimitsPage() {
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── Nested current-limit diagram ───────────────────────────────────────
+
+function NestedLimitsDiagram() {
+  const w = 440
+  const h = 200
+  const levels = [
+    { label: "USB total  500 mA", size: 190, color: "#ef4444" },
+    { label: "Chip total  200 mA", size: 146, color: "#f59e0b" },
+    { label: "Port group  100 mA", size: 104, color: "#10b981" },
+    { label: "Per pin  20 mA", size: 60, color: "#60a5fa" },
+  ]
+  const cx = w / 2
+  const cy = h / 2 + 6
+  return (
+    <div className="flex justify-center">
+      <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} xmlns="http://www.w3.org/2000/svg" className="max-w-full">
+        <rect x={0} y={0} width={w} height={h} fill="#0f0f0f" />
+        {levels.map((lvl) => (
+          <g key={lvl.label}>
+            <rect
+              x={cx - lvl.size}
+              y={cy - lvl.size / 2}
+              width={lvl.size * 2}
+              height={lvl.size}
+              rx={6}
+              fill={lvl.color}
+              fillOpacity={0.08}
+              stroke={lvl.color}
+              strokeWidth={1.4}
+            />
+            <text
+              x={cx - lvl.size + 6}
+              y={cy - lvl.size / 2 + 12}
+              fontSize={10}
+              fill={lvl.color}
+              fontFamily="ui-monospace, Menlo, monospace"
+            >
+              {lvl.label}
+            </text>
+          </g>
+        ))}
+      </svg>
+    </div>
   )
 }

@@ -1,9 +1,12 @@
 {
   "runId": "8e0ad33d-e59b-48e0-b271-a053916de3ed",
-  "evaluatedAt": "2026-04-09T16:21:08.853Z",
+  "evaluatedAt": "2026-04-10T23:57:34.991Z",
   "agent": "core",
   "prompt": "create a game like mario",
   "status": "completed",
+  "evaluable": true,
+  "domain": "graph",
+  "category": "top_level",
   "path": {
     "stepCount": 31,
     "stepLimit": 10,
@@ -809,6 +812,8 @@
     "inputTokens": 0,
     "outputTokens": 0,
     "totalTokens": 0,
+    "childTokens": 0,
+    "overheadTokens": 0,
     "estimatedCost": 0,
     "wastedTokens": 5200,
     "wasteDetails": [
@@ -844,9 +849,10 @@
     "totalCalls": 31,
     "errors": 0,
     "errorRate": 0,
-    "hallucatedIds": 0,
+    "hallucinatedIds": 0,
     "wrongPinNames": 0,
     "invalidPositions": 0,
+    "invalidGraphConnections": 0,
     "details": [
       {
         "tool": "get_scene_state",
@@ -1182,13 +1188,164 @@
     ]
   },
   "circuit": null,
+  "graph": {
+    "nodesPlaced": 16,
+    "edgesCreated": 1,
+    "danglingEdges": 0,
+    "orphanNodes": 14,
+    "hasSetup": false,
+    "hasLoop": false,
+    "setupReachesAction": false,
+    "loopReachesAction": false,
+    "issues": [
+      "Orphan node: Player (sprite) has no connections",
+      "Orphan node: Ground (sprite) has no connections",
+      "Orphan node: Platform_1 (sprite) has no connections",
+      "Orphan node: Platform_2 (sprite) has no connections",
+      "Orphan node: Platform_3 (sprite) has no connections",
+      "Orphan node: Goomba_1 (sprite) has no connections",
+      "Orphan node: Goomba_2 (sprite) has no connections",
+      "Orphan node: Goomba_3 (sprite) has no connections",
+      "Orphan node: Coin_1 (sprite) has no connections",
+      "Orphan node: Coin_2 (sprite) has no connections",
+      "Orphan node: Coin_3 (sprite) has no connections",
+      "Orphan node: Coin_4 (sprite) has no connections",
+      "Orphan node: Coin_5 (sprite) has no connections",
+      "Orphan node: UI Display (text) has no connections",
+      "Missing setup node — required for a runnable Arduino graph",
+      "Missing loop node — Arduino programs need a loop() entry"
+    ],
+    "nodes": [
+      {
+        "id": "5bde95c5-14f2-4685-9dde-664491c36061",
+        "type": "sprite",
+        "name": "Player",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "id": "d15c8bf7-753a-4e5e-9937-8b0925499f24",
+        "type": "sprite",
+        "name": "Ground",
+        "x": 0,
+        "y": 100
+      },
+      {
+        "id": "73574a3a-77a3-4d03-8ad3-cdb9047694af",
+        "type": "sprite",
+        "name": "Platform_1",
+        "x": 0,
+        "y": 400
+      },
+      {
+        "id": "f9c5e4de-2c0e-456e-a1ee-397aa9d9c20b",
+        "type": "sprite",
+        "name": "Platform_2",
+        "x": 0,
+        "y": 700
+      },
+      {
+        "id": "0bab66d3-e3b8-4876-bc3c-6c874e5f5192",
+        "type": "sprite",
+        "name": "Platform_3",
+        "x": 0,
+        "y": 1000
+      },
+      {
+        "id": "ab20a50f-11c8-49e5-bbbb-ccd259fcacbc",
+        "type": "sprite",
+        "name": "Goomba_1",
+        "x": 0,
+        "y": 250
+      },
+      {
+        "id": "76343f62-bd27-4cf2-b7f3-4e6eabc91382",
+        "type": "sprite",
+        "name": "Goomba_2",
+        "x": 400,
+        "y": 250
+      },
+      {
+        "id": "b33b70d1-5f27-4cd7-87d5-f4913dc1336b",
+        "type": "sprite",
+        "name": "Goomba_3",
+        "x": 800,
+        "y": 250
+      },
+      {
+        "id": "1fe3a4a2-e8dd-4742-a899-77fbebeeb6cb",
+        "type": "sprite",
+        "name": "Coin_1",
+        "x": 0,
+        "y": 400
+      },
+      {
+        "id": "ddfad38b-c305-40b2-aa26-e90b59b98940",
+        "type": "sprite",
+        "name": "Coin_2",
+        "x": 350,
+        "y": 400
+      },
+      {
+        "id": "0908bc80-d162-4980-a394-2a24db57a044",
+        "type": "sprite",
+        "name": "Coin_3",
+        "x": 700,
+        "y": 400
+      },
+      {
+        "id": "82310d37-cc25-4fea-aae8-617cd761f731",
+        "type": "sprite",
+        "name": "Coin_4",
+        "x": 1050,
+        "y": 400
+      },
+      {
+        "id": "b4875db5-0515-4da9-8e86-3cc6b346ae90",
+        "type": "sprite",
+        "name": "Coin_5",
+        "x": 1400,
+        "y": 400
+      },
+      {
+        "id": "89c7edd6-c89a-4d25-ba69-e63d5b306bde",
+        "type": "text",
+        "name": "UI Display",
+        "x": 400,
+        "y": 0
+      },
+      {
+        "id": "46a22f52-4c46-42ad-88d0-fe954ebb35a2",
+        "type": "code",
+        "name": "UI Update Logic",
+        "x": 200,
+        "y": 0
+      },
+      {
+        "id": "30ba0c02-4ccc-4bde-9b4a-105b1dc5628d",
+        "type": "on_update",
+        "name": "Game Loop",
+        "x": 100,
+        "y": 0
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge-201254a8-4494-42a6-9c67-4b0ae1106b43",
+        "sourceNodeId": "30ba0c02-4ccc-4bde-9b4a-105b1dc5628d",
+        "sourcePortId": "trigger_out",
+        "targetNodeId": "46a22f52-4c46-42ad-88d0-fe954ebb35a2",
+        "targetPortId": "trigger_in"
+      }
+    ]
+  },
   "score": {
-    "total": 60,
+    "total": 40,
     "breakdown": {
       "accuracy": 25,
       "efficiency": 0,
-      "quality": 25,
-      "completeness": 10
+      "quality": 0,
+      "completeness": 15
     }
   }
 }

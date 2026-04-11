@@ -6,6 +6,7 @@ import {
   Section,
   Note,
   Table,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -65,6 +66,10 @@ export function ResistorsPage() {
           decodes as 2, 2, ×10, giving 220 Ω ± 5%.
         </p>
 
+        <Figure caption="A 220 Ω, 5% resistor. Red (2) · Red (2) · Brown (×10) · Gold (±5%).">
+          <ResistorColorBands />
+        </Figure>
+
         <Note>
           When in doubt, grab a multimeter and measure directly. Faded
           bands are the #1 reason a kit resistor gets mis-identified.
@@ -110,5 +115,56 @@ export function ResistorsPage() {
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── Resistor color-band diagram ────────────────────────────────────────
+
+function ResistorColorBands() {
+  const w = 420
+  const h = 140
+  const bodyX = 80
+  const bodyY = 50
+  const bodyW = 260
+  const bodyH = 44
+  const bands = [
+    { x: 120, color: "#ef4444", label: "Red" },    // 2
+    { x: 150, color: "#ef4444", label: "Red" },    // 2
+    { x: 180, color: "#a16207", label: "Brown" },  // ×10
+    { x: 290, color: "#eab308", label: "Gold" },   // 5%
+  ]
+  return (
+    <div className="flex justify-center">
+      <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} xmlns="http://www.w3.org/2000/svg" className="max-w-full">
+        <rect x={0} y={0} width={w} height={h} fill="#0f0f0f" />
+        {/* Left lead */}
+        <line x1={20} y1={bodyY + bodyH / 2} x2={bodyX} y2={bodyY + bodyH / 2} stroke="#9ca3af" strokeWidth={2} />
+        {/* Right lead */}
+        <line x1={bodyX + bodyW} y1={bodyY + bodyH / 2} x2={w - 20} y2={bodyY + bodyH / 2} stroke="#9ca3af" strokeWidth={2} />
+        {/* Body */}
+        <rect x={bodyX} y={bodyY} width={bodyW} height={bodyH} rx={18} ry={18} fill="#d4a574" stroke="#9ca3af" strokeWidth={1.4} />
+        {/* Bands */}
+        {bands.map((b, i) => (
+          <rect key={i} x={b.x} y={bodyY} width={14} height={bodyH} fill={b.color} />
+        ))}
+        {/* Labels */}
+        <text x={127} y={bodyY + bodyH + 14} textAnchor="middle" fontSize={9} fill="#9ca3af" fontFamily="ui-monospace, Menlo, monospace">Red</text>
+        <text x={127} y={bodyY + bodyH + 26} textAnchor="middle" fontSize={9} fill="#9ca3af" fontFamily="ui-monospace, Menlo, monospace">2</text>
+        <text x={157} y={bodyY + bodyH + 14} textAnchor="middle" fontSize={9} fill="#9ca3af" fontFamily="ui-monospace, Menlo, monospace">Red</text>
+        <text x={157} y={bodyY + bodyH + 26} textAnchor="middle" fontSize={9} fill="#9ca3af" fontFamily="ui-monospace, Menlo, monospace">2</text>
+        <text x={187} y={bodyY + bodyH + 14} textAnchor="middle" fontSize={9} fill="#9ca3af" fontFamily="ui-monospace, Menlo, monospace">Brown</text>
+        <text x={187} y={bodyY + bodyH + 26} textAnchor="middle" fontSize={9} fill="#9ca3af" fontFamily="ui-monospace, Menlo, monospace">×10</text>
+        <text x={297} y={bodyY + bodyH + 14} textAnchor="middle" fontSize={9} fill="#9ca3af" fontFamily="ui-monospace, Menlo, monospace">Gold</text>
+        <text x={297} y={bodyY + bodyH + 26} textAnchor="middle" fontSize={9} fill="#9ca3af" fontFamily="ui-monospace, Menlo, monospace">±5%</text>
+        {/* Result */}
+        <text x={w / 2} y={h - 8} textAnchor="middle" fontSize={12} fill="#60a5fa" fontFamily="ui-monospace, Menlo, monospace">
+          = 220 Ω ± 5%
+        </text>
+        {/* Top label */}
+        <text x={w / 2} y={28} textAnchor="middle" fontSize={11} fill="#d1d5db" fontFamily="ui-monospace, Menlo, monospace">
+          4-band resistor
+        </text>
+      </svg>
+    </div>
   )
 }

@@ -6,6 +6,7 @@ import {
   Section,
   Note,
   CodeBlock,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -84,6 +85,10 @@ void loop() {
 }`} />
       </Section>
 
+      <Figure caption="Three sensors, three timelines. Each fires on its own schedule and none blocks the others.">
+        <MultiSensorTimelineDiagram />
+      </Figure>
+
       <Section title="The pattern">
         <p className="text-sm leading-relaxed">
           Every sensor follows the same shape: a constant
@@ -111,5 +116,51 @@ void loop() {
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── Multi-sensor timeline diagram ──────────────────────────────────────
+
+function MultiSensorTimelineDiagram() {
+  const w = 560
+  const h = 240
+  const mono = "ui-monospace, SFMono-Regular, Menlo, monospace"
+  const leftX = 100
+  const trackW = 440
+  const row = (y: number, label: string, count: number, color: string) => {
+    const tickSpacing = trackW / count
+    return (
+      <g>
+        <text x={leftX - 10} y={y + 4} textAnchor="end" fontSize={11} fill={color} fontFamily={mono}>{label}</text>
+        <line x1={leftX} y1={y} x2={leftX + trackW} y2={y} stroke={color} strokeWidth={1.5} />
+        {Array.from({ length: count }, (_, i) => {
+          const x = leftX + (i + 0.5) * tickSpacing
+          return <circle key={i} cx={x} cy={y} r={4} fill={color} />
+        })}
+      </g>
+    )
+  }
+  return (
+    <div className="flex justify-center">
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        width={w}
+        height={h}
+        xmlns="http://www.w3.org/2000/svg"
+        className="max-w-full"
+      >
+        <text x={w / 2} y={25} textAnchor="middle" fontSize={11} fill="#a78bfa" fontFamily={mono}>independent schedules</text>
+        {row(70, "button", 20, "#60a5fa")}
+        <text x={leftX + trackW + 10} y={74} fontSize={9} fill="#60a5fa" fontFamily={mono}>5 ms</text>
+
+        {row(120, "pot", 10, "#10b981")}
+        <text x={leftX + trackW + 10} y={124} fontSize={9} fill="#10b981" fontFamily={mono}>20 ms</text>
+
+        {row(170, "DHT", 3, "#f59e0b")}
+        <text x={leftX + trackW + 10} y={174} fontSize={9} fill="#f59e0b" fontFamily={mono}>2000 ms</text>
+
+        <text x={w / 2} y={215} textAnchor="middle" fontSize={10} fill="#6b7280" fontFamily={mono}>time →</text>
+      </svg>
+    </div>
   )
 }

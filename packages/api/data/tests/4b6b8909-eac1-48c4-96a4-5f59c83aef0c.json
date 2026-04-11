@@ -1,13 +1,16 @@
 {
   "runId": "4b6b8909-eac1-48c4-96a4-5f59c83aef0c",
-  "evaluatedAt": "2026-04-09T16:21:08.853Z",
+  "evaluatedAt": "2026-04-10T23:57:34.989Z",
   "agent": "core",
   "prompt": "make a circuit that pot controls servo",
   "status": "completed",
+  "evaluable": true,
+  "domain": "breadboard",
+  "category": "top_level",
   "path": {
     "stepCount": 8,
     "stepLimit": 10,
-    "retryCount": 1,
+    "retryCount": 0,
     "hallucinations": [
       "wire_component_to_pin: Component potentiometer_id not found.",
       "wire_component_to_pin: Component potentiometer_id not found.",
@@ -222,6 +225,8 @@
     "inputTokens": 28744,
     "outputTokens": 1198,
     "totalTokens": 29942,
+    "childTokens": 0,
+    "overheadTokens": 0,
     "estimatedCost": 0.0278,
     "wastedTokens": 1000,
     "wasteDetails": [
@@ -236,9 +241,10 @@
     "totalCalls": 8,
     "errors": 3,
     "errorRate": 0.38,
-    "hallucatedIds": 3,
+    "hallucinatedIds": 3,
     "wrongPinNames": 0,
     "invalidPositions": 0,
+    "invalidGraphConnections": 0,
     "details": [
       {
         "tool": "place_component",
@@ -381,6 +387,7 @@
     ],
     "sketch": "// Potentiometer controls servo angle\n\n#include <Servo.h>\n\nconst int SERVO_PIN = 6;\nconst int POT_PIN = A0;  // Analog input pin\n\nServo servo;\n\nvoid setup() {\n  servo.attach(SERVO_PIN);\n  Serial.begin(9600);\n}\n\nvoid loop() {\n  // Read potentiometer value (0-1023)\n  int potValue = analogRead(POT_PIN);\n  \n  // Map potentiometer value (0-1023) to servo angle (0-180 degrees)\n  int servoAngle = map(potValue, 0, 1023, 0, 180);\n  \n  // Write angle to servo\n  servo.write(servoAngle);\n  \n  // Optional: Print for debugging\n  Serial.print(\"Pot: \");\n  Serial.print(potValue);\n  Serial.print(\" -> Angle: \");\n  Serial.println(servoAngle);\n  \n  delay(50);  // Small delay for smooth response\n}\n"
   },
+  "graph": null,
   "score": {
     "total": 74,
     "breakdown": {

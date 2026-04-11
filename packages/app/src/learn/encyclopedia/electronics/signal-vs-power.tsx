@@ -5,6 +5,7 @@ import {
   PageTitle,
   Section,
   Note,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -65,6 +66,10 @@ export function SignalVsPowerPage() {
           it's too thin for the current it's carrying. Stop and
           upsize before something melts.
         </Note>
+
+        <Figure caption="Same length, very different jobs. The thin line moves information; the thick line moves energy.">
+          <SignalVsPowerDiagram />
+        </Figure>
       </Section>
 
       <SeeAlso
@@ -76,5 +81,42 @@ export function SignalVsPowerPage() {
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── Signal vs power wire diagram ───────────────────────────────────────
+
+function SignalVsPowerDiagram() {
+  const w = 460
+  const h = 180
+  return (
+    <div className="flex justify-center">
+      <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} xmlns="http://www.w3.org/2000/svg" className="max-w-full">
+        <rect x={0} y={0} width={w} height={h} fill="#0f0f0f" />
+        {/* Signal wire */}
+        <text x={30} y={42} fontSize={11} fill="#60a5fa" fontFamily="ui-monospace, Menlo, monospace">Signal wire</text>
+        <line x1={30} y1={60} x2={w - 30} y2={60} stroke="#60a5fa" strokeWidth={1.2} />
+        <text x={w - 30} y={48} textAnchor="end" fontSize={10} fill="#9ca3af" fontFamily="ui-monospace, Menlo, monospace">~1 mA</text>
+        {/* Thin arrow */}
+        <line x1={220} y1={60} x2={244} y2={60} stroke="#60a5fa" strokeWidth={1.2} />
+        <polyline points={`238,56 244,60 238,64`} fill="none" stroke="#60a5fa" strokeWidth={1.2} strokeLinejoin="round" />
+
+        {/* Power wire */}
+        <text x={30} y={112} fontSize={11} fill="#ef4444" fontFamily="ui-monospace, Menlo, monospace">Power wire</text>
+        <line x1={30} y1={132} x2={w - 30} y2={132} stroke="#ef4444" strokeWidth={10} strokeLinecap="round" />
+        <text x={w - 30} y={118} textAnchor="end" fontSize={10} fill="#9ca3af" fontFamily="ui-monospace, Menlo, monospace">~2 A</text>
+        {/* Fat arrows */}
+        {[180, 210, 240].map((x) => (
+          <g key={x}>
+            <line x1={x} y1={132} x2={x + 18} y2={132} stroke="#fca5a5" strokeWidth={3} strokeLinecap="round" />
+            <polyline points={`${x + 12},${126} ${x + 18},${132} ${x + 12},${138}`} fill="none" stroke="#fca5a5" strokeWidth={3} strokeLinejoin="round" strokeLinecap="round" />
+          </g>
+        ))}
+
+        <text x={w / 2} y={166} textAnchor="middle" fontSize={10} fill="#6b7280" fontFamily="ui-monospace, Menlo, monospace">
+          P = I² × R — doubling the current quadruples the heat in the same wire
+        </text>
+      </svg>
+    </div>
   )
 }

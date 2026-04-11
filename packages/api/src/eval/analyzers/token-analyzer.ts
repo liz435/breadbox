@@ -16,9 +16,31 @@ export function analyzeTokens(run: RunFile): TokenAnalysis {
   const model = usage.model
   const pricing = PRICING[model] ?? { input: 1, output: 5 }
 
-  const inputCost = (usage.inputTokens / 1_000_000) * pricing.input
-  const outputCost = (usage.outputTokens / 1_000_000) * pricing.output
-  const estimatedCost = inputCost + outputCost
+  // Child + overhead breakdowns for end-to-end cost accounting
+  const childTokens = (usage.children ?? []).reduce((acc, c) => acc + c.totalTokens, 0)
+  const overheadTokens = (usage.overhead ?? []).reduce((acc, o) => acc + o.totalTokens, 0)
+
+  // Parent's own spend (priced at the parent's model)
+  const parentInputCost = (usage.inputTokens / 1_000_000) * pricing.input
+  const parentOutputCost = (usage.outputTokens / 1_000_000) * pricing.output
+
+  // Child spend — each child may use a different model, price accordingly
+  let childCost = 0
+  for (const child of usage.children ?? []) {
+    const cp = PRICING[child.model] ?? { input: 1, output: 5 }
+    childCost += (child.inputTokens / 1_000_000) * cp.input
+    childCost += (child.outputTokens / 1_000_000) * cp.output
+  }
+
+  // Overhead spend — per-call model pricing
+  let overheadCost = 0
+  for (const o of usage.overhead ?? []) {
+    const op = PRICING[o.model] ?? { input: 1, output: 5 }
+    overheadCost += (o.inputTokens / 1_000_000) * op.input
+    overheadCost += (o.outputTokens / 1_000_000) * op.output
+  }
+
+  const estimatedCost = parentInputCost + parentOutputCost + childCost + overheadCost
 
   // Detect wasted tokens
   let wastedTokens = 0
@@ -73,6 +95,8 @@ export function analyzeTokens(run: RunFile): TokenAnalysis {
     inputTokens: usage.inputTokens,
     outputTokens: usage.outputTokens,
     totalTokens: usage.totalTokens,
+    childTokens,
+    overheadTokens,
     estimatedCost: Math.round(estimatedCost * 10000) / 10000,
     wastedTokens,
     wasteDetails,

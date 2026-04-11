@@ -6,6 +6,7 @@ import {
   Section,
   Note,
   CodeBlock,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -55,6 +56,10 @@ void loop() {
   digitalWrite(LED_PIN, LOW);
   delay(BLINK_MS);
 }`} />
+
+        <Figure caption="Magic numbers hide intent — named constants make it obvious what a value means.">
+          <MagicVsNamedDiagram />
+        </Figure>
       </Section>
 
       <Section title="const int vs #define">
@@ -104,5 +109,48 @@ const int DEBOUNCE_MS = 50;`} />
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── Magic numbers vs named constants ───────────────────────────────────
+
+function MagicVsNamedDiagram() {
+  const w = 520
+  const h = 170
+  const mono = "ui-monospace, SFMono-Regular, Menlo, monospace"
+  return (
+    <div className="flex justify-center">
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        width={w}
+        height={h}
+        xmlns="http://www.w3.org/2000/svg"
+        className="max-w-full"
+      >
+        {/* Left side — magic number */}
+        <text x={120} y={20} textAnchor="middle" fontSize={11} fill="#ef4444" fontFamily={mono}>before</text>
+        <rect x={20} y={30} width={200} height={110} rx={4} fill="#0f0f0f" stroke="#ef4444" strokeWidth={1.5} />
+        <text x={35} y={60} fontSize={12} fill="#d1d5db" fontFamily={mono}>digitalWrite(</text>
+        <circle cx={148} cy={56} r={12} fill="none" stroke="#ef4444" strokeWidth={2} strokeDasharray="3,2" />
+        <text x={148} y={60} textAnchor="middle" fontSize={12} fill="#ef4444" fontFamily={mono}>13</text>
+        <text x={165} y={60} fontSize={12} fill="#d1d5db" fontFamily={mono}>, HIGH);</text>
+        <text x={35} y={100} fontSize={10} fill="#9ca3af" fontFamily={mono}>delay(</text>
+        <text x={75} y={100} fontSize={10} fill="#ef4444" fontFamily={mono}>500</text>
+        <text x={100} y={100} fontSize={10} fill="#9ca3af" fontFamily={mono}>);</text>
+        <text x={35} y={125} fontSize={9} fill="#6b7280" fontFamily={mono}>what is 13? what is 500?</text>
+
+        {/* Right side — named */}
+        <text x={390} y={20} textAnchor="middle" fontSize={11} fill="#10b981" fontFamily={mono}>after</text>
+        <rect x={290} y={30} width={220} height={110} rx={4} fill="#0f0f0f" stroke="#10b981" strokeWidth={1.5} />
+        <text x={305} y={60} fontSize={12} fill="#d1d5db" fontFamily={mono}>digitalWrite(</text>
+        <rect x={395} y={45} width={60} height={18} fill="none" stroke="#10b981" strokeWidth={1.5} rx={2} />
+        <text x={425} y={60} textAnchor="middle" fontSize={11} fill="#10b981" fontFamily={mono}>LED_PIN</text>
+        <text x={458} y={60} fontSize={12} fill="#d1d5db" fontFamily={mono}>, HIGH);</text>
+        <text x={305} y={100} fontSize={10} fill="#9ca3af" fontFamily={mono}>delay(</text>
+        <text x={345} y={100} fontSize={10} fill="#10b981" fontFamily={mono}>BLINK_MS</text>
+        <text x={400} y={100} fontSize={10} fill="#9ca3af" fontFamily={mono}>);</text>
+        <text x={305} y={125} fontSize={9} fill="#6b7280" fontFamily={mono}>intent is obvious</text>
+      </svg>
+    </div>
   )
 }

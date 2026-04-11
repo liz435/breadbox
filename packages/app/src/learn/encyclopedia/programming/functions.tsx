@@ -6,6 +6,7 @@ import {
   Section,
   Note,
   CodeBlock,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -32,6 +33,10 @@ export function FunctionsPage() {
           functions — you just happen to be overriding ones the Arduino
           core already provides.
         </p>
+
+        <Figure caption="A function is a black box: values flow in as arguments, one value flows out as the return.">
+          <FunctionBoxDiagram />
+        </Figure>
       </Section>
 
       <Section title="Declaring a function">
@@ -104,5 +109,48 @@ void loop() {
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── Function "black box" diagram ───────────────────────────────────────
+
+function FunctionBoxDiagram() {
+  const w = 440
+  const h = 200
+  const mono = "ui-monospace, SFMono-Regular, Menlo, monospace"
+  return (
+    <div className="flex justify-center">
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        width={w}
+        height={h}
+        xmlns="http://www.w3.org/2000/svg"
+        className="max-w-full"
+      >
+        {/* Function box */}
+        <rect x={140} y={50} width={160} height={100} rx={6} fill="#0f0f0f" stroke="#60a5fa" strokeWidth={2} />
+        <text x={220} y={90} textAnchor="middle" fontSize={13} fill="#d1d5db" fontFamily={mono}>add(a, b)</text>
+        <text x={220} y={115} textAnchor="middle" fontSize={11} fill="#9ca3af" fontFamily={mono}>return a + b;</text>
+
+        {/* Input arrows */}
+        <text x={30} y={78} fontSize={11} fill="#10b981" fontFamily={mono}>a = 2</text>
+        <line x1={80} y1={80} x2={135} y2={80} stroke="#10b981" strokeWidth={1.5} />
+        <polyline points="130,75 135,80 130,85" fill="none" stroke="#10b981" strokeWidth={1.5} />
+
+        <text x={30} y={128} fontSize={11} fill="#10b981" fontFamily={mono}>b = 3</text>
+        <line x1={80} y1={130} x2={135} y2={130} stroke="#10b981" strokeWidth={1.5} />
+        <polyline points="130,125 135,130 130,135" fill="none" stroke="#10b981" strokeWidth={1.5} />
+
+        {/* Return arrow */}
+        <line x1={300} y1={100} x2={380} y2={100} stroke="#a78bfa" strokeWidth={1.5} />
+        <polyline points="375,95 380,100 375,105" fill="none" stroke="#a78bfa" strokeWidth={1.5} />
+        <text x={385} y={98} fontSize={11} fill="#a78bfa" fontFamily={mono}>5</text>
+
+        {/* Labels */}
+        <text x={80} y={40} fontSize={10} fill="#6b7280" fontFamily={mono}>parameters</text>
+        <text x={330} y={80} fontSize={10} fill="#6b7280" fontFamily={mono}>return</text>
+        <text x={220} y={180} textAnchor="middle" fontSize={10} fill="#6b7280" fontFamily={mono}>body runs when called</text>
+      </svg>
+    </div>
   )
 }

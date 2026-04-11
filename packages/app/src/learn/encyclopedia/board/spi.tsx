@@ -6,6 +6,7 @@ import {
   Section,
   Note,
   Table,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -41,6 +42,10 @@ export function BoardSpiPage() {
             ["D13", "SCK — serial clock"],
           ]}
         />
+
+        <Figure caption="The four SPI lines between the Uno (master) and one peripheral. The master drives SCK and SS; data flows both ways on MOSI (out) and MISO (in).">
+          <SpiBusDiagram />
+        </Figure>
       </Section>
 
       <Section title="The ICSP header">
@@ -82,5 +87,158 @@ export function BoardSpiPage() {
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── SPI bus block diagram ──────────────────────────────────────────────
+
+function SpiBusDiagram() {
+  const w = 560
+  const h = 240
+  const boxW = 130
+  const boxH = 180
+  const masterX = 30
+  const slaveX = w - 30 - boxW
+  const boxY = 30
+
+  // Line spec: pin label on each side + direction
+  // y positions inside the box
+  const lines = [
+    { y: boxY + 30, label: "SS",   masterPin: "D10", slavePin: "SS",   dir: "m2s", color: "#f59e0b" },
+    { y: boxY + 70, label: "MOSI", masterPin: "D11", slavePin: "MOSI", dir: "m2s", color: "#60a5fa" },
+    { y: boxY + 110, label: "MISO", masterPin: "D12", slavePin: "MISO", dir: "s2m", color: "#10b981" },
+    { y: boxY + 150, label: "SCK",  masterPin: "D13", slavePin: "SCK",  dir: "m2s", color: "#a78bfa" },
+  ] as const
+
+  return (
+    <div className="flex justify-center">
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        width={w}
+        height={h}
+        xmlns="http://www.w3.org/2000/svg"
+        className="max-w-full"
+      >
+        {/* Master box */}
+        <rect
+          x={masterX}
+          y={boxY}
+          width={boxW}
+          height={boxH}
+          rx={4}
+          fill="#0f0f0f"
+          stroke="#d1d5db"
+          strokeWidth={1.4}
+        />
+        <text
+          x={masterX + boxW / 2}
+          y={boxY + 16}
+          textAnchor="middle"
+          fontSize={11}
+          fill="#d1d5db"
+          fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+          fontWeight={600}
+        >
+          Uno (master)
+        </text>
+
+        {/* Slave box */}
+        <rect
+          x={slaveX}
+          y={boxY}
+          width={boxW}
+          height={boxH}
+          rx={4}
+          fill="#0f0f0f"
+          stroke="#d1d5db"
+          strokeWidth={1.4}
+        />
+        <text
+          x={slaveX + boxW / 2}
+          y={boxY + 16}
+          textAnchor="middle"
+          fontSize={11}
+          fill="#d1d5db"
+          fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+          fontWeight={600}
+        >
+          Peripheral (slave)
+        </text>
+
+        {/* Lines */}
+        {lines.map((ln) => {
+          const x1 = masterX + boxW
+          const x2 = slaveX
+          const midX = (x1 + x2) / 2
+          return (
+            <g key={ln.label}>
+              {/* Master pin label */}
+              <text
+                x={masterX + boxW - 6}
+                y={ln.y + 4}
+                textAnchor="end"
+                fontSize={10}
+                fill="#9ca3af"
+                fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+              >
+                {ln.masterPin}
+              </text>
+
+              {/* Slave pin label */}
+              <text
+                x={slaveX + 6}
+                y={ln.y + 4}
+                textAnchor="start"
+                fontSize={10}
+                fill="#9ca3af"
+                fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+              >
+                {ln.slavePin}
+              </text>
+
+              {/* The line itself */}
+              <line
+                x1={x1}
+                y1={ln.y}
+                x2={x2}
+                y2={ln.y}
+                stroke={ln.color}
+                strokeWidth={2}
+              />
+
+              {/* Direction arrow */}
+              {ln.dir === "m2s" ? (
+                <polyline
+                  points={`${midX + 20},${ln.y - 4} ${midX + 26},${ln.y} ${midX + 20},${ln.y + 4}`}
+                  fill="none"
+                  stroke={ln.color}
+                  strokeWidth={1.6}
+                />
+              ) : (
+                <polyline
+                  points={`${midX - 20},${ln.y - 4} ${midX - 26},${ln.y} ${midX - 20},${ln.y + 4}`}
+                  fill="none"
+                  stroke={ln.color}
+                  strokeWidth={1.6}
+                />
+              )}
+
+              {/* Line label */}
+              <text
+                x={midX}
+                y={ln.y - 6}
+                textAnchor="middle"
+                fontSize={10}
+                fill={ln.color}
+                fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+                fontWeight={600}
+              >
+                {ln.label}
+              </text>
+            </g>
+          )
+        })}
+      </svg>
+    </div>
   )
 }

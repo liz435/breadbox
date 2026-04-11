@@ -108,3 +108,24 @@ export {
   applyBoardOpsRequestSchema,
   type ApplyBoardOpsRequest,
 } from "./board-ops";
+
+export {
+  voltageRangeSchema,
+  type VoltageRange,
+  boardElectricalProfileSchema,
+  type BoardElectricalProfile,
+  componentElectricalProfileSchema,
+  type ComponentElectricalProfile,
+  pinLoadSchema,
+  type PinLoad,
+  railLoadSchema,
+  type RailLoad,
+  powerIssueSeveritySchema,
+  type PowerIssueSeverity,
+  powerIssueSchema,
+  type PowerIssue,
+  powerRecommendationSchema,
+  type PowerRecommendation,
+  powerBudgetReportSchema,
+  type PowerBudgetReport,
+} from "./electrical";

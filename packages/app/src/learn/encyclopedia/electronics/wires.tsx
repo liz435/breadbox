@@ -6,6 +6,7 @@ import {
   Section,
   Note,
   Table,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -49,6 +50,10 @@ export function WiresPage() {
           variety) in solid core. They come with the right stripped
           length for a breadboard and in every color of the rainbow.
         </Note>
+
+        <Figure caption="Cross-section: solid core is one stiff strand, stranded is a bundle of thin ones.">
+          <WireCrossSection />
+        </Figure>
       </Section>
 
       <Section title="Color conventions">
@@ -103,5 +108,48 @@ export function WiresPage() {
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── Wire cross-section diagram ─────────────────────────────────────────
+
+function WireCrossSection() {
+  const w = 420
+  const h = 160
+  return (
+    <div className="flex justify-center">
+      <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} xmlns="http://www.w3.org/2000/svg" className="max-w-full">
+        <rect x={0} y={0} width={w} height={h} fill="#0f0f0f" />
+        {/* Solid core (left) */}
+        <g transform="translate(105, 70)">
+          <circle r={48} fill="#3b2a1a" stroke="#9ca3af" strokeWidth={1.6} />
+          <circle r={40} fill="#0f0f0f" stroke="#f59e0b" strokeWidth={1} strokeDasharray="3 2" />
+          <circle r={28} fill="#b45309" stroke="#d97706" strokeWidth={1.4} />
+        </g>
+        <text x={105} y={140} textAnchor="middle" fontSize={11} fill="#d1d5db" fontFamily="ui-monospace, Menlo, monospace">Solid core</text>
+        <text x={105} y={154} textAnchor="middle" fontSize={9} fill="#6b7280" fontFamily="ui-monospace, Menlo, monospace">one stiff strand</text>
+
+        {/* Stranded (right) */}
+        <g transform="translate(315, 70)">
+          <circle r={48} fill="#3b2a1a" stroke="#9ca3af" strokeWidth={1.6} />
+          <circle r={40} fill="#0f0f0f" stroke="#f59e0b" strokeWidth={1} strokeDasharray="3 2" />
+          {/* 19 small strands packed */}
+          {[
+            [0, 0],
+            [12, 0], [-12, 0], [6, 10], [-6, 10], [6, -10], [-6, -10],
+            [18, 10], [-18, 10], [18, -10], [-18, -10],
+            [24, 0], [-24, 0], [0, 20], [0, -20], [12, 20], [-12, 20], [12, -20], [-12, -20],
+          ].map(([x, y], i) => (
+            <circle key={i} cx={x} cy={y} r={6} fill="#b45309" stroke="#d97706" strokeWidth={0.8} />
+          ))}
+        </g>
+        <text x={315} y={140} textAnchor="middle" fontSize={11} fill="#d1d5db" fontFamily="ui-monospace, Menlo, monospace">Stranded</text>
+        <text x={315} y={154} textAnchor="middle" fontSize={9} fill="#6b7280" fontFamily="ui-monospace, Menlo, monospace">many thin strands</text>
+
+        {/* Legend arrows */}
+        <line x1={160} y1={28} x2={148} y2={40} stroke="#f59e0b" strokeWidth={1} />
+        <text x={162} y={28} fontSize={9} fill="#f59e0b" fontFamily="ui-monospace, Menlo, monospace">insulation</text>
+      </svg>
+    </div>
   )
 }

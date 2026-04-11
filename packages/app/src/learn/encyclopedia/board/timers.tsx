@@ -7,6 +7,7 @@ import {
   Note,
   Warn,
   Table,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -64,6 +65,10 @@ export function TimersPage() {
           code is stuck waiting.
         </p>
 
+        <Figure caption="Two sketches running for one second. delay() blocks the loop so nothing else runs; millis() lets loop() keep iterating and the sketch can do work between blinks.">
+          <BlockingVsNonBlockingDiagram />
+        </Figure>
+
         <Warn>
           This is why experienced Arduino programmers avoid{" "}
           <code>delay()</code> in anything but the simplest sketches. The
@@ -94,5 +99,190 @@ export function TimersPage() {
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── delay() vs millis() timeline ───────────────────────────────────────
+
+function BlockingVsNonBlockingDiagram() {
+  const w = 560
+  const rowH = 90
+  const h = 2 * rowH + 30
+  const padL = 120
+  const padR = 20
+  const trackW = w - padL - padR
+
+  const Row = ({
+    y,
+    title,
+    subtitle,
+    segments,
+  }: {
+    y: number
+    title: string
+    subtitle: string
+    segments: {
+      start: number
+      end: number
+      kind: "blocked" | "loop" | "work"
+    }[]
+  }) => (
+    <g>
+      <text
+        x={padL - 10}
+        y={y + 22}
+        textAnchor="end"
+        fontSize={12}
+        fill="#d1d5db"
+        fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+        fontWeight={600}
+      >
+        {title}
+      </text>
+      <text
+        x={padL - 10}
+        y={y + 36}
+        textAnchor="end"
+        fontSize={9}
+        fill="#6b7280"
+        fontFamily="ui-sans-serif, system-ui, sans-serif"
+      >
+        {subtitle}
+      </text>
+
+      {/* Track background */}
+      <rect
+        x={padL}
+        y={y + 14}
+        width={trackW}
+        height={26}
+        rx={3}
+        fill="#18181b"
+        stroke="#27272a"
+        strokeWidth={0.8}
+      />
+
+      {/* Segments */}
+      {segments.map((s, i) => {
+        const x = padL + s.start * trackW
+        const wSeg = (s.end - s.start) * trackW
+        const color =
+          s.kind === "blocked"
+            ? "#ef4444"
+            : s.kind === "work"
+              ? "#10b981"
+              : "#60a5fa"
+        return (
+          <rect
+            key={i}
+            x={x}
+            y={y + 16}
+            width={wSeg}
+            height={22}
+            rx={2}
+            fill={color}
+            fillOpacity={0.25}
+            stroke={color}
+            strokeWidth={1.2}
+          />
+        )
+      })}
+
+      {/* Time axis */}
+      <line
+        x1={padL}
+        y1={y + 54}
+        x2={padL + trackW}
+        y2={y + 54}
+        stroke="#27272a"
+        strokeWidth={0.8}
+      />
+      {[0, 0.25, 0.5, 0.75, 1].map((t) => (
+        <g key={t}>
+          <line
+            x1={padL + t * trackW}
+            y1={y + 52}
+            x2={padL + t * trackW}
+            y2={y + 58}
+            stroke="#6b7280"
+            strokeWidth={0.8}
+          />
+          <text
+            x={padL + t * trackW}
+            y={y + 70}
+            textAnchor="middle"
+            fontSize={9}
+            fill="#6b7280"
+            fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+          >
+            {(t * 1000).toFixed(0)} ms
+          </text>
+        </g>
+      ))}
+    </g>
+  )
+
+  return (
+    <div className="flex justify-center">
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        width={w}
+        height={h}
+        xmlns="http://www.w3.org/2000/svg"
+        className="max-w-full"
+      >
+        {/* Legend */}
+        <g transform={`translate(${padL}, 0)`}>
+          <rect x={0} y={0} width={10} height={10} fill="#ef4444" fillOpacity={0.25} stroke="#ef4444" />
+          <text x={14} y={9} fontSize={9} fill="#9ca3af" fontFamily="ui-sans-serif, system-ui, sans-serif">
+            blocked in delay()
+          </text>
+          <rect x={140} y={0} width={10} height={10} fill="#60a5fa" fillOpacity={0.25} stroke="#60a5fa" />
+          <text x={154} y={9} fontSize={9} fill="#9ca3af" fontFamily="ui-sans-serif, system-ui, sans-serif">
+            loop() iteration
+          </text>
+          <rect x={260} y={0} width={10} height={10} fill="#10b981" fillOpacity={0.25} stroke="#10b981" />
+          <text x={274} y={9} fontSize={9} fill="#9ca3af" fontFamily="ui-sans-serif, system-ui, sans-serif">
+            other work (sensors, buttons)
+          </text>
+        </g>
+
+        <Row
+          y={20}
+          title="delay(500)"
+          subtitle="blocking"
+          segments={[
+            { start: 0, end: 0.02, kind: "loop" },
+            { start: 0.02, end: 0.5, kind: "blocked" },
+            { start: 0.5, end: 0.52, kind: "loop" },
+            { start: 0.52, end: 1, kind: "blocked" },
+          ]}
+        />
+
+        <Row
+          y={20 + rowH}
+          title="millis() pattern"
+          subtitle="non-blocking"
+          segments={[
+            ...Array.from(
+              { length: 20 },
+              (_, i): { start: number; end: number; kind: "blocked" | "loop" | "work" } => ({
+                start: i / 20,
+                end: i / 20 + 0.012,
+                kind: "loop",
+              }),
+            ),
+            ...Array.from(
+              { length: 20 },
+              (_, i): { start: number; end: number; kind: "blocked" | "loop" | "work" } => ({
+                start: i / 20 + 0.014,
+                end: i / 20 + 0.048,
+                kind: "work",
+              }),
+            ),
+          ]}
+        />
+      </svg>
+    </div>
   )
 }

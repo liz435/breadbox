@@ -381,6 +381,188 @@ function Led({ from, to, color = "#ef4444", label }: LedProps) {
   )
 }
 
+// ── Diode ──────────────────────────────────────────────────────────────
+//
+// Triangle + bar, just like an LED without the emission arrows. `from`
+// is the anode, `to` is the cathode. Must be horizontal (same row).
+// Current flows from → to when forward-biased.
+
+type DiodeProps = {
+  from: GridPoint
+  to: GridPoint
+  label?: string
+}
+
+function Diode({ from, to, label }: DiodeProps) {
+  const a = p(from)
+  const b = p(to)
+  const cx = (a.x + b.x) / 2
+  const cy = (a.y + b.y) / 2
+  const triHalf = 7
+  const bodyHalfWidth = triHalf
+  const leadLeftEnd = cx - bodyHalfWidth
+  const leadRightStart = cx + bodyHalfWidth
+  const tri = `M ${cx - triHalf} ${cy - triHalf} L ${cx + triHalf} ${cy} L ${cx - triHalf} ${cy + triHalf} Z`
+
+  return (
+    <g>
+      <line x1={a.x} y1={a.y} x2={leadLeftEnd} y2={cy} stroke={STROKE} strokeWidth={1.8} />
+      <path d={tri} fill={BG} stroke={STROKE} strokeWidth={1.8} />
+      <line
+        x1={leadRightStart}
+        y1={cy - triHalf}
+        x2={leadRightStart}
+        y2={cy + triHalf}
+        stroke={STROKE}
+        strokeWidth={2}
+      />
+      <line x1={leadRightStart} y1={cy} x2={b.x} y2={b.y} stroke={STROKE} strokeWidth={1.8} />
+      {label && (
+        <text
+          x={cx}
+          y={cy + triHalf + 12}
+          textAnchor="middle"
+          fontSize={10}
+          fill={LABEL}
+          fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+        >
+          {label}
+        </text>
+      )}
+    </g>
+  )
+}
+
+// ── N-channel MOSFET (as a switch) ─────────────────────────────────────
+//
+// Drawn at a single grid point `at`. The three terminals expose grid
+// points relative to `at`:
+//   gate:   at - [2, 0]  (left side, same row)
+//   drain:  at - [0, 2]  (above)
+//   source: at + [0, 2]  (below)
+// Authors draw their own wires to those points.
+
+type NmosProps = {
+  at: GridPoint
+  label?: string
+}
+
+function Nmos({ at, label }: NmosProps) {
+  const { x, y } = p(at)
+  // Body vertical line
+  const bodyTop = y - 14
+  const bodyBot = y + 14
+  const bodyX = x - 4
+  // Channel terminals
+  const drainX = x + 6
+  const drainY = y - 12
+  const sourceX = x + 6
+  const sourceY = y + 12
+  const gateLineX = x - 12
+
+  return (
+    <g>
+      {/* Gate lead */}
+      <line x1={x - CELL * 2} y1={y} x2={gateLineX} y2={y} stroke={STROKE} strokeWidth={1.8} />
+      {/* Gate plate (vertical bar) */}
+      <line x1={gateLineX} y1={y - 10} x2={gateLineX} y2={y + 10} stroke={STROKE} strokeWidth={1.8} />
+      {/* Body (three short horizontal segments representing channel) */}
+      <line x1={bodyX} y1={bodyTop + 4} x2={bodyX + 6} y2={bodyTop + 4} stroke={STROKE} strokeWidth={1.8} />
+      <line x1={bodyX} y1={y} x2={bodyX + 6} y2={y} stroke={STROKE} strokeWidth={1.8} />
+      <line x1={bodyX} y1={bodyBot - 4} x2={bodyX + 6} y2={bodyBot - 4} stroke={STROKE} strokeWidth={1.8} />
+      {/* Drain connection — bend from top-right of body */}
+      <line x1={bodyX + 6} y1={bodyTop + 4} x2={drainX} y2={bodyTop + 4} stroke={STROKE} strokeWidth={1.8} />
+      <line x1={drainX} y1={bodyTop + 4} x2={drainX} y2={y - CELL * 2} stroke={STROKE} strokeWidth={1.8} />
+      {/* Source connection */}
+      <line x1={bodyX + 6} y1={bodyBot - 4} x2={sourceX} y2={bodyBot - 4} stroke={STROKE} strokeWidth={1.8} />
+      <line x1={sourceX} y1={bodyBot - 4} x2={sourceX} y2={y + CELL * 2} stroke={STROKE} strokeWidth={1.8} />
+      {/* Arrow on source pointing in (N-channel convention) */}
+      <polyline
+        points={`${sourceX - 3},${y + 3} ${bodyX + 6},${y} ${sourceX - 3},${y - 3}`}
+        fill="none"
+        stroke={STROKE}
+        strokeWidth={1.4}
+      />
+      {label && (
+        <text
+          x={x + 14}
+          y={y + 3}
+          textAnchor="start"
+          fontSize={10}
+          fill={LABEL}
+          fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+        >
+          {label}
+        </text>
+      )}
+      {/* Pin labels */}
+      <text x={drainX + 4} y={bodyTop + 6} fontSize={9} fill={LABEL} fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace">D</text>
+      <text x={sourceX + 4} y={bodyBot - 4} fontSize={9} fill={LABEL} fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace">S</text>
+      <text x={gateLineX - 12} y={y + 3} fontSize={9} fill={LABEL} fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace">G</text>
+    </g>
+  )
+}
+
+// ── Potentiometer (3-terminal) ─────────────────────────────────────────
+//
+// Drawn between two grid points `from` and `to` (the fixed ends),
+// with a wiper tap perpendicular to the body. Must be horizontal.
+// The wiper grid point is exposed at midpoint, one row below the body.
+
+type PotentiometerProps = {
+  from: GridPoint
+  to: GridPoint
+  label?: string
+}
+
+function Potentiometer({ from, to, label }: PotentiometerProps) {
+  const a = p(from)
+  const b = p(to)
+  const cx = (a.x + b.x) / 2
+  const cy = (a.y + b.y) / 2
+  const bodyLen = 36
+  const bodyWidth = 10
+  const leadStart = { x: cx - bodyLen / 2, y: cy }
+  const leadEnd = { x: cx + bodyLen / 2, y: cy }
+
+  return (
+    <g>
+      <line x1={a.x} y1={a.y} x2={leadStart.x} y2={leadStart.y} stroke={STROKE} strokeWidth={1.8} />
+      <line x1={leadEnd.x} y1={leadEnd.y} x2={b.x} y2={b.y} stroke={STROKE} strokeWidth={1.8} />
+      <rect
+        x={cx - bodyLen / 2}
+        y={cy - bodyWidth / 2}
+        width={bodyLen}
+        height={bodyWidth}
+        rx={1.5}
+        fill={BG}
+        stroke={STROKE}
+        strokeWidth={1.8}
+      />
+      {/* Wiper arrow (from below, pointing at body) */}
+      <line x1={cx} y1={cy + CELL} x2={cx} y2={cy + bodyWidth / 2 + 2} stroke={STROKE} strokeWidth={1.8} />
+      <polyline
+        points={`${cx - 4},${cy + bodyWidth / 2 + 6} ${cx},${cy + bodyWidth / 2 + 2} ${cx + 4},${cy + bodyWidth / 2 + 6}`}
+        fill="none"
+        stroke={STROKE}
+        strokeWidth={1.4}
+      />
+      {label && (
+        <text
+          x={cx}
+          y={cy - bodyWidth / 2 - 6}
+          textAnchor="middle"
+          fontSize={10}
+          fill={LABEL}
+          fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+        >
+          {label}
+        </text>
+      )}
+    </g>
+  )
+}
+
 // ── Button (momentary, SPST) ───────────────────────────────────────────
 //
 // Two contacts with a hover-bar between them. `from` and `to` are the
@@ -802,8 +984,11 @@ export const Schematic = Object.assign(Root, {
   Label,
   Resistor,
   Led,
+  Diode,
   Button: ButtonSymbol,
   Capacitor,
+  Nmos,
+  Potentiometer,
   Battery,
   Vcc,
   Ground,

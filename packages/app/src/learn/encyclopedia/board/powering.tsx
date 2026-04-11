@@ -7,6 +7,7 @@ import {
   Note,
   Warn,
   Table,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -33,6 +34,10 @@ export function PoweringArduinoPage() {
           barrel jack, so plugging in both at once is safe but
           wasteful.
         </p>
+
+        <Figure caption="Three power sources feeding the Uno's internal 5 V rail. USB bypasses the regulator; the other two pass through it.">
+          <PowerSourcesDiagram />
+        </Figure>
 
         <Table
           headers={["Input", "Voltage", "Connector", "When to use"]}
@@ -166,5 +171,196 @@ export function PoweringArduinoPage() {
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── Power sources block diagram ────────────────────────────────────────
+
+function PowerSourcesDiagram() {
+  const w = 520
+  const h = 240
+  // Source boxes on the left
+  const sources = [
+    { y: 20, label: "USB 5 V", sub: "Type-B port", color: "#60a5fa" },
+    { y: 92, label: "Barrel jack", sub: "7 – 12 V", color: "#a78bfa" },
+    { y: 164, label: "VIN pin", sub: "7 – 12 V", color: "#f59e0b" },
+  ]
+  const srcX = 20
+  const srcW = 130
+  const srcH = 48
+
+  // Regulator box
+  const regX = 220
+  const regY = 100
+  const regW = 120
+  const regH = 56
+
+  // Rail on the right
+  const railX = 420
+  const railY = 20
+  const railW = 88
+  const railH = 200
+
+  return (
+    <div className="flex justify-center">
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        width={w}
+        height={h}
+        xmlns="http://www.w3.org/2000/svg"
+        className="max-w-full"
+      >
+        {/* Sources */}
+        {sources.map((s) => (
+          <g key={s.label}>
+            <rect
+              x={srcX}
+              y={s.y}
+              width={srcW}
+              height={srcH}
+              rx={4}
+              fill="#0f0f0f"
+              stroke={s.color}
+              strokeWidth={1.4}
+            />
+            <text
+              x={srcX + srcW / 2}
+              y={s.y + 22}
+              textAnchor="middle"
+              fontSize={12}
+              fill={s.color}
+              fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+              fontWeight={600}
+            >
+              {s.label}
+            </text>
+            <text
+              x={srcX + srcW / 2}
+              y={s.y + 38}
+              textAnchor="middle"
+              fontSize={10}
+              fill="#9ca3af"
+              fontFamily="ui-sans-serif, system-ui, sans-serif"
+            >
+              {s.sub}
+            </text>
+          </g>
+        ))}
+
+        {/* Regulator */}
+        <rect
+          x={regX}
+          y={regY}
+          width={regW}
+          height={regH}
+          rx={4}
+          fill="#0f0f0f"
+          stroke="#10b981"
+          strokeWidth={1.4}
+        />
+        <text
+          x={regX + regW / 2}
+          y={regY + 24}
+          textAnchor="middle"
+          fontSize={12}
+          fill="#10b981"
+          fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+          fontWeight={600}
+        >
+          5 V Regulator
+        </text>
+        <text
+          x={regX + regW / 2}
+          y={regY + 42}
+          textAnchor="middle"
+          fontSize={10}
+          fill="#9ca3af"
+          fontFamily="ui-sans-serif, system-ui, sans-serif"
+        >
+          LM1117 / MC33269
+        </text>
+
+        {/* 5 V rail */}
+        <rect
+          x={railX}
+          y={railY}
+          width={railW}
+          height={railH}
+          rx={4}
+          fill="#0f0f0f"
+          stroke="#ef4444"
+          strokeWidth={1.4}
+        />
+        <text
+          x={railX + railW / 2}
+          y={railY + railH / 2 - 4}
+          textAnchor="middle"
+          fontSize={13}
+          fill="#ef4444"
+          fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+          fontWeight={700}
+        >
+          5 V rail
+        </text>
+        <text
+          x={railX + railW / 2}
+          y={railY + railH / 2 + 14}
+          textAnchor="middle"
+          fontSize={10}
+          fill="#9ca3af"
+          fontFamily="ui-sans-serif, system-ui, sans-serif"
+        >
+          to ATmega
+        </text>
+
+        {/* USB path — bypasses regulator, straight to rail */}
+        <path
+          d={`M ${srcX + srcW} ${sources[0].y + srcH / 2} L ${railX} ${sources[0].y + srcH / 2}`}
+          fill="none"
+          stroke="#60a5fa"
+          strokeWidth={2}
+        />
+        <text
+          x={(srcX + srcW + railX) / 2}
+          y={sources[0].y + srcH / 2 - 6}
+          textAnchor="middle"
+          fontSize={9}
+          fill="#60a5fa"
+          fontFamily="ui-sans-serif, system-ui, sans-serif"
+        >
+          bypasses regulator
+        </text>
+
+        {/* Barrel jack → regulator */}
+        <path
+          d={`M ${srcX + srcW} ${sources[1].y + srcH / 2} L ${regX - 10} ${sources[1].y + srcH / 2} L ${regX - 10} ${regY + regH / 2} L ${regX} ${regY + regH / 2}`}
+          fill="none"
+          stroke="#a78bfa"
+          strokeWidth={2}
+        />
+
+        {/* VIN → regulator */}
+        <path
+          d={`M ${srcX + srcW} ${sources[2].y + srcH / 2} L ${regX - 10} ${sources[2].y + srcH / 2} L ${regX - 10} ${regY + regH / 2} L ${regX} ${regY + regH / 2}`}
+          fill="none"
+          stroke="#f59e0b"
+          strokeWidth={2}
+        />
+
+        {/* Regulator → rail */}
+        <path
+          d={`M ${regX + regW} ${regY + regH / 2} L ${railX} ${regY + regH / 2}`}
+          fill="none"
+          stroke="#10b981"
+          strokeWidth={2}
+        />
+        <polyline
+          points={`${railX - 6},${regY + regH / 2 - 4} ${railX},${regY + regH / 2} ${railX - 6},${regY + regH / 2 + 4}`}
+          fill="none"
+          stroke="#10b981"
+          strokeWidth={1.6}
+        />
+      </svg>
+    </div>
   )
 }

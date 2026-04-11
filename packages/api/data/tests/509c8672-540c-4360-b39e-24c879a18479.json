@@ -1,9 +1,12 @@
 {
   "runId": "509c8672-540c-4360-b39e-24c879a18479",
-  "evaluatedAt": "2026-04-09T16:21:08.867Z",
+  "evaluatedAt": "2026-04-10T23:57:35.011Z",
   "agent": "core",
   "prompt": "theres no servo",
   "status": "completed",
+  "evaluable": true,
+  "domain": "chat_only",
+  "category": "top_level",
   "path": {
     "stepCount": 1,
     "stepLimit": 10,
@@ -436,6 +439,8 @@
     "inputTokens": 20017,
     "outputTokens": 174,
     "totalTokens": 20191,
+    "childTokens": 0,
+    "overheadTokens": 0,
     "estimatedCost": 0.0167,
     "wastedTokens": 11095,
     "wasteDetails": [
@@ -447,9 +452,10 @@
     "totalCalls": 1,
     "errors": 0,
     "errorRate": 0,
-    "hallucatedIds": 0,
+    "hallucinatedIds": 0,
     "wrongPinNames": 0,
     "invalidPositions": 0,
+    "invalidGraphConnections": 0,
     "details": [
       {
         "tool": "get_board_state",
@@ -459,13 +465,14 @@
     ]
   },
   "circuit": null,
+  "graph": null,
   "score": {
     "total": 60,
     "breakdown": {
       "accuracy": 25,
       "efficiency": 0,
-      "quality": 25,
-      "completeness": 10
+      "quality": 15,
+      "completeness": 20
     }
   }
 }

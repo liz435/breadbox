@@ -7,6 +7,7 @@ import {
   Note,
   Warn,
   CodeBlock,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -39,6 +40,10 @@ export function FloatingPointPage() {
 
         <CodeBlock code={`float  pi1 = 3.14159265;
 double pi2 = 3.14159265;  // same size, same precision on AVR`} />
+
+        <Figure caption="IEEE 754 single-precision float: 1 sign bit, 8 exponent bits, 23 mantissa bits.">
+          <FloatBitsDiagram />
+        </Figure>
       </Section>
 
       <Section title="Precision: about six decimal digits">
@@ -88,5 +93,57 @@ double pi2 = 3.14159265;  // same size, same precision on AVR`} />
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── IEEE 754 float bit-layout diagram ──────────────────────────────────
+
+function FloatBitsDiagram() {
+  const w = 560
+  const h = 170
+  const mono = "ui-monospace, SFMono-Regular, Menlo, monospace"
+  const totalW = 480
+  const startX = 40
+  const y = 50
+  const rowH = 40
+  const signW = totalW * (1 / 32)
+  const expW = totalW * (8 / 32)
+  const mantW = totalW * (23 / 32)
+  return (
+    <div className="flex justify-center">
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        width={w}
+        height={h}
+        xmlns="http://www.w3.org/2000/svg"
+        className="max-w-full"
+      >
+        {/* Sign */}
+        <rect x={startX} y={y} width={signW} height={rowH} fill="#0f0f0f" stroke="#ef4444" strokeWidth={2} />
+        <text x={startX + signW / 2} y={y + rowH / 2 + 4} textAnchor="middle" fontSize={11} fill="#ef4444" fontFamily={mono}>S</text>
+        <text x={startX + signW / 2} y={y + rowH + 14} textAnchor="middle" fontSize={9} fill="#9ca3af" fontFamily={mono}>1</text>
+        <text x={startX + signW / 2} y={y - 6} textAnchor="middle" fontSize={9} fill="#ef4444" fontFamily={mono}>sign</text>
+
+        {/* Exponent */}
+        <rect x={startX + signW} y={y} width={expW} height={rowH} fill="#0f0f0f" stroke="#f59e0b" strokeWidth={2} />
+        <text x={startX + signW + expW / 2} y={y + rowH / 2 + 4} textAnchor="middle" fontSize={11} fill="#f59e0b" fontFamily={mono}>EEEEEEEE</text>
+        <text x={startX + signW + expW / 2} y={y + rowH + 14} textAnchor="middle" fontSize={9} fill="#9ca3af" fontFamily={mono}>8 bits</text>
+        <text x={startX + signW + expW / 2} y={y - 6} textAnchor="middle" fontSize={9} fill="#f59e0b" fontFamily={mono}>exponent</text>
+
+        {/* Mantissa */}
+        <rect x={startX + signW + expW} y={y} width={mantW} height={rowH} fill="#0f0f0f" stroke="#60a5fa" strokeWidth={2} />
+        <text x={startX + signW + expW + mantW / 2} y={y + rowH / 2 + 4} textAnchor="middle" fontSize={11} fill="#60a5fa" fontFamily={mono}>MMMMMMMMMMMMMMMMMMMMMMM</text>
+        <text x={startX + signW + expW + mantW / 2} y={y + rowH + 14} textAnchor="middle" fontSize={9} fill="#9ca3af" fontFamily={mono}>23 bits</text>
+        <text x={startX + signW + expW + mantW / 2} y={y - 6} textAnchor="middle" fontSize={9} fill="#60a5fa" fontFamily={mono}>mantissa (fraction)</text>
+
+        {/* Bottom formula */}
+        <text x={w / 2} y={140} textAnchor="middle" fontSize={10} fill="#d1d5db" fontFamily={mono}>
+          value = (−1)^S × 1.M × 2^(E−127)
+        </text>
+        <text x={w / 2} y={155} textAnchor="middle" fontSize={9} fill="#6b7280" fontFamily={mono}>
+          32 bits total on both AVR and desktop
+        </text>
+      </svg>
+    </div>
   )
 }

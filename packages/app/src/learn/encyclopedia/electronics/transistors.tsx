@@ -6,6 +6,8 @@ import {
   Section,
   Note,
   Table,
+  Schematic,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -95,6 +97,20 @@ export function TransistorsPage() {
           relays page — it's the right choice when you need
           galvanic isolation or you're switching AC.
         </Note>
+
+        <Figure caption="Low-side switch: the Arduino pin drives the gate, and the MOSFET gates current through the load to ground.">
+          <Schematic cols={14} rows={9}>
+            <Schematic.Vcc at={[8, 1]} label="+V" />
+            <Schematic.Wire points={[[8, 1], [8, 2]]} />
+            <Schematic.Resistor from={[8, 2]} to={[8, 3]} label="220Ω" />
+            <Schematic.Wire points={[[8, 3], [8, 4]]} />
+            {/* NMOS — drain at [8,4], source at [8,8], gate at [6,6] */}
+            <Schematic.Nmos at={[8, 6]} label="M1" />
+            <Schematic.ArduinoPin at={[4, 6]} pin="D9" />
+            <Schematic.Wire points={[[4, 6], [6, 6]]} />
+            <Schematic.Ground at={[8, 8]} />
+          </Schematic>
+        </Figure>
       </Section>
 
       <SeeAlso

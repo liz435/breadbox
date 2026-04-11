@@ -426,15 +426,15 @@ describe("transpile", () => {
     })
 
     test("pointer dereference returns error", () => {
-      expect(fail("int *ptr = &val;")).toContain("Pointer")
+      expect(fail("int *ptr = &val;")).toContain("Pass-by-reference")
     })
 
     test("arrow operator returns error", () => {
-      expect(fail("obj->method();")).toContain("Pointer")
+      expect(fail("obj->method();")).toContain("Pass-by-reference")
     })
 
     test("address-of operator returns error", () => {
-      expect(fail("int &ref = val;")).toContain("Pointer")
+      expect(fail("int &ref = val;")).toContain("Pass-by-reference")
     })
   })
 

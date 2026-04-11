@@ -41,6 +41,7 @@ import { useBoard } from "@/store/board-context"
 import { simulationRef } from "@/simulator/simulation-ref"
 import { saveRef, editorContentRef } from "@/project/save-ref"
 import { transpileErrorRef } from "@/simulator/transpile-error-ref"
+import { useElectricalReport } from "@/electrical/power-budget"
 
 // ── 1. Syntax Highlighting Colors (VS Code Dark+ inspired) ─────────────────
 
@@ -186,6 +187,7 @@ function SketchEditorInner() {
   const isExternalUpdate = useRef(false)
 
   const { state: boardState, send } = useBoard()
+  const electrical = useElectricalReport()
 
   // Use the shared simulation from PlayControls (not a separate instance)
   const [, tickRender] = React.useReducer((c: number) => c + 1, 0)
@@ -321,13 +323,14 @@ function SketchEditorInner() {
   }, [boardState.sketchCode])
 
   const handlePlay = useCallback(() => {
+    if (electrical.hasErrors) return
     if (sim.status === "paused") {
       sim.resume()
       return
     }
     const code = viewRef.current?.state.doc.toString() ?? boardState.sketchCode
     sim.play(code)
-  }, [sim, boardState.sketchCode])
+  }, [electrical.hasErrors, sim, boardState.sketchCode])
 
   const handlePause = useCallback(() => {
     sim.pause()
@@ -361,7 +364,7 @@ function SketchEditorInner() {
           <button
             type="button"
             onClick={handlePlay}
-            disabled={isCompiling}
+            disabled={isCompiling || electrical.hasErrors}
             className="flex items-center gap-1.5 rounded bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
           >
             {isCompiling ? (
@@ -401,6 +404,11 @@ function SketchEditorInner() {
         )}
         {sim.status === "error" && sim.error && (
           <span className="ml-1 max-w-[300px] truncate text-[10px] text-red-400">{sim.error}</span>
+        )}
+        {electrical.hasErrors && (
+          <span className="ml-1 max-w-[320px] truncate text-[10px] text-red-400">
+            Electrical issue blocks Run: {electrical.issues.find((i) => i.severity === "error")?.message}
+          </span>
         )}
       </div>
 

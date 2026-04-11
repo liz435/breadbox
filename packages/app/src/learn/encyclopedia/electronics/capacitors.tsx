@@ -7,6 +7,8 @@ import {
   Note,
   Warn,
   Table,
+  Schematic,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -34,6 +36,10 @@ export function CapacitorsPage() {
           no more DC current. Think of it as a tiny rechargeable
           battery with near-zero capacity but very fast reflexes.
         </p>
+
+        <Figure caption="Charging curve: the cap voltage rises exponentially toward the supply, never quite reaching it.">
+          <ChargeCurve />
+        </Figure>
       </Section>
 
       <Section title="Units you'll see">
@@ -78,6 +84,22 @@ export function CapacitorsPage() {
           "0.1 µF near every chip" is a rule you should internalize.
         </p>
 
+        <Figure caption="0.1 µF ceramic tied between a chip's Vcc and GND pins, sitting right at the part.">
+          <Schematic cols={12} rows={6}>
+            <Schematic.Vcc at={[3, 1]} label="+5V" />
+            <Schematic.Wire points={[[3, 1], [3, 2]]} />
+            <Schematic.Junction at={[3, 2]} />
+            <Schematic.Wire points={[[3, 2], [7, 2]]} />
+            <Schematic.Label at={[9, 2]} text="IC Vcc" anchor="start" />
+            <Schematic.Capacitor from={[3, 2]} to={[3, 4]} label="0.1µF" />
+            <Schematic.Wire points={[[3, 4], [3, 5]]} />
+            <Schematic.Junction at={[3, 4]} />
+            <Schematic.Wire points={[[3, 4], [7, 4]]} />
+            <Schematic.Label at={[9, 4]} text="IC GND" anchor="start" />
+            <Schematic.Ground at={[3, 5]} />
+          </Schematic>
+        </Figure>
+
         <Note>
           Dreamer models capacitors as{" "}
           <em className="text-gray-200">visual-only</em>: they show
@@ -98,5 +120,55 @@ export function CapacitorsPage() {
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── RC charging curve diagram ──────────────────────────────────────────
+
+function ChargeCurve() {
+  const w = 420
+  const h = 180
+  const originX = 50
+  const originY = 150
+  const plotW = 340
+  const plotH = 110
+  // V(t) = Vmax * (1 - e^(-t/RC))
+  const pts: [number, number][] = []
+  const steps = 80
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps
+    const v = 1 - Math.exp(-5 * t)
+    pts.push([originX + t * plotW, originY - v * plotH])
+  }
+  const pathD = pts.map((pt, i) => `${i === 0 ? "M" : "L"} ${pt[0]} ${pt[1]}`).join(" ")
+  return (
+    <div className="flex justify-center">
+      <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} xmlns="http://www.w3.org/2000/svg" className="max-w-full">
+        <rect x={0} y={0} width={w} height={h} fill="#0f0f0f" />
+        {/* Axes */}
+        <line x1={originX} y1={originY} x2={originX + plotW} y2={originY} stroke="#6b7280" strokeWidth={1.2} />
+        <line x1={originX} y1={originY} x2={originX} y2={originY - plotH - 10} stroke="#6b7280" strokeWidth={1.2} />
+        {/* Supply rail */}
+        <line
+          x1={originX}
+          y1={originY - plotH}
+          x2={originX + plotW}
+          y2={originY - plotH}
+          stroke="#ef4444"
+          strokeWidth={1}
+          strokeDasharray="3 3"
+        />
+        <text x={originX + plotW + 4} y={originY - plotH + 4} fontSize={10} fill="#ef4444" fontFamily="ui-monospace, Menlo, monospace">Vcc</text>
+        {/* Curve */}
+        <path d={pathD} fill="none" stroke="#60a5fa" strokeWidth={2.2} />
+        {/* Labels */}
+        <text x={originX - 8} y={originY - plotH + 4} textAnchor="end" fontSize={10} fill="#9ca3af" fontFamily="ui-monospace, Menlo, monospace">V</text>
+        <text x={originX + plotW} y={originY + 14} textAnchor="end" fontSize={10} fill="#9ca3af" fontFamily="ui-monospace, Menlo, monospace">time</text>
+        <text x={originX - 8} y={originY + 4} textAnchor="end" fontSize={10} fill="#9ca3af" fontFamily="ui-monospace, Menlo, monospace">0</text>
+        <text x={w / 2} y={22} textAnchor="middle" fontSize={11} fill="#d1d5db" fontFamily="ui-monospace, Menlo, monospace">
+          Capacitor charging through a resistor
+        </text>
+      </svg>
+    </div>
   )
 }

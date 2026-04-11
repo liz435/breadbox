@@ -7,6 +7,7 @@ import {
   Note,
   CodeBlock,
   Table,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -24,6 +25,10 @@ export function Ssd1306LibraryPage() {
         title="Adafruit_SSD1306 library"
         subtitle="Drive tiny 128×64 OLED modules with a handful of methods."
       />
+
+      <Figure caption="A 128×64 OLED module with 'Hello World' drawn at the top-left, cursor position (0, 0).">
+        <OledMockupDiagram />
+      </Figure>
 
       <Section title="The display">
         <p className="text-sm leading-relaxed">
@@ -116,5 +121,47 @@ void loop() {
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── SSD1306 OLED mockup ────────────────────────────────────────────────
+
+function OledMockupDiagram() {
+  const w = 500
+  const h = 260
+  const mono = "ui-monospace, SFMono-Regular, Menlo, monospace"
+  return (
+    <div className="flex justify-center">
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        width={w}
+        height={h}
+        xmlns="http://www.w3.org/2000/svg"
+        className="max-w-full"
+      >
+        {/* PCB body */}
+        <rect x={60} y={40} width={380} height={180} rx={6} fill="#0f0f0f" stroke="#a78bfa" strokeWidth={2} />
+        <text x={250} y={60} textAnchor="middle" fontSize={10} fill="#a78bfa" fontFamily={mono}>128 × 64 OLED (SSD1306)</text>
+
+        {/* Screen area */}
+        <rect x={90} y={75} width={320} height={130} fill="#0f0f0f" stroke="#60a5fa" strokeWidth={1.5} strokeDasharray="4,3" />
+        {/* Content */}
+        <text x={110} y={115} fontSize={22} fill="#60a5fa" fontFamily={mono}>Hello</text>
+        <text x={110} y={155} fontSize={22} fill="#60a5fa" fontFamily={mono}>World</text>
+        <text x={110} y={190} fontSize={11} fill="#10b981" fontFamily={mono}>count: 42</text>
+
+        {/* Pins */}
+        {["GND", "VCC", "SCL", "SDA"].map((name, i) => (
+          <g key={name}>
+            <rect x={130 + i * 60} y={223} width={20} height={20} fill="#0f0f0f" stroke="#9ca3af" strokeWidth={1.2} />
+            <text x={140 + i * 60} y={255} textAnchor="middle" fontSize={9} fill="#9ca3af" fontFamily={mono}>{name}</text>
+          </g>
+        ))}
+
+        {/* Resolution labels */}
+        <text x={90} y={72} fontSize={9} fill="#6b7280" fontFamily={mono}>(0,0)</text>
+        <text x={410} y={72} textAnchor="end" fontSize={9} fill="#6b7280" fontFamily={mono}>(127,0)</text>
+      </svg>
+    </div>
   )
 }

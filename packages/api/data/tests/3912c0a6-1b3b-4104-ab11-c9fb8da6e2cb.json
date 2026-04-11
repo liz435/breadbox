@@ -1,9 +1,12 @@
 {
   "runId": "3912c0a6-1b3b-4104-ab11-c9fb8da6e2cb",
-  "evaluatedAt": "2026-04-09T16:21:08.861Z",
+  "evaluatedAt": "2026-04-10T23:57:34.999Z",
   "agent": "core",
   "prompt": "replace the neopixel to a green LED",
   "status": "completed",
+  "evaluable": true,
+  "domain": "breadboard",
+  "category": "top_level",
   "path": {
     "stepCount": 7,
     "stepLimit": 10,
@@ -336,6 +339,8 @@
     "inputTokens": 54331,
     "outputTokens": 999,
     "totalTokens": 55330,
+    "childTokens": 0,
+    "overheadTokens": 0,
     "estimatedCost": 0.178,
     "wastedTokens": 1400,
     "wasteDetails": [
@@ -348,9 +353,10 @@
     "totalCalls": 7,
     "errors": 1,
     "errorRate": 0.14,
-    "hallucatedIds": 1,
+    "hallucinatedIds": 1,
     "wrongPinNames": 0,
     "invalidPositions": 0,
+    "invalidGraphConnections": 0,
     "details": [
       {
         "tool": "remove_component",
@@ -491,6 +497,7 @@
     ],
     "sketch": "#include <Servo.h>\n\nServo myServo;\n\nconst int potPin = A0;\nconst int servoPin = 9;\nconst int ledPin = 8;\n\nvoid setup() {\n  myServo.attach(servoPin);\n  pinMode(potPin, INPUT);\n  pinMode(ledPin, OUTPUT);\n}\n\nvoid loop() {\n  // Servo control via potentiometer\n  int potValue = analogRead(potPin);\n  int angle = map(potValue, 0, 1023, 0, 180);\n  myServo.write(angle);\n\n  // Green LED blink\n  digitalWrite(ledPin, HIGH);\n  delay(500);\n  digitalWrite(ledPin, LOW);\n  delay(500);\n}\n"
   },
+  "graph": null,
   "score": {
     "total": 81,
     "breakdown": {

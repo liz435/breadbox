@@ -8,6 +8,8 @@ import {
   Warn,
   CodeBlock,
   Table,
+  Schematic,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -47,6 +49,19 @@ export function AnalogIoPage() {
 
         <CodeBlock code={`int raw = analogRead(A0);                  // 0..1023
 float volts = raw * (5.0 / 1023.0);        // convert to volts`} />
+
+        <Figure caption="The canonical analog input: a 10k potentiometer between 5V and GND, with its wiper on A0.">
+          <Schematic cols={10} rows={6}>
+            <Schematic.Vcc at={[3, 1]} label="+5V" />
+            <Schematic.Wire points={[[3, 1], [3, 2]]} />
+            <Schematic.Potentiometer from={[3, 2]} to={[7, 2]} label="10k" />
+            <Schematic.Wire points={[[7, 2], [7, 5]]} />
+            <Schematic.Ground at={[7, 5]} />
+            <Schematic.Wire points={[[5, 3], [5, 4]]} />
+            <Schematic.Wire points={[[5, 4], [9, 4]]} />
+            <Schematic.ArduinoPin at={[9, 4]} pin="A0" />
+          </Schematic>
+        </Figure>
 
         <Note>
           You don't need to call <code>pinMode()</code> for analog reads.

@@ -10,6 +10,7 @@ import {
   SeeAlso,
 } from "../../encyclopedia-layout"
 import { ENTRIES } from "../../encyclopedia-catalog"
+import { BreadboardEmbed } from "@/learn/breadboard-embed"
 import { Term } from "../../term"
 
 export function NonBlockingTimingPage() {
@@ -67,6 +68,8 @@ void loop() {
 
   // Anything else can run here — buttons, sensors, Serial.
 }`} />
+
+        <BreadboardEmbed board="01-blink-led" panels={["code"]} height={420} />
       </Section>
 
       <Section title="Why unsigned long, and why subtract?">

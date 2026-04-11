@@ -3,8 +3,19 @@ import { anthropic } from "@ai-sdk/anthropic";
 import type { ModelMessage } from "ai";
 import { createGraphTools } from "./tools";
 import type { AgentContext, AgentResult } from "../types";
-import { summarizeBoardState } from "../core/tools";
 import type { GraphOp } from "@dreamer/schemas";
+
+function summarizeGraphState(graph: NonNullable<AgentContext["project"]["graph"]> | null | undefined): string {
+  if (!graph) return "Graph is empty.";
+  const nodes = Object.values(graph.nodes);
+  const edges = Object.values(graph.edges);
+  const lines = [`Nodes: ${nodes.length}. Edges: ${edges.length}.`];
+  for (const node of nodes.slice(0, 8)) {
+    lines.push(`  - ${node.name} (${node.type}, id=${node.id}) at x=${node.x} y=${node.y}`);
+  }
+  if (nodes.length > 8) lines.push(`  - ... ${nodes.length - 8} more node(s)`);
+  return lines.join("\n");
+}
 
 const SYSTEM_PROMPT = `You are a graph/node specialist for Dreamer, a visual node-graph Arduino simulator.
 
@@ -125,7 +136,7 @@ export async function runGraphAgent(ctx: AgentContext): Promise<AgentResult> {
         anthropic: { cacheControl: { type: "ephemeral" } },
       },
     },
-    { role: "user", content: `Current board state:\n${summarizeBoardState(ctx.project)}\n\nTask: ${ctx.prompt}` },
+    { role: "user", content: `Current graph state:\n${summarizeGraphState(ctx.project.graph)}\n\nTask: ${ctx.prompt}` },
   ];
 
   const GRAPH_MODEL = "claude-haiku-4-5-20251001";

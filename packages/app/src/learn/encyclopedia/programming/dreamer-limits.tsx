@@ -8,6 +8,7 @@ import {
   Warn,
   Table,
   CodeBlock,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -24,6 +25,10 @@ export function DreamerLimitsPage() {
         title="What Dreamer can and can't run"
         subtitle="Dreamer runs a carefully chosen subset of Arduino C++. Here's the line."
       />
+
+      <Figure caption="Two columns: what Dreamer runs (left) vs what the transpiler rejects (right).">
+        <SupportedVsNotDiagram />
+      </Figure>
 
       <Section title="How Dreamer runs your sketch">
         <p className="text-sm leading-relaxed">
@@ -109,5 +114,46 @@ for (int i = 0; i < 4; i++) {
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── Supported / not supported diagram ──────────────────────────────────
+
+function SupportedVsNotDiagram() {
+  const w = 560
+  const h = 280
+  const mono = "ui-monospace, SFMono-Regular, Menlo, monospace"
+  const supported = ["ints, floats", "arrays", "structs", "loops", "functions", "Serial / Servo"]
+  const rejected = ["pointers", "malloc / new", "templates", "register access", "inheritance", "inline asm"]
+  return (
+    <div className="flex justify-center">
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        width={w}
+        height={h}
+        xmlns="http://www.w3.org/2000/svg"
+        className="max-w-full"
+      >
+        {/* Supported column */}
+        <rect x={30} y={30} width={230} height={230} rx={6} fill="#0f0f0f" stroke="#10b981" strokeWidth={2} />
+        <text x={145} y={55} textAnchor="middle" fontSize={12} fill="#10b981" fontFamily={mono}>Supported</text>
+        {supported.map((s, i) => (
+          <g key={s}>
+            <text x={55} y={95 + i * 27} fontSize={12} fill="#10b981" fontFamily={mono}>✓</text>
+            <text x={75} y={95 + i * 27} fontSize={11} fill="#d1d5db" fontFamily={mono}>{s}</text>
+          </g>
+        ))}
+
+        {/* Not supported column */}
+        <rect x={300} y={30} width={230} height={230} rx={6} fill="#0f0f0f" stroke="#ef4444" strokeWidth={2} />
+        <text x={415} y={55} textAnchor="middle" fontSize={12} fill="#ef4444" fontFamily={mono}>Not supported</text>
+        {rejected.map((s, i) => (
+          <g key={s}>
+            <text x={325} y={95 + i * 27} fontSize={12} fill="#ef4444" fontFamily={mono}>✗</text>
+            <text x={345} y={95 + i * 27} fontSize={11} fill="#d1d5db" fontFamily={mono}>{s}</text>
+          </g>
+        ))}
+      </svg>
+    </div>
   )
 }

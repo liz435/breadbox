@@ -7,6 +7,7 @@ import {
   Note,
   Warn,
   Table,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -30,6 +31,10 @@ export function PowerPinsPage() {
           The power header strip is on the bottom-left edge of the
           board and contains seven pins, in order:
         </p>
+
+        <Figure caption="The power header strip, pin-for-pin. Reading left to right as they sit on the board.">
+          <PowerHeaderDiagram />
+        </Figure>
 
         <Table
           headers={["Pin", "Direction", "What it does"]}
@@ -158,5 +163,100 @@ export function PowerPinsPage() {
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── Power header layout diagram ────────────────────────────────────────
+
+function PowerHeaderDiagram() {
+  const pins = [
+    { label: "IOREF", color: "#9ca3af", desc: "shield ref" },
+    { label: "RESET", color: "#f59e0b", desc: "reset in" },
+    { label: "3V3", color: "#60a5fa", desc: "3.3V out" },
+    { label: "5V", color: "#ef4444", desc: "5V out" },
+    { label: "GND", color: "#6b7280", desc: "ground" },
+    { label: "GND", color: "#6b7280", desc: "ground" },
+    { label: "VIN", color: "#a78bfa", desc: "raw in" },
+  ]
+  const pinW = 62
+  const pinH = 34
+  const gap = 4
+  const padL = 20
+  const padT = 28
+  const w = padL * 2 + pins.length * (pinW + gap) - gap
+  const h = padT + pinH + 44
+
+  return (
+    <div className="my-4 flex justify-center rounded border border-neutral-800 bg-[#0f0f0f] px-6 py-4">
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        width={w}
+        height={h}
+        xmlns="http://www.w3.org/2000/svg"
+        className="max-w-full"
+      >
+        {/* Header strip backing */}
+        <rect
+          x={padL - 6}
+          y={padT - 6}
+          width={pins.length * (pinW + gap) - gap + 12}
+          height={pinH + 12}
+          rx={3}
+          fill="#18181b"
+          stroke="#27272a"
+          strokeWidth={1}
+        />
+        <text
+          x={padL - 6}
+          y={padT - 10}
+          fontSize={10}
+          fill="#6b7280"
+          fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+        >
+          POWER
+        </text>
+
+        {pins.map((pin, i) => {
+          const x = padL + i * (pinW + gap)
+          return (
+            <g key={`${pin.label}-${i}`}>
+              <rect
+                x={x}
+                y={padT}
+                width={pinW}
+                height={pinH}
+                rx={3}
+                fill="#0f0f0f"
+                stroke={pin.color}
+                strokeWidth={1.4}
+              />
+              <text
+                x={x + pinW / 2}
+                y={padT + pinH / 2 + 4}
+                textAnchor="middle"
+                fontSize={12}
+                fill={pin.color}
+                fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+                fontWeight={600}
+              >
+                {pin.label}
+              </text>
+              <text
+                x={x + pinW / 2}
+                y={padT + pinH + 16}
+                textAnchor="middle"
+                fontSize={9}
+                fill="#9ca3af"
+                fontFamily="ui-sans-serif, system-ui, sans-serif"
+              >
+                {pin.desc}
+              </text>
+              {/* Pin holes */}
+              <circle cx={x + pinW / 2} cy={padT + pinH + 30} r={2} fill="#fbbf24" />
+            </g>
+          )
+        })}
+      </svg>
+    </div>
   )
 }

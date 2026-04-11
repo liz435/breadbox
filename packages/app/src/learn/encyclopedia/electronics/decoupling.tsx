@@ -5,6 +5,8 @@ import {
   PageTitle,
   Section,
   Note,
+  Schematic,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -52,6 +54,25 @@ export function DecouplingPage() {
           the cap has already supplied the burst and is being
           topped back up.
         </p>
+
+        <Figure caption="0.1 µF ceramic tied directly between the chip's Vcc and GND pins, as short as physically possible.">
+          <Schematic cols={12} rows={6}>
+            <Schematic.Vcc at={[3, 1]} label="+5V" />
+            <Schematic.Wire points={[[3, 1], [3, 2]]} />
+            <Schematic.Junction at={[3, 2]} />
+            {/* Wire to chip */}
+            <Schematic.Wire points={[[3, 2], [7, 2]]} />
+            <Schematic.Label at={[8, 2]} text="Vcc pin" anchor="start" />
+            {/* Decoupling cap across rails */}
+            <Schematic.Capacitor from={[3, 2]} to={[3, 4]} label="0.1µF" />
+            <Schematic.Junction at={[3, 4]} />
+            {/* Wire to chip GND */}
+            <Schematic.Wire points={[[3, 4], [7, 4]]} />
+            <Schematic.Label at={[8, 4]} text="GND pin" anchor="start" />
+            <Schematic.Wire points={[[3, 4], [3, 5]]} />
+            <Schematic.Ground at={[3, 5]} />
+          </Schematic>
+        </Figure>
 
         <p className="text-sm leading-relaxed">
           Bigger reservoirs go elsewhere. A 10 µF or 47 µF

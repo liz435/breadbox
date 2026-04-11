@@ -215,7 +215,7 @@ export function generateSchematicLayout(
     // Check component nodes: a component is in a net if any of its footprint
     // grid points falls within the net's points
     for (const comp of circuitComponents) {
-      const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation)
+      const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties)
       const compNodeId = `comp-${comp.id}`
       if (!nodes.find((n) => n.id === compNodeId)) continue
 

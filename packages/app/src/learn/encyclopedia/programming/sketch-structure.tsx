@@ -10,6 +10,7 @@ import {
   SeeAlso,
 } from "../../encyclopedia-layout"
 import { ENTRIES } from "../../encyclopedia-catalog"
+import { BreadboardEmbed } from "@/learn/breadboard-embed"
 
 export function SketchStructurePage() {
   const entry = ENTRIES.find(
@@ -45,6 +46,15 @@ void loop() {
   digitalWrite(13, LOW);
   delay(500);
 }`} />
+
+        <p className="text-sm leading-relaxed">
+          You can see it running here —{" "}
+          <code className="text-gray-200">setup()</code> configures pin 13,
+          and <code className="text-gray-200">loop()</code> toggles it
+          forever.
+        </p>
+
+        <BreadboardEmbed board="01-blink-led" panels={["code"]} height={420} />
       </Section>
 
       <Section title="setup() runs once">

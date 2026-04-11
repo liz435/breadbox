@@ -8,6 +8,7 @@ import {
   Warn,
   Table,
   CodeBlock,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -81,6 +82,11 @@ export function SerialPage() {
           These are the same pins the USB-to-serial chip on the board is
           wired to. That means:
         </p>
+
+        <Figure caption="One byte (0x48, the letter 'H') on the TX line at 9600 baud. Idle HIGH, pulled LOW for the start bit, then 8 data bits LSB-first, then a stop bit HIGH.">
+          <SerialByteDiagram />
+        </Figure>
+
         <ul className="mt-2 space-y-1 text-sm leading-relaxed list-disc pl-5">
           <li>Don't wire components to D0/D1 if you also want to use Serial.</li>
           <li>The onboard RX/TX LEDs flash whenever data moves across the USB link — useful as a sanity light.</li>
@@ -117,5 +123,181 @@ void loop() {
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── Serial byte timing diagram ─────────────────────────────────────────
+//
+// Shows one UART frame: idle HIGH, start bit LOW, 8 data bits (LSB first),
+// stop bit HIGH. Value is 0x48 = 'H' = 0100 1000 which LSB-first is
+// 0,0,0,1,0,0,1,0.
+
+function SerialByteDiagram() {
+  const w = 560
+  const h = 180
+  const padL = 60
+  const padR = 20
+  const padT = 30
+  // Bits: idle, start, d0..d7, stop, idle
+  // Value bits for 'H' = 0x48 LSB-first: 0 0 0 1 0 0 1 0
+  const bits: { v: 0 | 1; label: string }[] = [
+    { v: 1, label: "idle" },
+    { v: 0, label: "start" },
+    { v: 0, label: "d0" },
+    { v: 0, label: "d1" },
+    { v: 0, label: "d2" },
+    { v: 1, label: "d3" },
+    { v: 0, label: "d4" },
+    { v: 0, label: "d5" },
+    { v: 1, label: "d6" },
+    { v: 0, label: "d7" },
+    { v: 1, label: "stop" },
+    { v: 1, label: "idle" },
+  ]
+  const usable = w - padL - padR
+  const bitW = usable / bits.length
+  const high = padT + 10
+  const low = padT + 70
+
+  // Build waveform path
+  const path: string[] = []
+  bits.forEach((b, i) => {
+    const x0 = padL + i * bitW
+    const x1 = x0 + bitW
+    const y = b.v === 1 ? high : low
+    if (i === 0) path.push(`M ${x0} ${y}`)
+    else {
+      // vertical transition if prior bit differs
+      const prev = bits[i - 1]!
+      if (prev.v !== b.v) {
+        path.push(`L ${x0} ${prev.v === 1 ? high : low}`)
+        path.push(`L ${x0} ${y}`)
+      }
+    }
+    path.push(`L ${x1} ${y}`)
+  })
+
+  return (
+    <div className="flex justify-center">
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        width={w}
+        height={h}
+        xmlns="http://www.w3.org/2000/svg"
+        className="max-w-full"
+      >
+        {/* Rail labels */}
+        <text
+          x={padL - 8}
+          y={high + 4}
+          textAnchor="end"
+          fontSize={10}
+          fill="#9ca3af"
+          fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+        >
+          5 V
+        </text>
+        <text
+          x={padL - 8}
+          y={low + 4}
+          textAnchor="end"
+          fontSize={10}
+          fill="#9ca3af"
+          fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+        >
+          0 V
+        </text>
+        <text
+          x={padL - 32}
+          y={(high + low) / 2 + 4}
+          textAnchor="end"
+          fontSize={10}
+          fill="#6b7280"
+          fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+        >
+          TX
+        </text>
+
+        {/* Dotted grid for bit boundaries */}
+        {bits.map((_, i) => (
+          <line
+            key={`g-${i}`}
+            x1={padL + i * bitW}
+            y1={high - 6}
+            x2={padL + i * bitW}
+            y2={low + 14}
+            stroke="#27272a"
+            strokeDasharray="2,3"
+            strokeWidth={0.8}
+          />
+        ))}
+        <line
+          x1={padL + bits.length * bitW}
+          y1={high - 6}
+          x2={padL + bits.length * bitW}
+          y2={low + 14}
+          stroke="#27272a"
+          strokeDasharray="2,3"
+          strokeWidth={0.8}
+        />
+
+        {/* Waveform */}
+        <path
+          d={path.join(" ")}
+          fill="none"
+          stroke="#60a5fa"
+          strokeWidth={2}
+          strokeLinejoin="miter"
+        />
+
+        {/* Bit labels */}
+        {bits.map((b, i) => (
+          <g key={`l-${i}`}>
+            <text
+              x={padL + i * bitW + bitW / 2}
+              y={low + 28}
+              textAnchor="middle"
+              fontSize={9}
+              fill={
+                b.label === "start"
+                  ? "#f59e0b"
+                  : b.label === "stop"
+                    ? "#10b981"
+                    : b.label === "idle"
+                      ? "#6b7280"
+                      : "#d1d5db"
+              }
+              fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+            >
+              {b.label}
+            </text>
+            {b.label.startsWith("d") && (
+              <text
+                x={padL + i * bitW + bitW / 2}
+                y={low + 42}
+                textAnchor="middle"
+                fontSize={9}
+                fill="#9ca3af"
+                fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+              >
+                {b.v}
+              </text>
+            )}
+          </g>
+        ))}
+
+        {/* One bit time at 9600 baud ≈ 104 µs annotation */}
+        <text
+          x={padL + bitW / 2 + bitW}
+          y={padT - 8}
+          textAnchor="middle"
+          fontSize={10}
+          fill="#9ca3af"
+          fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+        >
+          1 bit ≈ 104 µs @ 9600 baud
+        </text>
+      </svg>
+    </div>
   )
 }

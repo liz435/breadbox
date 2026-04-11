@@ -6,6 +6,7 @@ import {
   Section,
   Note,
   Table,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -52,6 +53,10 @@ export function VoltageCurrentResistancePage() {
           those three verbs in your head and every circuit diagram gets
           easier to read.
         </Note>
+
+        <Figure caption="Water-flow analogy — pressure pushes, flow rate measures, and a narrowing resists.">
+          <WaterAnalogyDiagram />
+        </Figure>
       </Section>
 
       <Section title="Units and symbols">
@@ -91,5 +96,50 @@ export function VoltageCurrentResistancePage() {
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── Water-flow analogy diagram ─────────────────────────────────────────
+
+function WaterAnalogyDiagram() {
+  const w = 460
+  const h = 180
+  return (
+    <div className="flex justify-center">
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        width={w}
+        height={h}
+        xmlns="http://www.w3.org/2000/svg"
+        className="max-w-full"
+      >
+        <rect x={0} y={0} width={w} height={h} fill="#0f0f0f" />
+        {/* Pressure gauge (voltage) */}
+        <circle cx={60} cy={90} r={26} fill="#0f0f0f" stroke="#9ca3af" strokeWidth={1.6} />
+        <line x1={60} y1={90} x2={76} y2={74} stroke="#f59e0b" strokeWidth={2} strokeLinecap="round" />
+        <circle cx={60} cy={90} r={2} fill="#f59e0b" />
+        <text x={60} y={132} textAnchor="middle" fontSize={11} fill="#f59e0b" fontFamily="ui-monospace, Menlo, monospace">Voltage</text>
+        <text x={60} y={146} textAnchor="middle" fontSize={9} fill="#9ca3af" fontFamily="ui-monospace, Menlo, monospace">(pressure)</text>
+        {/* Pipe body */}
+        <path
+          d="M 90 70 L 200 70 L 220 82 L 300 82 L 320 70 L 430 70 L 430 110 L 320 110 L 300 98 L 220 98 L 200 110 L 90 110 Z"
+          fill="#1f2937"
+          stroke="#9ca3af"
+          strokeWidth={1.6}
+        />
+        {/* Narrowing highlight (resistance) */}
+        <rect x={220} y={82} width={80} height={16} fill="#a78bfa" fillOpacity={0.18} />
+        <text x={260} y={60} textAnchor="middle" fontSize={11} fill="#a78bfa" fontFamily="ui-monospace, Menlo, monospace">Resistance</text>
+        <text x={260} y={140} textAnchor="middle" fontSize={9} fill="#9ca3af" fontFamily="ui-monospace, Menlo, monospace">(narrow pipe)</text>
+        {/* Flow arrows (current) */}
+        {[110, 160, 355, 405].map((x, i) => (
+          <g key={i}>
+            <line x1={x} y1={90} x2={x + 22} y2={90} stroke="#60a5fa" strokeWidth={2} strokeLinecap="round" />
+            <polyline points={`${x + 18},${86} ${x + 22},${90} ${x + 18},${94}`} fill="none" stroke="#60a5fa" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+          </g>
+        ))}
+        <text x={140} y={40} textAnchor="middle" fontSize={11} fill="#60a5fa" fontFamily="ui-monospace, Menlo, monospace">Current (flow)</text>
+      </svg>
+    </div>
   )
 }

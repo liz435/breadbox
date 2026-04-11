@@ -1,9 +1,12 @@
 {
   "runId": "00fc435b-79ab-488e-8510-5fbcb0ecf072",
-  "evaluatedAt": "2026-04-09T16:43:43.204Z",
+  "evaluatedAt": "2026-04-10T23:57:34.980Z",
   "agent": "core",
   "prompt": "can you add a button that controls the LED, when holding the button, LED is on",
   "status": "completed",
+  "evaluable": true,
+  "domain": "template",
+  "category": "template",
   "path": {
     "stepCount": 0,
     "stepLimit": 10,
@@ -18,6 +21,8 @@
     "inputTokens": 0,
     "outputTokens": 0,
     "totalTokens": 0,
+    "childTokens": 0,
+    "overheadTokens": 0,
     "estimatedCost": 0,
     "wastedTokens": 0,
     "wasteDetails": []
@@ -26,106 +31,14 @@
     "totalCalls": 0,
     "errors": 0,
     "errorRate": 0,
-    "hallucatedIds": 0,
+    "hallucinatedIds": 0,
     "wrongPinNames": 0,
     "invalidPositions": 0,
+    "invalidGraphConnections": 0,
     "details": []
   },
-  "circuit": {
-    "componentsPlaced": 3,
-    "wiresCreated": 4,
-    "floatingComponents": 0,
-    "busShorts": 0,
-    "missingResistors": 0,
-    "sketchPinMatch": true,
-    "sketchCompiles": true,
-    "issues": [],
-    "components": [
-      {
-        "id": "dbad57e7-b3b2-4948-a192-4e926b6700ab",
-        "type": "button",
-        "name": "Button",
-        "x": 3,
-        "y": 5,
-        "pins": {
-          "a": null,
-          "b": null
-        },
-        "properties": {}
-      },
-      {
-        "id": "28379d03-d889-44b0-a441-8621b68baaf5",
-        "type": "led",
-        "name": "LED",
-        "x": 2,
-        "y": 8,
-        "pins": {
-          "anode": null,
-          "cathode": null
-        },
-        "properties": {
-          "color": "#ef4444"
-        }
-      },
-      {
-        "id": "f16e26b1-dded-4619-bd87-e29c0bc89ee3",
-        "type": "resistor",
-        "name": "R1 (220Ω)",
-        "x": 3,
-        "y": 9,
-        "pins": {
-          "a": null,
-          "b": null
-        },
-        "properties": {
-          "resistance": 220
-        }
-      }
-    ],
-    "wires": [
-      {
-        "id": "cef06460-73f9-4996-b686-ab5f09f44033",
-        "fromRow": -999,
-        "fromCol": 2,
-        "toRow": 5,
-        "toCol": 3,
-        "color": "#ffd54f",
-        "fromLabel": "D2",
-        "toLabel": "(5,3)"
-      },
-      {
-        "id": "bc41a335-b707-40d8-ab63-051616e6e3f7",
-        "fromRow": -999,
-        "fromCol": -3,
-        "toRow": 6,
-        "toCol": 6,
-        "color": "#42a5f5",
-        "fromLabel": "GND",
-        "toLabel": "(6,6)"
-      },
-      {
-        "id": "cef9ffc4-254a-4d4a-ab8e-18db19c27d7c",
-        "fromRow": -999,
-        "fromCol": 13,
-        "toRow": 8,
-        "toCol": 2,
-        "color": "#ef4444",
-        "fromLabel": "D13",
-        "toLabel": "(8,2)"
-      },
-      {
-        "id": "94378284-edd9-447e-8a44-edae1961f140",
-        "fromRow": -999,
-        "fromCol": -3,
-        "toRow": 9,
-        "toCol": 7,
-        "color": "#42a5f5",
-        "fromLabel": "GND",
-        "toLabel": "(9,7)"
-      }
-    ],
-    "sketch": "void setup() {\n  pinMode(2, INPUT_PULLUP);\n  pinMode(13, OUTPUT);\n}\n\nvoid loop() {\n  if (digitalRead(2) == LOW) {\n    digitalWrite(13, HIGH);\n  } else {\n    digitalWrite(13, LOW);\n  }\n}\n"
-  },
+  "circuit": null,
+  "graph": null,
   "score": {
     "total": 100,
     "breakdown": {

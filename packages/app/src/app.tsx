@@ -21,6 +21,7 @@ import { ViewportPanel } from "./viewport/viewport-panel";
 import { BreadboardPanel } from "./breadboard/breadboard-panel";
 import { SerialMonitor } from "./panels/serial-monitor";
 import { PinInspector } from "./panels/pin-inspector";
+import { ElectricalReportPanel } from "./panels/electrical-report";
 import { BottomToolbar } from "./toolbar/bottom-toolbar";
 import { useScene } from "./store/scene-context";
 import { useGraph } from "./store/graph-context";
@@ -70,6 +71,10 @@ function PinInspectorPanel(_props: IDockviewPanelProps) {
   return <ErrorBoundary name="Pin Inspector"><PinInspector /></ErrorBoundary>;
 }
 
+function ElectricalReportDockPanel(_props: IDockviewPanelProps) {
+  return <ErrorBoundary name="Electrical"><ElectricalReportPanel /></ErrorBoundary>;
+}
+
 function SketchEditorPanel(_props: IDockviewPanelProps) {
   return <ErrorBoundary name="Sketch Editor"><SketchEditor /></ErrorBoundary>;
 }
@@ -90,6 +95,7 @@ const components = {
   viewport: ViewportPanelWrapper,
   serialMonitor: SerialMonitorPanel,
   pinInspector: PinInspectorPanel,
+  electricalReport: ElectricalReportDockPanel,
   sketchEditor: SketchEditorPanel,
   schematic: SchematicPanelWrapper,
   libraryManager: LibraryManagerPanel,
@@ -350,6 +356,12 @@ function AppInner() {
       id: "pinInspector",
       component: "pinInspector",
       title: "Pin Inspector",
+      position: { referencePanel: inspectorPanel, direction: "within" },
+    });
+    api.addPanel({
+      id: "electricalReport",
+      component: "electricalReport",
+      title: "Electrical",
       position: { referencePanel: inspectorPanel, direction: "within" },
     });
 

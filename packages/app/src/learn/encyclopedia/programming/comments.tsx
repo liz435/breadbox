@@ -6,6 +6,7 @@ import {
   Section,
   Note,
   CodeBlock,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -76,6 +77,10 @@ i++;  // advance to the next LED in the chain`} />
 }`} />
       </Section>
 
+      <Figure caption="The transpiler strips comments before the code runs — they never reach the chip.">
+        <CommentStripDiagram />
+      </Figure>
+
       <Section title="How Dreamer handles them">
         <p className="text-sm leading-relaxed">
           Dreamer's transpiler strips every comment before running your
@@ -100,5 +105,47 @@ i++;  // advance to the next LED in the chain`} />
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── Comment-strip transpiler diagram ───────────────────────────────────
+
+function CommentStripDiagram() {
+  const w = 560
+  const h = 180
+  const mono = "ui-monospace, SFMono-Regular, Menlo, monospace"
+  return (
+    <div className="flex justify-center">
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        width={w}
+        height={h}
+        xmlns="http://www.w3.org/2000/svg"
+        className="max-w-full"
+      >
+        {/* Source with comments */}
+        <text x={115} y={18} textAnchor="middle" fontSize={10} fill="#9ca3af" fontFamily={mono}>your source</text>
+        <rect x={10} y={25} width={210} height={130} rx={4} fill="#0f0f0f" stroke="#6b7280" strokeWidth={1.5} />
+        <text x={20} y={50} fontSize={11} fill="#6b7280" fontFamily={mono}>// blink the LED</text>
+        <text x={20} y={68} fontSize={11} fill="#d1d5db" fontFamily={mono}>void loop() {`{`}</text>
+        <text x={30} y={86} fontSize={11} fill="#d1d5db" fontFamily={mono}>digitalWrite(13,HIGH);</text>
+        <text x={30} y={104} fontSize={11} fill="#6b7280" fontFamily={mono}>/* on */</text>
+        <text x={30} y={122} fontSize={11} fill="#d1d5db" fontFamily={mono}>delay(500);</text>
+        <text x={20} y={140} fontSize={11} fill="#d1d5db" fontFamily={mono}>{`}`}</text>
+
+        {/* Arrow */}
+        <line x1={230} y1={90} x2={320} y2={90} stroke="#a78bfa" strokeWidth={2} />
+        <polyline points="312,84 320,90 312,96" fill="none" stroke="#a78bfa" strokeWidth={2} />
+        <text x={275} y={80} textAnchor="middle" fontSize={10} fill="#a78bfa" fontFamily={mono}>transpiler</text>
+
+        {/* Output no comments */}
+        <text x={440} y={18} textAnchor="middle" fontSize={10} fill="#9ca3af" fontFamily={mono}>what runs</text>
+        <rect x={335} y={25} width={210} height={130} rx={4} fill="#0f0f0f" stroke="#10b981" strokeWidth={1.5} />
+        <text x={345} y={68} fontSize={11} fill="#d1d5db" fontFamily={mono}>void loop() {`{`}</text>
+        <text x={355} y={86} fontSize={11} fill="#d1d5db" fontFamily={mono}>digitalWrite(13,HIGH);</text>
+        <text x={355} y={104} fontSize={11} fill="#d1d5db" fontFamily={mono}>delay(500);</text>
+        <text x={345} y={122} fontSize={11} fill="#d1d5db" fontFamily={mono}>{`}`}</text>
+      </svg>
+    </div>
   )
 }

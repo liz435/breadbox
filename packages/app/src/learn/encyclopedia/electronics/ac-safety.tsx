@@ -6,6 +6,7 @@ import {
   Section,
   Note,
   Warn,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -54,6 +55,10 @@ export function AcSafetyPage() {
           wires next to low-voltage signal wires. Do not work
           on a mains project alone the first time you try one.
         </Warn>
+
+        <Figure caption="Mains AC — hundreds of volts swinging dozens of times per second. Not something to prototype on a breadboard.">
+          <AcWarningDiagram />
+        </Figure>
       </Section>
 
       <Section title="The safer path">
@@ -90,5 +95,61 @@ export function AcSafetyPage() {
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── AC safety warning diagram ──────────────────────────────────────────
+
+function AcWarningDiagram() {
+  const w = 480
+  const h = 200
+  const cx = 100
+  const cy = 100
+  // Warning triangle
+  const triSize = 70
+  const triPath = `M ${cx} ${cy - triSize} L ${cx + triSize * 0.87} ${cy + triSize * 0.5} L ${cx - triSize * 0.87} ${cy + triSize * 0.5} Z`
+
+  // Sine wave
+  const plotX = 230
+  const plotY = 100
+  const plotW = 220
+  const amp = 50
+  const wavePts: [number, number][] = []
+  const samples = 120
+  for (let i = 0; i <= samples; i++) {
+    const t = i / samples
+    const x = plotX + t * plotW
+    const y = plotY - Math.sin(t * Math.PI * 4) * amp
+    wavePts.push([x, y])
+  }
+  const waveD = wavePts.map((pt, i) => `${i === 0 ? "M" : "L"} ${pt[0]} ${pt[1]}`).join(" ")
+
+  return (
+    <div className="flex justify-center">
+      <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} xmlns="http://www.w3.org/2000/svg" className="max-w-full">
+        <rect x={0} y={0} width={w} height={h} fill="#0f0f0f" />
+
+        {/* Warning triangle */}
+        <path d={triPath} fill="#f59e0b" fillOpacity={0.18} stroke="#f59e0b" strokeWidth={3} strokeLinejoin="round" />
+        {/* Lightning bolt */}
+        <path
+          d={`M ${cx + 4} ${cy - 28} L ${cx - 12} ${cy + 4} L ${cx - 2} ${cy + 4} L ${cx - 10} ${cy + 30} L ${cx + 14} ${cy - 8} L ${cx + 2} ${cy - 8} L ${cx + 10} ${cy - 28} Z`}
+          fill="#f59e0b"
+          stroke="#f59e0b"
+          strokeWidth={1}
+          strokeLinejoin="round"
+        />
+
+        {/* Sine wave */}
+        <line x1={plotX} y1={plotY} x2={plotX + plotW} y2={plotY} stroke="#1f2937" strokeWidth={0.8} strokeDasharray="3 3" />
+        <path d={waveD} fill="none" stroke="#ef4444" strokeWidth={2} />
+        <text x={plotX + plotW / 2} y={plotY - amp - 10} textAnchor="middle" fontSize={12} fill="#ef4444" fontFamily="ui-monospace, Menlo, monospace">
+          120 / 240 V RMS
+        </text>
+        <text x={plotX + plotW / 2} y={plotY + amp + 22} textAnchor="middle" fontSize={10} fill="#9ca3af" fontFamily="ui-monospace, Menlo, monospace">
+          50 / 60 Hz — DO NOT PROTOTYPE
+        </text>
+      </svg>
+    </div>
   )
 }

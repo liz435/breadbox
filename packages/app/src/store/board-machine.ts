@@ -34,6 +34,7 @@ function wiresAttachedToComponent(
     component.y,
     component.x,
     component.rotation,
+    component.properties,
   );
   const attached: string[] = [];
   for (const [id, wire] of Object.entries(wires)) {
@@ -231,10 +232,29 @@ export const boardMachine = setup({
       actions: assign(({ context, event }) => {
         const existing = context.components[event.id];
         if (!existing) return {};
+        // Components that store extra anchor points in `properties` (e.g.
+        // the multimeter's second probe) need those points translated by
+        // the same delta as (x, y) so dragging the body moves both ends
+        // together. Plain components only update x/y.
+        const dx = event.x - existing.x;
+        const dy = event.y - existing.y;
+        const updatedProps = { ...existing.properties };
+        if (
+          typeof updatedProps.probeBRow === "number" &&
+          typeof updatedProps.probeBCol === "number"
+        ) {
+          updatedProps.probeBRow = updatedProps.probeBRow + dy;
+          updatedProps.probeBCol = updatedProps.probeBCol + dx;
+        }
         return {
           components: {
             ...context.components,
-            [event.id]: { ...existing, x: event.x, y: event.y },
+            [event.id]: {
+              ...existing,
+              x: event.x,
+              y: event.y,
+              properties: updatedProps,
+            },
           },
         };
       }),

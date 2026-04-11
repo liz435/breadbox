@@ -6,6 +6,8 @@ import {
   Section,
   Note,
   Warn,
+  Schematic,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -72,6 +74,29 @@ export function RelaysPage() {
           See the diodes page for the full story. Relay modules
           already have this diode on them; bare relays do not.
         </p>
+
+        <Figure caption="Driving a bare relay coil with a MOSFET. The flyback diode catches the kickback when the coil turns off.">
+          <Schematic cols={16} rows={9}>
+            <Schematic.Vcc at={[9, 1]} label="+5V" />
+            <Schematic.Wire points={[[9, 1], [9, 2]]} />
+            <Schematic.Junction at={[9, 2]} />
+            {/* Coil (stand-in resistor labeled COIL) */}
+            <Schematic.Resistor from={[9, 2]} to={[13, 2]} label="COIL" />
+            {/* Flyback diode across the coil */}
+            <Schematic.Wire points={[[9, 2], [9, 4]]} />
+            <Schematic.Wire points={[[13, 2], [13, 4]]} />
+            <Schematic.Diode from={[13, 4]} to={[9, 4]} label="1N4001" />
+            {/* Right side of coil down to MOSFET drain */}
+            <Schematic.Junction at={[13, 2]} />
+            <Schematic.Wire points={[[13, 2], [13, 5]]} />
+            {/* NMOS at [13, 7]: drain at [13,5], source at [13,9], gate at [11,7] */}
+            <Schematic.Nmos at={[13, 7]} />
+            <Schematic.Ground at={[13, 9]} />
+            {/* Arduino pin to gate */}
+            <Schematic.ArduinoPin at={[4, 7]} pin="D8" />
+            <Schematic.Wire points={[[4, 7], [11, 7]]} />
+          </Schematic>
+        </Figure>
 
         <Warn>
           Mains AC is dangerous. If a project must switch AC

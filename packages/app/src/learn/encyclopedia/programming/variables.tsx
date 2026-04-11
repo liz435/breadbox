@@ -7,6 +7,7 @@ import {
   Note,
   Table,
   CodeBlock,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -61,6 +62,10 @@ const int LED_PIN = 13;`} />
           use <code>unsigned long</code> when storing values from{" "}
           <code>millis()</code>, which wraps after about 50 days.
         </Note>
+
+        <Figure caption="Each type takes a different amount of memory — pick the smallest that fits.">
+          <TypeSizeDiagram />
+        </Figure>
       </Section>
 
       <Section title="const and unsigned">
@@ -105,5 +110,91 @@ const int LED_PIN = 13;`} />
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── Type size memory diagram ───────────────────────────────────────────
+
+function TypeSizeDiagram() {
+  const w = 460
+  const h = 180
+  const cell = 22
+  const labelY = 30
+  const boxY = 45
+  const valueY = 135
+  const row = (x: number, name: string, bytes: number, value: string) => {
+    const totalW = bytes * cell
+    return (
+      <g key={name}>
+        <text
+          x={x + totalW / 2}
+          y={labelY}
+          textAnchor="middle"
+          fontSize={12}
+          fill="#d1d5db"
+          fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+        >
+          {name}
+        </text>
+        {Array.from({ length: bytes }, (_, i) => (
+          <rect
+            key={i}
+            x={x + i * cell}
+            y={boxY}
+            width={cell}
+            height={cell}
+            fill="#0f0f0f"
+            stroke="#60a5fa"
+            strokeWidth={1.5}
+          />
+        ))}
+        <text
+          x={x + totalW / 2}
+          y={boxY + cell + 16}
+          textAnchor="middle"
+          fontSize={10}
+          fill="#9ca3af"
+          fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+        >
+          {bytes} byte{bytes > 1 ? "s" : ""}
+        </text>
+        <text
+          x={x + totalW / 2}
+          y={valueY}
+          textAnchor="middle"
+          fontSize={11}
+          fill="#a78bfa"
+          fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+        >
+          {value}
+        </text>
+      </g>
+    )
+  }
+  return (
+    <div className="flex justify-center">
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        width={w}
+        height={h}
+        xmlns="http://www.w3.org/2000/svg"
+        className="max-w-full"
+      >
+        {row(40, "bool", 1, "true")}
+        {row(130, "int", 2, "42")}
+        {row(240, "float", 4, "3.14")}
+        {row(370, "char", 1, "'A'")}
+        <text
+          x={w / 2}
+          y={h - 10}
+          textAnchor="middle"
+          fontSize={10}
+          fill="#6b7280"
+          fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+        >
+          each box = one byte in RAM
+        </text>
+      </svg>
+    </div>
   )
 }

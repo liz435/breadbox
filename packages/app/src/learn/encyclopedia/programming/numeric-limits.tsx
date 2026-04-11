@@ -7,6 +7,7 @@ import {
   Note,
   Table,
   CodeBlock,
+  Figure,
   PrevNextFooter,
   SeeAlso,
 } from "../../encyclopedia-layout"
@@ -61,6 +62,10 @@ i++;
 unsigned int u = 65535;
 u++;
 // u is now 0`} />
+
+        <Figure caption="Adding 1 to the max of an int16 wraps around to the minimum — the number line closes into a loop.">
+          <OverflowDiagram />
+        </Figure>
       </Section>
 
       <Section title="The classic millis() rollover">
@@ -92,5 +97,54 @@ u++;
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── Overflow number-line diagram ───────────────────────────────────────
+
+function OverflowDiagram() {
+  const w = 520
+  const h = 180
+  const mono = "ui-monospace, SFMono-Regular, Menlo, monospace"
+  return (
+    <div className="flex justify-center">
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        width={w}
+        height={h}
+        xmlns="http://www.w3.org/2000/svg"
+        className="max-w-full"
+      >
+        {/* Main line */}
+        <line x1={40} y1={90} x2={480} y2={90} stroke="#60a5fa" strokeWidth={2} />
+        {/* Endpoints */}
+        <line x1={40} y1={80} x2={40} y2={100} stroke="#60a5fa" strokeWidth={2} />
+        <line x1={480} y1={80} x2={480} y2={100} stroke="#60a5fa" strokeWidth={2} />
+        <line x1={260} y1={85} x2={260} y2={95} stroke="#9ca3af" strokeWidth={1.5} />
+
+        {/* Labels */}
+        <text x={40} y={120} textAnchor="middle" fontSize={11} fill="#ef4444" fontFamily={mono}>−32768</text>
+        <text x={40} y={135} textAnchor="middle" fontSize={10} fill="#9ca3af" fontFamily={mono}>INT16_MIN</text>
+        <text x={260} y={120} textAnchor="middle" fontSize={11} fill="#d1d5db" fontFamily={mono}>0</text>
+        <text x={480} y={120} textAnchor="middle" fontSize={11} fill="#10b981" fontFamily={mono}>32767</text>
+        <text x={480} y={135} textAnchor="middle" fontSize={10} fill="#9ca3af" fontFamily={mono}>INT16_MAX</text>
+
+        {/* Overflow arrow wrapping around */}
+        <path
+          d="M 480 80 Q 480 30 260 30 Q 40 30 40 80"
+          fill="none"
+          stroke="#f59e0b"
+          strokeWidth={2}
+          strokeDasharray="5,3"
+        />
+        <polyline points="35,75 40,80 45,75" fill="none" stroke="#f59e0b" strokeWidth={2} />
+        <text x={260} y={20} textAnchor="middle" fontSize={11} fill="#f59e0b" fontFamily={mono}>overflow: i++ wraps</text>
+
+        {/* Bottom caption */}
+        <text x={w / 2} y={165} textAnchor="middle" fontSize={10} fill="#6b7280" fontFamily={mono}>
+          int16 = 2 bytes = 65,536 values on a closed ring
+        </text>
+      </svg>
+    </div>
   )
 }
