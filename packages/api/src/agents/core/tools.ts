@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { ProjectFile } from "../../db/schemas";
 import type { AgentKind } from "../../db/schemas";
 import type { BoardOp, BoardState } from "@dreamer/schemas";
-import { createDefaultBoardState } from "@dreamer/schemas";
+import { createDefaultBoardState, resolveComponentPins, resolveComponentPin, getComponentPinNames as getSharedPinNames } from "@dreamer/schemas";
 import { agentRunRepo } from "../../db/agent-run-repo";
 import { boardTracker } from "../../db/board-state-tracker";
 import { makeBoardOp } from "../make-op";
@@ -40,67 +40,20 @@ const ALL_COMPONENT_TYPES = [
   "ir_receiver", "shift_register", "oled_display",
 ] as const;
 
-const COMPONENT_PIN_NAMES: Record<string, string[]> = {
-  led: ["anode", "cathode"],
-  rgb_led: ["red", "green", "blue", "common"],
-  button: ["a", "b"],
-  resistor: ["a", "b"],
-  capacitor: ["positive", "negative"],
-  potentiometer: ["vcc", "signal", "gnd"],
-  buzzer: ["positive", "negative"],
-  servo: ["signal", "vcc", "gnd"],
-  neopixel: ["din"],
-  pir_sensor: ["signal"],
-  relay: ["signal"],
-  dc_motor: ["signal"],
-  dht_sensor: ["signal"],
-  ir_receiver: ["signal"],
-  shift_register: ["data", "clock", "latch"],
-  oled_display: ["sda", "scl"],
-  lcd_16x2: ["rs", "en", "d4", "d5", "d6", "d7"],
-  // Include "common" as a logical target even if the serialized component
-  // pins omit it, so propose_circuit can place an explicit common wire.
-  seven_segment: ["a", "b", "c", "d", "e", "f", "g", "common"],
-  ic: [],
-  photoresistor: [],
-  temperature_sensor: ["vcc", "signal", "gnd"],
-  ultrasonic_sensor: [],
-};
+// Pin names and pin-to-grid resolution now come from the shared canonical
+// resolver in @dreamer/schemas/component-pins.ts. This ensures agreement
+// between propose_circuit wire generation, power-budget-analyzer validation,
+// and frontend breadboard-grid connectivity.
 
 function getComponentPinNames(type: string): string[] {
-  return COMPONENT_PIN_NAMES[type] ?? [];
+  return getSharedPinNames(type);
 }
 
 function resolveComponentPinTarget(
   component: { type: string; x: number; y: number },
   pinName: string,
 ): { row: number; col: number } | null {
-  const pins = getComponentPinNames(component.type);
-  if (pins.length === 0) return null;
-  const idx = pins.indexOf(pinName);
-  if (idx < 0) return null;
-
-  // Horizontal two-terminal parts.
-  if (component.type === "resistor") {
-    return idx === 0
-      ? { row: component.y, col: component.x }
-      : { row: component.y, col: component.x + 4 };
-  }
-
-  // Tactile button sides are opposite electrical nodes.
-  if (component.type === "button") {
-    return idx === 0
-      ? { row: component.y, col: component.x }
-      : { row: component.y, col: component.x + 3 };
-  }
-
-  // Vertical two-terminal parts.
-  if (component.type === "led" || component.type === "capacitor" || component.type === "buzzer") {
-    return { row: component.y + idx, col: component.x };
-  }
-
-  // Generic vertical pin layout for multi-pin parts.
-  return { row: component.y + idx, col: component.x };
+  return resolveComponentPin(component.type, component.y, component.x, pinName);
 }
 
 // ── Board state summary for system prompt injection ─────────────────────
@@ -618,23 +571,26 @@ export function createCoreTools(params: {
 - ALL connections come from WIRES, not pin assignments. Set all component pins to null.
 - Same-row cols 0-4 are connected (left bus). Same-row cols 5-9 are connected (right bus). No wire needed within a bus.
 - Use ONE direct wire per Arduino pin. If a net fans out (multiple loads), land one wire on a breadboard row/rail and branch from there.
-- LED: always add 220Ω resistor. Place LED at col 2 row N, resistor at col 3 row N+1 (cathode row). Wire pin→(N,2), GND→(N+1,7). Cathode and resistor share left bus.
+- LED: always add 220Ω resistor. Use ledResistorPairs in propose_circuit — auto-wires cathode→resistor→GND.
+- **Series resistors** (7-segment, etc.): Use throughComponent in propose_circuit wires. Example: {arduinoPin:2, toComponent:0, toPin:"a", throughComponent:1, throughEntryPin:"b", throughExitPin:"a"}. The tool auto-places the resistor on the same row as the target pin.
 - 3-pin components (servo/pot/sensor): each pin on a SEPARATE ROW or they short via bus. Wire signal→(row,x), 5V→(row+1,x), GND→(row+2,x).
-- High-current loads (servo, motor, relay, large LED arrays) should use external power_supply with common ground to Arduino GND.
+- Button: straddles center gap. Pin "a" at col 3, pin "b" at col 6. Wire signal to one side, GND/5V to the other.
+- High-current loads (servo, motor, relay) should use external power_supply with common ground.
 - For shared GND or shared power, prefer rail distribution: Arduino GND/5V → rail once, then rail → each component.
-- power_supply (MB102) anchors on fixed rail columns, not component.x:
-  top row y: left+=(-2), left-=(-1), right-=(10), right+=(11)
-  bottom row y+1: left+=(-2), left-=(-1), right-=(10), right+=(11)
-- Resistor spans 5 cols: place at col 3 to bridge gap (pinA at col 3, pinB at col 7).
+- Resistor: always at cols 3 (pin a) and 6 (pin b), bridging the center gap. Placement col is ignored.
 
 ## Footprints
-LED: 2 rows vertical (anode y, cathode y+1) | Resistor: 5 cols horizontal (a at x, b at x+4) | Button: cols 3,6 rows y,y+1 | Servo/Pot: 3 rows (signal, vcc, gnd) | Capacitor: 3 rows (pos, neg)
+LED: 2 rows vertical (anode y, cathode y+1) | Resistor: horizontal at cols 3,6 (a=col3, b=col6) | Button: cols 3,6 rows y,y+1 (a=col3, b=col6) | Servo/Pot: 3 rows | 7-seg: 7 rows (a-g) | Capacitor: 2 rows
 
 ## Pin Names
-LED: anode,cathode | RGB: red,green,blue,common | Button: a,b | Resistor: a,b | Capacitor: positive,negative | Pot: vcc,signal,gnd | Buzzer: positive,negative | Servo: signal,vcc,gnd | NeoPixel: din | PIR/DHT/IR: signal | Relay/Motor: signal | ShiftReg: data,clock,latch | OLED: sda,scl | LCD: rs,en,d4,d5,d6,d7 | 7seg: a,b,c,d,e,f,g
+LED: anode,cathode | RGB: red,green,blue,common | Button: a,b | Resistor: a,b | Capacitor: positive,negative | Pot: vcc,signal,gnd | Buzzer: positive,negative | Servo: signal,vcc,gnd | NeoPixel: din,vcc,gnd | PIR/DHT/IR: signal | Relay/Motor: signal | ShiftReg: data,clock,latch | OLED: gnd,vcc,scl,sda | LCD: vss,vdd,vo,rs,rw,en,d4,d5,d6,d7,a,k | 7seg: a,b,c,d,e,f,g,common
 
 ## Arduino Pins
-Digital: D0-D13 | Analog: A0-A5 (=D14-19) | PWM: D3,5,6,9,10,11 | I2C: A4(SDA), A5(SCL)`,
+Board target: arduino_uno
+Signal pin IDs: 0-69 (board-dependent)
+Analog pins: A0=14, A1=15, A2=16, A3=17, A4=18, A5=19
+PWM pins: D3,D5,D6,D9,D10,D11
+Special wire pin IDs: 5V=-1, 3V3=-2, GND=-3/-4/-6, VIN=-5, AREF=-7`,
       }),
     }),
 
@@ -1096,7 +1052,14 @@ Example — LED blink:
           toPin: z.string().describe("Logical target pin on that component (required)."),
           color: z.string().optional(),
           pinOffset: z.number().int().optional().describe("Deprecated fallback offset. Prefer toPin."),
-        })).describe("Wires from Arduino pins to components"),
+          // Series routing: route signal through an intermediate component (e.g., resistor)
+          throughComponent: z.number().int().min(0).optional()
+            .describe("Index of intermediate component to route through (e.g., a series resistor between Arduino pin and target)"),
+          throughEntryPin: z.string().optional()
+            .describe("Pin on the intermediate component where signal enters (e.g., 'b' for resistor right side)"),
+          throughExitPin: z.string().optional()
+            .describe("Pin on the intermediate component where signal exits toward the target (e.g., 'a' for resistor left side)"),
+        })).describe("Wires from Arduino pins to components. Use throughComponent for series routing (e.g., resistor in series with a display segment)."),
 
         ledResistorPairs: z.array(z.object({
           ledIndex: z.number().int().min(0).describe("Index of LED in components array"),
@@ -1158,6 +1121,26 @@ Example — LED blink:
             errors.push(`Duplicate pin target ${pinKey}. Each logical component pin can only be connected once in propose_circuit.`);
           } else {
             usedTargetPins.add(pinKey);
+          }
+
+          // Validate throughComponent (series routing)
+          if (wire.throughComponent !== undefined) {
+            if (wire.throughComponent >= input.components.length) {
+              errors.push(`Wire throughComponent index ${wire.throughComponent} out of range.`);
+            } else {
+              const throughType = input.components[wire.throughComponent]?.type;
+              const throughPins = getComponentPinNames(throughType);
+              if (!wire.throughEntryPin || !wire.throughExitPin) {
+                errors.push(`Wire with throughComponent ${wire.throughComponent} must specify both throughEntryPin and throughExitPin.`);
+              } else {
+                if (!throughPins.includes(wire.throughEntryPin)) {
+                  errors.push(`Invalid throughEntryPin "${wire.throughEntryPin}" for component ${wire.throughComponent} (${throughType}). Allowed: ${throughPins.join(", ")}`);
+                }
+                if (!throughPins.includes(wire.throughExitPin)) {
+                  errors.push(`Invalid throughExitPin "${wire.throughExitPin}" for component ${wire.throughComponent} (${throughType}). Allowed: ${throughPins.join(", ")}`);
+                }
+              }
+            }
           }
         }
         for (const pair of input.ledResistorPairs ?? []) {
@@ -1223,6 +1206,23 @@ Example — LED blink:
         const pairedResistors = new Set((input.ledResistorPairs ?? []).map(p => p.resistorIndex));
         const pairedLeds = new Set((input.ledResistorPairs ?? []).map(p => p.ledIndex));
 
+        // Build throughComponent mapping: which components are series intermediates,
+        // and which target component + pin they connect to.
+        // seriesMap: intermediateIndex → { targetIndex, targetPin, entryPin, exitPin }
+        const seriesMap = new Map<number, { targetIndex: number; targetPin: string; entryPin: string; exitPin: string }>();
+        for (const wire of input.wires) {
+          if (wire.throughComponent !== undefined && wire.throughEntryPin && wire.throughExitPin) {
+            seriesMap.set(wire.throughComponent, {
+              targetIndex: wire.toComponent,
+              targetPin: wire.toPin,
+              entryPin: wire.throughEntryPin,
+              exitPin: wire.throughExitPin,
+            });
+          }
+        }
+        // Components that are series intermediates get placed alongside their target, not sequentially
+        const seriesIntermediates = new Set(seriesMap.keys());
+
         let nextRow = 0;
         // Find first open row
         for (const c of Object.values(tempBoard.components)) {
@@ -1238,9 +1238,11 @@ Example — LED blink:
           return 1;
         }
 
-        // Default column for component types
+        // Default column for component types.
+        // Resistors and buttons use fixed columns matching the registry footprint.
         function componentCol(type: string): number {
-          if (type === "button") return 3; // straddles gap
+          if (type === "button") return 3; // straddles gap at cols 3/6
+          if (type === "resistor") return 3; // straddles gap at cols 3/6
           return 2; // left strip
         }
 
@@ -1255,8 +1257,8 @@ Example — LED blink:
         for (let i = 0; i < input.components.length; i++) {
           const comp = input.components[i];
 
-          // Skip resistors that are paired with LEDs — they'll be positioned with the LED
-          if (pairedResistors.has(i)) continue;
+          // Skip components that will be positioned alongside their target
+          if (pairedResistors.has(i) || seriesIntermediates.has(i)) continue;
 
           const col = componentCol(comp.type);
           const row = nextRow;
@@ -1271,14 +1273,53 @@ Example — LED blink:
               const resComp = input.components[pair.resistorIndex];
               const cathodeRow = row + 1;
               const resId = crypto.randomUUID();
-              // Resistor at col 3, same row as cathode — spans gap to col 7
               placedComponents[pair.resistorIndex] = {
                 id: resId, type: "resistor", name: resComp.name, row: cathodeRow, col: 3,
               };
-              nextRow = cathodeRow + 2; // leave gap after LED+resistor pair
+              nextRow = cathodeRow + 2;
             }
           } else {
             nextRow = row + componentHeight(comp.type) + 1;
+          }
+        }
+
+        // Place series intermediates alongside their target components.
+        // For each intermediate (e.g., resistor), place it on the same row as the
+        // target pin it connects to, so the exit pin shares a breadboard bus with
+        // the target and no extra jumper wire is needed.
+        for (const [intermediateIdx, seriesInfo] of seriesMap.entries()) {
+          if (placedComponents[intermediateIdx]) continue; // already placed
+          const target = placedComponents[seriesInfo.targetIndex];
+          if (!target) continue;
+
+          const comp = input.components[intermediateIdx];
+          const targetPinPos = resolveComponentPinTarget(
+            { type: target.type, x: target.col, y: target.row },
+            seriesInfo.targetPin,
+          );
+
+          if (targetPinPos) {
+            // Place the intermediate (resistor) on the target pin's row.
+            // Resistors always use cols 3/6 regardless of placement col.
+            const col = componentCol(comp.type);
+            placedComponents[intermediateIdx] = {
+              id: crypto.randomUUID(),
+              type: comp.type,
+              name: comp.name,
+              row: targetPinPos.row,
+              col,
+            };
+          } else {
+            // Fallback: place sequentially
+            const col = componentCol(comp.type);
+            placedComponents[intermediateIdx] = {
+              id: crypto.randomUUID(),
+              type: comp.type,
+              name: comp.name,
+              row: nextRow,
+              col,
+            };
+            nextRow += componentHeight(comp.type) + 1;
           }
         }
 
@@ -1330,25 +1371,91 @@ Example — LED blink:
           } as typeof workingBoard.components[string];
         }
 
-        // Wire Arduino pins to components
+        // Wire Arduino pins to components.
+        // For wires with throughComponent (series routing), we generate:
+        //   1. Arduino pin → throughComponent.throughEntryPin
+        //   2. throughComponent.throughExitPin → toComponent.toPin (if not same bus)
+        // For direct wires, we generate: Arduino pin → toComponent.toPin (as before)
         const wiresByPin = new Map<number, Array<{
           target: { row: number; col: number };
           color: string;
         }>>();
+        // Extra wires generated by series routing (component-to-component jumpers)
+        const seriesJumperOps: BoardOp[] = [];
 
         for (const wire of input.wires) {
-          const target = placedComponents[wire.toComponent];
-          const to = resolveComponentPinTarget(
-            { type: target.type, x: target.col, y: target.row },
-            wire.toPin,
-          );
-          if (!to) {
-            errors.push(`Unable to resolve target for component ${wire.toComponent}.${wire.toPin}`);
-            continue;
-          }
           const color = wire.color ?? "#22c55e";
-          if (!wiresByPin.has(wire.arduinoPin)) wiresByPin.set(wire.arduinoPin, []);
-          wiresByPin.get(wire.arduinoPin)!.push({ target: to, color });
+
+          if (wire.throughComponent !== undefined && wire.throughEntryPin && wire.throughExitPin) {
+            // Series routing: Arduino → throughComponent.entryPin
+            const through = placedComponents[wire.throughComponent];
+            const entryPoint = resolveComponentPinTarget(
+              { type: through.type, x: through.col, y: through.row },
+              wire.throughEntryPin,
+            );
+            if (!entryPoint) {
+              errors.push(`Unable to resolve throughComponent ${wire.throughComponent}.${wire.throughEntryPin}`);
+              continue;
+            }
+
+            // Wire Arduino pin to the intermediate's entry pin
+            if (!wiresByPin.has(wire.arduinoPin)) wiresByPin.set(wire.arduinoPin, []);
+            wiresByPin.get(wire.arduinoPin)!.push({ target: entryPoint, color });
+
+            // Now check if the exit pin needs a jumper to the final target
+            const exitPoint = resolveComponentPinTarget(
+              { type: through.type, x: through.col, y: through.row },
+              wire.throughExitPin,
+            );
+            const finalTarget = placedComponents[wire.toComponent];
+            const finalPoint = resolveComponentPinTarget(
+              { type: finalTarget.type, x: finalTarget.col, y: finalTarget.row },
+              wire.toPin,
+            );
+            if (!exitPoint || !finalPoint) {
+              errors.push(`Unable to resolve series endpoints for through=${wire.throughComponent}.${wire.throughExitPin} → ${wire.toComponent}.${wire.toPin}`);
+              continue;
+            }
+
+            // If exit and target are on the same breadboard bus, no jumper needed
+            const exitLeft = exitPoint.col >= 0 && exitPoint.col <= 4;
+            const exitRight = exitPoint.col >= 5 && exitPoint.col <= 9;
+            const targetLeft = finalPoint.col >= 0 && finalPoint.col <= 4;
+            const targetRight = finalPoint.col >= 5 && finalPoint.col <= 9;
+            const sameBus =
+              exitPoint.row === finalPoint.row &&
+              ((exitLeft && targetLeft) || (exitRight && targetRight));
+
+            if (!sameBus) {
+              // Generate a jumper wire from exit to target
+              seriesJumperOps.push(makeBoardOp(opCtx, {
+                kind: "connect_wire",
+                payload: {
+                  wire: {
+                    id: crypto.randomUUID(),
+                    fromRow: exitPoint.row,
+                    fromCol: exitPoint.col,
+                    toRow: finalPoint.row,
+                    toCol: finalPoint.col,
+                    color,
+                  },
+                },
+              }));
+            }
+          } else {
+            // Direct wire (no series routing)
+            const target = placedComponents[wire.toComponent];
+            const to = resolveComponentPinTarget(
+              { type: target.type, x: target.col, y: target.row },
+              wire.toPin,
+            );
+            if (!to) {
+              errors.push(`Unable to resolve target for component ${wire.toComponent}.${wire.toPin}`);
+              continue;
+            }
+            if (!wiresByPin.has(wire.arduinoPin)) wiresByPin.set(wire.arduinoPin, []);
+            wiresByPin.get(wire.arduinoPin)!.push({ target: to, color });
+          }
         }
         if (errors.length > 0) return { success: false, failureKind: "validation", errors };
 
@@ -1463,6 +1570,11 @@ Example — LED blink:
               },
             }));
           }
+        }
+
+        // Append series jumper wires (throughComponent exit → target)
+        for (const op of seriesJumperOps) {
+          generatedOps.push(op);
         }
 
         // Auto-wire LED+resistor pairs: GND → resistor pin B (col 7, right strip)

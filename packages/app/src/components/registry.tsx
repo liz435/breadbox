@@ -2,23 +2,61 @@
 //
 // The single source of truth for all component types.
 //
+// IMPORTANT: Pin-to-grid-position mapping lives in @dreamer/schemas/component-pins.ts
+// (resolveComponentPins). The registry footprint functions should use
+// footprintFromPins() where possible so the API (propose_circuit, power-budget-
+// analyzer) and the frontend always agree on pin positions. Components that
+// have physical footprint points beyond their electrical pins (e.g., button
+// spans 4 holes but has 2 electrical nodes) should document the mapping.
+//
 // To add a new component:
 //   1. Add its type to componentTypeSchema in packages/schemas/src/arduino.ts
-//   2. Add a ComponentDefinition entry to COMPONENT_REGISTRY below
-//   3. Optionally create a custom renderer in component-renderers/ and/or
+//   2. Add pin mapping in packages/schemas/src/component-pins.ts
+//   3. Add a ComponentDefinition entry to COMPONENT_REGISTRY below
+//   4. Optionally create a custom renderer in component-renderers/ and/or
 //      a custom inspector in panels/inspector.tsx
 
 import type React from "react"
 import { HOLE_SPACING } from "@/breadboard/breadboard-constants"
 import { buttonPressStore } from "@/simulator/button-press-store"
 import { getCapVoltage } from "@/simulator/capacitor-state"
+import { resolveComponentPins } from "@dreamer/schemas"
 import type { ComponentDefinition } from "./component-definition"
+import type { ComponentFootprint } from "@/breadboard/breadboard-grid"
 
 // ── Icons ─────────────────────────────────────────────────────────────────
 
 // Inline SVG icons so this file has no React component deps
 function icon(content: React.ReactNode): React.ReactNode {
   return content
+}
+
+// ── Footprint helper ─────────────────────────────────────────────────────
+//
+// Derives footprint points from the canonical pin resolver in @dreamer/schemas.
+// This ensures registry footprints and the API's pin-to-grid mapping can never
+// disagree. Width and height are still specified manually since they're pixel
+// dimensions, not grid positions.
+
+function footprintFromPins(
+  type: string,
+  row: number,
+  col: number,
+  width: number,
+  height: number,
+  properties?: Record<string, unknown>,
+): ComponentFootprint {
+  const pins = resolveComponentPins(type, row, col, properties)
+  const points = Object.values(pins)
+  // Deduplicate points that resolve to the same grid position (e.g., seven_segment "common")
+  const seen = new Set<string>()
+  const unique = points.filter((p) => {
+    const key = `${p.row},${p.col}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+  return { points: unique, width, height }
 }
 
 // ── Registry ──────────────────────────────────────────────────────────────
@@ -33,11 +71,7 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     defaultPins: { anode: null, cathode: null },
     defaultProperties: { color: "#ef4444" },
     accentColor: "#ef4444",
-    footprint: (row, col) => ({
-      points: [{ row, col }, { row: row + 1, col }],
-      width: HOLE_SPACING,
-      height: HOLE_SPACING * 2,
-    }),
+    footprint: (row, col) => footprintFromPins("led", row, col, HOLE_SPACING, HOLE_SPACING * 2),
     paletteIcon: (
       <svg viewBox="0 0 24 24" width={20} height={20}>
         <ellipse cx={12} cy={10} rx={6} ry={7} fill="#ef4444" opacity={0.9} />
@@ -164,11 +198,7 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     // resistors are placed on a real breadboard and keeps the two legs in
     // separate nets. The stored `x` (col) is ignored for pin placement — the
     // `row` decides which row of 5 each leg lives in.
-    footprint: (row) => ({
-      points: [{ row, col: 3 }, { row, col: 6 }],
-      width: HOLE_SPACING * 5,
-      height: HOLE_SPACING,
-    }),
+    footprint: (row, col) => footprintFromPins("resistor", row, col, HOLE_SPACING * 5, HOLE_SPACING),
     paletteIcon: (
       <svg viewBox="0 0 24 24" width={20} height={20}>
         <rect x={3} y={9} width={18} height={6} rx={2} fill="#d2b48c" stroke="#a0825a" strokeWidth={1} />
@@ -210,11 +240,7 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     defaultPins: { a: null, b: null },
     defaultProperties: { capacitance: 100 },
     accentColor: "#3b82f6",
-    footprint: (row, col) => ({
-      points: [{ row, col }, { row: row + 2, col }],
-      width: HOLE_SPACING,
-      height: HOLE_SPACING * 3,
-    }),
+    footprint: (row, col) => footprintFromPins("capacitor", row, col, HOLE_SPACING, HOLE_SPACING * 3),
     paletteIcon: (
       <svg viewBox="0 0 24 24" width={20} height={20}>
         <line x1={12} y1={2} x2={12} y2={8} stroke="#ccc" strokeWidth={1.5} />
@@ -261,6 +287,11 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     label: "Push Button",
     defaultPins: { a: null, b: null },
     accentColor: "#f59e0b",
+    // Button has 4 physical footprint points (2 rows x 2 sides) but only 2
+    // electrical nodes. resolveComponentPins returns the wire-targeting points
+    // (row,3) and (row,6); this footprint includes all 4 physical holes for
+    // rendering and bus connectivity. If pin positions change in component-pins.ts,
+    // update the cols here to match.
     footprint: (row) => ({
       points: [
         { row, col: 3 },
@@ -652,20 +683,8 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     label: "7-Segment Display",
     defaultPins: { a: null, b: null, c: null, d: null, e: null, f: null, g: null },
     // Vertical pin column: a..g each in their own row so no two segment pins
-    // share a breadboard net.
-    footprint: (row, col) => ({
-      points: [
-        { row, col },
-        { row: row + 1, col },
-        { row: row + 2, col },
-        { row: row + 3, col },
-        { row: row + 4, col },
-        { row: row + 5, col },
-        { row: row + 6, col },
-      ],
-      width: HOLE_SPACING * 5,
-      height: HOLE_SPACING * 7,
-    }),
+    // share a breadboard net. Derived from shared resolver (excludes virtual "common" pin).
+    footprint: (row, col) => footprintFromPins("seven_segment", row, col, HOLE_SPACING * 5, HOLE_SPACING * 7),
     paletteIcon: (
       <svg viewBox="0 0 24 24" width={20} height={20}>
         <rect x={4} y={3} width={16} height={18} rx={2} fill="#1f2937" stroke="#374151" strokeWidth={1} />

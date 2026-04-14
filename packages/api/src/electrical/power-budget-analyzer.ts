@@ -3,12 +3,14 @@ import {
   formatArduinoPin,
   isArduinoSignalPin,
   isBoardComponentType,
+  resolveComponentPins,
 } from "@dreamer/schemas";
 import type {
   BoardComponent,
   BoardState,
   ComponentType,
   PinLoad,
+  PinPoint,
   PowerBudgetReport,
   PowerIssue,
   RailLoad,
@@ -56,51 +58,25 @@ function keyForArduinoPin(pin: number): string {
   return `a:${pin}`;
 }
 
-function componentPinPoints(component: BoardComponent): Record<string, Point> {
-  const x = component.x;
-  const y = component.y;
-  switch (component.type) {
-    case "led":
-      return { anode: { row: y, col: x }, cathode: { row: y + 1, col: x } };
-    case "rgb_led":
-      return {
-        red: { row: y, col: x },
-        green: { row: y + 1, col: x },
-        blue: { row: y + 2, col: x },
-        common: { row: y + 3, col: x },
-      };
-    case "resistor":
-      return { a: { row: y, col: x }, b: { row: y, col: x + 4 } };
-    case "button":
-      return { a: { row: y, col: x }, b: { row: y + 1, col: x + 3 } };
-    case "servo":
-      return { signal: { row: y, col: x }, vcc: { row: y + 1, col: x }, gnd: { row: y + 2, col: x } };
-    case "potentiometer":
-      return { vcc: { row: y, col: x }, signal: { row: y + 1, col: x }, gnd: { row: y + 2, col: x } };
-    case "temperature_sensor":
-      return { power: { row: y, col: x }, vout: { row: y + 1, col: x }, ground: { row: y + 2, col: x } };
-    case "buzzer":
-      return { positive: { row: y, col: x }, negative: { row: y + 1, col: x } };
-    case "power_supply":
-      return { positive: { row: y, col: x }, negative: { row: y + 1, col: x } };
-    case "lcd_16x2":
-      return {
-        vss: { row: y + 0, col: x },
-        vdd: { row: y + 1, col: x },
-        vo: { row: y + 2, col: x },
-        rs: { row: y + 3, col: x },
-        rw: { row: y + 4, col: x },
-        e: { row: y + 5, col: x },
-        d4: { row: y + 6, col: x },
-        d5: { row: y + 7, col: x },
-        d6: { row: y + 8, col: x },
-        d7: { row: y + 9, col: x },
-        a: { row: y + 10, col: x },
-        k: { row: y + 11, col: x },
-      };
-    default:
-      return { signal: { row: y, col: x } };
+/**
+ * Resolve component pin positions using the shared canonical resolver.
+ * This ensures agreement with propose_circuit's wire generation and the
+ * frontend's breadboard-grid connectivity checks.
+ */
+function componentPinPoints(component: BoardComponent): Record<string, PinPoint> {
+  const pins = resolveComponentPins(component.type, component.y, component.x, component.properties);
+
+  // Power supply has a special layout not covered by the shared resolver
+  if (component.type === "power_supply") {
+    return { positive: { row: component.y, col: component.x }, negative: { row: component.y + 1, col: component.x } };
   }
+
+  // If the shared resolver returned nothing, fall back to a single signal point
+  if (Object.keys(pins).length === 0) {
+    return { signal: { row: component.y, col: component.x } };
+  }
+
+  return pins;
 }
 
 function powerSupplyPositivePoints(component: BoardComponent): Point[] {
@@ -137,13 +113,13 @@ function chooseSignalPins(component: BoardComponent): string[] {
   if (component.type === "dc_motor") return ["signal"];
   if (component.type === "neopixel") return ["signal", "din"];
   if (component.type === "lcd_16x2") return ["rs", "e", "d4", "d5", "d6", "d7"];
-  return ["signal", "vout", "data", "din"];
+  return ["signal", "data", "din"];
 }
 
 function choosePowerPins(component: BoardComponent): string[] {
   if (component.type === "servo") return ["vcc"];
   if (component.type === "potentiometer") return ["vcc"];
-  if (component.type === "temperature_sensor") return ["power"];
+  if (component.type === "temperature_sensor") return ["vcc"];
   if (component.type === "buzzer") return ["positive"];
   if (component.type === "relay") return ["vcc", "signal"];
   if (component.type === "dc_motor") return ["vcc", "signal"];
@@ -152,19 +128,19 @@ function choosePowerPins(component: BoardComponent): string[] {
   if (component.type === "oled_display") return ["vcc"];
   if (component.type === "seven_segment") return ["common"];
   if (component.type === "led" || component.type === "rgb_led") return ["anode", "common"];
-  return ["power", "vcc", "positive"];
+  return ["vcc", "positive"];
 }
 
 function chooseGroundPins(component: BoardComponent): string[] {
   if (component.type === "servo") return ["gnd"];
   if (component.type === "potentiometer") return ["gnd"];
-  if (component.type === "temperature_sensor") return ["ground"];
+  if (component.type === "temperature_sensor") return ["gnd"];
   if (component.type === "buzzer") return ["negative"];
   if (component.type === "lcd_16x2") return ["vss", "k"];
   if (component.type === "seven_segment") return ["common"];
   if (component.type === "led") return ["cathode"];
   if (component.type === "rgb_led") return ["common"];
-  return ["gnd", "ground", "negative"];
+  return ["gnd", "negative"];
 }
 
 function parseConnectedArduinoPins(net: string, arduinoNetMap: Map<string, Set<number>>): Set<number> {

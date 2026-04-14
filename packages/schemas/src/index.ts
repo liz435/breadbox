@@ -151,3 +151,11 @@ export {
   powerBudgetReportSchema,
   type PowerBudgetReport,
 } from "./electrical";
+
+export {
+  type PinPoint,
+  type ComponentPinMap,
+  getComponentPinNames,
+  resolveComponentPins,
+  resolveComponentPin,
+} from "./component-pins";

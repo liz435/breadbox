@@ -4,7 +4,7 @@
     "name": "calm-moth-door",
     "version": 1,
     "createdAt": "2026-04-14T10:57:22.933Z",
-    "updatedAt": "2026-04-14T18:45:24.146Z",
+    "updatedAt": "2026-04-14T23:09:53.512Z",
     "threadId": "b5af91dd-5a5e-4e05-b867-5e2ec49ea65e",
     "activeSceneId": "c2c445a3-85ae-4e6b-b0b7-a32ecb0647c3"
   },
@@ -279,17 +279,6 @@
         "toRow": 16,
         "toCol": 3,
         "color": "#22c55e"
-      },
-      "9725bc61-cd32-4f32-9fa6-34e489cef792": {
-        "id": "9725bc61-cd32-4f32-9fa6-34e489cef792",
-        "fromRow": -999,
-        "fromCol": -4,
-        "fromBoardTarget": "arduino_uno",
-        "fromPinLabel": "GND",
-        "fromPinCategory": "power",
-        "toRow": 17,
-        "toCol": 8,
-        "color": "#42a5f5"
       }
     },
     "libraryState": {

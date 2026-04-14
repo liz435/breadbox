@@ -71,6 +71,7 @@ If propose_circuit returns sketch_validation, switch to sketch-fix path:
 - One direct wire per Arduino pin. If a pin fans out, route one wire to a breadboard row/rail and branch from there.
 - Shared GND/power must be rail-distributed: Arduino GND/5V to rail once, then rail to each load.
 - ledResistorPairs: pair LED index with resistor index — auto-wires cathode→resistor→GND.
+- **throughComponent**: Route a wire through an intermediate component (e.g., resistor in series with a display segment). Specify throughComponent (index), throughEntryPin, throughExitPin. The tool auto-places the intermediate on the same row as the target pin.
 - sketch: full Arduino code.
 
 ## Example: LED blink
@@ -79,6 +80,27 @@ propose_circuit({
   wires: [{arduinoPin:13, toComponent:0, toPin:"anode"}],
   ledResistorPairs: [{ledIndex:0, resistorIndex:1}],
   sketch: "void setup(){pinMode(13,OUTPUT);}\\nvoid loop(){digitalWrite(13,HIGH);delay(1000);digitalWrite(13,LOW);delay(1000);}"
+})
+
+## Example: 7-segment with series resistors (use throughComponent!)
+propose_circuit({
+  components: [
+    {type:"seven_segment",name:"Display"},
+    {type:"resistor",name:"R_A",properties:{resistance:220}},
+    {type:"resistor",name:"R_B",properties:{resistance:220}},
+    // ... one resistor per segment ...
+    {type:"button",name:"BTN"}
+  ],
+  wires: [
+    // Each segment wire goes THROUGH its resistor:
+    {arduinoPin:2, toComponent:0, toPin:"a", throughComponent:1, throughEntryPin:"b", throughExitPin:"a"},
+    {arduinoPin:3, toComponent:0, toPin:"b", throughComponent:2, throughEntryPin:"b", throughExitPin:"a"},
+    // ... one wire per segment, each through its resistor ...
+    {arduinoPin:-3, toComponent:0, toPin:"common"},
+    {arduinoPin:9, toComponent:8, toPin:"a"},
+    {arduinoPin:-3, toComponent:8, toPin:"b"}
+  ],
+  sketch: "// if/else digit lookup, no 2D arrays..."
 })
 
 ## Example: Servo + potentiometer
