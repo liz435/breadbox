@@ -1,4 +1,10 @@
-import type { BoardComponent, Wire } from "@dreamer/schemas";
+import {
+  DEFAULT_BOARD_TARGET,
+  type BoardTarget,
+  isBoardComponentType,
+  type BoardComponent,
+  type Wire,
+} from "@dreamer/schemas";
 import { getComponentDef } from "@/components/registry";
 
 /**
@@ -80,11 +86,12 @@ type PinCategory = "digital" | "analog" | "power";
 
 type ArduinoPinInfo = {
   label: string;
-  pin: number; // Arduino pin number (0-19, where A0=14..A5=19)
+  pin: number; // Arduino pin number (board-dependent; can be up to 69 on Mega)
   x: number;
   y: number;
   isPwm?: boolean;
   category: PinCategory;
+  labelSide?: "top" | "bottom" | "left" | "right";
 };
 
 const ARDUINO_PIN_SPACING = 14;
@@ -181,6 +188,232 @@ export const ARDUINO_PINS: ArduinoPinInfo[] = [
 ];
 
 export type { ArduinoPinInfo, PinCategory };
+
+export type BoardPinLayout = {
+  digitalPins: ArduinoPinInfo[];
+  analogPins: ArduinoPinInfo[];
+  powerPins: ArduinoPinInfo[];
+  allPins: ArduinoPinInfo[];
+};
+
+function makeNanoDigitalPins(): ArduinoPinInfo[] {
+  const pins: ArduinoPinInfo[] = [];
+  const xLeft = ARDUINO_X + 99;
+  const xRight = ARDUINO_X + 241;
+  const startY = ARDUINO_Y + 24;
+  const spacing = 10;
+  const pwmPins = new Set([3, 5, 6, 9, 10, 11]);
+
+  // Official Nano side-header ordering (USB at top):
+  // Left side: D1, D0, RESET, GND, D2, D3, D4, D5, D6, D7, D8, D9, D10, D11, D12
+  // Right side: D13, 3V3, AREF, A0, A1, A2, A3, A4, A5, A6, A7, 5V, RESET, GND, VIN
+  const leftDigital: Array<{ slot: number; pin: number }> = [
+    { slot: 0, pin: 1 },
+    { slot: 1, pin: 0 },
+    { slot: 4, pin: 2 },
+    { slot: 5, pin: 3 },
+    { slot: 6, pin: 4 },
+    { slot: 7, pin: 5 },
+    { slot: 8, pin: 6 },
+    { slot: 9, pin: 7 },
+    { slot: 10, pin: 8 },
+    { slot: 11, pin: 9 },
+    { slot: 12, pin: 10 },
+    { slot: 13, pin: 11 },
+    { slot: 14, pin: 12 },
+  ];
+
+  for (const { slot, pin } of leftDigital) {
+    pins.push({
+      label: `D${pin}${pwmPins.has(pin) ? "~" : ""}`,
+      pin,
+      x: xLeft,
+      y: startY + slot * spacing,
+      isPwm: pwmPins.has(pin),
+      category: "digital",
+      labelSide: "left",
+    });
+  }
+
+  // D13 lives on the opposite side near USB on the official Nano.
+  pins.push({
+    label: "D13",
+    pin: 13,
+    x: xRight,
+    y: startY + 0 * spacing,
+    category: "digital",
+    labelSide: "right",
+  });
+
+  return pins;
+}
+
+function makeNanoAnalogPins(): ArduinoPinInfo[] {
+  const pins: ArduinoPinInfo[] = [];
+  const xRight = ARDUINO_X + 241;
+  const startY = ARDUINO_Y + 24;
+  const spacing = 10;
+
+  // A0..A5 align to slots 3..8 on the right header.
+  for (let i = 0; i <= 5; i++) {
+    pins.push({
+      label: `A${i}`,
+      pin: 14 + i,
+      x: xRight,
+      y: startY + (3 + i) * spacing,
+      category: "analog",
+      labelSide: "right",
+    });
+  }
+
+  // Nano-specific analog-only channels
+  pins.push({
+    label: "A6",
+    pin: 20,
+    x: xRight,
+    y: startY + 9 * spacing,
+    category: "analog",
+    labelSide: "right",
+  });
+  pins.push({
+    label: "A7",
+    pin: 21,
+    x: xRight,
+    y: startY + 10 * spacing,
+    category: "analog",
+    labelSide: "right",
+  });
+  return pins;
+}
+
+function makeNanoPowerPins(): ArduinoPinInfo[] {
+  const xLeft = ARDUINO_X + 99;
+  const xRight = ARDUINO_X + 241;
+  const startY = ARDUINO_Y + 24;
+  const spacing = 10;
+  return [
+    { label: "RESET", pin: -9, x: xLeft, y: startY + 2 * spacing, category: "power", labelSide: "left" },
+    { label: "GND", pin: -3, x: xLeft, y: startY + 3 * spacing, category: "power", labelSide: "left" },
+    { label: "3V3", pin: -2, x: xRight, y: startY + 1 * spacing, category: "power", labelSide: "right" },
+    { label: "AREF", pin: -7, x: xRight, y: startY + 2 * spacing, category: "power", labelSide: "right" },
+    { label: "5V", pin: -1, x: xRight, y: startY + 11 * spacing, category: "power", labelSide: "right" },
+    { label: "GND", pin: -4, x: xRight, y: startY + 13 * spacing, category: "power", labelSide: "right" },
+    { label: "VIN", pin: -5, x: xRight, y: startY + 14 * spacing, category: "power", labelSide: "right" },
+  ];
+}
+
+function makeMegaDigitalPins(): ArduinoPinInfo[] {
+  const pins: ArduinoPinInfo[] = [];
+  const startX = ARDUINO_X + 52;
+  const step = 12;
+  const topY = ARDUINO_Y + 10;
+  const midY = ARDUINO_Y + 184;
+  const lowY = ARDUINO_Y + 198;
+  // Mega PWM pins include 2-13 and 44-46.
+  const pwmPins = new Set([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 44, 45, 46]);
+
+  // Header 1/2 (top): D0..D21
+  for (let pin = 0; pin <= 21; pin++) {
+    pins.push({
+      label: `D${pin}${pwmPins.has(pin) ? "~" : ""}`,
+      pin,
+      x: startX + pin * step,
+      y: topY,
+      isPwm: pwmPins.has(pin),
+      category: "digital",
+      labelSide: "top",
+    });
+  }
+
+  // Header 3 (lower): D22..D37
+  for (let pin = 22; pin <= 37; pin++) {
+    pins.push({
+      label: `D${pin}`,
+      pin,
+      x: startX + (pin - 22) * step,
+      y: midY,
+      category: "digital",
+      labelSide: "top",
+    });
+  }
+
+  // Header 4 (lower): D38..D53 (PWM on 44..46)
+  for (let pin = 38; pin <= 53; pin++) {
+    pins.push({
+      label: `D${pin}${pwmPins.has(pin) ? "~" : ""}`,
+      pin,
+      x: startX + (pin - 38) * step,
+      y: lowY,
+      isPwm: pwmPins.has(pin),
+      category: "digital",
+      labelSide: "top",
+    });
+  }
+  return pins;
+}
+
+function makeMegaAnalogPins(): ArduinoPinInfo[] {
+  const pins: ArduinoPinInfo[] = [];
+  const startX = ARDUINO_X + 160;
+  const step = 11;
+  const bottomY = ARDUINO_Y + ARDUINO_BOARD_HEIGHT - 10;
+  for (let i = 0; i <= 15; i++) {
+    pins.push({
+      label: `A${i}`,
+      pin: 54 + i,
+      x: startX + i * step,
+      y: bottomY,
+      category: "analog",
+      labelSide: "bottom",
+    });
+  }
+  return pins;
+}
+
+function makeMegaPowerPins(): ArduinoPinInfo[] {
+  const startX = ARDUINO_X + 52;
+  const step = 12;
+  const bottomY = ARDUINO_Y + ARDUINO_BOARD_HEIGHT - 10;
+  return [
+    { label: "3V3", pin: -2, x: startX + step * 0, y: bottomY, category: "power", labelSide: "bottom" },
+    { label: "5V", pin: -1, x: startX + step * 1, y: bottomY, category: "power", labelSide: "bottom" },
+    { label: "GND", pin: -3, x: startX + step * 2, y: bottomY, category: "power", labelSide: "bottom" },
+    { label: "GND", pin: -4, x: startX + step * 3, y: bottomY, category: "power", labelSide: "bottom" },
+    { label: "VIN", pin: -5, x: startX + step * 4, y: bottomY, category: "power", labelSide: "bottom" },
+    { label: "RESET", pin: -9, x: startX + step * 5, y: bottomY, category: "power", labelSide: "bottom" },
+    { label: "AREF", pin: -7, x: startX + step * 6, y: bottomY, category: "power", labelSide: "bottom" },
+    { label: "IOREF", pin: -8, x: startX + step * 7, y: bottomY, category: "power", labelSide: "bottom" },
+  ];
+}
+
+const BOARD_PIN_LAYOUTS: Record<BoardTarget, BoardPinLayout> = {
+  arduino_uno: {
+    digitalPins: ARDUINO_DIGITAL_PINS,
+    analogPins: ARDUINO_ANALOG_PINS,
+    powerPins: ARDUINO_POWER_PINS,
+    allPins: ARDUINO_PINS,
+  },
+  arduino_nano: (() => {
+    const digitalPins = makeNanoDigitalPins();
+    const analogPins = makeNanoAnalogPins();
+    const powerPins = makeNanoPowerPins();
+    return { digitalPins, analogPins, powerPins, allPins: [...digitalPins, ...analogPins, ...powerPins] };
+  })(),
+  arduino_mega_2560: (() => {
+    const digitalPins = makeMegaDigitalPins();
+    const analogPins = makeMegaAnalogPins();
+    const powerPins = makeMegaPowerPins();
+    return { digitalPins, analogPins, powerPins, allPins: [...digitalPins, ...analogPins, ...powerPins] };
+  })(),
+};
+
+export function getBoardPinLayout(boardTarget: BoardTarget = DEFAULT_BOARD_TARGET): BoardPinLayout {
+  return BOARD_PIN_LAYOUTS[boardTarget] ?? BOARD_PIN_LAYOUTS[DEFAULT_BOARD_TARGET];
+}
+
+export function getBoardPins(boardTarget: BoardTarget = DEFAULT_BOARD_TARGET): ArduinoPinInfo[] {
+  return getBoardPinLayout(boardTarget).allPins;
+}
 
 // ── Coordinate conversion ─────────────────────────────────────
 
@@ -571,7 +804,7 @@ export function resolveNets(
   // Build set of all grid points occupied by component footprints
   const componentFootprintPoints = new Set<string>();
   for (const comp of Object.values(components)) {
-    if (comp.type === "arduino_uno" || comp.type === "wire") continue;
+    if (isBoardComponentType(comp.type) || comp.type === "wire") continue;
     const fp = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties);
     for (const pt of fp.points) {
       componentFootprintPoints.add(pointKey(pt));

@@ -10,8 +10,8 @@
 
 import type React from "react"
 import { HOLE_SPACING } from "@/breadboard/breadboard-constants"
-import { findInputPinForComponent } from "@/breadboard/component-pin-resolver"
 import { buttonPressStore } from "@/simulator/button-press-store"
+import { getCapVoltage } from "@/simulator/capacitor-state"
 import type { ComponentDefinition } from "./component-definition"
 
 // ── Icons ─────────────────────────────────────────────────────────────────
@@ -223,9 +223,29 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
         <line x1={12} y1={12} x2={12} y2={22} stroke="#ccc" strokeWidth={1.5} />
       </svg>
     ),
-    // Visual only — not included in SPICE netlist
-    buildNetlist: () => null,
-    generateSketch: () => null,
+    spicePrefix: "V",
+    buildNetlist: (comp, { footprint, resolveNode }) => {
+      const nodeA = resolveNode(footprint.points[0])
+      const nodeB = resolveNode(footprint.points[1])
+      // Model the capacitor as a voltage source at its current charge level.
+      // The circuit solver steps the voltage forward each frame using the
+      // resulting SPICE current (see capacitor-state.ts).
+      const storedV = getCapVoltage(comp.id)
+      return {
+        lines: [`V_${sanitize(comp.id)} ${nodeA} ${nodeB} ${storedV}`],
+        nodeA,
+        nodeB,
+      }
+    },
+    computeElectricalState: (_comp, { voltageDrop, currentMa }) => ({
+      isActive: Math.abs(currentMa) > 0.01,
+      voltage: voltageDrop,
+      current: currentMa,
+      isReversed: false,
+      brightness: 0,
+      emitCurrentPath: Math.abs(currentMa) > 0.01,
+    }),
+    generateSketch: () => null, // passive — no sketch code
     schematicSymbol: "capacitor",
     schematicValue: (comp) => {
       const cap = comp.properties.capacitance as number | undefined
@@ -257,24 +277,12 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
         <circle cx={12} cy={12} r={3} fill="#f59e0b" />
       </svg>
     ),
-    buildNetlist: (comp, { footprint, resolveNode, pinStates, wires }) => {
+    buildNetlist: (comp, { footprint, resolveNode }) => {
       const leftNode = resolveNode(footprint.points[0])
       const rightNode = resolveNode(footprint.points[2])
-      // Physical press (UI interaction) takes priority — works for pure hardware
-      // circuits with no Arduino pin connected.
-      let isPressed = buttonPressStore.isPressed(comp.id)
-      // Fallback: derive from Arduino pin state for sketch-controlled circuits
-      // (e.g. INPUT_PULLUP where the VM reads digitalRead and drives outputs).
-      if (!isPressed) {
-        const inputPin = findInputPinForComponent(comp, wires)
-        if (inputPin != null) {
-          const ps = pinStates[inputPin]
-          if (ps) {
-            const pressedValue = ps.mode === "INPUT_PULLUP" ? 0 : 1
-            isPressed = ps.digitalValue === pressedValue
-          }
-        }
-      }
+      // Strict button model: only physical press changes contact resistance.
+      // Do not infer press state from pin values, which can create feedback loops.
+      const isPressed = buttonPressStore.isPressed(comp.id)
       const resistance = isPressed ? 0.01 : 10_000_000
       return { lines: [`R_${sanitize(comp.id)} ${leftNode} ${rightNode} ${resistance}`], nodeA: leftNode, nodeB: rightNode }
     },
@@ -509,7 +517,29 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
         <circle cx={12} cy={14} r={2.5} fill="#ef4444" opacity={0.8} />
       </svg>
     ),
-    buildNetlist: () => null,
+    spicePrefix: "R",
+    buildNetlist: (comp, { footprint, resolveNode }) => {
+      const segments = ["a", "b", "c", "d", "e", "f", "g"] as const
+      const lines: string[] = []
+
+      for (let i = 0; i < segments.length; i++) {
+        const point = footprint.points[i]
+        if (!point) continue
+        const node = resolveNode(point)
+        // Common-cathode model: each segment is an LED+resistor branch to GND.
+        // We use a linear 220Ω branch for stability in spicey's solver.
+        if (node !== "0") {
+          lines.push(`R_${sanitize(comp.id)}_${segments[i]} ${node} 0 220`)
+        }
+      }
+
+      const nodeA = resolveNode(footprint.points[0] ?? { row: comp.y, col: comp.x })
+      return {
+        lines,
+        nodeA,
+        nodeB: "0",
+      }
+    },
     computeElectricalState: (comp) => {
       // TMP36: output voltage = (temperature × 10mV) + 500mV
       const temp = (comp.properties.temperature as number) ?? 25
@@ -648,7 +678,28 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
         <rect x={17} y={11} width={2} height={8} rx={1} fill="#ef4444" opacity={0.8} />
       </svg>
     ),
-    buildNetlist: () => null,
+    spicePrefix: "R",
+    buildNetlist: (comp, { footprint, resolveNode }) => {
+      const segments = ["a", "b", "c", "d", "e", "f", "g"] as const
+      const lines: string[] = []
+
+      for (let i = 0; i < segments.length; i++) {
+        const point = footprint.points[i]
+        if (!point) continue
+        const node = resolveNode(point)
+        // Common-cathode approximation: each segment acts like a branch to GND.
+        if (node !== "0") {
+          lines.push(`R_${sanitize(comp.id)}_${segments[i]} ${node} 0 220`)
+        }
+      }
+
+      const nodeA = resolveNode(footprint.points[0] ?? { row: comp.y, col: comp.x })
+      return {
+        lines,
+        nodeA,
+        nodeB: "0",
+      }
+    },
     generateSketch: (comp) => {
       const segPins = [comp.pins.a, comp.pins.b, comp.pins.c, comp.pins.d, comp.pins.e, comp.pins.f, comp.pins.g]
       const assigned = segPins.filter(p => p != null)

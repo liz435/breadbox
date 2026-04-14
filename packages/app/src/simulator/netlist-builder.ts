@@ -3,7 +3,13 @@
 // Converts board state (components, wires, pin states) into a SPICE
 // netlist string that can be fed to `spicey.simulate()`.
 
-import type { BoardComponent, Wire, PinState } from "@dreamer/schemas"
+import {
+  MAX_ARDUINO_PIN,
+  isBoardComponentType,
+  type BoardComponent,
+  type Wire,
+  type PinState,
+} from "@dreamer/schemas"
 import {
   resolveNets,
   getComponentFootprint,
@@ -88,7 +94,7 @@ export function buildNetlist(
   // component nets and add bleed resistors for solver stability.
   const componentNets = new Set<string>()
   for (const comp of Object.values(components)) {
-    if (comp.type === "arduino_uno" || comp.type === "wire") continue
+    if (isBoardComponentType(comp.type) || comp.type === "wire") continue
     const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties)
     for (const pt of footprint.points) {
       const nid = pointToNetId.get(pointKey(pt))
@@ -113,7 +119,7 @@ export function buildNetlist(
       } else if (arduinoPin === -6) {
         // Second GND
         groundNetIds.add(net.id)
-      } else if (arduinoPin >= 0 && arduinoPin <= 19) {
+      } else if (arduinoPin >= 0 && arduinoPin <= MAX_ARDUINO_PIN) {
         // Digital/analog pin — check pin state from simulation
         const ps = pinStates[arduinoPin]
         if (ps && ps.mode === "OUTPUT") {
@@ -199,7 +205,7 @@ export function buildNetlist(
 
   // Build component elements
   for (const comp of Object.values(components)) {
-    if (comp.type === "arduino_uno" || comp.type === "wire") continue
+    if (isBoardComponentType(comp.type) || comp.type === "wire") continue
 
     const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties)
     const def = getComponentDef(comp.type)

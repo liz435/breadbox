@@ -4,7 +4,7 @@
     "name": "slate-toad-cape",
     "version": 1,
     "createdAt": "2026-04-11T00:55:46.854Z",
-    "updatedAt": "2026-04-11T22:08:04.049Z",
+    "updatedAt": "2026-04-12T17:01:51.328Z",
     "threadId": "6d1f9413-5b40-4cf3-aa31-b267ab8e8617",
     "activeSceneId": "c75964b1-7035-4169-a5f9-1745dff07a45"
   },
@@ -300,6 +300,7 @@
     },
     "serialOutput": [],
     "sketchCode": "// Auto-generated from board layout\n// Components placed on the breadboard:\n//   - LED Red (Left) (led)\n//   - R1 - Red LED (resistor)\n//   - LED Yellow (Center) (led)\n//   - R2 - Yellow LED (resistor)\n//   - LED Green (Right) (led)\n//   - R3 - Green LED (resistor)\n//   - Pause Button (button)\n//   - Power Supply (power_supply)\n//   - Servo (servo)\n//\n// Assign pins in the Inspector panel to generate setup code.\n\nvoid setup() {\n}\n\nvoid loop() {\n}\n",
-    "customLibraries": {}
+    "customLibraries": {},
+    "boardTarget": "arduino_uno"
   }
 }

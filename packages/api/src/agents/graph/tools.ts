@@ -297,29 +297,35 @@ export function createGraphTools(params: {
       },
     }),
 
-    move_graph_node: tool({
-      description: "Move a node to a new position in the graph layout.",
-      inputSchema: z.object({
-        nodeId: z.string().describe("ID of the node to move"),
-        x: z.number().describe("New X position"),
-        y: z.number().describe("New Y position"),
+    move_graph_node: {
+      ...tool({
+        description: "Move a node to a new position in the graph layout.",
+        inputSchema: z.object({
+          nodeId: z.string().describe("ID of the node to move"),
+          x: z.number().describe("New X position"),
+          y: z.number().describe("New Y position"),
+        }),
+        execute: async (input) => {
+          const existing = workingGraph.nodes[input.nodeId];
+          if (!existing) {
+            return { error: `Node ${input.nodeId} not found` };
+          }
+          existing.x = input.x;
+          existing.y = input.y;
+          ops.push(
+            makeGraphOp(opCtx, {
+              kind: "move_graph_node",
+              payload: { nodeId: input.nodeId, x: input.x, y: input.y },
+            })
+          );
+          return { moved: input.nodeId, x: input.x, y: input.y };
+        },
       }),
-      execute: async (input) => {
-        const existing = workingGraph.nodes[input.nodeId];
-        if (!existing) {
-          return { error: `Node ${input.nodeId} not found` };
-        }
-        existing.x = input.x;
-        existing.y = input.y;
-        ops.push(
-          makeGraphOp(opCtx, {
-            kind: "move_graph_node",
-            payload: { nodeId: input.nodeId, x: input.x, y: input.y },
-          })
-        );
-        return { moved: input.nodeId, x: input.x, y: input.y };
+      // Cache all tool definitions up to this point (the last tool)
+      providerOptions: {
+        anthropic: { cacheControl: { type: "ephemeral" } },
       },
-    }),
+    },
   };
 }
 

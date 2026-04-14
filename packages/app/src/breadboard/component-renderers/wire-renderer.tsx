@@ -1,9 +1,10 @@
 import React from "react";
 import type { Wire } from "@dreamer/schemas";
-import { gridToPixel, ARDUINO_PINS } from "@/breadboard/breadboard-grid";
+import { gridToPixel, type ArduinoPinInfo } from "@/breadboard/breadboard-grid";
 
 type WireRendererProps = {
   wire: Wire;
+  arduinoPins: ArduinoPinInfo[];
   isSelected: boolean;
   onSelect?: (id: string) => void;
   onDragEndpoint?: (wireId: string, endpoint: "from" | "to", e: React.PointerEvent) => void;
@@ -13,9 +14,17 @@ type WireRendererProps = {
  * Resolve the "from" pixel position of a wire.
  * If fromRow === -999, this is an Arduino pin wire — look up the pin position by pin number (fromCol).
  */
-function resolveFromPosition(wire: Wire): { x: number; y: number } {
+function resolveFromPosition(wire: Wire, arduinoPins: ArduinoPinInfo[]): { x: number; y: number } {
   if (wire.fromRow === -999) {
-    const pinInfo = ARDUINO_PINS.find((p) => p.pin === wire.fromCol);
+    const pinInfo =
+      (wire.fromPinLabel
+        ? arduinoPins.find(
+            (p) =>
+              p.label === wire.fromPinLabel &&
+              (wire.fromPinCategory ? p.category === wire.fromPinCategory : true),
+          )
+        : undefined) ??
+      arduinoPins.find((p) => p.pin === wire.fromCol);
     if (pinInfo) {
       return { x: pinInfo.x, y: pinInfo.y };
     }
@@ -24,8 +33,8 @@ function resolveFromPosition(wire: Wire): { x: number; y: number } {
   return gridToPixel({ row: wire.fromRow, col: wire.fromCol });
 }
 
-function WireRendererInner({ wire, isSelected, onSelect, onDragEndpoint }: WireRendererProps) {
-  const from = resolveFromPosition(wire);
+function WireRendererInner({ wire, arduinoPins, isSelected, onSelect, onDragEndpoint }: WireRendererProps) {
+  const from = resolveFromPosition(wire, arduinoPins);
   const to = gridToPixel({ row: wire.toRow, col: wire.toCol });
   const color = wire.color ?? "#22c55e";
 

@@ -3,10 +3,10 @@ import type { BoardComponent, PinState } from "@dreamer/schemas";
 import { gridToPixel } from "@/breadboard/breadboard-grid";
 import { LABEL_FONT_SIZE } from "@/breadboard/breadboard-constants";
 import { pinStateStore } from "@/simulator/pin-state-store";
-import { buttonPressStore } from "@/simulator/button-press-store";
+import { buttonPressStore, useButtonPressed } from "@/simulator/button-press-store";
 import { usePinState } from "@/simulator/use-pin-state";
 import { useBoardSelector } from "@/store/board-context";
-import { findInputPinForComponent } from "@/breadboard/component-pin-resolver";
+import { analyzeButtonWiring } from "@/breadboard/component-pin-resolver";
 import { PinLabel } from "./pin-label";
 
 type ButtonRendererProps = {
@@ -18,19 +18,23 @@ type ButtonRendererProps = {
 };
 
 function ButtonRendererInner({ component, isSelected }: ButtonRendererProps) {
-  // Buttons are usually wired (not pin-mapped) — derive the input pin
-  // from the wire graph, falling back to explicit pin assignment.
   const wires = useBoardSelector((s) => s.wires);
-  const inputPin = useMemo(
-    () => findInputPinForComponent(component, wires),
+  const wiring = useMemo(
+    () => analyzeButtonWiring(component, wires),
     [component, wires],
   );
+  const inputPin = wiring.inputPin;
   const inputPinState = usePinState(inputPin ?? -1);
+  const physicallyPressed = useButtonPressed(component.id);
   // For INPUT_PULLUP: pressed = pin pulled LOW (0). For INPUT: pressed = HIGH (1).
   const isPullup = inputPinState?.mode === "INPUT_PULLUP";
   const pressedValue: 0 | 1 = isPullup ? 0 : 1;
   const releasedValue: 0 | 1 = isPullup ? 1 : 0;
-  const isPressed = inputPinState?.digitalValue === pressedValue;
+  const canDrivePress =
+    inputPin != null &&
+    !wiring.hasSignalOnBothSides &&
+    ((isPullup && wiring.hasGroundReference) || (!isPullup && inputPinState?.mode === "INPUT" && wiring.hasPowerReference));
+  const isPressed = physicallyPressed;
 
   // Button spans center gap: pins at (row, col=3), (row+1, col=3) left side
   // and (row, col=6), (row+1, col=6) right side
@@ -48,14 +52,16 @@ function ButtonRendererInner({ component, isSelected }: ButtonRendererProps) {
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     e.stopPropagation();
     buttonPressStore.press(component.id);
-    if (inputPin != null) {
+    if (canDrivePress && inputPin != null) {
       pinStateStore.writeExternal(inputPin, { digitalValue: pressedValue });
     }
-  }, [component.id, inputPin, pressedValue]);
+  }, [canDrivePress, component.id, inputPin, pressedValue]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     e.stopPropagation();
     buttonPressStore.release(component.id);
+    // Always restore the released state when we know which input this button targets.
+    // This clears stale externally-driven values if wiring changed while pressed.
     if (inputPin != null) {
       pinStateStore.writeExternal(inputPin, { digitalValue: releasedValue });
     }

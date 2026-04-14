@@ -22,7 +22,7 @@ export function OverviewPage() {
           headers={["Panel", "Purpose"]}
           rows={[
             ["Breadboard", "Place and wire components on a virtual breadboard connected to an Arduino Uno. Search the palette by name or category. Drag wire endpoints to reposition them."],
-            ["Sketch Editor", "Write, edit, and run Arduino sketches. Auto-generated from board layout when empty. Includes Compile & Run controls."],
+            ["Sketch Editor", "Write, edit, and run Arduino sketches. Auto-generated from board layout when empty. Includes Run/Stop controls and an Examples button with 21 ready-made boards."],
             ["Graph", "Visual node-graph programming. Connect blocks to build logic without typing code."],
             ["Schematic", "Auto-generated IEEE circuit schematic. Click components to select them on the breadboard."],
             ["Libraries", "Manage custom Arduino libraries and browse the official Arduino Library Index (~7,000 libraries). 10 built-in JS-shimmed libraries work in transpile mode."],
@@ -64,7 +64,7 @@ export function OverviewPage() {
           <li>Click to place the component. Press <strong className="text-gray-200">R</strong> to rotate before placing. Drag to reposition.</li>
           <li>Draw wires between component legs and the Arduino power/ground rails. Select a wire and drag its endpoint handles to adjust.</li>
           <li>The <strong className="text-gray-200">Circuit Simulator</strong> runs automatically — LEDs glow, the schematic updates.</li>
-          <li>Open the <strong className="text-gray-200">Sketch Editor</strong> — a boilerplate sketch is auto-generated. Edit it freely.</li>
+          <li>Open the <strong className="text-gray-200">Sketch Editor</strong> — a boilerplate sketch is auto-generated. Edit it freely, or click <strong className="text-gray-200">Examples</strong> to load a pre-built board with a working sketch.</li>
           <li>Click <strong className="text-gray-200">Run</strong> to compile and execute the sketch in the browser. Serial output appears in the Serial Monitor.</li>
           <li>Use the <strong className="text-gray-200">AI Agent</strong> (bottom toolbar, sparkle icon) to ask for help at any step.</li>
         </ol>

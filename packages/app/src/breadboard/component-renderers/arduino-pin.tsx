@@ -63,9 +63,27 @@ function ArduinoPinInner({ pin, isWiring, onStartWire }: ArduinoPinProps) {
   const isHigh = pinState?.digitalValue === 1;
   const isPwmActive = pinState?.isPwm && (pinState?.pwmValue ?? 0) > 0;
 
-  // Label position: top pins show label below, bottom pins show label above
-  const isTopPin = pin.y < 100; // rough heuristic based on y position
-  const labelY = isTopPin ? pin.y + 12 : pin.y - 8;
+  const labelPos = (() => {
+    switch (pin.labelSide) {
+      case "left":
+        return { x: pin.x - 9, y: pin.y, anchor: "end" as const };
+      case "right":
+        return { x: pin.x + 9, y: pin.y, anchor: "start" as const };
+      case "top":
+        return { x: pin.x, y: pin.y - 8, anchor: "middle" as const };
+      case "bottom":
+        return { x: pin.x, y: pin.y + 12, anchor: "middle" as const };
+      default: {
+        // Backward-compatible fallback for legacy pin maps.
+        const isTopPin = pin.y < 100;
+        return {
+          x: pin.x,
+          y: isTopPin ? pin.y + 12 : pin.y - 8,
+          anchor: "middle" as const,
+        };
+      }
+    }
+  })();
 
   return (
     <g
@@ -140,9 +158,9 @@ function ArduinoPinInner({ pin, isWiring, onStartWire }: ArduinoPinProps) {
 
       {/* Pin label */}
       <text
-        x={pin.x}
-        y={labelY}
-        textAnchor="middle"
+        x={labelPos.x}
+        y={labelPos.y}
+        textAnchor={labelPos.anchor}
         dominantBaseline="middle"
         fontSize={5}
         fill="#ffffff"

@@ -40,6 +40,7 @@ export type ProjectSummary = {
   name: string;
   createdAt: string;
   updatedAt: string;
+  hasContent: boolean;
 };
 
 export async function listProjects(): Promise<ProjectSummary[]> {

@@ -7,6 +7,7 @@
 // runs its own validation without polluting the others.
 
 import type { RunFile, ToolAnalysis, ToolDetail } from "../types"
+import { isArduinoSignalPin } from "@dreamer/schemas"
 
 // ── Domain: breadboard ──────────────────────────────────────────────────
 
@@ -27,11 +28,13 @@ const VALID_PIN_NAMES: Record<string, string[]> = {
   ir_receiver: ["signal"],
   shift_register: ["data", "clock", "latch"],
   oled_display: ["sda", "scl"],
-  lcd_16x2: ["rs", "en", "d4", "d5", "d6", "d7"],
+  lcd_16x2: ["vss", "vdd", "vo", "rs", "rw", "e", "en", "d4", "d5", "d6", "d7", "a", "k"],
   seven_segment: ["a", "b", "c", "d", "e", "f", "g"],
   temperature_sensor: ["vcc", "signal", "gnd"],
   ic: [],
 }
+
+const VALID_ARDUINO_POWER_PINS = new Set([-1, -2, -3, -4, -5, -6, -7, -8, -9])
 
 // ── Rule types ──────────────────────────────────────────────────────────
 
@@ -94,13 +97,24 @@ const TOOL_RULES: Record<string, ToolRule> = {
 
   connect_wire: (input) => {
     const issues: ToolIssue[] = []
+    const fromRow = input.fromRow as number | undefined
+    const fromCol = input.fromCol as number | undefined
     const toRow = input.toRow as number | undefined
     const toCol = input.toCol as number | undefined
-    // `fromRow === -999` is legal (Arduino pin sentinel); skip checking that end
+
+    if (fromRow != null && fromRow !== -999 && (fromRow < 0 || fromRow > 29)) {
+      issues.push({ bucket: "invalidPositions", message: `fromRow=${fromRow} out of range` })
+    }
+    if (fromCol != null && fromRow != null && fromRow !== -999 && (fromCol < -2 || fromCol > 11)) {
+      issues.push({ bucket: "invalidPositions", message: `fromCol=${fromCol} out of range` })
+    }
+    if (fromRow === -999 && fromCol != null && !isArduinoSignalPin(fromCol) && !VALID_ARDUINO_POWER_PINS.has(fromCol)) {
+      issues.push({ bucket: "invalidPositions", message: `fromCol=${fromCol} is not a valid Arduino pin` })
+    }
     if (toRow != null && toRow !== -999 && (toRow < 0 || toRow > 29)) {
       issues.push({ bucket: "invalidPositions", message: `toRow=${toRow} out of range` })
     }
-    if (toCol != null && (toCol < -4 || toCol > 19)) {
+    if (toCol != null && (toCol < -2 || toCol > 11)) {
       issues.push({ bucket: "invalidPositions", message: `toCol=${toCol} out of range` })
     }
     return issues

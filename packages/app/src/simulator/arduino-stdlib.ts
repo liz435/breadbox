@@ -1,7 +1,13 @@
 // ── Arduino Standard Library (injectable globals for transpiled sketches) ───
 
 import type { PinStateStore } from "./pin-state-store"
-import type { PinMode } from "@dreamer/schemas"
+import {
+  DEFAULT_BOARD_TARGET,
+  MAX_ARDUINO_PIN,
+  getBoardAnalogPins,
+  type BoardTarget,
+  type PinMode,
+} from "@dreamer/schemas"
 import { ultrasonicDistanceBus, dhtSensorBus, irReceiverBus } from "./sensor-inputs"
 
 /** Virtual I2C device that can be registered on the bus. */
@@ -73,7 +79,12 @@ export function createStdlib(
   callbacks: StdlibCallbacks,
   getMillis: () => number,
   pinStore: PinStateStore,
+  boardTarget: BoardTarget = DEFAULT_BOARD_TARGET,
 ): Record<string, unknown> {
+  const analogPinConstants = Object.fromEntries(
+    getBoardAnalogPins(boardTarget).map((pin, idx) => [`A${idx}`, pin]),
+  ) as Record<string, number>
+
   // ── Pin I/O ──────────────────────────────────────────────────────
   //
   // All pin reads/writes go through the PinStateStore — single source of truth.
@@ -222,7 +233,7 @@ export function createStdlib(
   // ── pulseIn ─────────────────────────────────────────────────────
 
   function pulseIn(pin: number, _value: number, _timeout?: number): number {
-    if (pin < 0 || pin > 19) return 0
+    if (pin < 0 || pin > MAX_ARDUINO_PIN) return 0
     // Prefer the ultrasonic sensor bus: sensor-inputs.ts publishes the
     // inspector distance (cm) keyed by echo pin. 58 µs per cm round-trip.
     const cm = ultrasonicDistanceBus.get(pin)
@@ -655,12 +666,7 @@ export function createStdlib(
     OUTPUT: 1,
     INPUT_PULLUP: 2,
     LED_BUILTIN: 13,
-    A0: 14,
-    A1: 15,
-    A2: 16,
-    A3: 17,
-    A4: 18,
-    A5: 19,
+    ...analogPinConstants,
     MSBFIRST: 1,
     LSBFIRST: 0,
 

@@ -119,10 +119,26 @@ export async function buildSummarizedHistory(
   if (cachedSummary && cachedSummary.runCount === oldRuns.length) {
     log.info(`using cached summary (covers ${cachedSummary.runCount} runs)`);
     summary = cachedSummary.text;
-  } else {
-    // Cache miss or stale — call haiku (blocking, but only on cache miss)
+  } else if (cachedSummary && cachedSummary.runCount < oldRuns.length) {
+    // Stale cache: serve the stale summary immediately but trigger a
+    // background refresh. This avoids blocking the request on a live
+    // summarizer call while still keeping the cache up to date.
     log.info(
-      `cache ${cachedSummary ? "stale" : "miss"} — summarizing ${oldRuns.length} runs live`
+      `cache stale (covers ${cachedSummary.runCount}/${oldRuns.length} runs) — using stale + background refresh`
+    );
+    summary = cachedSummary.text;
+    // Signal to caller that a background refresh is needed
+    usage = {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      model: SUMMARIZER_MODEL,
+      source: "background",
+    };
+  } else {
+    // Cache miss — call haiku (blocking)
+    log.info(
+      `cache miss — summarizing ${oldRuns.length} runs live`
     );
     const start = performance.now();
     try {

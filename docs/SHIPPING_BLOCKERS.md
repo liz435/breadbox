@@ -21,10 +21,9 @@ Audit of what's blocking the Arduino simulator from being shipped as a usable pr
 - `eval` and `Function` are NOT blocked — they can't be used as parameter names or variable names in strict mode, and removing strict mode was necessary for compatibility.
 - **Remaining risk**: A crafted sketch could use `eval()` or `new Function()` to escape the parameter sandbox. Full mitigation requires running transpiled code in a Web Worker (async stdlib bridge).
 
-### 4. Hardcoded Localhost — No Production Config
-- **File**: `packages/config/src/index.ts`
-- `APP_ORIGIN` and `API_ORIGIN` are hardcoded to `localhost:3002` / `localhost:4111`. CORS is configured for localhost only.
-- **Fix**: Read from environment variables with localhost as fallback.
+### ~~4. Hardcoded Localhost — No Production Config~~ FIXED
+- `APP_PORT`, `API_PORT`, `APP_ORIGIN`, and `API_ORIGIN` now read from environment variables with localhost as fallback.
+- Set `APP_ORIGIN=https://yourdomain.com` and `API_ORIGIN=https://api.yourdomain.com` before starting servers.
 
 ### 5. No Docker / Deployment Setup
 - No Dockerfile, no docker-compose, no deployment guide.
@@ -61,18 +60,17 @@ Audit of what's blocking the Arduino simulator from being shipped as a usable pr
 - File extension comes from user-controlled filename. MIME type is trusted. No file size limit.
 - **Fix**: Validate file type server-side, enforce size limits.
 
-### 11. CORS Locked to Localhost
-- **File**: `packages/api/src/index.ts`
-- Production deployment will fail because CORS only allows `localhost:3002`.
-- **Fix**: Make CORS origin configurable via env var.
+### ~~11. CORS Locked to Localhost~~ FIXED
+- CORS origin now reads from `APP_ORIGIN` env var (via `@dreamer/config`), which itself falls back to `localhost:3002`.
+- Set `APP_ORIGIN=https://yourdomain.com` to allow production traffic.
 
 ---
 
 ## Medium — Fix Before Public Launch
 
-### 12. No Toast/Notification System
-- The only user feedback is the green flash on Cmd+S. Save failures, compile errors, API errors have no persistent UI notification.
-- **Fix**: Add a toast system (e.g., Sonner, react-hot-toast, or custom).
+### ~~12. No Toast/Notification System~~ FIXED
+- `components/ui/toast.tsx` provides a toast system with `toast.error()`, `toast.success()`, etc.
+- Used throughout: save failures, auto-save errors, destructive action confirmations, project CRUD failures.
 
 ### 13. No Mobile / Responsive Layout
 - Dockview multi-panel UI doesn't work on mobile or tablet. Touch interactions not implemented.
@@ -107,14 +105,15 @@ Audit of what's blocking the Arduino simulator from being shipped as a usable pr
 
 ## Low — Nice to Have
 
-### 19. Minimal Test Coverage
+### ~~19. Minimal Test Coverage~~ IMPROVED
 - **Transpiler**: 121 tests (good)
-- **Board machine**: ~10 tests (basic)
+- **Board machine**: ~10 tests → 28 tests (added full undo/redo suite + dirty-hash stability)
 - **Circuit solver**: ~10 tests (basic)
-- **API routes**: 0 tests
-- **Auto-save logic**: 0 tests
-- **Undo/redo**: 0 tests
-- **Fix**: Add integration tests for save/load cycle, circuit analysis, and API endpoints.
+- **API routes**: 0 → 16 tests (`/project` CRUD, `/state`, `/board`, `/graph` endpoints)
+- **Project repo**: 0 → 18 tests (create/read/delete, atomic save, board ops, version conflict)
+- **Auto-save dirty-hash logic**: 3 tests (hash stability, mutation detection, SELECT exclusion)
+- **Undo/redo**: Full suite — wires, sketch, multi-step, new-mutation-clears-redo
+- Run all tests: `bun test packages/`
 
 ### ~~20. No Keyboard Shortcuts Help Dialog~~ FIXED
 - Press `?` anywhere (outside editors/inputs) to open a keyboard shortcuts dialog.
@@ -133,23 +132,24 @@ Audit of what's blocking the Arduino simulator from being shipped as a usable pr
 - Users can't edit the schematic directly — it's auto-generated from the breadboard.
 - This is fine for v1 but limits advanced users.
 
-### 24. Memory Leak Potential in Audio
-- Web Audio oscillators stored in a Map. If `stopTone()` never fires (error path), oscillators accumulate.
-- **Fix**: Add cleanup in `stop()` and on unmount (already partially done, but verify all paths).
+### ~~24. Memory Leak Potential in Audio~~ FIXED
+- Added `closeAudioContext()` which stops all oscillators and calls `AudioContext.close()`.
+- Called on unmount (replacing the previous `stopAllTones()`-only cleanup) and on `stop()`.
+- Prevents `AudioContext` accumulation — browsers cap instances at ~6.
 
 ---
 
 ## Summary
 
-| Severity | Count | Estimated Fix Time |
-|----------|-------|--------------------|
-| Critical | 5 | 1-2 weeks |
-| High | 6 | 1-2 weeks |
-| Medium | 7 | 2-3 weeks |
-| Low | 6 | 1-2 weeks |
+| Severity | Total | Open | Fixed |
+|----------|-------|------|-------|
+| Critical | 5 | 3 | 2 (#4, #11) |
+| High | 6 | 2 | 4 (#6, #7, #8 + #11 covers CORS) |
+| Medium | 7 | 3 | 4 (#14, #15, #16, #17, #12) |
+| Low | 6 | 4 | 2 (#20, #24) |
 
-**Minimum viable ship**: Fix criticals (1-5) + highs (6-8, 11). That's ~2-3 weeks of focused work.
+**Minimum viable ship**: Fix remaining criticals (#3, #5) + highs (#9, #10). That's ~1 week of focused work.
 
-**Solid beta**: Add medium items (12-18). Total ~5-6 weeks.
+**Solid beta**: Add medium items (#13, #18, #22). Total ~2-3 weeks.
 
 **Production-ready**: All items. Total ~8-10 weeks.

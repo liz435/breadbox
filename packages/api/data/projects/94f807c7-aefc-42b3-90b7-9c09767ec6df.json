@@ -4,7 +4,7 @@
     "name": "iron-mole-cone",
     "version": 1,
     "createdAt": "2026-04-11T22:06:44.101Z",
-    "updatedAt": "2026-04-11T22:08:04.032Z",
+    "updatedAt": "2026-04-12T16:46:02.419Z",
     "threadId": "a47d7912-8ff1-4fa0-b41f-b5739f708894",
     "activeSceneId": "90c1cb34-106d-484f-9030-a75f66cc0f56"
   },
@@ -165,6 +165,24 @@
         "properties": {
           "resistance": 10000
         }
+      },
+      "d06d8725-c1de-400f-a102-74a1abdec5d6": {
+        "id": "d06d8725-c1de-400f-a102-74a1abdec5d6",
+        "type": "seven_segment",
+        "name": "Seven Segment",
+        "x": 3,
+        "y": 14,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null,
+          "c": null,
+          "d": null,
+          "e": null,
+          "f": null,
+          "g": null
+        },
+        "properties": {}
       }
     },
     "wires": {

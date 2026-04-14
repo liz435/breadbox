@@ -12,6 +12,7 @@ import type {
   BoardComponent,
   Wire,
   CustomLibrary,
+  BoardTarget,
   GraphNode,
   Edge,
 } from "@dreamer/schemas"
@@ -24,6 +25,7 @@ type BoardPersistable = {
   wires: Record<string, Wire>
   sketchCode: string
   customLibraries: Record<string, CustomLibrary>
+  boardTarget?: BoardTarget
 }
 
 type GraphPersistable = {
@@ -40,6 +42,7 @@ function boardSlice(ctx: BoardPersistable): BoardPersistable {
     wires: ctx.wires,
     sketchCode: ctx.sketchCode,
     customLibraries: ctx.customLibraries,
+    boardTarget: ctx.boardTarget,
   }
 }
 
@@ -163,6 +166,7 @@ export function useBoardPersistence(): { saveNow: () => void } {
     boardState.wires,
     boardState.sketchCode,
     boardState.customLibraries,
+    boardState.boardTarget,
     graphState.nodes,
     graphState.edges,
     projectId,

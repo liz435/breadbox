@@ -145,11 +145,18 @@ export async function runGraphAgent(ctx: AgentContext): Promise<AgentResult> {
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
 
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(() => {
+    log.warn("graph agent stream timed out after 30s");
+    abortController.abort();
+  }, 30_000);
+
   const result = streamText({
     model: anthropic(GRAPH_MODEL),
     tools,
     messages,
     stopWhen: stepCountIs(8),
+    abortSignal: abortController.signal,
     onStepFinish({ toolCalls, usage, finishReason }) {
       stepCount++;
       const elapsed = (performance.now() - start).toFixed(1);
@@ -170,6 +177,7 @@ export async function runGraphAgent(ctx: AgentContext): Promise<AgentResult> {
   });
 
   const text = await result.text;
+  clearTimeout(timeoutId);
   const allMessages = (await result.response).messages as ModelMessage[];
 
   const elapsed = (performance.now() - start).toFixed(1);

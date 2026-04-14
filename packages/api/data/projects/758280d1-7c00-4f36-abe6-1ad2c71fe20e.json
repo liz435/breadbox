@@ -1,0 +1,179 @@
+{
+  "project": {
+    "id": "758280d1-7c00-4f36-abe6-1ad2c71fe20e",
+    "name": "opal-ape-sail",
+    "version": 1,
+    "createdAt": "2026-04-14T21:54:43.776Z",
+    "updatedAt": "2026-04-14T22:17:52.239Z",
+    "threadId": "060b3c8d-1d79-4c1e-abd7-0d11d08442b1",
+    "activeSceneId": "6f834b81-e72b-427d-a30d-545ac12da7bb"
+  },
+  "scenes": {
+    "6f834b81-e72b-427d-a30d-545ac12da7bb": {
+      "id": "6f834b81-e72b-427d-a30d-545ac12da7bb",
+      "name": "Main Scene",
+      "version": 0,
+      "settings": {
+        "background": "#252525",
+        "gravity": {
+          "x": 0,
+          "y": 9.8
+        }
+      }
+    }
+  },
+  "entities": {},
+  "sceneEntityIds": {
+    "6f834b81-e72b-427d-a30d-545ac12da7bb": []
+  },
+  "components": {
+    "transform": {},
+    "sprite": {},
+    "tilemap": {},
+    "physicsBody": {},
+    "script": {},
+    "camera": {}
+  },
+  "assets": {},
+  "graph": {
+    "nodes": {
+      "node-1776203683798-q3zvai": {
+        "id": "node-1776203683798-q3zvai",
+        "type": "setup",
+        "name": "Setup",
+        "x": 60,
+        "y": 60,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      },
+      "node-1776203683798-iylgdk": {
+        "id": "node-1776203683798-iylgdk",
+        "type": "loop",
+        "name": "Loop",
+        "x": 60,
+        "y": 200,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      }
+    },
+    "edges": {}
+  },
+  "boardState": {
+    "components": {
+      "resistor-1": {
+        "id": "resistor-1",
+        "type": "resistor",
+        "name": "R1 1kΩ",
+        "x": 3,
+        "y": 5,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 1000
+        }
+      },
+      "capacitor-1": {
+        "id": "capacitor-1",
+        "type": "capacitor",
+        "name": "C1 100µF",
+        "x": 8,
+        "y": 5,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "capacitance": 100
+        }
+      },
+      "led-1": {
+        "id": "led-1",
+        "type": "led",
+        "name": "LED",
+        "x": 8,
+        "y": 9,
+        "rotation": 0,
+        "pins": {
+          "anode": null,
+          "cathode": null
+        },
+        "properties": {
+          "color": "#fbbf24"
+        }
+      }
+    },
+    "wires": {
+      "wire-d7": {
+        "id": "wire-d7",
+        "fromRow": -999,
+        "fromCol": 7,
+        "toRow": 5,
+        "toCol": 3,
+        "color": "#fbbf24"
+      },
+      "wire-res-to-junction": {
+        "id": "wire-res-to-junction",
+        "fromRow": 5,
+        "fromCol": 6,
+        "toRow": 5,
+        "toCol": 8,
+        "color": "#fbbf24"
+      },
+      "wire-junction-to-led": {
+        "id": "wire-junction-to-led",
+        "fromRow": 5,
+        "fromCol": 9,
+        "toRow": 9,
+        "toCol": 8,
+        "color": "#fbbf24"
+      },
+      "wire-cap-gnd": {
+        "id": "wire-cap-gnd",
+        "fromRow": -999,
+        "fromCol": -3,
+        "toRow": 7,
+        "toCol": 8,
+        "color": "#1a1a1a"
+      },
+      "wire-led-gnd": {
+        "id": "wire-led-gnd",
+        "fromRow": -999,
+        "fromCol": -4,
+        "toRow": 10,
+        "toCol": 8,
+        "color": "#1a1a1a"
+      }
+    },
+    "libraryState": {
+      "servos": {},
+      "lcd": null,
+      "serialBaud": 0
+    },
+    "serialOutput": [],
+    "sketchCode": "// Example: Capacitor Charge/Discharge\n// Pin 7 charges a capacitor through a 1kΩ resistor.\n// The LED is in parallel with the cap — it shows the\n// voltage across the cap. When pin 7 goes LOW, the cap\n// discharges through the LED, which fades out slowly.\n\nvoid setup() {\n  pinMode(7, OUTPUT);\n  Serial.begin(9600);\n}\n\nvoid loop() {\n  digitalWrite(7, HIGH);  // charge the cap\n  Serial.println(\"Charging...\");\n  delay(3000);\n  digitalWrite(7, LOW);   // cap discharges through LED\n  Serial.println(\"Discharging...\");\n  delay(3000);\n}\n",
+    "customLibraries": {},
+    "boardTarget": "arduino_uno"
+  }
+}

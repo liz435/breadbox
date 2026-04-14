@@ -1,0 +1,48 @@
+{
+  "components": {
+    "temp-1": {
+      "id": "temp-1",
+      "type": "temperature_sensor",
+      "name": "TMP36",
+      "x": 7,
+      "y": 5,
+      "rotation": 0,
+      "pins": {
+        "vcc": null,
+        "signal": null,
+        "gnd": null
+      },
+      "properties": {}
+    }
+  },
+  "wires": {
+    "wire-5v": {
+      "id": "wire-5v",
+      "fromRow": -999,
+      "fromCol": -1,
+      "toRow": 5,
+      "toCol": 7,
+      "color": "#ef4444"
+    },
+    "wire-a0": {
+      "id": "wire-a0",
+      "fromRow": -999,
+      "fromCol": 14,
+      "toRow": 6,
+      "toCol": 7,
+      "color": "#22c55e"
+    },
+    "wire-gnd": {
+      "id": "wire-gnd",
+      "fromRow": -999,
+      "fromCol": -3,
+      "toRow": 7,
+      "toCol": 7,
+      "color": "#1a1a1a"
+    }
+  },
+  "libraryState": { "servos": {}, "lcd": null, "serialBaud": 0 },
+  "serialOutput": [],
+  "sketchCode": "// Example: Temperature Sensor (TMP36)\n// Read analog value on A0, convert to Celsius.\n\nint sensorPin = A0;\n\nvoid setup() {\n  Serial.begin(9600);\n}\n\nvoid loop() {\n  int reading = analogRead(sensorPin);\n  float voltage = reading * (5.0 / 1024.0);\n  float tempC = (voltage - 0.5) * 100.0;\n  Serial.print(\"Temp: \");\n  Serial.print(tempC);\n  Serial.println(\" C\");\n  delay(1000);\n}\n",
+  "customLibraries": {}
+}

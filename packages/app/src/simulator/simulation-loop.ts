@@ -10,10 +10,10 @@ import { createArduinoVM, type ArduinoVM, type ArduinoVMCallbacks, type VMMode }
 import { analyzeCircuit, type CircuitAnalysis } from "./circuit-solver"
 import { snapshotAsPinStates } from "./pin-state-store"
 import { applySensorInputs, resetSensorBuses } from "./sensor-inputs"
-import { getComponentFootprint, areConnected } from "@/breadboard/breadboard-grid"
+import { getBoardPinLayout, getComponentFootprint, areConnected } from "@/breadboard/breadboard-grid"
 import { BoardContext } from "@/store/board-context"
 import { getGlobalSelectedPort } from "./use-board-connection"
-import type { LibraryState, ServoState } from "@dreamer/schemas"
+import { BOARD_TARGETS, DEFAULT_BOARD_TARGET, isBoardComponentType, type LibraryState, type ServoState } from "@dreamer/schemas"
 
 export type SimulationStatus = "stopped" | "compiling" | "running" | "paused" | "error"
 
@@ -49,7 +49,10 @@ type SimulationHookOptions = {
 export function useSimulation(options: SimulationHookOptions = {}): SimulationActions {
   const [state, send] = useMachine(simulationMachine)
   const vmRef = useRef<ArduinoVM | null>(null)
+  const vmBoardTargetRef = useRef(DEFAULT_BOARD_TARGET)
   const rafRef = useRef<number | null>(null)
+  // Board actor for reading live state in the tick loop
+  const boardActor = BoardContext.useActorRef()
 
   // C1: auto-switch to AVR mode when a real board is connected (cycle-accurate
   // simulation is the correct "expected" side for hardware diff). Fall back to
@@ -58,18 +61,17 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
   useEffect(() => {
     const check = () => {
       const connected = getGlobalSelectedPort() !== null
-      setAutoMode(connected ? "avr" : "transpile")
+      const boardTarget = boardActor.getSnapshot().context.boardTarget ?? DEFAULT_BOARD_TARGET
+      const target = BOARD_TARGETS[boardTarget]
+      setAutoMode(connected && target.supportsAvr8js ? "avr" : "transpile")
     }
     check()
     const id = setInterval(check, 2_000)
     return () => clearInterval(id)
-  }, [])
+  }, [boardActor])
 
   const modeRef = useRef<VMMode>(options.mode ?? autoMode)
   modeRef.current = options.mode ?? autoMode
-
-  // Board actor for reading live state in the tick loop
-  const boardActor = BoardContext.useActorRef()
 
   // Keep latest callbacks in a ref to avoid re-creating the VM on every render
   const callbacksRef = useRef<SimulationHookOptions>(options)
@@ -116,6 +118,14 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     for (const [pin] of oscillatorsRef.current) stopTone(pin)
   }
 
+  function closeAudioContext() {
+    stopAllTones()
+    if (audioCtxRef.current) {
+      audioCtxRef.current.close().catch(() => {})
+      audioCtxRef.current = null
+    }
+  }
+
   // Create stable VM callbacks that delegate to the latest options.
   // Pin writes no longer flow through here — they go directly into the
   // shared PinStateStore (see simulator/pin-state-store.ts).
@@ -137,8 +147,14 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
 
   // Lazily create the VM
   function getVM(): ArduinoVM {
-    if (!vmRef.current || vmRef.current.getMode() !== modeRef.current) {
-      vmRef.current = createArduinoVM(vmCallbacks, modeRef.current)
+    const currentBoardTarget = boardActor.getSnapshot().context.boardTarget ?? DEFAULT_BOARD_TARGET
+    if (
+      !vmRef.current ||
+      vmRef.current.getMode() !== modeRef.current ||
+      vmBoardTargetRef.current !== currentBoardTarget
+    ) {
+      vmRef.current = createArduinoVM(vmCallbacks, modeRef.current, undefined, currentBoardTarget)
+      vmBoardTargetRef.current = currentBoardTarget
     }
     return vmRef.current
   }
@@ -197,7 +213,7 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
   function runInlineAnalysis() {
     const ctx = boardActor.getSnapshot().context
     const hasCircuitComponents = Object.values(ctx.components).some(
-      c => c.type !== "arduino_uno" && c.type !== "wire"
+      c => !isBoardComponentType(c.type) && c.type !== "wire"
     )
     if (!hasCircuitComponents) {
       analysisResultRef.current = null
@@ -207,6 +223,10 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     const vm = vmRef.current
     if (!vm) return
     const store = vm.getPinStore()
+    const boardTarget = ctx.boardTarget ?? DEFAULT_BOARD_TARGET
+    const analogPinSet = new Set(
+      getBoardPinLayout(boardTarget).analogPins.map((p) => p.pin),
+    )
 
     try {
       const result = analyzeCircuit(ctx.components, ctx.wires, snapshotAsPinStates(store))
@@ -223,7 +243,7 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
         const compState = result.componentStates.get(comp.id)
         if (!compState) continue
         for (const [, pin] of Object.entries(comp.pins)) {
-          if (pin !== null && pin >= 14 && pin <= 19) {
+          if (pin !== null && analogPinSet.has(pin)) {
             store.writeExternal(pin, { analogValue: voltsToAnalog(compState.voltage) })
           }
         }
@@ -233,10 +253,10 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
       for (const wire of Object.values(ctx.wires)) {
         if (wire.fromRow !== -999) continue
         const arduinoPin = wire.fromCol
-        if (arduinoPin < 14 || arduinoPin > 19) continue
+        if (!analogPinSet.has(arduinoPin)) continue
         const wireTo = { row: wire.toRow, col: wire.toCol }
         for (const comp of Object.values(ctx.components)) {
-          if (comp.type === "arduino_uno" || comp.type === "wire") continue
+          if (isBoardComponentType(comp.type) || comp.type === "wire") continue
           const compState = result.componentStates.get(comp.id)
           if (!compState) continue
           const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties)
@@ -317,7 +337,9 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
 
       if (currentMode === "avr") {
         // AVR mode: async compile then run
-        vm.loadSketchAsync(sketchCode, customLibs).then((result) => {
+        const boardTarget = boardActor.getSnapshot().context.boardTarget ?? DEFAULT_BOARD_TARGET
+        const fqbn = BOARD_TARGETS[boardTarget].fqbn
+        vm.loadSketchAsync(sketchCode, customLibs, { fqbn }).then((result) => {
           if (!result.success) {
             send({
               type: "COMPILE_ERROR",
@@ -373,8 +395,9 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
   useEffect(() => {
     return () => {
       cancelLoop()
-      stopAllTones()
+      closeAudioContext()
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cancelLoop])
 
   /** Feed text into the VM's Serial.read() buffer. */

@@ -8,10 +8,20 @@ export type TranspileError = {
   message: string
 }
 
+export type SketchSizeEstimate = {
+  flashUsed: number
+  flashMax: number
+  flashPercent: number
+  ramUsed: number
+  ramMax: number
+  ramPercent: number
+}
+
 export type TranspileResult = {
   success: boolean
   code: string
   error?: TranspileError
+  sizeEstimate?: SketchSizeEstimate
 }
 
 /** Custom library map passed to the transpiler. Key = filename (e.g. "MyLib.h"), value = code. */
@@ -60,6 +70,7 @@ const TYPE_PATTERN = "(?:unsigned\\s+long|unsigned\\s+int|unsigned\\s+char|unsig
 const POINTER_RE = /[*&]\s*\w+|->|\w+\s*\*\s/
 const TEMPLATE_RE = /^\s*template\s*</
 const NAMESPACE_RE = /^\s*namespace\s+\w+/
+const TWO_D_ARRAY_START_RE = new RegExp(`^(?:const\\s+)?${TYPE_PATTERN}\\s+\\w+\\s*\\[\\s*\\d*\\s*\\]\\s*\\[\\s*\\d*\\s*\\]\\s*=`)
 
 /**
  * Transpile Arduino C++ source to executable JavaScript.
@@ -108,6 +119,22 @@ export function transpile(arduinoCode: string, customLibraries?: CustomLibraryMa
 
     const trimmed = line.trim()
 
+    // ── Multiline 2D array declarations ────────────────────────
+    if (!inBlockComment && TWO_D_ARRAY_START_RE.test(trimmed) && !trimmed.includes(";")) {
+      const indent = line.match(/^(\s*)/)?.[1] ?? ""
+      const collected: string[] = [trimmed]
+      let end = i
+      for (let j = i + 1; j < lines.length; j++) {
+        collected.push(lines[j]!.trim())
+        end = j
+        if (lines[j]!.includes(";")) break
+      }
+      const merged = `${indent}${collected.join(" ")}`
+      output.push(transpileLine(merged))
+      i = end
+      continue
+    }
+
     // ── Empty lines ──────────────────────────────────────────────
     if (trimmed === "") {
       output.push("")
@@ -142,7 +169,7 @@ export function transpile(arduinoCode: string, customLibraries?: CustomLibraryMa
     output.push(transpileLine(line))
   }
 
-  return { success: true, code: output.join("\n") }
+  return { success: true, code: output.join("\n"), sizeEstimate: estimateSize(arduinoCode) }
 }
 
 function detectUnsupported(
@@ -156,7 +183,14 @@ function detectUnsupported(
       || /^(?:const\s+)?char\s+\w+\s*\[\s*\]\s*=/.test(withoutStrings)
     const isPointerParam = /^[a-z_]\w*\s*\([^)]*\*[^)]*\)/.test(withoutStrings)
     if (!isCharStringAlias && !isPointerParam) {
-      if (withoutStrings.includes("->") || /[&]\s*\w+/.test(withoutStrings) || /^\s*\w+\s*\*\s*\w+/.test(withoutStrings)) {
+      // Detect pointer/reference usage but skip bitwise AND (`x & y`, `x & 1`).
+      // Unary & (address-of) or reference params look like `&varName` at start,
+      // `type &name`, or `(&results)` — NOT `expr & expr` which is bitwise AND.
+      const hasArrow = withoutStrings.includes("->")
+      const hasRefParam = /\(\s*&\w+/.test(withoutStrings) || /,\s*&\w+/.test(withoutStrings)
+      const hasTypeRef = new RegExp(`${TYPE_PATTERN}\\s*&\\s*\\w+`).test(withoutStrings)
+      const hasPointerDecl = /^\s*\w+\s*\*\s*\w+/.test(withoutStrings)
+      if (hasArrow || hasRefParam || hasTypeRef || hasPointerDecl) {
         return {
           line,
           message: "Pass-by-reference (&) is not supported — use return values or global variables instead",
@@ -313,6 +347,19 @@ function processCodeLine(indent: string, trimmed: string): string {
     return `${indent}let ${constNoInitMatch[1]};`
   }
 
+  // ── 2D array declarations: `const int m[2][3] = {{1,2,3},{4,5,6}};` ─
+  const array2DDeclRe = new RegExp(`^(const\\s+)?${TYPE_PATTERN}\\s+(\\w+)\\s*\\[\\s*(\\d*)\\s*\\]\\s*\\[\\s*(\\d*)\\s*\\]\\s*=\\s*(\\{[\\s\\S]*\\})\\s*;$`)
+  const array2DDeclMatch = trimmed.match(array2DDeclRe)
+  if (array2DDeclMatch) {
+    const keyword = array2DDeclMatch[1] ? "const" : "let"
+    const name = array2DDeclMatch[2]
+    const initializer = array2DDeclMatch[5]
+    const matrix = transpile2DInitializer(initializer)
+    if (matrix) {
+      return `${indent}${keyword} ${name} = ${matrix};`
+    }
+  }
+
   // ── Array declarations: `int arr[5];` or `int arr[] = {1,2,3};` or `const int arr[] = {...}` ─
   const arrayDeclRe = new RegExp(`^(?:const\\s+)?${TYPE_PATTERN}\\s+(\\w+)\\s*\\[(\\d+)?\\]\\s*(?:=\\s*\\{(.+?)\\})?\\s*;$`)
   const arrayDeclMatch = trimmed.match(arrayDeclRe)
@@ -385,8 +432,66 @@ function processCodeLine(indent: string, trimmed: string): string {
     return `${indent}let ${names.join(", ")};`
   }
 
+  // ── C++ char literals → numeric char codes ─────────────────
+  // In C/C++, 'A' is an int (65). JS keeps it as a string, which
+  // breaks comparisons with Serial.read() (returns charCodeAt).
+  // Convert single-char literals like 'x' or '\n' to their code.
+  trimmed = trimmed.replace(
+    /'(\\n|\\r|\\t|\\0|\\\\|\\'|[^'\\])'/g,
+    (_match, ch: string) => {
+      switch (ch) {
+        case "\\n": return "10"
+        case "\\r": return "13"
+        case "\\t": return "9"
+        case "\\0": return "0"
+        case "\\\\": return "92"
+        case "\\'": return "39"
+        default: return String(ch.charCodeAt(0))
+      }
+    },
+  )
+
   // ── Everything else passes through with constant substitution ──
   return indent + trimmed
+}
+
+function transpile2DInitializer(initializer: string): string | null {
+  const inner = initializer.trim()
+  if (!inner.startsWith("{") || !inner.endsWith("}")) return null
+
+  const body = inner.slice(1, -1)
+  const rows: string[] = []
+  let depth = 0
+  let row = ""
+
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i]
+    if (ch === "{") {
+      if (depth === 0) row = ""
+      else row += ch
+      depth++
+      continue
+    }
+    if (ch === "}") {
+      depth--
+      if (depth < 0) return null
+      if (depth === 0) {
+        rows.push(`[${row.trim()}]`)
+      } else {
+        row += ch
+      }
+      continue
+    }
+    if (depth === 0) {
+      // Allow separators between row groups only.
+      if (ch === "," || /\s/.test(ch)) continue
+      return null
+    }
+    row += ch
+  }
+
+  if (depth !== 0) return null
+  return `[${rows.join(", ")}]`
 }
 
 function substituteConstants(line: string): string {
@@ -422,6 +527,184 @@ function transpileParams(params: string): string {
       return trimmedParam
     })
     .join(", ")
+}
+
+// ── Size estimation ──────────────────────────────────────────────────────
+//
+// Rough estimates of flash and RAM usage based on the Arduino source code.
+// These don't match avr-gcc output exactly, but give users a realistic
+// ballpark. The baseline accounts for the Arduino core overhead (bootloader
+// + init + Serial buffer etc.).
+
+const UNO_FLASH_MAX = 32256 // 32KB minus bootloader
+const UNO_RAM_MAX = 2048
+
+function estimateSize(source: string): SketchSizeEstimate {
+  const lines = source.split("\n").filter((l) => {
+    const t = l.trim()
+    return t !== "" && !t.startsWith("//") && !t.startsWith("/*") && !t.startsWith("*")
+  })
+
+  // Base Arduino core overhead
+  let flash = 444 // minimal sketch (~444 bytes with avr-gcc)
+  let ram = 9 // base global overhead
+
+  const TYPE_SIZES: Record<string, number> = {
+    int: 2, unsigned: 2, long: 4, short: 2, float: 4, double: 4,
+    char: 1, byte: 1, bool: 1, boolean: 1,
+    uint8_t: 1, int8_t: 1, uint16_t: 2, int16_t: 2,
+    uint32_t: 4, int32_t: 4, size_t: 2, word: 2,
+  }
+
+  // Library overhead: base cost for including + per-method cost for functions called.
+  // This models avr-gcc's linker which only pulls in referenced symbols.
+
+  // Serial — base TX/RX buffers + per-method
+  if (source.includes("Serial.begin")) { flash += 120; ram += 128; } // ring buffers
+  if (source.includes("Serial.print")) flash += 60;
+  if (source.includes("Serial.read")) flash += 30;
+  if (source.includes("Serial.available")) flash += 12;
+  if (source.includes("Serial.write")) flash += 24;
+
+  // Servo
+  if (source.includes("Servo.h")) { flash += 60; ram += 4; } // base include + object
+  if (source.includes(".attach")) flash += 40;
+  if (source.includes(".write") && source.includes("Servo")) flash += 30;
+  if (source.includes(".read") && source.includes("Servo")) flash += 16;
+  if (source.includes(".detach")) flash += 20;
+
+  // LiquidCrystal
+  if (source.includes("LiquidCrystal.h")) { flash += 100; ram += 18; }
+  if (source.includes(".begin") && source.includes("LiquidCrystal")) flash += 60;
+  if (source.includes(".setCursor")) flash += 24;
+  if (source.includes(".print") && source.includes("lcd")) flash += 80;
+  if (source.includes(".clear") && source.includes("lcd")) flash += 16;
+
+  // NeoPixel
+  if (source.includes("Adafruit_NeoPixel.h")) { flash += 80; ram += 4; }
+  if (source.includes(".begin") && source.includes("strip")) flash += 40;
+  if (source.includes("setPixelColor")) flash += 60;
+  if (source.includes(".show")) flash += 80;
+  if (source.includes("setBrightness")) flash += 20;
+  if (source.includes("ColorHSV")) flash += 60;
+  if (source.includes("gamma32")) flash += 40;
+  // NeoPixel RAM: 3 bytes per LED
+  const neoMatch = source.match(/Adafruit_NeoPixel\s*(?:\w+\s*)?\((\d+)/)
+  if (neoMatch) ram += parseInt(neoMatch[1], 10) * 3;
+
+  // DHT
+  if (source.includes("DHT.h")) { flash += 80; ram += 6; }
+  if (source.includes("readTemperature")) flash += 60;
+  if (source.includes("readHumidity")) flash += 40;
+  if (source.includes("computeHeatIndex")) flash += 80;
+
+  // IRremote
+  if (source.includes("IRremote.h")) { flash += 120; ram += 32; }
+  if (source.includes("enableIRIn")) flash += 60;
+  if (source.includes(".decode")) flash += 80;
+  if (source.includes(".resume")) flash += 16;
+
+  // SSD1306 OLED — 128×64 = 1KB framebuffer
+  if (source.includes("Adafruit_SSD1306.h")) { flash += 140; ram += 1024; }
+  if (source.includes("clearDisplay")) flash += 30;
+  if (source.includes("setCursor") && source.includes("display")) flash += 20;
+  if (source.includes(".display()")) flash += 60;
+  if (source.includes(".print") && source.includes("display")) flash += 50;
+
+  // EEPROM
+  if (source.includes("EEPROM.h")) flash += 20;
+  if (source.includes("EEPROM.read")) flash += 12;
+  if (source.includes("EEPROM.write")) flash += 12;
+  if (source.includes("EEPROM.update")) flash += 20;
+
+  // Wire (I2C)
+  if (source.includes("Wire.h")) { flash += 80; ram += 34; }
+  if (source.includes("Wire.begin")) flash += 40;
+  if (source.includes("beginTransmission")) flash += 24;
+  if (source.includes("endTransmission")) flash += 24;
+  if (source.includes("requestFrom")) flash += 30;
+
+  // SPI
+  if (source.includes("SPI.h")) { flash += 60; ram += 4; }
+  if (source.includes("SPI.begin")) flash += 24;
+  if (source.includes("SPI.transfer")) flash += 20;
+
+  // Stepper
+  if (source.includes("Stepper.h")) { flash += 80; ram += 12; }
+  if (source.includes("setSpeed")) flash += 20;
+  if (source.includes(".step")) flash += 40;
+
+  // Core Arduino API per-function costs (linked only when called)
+  if (source.includes("pinMode")) flash += 12;
+  if (source.includes("digitalWrite")) flash += 12;
+  if (source.includes("digitalRead")) flash += 12;
+  if (source.includes("analogWrite")) flash += 24;
+  if (source.includes("analogRead")) flash += 20;
+  if (source.includes("tone(")) flash += 40;
+  if (source.includes("noTone")) flash += 16;
+  if (source.includes("pulseIn")) flash += 30;
+  if (source.includes("shiftOut")) flash += 24;
+  if (source.includes("shiftIn")) flash += 24;
+  if (source.includes("attachInterrupt")) flash += 30;
+  if (source.includes("millis()")) flash += 8;
+  if (source.includes("delay(")) flash += 8;
+  if (source.includes("map(")) flash += 16;
+  if (source.includes("constrain(")) flash += 8;
+  if (source.includes("random(")) flash += 20;
+
+  const typeRe = /^(?:const\s+)?(unsigned\s+long|unsigned\s+int|unsigned\s+char|unsigned|int|float|double|bool|boolean|byte|char|long|short|word|String|uint8_t|uint16_t|uint32_t|int8_t|int16_t|int32_t|size_t)\s+(\w+)/
+
+  for (const line of lines) {
+    const t = line.trim()
+
+    // Global variable declarations (outside functions — rough heuristic:
+    // lines that start with a type and aren't inside a function body)
+    const varMatch = t.match(typeRe)
+    if (varMatch) {
+      const typeName = varMatch[1].replace(/\s+/g, " ").trim()
+      const typeSize = TYPE_SIZES[typeName] ?? 2
+
+      // Array?
+      const arrMatch = t.match(/\[(\d+)\]/)
+      if (arrMatch) {
+        ram += typeSize * parseInt(arrMatch[1], 10)
+        flash += 2 + typeSize * parseInt(arrMatch[1], 10)
+      } else {
+        ram += typeSize
+        flash += 2 + typeSize
+      }
+    }
+
+    // String literals in flash
+    const strMatch = t.match(/"([^"\\]|\\.)*"/g)
+    if (strMatch) {
+      for (const s of strMatch) {
+        flash += s.length - 2 // minus the quotes
+        ram += s.length - 2 + 1 // +1 for null terminator
+      }
+    }
+
+    // Function calls / code lines → approximate flash cost
+    if (t.includes("(") && !t.startsWith("#") && !t.startsWith("//")) {
+      flash += 6 // typical AVR call instruction cost
+    } else if (t.includes("=") || t.includes("if") || t.includes("for") || t.includes("while")) {
+      flash += 4
+    } else if (t.endsWith("{") || t.endsWith("}")) {
+      flash += 2
+    }
+  }
+
+  const flashPercent = Math.round((flash / UNO_FLASH_MAX) * 100)
+  const ramPercent = Math.round((ram / UNO_RAM_MAX) * 100)
+
+  return {
+    flashUsed: flash,
+    flashMax: UNO_FLASH_MAX,
+    flashPercent: Math.min(flashPercent, 100),
+    ramUsed: ram,
+    ramMax: UNO_RAM_MAX,
+    ramPercent: Math.min(ramPercent, 100),
+  }
 }
 
 // ── Debug shim (C2) ─────────────────────────────────────────────────────

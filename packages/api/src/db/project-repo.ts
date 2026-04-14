@@ -27,8 +27,13 @@ import {
   type BoardState,
 } from "@dreamer/schemas";
 
-const DATA_DIR = process.env.DATA_DIR ?? join(import.meta.dir, "../../data");
-const PROJECTS_DIR = join(DATA_DIR, "projects");
+function dataDir(): string {
+  return process.env.DATA_DIR ?? join(import.meta.dir, "../../data");
+}
+
+function projectsDir(): string {
+  return join(dataDir(), "projects");
+}
 
 function now(): string {
   return new Date().toISOString();
@@ -39,7 +44,7 @@ function createId(): string {
 }
 
 function projectPath(projectId: string): string {
-  return join(PROJECTS_DIR, `${projectId}.json`);
+  return join(projectsDir(), `${projectId}.json`);
 }
 
 export class VersionConflictError extends Error {
@@ -62,7 +67,7 @@ export class OpValidationError extends Error {
 }
 
 async function ensureProjectsDir() {
-  await mkdir(PROJECTS_DIR, { recursive: true });
+  await mkdir(projectsDir(), { recursive: true });
 }
 
 async function readProject(projectId: string): Promise<ProjectFile | null> {
@@ -529,23 +534,43 @@ type ProjectSummary = {
   name: string;
   createdAt: string;
   updatedAt: string;
+  hasContent: boolean;
 };
+
+function projectHasContent(project: ProjectFile): boolean {
+  const board = project.boardState;
+  const hasBoardComponents = board
+    ? Object.values(board.components).some(
+        (c) => !String(c.type).startsWith("arduino_"),
+      )
+    : false;
+  const hasBoardWires = board ? Object.keys(board.wires).length > 0 : false;
+  const hasSketch = board ? board.sketchCode.trim().length > 0 : false;
+  const hasGraph =
+    Object.keys(project.graph?.nodes ?? {}).length > 0 ||
+    Object.keys(project.graph?.edges ?? {}).length > 0;
+  const hasAssets = Object.keys(project.assets ?? {}).length > 0;
+  const hasEntities = Object.keys(project.entities ?? {}).length > 0;
+  return hasBoardComponents || hasBoardWires || hasSketch || hasGraph || hasAssets || hasEntities;
+}
 
 async function listProjects(): Promise<ProjectSummary[]> {
   await ensureProjectsDir();
-  const files = await readdir(PROJECTS_DIR);
+  const projectsRoot = projectsDir();
+  const files = await readdir(projectsRoot);
   const summaries: ProjectSummary[] = [];
 
   for (const file of files) {
     if (!file.endsWith(".json")) continue;
     try {
-      const data = await Bun.file(join(PROJECTS_DIR, file)).json();
+      const data = await Bun.file(join(projectsRoot, file)).json();
       const parsed = projectFileSchema.parse(data);
       summaries.push({
         id: parsed.project.id,
         name: parsed.project.name,
         createdAt: parsed.project.createdAt,
         updatedAt: parsed.project.updatedAt,
+        hasContent: projectHasContent(parsed),
       });
     } catch {
       // Skip corrupt files
@@ -647,10 +672,12 @@ async function renameScene(
 
 // ── Asset directory ──────────────────────────────────────────────────────────
 
-const ASSETS_DIR = join(DATA_DIR, "assets");
+function assetsDir(): string {
+  return join(dataDir(), "assets");
+}
 
 function projectAssetsDir(projectId: string): string {
-  return join(ASSETS_DIR, projectId);
+  return join(assetsDir(), projectId);
 }
 
 async function ensureAssetsDir(projectId: string): Promise<string> {

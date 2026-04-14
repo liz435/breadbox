@@ -55,7 +55,7 @@ function classifyCategory(run: RunFile): RunCategory {
 function computeScore(
   partial: Omit<RunEval, "score"> & { assistantText?: string }
 ): RunEval["score"] {
-  const { circuit, graph, domain, tools } = partial
+  const { circuit, graph, domain, tools, intent } = partial
 
   // Runs that aren't evaluable don't get a score
   if (!partial.evaluable) return null
@@ -66,7 +66,7 @@ function computeScore(
   // Efficiency (0-25): based on token waste (no change)
   const totalTokens = partial.tokens.totalTokens || 1
   const wasteRatio = partial.tokens.wastedTokens / totalTokens
-  const efficiency = Math.round(25 * Math.max(0, 1 - wasteRatio * 2))
+  let efficiency = Math.round(25 * Math.max(0, 1 - wasteRatio * 2))
 
   // Quality (0-25): domain-specific
   let quality = 25
@@ -132,6 +132,17 @@ function computeScore(
     completeness = Math.max(0, completeness - 10)
   }
 
+  if (!intent.intentSatisfied) {
+    quality = Math.max(0, quality - 8)
+    completeness = Math.max(0, completeness - 6)
+  }
+  if (intent.repeatedToolFailureLoops > 0) {
+    efficiency = Math.max(0, efficiency - Math.min(8, intent.repeatedToolFailureLoops * 2))
+  }
+  if (intent.partialSuccessWithoutIntent) {
+    completeness = Math.max(0, completeness - 10)
+  }
+
   const total = accuracy + efficiency + quality + completeness
 
   return {
@@ -159,6 +170,33 @@ export function evaluateRun(run: RunFile): RunEval {
     ? analyzeElectrical(run)
     : null
 
+  const promptLower = (run.prompt ?? "").toLowerCase()
+  const sketch = circuit?.sketch ?? ""
+  const wantsCounter = /\bcounter\b/.test(promptLower)
+  const wants7Seg = /(7\s*[- ]?\s*segment|seven\s*[- ]?\s*segment)/.test(promptLower)
+  const wantsButton = /\bbutton\b/.test(promptLower)
+
+  let intentSatisfied = true
+  if (domain === "breadboard" || domain === "mixed") {
+    if (wantsCounter && wants7Seg && wantsButton) {
+      const hasModuloWrap = /%\s*10/.test(sketch)
+      const hasButtonRead = /\bdigitalRead\s*\(/.test(sketch)
+      const hasIncrement = /\bcount\s*=\s*\(\s*count\s*\+\s*1\s*\)/.test(sketch) || /\bcount\s*\+\+/.test(sketch)
+      intentSatisfied = hasModuloWrap && hasButtonRead && hasIncrement
+    } else {
+      intentSatisfied = (circuit?.componentsPlaced ?? 0) > 0 || (run.assistantText ?? "").trim().length > 0
+    }
+    if ((electrical?.errors ?? 0) > 0) {
+      intentSatisfied = false
+    }
+  }
+
+  const repeatedToolFailureLoops = path.retryCount
+  const partialSuccessWithoutIntent =
+    run.run.status === "completed" &&
+    !intentSatisfied &&
+    ((circuit?.componentsPlaced ?? 0) > 0 || (circuit?.wiresCreated ?? 0) > 0)
+
   // Not-evaluable gate: "unknown" domain has no analyzer we trust.
   // Chat-only runs and template runs are still evaluable but scored differently.
   const evaluable = domain !== "unknown"
@@ -183,6 +221,11 @@ export function evaluateRun(run: RunFile): RunEval {
     circuit,
     graph,
     electrical,
+    intent: {
+      intentSatisfied,
+      repeatedToolFailureLoops,
+      partialSuccessWithoutIntent,
+    },
     // Not part of RunEval but used in computeScore for chat-only runs
     assistantText: run.assistantText,
   }

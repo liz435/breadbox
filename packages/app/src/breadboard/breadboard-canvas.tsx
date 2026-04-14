@@ -1,6 +1,14 @@
 import React, { useCallback, useMemo, useRef } from "react";
 import { useBoardSelector, BoardContext } from "@/store/board-context";
-import type { BoardComponent, ComponentType, LibraryState } from "@dreamer/schemas";
+import {
+  BOARD_TARGETS,
+  DEFAULT_BOARD_TARGET,
+  isBoardComponentType,
+  type BoardComponent,
+  type ComponentType,
+  type LibraryState,
+  type Wire,
+} from "@dreamer/schemas";
 import {
   ROWS,
   COLS,
@@ -17,12 +25,15 @@ import {
   gridToPixel,
   pixelToGrid,
   getComponentFootprint,
+  getBoardPinLayout,
+  type ArduinoPinInfo,
 } from "./breadboard-grid";
 import { screenToBoard } from "./breadboard-camera";
 import { breadboardInteractionActor } from "./breadboard-interaction";
 import { ComponentRenderer } from "./component-renderers/index";
 import { WireRenderer } from "./component-renderers/wire-renderer";
 import { ArduinoUnoBoard } from "./component-renderers/arduino-uno-renderer";
+import { ArduinoAltBoard } from "./component-renderers/arduino-alt-board-renderer";
 import { CircuitOverlay } from "./circuit-overlay";
 import { useCircuitAnalysis } from "@/simulator/circuit-analysis-hook";
 import { usePinStates } from "@/simulator/use-pin-state";
@@ -393,17 +404,19 @@ const StaticBackground = React.memo(function StaticBackground() {
 
 type WireLayerProps = {
   wires: Record<string, import("@dreamer/schemas").Wire>;
+  arduinoPins: ArduinoPinInfo[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   onDragEndpoint: (wireId: string, endpoint: "from" | "to", e: React.PointerEvent) => void;
 };
 
-const WireLayer = React.memo(function WireLayer({ wires, selectedId, onSelect, onDragEndpoint }: WireLayerProps) {
+const WireLayer = React.memo(function WireLayer({ wires, arduinoPins, selectedId, onSelect, onDragEndpoint }: WireLayerProps) {
   const wireList = useMemo(() => Object.values(wires), [wires]);
   return (
     <g>
       {wireList.map((wire) => (
         <WireRenderer key={wire.id} wire={wire}
+          arduinoPins={arduinoPins}
           isSelected={selectedId === wire.id} onSelect={onSelect}
           onDragEndpoint={onDragEndpoint} />
       ))}
@@ -415,6 +428,7 @@ const WireLayer = React.memo(function WireLayer({ wires, selectedId, onSelect, o
 
 type ComponentLayerProps = {
   components: BoardComponent[];
+  wires: Record<string, Wire>;
   selectedId: string | null;
   draggingId: string | null;
   analysis: import("@/simulator/circuit-solver").CircuitAnalysis | null;
@@ -425,7 +439,7 @@ type ComponentLayerProps = {
 };
 
 const ComponentLayer = React.memo(function ComponentLayer({
-  components, selectedId, draggingId, analysis, libraryState, pinStates,
+  components, wires, selectedId, draggingId, analysis, libraryState, pinStates,
   onSelect, onDragStart,
 }: ComponentLayerProps) {
   return (
@@ -455,7 +469,9 @@ const ComponentLayer = React.memo(function ComponentLayer({
             )}
             <g transform={rot ? `rotate(${rot * 90}, ${primaryPos.x}, ${primaryPos.y})` : undefined}>
               <ComponentRenderer
-                component={comp} pinStates={pinStates}
+                component={comp} components={components}
+                pinStates={pinStates}
+                wires={wires}
                 isSelected={selectedId === comp.id}
                 electricalState={analysis?.componentStates.get(comp.id)}
                 libraryState={libraryState}
@@ -502,6 +518,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
   const pinStates = usePinStates();
   const selectedId = useBoardSelector((s) => s.selectedId);
   const libraryState = useBoardSelector((s) => s.libraryState);
+  const boardTarget = useBoardSelector((s) => s.boardTarget ?? DEFAULT_BOARD_TARGET);
   const send = BoardContext.useActorRef().send;
 
   const svgRef = useRef<SVGSVGElement>(null);
@@ -511,10 +528,11 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
   // ── Extracted hooks (all interaction state lives in the XState machine) ──
   const camera = useBreadboardCamera({ svgRef, panMode });
   const drag = useBreadboardDrag({ svgRef, components, send });
-  const wire = useBreadboardWire({ svgRef, send });
+  const wire = useBreadboardWire({ svgRef, send, boardTarget });
+  const pinLayout = useMemo(() => getBoardPinLayout(boardTarget), [boardTarget]);
 
   const filteredComponents = useMemo(
-    () => Object.values(components).filter((c) => c.type !== "arduino_uno"),
+    () => Object.values(components).filter((c) => !isBoardComponentType(c.type)),
     [components],
   );
 
@@ -769,7 +787,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
         e.preventDefault();
         const all = new Set<string>();
         for (const c of Object.values(componentsRef)) {
-          if (c.type !== "arduino_uno") all.add(c.id);
+          if (!isBoardComponentType(c.type)) all.add(c.id);
         }
         for (const wId of Object.keys(wires)) {
           all.add(wId);
@@ -798,7 +816,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
           wire.rotatePlacement();
         } else if (selectedId) {
           const comp = componentsRef[selectedId];
-          if (comp && comp.type !== "arduino_uno" && comp.type !== "wire") {
+          if (comp && !isBoardComponentType(comp.type) && comp.type !== "wire") {
             send({ type: "UPDATE_COMPONENT", id: selectedId, changes: { rotation: ((comp.rotation ?? 0) + 1) % 4 } });
           }
         }
@@ -848,18 +866,35 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
       onPointerUp={handlePointerUp}
     >
       <g transform={`translate(${cam.offsetX}, ${cam.offsetY}) scale(${cam.zoom})`}>
-        <ArduinoUnoBoard
-          onStartWireFromPin={wire.handleStartWireFromPin}
-          wiringFromPin={wire.wiringFromPin}
-        />
+        {boardTarget === "arduino_uno" ? (
+          <ArduinoUnoBoard
+            onStartWireFromPin={wire.handleStartWireFromPin}
+            wiringFromPin={wire.wiringFromPin}
+            boardLabel={BOARD_TARGETS[boardTarget].label}
+            digitalPins={pinLayout.digitalPins}
+            analogPins={pinLayout.analogPins}
+            powerPins={pinLayout.powerPins}
+          />
+        ) : (
+          <ArduinoAltBoard
+            boardTarget={boardTarget}
+            onStartWireFromPin={wire.handleStartWireFromPin}
+            wiringFromPin={wire.wiringFromPin}
+            boardLabel={BOARD_TARGETS[boardTarget].label}
+            digitalPins={pinLayout.digitalPins}
+            analogPins={pinLayout.analogPins}
+            powerPins={pinLayout.powerPins}
+          />
+        )}
 
         <StaticBackground />
 
-        <WireLayer wires={wires} selectedId={selectedId} onSelect={handleComponentClick}
+        <WireLayer wires={wires} arduinoPins={pinLayout.allPins} selectedId={selectedId} onSelect={handleComponentClick}
           onDragEndpoint={handleWireEndpointDragStart} />
 
         <ComponentLayer
           components={filteredComponents}
+          wires={wires}
           selectedId={selectedId}
           draggingId={drag.draggingId}
           analysis={analysis}

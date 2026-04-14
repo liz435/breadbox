@@ -5,6 +5,7 @@ import { createCoreTools, summarizeBoardState } from "../core/tools";
 import type { AgentContext, AgentResult, DelegationContext } from "../types";
 import type { BoardOp, BoardState } from "@dreamer/schemas";
 import { createDefaultBoardState } from "@dreamer/schemas";
+import { buildSkillPolicyBlock, selectActiveSkills } from "../skills";
 
 // ── Circuit Specialist ────────────────────────────────────────────────────
 //
@@ -17,7 +18,7 @@ import { createDefaultBoardState } from "@dreamer/schemas";
 // It cannot delegate further (no recursion) and cannot write sketches — it
 // validates and repairs wiring only.
 
-const SYSTEM_PROMPT = `You are a circuit design specialist for Dreamer, an Arduino Uno simulator.
+const SYSTEM_PROMPT = `You are a circuit design specialist for Dreamer, an Arduino simulator.
 
 ## Wiring contract (identical to the core agent)
 - ALL connections come from WIRES, not from component.pins. When placing a component, set every pin to null.
@@ -28,12 +29,10 @@ const SYSTEM_PROMPT = `You are a circuit design specialist for Dreamer, an Ardui
 - 3-pin components (servo/pot/sensor): each pin on a SEPARATE ROW or they short via the bus. Wire signal→(row,x), 5V→(row+1,x), GND→(row+2,x).
 - Resistor spans 5 cols: place at col 3 to bridge the gap between the left and right strips.
 
-## Arduino Uno reference
-- Digital: D0–D13 (D0/D1 reserved for serial)
-- Analog: A0–A5 (= pins 14–19 as digital)
-- PWM: D3, D5, D6, D9, D10, D11
-- I²C: A4 (SDA), A5 (SCL)
-- Special pin numbers in wires: 5V=-1, 3V3=-2, GND=-3
+## Board reference
+- Respect the active board target from board state (Uno/Nano/Mega) when choosing analog/PWM pins.
+- Signal pins use numeric IDs 0-69 (board-dependent).
+- Special pin numbers in wires: 5V=-1, 3V3=-2, GND=-3/-4/-6, VIN=-5.
 - Max current per pin: 20 mA; total across all pins: 200 mA
 
 ## Your role
@@ -43,8 +42,8 @@ You validate and repair circuit wiring. The board state below reflects the paren
 1. Every LED must have a current-limiting resistor on its cathode path.
 2. No pin should source/sink more than 20 mA.
 3. Serial pins (D0/D1) should not be used for general I/O when Serial is needed.
-4. PWM components (servo, motor) must use D3/D5/D6/D9/D10/D11.
-5. OLED/LCD: SDA→A4, SCL→A5.
+4. PWM components (servo, motor) must use PWM pins valid for the active board target.
+5. I2C devices must use the active board's SDA/SCL mapping.
 6. Multiple signal sources must not land on the same breadboard bus row (bus short).
 7. Components on separate rows should each have their own wires — check floating components.
 
@@ -62,8 +61,20 @@ export async function runCircuitAgent(ctx: AgentContext): Promise<AgentResult> {
   const workingBoard: BoardState =
     ctx.sharedWorkingBoard ??
     structuredClone(ctx.project.boardState ?? createDefaultBoardState());
+  const activeSkills = selectActiveSkills({
+    prompt: ctx.prompt,
+    project: { ...ctx.project, boardState: workingBoard },
+    maxSkills: 2,
+    allowSerialSkill: false,
+  });
+  const skillPolicy = buildSkillPolicyBlock(activeSkills);
 
   log.info(`starting — prompt: ${ctx.prompt.slice(0, 100)}`);
+  log.info(
+    `active skills — ${
+      activeSkills.length > 0 ? activeSkills.join(", ") : "none"
+    }`
+  );
 
   // The circuit specialist can't delegate (no recursion), so we stub
   // DelegationContext with unusable runners — the filtered tool set for
@@ -83,7 +94,7 @@ export async function runCircuitAgent(ctx: AgentContext): Promise<AgentResult> {
     }),
   };
 
-  const tools = createCoreTools({
+  const { tools } = createCoreTools({
     project: ctx.project,
     sceneId: ctx.sceneId,
     ops,
@@ -95,7 +106,7 @@ export async function runCircuitAgent(ctx: AgentContext): Promise<AgentResult> {
   const messages: ModelMessage[] = [
     {
       role: "system",
-      content: SYSTEM_PROMPT,
+      content: `${SYSTEM_PROMPT}\n\n${skillPolicy}`,
       providerOptions: {
         anthropic: { cacheControl: { type: "ephemeral" } },
       },
@@ -110,11 +121,18 @@ export async function runCircuitAgent(ctx: AgentContext): Promise<AgentResult> {
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
 
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(() => {
+    log.warn("circuit agent stream timed out after 30s");
+    abortController.abort();
+  }, 30_000);
+
   const result = streamText({
     model: anthropic(CIRCUIT_MODEL),
     tools,
     messages,
     stopWhen: stepCountIs(8),
+    abortSignal: abortController.signal,
     onStepFinish({ toolCalls, usage, finishReason }) {
       stepCount++;
       const elapsed = (performance.now() - start).toFixed(1);
@@ -135,6 +153,7 @@ export async function runCircuitAgent(ctx: AgentContext): Promise<AgentResult> {
   });
 
   const text = await result.text;
+  clearTimeout(timeoutId);
   const allMessages = (await result.response).messages as ModelMessage[];
 
   const elapsed = (performance.now() - start).toFixed(1);

@@ -9,6 +9,29 @@ export function SketchPage() {
         badge={<Badge variant="implemented">Implemented</Badge>}
       />
 
+      <Section title="Example boards">
+        <p className="text-sm text-gray-300 leading-relaxed mb-2">
+          The <strong className="text-gray-200">Examples</strong> button sits to the right of Run/Stop
+          in the toolbar. It opens a popover listing 21 ready-made example boards — one for every
+          component type Dreamer supports. Each example includes a complete breadboard layout, wiring,
+          and a working sketch.
+        </p>
+        <Table
+          headers={["Feature", "Details"]}
+          rows={[
+            ["Context-aware", "If your board already has components, matching examples are highlighted at the top of the list."],
+            ["Grouped by category", "Output, Input, Display, Passive, Other — so you can browse by purpose."],
+            ["Replaces the board", "Clicking an example loads the full BoardState (components + wires + sketch). Your current board is replaced."],
+            ["21 examples", "LED, RGB LED, Resistor, Capacitor, Button, Potentiometer, Buzzer, Servo, Photoresistor, Temperature Sensor, Ultrasonic Sensor, LCD 16×2, 7-Segment, NeoPixel, PIR Sensor, Relay, DC Motor, DHT Sensor, IR Receiver, Shift Register, OLED Display."],
+          ]}
+        />
+        <Note>
+          Examples are stored as JSON board snapshots in <code>packages/app/src/examples/boards/</code>.
+          The catalog auto-discovers them via <code>import.meta.glob</code> — drop a new JSON file and
+          add an entry in <code>example-catalog.ts</code> to ship a new example.
+        </Note>
+      </Section>
+
       <Section title="Auto-generation">
         <p className="text-sm text-gray-300 leading-relaxed">
           When the sketch is empty or still contains the auto-generated boilerplate, Dreamer

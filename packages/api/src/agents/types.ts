@@ -60,6 +60,9 @@ export type TokenUsage = {
   /** End-to-end total: parent + rolled-up child runs + overhead. */
   totalTokens: number;
   model: string;
+  /** Prompt caching breakdown — how many input tokens were cache hits vs writes. */
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
   /** Breakdown of child-run costs when specialists were delegated. */
   children?: ChildTokenUsage[];
   /** Overhead calls (summarizer, etc.) attributed to this run. */

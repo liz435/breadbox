@@ -1,0 +1,56 @@
+{
+  "components": {
+    "psu-1": {
+      "id": "psu-1",
+      "type": "power_supply",
+      "name": "External 5V",
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "pins": {},
+      "properties": { "leftVoltage": 5, "rightVoltage": 5 }
+    },
+    "relay-1": {
+      "id": "relay-1",
+      "type": "relay",
+      "name": "Relay",
+      "x": 7,
+      "y": 5,
+      "rotation": 0,
+      "pins": {
+        "signal": null
+      },
+      "properties": {}
+    }
+  },
+  "wires": {
+    "wire-d7": {
+      "id": "wire-d7",
+      "fromRow": -999,
+      "fromCol": 7,
+      "toRow": 5,
+      "toCol": 7,
+      "color": "#fbbf24"
+    },
+    "wire-vcc": {
+      "id": "wire-vcc",
+      "fromRow": 0,
+      "fromCol": 10,
+      "toRow": 6,
+      "toCol": 7,
+      "color": "#ef4444"
+    },
+    "wire-gnd": {
+      "id": "wire-gnd",
+      "fromRow": -999,
+      "fromCol": -3,
+      "toRow": 7,
+      "toCol": 7,
+      "color": "#1a1a1a"
+    }
+  },
+  "libraryState": { "servos": {}, "lcd": null, "serialBaud": 0 },
+  "serialOutput": [],
+  "sketchCode": "// Example: Relay Toggle\n// Switch a relay on and off every 2 seconds.\n// Uses external 5V power supply for the relay coil.\n\nint relayPin = 7;\n\nvoid setup() {\n  pinMode(relayPin, OUTPUT);\n}\n\nvoid loop() {\n  digitalWrite(relayPin, HIGH);\n  delay(2000);\n  digitalWrite(relayPin, LOW);\n  delay(2000);\n}\n",
+  "customLibraries": {}
+}

@@ -6,9 +6,22 @@
 
 const COMPILE_ENDPOINT = "http://localhost:4111/api/compile"
 
+export type SketchSizeInfo = {
+  flashUsed: number
+  flashMax: number
+  flashPercent: number
+  ramUsed: number
+  ramMax: number
+  ramPercent: number
+}
+
 export type CompileResult =
-  | { success: true; hex: Uint16Array }
+  | { success: true; hex: Uint16Array; sizeInfo?: SketchSizeInfo }
   | { success: false; error: string }
+
+export type CompileOptions = {
+  fqbn?: string
+}
 
 /**
  * Parse an Intel HEX file string into a Uint16Array suitable for loading
@@ -99,12 +112,13 @@ export function parseIntelHex(hex: string): Uint16Array {
  * Compile an Arduino sketch by sending it to the backend compile endpoint.
  * Returns the parsed program memory on success, or an error message on failure.
  */
-export async function compileSketch(code: string): Promise<CompileResult> {
+export async function compileSketch(code: string, options: CompileOptions = {}): Promise<CompileResult> {
   try {
+    const fqbn = options.fqbn ?? "arduino:avr:uno"
     const response = await fetch(COMPILE_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code }),
+      body: JSON.stringify({ code, fqbn }),
     })
 
     if (!response.ok) {
@@ -115,7 +129,7 @@ export async function compileSketch(code: string): Promise<CompileResult> {
       }
     }
 
-    const body = (await response.json()) as { hex?: string; error?: string }
+    const body = (await response.json()) as { hex?: string; error?: string; sizeInfo?: SketchSizeInfo }
     if (body.error) {
       return { success: false, error: body.error }
     }
@@ -124,7 +138,7 @@ export async function compileSketch(code: string): Promise<CompileResult> {
     }
 
     const progMem = parseIntelHex(body.hex)
-    return { success: true, hex: progMem }
+    return { success: true, hex: progMem, sizeInfo: body.sizeInfo ?? undefined }
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Failed to reach compilation server"

@@ -9,6 +9,7 @@ import React from "react"
 import { useSelector } from "@xstate/react"
 import type { ArduinoPinInfo } from "./breadboard-grid"
 import type { BoardEvent } from "@/store/board-machine"
+import type { BoardTarget } from "@dreamer/schemas"
 import { screenToBoard } from "./breadboard-camera"
 import { pixelToGrid } from "./breadboard-grid"
 import { breadboardInteractionActor } from "./breadboard-interaction"
@@ -26,11 +27,13 @@ export function getWireColorForPin(pin: ArduinoPinInfo): string {
 type UseBreadboardWireOptions = {
   svgRef: React.RefObject<SVGSVGElement | null>
   send: (event: BoardEvent) => void
+  boardTarget: BoardTarget
 }
 
 export function useBreadboardWire({
   svgRef,
   send,
+  boardTarget,
 }: UseBreadboardWireOptions) {
   // Read ghost position from the interaction machine
   const ghostPos = useSelector(
@@ -147,6 +150,9 @@ export function useBreadboardWire({
             id: crypto.randomUUID(),
             fromRow: -999,
             fromCol: currentWiringPin.pin,
+            fromBoardTarget: boardTarget,
+            fromPinLabel: currentWiringPin.label,
+            fromPinCategory: currentWiringPin.category,
             toRow: grid.row,
             toCol: grid.col,
             color: getWireColorForPin(currentWiringPin),
@@ -159,7 +165,7 @@ export function useBreadboardWire({
 
       return false
     },
-    [send, svgRef],
+    [boardTarget, send, svgRef],
   )
 
   /** Call from unified pointerMove. Returns true if consumed. */

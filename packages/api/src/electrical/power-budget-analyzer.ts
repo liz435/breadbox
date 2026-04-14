@@ -1,3 +1,9 @@
+import {
+  DEFAULT_BOARD_TARGET,
+  formatArduinoPin,
+  isArduinoSignalPin,
+  isBoardComponentType,
+} from "@dreamer/schemas";
 import type {
   BoardComponent,
   BoardState,
@@ -50,14 +56,6 @@ function keyForArduinoPin(pin: number): string {
   return `a:${pin}`;
 }
 
-function arduinoPinLabel(pin: number): string {
-  if (pin === -1) return "5V";
-  if (pin === -2) return "3V3";
-  if (pin === -3 || pin === -4 || pin === -6) return "GND";
-  if (pin >= 14 && pin <= 19) return `A${pin - 14}`;
-  return `D${pin}`;
-}
-
 function componentPinPoints(component: BoardComponent): Record<string, Point> {
   const x = component.x;
   const y = component.y;
@@ -85,6 +83,21 @@ function componentPinPoints(component: BoardComponent): Record<string, Point> {
       return { positive: { row: y, col: x }, negative: { row: y + 1, col: x } };
     case "power_supply":
       return { positive: { row: y, col: x }, negative: { row: y + 1, col: x } };
+    case "lcd_16x2":
+      return {
+        vss: { row: y + 0, col: x },
+        vdd: { row: y + 1, col: x },
+        vo: { row: y + 2, col: x },
+        rs: { row: y + 3, col: x },
+        rw: { row: y + 4, col: x },
+        e: { row: y + 5, col: x },
+        d4: { row: y + 6, col: x },
+        d5: { row: y + 7, col: x },
+        d6: { row: y + 8, col: x },
+        d7: { row: y + 9, col: x },
+        a: { row: y + 10, col: x },
+        k: { row: y + 11, col: x },
+      };
     default:
       return { signal: { row: y, col: x } };
   }
@@ -103,6 +116,18 @@ function powerSupplyPositivePoints(component: BoardComponent): Point[] {
   ];
 }
 
+function powerSupplyNegativePoints(component: BoardComponent): Point[] {
+  // Legacy model: treat (x, y+1) as negative anchor.
+  // MB102 model: negative rails at cols -1 and 10 on rows y/y+1.
+  return [
+    { row: component.y + 1, col: component.x },
+    { row: component.y, col: -1 },
+    { row: component.y + 1, col: -1 },
+    { row: component.y, col: 10 },
+    { row: component.y + 1, col: 10 },
+  ];
+}
+
 function chooseSignalPins(component: BoardComponent): string[] {
   if (component.type === "led") return ["anode"];
   if (component.type === "rgb_led") return ["red", "green", "blue"];
@@ -111,6 +136,7 @@ function chooseSignalPins(component: BoardComponent): string[] {
   if (component.type === "relay") return ["signal"];
   if (component.type === "dc_motor") return ["signal"];
   if (component.type === "neopixel") return ["signal", "din"];
+  if (component.type === "lcd_16x2") return ["rs", "e", "d4", "d5", "d6", "d7"];
   return ["signal", "vout", "data", "din"];
 }
 
@@ -122,15 +148,43 @@ function choosePowerPins(component: BoardComponent): string[] {
   if (component.type === "relay") return ["vcc", "signal"];
   if (component.type === "dc_motor") return ["vcc", "signal"];
   if (component.type === "neopixel") return ["vcc"];
-  if (component.type === "lcd_16x2") return ["vcc"];
+  if (component.type === "lcd_16x2") return ["vdd", "a"];
   if (component.type === "oled_display") return ["vcc"];
   if (component.type === "seven_segment") return ["common"];
   if (component.type === "led" || component.type === "rgb_led") return ["anode", "common"];
   return ["power", "vcc", "positive"];
 }
 
+function chooseGroundPins(component: BoardComponent): string[] {
+  if (component.type === "servo") return ["gnd"];
+  if (component.type === "potentiometer") return ["gnd"];
+  if (component.type === "temperature_sensor") return ["ground"];
+  if (component.type === "buzzer") return ["negative"];
+  if (component.type === "lcd_16x2") return ["vss", "k"];
+  if (component.type === "seven_segment") return ["common"];
+  if (component.type === "led") return ["cathode"];
+  if (component.type === "rgb_led") return ["common"];
+  return ["gnd", "ground", "negative"];
+}
+
 function parseConnectedArduinoPins(net: string, arduinoNetMap: Map<string, Set<number>>): Set<number> {
   return arduinoNetMap.get(net) ?? new Set<number>();
+}
+
+function netHasGroundRail(ds: DisjointSet, net: string): boolean {
+  for (let row = 0; row < 30; row++) {
+    if (ds.find(keyForGrid({ row, col: -1 })) === net) return true;
+    if (ds.find(keyForGrid({ row, col: 10 })) === net) return true;
+  }
+  return false;
+}
+
+function netHasPowerRail(ds: DisjointSet, net: string): boolean {
+  for (let row = 0; row < 30; row++) {
+    if (ds.find(keyForGrid({ row, col: -2 })) === net) return true;
+    if (ds.find(keyForGrid({ row, col: 11 })) === net) return true;
+  }
+  return false;
 }
 
 function addRailLoad(
@@ -191,6 +245,7 @@ function connectBreadboardBuses(ds: DisjointSet, usedGridPoints: Set<string>) {
 }
 
 export function analyzePowerBudget(board: BoardState): PowerBudgetReport {
+  const boardTarget = board.boardTarget ?? DEFAULT_BOARD_TARGET;
   const issues: PowerIssue[] = [];
   const recommendations = new Map<string, string>();
   const ds = new DisjointSet();
@@ -220,7 +275,7 @@ export function analyzePowerBudget(board: BoardState): PowerBudgetReport {
   const pinLoads = new Map<number, { currentMa: number; componentIds: Set<string> }>();
   const railLoads = new Map<string, { currentMa: number; componentIds: Set<string> }>();
 
-  const components = Object.values(board.components).filter((c) => c.type !== "arduino_uno");
+  const components = Object.values(board.components).filter((c) => !isBoardComponentType(c.type));
   const hasExternalSupply = components.some((c) => c.type === "power_supply");
 
   for (const component of components) {
@@ -236,7 +291,7 @@ export function analyzePowerBudget(board: BoardState): PowerBudgetReport {
       const net = ds.find(keyForGrid(point));
       const connectedPins = parseConnectedArduinoPins(net, arduinoNetMap);
       for (const pin of connectedPins) {
-        if (pin >= 0 && pin <= 19) {
+        if (isArduinoSignalPin(pin)) {
           addPinLoad(pinLoads, pin, profile.signalPinCurrentMa, component.id);
         }
       }
@@ -246,6 +301,8 @@ export function analyzePowerBudget(board: BoardState): PowerBudgetReport {
     let poweredFromArduino5V = false;
     let poweredFromArduino3V3 = false;
     let poweredFromExternal = false;
+    let hasPotentialPowerFeed = false;
+    let hasGroundConnection = false;
 
     for (const powerPinName of powerPinNames) {
       const point = pins[powerPinName];
@@ -254,6 +311,12 @@ export function analyzePowerBudget(board: BoardState): PowerBudgetReport {
       const connectedPins = parseConnectedArduinoPins(net, arduinoNetMap);
       if (connectedPins.has(-1)) poweredFromArduino5V = true;
       if (connectedPins.has(-2)) poweredFromArduino3V3 = true;
+      // Treat any non-ground Arduino pin touching a power pin net as a
+      // potential feed source (5V/3V3/digital/analog), so we can validate
+      // only when the component is actually being powered.
+      if ([...connectedPins].some((pin) => pin !== -3 && pin !== -4 && pin !== -6)) {
+        hasPotentialPowerFeed = true;
+      }
 
       // External supply heuristic: same net touches a power_supply positive pin.
       if (!poweredFromExternal) {
@@ -268,6 +331,26 @@ export function analyzePowerBudget(board: BoardState): PowerBudgetReport {
       }
     }
 
+    for (const groundPinName of chooseGroundPins(component)) {
+      const point = pins[groundPinName];
+      if (!point) continue;
+      const net = ds.find(keyForGrid(point));
+      const connectedPins = parseConnectedArduinoPins(net, arduinoNetMap);
+      if (connectedPins.has(-3) || connectedPins.has(-4) || connectedPins.has(-6)) {
+        hasGroundConnection = true;
+      }
+      if (!hasGroundConnection) {
+        for (const other of components) {
+          if (other.type !== "power_supply") continue;
+          const negativePoints = powerSupplyNegativePoints(other);
+          if (negativePoints.some((pos) => ds.find(keyForGrid(pos)) === net)) {
+            hasGroundConnection = true;
+            break;
+          }
+        }
+      }
+    }
+
     const railCurrent = Math.max(profile.typicalCurrentMa, profile.startupCurrentMa || 0);
     if (railCurrent > 0) {
       if (poweredFromArduino5V) addRailLoad(railLoads, "5V", railCurrent, component.id);
@@ -275,7 +358,7 @@ export function analyzePowerBudget(board: BoardState): PowerBudgetReport {
       if (poweredFromExternal) addRailLoad(railLoads, "external", railCurrent, component.id);
     }
 
-    if (profile.mustUseExternalPower && !poweredFromExternal) {
+    if (profile.mustUseExternalPower && hasPotentialPowerFeed && !poweredFromExternal) {
       issues.push({
         severity: "error",
         code: "EXTERNAL_POWER_REQUIRED",
@@ -296,6 +379,107 @@ export function analyzePowerBudget(board: BoardState): PowerBudgetReport {
         componentId: component.id,
       });
     }
+
+    if (component.type === "lcd_16x2") {
+      const signalPinNames = chooseSignalPins(component);
+      const hasAnySignalConnection = signalPinNames.some((signalPinName) => {
+        const point = pins[signalPinName];
+        if (!point) return false;
+        const net = ds.find(keyForGrid(point));
+        const connectedPins = parseConnectedArduinoPins(net, arduinoNetMap);
+        return [...connectedPins].some((pin) => isArduinoSignalPin(pin));
+      });
+
+      const isEffectivelyUsed = hasAnySignalConnection || hasPotentialPowerFeed || hasGroundConnection;
+      if (isEffectivelyUsed) {
+        if (!(poweredFromArduino5V || poweredFromArduino3V3 || poweredFromExternal)) {
+          issues.push({
+            severity: "error",
+            code: "LCD_POWER_MISSING",
+            message: `${component.name} (lcd_16x2) is wired for control but has no VDD power connection.`,
+            componentId: component.id,
+          });
+        }
+        if (!hasGroundConnection) {
+          issues.push({
+            severity: "error",
+            code: "LCD_GROUND_MISSING",
+            message: `${component.name} (lcd_16x2) is wired for control but has no ground (VSS/K) connection.`,
+            componentId: component.id,
+          });
+        }
+      }
+    }
+
+    if (component.type === "button") {
+      const sideA = pins.a;
+      const sideB = pins.b;
+      if (sideA && sideB) {
+        const netA = ds.find(keyForGrid(sideA));
+        const netB = ds.find(keyForGrid(sideB));
+        const pinsA = parseConnectedArduinoPins(netA, arduinoNetMap);
+        const pinsB = parseConnectedArduinoPins(netB, arduinoNetMap);
+        const sideAHasSignal = [...pinsA].some((pin) => isArduinoSignalPin(pin));
+        const sideBHasSignal = [...pinsB].some((pin) => isArduinoSignalPin(pin));
+
+        if (sideAHasSignal && sideBHasSignal) {
+          issues.push({
+            severity: "error",
+            code: "BUTTON_SIGNAL_BOTH_SIDES",
+            message: `${component.name} (button) has Arduino signal wires on both sides. Use one side for input and the opposite side for power/ground reference.`,
+            componentId: component.id,
+          });
+        } else if (sideAHasSignal || sideBHasSignal) {
+          const refPins = sideAHasSignal ? pinsB : pinsA;
+          const refNet = sideAHasSignal ? netB : netA;
+          const hasGroundRef =
+            [...refPins].some((pin) => pin === -3 || pin === -4 || pin === -6) ||
+            netHasGroundRail(ds, refNet);
+          const hasPowerRef =
+            [...refPins].some((pin) => pin === -1 || pin === -2) ||
+            netHasPowerRail(ds, refNet);
+
+          if (!hasGroundRef && !hasPowerRef) {
+            issues.push({
+              severity: "error",
+              code: "BUTTON_REFERENCE_MISSING",
+              message: `${component.name} (button) input has no opposite-side reference. Wire the other side to GND (for INPUT_PULLUP) or 5V/3V3 (for INPUT).`,
+              componentId: component.id,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  const hasLcd = components.some((c) => c.type === "lcd_16x2");
+  if (hasLcd) {
+    const lcdCandidateResistors = components.filter(
+      (c) => {
+        if (c.type !== "resistor") return false;
+        const normalized = c.name.toLowerCase().replace(/[_-]+/g, " ");
+        return /(lcd|contrast|backlight|\bvo\b|\brw\b|\brs\b|\ba\b|\bk\b)/i.test(normalized);
+      },
+    );
+    for (const resistor of lcdCandidateResistors) {
+      const leadA = { row: resistor.y, col: resistor.x };
+      const leadB = { row: resistor.y, col: resistor.x + 4 };
+      const hasLeadWire = Object.values(board.wires).some(
+        (wire) =>
+          (wire.toRow === leadA.row && wire.toCol === leadA.col) ||
+          (wire.fromRow !== -999 && wire.fromRow === leadA.row && wire.fromCol === leadA.col) ||
+          (wire.toRow === leadB.row && wire.toCol === leadB.col) ||
+          (wire.fromRow !== -999 && wire.fromRow === leadB.row && wire.fromCol === leadB.col),
+      );
+      if (!hasLeadWire) {
+        issues.push({
+          severity: "error",
+          code: "LCD_RESISTOR_UNCONNECTED",
+          message: `${resistor.name} (resistor) looks LCD-related but neither lead is wired.`,
+          componentId: resistor.id,
+        });
+      }
+    }
   }
 
   // Per-pin limits.
@@ -304,7 +488,7 @@ export function analyzePowerBudget(board: BoardState): PowerBudgetReport {
       issues.push({
         severity: "error",
         code: "PIN_OVERCURRENT",
-        message: `${arduinoPinLabel(pin)} estimated at ${load.currentMa.toFixed(1)}mA (limit ${ARDUINO_UNO_ELECTRICAL_PROFILE.pinCurrentLimitMa}mA).`,
+        message: `${formatArduinoPin(pin, boardTarget)} estimated at ${load.currentMa.toFixed(1)}mA (limit ${ARDUINO_UNO_ELECTRICAL_PROFILE.pinCurrentLimitMa}mA).`,
         pin,
       });
       recommendations.set(
@@ -315,7 +499,7 @@ export function analyzePowerBudget(board: BoardState): PowerBudgetReport {
       issues.push({
         severity: "warning",
         code: "PIN_NEAR_LIMIT",
-        message: `${arduinoPinLabel(pin)} is near limit at ${load.currentMa.toFixed(1)}mA.`,
+        message: `${formatArduinoPin(pin, boardTarget)} is near limit at ${load.currentMa.toFixed(1)}mA.`,
         pin,
       });
     }

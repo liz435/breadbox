@@ -220,6 +220,11 @@ export type RunEval = {
   graph: GraphAnalysis
   /** Populated only when board ops exist (breadboard/template/mixed). */
   electrical: ElectricalAnalysis
+  intent: {
+    intentSatisfied: boolean
+    repeatedToolFailureLoops: number
+    partialSuccessWithoutIntent: boolean
+  }
   /** Null when not evaluable — callers should skip null scores in aggregates. */
   score: {
     total: number

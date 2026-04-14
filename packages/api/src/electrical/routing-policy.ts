@@ -46,11 +46,17 @@ function isSameTerminalBus(a: { row: number; col: number }, b: { row: number; co
   return aStrip !== "other" && aStrip === bStrip;
 }
 
-function keyOfWire(w: Pick<Wire, "fromRow" | "fromCol" | "toRow" | "toCol">): string {
-  return `${w.fromRow}:${w.fromCol}->${w.toRow}:${w.toCol}`;
+function keyOfWire(
+  w: Pick<Wire, "fromRow" | "fromCol" | "toRow" | "toCol" | "fromPinLabel" | "fromPinCategory">,
+): string {
+  const pinMeta = w.fromRow === -999 ? `:${w.fromPinCategory ?? ""}:${w.fromPinLabel ?? ""}` : "";
+  return `${w.fromRow}:${w.fromCol}${pinMeta}->${w.toRow}:${w.toCol}`;
 }
 
-function hasEquivalentWire(board: BoardState, wire: Pick<Wire, "fromRow" | "fromCol" | "toRow" | "toCol">): boolean {
+function hasEquivalentWire(
+  board: BoardState,
+  wire: Pick<Wire, "fromRow" | "fromCol" | "toRow" | "toCol" | "fromPinLabel" | "fromPinCategory">,
+): boolean {
   const key = keyOfWire(wire);
   for (const existing of Object.values(board.wires)) {
     if (keyOfWire(existing) === key) return true;

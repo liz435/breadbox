@@ -1,0 +1,72 @@
+import { MAX_ARDUINO_PIN } from "./arduino";
+import { DEFAULT_BOARD_TARGET, type BoardTarget } from "./board-targets";
+
+const BOARD_ANALOG_PIN_NUMBERS: Record<BoardTarget, readonly number[]> = {
+  arduino_uno: [14, 15, 16, 17, 18, 19],
+  arduino_nano: [14, 15, 16, 17, 18, 19, 20, 21],
+  arduino_mega_2560: Array.from({ length: 16 }, (_, i) => 54 + i),
+};
+
+const POWER_PIN_LABELS: Record<number, string> = {
+  [-1]: "5V",
+  [-2]: "3V3",
+  [-3]: "GND",
+  [-4]: "GND",
+  [-5]: "VIN",
+  [-6]: "GND",
+  [-7]: "AREF",
+  [-8]: "IOREF",
+  [-9]: "RESET",
+};
+
+export function getBoardAnalogPins(boardTarget: BoardTarget = DEFAULT_BOARD_TARGET): readonly number[] {
+  return BOARD_ANALOG_PIN_NUMBERS[boardTarget] ?? BOARD_ANALOG_PIN_NUMBERS[DEFAULT_BOARD_TARGET];
+}
+
+export function getArduinoPinFromAnalogIndex(
+  analogIndex: number,
+  boardTarget: BoardTarget = DEFAULT_BOARD_TARGET,
+): number | null {
+  if (!Number.isInteger(analogIndex) || analogIndex < 0) return null;
+  const pins = getBoardAnalogPins(boardTarget);
+  return pins[analogIndex] ?? null;
+}
+
+export function parseArduinoPinToken(
+  token: string,
+  boardTarget: BoardTarget = DEFAULT_BOARD_TARGET,
+): number | null {
+  const raw = token.trim();
+  const analogMatch = raw.match(/^A(\d{1,2})$/i);
+  if (analogMatch) {
+    return getArduinoPinFromAnalogIndex(parseInt(analogMatch[1], 10), boardTarget);
+  }
+
+  const digitalMatch = raw.match(/^D(\d{1,2})$/i);
+  if (digitalMatch) {
+    const pin = parseInt(digitalMatch[1], 10);
+    return isArduinoSignalPin(pin) ? pin : null;
+  }
+
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.trunc(parsed);
+}
+
+export function isArduinoSignalPin(pin: number): boolean {
+  return Number.isInteger(pin) && pin >= 0 && pin <= MAX_ARDUINO_PIN;
+}
+
+export function formatArduinoPin(
+  pin: number,
+  boardTarget: BoardTarget = DEFAULT_BOARD_TARGET,
+): string {
+  const powerLabel = POWER_PIN_LABELS[pin];
+  if (powerLabel != null) return powerLabel;
+  if (!isArduinoSignalPin(pin)) return `pin ${pin}`;
+
+  const analogPins = getBoardAnalogPins(boardTarget);
+  const analogIndex = analogPins.indexOf(pin);
+  if (analogIndex >= 0) return `A${analogIndex}`;
+  return `D${pin}`;
+}
