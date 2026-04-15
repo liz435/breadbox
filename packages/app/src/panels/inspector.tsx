@@ -42,6 +42,11 @@ const LED_COLORS = [
 const DIGITAL_PINS = Array.from({ length: 14 }, (_, i) => ({ label: `D${i}`, value: i }));
 const ANALOG_PINS = Array.from({ length: 6 }, (_, i) => ({ label: `A${i}`, value: 14 + i }));
 const ALL_PINS = [...DIGITAL_PINS, ...ANALOG_PINS];
+const GROUND_PIN_OPTIONS = [
+  { label: "GND (-3)", value: -3 },
+  { label: "GND (-4)", value: -4 },
+  { label: "GND (-6)", value: -6 },
+];
 
 // ── Helpers ──
 
@@ -66,11 +71,14 @@ function PinSelect({
   value,
   onChange,
   includeNone,
+  includeGroundPins,
 }: {
   value: number | null;
   onChange: (pin: number | null) => void;
   includeNone?: boolean;
+  includeGroundPins?: boolean;
 }) {
+  const options = includeGroundPins ? [...ALL_PINS, ...GROUND_PIN_OPTIONS] : ALL_PINS;
   return (
     <select
       className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs text-neutral-200 outline-none focus:border-zinc-500"
@@ -81,7 +89,7 @@ function PinSelect({
       }}
     >
       {(includeNone !== false) && <option value="">None</option>}
-      {ALL_PINS.map((p) => (
+      {options.map((p) => (
         <option key={p.value} value={p.value}>{p.label}</option>
       ))}
     </select>
@@ -631,18 +639,31 @@ function UltrasonicInspector({ component, onUpdate }: {
   component: BoardComponent;
   onUpdate: (changes: Partial<BoardComponent>) => void;
 }) {
+  const { state: boardState, send: boardSend } = useBoard();
+  const env = boardState.environment;
+  const hasObstacles = Object.keys(env.obstacles).length > 0 || env.boundaryEnabled;
   const distance = (component.properties.distance as number) ?? 50;
+
   return (
     <>
+      {/* Manual distance slider — shown as fallback when no environment */}
       <PropertyRow label="Distance">
         <div className="flex items-center gap-2">
           <input type="range" min={2} max={400} value={distance} className="flex-1"
+            disabled={hasObstacles}
             onChange={(e) => onUpdate({
               properties: { ...component.properties, distance: parseInt(e.target.value, 10) },
             })} />
-          <span className="text-xs text-neutral-300 w-12 text-right">{distance} cm</span>
+          <span className="text-xs text-neutral-300 w-12 text-right">
+            {hasObstacles ? "auto" : `${distance} cm`}
+          </span>
         </div>
       </PropertyRow>
+      {hasObstacles && (
+        <PropertyRow label="Mode">
+          <span className="text-xs text-cyan-400">Ray-cast (environment)</span>
+        </PropertyRow>
+      )}
       <PropertyRow label="Trigger">
         <PinSelect value={component.pins.trigger ?? null}
           onChange={(pin) => onUpdate({ pins: { ...component.pins, trigger: pin } })} />
@@ -651,6 +672,78 @@ function UltrasonicInspector({ component, onUpdate }: {
         <PinSelect value={component.pins.echo ?? null}
           onChange={(pin) => onUpdate({ pins: { ...component.pins, echo: pin } })} />
       </PropertyRow>
+
+      <Separator />
+
+      {/* Environment controls */}
+      <PropertyRow label="Boundary">
+        <label className="flex items-center gap-1.5 cursor-pointer">
+          <input type="checkbox" checked={env.boundaryEnabled}
+            onChange={(e) => boardSend({
+              type: "UPDATE_ENVIRONMENT",
+              changes: { boundaryEnabled: e.target.checked },
+            })} />
+          <span className="text-xs text-neutral-300">Room walls</span>
+        </label>
+      </PropertyRow>
+      <PropertyRow label="Obstacles">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-neutral-400">{Object.keys(env.obstacles).length} placed</span>
+          <button
+            className="px-1.5 py-0.5 text-xs rounded bg-neutral-700 hover:bg-neutral-600 text-neutral-200"
+            onClick={() => {
+              const id = `obs_${Date.now()}`
+              boardSend({
+                type: "ADD_OBSTACLE",
+                obstacle: {
+                  id,
+                  shape: "box",
+                  x1: 200, y1: 100,
+                  x2: 260, y2: 140,
+                  label: "",
+                },
+              })
+            }}
+          >
+            + Box
+          </button>
+          <button
+            className="px-1.5 py-0.5 text-xs rounded bg-neutral-700 hover:bg-neutral-600 text-neutral-200"
+            onClick={() => {
+              const id = `obs_${Date.now()}`
+              boardSend({
+                type: "ADD_OBSTACLE",
+                obstacle: {
+                  id,
+                  shape: "wall",
+                  x1: 200, y1: 100,
+                  x2: 300, y2: 100,
+                  label: "",
+                },
+              })
+            }}
+          >
+            + Wall
+          </button>
+        </div>
+      </PropertyRow>
+
+      {/* List placed obstacles with remove buttons */}
+      {Object.values(env.obstacles).map((obs) => (
+        <PropertyRow key={obs.id} label={obs.shape === "wall" ? "Wall" : "Box"}>
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-neutral-400">
+              ({Math.round(obs.x1)},{Math.round(obs.y1)})
+            </span>
+            <button
+              className="px-1 text-xs text-red-400 hover:text-red-300"
+              onClick={() => boardSend({ type: "REMOVE_OBSTACLE", id: obs.id })}
+            >
+              x
+            </button>
+          </div>
+        </PropertyRow>
+      ))}
     </>
   );
 }
@@ -677,12 +770,19 @@ function SevenSegmentInspector({ component, onUpdate }: {
 }) {
   return (
     <>
-      {["a", "b", "c", "d", "e", "f", "g"].map((seg) => (
+      {["a", "b", "c", "d", "e", "f", "g", "dp"].map((seg) => (
         <PropertyRow key={seg} label={`Seg ${seg.toUpperCase()}`}>
           <PinSelect value={component.pins[seg] ?? null}
             onChange={(v) => onUpdate({ pins: { ...component.pins, [seg]: v } })} />
         </PropertyRow>
       ))}
+      <PropertyRow label="Ground">
+        <PinSelect
+          value={component.pins.gnd ?? null}
+          includeGroundPins
+          onChange={(v) => onUpdate({ pins: { ...component.pins, gnd: v } })}
+        />
+      </PropertyRow>
     </>
   );
 }

@@ -6,6 +6,8 @@ import type {
   LibraryState,
   CustomLibrary,
   BoardTarget,
+  Obstacle,
+  Environment,
 } from "@dreamer/schemas";
 import { createDefaultBoardState, DEFAULT_BOARD_TARGET } from "@dreamer/schemas";
 import { pinStateStore } from "@/simulator/pin-state-store";
@@ -78,6 +80,10 @@ export type BoardEvent =
   | { type: "UPDATE_CUSTOM_LIBRARY"; name: string; library: CustomLibrary }
   | { type: "REMOVE_CUSTOM_LIBRARY"; name: string }
   | { type: "SET_BOARD_TARGET"; boardTarget: BoardTarget }
+  | { type: "ADD_OBSTACLE"; obstacle: Obstacle }
+  | { type: "UPDATE_OBSTACLE"; id: string; changes: Partial<Obstacle> }
+  | { type: "REMOVE_OBSTACLE"; id: string }
+  | { type: "UPDATE_ENVIRONMENT"; changes: Partial<Environment> }
   | { type: "LOAD_BOARD"; state: BoardState }
   | { type: "SNAPSHOT" }
   | { type: "UNDO" }
@@ -106,6 +112,7 @@ function boardData(ctx: BoardMachineContext): BoardState {
     sketchCode: ctx.sketchCode,
     customLibraries: ctx.customLibraries,
     boardTarget: ctx.boardTarget ?? DEFAULT_BOARD_TARGET,
+    environment: ctx.environment,
   };
 }
 
@@ -378,6 +385,52 @@ export const boardMachine = setup({
       ],
     },
 
+    // ── Environment (obstacles for sensor simulation) ──
+
+    ADD_OBSTACLE: {
+      actions: assign(({ context, event }) => ({
+        ...pushHistory(context),
+        environment: {
+          ...context.environment,
+          obstacles: { ...context.environment.obstacles, [event.obstacle.id]: event.obstacle },
+        },
+      })),
+    },
+
+    UPDATE_OBSTACLE: {
+      actions: assign(({ context, event }) => {
+        const existing = context.environment.obstacles[event.id];
+        if (!existing) return {};
+        return {
+          ...pushHistory(context),
+          environment: {
+            ...context.environment,
+            obstacles: {
+              ...context.environment.obstacles,
+              [event.id]: { ...existing, ...event.changes },
+            },
+          },
+        };
+      }),
+    },
+
+    REMOVE_OBSTACLE: {
+      actions: assign(({ context, event }) => {
+        const { [event.id]: _, ...rest } = context.environment.obstacles;
+        return {
+          ...pushHistory(context),
+          environment: { ...context.environment, obstacles: rest },
+        };
+      }),
+    },
+
+    UPDATE_ENVIRONMENT: {
+      actions: assign(({ context, event }) => ({
+        ...pushHistory(context),
+        environment: { ...context.environment, ...event.changes },
+      })),
+    },
+
     // ── Selection ──
 
     SELECT: {
@@ -402,6 +455,7 @@ export const boardMachine = setup({
           serialOutput: s.serialOutput ?? [],
           sketchCode: normalizedSketch,
           boardTarget: s.boardTarget ?? DEFAULT_BOARD_TARGET,
+          environment: s.environment ?? { obstacles: {}, boundaryEnabled: true, boundaryMargin: 100 },
           selectedId: null,
           _past: [],
           _future: [],

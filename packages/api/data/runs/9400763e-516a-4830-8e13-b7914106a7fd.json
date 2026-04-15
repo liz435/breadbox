@@ -1,0 +1,36 @@
+{
+  "run": {
+    "id": "9400763e-516a-4830-8e13-b7914106a7fd",
+    "threadId": "92ff5133-e6f1-4983-ae44-2a18b45bad13",
+    "projectId": "bf7164c5-78bf-4923-ab76-42430d3a0af7",
+    "sceneId": "e6929de9-70f7-4f4c-968a-56a6f5f6c51c",
+    "sessionId": "fd776567-90f1-4028-aad4-32d43b6319f5",
+    "agent": "core",
+    "status": "running",
+    "createdAt": "2026-04-15T01:38:33.554Z",
+    "agentVersion": "1.0.3",
+    "agentSnapshotVersion": "1.0.3"
+  },
+  "prompt": "create a counter using 7 segment display. every time user hit button, the number increse, after 9 goes back to 0",
+  "messages": [],
+  "proposedOps": [],
+  "appliedOps": [],
+  "routing": {
+    "model": "claude-sonnet-4-6",
+    "toolMode": "build",
+    "domain": "breadboard",
+    "requestType": "additive",
+    "complexity": "complex",
+    "reasons": [
+      "complex patterns in prompt",
+      "empty board → build mode (propose_circuit)"
+    ],
+    "signals": {
+      "boardComponentCount": 0,
+      "graphNodeCount": 0,
+      "promptLength": 112,
+      "recentFailures": 0,
+      "componentsMentioned": 2
+    }
+  }
+}

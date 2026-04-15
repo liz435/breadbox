@@ -41,6 +41,7 @@ export function analyzeTokens(run: RunFile): TokenAnalysis {
   }
 
   const estimatedCost = parentInputCost + parentOutputCost + childCost + overheadCost
+  const parentTokens = Math.max(0, usage.inputTokens + usage.outputTokens)
 
   // Detect wasted tokens
   let wastedTokens = 0
@@ -90,6 +91,10 @@ export function analyzeTokens(run: RunFile): TokenAnalysis {
     wastedTokens += Math.floor(usage.totalTokens * 0.5) // half is waste
   }
 
+  const workflowRows = usage.workflow?.byTool ?? []
+  const workflowTokens = workflowRows.reduce((acc, row) => acc + row.totalTokens, 0)
+  const workflowUnattributed = usage.workflow?.unattributedTokens ?? Math.max(0, parentTokens - workflowTokens)
+
   return {
     model,
     inputTokens: usage.inputTokens,
@@ -100,5 +105,24 @@ export function analyzeTokens(run: RunFile): TokenAnalysis {
     estimatedCost: Math.round(estimatedCost * 10000) / 10000,
     wastedTokens,
     wasteDetails,
+    toolBreakdown: workflowRows.length > 0
+      ? {
+          source: "workflow",
+          attribution: usage.workflow?.attribution,
+          parentTokens,
+          unattributed: workflowUnattributed,
+          rows: workflowRows
+            .map((row) => ({
+              tool: row.tool,
+              calls: row.calls,
+              tokens: row.totalTokens,
+              inputTokens: row.inputTokens,
+              outputTokens: row.outputTokens,
+              cacheReadTokens: row.cacheReadTokens,
+              cacheWriteTokens: row.cacheWriteTokens,
+            }))
+            .sort((a, b) => b.tokens - a.tokens),
+        }
+      : undefined,
   }
 }

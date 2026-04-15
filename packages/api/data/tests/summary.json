@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-04-15T01:19:06.175Z",
-  "totalRuns": 8,
+  "generatedAt": "2026-04-15T08:45:44.152Z",
+  "totalRuns": 32,
   "notEvaluable": 0,
   "categories": {
     "template": {
@@ -14,42 +14,42 @@
       "byModel": {}
     },
     "topLevel": {
-      "runs": 7,
-      "scored": 7,
-      "avgScore": 59,
-      "avgToolErrorRate": 0,
-      "avgTokensPerRun": 35892,
-      "hallucinationRate": 0,
-      "totalCost": 0.9363,
+      "runs": 30,
+      "scored": 30,
+      "avgScore": 74,
+      "avgToolErrorRate": 0.03,
+      "avgTokensPerRun": 30323,
+      "hallucinationRate": 7,
+      "totalCost": 2.5205,
       "byModel": {
-        "claude-sonnet-4-6": {
-          "runs": 6,
-          "avgScore": 59,
-          "totalTokens": 219817,
-          "totalCost": 0.8995
-        },
         "claude-haiku-4-5-20251001": {
-          "runs": 1,
-          "avgScore": 59,
-          "totalTokens": 31425,
-          "totalCost": 0.0368
+          "runs": 16,
+          "avgScore": 76,
+          "totalTokens": 440438,
+          "totalCost": 0.501
+        },
+        "claude-sonnet-4-6": {
+          "runs": 14,
+          "avgScore": 71,
+          "totalTokens": 469240,
+          "totalCost": 2.0195
         }
       }
     },
     "delegated": {
-      "runs": 1,
-      "scored": 1,
-      "avgScore": 70,
+      "runs": 2,
+      "scored": 2,
+      "avgScore": 79,
       "avgToolErrorRate": 0,
-      "avgTokensPerRun": 18850,
+      "avgTokensPerRun": 27614,
       "hallucinationRate": 0,
-      "totalCost": 0.0602,
+      "totalCost": 0.1855,
       "byModel": {
         "claude-sonnet-4-6": {
-          "runs": 1,
-          "avgScore": 70,
-          "totalTokens": 18850,
-          "totalCost": 0.0602
+          "runs": 2,
+          "avgScore": 79,
+          "totalTokens": 55228,
+          "totalCost": 0.1855
         }
       }
     },
@@ -65,33 +65,36 @@
     }
   },
   "byDomain": {
-    "breadboard": 8
+    "breadboard": 30,
+    "chat_only": 2
   },
   "topIssues": [
     {
       "issue": "Floating components",
-      "count": 24
+      "count": 13
     },
     {
-      "issue": "Missing external supply",
-      "count": 6
+      "issue": "Tool errors",
+      "count": 7
+    },
+    {
+      "issue": "Hallucination",
+      "count": 4
     },
     {
       "issue": "Bus shorts",
-      "count": 4
+      "count": 1
+    },
+    {
+      "issue": "Pin overcurrent",
+      "count": 1
     }
   ],
   "worstRuns": [
     {
-      "runId": "5b937060-81d0-40ed-86fd-98f4cfc8bbe0",
-      "score": 54,
-      "issue": "R_A (resistor) has no direct wire on either lead",
-      "category": "top_level"
-    },
-    {
-      "runId": "b78bab35-2a61-4257-abcf-f5ef86897a84",
-      "score": 54,
-      "issue": "R_A (resistor) has no direct wire on either lead",
+      "runId": "4a7f624f-4df3-44c6-a834-ef37268f154f",
+      "score": 39,
+      "issue": "wire_component_to_pin: Component Pot_Control not found.",
       "category": "top_level"
     },
     {
@@ -111,25 +114,31 @@
       "score": 54,
       "issue": "R_D (resistor) at (8,2) has no wires connected",
       "category": "top_level"
+    },
+    {
+      "runId": "ff7dacf3-6b22-4c55-a2e4-1a0080bf9a9f",
+      "score": 59,
+      "issue": "Bus short on row 5 left strip: pins -1, 8 are on the same bus",
+      "category": "top_level"
     }
   ],
-  "avgScore": 59,
-  "avgToolErrorRate": 0,
-  "avgTokensPerRun": 35892,
-  "hallucinationRate": 0,
-  "proposeCircuitAdoption": 86,
+  "avgScore": 74,
+  "avgToolErrorRate": 0.03,
+  "avgTokensPerRun": 30323,
+  "hallucinationRate": 7,
+  "proposeCircuitAdoption": 70,
   "byModel": {
-    "claude-sonnet-4-6": {
-      "runs": 6,
-      "avgScore": 59,
-      "totalTokens": 219817,
-      "totalCost": 0.8995
-    },
     "claude-haiku-4-5-20251001": {
-      "runs": 1,
-      "avgScore": 59,
-      "totalTokens": 31425,
-      "totalCost": 0.0368
+      "runs": 16,
+      "avgScore": 76,
+      "totalTokens": 440438,
+      "totalCost": 0.501
+    },
+    "claude-sonnet-4-6": {
+      "runs": 14,
+      "avgScore": 71,
+      "totalTokens": 469240,
+      "totalCost": 2.0195
     }
   }
 }

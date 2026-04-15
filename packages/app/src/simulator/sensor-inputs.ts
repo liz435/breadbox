@@ -32,9 +32,17 @@
 //   All buses are cleared by `resetSensorBuses()`, which simulation-loop.ts
 //   should call on sim stop so stale values don't leak between runs.
 
-import type { BoardComponent, Wire } from "@dreamer/schemas"
+import type { BoardComponent, Wire, Environment } from "@dreamer/schemas"
 import type { PinStateStore } from "./pin-state-store"
 import { findInputPinForComponent, findArduinoPinsForComponent } from "@/breadboard/component-pin-resolver"
+import {
+  sensorRay,
+  raycastDistance,
+  environmentToSegments,
+  pixelsToCm,
+  CANVAS_WIDTH,
+  CANVAS_HEIGHT,
+} from "./ray-cast"
 
 // ── Per-pin busses consulted by stdlib ────────────────────────────────────
 
@@ -56,11 +64,18 @@ export const dhtSensorBus = new Map<number, { temperatureC: number; humidity: nu
  */
 export const irReceiverBus = new Map<number, { code: number; expiresAt: number }>()
 
+/**
+ * Trigger pin for each ultrasonic sensor keyed by echo pin.
+ * Used by `pulseIn()` to validate the sketch sent a trigger pulse.
+ */
+export const ultrasonicTriggerPinBus = new Map<number, number>()
+
 /** Clear all sensor busses — called on simulation reset/stop. */
 export function resetSensorBuses(): void {
   ultrasonicDistanceBus.clear()
   dhtSensorBus.clear()
   irReceiverBus.clear()
+  ultrasonicTriggerPinBus.clear()
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -121,15 +136,33 @@ function writeTemperatureSensor(
 }
 
 /**
- * HC-SR04 ultrasonic sensor: publish the inspector distance onto the
- * `ultrasonicDistanceBus` keyed by the echo pin, where `pulseIn()` reads it.
+ * HC-SR04 ultrasonic sensor: compute distance via ray-casting against
+ * the environment, or fall back to the inspector slider value.
  */
 function writeUltrasonic(
   comp: BoardComponent,
   wires: Record<string, Wire>,
+  environment: Environment,
 ): void {
   const echoPin = resolveNamedPin(comp, "echo", wires)
   if (echoPin == null) return
+
+  // Track the trigger pin so pulseIn() can validate the sketch wrote to it
+  const triggerPin = resolveNamedPin(comp, "trigger", wires)
+  if (triggerPin != null) ultrasonicTriggerPinBus.set(echoPin, triggerPin)
+
+  // Try ray-casting if environment has any obstacles or boundary enabled
+  const segments = environmentToSegments(environment, CANVAS_WIDTH, CANVAS_HEIGHT)
+  if (segments.length > 0) {
+    const ray = sensorRay(comp)
+    const pixelDist = raycastDistance(ray, segments)
+    const cm = pixelsToCm(pixelDist)
+    // > 400 cm → out of range, store Infinity so pulseIn returns 0 (timeout)
+    ultrasonicDistanceBus.set(echoPin, cm > 400 ? Infinity : Math.max(2, cm))
+    return
+  }
+
+  // Fallback: inspector slider value
   const distance = clamp((comp.properties.distance as number) ?? 50, 2, 400)
   ultrasonicDistanceBus.set(echoPin, distance)
 }
@@ -195,6 +228,7 @@ export function applySensorInputs(
   components: Record<string, BoardComponent>,
   wires: Record<string, Wire>,
   store: PinStateStore,
+  environment: Environment,
 ): void {
   for (const comp of Object.values(components)) {
     switch (comp.type) {
@@ -205,7 +239,7 @@ export function applySensorInputs(
         writeTemperatureSensor(comp, wires, store)
         break
       case "ultrasonic_sensor":
-        writeUltrasonic(comp, wires)
+        writeUltrasonic(comp, wires, environment)
         break
       case "pir_sensor":
         writePir(comp, wires, store)

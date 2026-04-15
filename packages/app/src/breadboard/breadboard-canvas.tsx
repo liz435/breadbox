@@ -35,6 +35,7 @@ import { WireRenderer } from "./component-renderers/wire-renderer";
 import { ArduinoUnoBoard } from "./component-renderers/arduino-uno-renderer";
 import { ArduinoAltBoard } from "./component-renderers/arduino-alt-board-renderer";
 import { CircuitOverlay } from "./circuit-overlay";
+import { EnvironmentOverlay } from "./environment-overlay";
 import { useCircuitAnalysis } from "@/simulator/circuit-analysis-hook";
 import { usePinStates } from "@/simulator/use-pin-state";
 import { getComponentDef } from "@/components/registry";
@@ -519,6 +520,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
   const selectedId = useBoardSelector((s) => s.selectedId);
   const libraryState = useBoardSelector((s) => s.libraryState);
   const boardTarget = useBoardSelector((s) => s.boardTarget ?? DEFAULT_BOARD_TARGET);
+  const environment = useBoardSelector((s) => s.environment);
   const send = BoardContext.useActorRef().send;
 
   const svgRef = useRef<SVGSVGElement>(null);
@@ -907,6 +909,8 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
         {analysis && analysis.isValid && (
           <CircuitOverlay analysis={analysis} components={filteredComponents} />
         )}
+
+        <EnvironmentOverlay environment={environment} components={filteredComponents} />
 
         {/* Drag ghost preview */}
         {drag.draggingId && drag.dragGhost && (() => {

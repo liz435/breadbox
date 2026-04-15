@@ -1,0 +1,376 @@
+{
+  "project": {
+    "id": "ec13862a-cb16-4acf-817b-f2db6ba020f0",
+    "name": "clear-cod-drum",
+    "version": 1,
+    "createdAt": "2026-04-15T08:05:56.791Z",
+    "updatedAt": "2026-04-15T08:06:15.751Z",
+    "threadId": "3374e7ce-fdac-442d-95fd-202bbf0a5cdc",
+    "activeSceneId": "04904383-7fc4-479e-8dd5-7c13fbef264c"
+  },
+  "scenes": {
+    "04904383-7fc4-479e-8dd5-7c13fbef264c": {
+      "id": "04904383-7fc4-479e-8dd5-7c13fbef264c",
+      "name": "Main Scene",
+      "version": 0,
+      "settings": {
+        "background": "#252525",
+        "gravity": {
+          "x": 0,
+          "y": 9.8
+        }
+      }
+    }
+  },
+  "entities": {},
+  "sceneEntityIds": {
+    "04904383-7fc4-479e-8dd5-7c13fbef264c": []
+  },
+  "components": {
+    "transform": {},
+    "sprite": {},
+    "tilemap": {},
+    "physicsBody": {},
+    "script": {},
+    "camera": {}
+  },
+  "assets": {},
+  "graph": {
+    "nodes": {
+      "node-1776240356822-skgve1": {
+        "id": "node-1776240356822-skgve1",
+        "type": "setup",
+        "name": "Setup",
+        "x": 60,
+        "y": 60,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      },
+      "node-1776240356823-27j2yg": {
+        "id": "node-1776240356823-27j2yg",
+        "type": "loop",
+        "name": "Loop",
+        "x": 60,
+        "y": 200,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      }
+    },
+    "edges": {}
+  },
+  "boardState": {
+    "components": {
+      "87dfeea9-6fc6-4825-a8db-713d7c94f3f7": {
+        "id": "87dfeea9-6fc6-4825-a8db-713d7c94f3f7",
+        "type": "seven_segment",
+        "name": "Display",
+        "x": 5,
+        "y": 0,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null,
+          "c": null,
+          "d": null,
+          "e": null,
+          "f": null,
+          "g": null,
+          "dp": null,
+          "gnd": null
+        },
+        "properties": {}
+      },
+      "cf6fb323-2b5e-45e1-a419-4673828b64a9": {
+        "id": "cf6fb323-2b5e-45e1-a419-4673828b64a9",
+        "type": "resistor",
+        "name": "R_A",
+        "x": 3,
+        "y": 0,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "eb9ee3cb-f1b4-4cda-879f-e1d17f14c4a4": {
+        "id": "eb9ee3cb-f1b4-4cda-879f-e1d17f14c4a4",
+        "type": "resistor",
+        "name": "R_B",
+        "x": 3,
+        "y": 1,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "ef8ae633-09df-41b9-ad02-1133d3e5ffb7": {
+        "id": "ef8ae633-09df-41b9-ad02-1133d3e5ffb7",
+        "type": "resistor",
+        "name": "R_C",
+        "x": 3,
+        "y": 2,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "080af4e6-64b8-4e1a-8de4-13badfd637fc": {
+        "id": "080af4e6-64b8-4e1a-8de4-13badfd637fc",
+        "type": "resistor",
+        "name": "R_D",
+        "x": 3,
+        "y": 3,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "79f7ed36-fd42-483b-8a96-65233aa78107": {
+        "id": "79f7ed36-fd42-483b-8a96-65233aa78107",
+        "type": "resistor",
+        "name": "R_E",
+        "x": 3,
+        "y": 4,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "9902a73b-7dbb-44b1-aecb-b0a983bee7a4": {
+        "id": "9902a73b-7dbb-44b1-aecb-b0a983bee7a4",
+        "type": "resistor",
+        "name": "R_F",
+        "x": 3,
+        "y": 5,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "dfc9212e-8fac-4917-999d-330958e99b31": {
+        "id": "dfc9212e-8fac-4917-999d-330958e99b31",
+        "type": "resistor",
+        "name": "R_G",
+        "x": 3,
+        "y": 6,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "baf3b0cf-7fb6-45f0-9108-672ee6c83e14": {
+        "id": "baf3b0cf-7fb6-45f0-9108-672ee6c83e14",
+        "type": "button",
+        "name": "Button",
+        "x": 3,
+        "y": 11,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {}
+      }
+    },
+    "wires": {
+      "228ce168-580a-4f0e-81f9-26cea8d822fe": {
+        "id": "228ce168-580a-4f0e-81f9-26cea8d822fe",
+        "fromRow": -999,
+        "fromCol": 2,
+        "toRow": 0,
+        "toCol": 6,
+        "color": "#22c55e"
+      },
+      "e7001fe6-b96b-4cdf-883c-05bafbe8cde1": {
+        "id": "e7001fe6-b96b-4cdf-883c-05bafbe8cde1",
+        "fromRow": -999,
+        "fromCol": 3,
+        "toRow": 1,
+        "toCol": 6,
+        "color": "#3b82f6"
+      },
+      "e409fad4-bcc2-4e3c-9069-66942d9ee030": {
+        "id": "e409fad4-bcc2-4e3c-9069-66942d9ee030",
+        "fromRow": -999,
+        "fromCol": 4,
+        "toRow": 2,
+        "toCol": 6,
+        "color": "#a855f7"
+      },
+      "c18d39da-fb3c-4742-bb78-b601387e93cb": {
+        "id": "c18d39da-fb3c-4742-bb78-b601387e93cb",
+        "fromRow": -999,
+        "fromCol": 5,
+        "toRow": 3,
+        "toCol": 6,
+        "color": "#f97316"
+      },
+      "8ecdfca2-1b40-4cb2-8370-cd719934ef77": {
+        "id": "8ecdfca2-1b40-4cb2-8370-cd719934ef77",
+        "fromRow": -999,
+        "fromCol": 6,
+        "toRow": 4,
+        "toCol": 6,
+        "color": "#06b6d4"
+      },
+      "9bc70053-7c11-4f63-8d0b-f19bf8fa0cde": {
+        "id": "9bc70053-7c11-4f63-8d0b-f19bf8fa0cde",
+        "fromRow": -999,
+        "fromCol": 7,
+        "toRow": 5,
+        "toCol": 6,
+        "color": "#ec4899"
+      },
+      "4c74c063-2dd9-434a-9e4a-015fa53936ba": {
+        "id": "4c74c063-2dd9-434a-9e4a-015fa53936ba",
+        "fromRow": -999,
+        "fromCol": 8,
+        "toRow": 6,
+        "toCol": 6,
+        "color": "#14b8a6"
+      },
+      "2a6a09d9-8c7e-451f-9388-9ae766fd5f89": {
+        "id": "2a6a09d9-8c7e-451f-9388-9ae766fd5f89",
+        "fromRow": -999,
+        "fromCol": -3,
+        "toRow": 0,
+        "toCol": -1,
+        "color": "#1e293b"
+      },
+      "a610f2e2-a880-4f14-a858-58f207748ede": {
+        "id": "a610f2e2-a880-4f14-a858-58f207748ede",
+        "fromRow": 8,
+        "fromCol": -1,
+        "toRow": 8,
+        "toCol": 5,
+        "color": "#1e293b"
+      },
+      "14d16a2b-ff84-4a6f-9d0d-0a15069d4ba2": {
+        "id": "14d16a2b-ff84-4a6f-9d0d-0a15069d4ba2",
+        "fromRow": 11,
+        "fromCol": -1,
+        "toRow": 11,
+        "toCol": 6,
+        "color": "#1e293b"
+      },
+      "1e8704a9-9003-4da3-9ae6-e698860e5aee": {
+        "id": "1e8704a9-9003-4da3-9ae6-e698860e5aee",
+        "fromRow": -999,
+        "fromCol": 9,
+        "toRow": 11,
+        "toCol": 3,
+        "color": "#eab308"
+      },
+      "e962f48e-cc42-4f93-ac06-c4c42809f3a2": {
+        "id": "e962f48e-cc42-4f93-ac06-c4c42809f3a2",
+        "fromRow": 0,
+        "fromCol": 3,
+        "toRow": 0,
+        "toCol": 5,
+        "color": "#22c55e"
+      },
+      "686821cb-003a-4f4d-b69c-c796e275eb39": {
+        "id": "686821cb-003a-4f4d-b69c-c796e275eb39",
+        "fromRow": 1,
+        "fromCol": 3,
+        "toRow": 1,
+        "toCol": 5,
+        "color": "#3b82f6"
+      },
+      "8c99f33d-5146-403b-b55f-c58d3f9f1bf0": {
+        "id": "8c99f33d-5146-403b-b55f-c58d3f9f1bf0",
+        "fromRow": 2,
+        "fromCol": 3,
+        "toRow": 2,
+        "toCol": 5,
+        "color": "#a855f7"
+      },
+      "6e71cf46-933d-45ac-b3ce-afbbe7f21206": {
+        "id": "6e71cf46-933d-45ac-b3ce-afbbe7f21206",
+        "fromRow": 3,
+        "fromCol": 3,
+        "toRow": 3,
+        "toCol": 5,
+        "color": "#f97316"
+      },
+      "2387491f-b6c9-4231-8bad-26af693b241a": {
+        "id": "2387491f-b6c9-4231-8bad-26af693b241a",
+        "fromRow": 4,
+        "fromCol": 3,
+        "toRow": 4,
+        "toCol": 5,
+        "color": "#06b6d4"
+      },
+      "418cc549-7ea8-42b6-9747-d523a94ae6c0": {
+        "id": "418cc549-7ea8-42b6-9747-d523a94ae6c0",
+        "fromRow": 5,
+        "fromCol": 3,
+        "toRow": 5,
+        "toCol": 5,
+        "color": "#ec4899"
+      },
+      "56442970-2d66-4b00-b2c1-931c86971ac2": {
+        "id": "56442970-2d66-4b00-b2c1-931c86971ac2",
+        "fromRow": 6,
+        "fromCol": 3,
+        "toRow": 6,
+        "toCol": 5,
+        "color": "#14b8a6"
+      }
+    },
+    "libraryState": {
+      "servos": {},
+      "lcd": null,
+      "serialBaud": 0
+    },
+    "serialOutput": [],
+    "sketchCode": "int counter = 0;\nint btnPin = 9;\nint lastBtnState = HIGH;\n\n// Segment pins: a, b, c, d, e, f, g\nint segPins[7] = {2, 3, 4, 5, 6, 7, 8};\n\nvoid setup() {\n  pinMode(btnPin, INPUT_PULLUP);\n  for (int i = 0; i < 7; i++) {\n    pinMode(segPins[i], OUTPUT);\n  }\n  displayDigit(0);\n}\n\nvoid loop() {\n  int btnState = digitalRead(btnPin);\n  \n  if (btnState == LOW && lastBtnState == HIGH) {\n    counter++;\n    if (counter > 9) {\n      counter = 0;\n    }\n    displayDigit(counter);\n  }\n  \n  lastBtnState = btnState;\n  delay(20);\n}\n\nvoid displayDigit(int digit) {\n  int segments[10][7] = {\n    {1, 1, 1, 1, 1, 1, 0},\n    {0, 1, 1, 0, 0, 0, 0},\n    {1, 1, 0, 1, 1, 0, 1},\n    {1, 1, 1, 1, 0, 0, 1},\n    {0, 1, 1, 0, 0, 1, 1},\n    {1, 0, 1, 1, 0, 1, 1},\n    {1, 0, 1, 1, 1, 1, 1},\n    {1, 1, 1, 0, 0, 0, 0},\n    {1, 1, 1, 1, 1, 1, 1},\n    {1, 1, 1, 1, 0, 1, 1}\n  };\n  \n  for (int i = 0; i < 7; i++) {\n    digitalWrite(segPins[i], segments[digit][i]);\n  }\n}\n",
+    "customLibraries": {},
+    "boardTarget": "arduino_uno"
+  }
+}

@@ -132,8 +132,6 @@ export function analyzePath(run: RunFile): PathAnalysis {
           })
 
           if (toolName === "propose_circuit") usedProposeCircuit = true
-          if (toolName === "delegate_to_graph_agent") delegations.push("graph")
-          if (toolName === "delegate_to_circuit_agent") delegations.push("circuit")
 
           // Semantic retry: same tool after an error, with similar-enough
           // inputs. Exact equality OR similarity above threshold counts.

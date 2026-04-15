@@ -1,6 +1,6 @@
 {
   "runId": "b78bab35-2a61-4257-abcf-f5ef86897a84",
-  "evaluatedAt": "2026-04-15T01:19:06.167Z",
+  "evaluatedAt": "2026-04-15T08:45:44.136Z",
   "runCreatedAt": "2026-04-15T01:08:16.717Z",
   "runCompletedAt": "2026-04-15T01:08:43.499Z",
   "runDurationMs": 26782,
@@ -383,19 +383,12 @@
   "circuit": {
     "componentsPlaced": 9,
     "wiresCreated": 11,
-    "floatingComponents": 6,
+    "floatingComponents": 0,
     "busShorts": 0,
     "missingResistors": 0,
     "sketchPinMatch": true,
     "sketchCompiles": true,
-    "issues": [
-      "R_A (resistor) has no direct wire on either lead",
-      "R_B (resistor) has no direct wire on either lead",
-      "R_D (resistor) has no direct wire on either lead",
-      "R_E (resistor) has no direct wire on either lead",
-      "R_F (resistor) has no direct wire on either lead",
-      "R_G (resistor) has no direct wire on either lead"
-    ],
+    "issues": [],
     "components": [
       {
         "id": "a2ea9e31-195a-4bad-9d46-99c0920023c5",
@@ -643,16 +636,15 @@
   "electrical": {
     "pinOvercurrent": 0,
     "railOvercurrent": 0,
-    "missingExternalSupply": 1,
+    "missingExternalSupply": 0,
     "maxPinFanout": 1,
     "pinsOverDirectFanout": 0,
     "directGroundCount": 1,
     "directPowerCount": 0,
     "railDistributionViolations": 0,
-    "errors": 2,
+    "errors": 1,
     "warnings": 0,
     "issues": [
-      "Display (seven_segment) should use external power with common ground, not only Arduino rail.",
       "BTN (button) has Arduino signal wires on both sides. Use one side for input and the opposite side for power/ground reference."
     ]
   },
@@ -662,12 +654,12 @@
     "partialSuccessWithoutIntent": true
   },
   "score": {
-    "total": 54,
+    "total": 70,
     "breakdown": {
       "accuracy": 25,
       "efficiency": 25,
-      "quality": 0,
-      "completeness": 4
+      "quality": 11,
+      "completeness": 9
     }
   }
 }

@@ -6,7 +6,7 @@ export function Lcd16x2Page() {
       <PageTitle
         title="LCD 16×2"
         subtitle="HD44780-based 16-character, 2-line alphanumeric display in 4-bit mode."
-        badge={<Badge variant="partial">Partial — Text Rendered</Badge>}
+        badge={<Badge variant="implemented">Full — HD44780 Simulated</Badge>}
       />
 
       <Section title="Pins">
@@ -47,15 +47,23 @@ export function Lcd16x2Page() {
           rows={[
             ["Visual placement (green PCB with display area)", "Implemented"],
             ["Display text from sketch (lcd.print, setCursor, clear)", "Implemented — rendered live on the breadboard"],
-            ["LiquidCrystal library (begin, print, setCursor, clear)", "Implemented"],
-            ["Backlight / cursor blink animation", "Not implemented"],
-            ["SPICE electrical simulation", "Not implemented — LCD is bridged via libraryState, not SPICE"],
+            ["LiquidCrystal library (begin, print, setCursor, clear, home)", "Implemented"],
+            ["Backlight control (backlight / noBacklight)", "Implemented — display dims when backlight off"],
+            ["Cursor / blink animation (cursor, noCursor, blink, noBlink)", "Implemented — underline cursor + blinking block"],
+            ["Display on/off (display / noDisplay)", "Implemented"],
+            ["Entry mode (leftToRight, rightToLeft, autoscroll, noAutoscroll)", "Implemented"],
+            ["Display shift (scrollDisplayLeft / scrollDisplayRight)", "Implemented — 40-char DDRAM with 16-char viewport"],
+            ["Custom characters (createChar / write)", "Implemented — 8 CGRAM slots, 5×8 pixel rendering"],
+            ["Raw command register (command)", "Implemented — full HD44780 instruction decode"],
+            ["Read operations (read, busy)", "Implemented — busy always returns false"],
+            ["SPICE electrical simulation", "Implemented — 10kΩ input impedance per pin"],
           ]}
         />
         <Note>
           Text from <code>lcd.print()</code> and <code>lcd.setCursor()</code> appears directly on the
           LCD on the breadboard. The display falls back to a placeholder grid only before
-          <code>lcd.begin()</code> has been called.
+          <code>lcd.begin()</code> has been called. Custom characters defined with <code>createChar()</code>
+          render as 5×8 pixel grids on the display.
         </Note>
       </Section>
 
@@ -99,6 +107,30 @@ void loop() {
           <code>setCursor(col, row)</code> — col is 0–15, row is 0 (top) or 1 (bottom).
           Always call <code>lcd.clear()</code> or overwrite with spaces to avoid ghosting.
         </Note>
+      </Section>
+
+      <Section title="Custom character example">
+        <CodeBlock code={`#include <LiquidCrystal.h>
+LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
+
+byte heart[8] = {
+  0b00000,
+  0b01010,
+  0b11111,
+  0b11111,
+  0b11111,
+  0b01110,
+  0b00100,
+  0b00000
+};
+
+void setup() {
+  lcd.begin(16, 2);
+  lcd.createChar(0, heart);
+  lcd.setCursor(0, 0);
+  lcd.write(0); // display the heart
+  lcd.print(" Hello!");
+}`} />
       </Section>
 
       <Section title="Datasheet (HD44780)">

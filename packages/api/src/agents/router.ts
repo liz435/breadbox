@@ -38,7 +38,6 @@ export type RoutingDecision = {
   };
 };
 
-const SONNET_MODEL = "claude-sonnet-4-6";
 const HAIKU_MODEL = "claude-haiku-4-5-20251001";
 
 // ── Domain detection ────────────────────────────────────────────────────
@@ -156,40 +155,9 @@ export function routeRequest(params: {
   //
   // Otherwise use Haiku.
 
-  let model: RoutingDecision["model"] = HAIKU_MODEL;
-
-  if (complexity === "complex") {
-    model = SONNET_MODEL;
-    reasons.push("complex patterns in prompt");
-  }
-  if (recentFailures > 0) {
-    model = SONNET_MODEL;
-    reasons.push(`${recentFailures} recent failure(s) — escalating`);
-  }
-  if (requestType === "rebuild" && boardComponents > 2) {
-    model = SONNET_MODEL;
-    reasons.push("rebuild on populated board");
-  }
-  if (requestType === "debug") {
-    model = SONNET_MODEL;
-    reasons.push("debug / diagnosis request");
-  }
-  if (componentsMentioned >= 3) {
-    model = SONNET_MODEL;
-    reasons.push(`${componentsMentioned} components mentioned`);
-  }
-  if (promptLength > 200) {
-    model = SONNET_MODEL;
-    reasons.push(`long prompt (${promptLength} chars)`);
-  }
-  if (domain === "mixed") {
-    model = SONNET_MODEL;
-    reasons.push("mixed domain (breadboard + graph)");
-  }
-
-  if (model === HAIKU_MODEL) {
-    reasons.push("no escalation signals — using Haiku");
-  }
+  // Experiment: force Haiku for all requests regardless of escalation signals.
+  const model: RoutingDecision["model"] = HAIKU_MODEL;
+  reasons.push("experiment: all-Haiku override");
 
   // ── Tool mode selection ──────────────────────────────────────────────
   //

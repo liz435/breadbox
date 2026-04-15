@@ -35,6 +35,21 @@ export type TokenAnalysis = {
   estimatedCost: number
   wastedTokens: number
   wasteDetails: string[]
+  toolBreakdown?: {
+    source: "workflow" | "estimate"
+    attribution?: "step_usage_allocation"
+    parentTokens: number
+    unattributed: number
+    rows: Array<{
+      tool: string
+      calls: number
+      tokens: number
+      inputTokens?: number
+      outputTokens?: number
+      cacheReadTokens?: number
+      cacheWriteTokens?: number
+    }>
+  }
 }
 
 export type ToolDetail = {
@@ -182,6 +197,7 @@ export type RunCategory =
 export type RoutingRecord = {
   model: string
   toolMode: string
+  availableTools?: string[]
   domain: string
   requestType: string
   complexity: string
@@ -341,6 +357,19 @@ export type RunFile = {
       totalTokens: number
       model: string
     }>
+    workflow?: {
+      attribution: "step_usage_allocation"
+      byTool: Array<{
+        tool: string
+        calls: number
+        inputTokens: number
+        outputTokens: number
+        totalTokens: number
+        cacheReadTokens?: number
+        cacheWriteTokens?: number
+      }>
+      unattributedTokens: number
+    }
   }
   routing?: RoutingRecord
   error?: string

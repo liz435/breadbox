@@ -119,6 +119,7 @@ describe("projectRepo — saveBoardAndGraph", () => {
     serialOutput: [],
     sketchCode: "// saved",
     customLibraries: {},
+    environment: { obstacles: {}, boundaryEnabled: true, boundaryMargin: 100 },
   };
 
   test("saves board and graph atomically", async () => {

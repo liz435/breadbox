@@ -33,7 +33,7 @@ const PIN_NAMES: Record<string, string[]> = {
   shift_register: ["data", "clock", "latch"],
   oled_display: ["gnd", "vcc", "scl", "sda"],
   lcd_16x2: ["vss", "vdd", "vo", "rs", "rw", "en", "d4", "d5", "d6", "d7", "a", "k"],
-  seven_segment: ["a", "b", "c", "d", "e", "f", "g", "common"],
+  seven_segment: ["a", "b", "c", "d", "e", "f", "g", "dp", "gnd"],
   temperature_sensor: ["vcc", "signal", "gnd"],
   ultrasonic_sensor: ["vcc", "trigger", "echo", "gnd"],
   photoresistor: ["a", "b"],
@@ -133,7 +133,7 @@ export function resolveComponentPins(
         common: { row: row + 3, col },
       };
 
-    // ── 7-segment display (7 segments + common) ──────────────────
+    // ── 7-segment display (7 segments + dp + gnd) ────────────────
 
     case "seven_segment":
       return {
@@ -144,10 +144,8 @@ export function resolveComponentPins(
         e: { row: row + 4, col },
         f: { row: row + 5, col },
         g: { row: row + 6, col },
-        // "common" (cathode/anode) is a virtual pin for GND/VCC wiring.
-        // It's not a separate footprint point — it shares the component's
-        // base position. Wire GND/VCC to the component's rail connection.
-        common: { row, col: col > 4 ? col : col - 1 },
+        dp: { row: row + 7, col },
+        gnd: { row: row + 8, col },
       };
 
     // ── OLED display (I2C, 4 pins vertical) ──────────────────────

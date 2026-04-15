@@ -29,7 +29,7 @@ const VALID_PIN_NAMES: Record<string, string[]> = {
   shift_register: ["data", "clock", "latch"],
   oled_display: ["sda", "scl"],
   lcd_16x2: ["vss", "vdd", "vo", "rs", "rw", "e", "en", "d4", "d5", "d6", "d7", "a", "k"],
-  seven_segment: ["a", "b", "c", "d", "e", "f", "g"],
+  seven_segment: ["a", "b", "c", "d", "e", "f", "g", "dp", "gnd"],
   temperature_sensor: ["vcc", "signal", "gnd"],
   ic: [],
 }

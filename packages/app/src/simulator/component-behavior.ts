@@ -56,3 +56,24 @@ export function getLcdText(libraryState: LibraryState): string[] | null {
   if (!libraryState.lcd) return null
   return [...libraryState.lcd.textBuffer]
 }
+
+/**
+ * Get the full LCD display state for rendering (backlight, cursor, CGRAM, etc.).
+ */
+export function getLcdDisplayState(libraryState: LibraryState) {
+  if (!libraryState.lcd) return null
+  const lcd = libraryState.lcd
+  return {
+    textBuffer: [...lcd.textBuffer],
+    cols: lcd.cols,
+    rows: lcd.rows,
+    cursorCol: lcd.cursorCol,
+    cursorRow: lcd.cursorRow,
+    backlight: lcd.backlight,
+    displayOn: lcd.displayOn,
+    cursorVisible: lcd.cursorVisible,
+    cursorBlink: lcd.cursorBlink,
+    scrollOffset: lcd.scrollOffset,
+    cgram: lcd.cgram,
+  }
+}
