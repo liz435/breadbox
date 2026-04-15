@@ -499,6 +499,252 @@ export function UltrasonicSensorSymbol({ x, y, label, value, voltage, current, i
   )
 }
 
+export function TemperatureSensorSymbol({ x, y, label, value, voltage, current, isActive }: SymbolProps) {
+  const w = 60
+  const h = 36
+  const stroke = isActive ? STROKE_ACTIVE : STROKE
+  const cx = x + w / 2
+
+  return (
+    <g>
+      {/* TO-92 package: semicircle body */}
+      <path
+        d={`M ${x + 14} ${y - h / 2 + 2} A 16 16 0 0 1 ${x + 14} ${y + h / 2 - 2}`}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={STROKE_WIDTH}
+      />
+      <line x1={x + 14} y1={y - h / 2 + 2} x2={x + 14} y2={y + h / 2 - 2} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Thermometer icon inside */}
+      <line x1={x + 22} y1={y - 6} x2={x + 22} y2={y + 4} stroke="#ef4444" strokeWidth={2} strokeLinecap="round" />
+      <circle cx={x + 22} cy={y + 6} r={3} fill="#ef4444" opacity={0.7} />
+      {/* Three pin leads at bottom: VCC, Signal, GND */}
+      <line x1={x + 18} y1={y + h / 2 - 2} x2={x + 18} y2={y + h / 2 + 10} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      <line x1={x + 26} y1={y + h / 2 - 2} x2={x + 26} y2={y + h / 2 + 10} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      <line x1={x + 34} y1={y + h / 2 - 2} x2={x + 34} y2={y + h / 2 + 10} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Terminal dots */}
+      <circle cx={x + 18} cy={y + h / 2 + 10} r={3} fill={stroke} />
+      <circle cx={x + 26} cy={y + h / 2 + 10} r={3} fill={stroke} />
+      <circle cx={x + 34} cy={y + h / 2 + 10} r={3} fill={stroke} />
+      {/* Pin labels */}
+      <text x={x + 18} y={y + h / 2 + 24} textAnchor="middle" fill="#888" style={{ font: FONT_VALUE }}>V+</text>
+      <text x={x + 26} y={y + h / 2 + 24} textAnchor="middle" fill="#888" style={{ font: FONT_VALUE }}>OUT</text>
+      <text x={x + 34} y={y + h / 2 + 24} textAnchor="middle" fill="#888" style={{ font: FONT_VALUE }}>GND</text>
+      {/* Lead lines for series connection */}
+      <line x1={x} y1={y} x2={x + 14} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      <line x1={x + 30} y1={y} x2={x + w} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      <circle cx={x} cy={y} r={3} fill={stroke} />
+      <circle cx={x + w} cy={y} r={3} fill={stroke} />
+      {/* Label */}
+      <text x={cx} y={y - h / 2 - 6} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+        {label}
+      </text>
+      {value && (
+        <text x={cx} y={y + h / 2 + 36} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+          {value}
+        </text>
+      )}
+      <Annotation x={cx} y={y + h / 2 + 48} voltage={voltage} current={current} />
+    </g>
+  )
+}
+
+export function PhotoresistorSymbol({ x, y, label, value, voltage, current, isActive }: SymbolProps) {
+  const w = 60
+  const h = 12
+  const stroke = isActive ? STROKE_ACTIVE : STROKE
+  // Zigzag like resistor
+  const zigzag = `M ${x} ${y} ` +
+    `l 5 0 l 4 -${h} l 8 ${h * 2} l 8 -${h * 2} l 8 ${h * 2} l 8 -${h * 2} l 8 ${h * 2} l 4 -${h} l 7 0`
+
+  return (
+    <g>
+      <path d={zigzag} fill="none" stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Circle around the resistor body (IEC LDR symbol) */}
+      <circle cx={x + w / 2} cy={y} r={16} fill="none" stroke={stroke} strokeWidth={1.2} />
+      {/* Light arrows pointing at the resistor */}
+      <line x1={x + w / 2 - 10} y1={y - 22} x2={x + w / 2 - 4} y2={y - 16} stroke={stroke} strokeWidth={1} />
+      <line x1={x + w / 2 - 6} y1={y - 22} x2={x + w / 2} y2={y - 16} stroke={stroke} strokeWidth={1} />
+      {/* Arrowheads */}
+      <polygon points={`${x + w / 2 - 4},${y - 16} ${x + w / 2 - 8},${y - 17} ${x + w / 2 - 5},${y - 20}`} fill={stroke} />
+      <polygon points={`${x + w / 2},${y - 16} ${x + w / 2 - 4},${y - 17} ${x + w / 2 - 1},${y - 20}`} fill={stroke} />
+      {/* Terminal dots */}
+      <circle cx={x} cy={y} r={3} fill={stroke} />
+      <circle cx={x + w} cy={y} r={3} fill={stroke} />
+      {/* Label */}
+      <text x={x + w / 2} y={y - 30} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+        {label}
+      </text>
+      {value && (
+        <text x={x + w / 2} y={y + 22} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+          {value}
+        </text>
+      )}
+      <Annotation x={x + w / 2} y={y + 34} voltage={voltage} current={current} />
+    </g>
+  )
+}
+
+export function LcdSymbol({ x, y, label, value, voltage, current, isActive }: SymbolProps) {
+  const w = 60
+  const h = 40
+  const stroke = isActive ? STROKE_ACTIVE : STROKE
+
+  return (
+    <g>
+      {/* Rectangular module body */}
+      <rect
+        x={x + 5}
+        y={y - h / 2}
+        width={w - 10}
+        height={h}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={STROKE_WIDTH}
+        rx={2}
+      />
+      {/* Display area inside */}
+      <rect
+        x={x + 10}
+        y={y - h / 2 + 5}
+        width={w - 20}
+        height={h - 10}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={1}
+        rx={1}
+      />
+      {/* LCD text placeholder lines */}
+      <line x1={x + 14} y1={y - 5} x2={x + w - 14} y2={y - 5} stroke={stroke} strokeWidth={1.5} opacity={0.5} />
+      <line x1={x + 14} y1={y + 5} x2={x + w - 14} y2={y + 5} stroke={stroke} strokeWidth={1.5} opacity={0.5} />
+      {/* Lead left */}
+      <line x1={x} y1={y} x2={x + 5} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Lead right */}
+      <line x1={x + w - 5} y1={y} x2={x + w} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Terminal dots */}
+      <circle cx={x} cy={y} r={3} fill={stroke} />
+      <circle cx={x + w} cy={y} r={3} fill={stroke} />
+      {/* Label */}
+      <text x={x + w / 2} y={y - h / 2 - 6} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+        {label}
+      </text>
+      {value && (
+        <text x={x + w / 2} y={y + h / 2 + 14} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+          {value}
+        </text>
+      )}
+      <Annotation x={x + w / 2} y={y + h / 2 + 26} voltage={voltage} current={current} />
+    </g>
+  )
+}
+
+export function NeopixelSymbol({ x, y, label, value, voltage, current, isActive }: SymbolProps) {
+  const w = 60
+  const h = 24
+  const stroke = isActive ? STROKE_ACTIVE : STROKE
+  const colors = ["#ef4444", "#22c55e", "#3b82f6", "#eab308"]
+
+  return (
+    <g>
+      {/* Rectangular strip body */}
+      <rect
+        x={x + 5}
+        y={y - h / 2}
+        width={w - 10}
+        height={h}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={STROKE_WIDTH}
+        rx={2}
+      />
+      {/* LED dots inside */}
+      {colors.map((c, i) => (
+        <circle
+          key={i}
+          cx={x + 14 + i * 10}
+          cy={y}
+          r={3.5}
+          fill={isActive ? c : "none"}
+          stroke={c}
+          strokeWidth={1}
+          opacity={isActive ? 0.9 : 0.4}
+        />
+      ))}
+      {/* Data arrow (DIN → DOUT) */}
+      <line x1={x + 8} y1={y + h / 2 - 3} x2={x + w - 12} y2={y + h / 2 - 3} stroke={stroke} strokeWidth={0.8} strokeDasharray="2 1" />
+      <polygon points={`${x + w - 12},${y + h / 2 - 3} ${x + w - 16},${y + h / 2 - 5} ${x + w - 16},${y + h / 2 - 1}`} fill={stroke} />
+      {/* Lead left (DIN) */}
+      <line x1={x} y1={y} x2={x + 5} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Lead right */}
+      <line x1={x + w - 5} y1={y} x2={x + w} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Terminal dots */}
+      <circle cx={x} cy={y} r={3} fill={stroke} />
+      <circle cx={x + w} cy={y} r={3} fill={stroke} />
+      {/* Label */}
+      <text x={x + w / 2} y={y - h / 2 - 6} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+        {label}
+      </text>
+      {value && (
+        <text x={x + w / 2} y={y + h / 2 + 14} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+          {value}
+        </text>
+      )}
+      <Annotation x={x + w / 2} y={y + h / 2 + 26} voltage={voltage} current={current} />
+    </g>
+  )
+}
+
+export function PirSensorSymbol({ x, y, label, value, voltage, current, isActive }: SymbolProps) {
+  const w = 60
+  const h = 36
+  const stroke = isActive ? STROKE_ACTIVE : STROKE
+
+  return (
+    <g>
+      {/* Rectangular module body */}
+      <rect
+        x={x + 5}
+        y={y - h / 2 + 6}
+        width={w - 10}
+        height={h - 6}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={STROKE_WIDTH}
+        rx={2}
+      />
+      {/* Fresnel lens dome */}
+      <path
+        d={`M ${x + 18} ${y - h / 2 + 6} A 12 10 0 0 1 ${x + 42} ${y - h / 2 + 6}`}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={STROKE_WIDTH}
+      />
+      {/* IR detection waves */}
+      <path d={`M ${x + 24} ${y - h / 2 - 2} Q ${x + 30} ${y - h / 2 - 8} ${x + 36} ${y - h / 2 - 2}`} fill="none" stroke={stroke} strokeWidth={1} />
+      <path d={`M ${x + 22} ${y - h / 2 - 6} Q ${x + 30} ${y - h / 2 - 14} ${x + 38} ${y - h / 2 - 6}`} fill="none" stroke={stroke} strokeWidth={1} />
+      {/* PIR label */}
+      <text x={x + w / 2} y={y + 6} textAnchor="middle" fill="#ddd" style={{ font: "7px monospace" }}>PIR</text>
+      {/* Lead left */}
+      <line x1={x} y1={y} x2={x + 5} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Lead right */}
+      <line x1={x + w - 5} y1={y} x2={x + w} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Terminal dots */}
+      <circle cx={x} cy={y} r={3} fill={stroke} />
+      <circle cx={x + w} cy={y} r={3} fill={stroke} />
+      {/* Label */}
+      <text x={x + w / 2} y={y - h / 2 - 10} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+        {label}
+      </text>
+      {value && (
+        <text x={x + w / 2} y={y + h / 2 + 14} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+          {value}
+        </text>
+      )}
+      <Annotation x={x + w / 2} y={y + h / 2 + 26} voltage={voltage} current={current} />
+    </g>
+  )
+}
+
 // ── Symbol Lookup ──────────────────────────────────────────────────────
 
 export type SchematicSymbolType =
@@ -511,6 +757,11 @@ export type SchematicSymbolType =
   | "potentiometer"
   | "seven_segment"
   | "ultrasonic_sensor"
+  | "temperature_sensor"
+  | "photoresistor"
+  | "lcd"
+  | "neopixel"
+  | "pir_sensor"
   | "voltage_source"
   | "ground"
   | "arduino_pin"
@@ -539,6 +790,16 @@ export function renderSymbol(
       return <SevenSegmentSymbol {...props} />
     case "ultrasonic_sensor":
       return <UltrasonicSensorSymbol {...props} />
+    case "temperature_sensor":
+      return <TemperatureSensorSymbol {...props} />
+    case "photoresistor":
+      return <PhotoresistorSymbol {...props} />
+    case "lcd":
+      return <LcdSymbol {...props} />
+    case "neopixel":
+      return <NeopixelSymbol {...props} />
+    case "pir_sensor":
+      return <PirSensorSymbol {...props} />
     case "voltage_source":
       return <VoltageSourceSymbol {...props} />
     case "ground":
