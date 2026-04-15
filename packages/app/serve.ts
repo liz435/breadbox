@@ -1,5 +1,18 @@
 const port = Number(process.env.PORT ?? 3000)
-const distDir = new URL("./dist", import.meta.url).pathname
+// Use import.meta.dir (Bun's __dirname equivalent) so the path is always
+// resolved relative to this file, not the working directory. This is
+// important when the server is started from the monorepo root via
+// `bun run --filter=@dreamer/app start`, where process.cwd() points to
+// the repo root rather than packages/app/.
+const distDir = `${import.meta.dir}/dist`
+
+if (!(await Bun.file(`${distDir}/index.html`).exists())) {
+  console.error(
+    `[serve] ERROR: dist directory not found at ${distDir}. ` +
+      "Run 'bun run build' before starting the server."
+  )
+  process.exit(1)
+}
 
 Bun.serve({
   port,
