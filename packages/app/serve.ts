@@ -3,6 +3,7 @@ const distDir = new URL("./dist", import.meta.url).pathname
 
 Bun.serve({
   port,
+  hostname: "0.0.0.0",
   async fetch(req) {
     const url = new URL(req.url)
     let filePath = `${distDir}${url.pathname}`
@@ -25,4 +26,4 @@ Bun.serve({
   },
 })
 
-console.log(`Serving dist/ on http://localhost:${port}`)
+console.log(`Serving dist/ on http://0.0.0.0:${port}`)
