@@ -33,6 +33,7 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;fon
 #hdr h1{font-size:.85rem;font-weight:600;letter-spacing:-.01em}
 .vtag{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 7px;font-size:.68rem;color:var(--muted);font-family:monospace}
 #vsel{background:var(--surface);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:3px 8px;font-size:.72rem;min-width:124px}
+#vcmp{background:var(--surface);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:3px 8px;font-size:.72rem;min-width:124px}
 .tabs{display:flex;gap:2px}
 .tab{padding:3px 11px;border-radius:5px;cursor:pointer;font-size:.75rem;color:var(--muted);border:1px solid transparent;background:transparent}
 .tab:hover{color:var(--text);background:var(--surface)}
@@ -137,6 +138,7 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;fon
 <div id="hdr">
   <h1>Agent Debug</h1>
   <select id="vsel" onchange="onVersionChange()"></select>
+  <select id="vcmp" onchange="onCompareChange()"></select>
   <div class="tabs">
     <button class="tab on" id="t-ov" onclick="setMode('overview')">Overview</button>
     <button class="tab"    id="t-in" onclick="setMode('individual')">Individual Run</button>
@@ -160,7 +162,7 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;fon
   <div class="li"><div class="ld" style="background:#78350f;border:1px solid #f59e0b"></div>warn</div>
   <div class="li"><div class="ld" style="background:#7f1d1d;border:1px solid #ef4444"></div>fail</div>
   <div class="li"><div class="ld" style="background:#14532d;border:1px solid #22c55e"></div>ok</div>
-  <div class="li"><div class="ld" style="background:#0b3b4a;border:1px solid #22d3ee"></div>new vs previous version</div>
+  <div class="li"><div class="ld" style="background:#0b3b4a;border:1px solid #22d3ee"></div>new vs compare version</div>
   <span style="font-size:.67rem;color:var(--dim);margin-left:6px">Overview:</span>
   <div class="li"><div class="ld" style="background:#166534;border:1px solid #22c55e"></div>80–100%</div>
   <div class="li"><div class="ld" style="background:#1d4ed8;border:1px solid #3b82f6"></div>40–80%</div>
@@ -185,6 +187,7 @@ var selRunId = null;
 var selEval  = null;
 var diagSeq  = 0;
 var selectedDiagramVersion = resolveDiagramVersion(CURRENT_VER);
+var compareFromVersion = null;
 
 // ── Pan + Zoom ─────────────────────────────────────────────────────────────
 // Uses translate+scale on #dc so pan works in all directions at any zoom level.
@@ -321,21 +324,44 @@ function versionAtLeast(v, target){
 }
 function resolveDiagramVersion(rawVersion){
   var v = String(rawVersion || '').trim();
-  if (v === '1.0.0' || v === '1.0.1') return v;
+  if (v === '1.0.0' || v === '1.0.1' || v === '1.0.2' || v === '1.0.3' || v === '1.0.4' || v === '1.0.5' || v === '1.0.6' || v === '1.0.7' || v === '1.0.8' || v === '1.1.0' || v === '1.1.1') return v;
   // Default to the latest known diagram, but preserve 1.0.0 if current is old.
-  return versionAtLeast(CURRENT_VER, '1.0.1') ? '1.0.1' : '1.0.0';
+  return versionAtLeast(CURRENT_VER, '1.1.1') ? '1.1.1' : versionAtLeast(CURRENT_VER, '1.1.0') ? '1.1.0' : versionAtLeast(CURRENT_VER, '1.0.8') ? '1.0.8' : versionAtLeast(CURRENT_VER, '1.0.7') ? '1.0.7' : versionAtLeast(CURRENT_VER, '1.0.6') ? '1.0.6' : versionAtLeast(CURRENT_VER, '1.0.5') ? '1.0.5' : versionAtLeast(CURRENT_VER, '1.0.4') ? '1.0.4' : versionAtLeast(CURRENT_VER, '1.0.3') ? '1.0.3' : versionAtLeast(CURRENT_VER, '1.0.2') ? '1.0.2' : versionAtLeast(CURRENT_VER, '1.0.1') ? '1.0.1' : '1.0.0';
 }
 function previousDiagramVersion(v){
   var resolved = resolveDiagramVersion(v);
+  if (resolved === '1.1.1') return '1.1.0';
+  if (resolved === '1.1.0') return '1.0.8';
+  if (resolved === '1.0.8') return '1.0.7';
+  if (resolved === '1.0.7') return '1.0.6';
+  if (resolved === '1.0.6') return '1.0.5';
+  if (resolved === '1.0.5') return '1.0.4';
+  if (resolved === '1.0.4') return '1.0.3';
+  if (resolved === '1.0.3') return '1.0.2';
+  if (resolved === '1.0.2') return '1.0.1';
   if (resolved === '1.0.1') return '1.0.0';
   return null;
 }
-function changedNodesForVersion(v){
+function introducedNodesForVersion(v){
   var resolved = resolveDiagramVersion(v);
-  var prev = previousDiagramVersion(resolved);
-  if (!prev) return [];
-  if (resolved === '1.0.1' && prev === '1.0.0') return ['SNAP'];
+  if (resolved === '1.0.1') return ['SNAP'];
+  if (resolved === '1.0.2') return ['PCV'];
+  if (resolved === '1.1.0') return ['TMB', 'TMA', 'TME'];
+  if (resolved === '1.1.1') return ['WPF'];
   return [];
+}
+function changedNodesBetween(fromV, toV){
+  var from = resolveDiagramVersion(fromV || baselineDiagramVersion());
+  var to = resolveDiagramVersion(toV || CURRENT_VER);
+  if (!versionAtLeast(to, from)) return [];
+  var known = ['1.0.1','1.0.2','1.0.3','1.0.4','1.0.5','1.0.6','1.0.7','1.0.8','1.1.0','1.1.1'];
+  var out = [];
+  known.forEach(function(v){
+    if (versionAtLeast(v, from) && versionAtLeast(to, v) && v !== from) {
+      out = out.concat(introducedNodesForVersion(v));
+    }
+  });
+  return Array.from(new Set(out));
 }
 function baselineDiagramVersion(){
   return '1.0.0';
@@ -369,8 +395,28 @@ function latestVersionFromRuns(evals){
   versions.sort(compareSemverDesc);
   return versions[0] || resolveDiagramVersion(CURRENT_VER);
 }
+function allKnownVersions(evals){
+  var versions=Object.keys(versionBuckets(evals||[]));
+  var known=['1.0.0','1.0.1','1.0.2','1.0.3','1.0.4','1.0.5','1.0.6','1.0.7','1.0.8','1.1.0','1.1.1'];
+  known.forEach(function(v){ if(versions.indexOf(v)<0) versions.push(v); });
+  var currentResolved=resolveDiagramVersion(CURRENT_VER);
+  if(versions.indexOf(currentResolved)<0) versions.push(currentResolved);
+  versions.sort(compareSemverDesc);
+  return versions;
+}
 function filteredEvals(){
   return allEvals.filter(function(e){ return effectiveRunVersion(e)===selectedDiagramVersion; });
+}
+function toolInventoryForVersion(v){
+  var set={};
+  allEvals.forEach(function(e){
+    if(effectiveRunVersion(e)!==resolveDiagramVersion(v)) return;
+    var tools=e&&e.routing&&e.routing.availableTools;
+    if(Array.isArray(tools)){
+      tools.forEach(function(t){ set[t]=true; });
+    }
+  });
+  return Object.keys(set).sort();
 }
 function runDurationMs(e){
   if (typeof e.runDurationMs === 'number') return Math.max(0, e.runDurationMs);
@@ -408,10 +454,12 @@ mermaid.initialize({
 });
 
 // ── Flowchart builder ──────────────────────────────────────────────────────
-function buildFlowchart(nc, agg, diagramVersion) {
+function buildFlowchart(nc, agg, diagramVersion, fromVersion) {
   var resolvedDiagramVersion = resolveDiagramVersion(diagramVersion);
   var isV101 = versionAtLeast(resolvedDiagramVersion, '1.0.1');
-  var changedNodes = changedNodesForVersion(resolvedDiagramVersion);
+  var isV102 = versionAtLeast(resolvedDiagramVersion, '1.0.2');
+  var isV110 = versionAtLeast(resolvedDiagramVersion, '1.1.0');
+  var changedNodes = changedNodesBetween(fromVersion || previousDiagramVersion(resolvedDiagramVersion), resolvedDiagramVersion);
   function c(id){ return nc[id] ? ':::'+nc[id] : ':::ghost'; }
   var L = [
     '%%{init:{"theme":"base","themeVariables":{"background":"#0f1117","primaryColor":"#1e293b","primaryTextColor":"#e2e8f0","primaryBorderColor":"#334155","lineColor":"#475569","edgeLabelBackground":"#0f172a","fontFamily":"system-ui","fontSize":"11px"}}}%%',
@@ -518,6 +566,55 @@ function buildFlowchart(nc, agg, diagramVersion) {
       );
     }
   }
+  if (isV102) {
+    var wpcEdgeIdx = L.findIndex(function(line){ return line === '  WPC --> SL'; });
+    if (wpcEdgeIdx >= 0) {
+      L.splice(
+        wpcEdgeIdx,
+        1,
+        '  WPC --> PCV{{"Electrical gate\\n(new in v1.0.2)"}}'+c('PCV'),
+        '  PCV -- "pass" --> SL',
+        '  PCV -- "error · repair and retry" --> SL',
+      );
+    }
+  }
+  if (isV110) {
+    // v1.1.0: Remove delegation section — specialists removed, core handles everything
+    var delLines = ['DEL', 'CIRC', 'GRPH', 'DRET'];
+    L = L.filter(function(line) {
+      for (var i = 0; i < delLines.length; i++) {
+        if (line.indexOf(delLines[i]) >= 0) return false;
+      }
+      return true;
+    });
+    // Update tool mode labels — remove "delegation" references
+    L = L.map(function(line) {
+      if (line.indexOf('TMB[') >= 0) return line.replace('build · propose_circuit + sketch + delegation', 'build · propose_circuit + sketch');
+      if (line.indexOf('TMA[') >= 0) return line.replace('all · full board CRUD + delegation', 'all · full board CRUD');
+      if (line.indexOf('TME[') >= 0) return line.replace('edit · granular CRUD + delegation', 'edit · granular CRUD');
+      return line;
+    });
+  }
+  var isV111 = versionAtLeast(resolvedDiagramVersion, '1.1.1');
+  if (isV111) {
+    // v1.1.1: Add propose_fix node in the edit-mode tool loop
+    var wbbIdx = L.findIndex(function(line){ return line.indexOf('WBB') >= 0 && line.indexOf('-->') >= 0 && line.indexOf('SL') >= 0; });
+    if (wbbIdx >= 0) {
+      L.splice(
+        wbbIdx + 1,
+        0,
+        '  SL -- "edit mode batch" --> WPF["propose_fix · atomic batch edit\\n(add/remove/move + wires + sketch · max 3 attempts)\\n(new in v1.1.1)"]'+c('WPF'),
+        '  WPF --> SL',
+      );
+    }
+    // Update edit tool mode label to mention propose_fix
+    L = L.map(function(line) {
+      if (line.indexOf('TME[') >= 0 && line.indexOf('granular CRUD') >= 0) {
+        return line.replace('edit · granular CRUD', 'edit · propose_fix + granular CRUD');
+      }
+      return line;
+    });
+  }
   if(!agg){
     L=L.concat([
       '  classDef actual fill:#1e3a8a,stroke:#3b82f6,color:#bfdbfe,font-weight:600',
@@ -604,7 +701,12 @@ function nodeClasses(e){
   if(hasRead)  nc['RD']='actual';
   if(hasWBB)   nc['WBB']=onlyRem?'warn':'actual';
   if(hasWSK)   {nc['WSK']='actual'; nc['SVX']='actual';}
-  if(hasProp)  nc['WPC']='actual';
+  if(hasProp)  {
+    nc['WPC']='actual';
+    if (versionAtLeast(diagramVersion, '1.0.2')) {
+      nc['PCV'] = (e.electrical && e.electrical.errors > 0) ? 'warn' : 'actual';
+    }
+  }
 
   if(hasCirc||hasGraph) { nc['DEL']='actual'; nc['DRET']='actual'; }
   if(hasCirc) nc['CIRC']=cxIssues?'warn':'actual';
@@ -648,7 +750,7 @@ var NODE_LABELS = {
   TMB:'build mode', TMA:'all mode', TME:'edit mode',
   PL:'generatePlan', CA:'Core Agent',
   SL:'Step loop', RD:'Read tools', WBB:'Board write tools', WSK:'Sketch write',
-  WPC:'propose_circuit', SVX:'Sketch validates?', SS:'Sketch abandoned',
+  WPC:'propose_circuit', PCV:'Electrical gate', SVX:'Sketch validates?', SS:'Sketch abandoned',
   DEL:'Delegate to specialist', CIRC:'Circuit Agent', GRPH:'Graph Agent', DRET:'Delegation result',
   ST:'Max steps hit', POST:'collectResult', REF:'Reflection check', REP:'Suggest re-entry',
   PCK:'Policy engine', PBL:'Ops discarded', SUC:'Apply + complete', DONE:'Done',
@@ -688,7 +790,7 @@ function buildTraceMap(e) {
       if (READ_T.indexOf(t)>=0) add('RD',s);
       else if (WRITE_BB.indexOf(t)>=0) add('WBB',s);
       else if (WRITE_SK.indexOf(t)>=0) { add('WSK',s); add('SVX',s); }
-      else if (t==='propose_circuit') add('WPC',s);
+      else if (t==='propose_circuit') { add('WPC',s); if (versionAtLeast(diagramVersion, '1.0.2')) add('PCV', s); }
       else if (t.toLowerCase().indexOf('graph')>=0) { add('DEL',s); add('GRPH',s); add('DRET',s); }
       else if (t.toLowerCase().indexOf('circuit')>=0||t.toLowerCase().indexOf('delegate')>=0) { add('DEL',s); add('CIRC',s); add('DRET',s); }
     } else if (s.type==='text') {
@@ -703,6 +805,7 @@ function buildTraceMap(e) {
   }
   if (e.electrical&&e.electrical.issues&&e.electrical.issues.length) {
     add('PCK',{type:'electrical', issues:e.electrical.issues});
+    if (versionAtLeast(diagramVersion, '1.0.2')) add('PCV',{type:'electrical', issues:e.electrical.issues});
   }
 
   return map;
@@ -744,7 +847,7 @@ function computeNodeOrder(e, nc) {
     if (READ_T.indexOf(t)>=0) mark('RD');
     else if (WRITE_BB.indexOf(t)>=0) mark('WBB');
     else if (WRITE_SK.indexOf(t)>=0) { mark('WSK'); mark('SVX'); }
-    else if (t==='propose_circuit') mark('WPC');
+    else if (t==='propose_circuit') { mark('WPC'); if (versionAtLeast(diagramVersion, '1.0.2')) mark('PCV'); }
     else if (t.toLowerCase().indexOf('graph')>=0) { mark('DEL'); mark('GRPH'); mark('DRET'); }
     else if (t.toLowerCase().indexOf('circuit')>=0||t.toLowerCase().indexOf('delegate')>=0) { mark('DEL'); mark('CIRC'); mark('DRET'); }
   });
@@ -911,7 +1014,10 @@ async function renderDiag(nc, agg, evalData){
   var diagramVersion = agg
     ? resolveDiagramVersion(selectedDiagramVersion || CURRENT_VER)
     : resolveDiagramVersion((evalData && evalData.agentVersion) || CURRENT_VER);
-  var src=buildFlowchart(nc,agg,diagramVersion);
+  var fromVersion = agg
+    ? (compareFromVersion || previousDiagramVersion(diagramVersion))
+    : (compareFromVersion || previousDiagramVersion(diagramVersion));
+  var src=buildFlowchart(nc,agg,diagramVersion,fromVersion);
   var id='d'+(++diagSeq);
   try{
     var r=await mermaid.render(id,src);
@@ -940,12 +1046,9 @@ function onRun(){
 function populateVersionSelector(){
   var sel=document.getElementById('vsel');
   var buckets=versionBuckets(allEvals);
-  var versions=Object.keys(buckets);
-  var currentResolved=resolveDiagramVersion(CURRENT_VER);
-  if(versions.indexOf(currentResolved)<0) versions.push(currentResolved);
-  versions.sort(compareSemverDesc);
+  var versions=allKnownVersions(allEvals);
   if(versions.indexOf(selectedDiagramVersion)<0){
-    selectedDiagramVersion=versions[0]||currentResolved;
+    selectedDiagramVersion=versions[0]||resolveDiagramVersion(CURRENT_VER);
   }
   sel.innerHTML='';
   versions.forEach(function(v){
@@ -956,15 +1059,44 @@ function populateVersionSelector(){
     sel.appendChild(o);
   });
 }
+function populateCompareSelector(){
+  var sel=document.getElementById('vcmp');
+  var versions=allKnownVersions(allEvals)
+    .filter(function(v){ return versionAtLeast(selectedDiagramVersion, v) && v !== selectedDiagramVersion; });
+  if (!versions.length) {
+    sel.innerHTML='<option value="">vs none</option>';
+    compareFromVersion=null;
+    return;
+  }
+  if(!compareFromVersion || versions.indexOf(compareFromVersion)<0){
+    compareFromVersion=versions[versions.length-1] || versions[0] || null;
+  }
+  sel.innerHTML='';
+  versions.forEach(function(v){
+    var o=document.createElement('option');
+    o.value=v;
+    o.textContent='vs v'+v;
+    if(v===compareFromVersion) o.selected=true;
+    sel.appendChild(o);
+  });
+}
 function onVersionChange(){
   var sel=document.getElementById('vsel');
   selectedDiagramVersion=resolveDiagramVersion(sel.value||selectedDiagramVersion);
+  populateCompareSelector();
   selEval=null;
   var active=filteredEvals();
   if(active.every(function(e){ return e.runId!==selRunId; })){
     selRunId=null;
   }
   populateRunSelector();
+  if(mode==='overview') showOverview();
+  else if(selRunId) showRun(selRunId);
+  else document.getElementById('sbi').innerHTML='<div class="loading">Select a run above</div>';
+}
+function onCompareChange(){
+  var sel=document.getElementById('vcmp');
+  compareFromVersion=sel.value?resolveDiagramVersion(sel.value):null;
   if(mode==='overview') showOverview();
   else if(selRunId) showRun(selRunId);
   else document.getElementById('sbi').innerHTML='<div class="loading">Select a run above</div>';
@@ -1006,6 +1138,33 @@ function renderOverSidebar(nc, activeEvals){
   if(runs.length===0){
     document.getElementById('sbi').innerHTML='<div class="loading">No runs for v'+esc(selectedDiagramVersion)+'</div>';
     return;
+  }
+
+  if(compareFromVersion){
+    html.push('<div style="font-size:.68rem;color:var(--dim);margin-bottom:8px">Comparing diagram <b style="color:var(--text)">v'+esc(selectedDiagramVersion)+'</b> against <b style="color:var(--text)">v'+esc(compareFromVersion)+'</b>.</div>');
+    var targetTools = toolInventoryForVersion(selectedDiagramVersion);
+    var baseTools = toolInventoryForVersion(compareFromVersion);
+    var baseSet = {};
+    var targetSet = {};
+    baseTools.forEach(function(t){ baseSet[t]=true; });
+    targetTools.forEach(function(t){ targetSet[t]=true; });
+    var addedTools = targetTools.filter(function(t){ return !baseSet[t]; });
+    var removedTools = baseTools.filter(function(t){ return !targetSet[t]; });
+    html.push('<div class="sh">Tool Delta</div>');
+    html.push('<div style="font-size:.67rem;color:var(--muted);margin-bottom:6px">Current: '+targetTools.length+' tools · Baseline: '+baseTools.length+' tools</div>');
+    if(addedTools.length===0 && removedTools.length===0){
+      html.push('<div class="irow"><span>No tool-surface change detected between these versions.</span></div>');
+    } else {
+      addedTools.slice(0,10).forEach(function(t){
+        html.push('<div class="irow"><span style="color:#22c55e">+ '+esc(t)+'</span></div>');
+      });
+      removedTools.slice(0,10).forEach(function(t){
+        html.push('<div class="irow"><span style="color:#ef4444">- '+esc(t)+'</span></div>');
+      });
+      if(addedTools.length>10 || removedTools.length>10){
+        html.push('<div style="font-size:.64rem;color:var(--dim);margin-top:4px">Showing first 10 changes per side.</div>');
+      }
+    }
   }
 
   var sameAsAll = runs.length === allEvals.length;
@@ -1179,6 +1338,92 @@ function summarizeTraceStep(step){
   if (step.type === 'tool_result') return summarizeToolResult(step);
   return 'Assistant response: ' + clippedText(step.text || '', 180);
 }
+function estimateToolTokenBreakdown(e){
+  var trace=(e.path&&e.path.trace)||[];
+  var byTool={};
+  var nonToolBytes=0;
+
+  trace.forEach(function(s){
+    if(s.type==='tool_call'){
+      var tool=s.toolName||'unknown';
+      if(!byTool[tool]) byTool[tool]={tool:tool,calls:0,bytes:0};
+      byTool[tool].calls += 1;
+      var rawIn = s.toolInput ? JSON.stringify(s.toolInput) : '';
+      byTool[tool].bytes += Math.min(60000, rawIn.length) + 220;
+    } else if(s.type==='tool_result'){
+      var rtool=s.toolName||'unknown';
+      if(!byTool[rtool]) byTool[rtool]={tool:rtool,calls:0,bytes:0};
+      var rawOut = '';
+      if (s.toolResult) rawOut = JSON.stringify(s.toolResult);
+      else if (s.error) rawOut = String(s.error);
+      byTool[rtool].bytes += Math.min(60000, rawOut.length) + 140;
+    } else if(s.type==='text'){
+      nonToolBytes += (s.text||'').length + 120;
+    }
+  });
+
+  var rows=Object.keys(byTool).map(function(k){ return byTool[k]; });
+  var toolBytes=rows.reduce(function(acc,r){ return acc+r.bytes; },0);
+  var totalBytes=Math.max(1, toolBytes + nonToolBytes);
+  var parentTokens=Math.max(0, (e.tokens&&e.tokens.totalTokens||0) - (e.tokens&&e.tokens.childTokens||0) - (e.tokens&&e.tokens.overheadTokens||0));
+
+  rows.forEach(function(r){
+    r.tokens = Math.round(parentTokens * (r.bytes / totalBytes));
+  });
+  rows.sort(function(a,b){ return b.tokens-a.tokens; });
+
+  var attributed=rows.reduce(function(acc,r){ return acc+r.tokens; },0);
+  var unattributed=Math.max(0, parentTokens-attributed);
+
+  return {
+    source: 'estimate',
+    rows: rows,
+    parentTokens: parentTokens,
+    unattributed: unattributed,
+  };
+}
+function getToolTokenBreakdown(e){
+  var explicit = e.tokens && e.tokens.toolBreakdown;
+  if(explicit && Array.isArray(explicit.rows) && explicit.rows.length){
+    return {
+      source: explicit.source || 'workflow',
+      attribution: explicit.attribution,
+      rows: explicit.rows,
+      parentTokens: explicit.parentTokens || 0,
+      unattributed: explicit.unattributed || 0,
+    };
+  }
+  return estimateToolTokenBreakdown(e);
+}
+function toolSuccessRate(e){
+  var total=(e.tools&&e.tools.totalCalls)||0;
+  var errors=(e.tools&&e.tools.errors)||0;
+  if(total<=0) return 'n/a';
+  var ok=Math.max(0,total-errors);
+  return Math.round((ok/total)*100)+'% ('+ok+'/'+total+')';
+}
+function electricalStatus(e){
+  if(!e.electrical) return {label:'n/a', color:'var(--muted)', detail:'No electrical eval'};
+  var err=e.electrical.errors||0;
+  var warn=e.electrical.warnings||0;
+  if(err>0) return {label:'Fail', color:'#ef4444', detail:err+' error'+(err===1?'':'s')+', '+warn+' warning'+(warn===1?'':'s')};
+  if(warn>0) return {label:'Warn', color:'#f59e0b', detail:warn+' warning'+(warn===1?'':'s')};
+  return {label:'Pass', color:'#22c55e', detail:'No electrical issues'};
+}
+function wiringStatus(e){
+  if(!e.circuit) return {label:'n/a', color:'var(--muted)', detail:'No circuit eval'};
+  var floating=e.circuit.floatingComponents||0;
+  var shorts=e.circuit.busShorts||0;
+  var missing=e.circuit.missingResistors||0;
+  var total=floating+shorts+missing;
+  if(total===0) return {label:'Pass', color:'#22c55e', detail:'No wiring faults detected'};
+  return {label:'Issues', color:'#ef4444', detail:'floating:'+floating+' · shorts:'+shorts+' · missing R:'+missing};
+}
+function outputSummary(e){
+  if(e.circuit) return (e.circuit.componentsPlaced||0)+' components · '+(e.circuit.wiresCreated||0)+' wires';
+  if(e.graph) return (e.graph.nodesPlaced||0)+' nodes · '+(e.graph.edgesCreated||0)+' edges';
+  return ((e.path&&e.path.stepCount)||0)+' tool steps';
+}
 
 function renderRunSidebar(e){
   var p=e.path; var t=e.tokens; var r=e.routing; var sc=e.score;
@@ -1191,7 +1436,8 @@ function renderRunSidebar(e){
   var sBadge=e.status==='completed'?'<span class="bdg bg">completed</span>':'<span class="bdg br">failed</span>';
   var vBadge='<span class="bdg '+(verMismatch?'ba':'bm')+'" title="Agent version when run was created">v'+esc(e.agentVersion||'?')+(verMismatch?' \u26a0':'')+' </span>';
   var dBadge='<span class="bdg bb" title="Diagram snapshot used for rendering">diagram v'+esc(diagramVersion)+'</span>';
-  html.push('<div style="display:flex;align-items:center;gap:5px;margin-bottom:9px;flex-wrap:wrap">'+sBadge+' '+vBadge+' '+dBadge+'<span style="font-family:monospace;font-size:.63rem;color:var(--dim)">'+esc(e.runId)+'</span></div>');
+  var cBadge = compareFromVersion ? '<span class="bdg bm" title="Comparison baseline">vs v'+esc(compareFromVersion)+'</span>' : '';
+  html.push('<div style="display:flex;align-items:center;gap:5px;margin-bottom:9px;flex-wrap:wrap">'+sBadge+' '+vBadge+' '+dBadge+' '+cBadge+'<span style="font-family:monospace;font-size:.63rem;color:var(--dim)">'+esc(e.runId)+'</span></div>');
 
   // Prompt
   if(e.prompt) html.push('<div style="font-size:.77rem;color:var(--muted);margin-bottom:9px;padding:7px;background:var(--surface);border-radius:4px;border:1px solid var(--border)">'+esc(e.prompt)+'</div>');
@@ -1200,18 +1446,21 @@ function renderRunSidebar(e){
   if(verMismatch) html.push('<div style="padding:5px 8px;background:#292005;border:1px solid #f59e0b;border-radius:4px;font-size:.7rem;color:#f59e0b;margin-bottom:9px">Run produced by agent v'+esc(e.agentVersion)+' — current is v'+esc(CURRENT_VER)+'. Diagram layout may differ.</div>');
 
   // Score cards
-  if(sc){
-    html.push('<div class="cards">'+
-      statCard('Score',sc.total+'/100','',scoreColor(sc.total))+
-      statCard('Accuracy',sc.breakdown.accuracy+'/25','')+
-      statCard('Efficiency',sc.breakdown.efficiency+'/25','')+
-      statCard('Quality',sc.breakdown.quality+'/25','')+
-      statCard('Completeness',sc.breakdown.completeness+'/25','')+
-      statCard('Run Time',fmtDuration(runDurationMs(e)),'')+
-      statCard('Steps',p.stepCount+'/'+p.stepLimit,'',hitMax?'#f59e0b':'var(--text)')+
-    '</div>');
-  } else {
-    html.push('<div style="font-size:.75rem;color:var(--muted);margin-bottom:9px">'+esc(e.notEvaluableReason||'Not evaluable')+' · Run Time: '+esc(fmtDuration(runDurationMs(e)))+'</div>');
+  var intentOk = !!(e.intent&&e.intent.intentSatisfied);
+  var elec = electricalStatus(e);
+  var wire = wiringStatus(e);
+  html.push('<div class="cards">'+
+    statCard('Outcome',intentOk?'Intent met':'Intent missed','',intentOk?'#22c55e':'#ef4444')+
+    statCard('Electrical',elec.label,elec.detail,elec.color)+
+    statCard('Wiring',wire.label,wire.detail,wire.color)+
+    statCard('Tool Reliability',toolSuccessRate(e),(e.tools&&e.tools.totalCalls?('errors: '+(e.tools.errors||0)):'No tool calls'))+
+    statCard('Produced',outputSummary(e),'')+
+    statCard('Run Time',fmtDuration(runDurationMs(e)),'')+
+    statCard('Steps',p.stepCount+'/'+p.stepLimit,hitMax?'Reached step limit':'',hitMax?'#f59e0b':'var(--text)')+
+    statCard('Score (legacy)',sc?(sc.total+'/100'):'n/a','kept for continuity',sc?scoreColor(sc.total):'var(--muted)')+
+  '</div>');
+  if(!sc){
+    html.push('<div style="font-size:.75rem;color:var(--muted);margin-bottom:9px">'+esc(e.notEvaluableReason||'Not evaluable')+'</div>');
   }
 
   // Routing
@@ -1244,6 +1493,26 @@ function renderRunSidebar(e){
     '<span>Cost: <b style="color:var(--text)">'+fmtCost(t.estimatedCost)+'</b></span>'+
   '</div>');
 
+  // Token attribution by tool (prefer recorded workflow; fallback to estimate)
+  var tb=getToolTokenBreakdown(e);
+  var tbTitle = tb.source==='workflow' ? 'Token Breakdown By Tool (Workflow)' : 'Token Breakdown By Tool (Estimated)';
+  html.push('<div class="sh">'+tbTitle+'</div>');
+  if(tb.rows.length){
+    var mxTool=Math.max(1, tb.rows[0].tokens);
+    html.push('<div class="tbars">');
+    tb.rows.slice(0,8).forEach(function(rw){
+      html.push(tokenRow(rw.tool+' ×'+rw.calls, rw.tokens, mxTool, '#60a5fa'));
+    });
+    html.push('</div>');
+    var methodNote = tb.source==='workflow'
+      ? 'Recorded from step usage ('+esc(tb.attribution||'step_usage_allocation')+').'
+      : 'Estimated from trace payload sizes.';
+    var unattribLine = tb.unattributed > 0 ? ' · Unattributed: '+fmt(tb.unattributed) : '';
+    html.push('<div style="font-size:.66rem;color:var(--dim)">Parent tokens: '+fmt(tb.parentTokens)+unattribLine+' · '+methodNote+'</div>');
+  } else {
+    html.push('<div style="font-size:.7rem;color:var(--muted)">No tool calls in this run.</div>');
+  }
+
   // Delegations
   if(p.delegations&&p.delegations.length){
     html.push('<div class="sh">Delegation</div><div style="margin-bottom:7px">'+
@@ -1275,7 +1544,29 @@ function renderRunSidebar(e){
       '</pre>');
   }
 
-  // Trace
+  // Trace — build per-tool token-per-call map for step cost annotations
+  var tb = getToolTokenBreakdown(e);
+  // tokPerCall: tool name → average tokens per invocation
+  var tokPerCall = {};
+  // Also cover pseudo-rows like [prompt/system], [reasoning], [final_response]
+  var pseudoTokByLabel = {};
+  (tb.rows || []).forEach(function(r) {
+    if (r.tool && r.tool.charAt(0) === '[') {
+      pseudoTokByLabel[r.tool] = r.tokens || 0;
+    } else if (r.calls > 0) {
+      tokPerCall[r.tool] = Math.round((r.tokens || 0) / r.calls);
+    }
+  });
+
+  // Assign step tokens: tool_call steps get their per-call estimate;
+  // text steps get their pseudo-label tokens (split across all text steps of same category).
+  var textStepCount = (p.trace || []).filter(function(s) { return s.type === 'text'; }).length;
+  var reasoningPerStep = textStepCount > 1 ? Math.round((pseudoTokByLabel['[reasoning]'] || 0) / Math.max(1, textStepCount - 1)) : 0;
+  var promptTok = pseudoTokByLabel['[prompt/system]'] || 0;
+  var finalTok = pseudoTokByLabel['[final_response]'] || 0;
+  var textStepsSeen = 0;
+
+  var cumulative = 0;
   var traceEvents = (p.trace || []).length;
   html.push('<div class="sh">Trace ('+traceEvents+' events, '+p.stepCount+' tool steps)</div><div class="trace">');
   p.trace.forEach(function(s,idx){
@@ -1287,6 +1578,26 @@ function renderRunSidebar(e){
     else desc='<span style="color:var(--muted)">'+esc((s.text||'').slice(0,70))+((s.text||'').length>70?'\u2026':'')+'</span>';
     var summaryLine = summarizeTraceStep(s);
 
+    // Compute step token cost
+    var stepTok = 0;
+    if (s.type === 'tool_call') {
+      stepTok = tokPerCall[s.toolName] || 0;
+    } else if (s.type === 'text') {
+      textStepsSeen++;
+      stepTok = textStepsSeen === 1 ? promptTok
+              : (idx === p.trace.length - 1 || s.step === p.stepCount) ? finalTok
+              : reasoningPerStep;
+    }
+    // tool_result carries no new model cost — shown as 0
+    cumulative += stepTok;
+
+    var tokBadge = '';
+    if (stepTok > 0 || s.type === 'tool_call' || s.type === 'text') {
+      var stepStr = stepTok > 0 ? fmt(stepTok) : '—';
+      var cumStr = cumulative > 0 ? fmt(cumulative) : '—';
+      tokBadge = '<span style="margin-left:auto;font-family:monospace;font-size:.6rem;color:var(--dim);white-space:nowrap" title="step tokens / cumulative">'+stepStr+' / '+cumStr+'</span>';
+    }
+
     var bid='tb-'+e.runId+'-'+idx;
     var raw='';
     if(s.type==='tool_call'&&s.toolInput) raw=JSON.stringify(s.toolInput,null,2);
@@ -1294,8 +1605,8 @@ function renderRunSidebar(e){
     else if(s.text) raw=s.text;
 
     var toggle=raw?' <span data-bid="'+bid+'" onclick="togB(this.dataset.bid)" style="color:var(--dim);cursor:pointer;font-size:.63rem">[raw]</span>':'';
-    html.push('<div class="ts '+cls+'">'+
-      '<span class="tsn">'+s.step+'</span><span class="tk">'+kindLabel+'</span>'+desc+toggle+
+    html.push('<div class="ts '+cls+'" style="align-items:baseline">'+
+      '<span class="tsn">'+s.step+'</span><span class="tk">'+kindLabel+'</span>'+desc+toggle+tokBadge+
       '<div class="tsm">'+esc(summaryLine)+'</div>'+
       (raw?'<div class="tbd" id="'+bid+'">'+esc(raw.slice(0,1200))+(raw.length>1200?'\\n\u2026':'')+'</div>':'')+
     '</div>');
@@ -1314,6 +1625,7 @@ async function loadAll(){
   try{ var r2=await fetch('/api/eval/summary'); if(r2.ok) summary=await r2.json(); }catch(e){}
   selectedDiagramVersion = latestVersionFromRuns(allEvals);
   populateVersionSelector();
+  populateCompareSelector();
   populateRunSelector();
 }
 

@@ -105,6 +105,20 @@ export const lcdStateSchema = z.object({
   cursorCol: z.number(),
   cursorRow: z.number(),
   textBuffer: z.array(z.string()),
+  // Backlight & cursor display state
+  backlight: z.boolean().default(true),
+  displayOn: z.boolean().default(true),
+  cursorVisible: z.boolean().default(false),
+  cursorBlink: z.boolean().default(false),
+  // Text entry direction: 1 = left-to-right, -1 = right-to-left
+  direction: z.number().default(1),
+  autoscroll: z.boolean().default(false),
+  // Display scroll offset (HD44780 has 40-char DDRAM per row, 16 visible)
+  scrollOffset: z.number().default(0),
+  // CGRAM: 8 custom characters, each 8 rows of 5-bit pixel data (0–31)
+  cgram: z.array(z.array(z.number()).length(8)).length(8).default(
+    Array.from({ length: 8 }, () => Array<number>(8).fill(0)),
+  ),
 });
 export type LcdState = z.infer<typeof lcdStateSchema>;
 
@@ -155,6 +169,30 @@ export const customLibrarySchema = z.object({
 });
 export type CustomLibrary = z.infer<typeof customLibrarySchema>;
 
+// ── Environment (obstacles for sensor simulation) ───────────────
+
+export const obstacleSchema = z.object({
+  id: z.string().min(1),
+  /** "wall" = line segment, "box" = axis-aligned rectangle */
+  shape: z.enum(["wall", "box"]),
+  /** For wall: endpoints. For box: top-left and bottom-right in pixel coords. */
+  x1: z.number(),
+  y1: z.number(),
+  x2: z.number(),
+  y2: z.number(),
+  label: z.string().default(""),
+});
+export type Obstacle = z.infer<typeof obstacleSchema>;
+
+export const environmentSchema = z.object({
+  obstacles: z.record(z.string(), obstacleSchema).default({}),
+  /** When true, the breadboard boundary acts as a reflective wall. */
+  boundaryEnabled: z.boolean().default(true),
+  /** Extra margin (px) around the breadboard for the boundary walls. */
+  boundaryMargin: z.number().default(100),
+});
+export type Environment = z.infer<typeof environmentSchema>;
+
 // ── Board State ──────────────────────────────────────────────────
 //
 // `pinStates` was previously part of the persisted board state. It is now
@@ -179,6 +217,8 @@ const boardStateBaseSchema = z.object({
   // Selected board target for compile/upload/runtime mode decisions.
   // Optional for backward compatibility with older saved projects.
   boardTarget: boardTargetSchema.optional(),
+  // Environment layer for sensor simulation (obstacles, walls).
+  environment: environmentSchema.default({ obstacles: {}, boundaryEnabled: true, boundaryMargin: 100 }),
 });
 
 // Accept legacy `pinStates` field but strip it. The final output type
@@ -213,5 +253,6 @@ export function createDefaultBoardState(): BoardState {
     sketchCode: DEFAULT_SKETCH_CODE,
     customLibraries: {},
     boardTarget: DEFAULT_BOARD_TARGET,
+    environment: { obstacles: {}, boundaryEnabled: true, boundaryMargin: 100 },
   };
 }

@@ -4,7 +4,7 @@ import { boardOpSchema } from "@dreamer/schemas";
 
 // ── Agent Kind ──────────────────────────────────────────────────────────────
 
-export const agentKindSchema = z.enum(["core", "circuit", "graph"]);
+export const agentKindSchema = z.enum(["core"]);
 export type AgentKind = z.infer<typeof agentKindSchema>;
 
 // ── Project Thread ──────────────────────────────────────────────────────────
@@ -96,6 +96,22 @@ export const overheadUsageSchema = z.object({
 
 export type OverheadUsageRecord = z.infer<typeof overheadUsageSchema>;
 
+export const workflowToolTokenUsageSchema = z.object({
+  tool: z.string(),
+  calls: z.number().int().nonnegative(),
+  inputTokens: z.number().int().nonnegative(),
+  outputTokens: z.number().int().nonnegative(),
+  totalTokens: z.number().int().nonnegative(),
+  cacheReadTokens: z.number().int().nonnegative().optional(),
+  cacheWriteTokens: z.number().int().nonnegative().optional(),
+});
+
+export const workflowTokenUsageSchema = z.object({
+  attribution: z.literal("step_usage_allocation"),
+  byTool: z.array(workflowToolTokenUsageSchema),
+  unattributedTokens: z.number().int().nonnegative(),
+});
+
 export const tokenUsageSchema = z.object({
   /** Parent-only input tokens (the top-level stream). */
   inputTokens: z.number().int().nonnegative(),
@@ -112,6 +128,8 @@ export const tokenUsageSchema = z.object({
   children: z.array(childTokenUsageSchema).optional(),
   /** Overhead calls (summarizer, etc.) attributed to this run. */
   overhead: z.array(overheadUsageSchema).optional(),
+  /** Token attribution across the parent workflow, by tool. */
+  workflow: workflowTokenUsageSchema.optional(),
 });
 
 export type TokenUsageRecord = z.infer<typeof tokenUsageSchema>;
@@ -123,6 +141,8 @@ export type TokenUsageRecord = z.infer<typeof tokenUsageSchema>;
 export const routingDecisionSchema = z.object({
   model: z.string(),
   toolMode: z.enum(["build", "edit", "circuit", "all"]),
+  /** Concrete tool inventory exposed to the run (post tool-mode filtering). */
+  availableTools: z.array(z.string()).optional(),
   domain: z.enum(["breadboard", "graph", "mixed", "ambiguous"]),
   requestType: z.enum(["additive", "surgical", "rebuild", "debug", "question"]),
   complexity: z.enum(["simple", "complex"]),

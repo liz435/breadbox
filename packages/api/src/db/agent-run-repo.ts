@@ -145,6 +145,19 @@ async function completeRun(params: {
       totalTokens: number;
       model: string;
     }>;
+    workflow?: {
+      attribution: "step_usage_allocation";
+      byTool: Array<{
+        tool: string;
+        calls: number;
+        inputTokens: number;
+        outputTokens: number;
+        totalTokens: number;
+        cacheReadTokens?: number;
+        cacheWriteTokens?: number;
+      }>;
+      unattributedTokens: number;
+    };
   };
 }) {
   const existing = await readRun(params.runId);
@@ -177,6 +190,7 @@ async function setRouting(
   routing: {
     model: string;
     toolMode: "build" | "edit" | "circuit" | "all";
+    availableTools?: string[];
     domain: "breadboard" | "graph" | "mixed" | "ambiguous";
     requestType: "additive" | "surgical" | "rebuild" | "debug" | "question";
     complexity: "simple" | "complex";

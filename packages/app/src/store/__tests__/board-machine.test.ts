@@ -182,6 +182,7 @@ describe("boardMachine", () => {
         serialOutput: [{ text: "loaded", ts: 0 }],
         sketchCode: "// loaded",
         customLibraries: {},
+        environment: { obstacles: {}, boundaryEnabled: true, boundaryMargin: 100 },
       },
     });
     const ctx = actor.getSnapshot().context;
@@ -204,6 +205,7 @@ describe("boardMachine", () => {
         serialOutput: [],
         sketchCode: "",
         customLibraries: {},
+        environment: { obstacles: {}, boundaryEnabled: true, boundaryMargin: 100 },
       },
     });
     expect(actor.getSnapshot().context.sketchCode).toBe(DEFAULT_SKETCH_CODE);

@@ -48,7 +48,7 @@ function footprintFromPins(
 ): ComponentFootprint {
   const pins = resolveComponentPins(type, row, col, properties)
   const points = Object.values(pins)
-  // Deduplicate points that resolve to the same grid position (e.g., seven_segment "common")
+  // Deduplicate any overlapping pin points returned by the shared resolver.
   const seen = new Set<string>()
   const unique = points.filter((p) => {
     const key = `${p.row},${p.col}`
@@ -617,7 +617,31 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
         <circle cx={16} cy={12} r={2.5} fill="#1d4ed8" stroke="#3b82f6" strokeWidth={0.5} />
       </svg>
     ),
-    buildNetlist: () => null,
+    // Model VCC/trigger/echo/GND as 10kΩ input impedance (high-Z CMOS inputs).
+    spicePrefix: "R",
+    buildNetlist: (comp, { footprint, resolveNode }) => {
+      const pinNames = ["vcc", "trigger", "echo", "gnd"]
+      const lines: string[] = []
+      let nodeA = "0"
+      let nodeB = "0"
+      for (let i = 0; i < 4; i++) {
+        const node = resolveNode(footprint.points[i])
+        if (i === 0) nodeA = node
+        if (i === 3) nodeB = node
+        if (node !== "0") {
+          lines.push(`R_${sanitize(comp.id)}_${pinNames[i]} ${node} 0 10000`)
+        }
+      }
+      return { lines, nodeA, nodeB }
+    },
+    computeElectricalState: (_comp, { voltageDrop, currentMa }) => ({
+      isActive: Math.abs(voltageDrop) > 2,
+      voltage: voltageDrop,
+      current: currentMa,
+      isReversed: false,
+      brightness: 0,
+      warnings: [],
+    }),
     generateSketch: (comp) => {
       const { trigger, echo } = comp.pins
       const lines: string[] = []
@@ -626,6 +650,8 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
       if (echo != null) { lines.push(`  pinMode(${echo}, INPUT); // ${comp.name} echo`); hasPin = true }
       return hasPin ? { setupLines: lines, hasPin } : null
     },
+    schematicSymbol: "ultrasonic_sensor",
+    schematicValue: () => "HC-SR04",
   },
 
   // ── LCD 16×2 ──────────────────────────────────────────────────────────
@@ -662,7 +688,32 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
         ))}
       </svg>
     ),
-    buildNetlist: () => null,
+    // Model each of the 6 input pins as a high-impedance 10kΩ pull-down.
+    // This gives the SPICE solver a DC path without drawing meaningful current.
+    spicePrefix: "R",
+    buildNetlist: (comp, { footprint, resolveNode }) => {
+      const pinNames = ["rs", "en", "d4", "d5", "d6", "d7"]
+      const lines: string[] = []
+      let nodeA = "0"
+      let nodeB = "0"
+      for (let i = 0; i < 6; i++) {
+        const node = resolveNode(footprint.points[i])
+        if (i === 0) nodeA = node
+        if (i === 5) nodeB = node
+        if (node !== "0") {
+          lines.push(`R_${sanitize(comp.id)}_${pinNames[i]} ${node} 0 10000`)
+        }
+      }
+      return { lines, nodeA, nodeB }
+    },
+    computeElectricalState: (_comp, { voltageDrop, currentMa }) => ({
+      isActive: Math.abs(voltageDrop) > 2,
+      voltage: voltageDrop,
+      current: currentMa,
+      isReversed: false,
+      brightness: 0,
+      warnings: [],
+    }),
     generateSketch: (comp) => {
       const { rs, en, d4, d5, d6, d7 } = comp.pins
       if (rs == null || en == null || d4 == null || d5 == null || d6 == null || d7 == null) return null
@@ -681,10 +732,10 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     category: "display",
     description: "7-segment numeric display (0-9)",
     label: "7-Segment Display",
-    defaultPins: { a: null, b: null, c: null, d: null, e: null, f: null, g: null },
-    // Vertical pin column: a..g each in their own row so no two segment pins
-    // share a breadboard net. Derived from shared resolver (excludes virtual "common" pin).
-    footprint: (row, col) => footprintFromPins("seven_segment", row, col, HOLE_SPACING * 5, HOLE_SPACING * 7),
+    defaultPins: { a: null, b: null, c: null, d: null, e: null, f: null, g: null, dp: null, gnd: null },
+    // Vertical pin column: a..g, dp, gnd each in their own row so no two pins
+    // share a breadboard net.
+    footprint: (row, col) => footprintFromPins("seven_segment", row, col, HOLE_SPACING * 5, HOLE_SPACING * 9),
     paletteIcon: (
       <svg viewBox="0 0 24 24" width={20} height={20}>
         <rect x={4} y={3} width={16} height={18} rx={2} fill="#1f2937" stroke="#374151" strokeWidth={1} />
@@ -721,19 +772,24 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     },
     generateSketch: (comp) => {
       const segPins = [comp.pins.a, comp.pins.b, comp.pins.c, comp.pins.d, comp.pins.e, comp.pins.f, comp.pins.g]
+      const dpPin = comp.pins.dp
       const assigned = segPins.filter(p => p != null)
-      if (assigned.length === 0) return null
+      if (assigned.length === 0 && dpPin == null) return null
       const setupLines = segPins.map((p, i) => {
         const seg = "abcdefg"[i]
         return p != null ? `  pinMode(${p}, OUTPUT); // ${comp.name} segment ${seg}` : null
       }).filter(Boolean) as string[]
+      if (dpPin != null) setupLines.push(`  pinMode(${dpPin}, OUTPUT); // ${comp.name} segment dp`)
       // Display digit 0 by default (segments a,b,c,d,e,f on, g off)
       const pattern = [1, 1, 1, 1, 1, 1, 0] // 0 = abcdef
       const loopLines = segPins.map((p, i) => {
         return p != null ? `  digitalWrite(${p}, ${pattern[i] ? "HIGH" : "LOW"}); // seg ${("abcdefg")[i]}` : null
       }).filter(Boolean) as string[]
+      if (dpPin != null) loopLines.push(`  digitalWrite(${dpPin}, LOW); // seg dp`)
       return { setupLines, loopLines, hasPin: true }
     },
+    schematicSymbol: "seven_segment",
+    schematicValue: () => "7-Seg",
   },
 
   // ── NeoPixel / WS2812 LED Strip ──────────────────────────────────────

@@ -1,6 +1,6 @@
 {
   "runId": "5f3babb0-da5a-4815-9a1a-362184195c32",
-  "evaluatedAt": "2026-04-15T01:19:06.172Z",
+  "evaluatedAt": "2026-04-15T08:45:44.140Z",
   "runCreatedAt": "2026-04-14T21:54:46.247Z",
   "runCompletedAt": "2026-04-14T21:55:48.877Z",
   "runDurationMs": 62630,
@@ -1027,7 +1027,7 @@
     "componentsPlaced": 10,
     "wiresCreated": 12,
     "floatingComponents": 4,
-    "busShorts": 1,
+    "busShorts": 0,
     "missingResistors": 0,
     "sketchPinMatch": true,
     "sketchCompiles": true,
@@ -1035,8 +1035,7 @@
       "R_d (resistor) at (8,2) has no wires connected",
       "R_e (resistor) at (10,2) has no wires connected",
       "R_f (resistor) at (12,2) has no wires connected",
-      "R_g (resistor) at (14,2) has no wires connected",
-      "Bus short on row 0 left strip: pins 2, -3 are on the same bus"
+      "R_g (resistor) at (14,2) has no wires connected"
     ],
     "components": [
       {
@@ -1309,16 +1308,15 @@
   "electrical": {
     "pinOvercurrent": 0,
     "railOvercurrent": 0,
-    "missingExternalSupply": 1,
+    "missingExternalSupply": 0,
     "maxPinFanout": 1,
     "pinsOverDirectFanout": 0,
     "directGroundCount": 1,
     "directPowerCount": 1,
     "railDistributionViolations": 0,
-    "errors": 2,
+    "errors": 1,
     "warnings": 0,
     "issues": [
-      "7SEG (seven_segment) should use external power with common ground, not only Arduino rail.",
       "BTN (button) input has no opposite-side reference. Wire the other side to GND (for INPUT_PULLUP) or 5V/3V3 (for INPUT)."
     ]
   },

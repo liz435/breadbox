@@ -184,7 +184,8 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
       servos[id] = { pin: entry.pin, angle: entry.angle }
     }
 
-    // Convert stdlib lcd to schema format
+    // Convert stdlib lcd to schema format.
+    // The internal DDRAM is 40 chars wide; slice to visible cols for textBuffer.
     const lcd = stdlibState.lcd
       ? {
           pins: [] as number[],
@@ -192,7 +193,24 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
           rows: stdlibState.lcd.rows,
           cursorCol: stdlibState.lcd.cursorCol,
           cursorRow: stdlibState.lcd.cursorRow,
-          textBuffer: stdlibState.lcd.buffer,
+          textBuffer: stdlibState.lcd.buffer.map(row => {
+            const offset = stdlibState.lcd!.scrollOffset
+            // Wrap around the 40-char DDRAM when slicing the visible window
+            let result = ""
+            for (let i = 0; i < stdlibState.lcd!.cols; i++) {
+              const idx = ((offset + i) % 40 + 40) % 40
+              result += row[idx] ?? " "
+            }
+            return result
+          }),
+          backlight: stdlibState.lcd.backlight,
+          displayOn: stdlibState.lcd.displayOn,
+          cursorVisible: stdlibState.lcd.cursorVisible,
+          cursorBlink: stdlibState.lcd.cursorBlink,
+          direction: stdlibState.lcd.direction,
+          autoscroll: stdlibState.lcd.autoscroll,
+          scrollOffset: stdlibState.lcd.scrollOffset,
+          cgram: stdlibState.lcd.cgram,
         }
       : null
 
@@ -269,7 +287,7 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
 
       // 3. Apply sensor-driven inputs LAST so photoresistor/ultrasonic/PIR/etc.
       // values override any stale SPICE-computed voltage on their signal pin.
-      applySensorInputs(ctx.components, ctx.wires, store)
+      applySensorInputs(ctx.components, ctx.wires, store, ctx.environment)
     } catch {
       analysisResultRef.current = null
     }

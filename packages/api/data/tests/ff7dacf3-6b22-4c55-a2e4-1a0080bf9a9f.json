@@ -1,6 +1,6 @@
 {
   "runId": "ff7dacf3-6b22-4c55-a2e4-1a0080bf9a9f",
-  "evaluatedAt": "2026-04-15T01:19:06.165Z",
+  "evaluatedAt": "2026-04-15T08:45:44.128Z",
   "runCreatedAt": "2026-04-14T18:45:30.850Z",
   "runCompletedAt": "2026-04-14T18:45:54.302Z",
   "runDurationMs": 23452,
@@ -607,13 +607,12 @@
     "componentsPlaced": 3,
     "wiresCreated": 14,
     "floatingComponents": 0,
-    "busShorts": 2,
+    "busShorts": 1,
     "missingResistors": 0,
     "sketchPinMatch": true,
     "sketchCompiles": true,
     "issues": [
-      "Bus short on row 5 left strip: pins -1, 8 are on the same bus",
-      "Bus short on row 0 left strip: pins -3, 3 are on the same bus"
+      "Bus short on row 5 left strip: pins -1, 8 are on the same bus"
     ],
     "components": [
       {
@@ -808,17 +807,19 @@
   "electrical": {
     "pinOvercurrent": 0,
     "railOvercurrent": 0,
-    "missingExternalSupply": 1,
+    "missingExternalSupply": 0,
     "maxPinFanout": 1,
     "pinsOverDirectFanout": 0,
     "directGroundCount": 1,
     "directPowerCount": 1,
     "railDistributionViolations": 0,
-    "errors": 2,
-    "warnings": 0,
+    "errors": 1,
+    "warnings": 3,
     "issues": [
-      "SSD1 (seven_segment) should use external power with common ground, not only Arduino rail.",
-      "Button1 (button) input has no opposite-side reference. Wire the other side to GND (for INPUT_PULLUP) or 5V/3V3 (for INPUT)."
+      "Button1 (button) input has no opposite-side reference. Wire the other side to GND (for INPUT_PULLUP) or 5V/3V3 (for INPUT).",
+      "D2 is near limit at 20.0mA.",
+      "D5 is near limit at 20.0mA.",
+      "D9 is near limit at 20.0mA."
     ]
   },
   "intent": {

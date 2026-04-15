@@ -1,6 +1,6 @@
 {
   "runId": "ecb7ab2e-d1a9-4fc4-bcea-7e693576d473",
-  "evaluatedAt": "2026-04-15T01:19:06.174Z",
+  "evaluatedAt": "2026-04-15T08:45:44.149Z",
   "runCreatedAt": "2026-04-14T22:42:06.677Z",
   "runCompletedAt": "2026-04-14T22:42:47.125Z",
   "runDurationMs": 40448,
@@ -576,7 +576,7 @@
     "componentsPlaced": 9,
     "wiresCreated": 11,
     "floatingComponents": 4,
-    "busShorts": 1,
+    "busShorts": 0,
     "missingResistors": 0,
     "sketchPinMatch": true,
     "sketchCompiles": true,
@@ -584,8 +584,7 @@
       "R_D (resistor) at (8,2) has no wires connected",
       "R_E (resistor) at (10,2) has no wires connected",
       "R_F (resistor) at (12,2) has no wires connected",
-      "R_G (resistor) at (14,2) has no wires connected",
-      "Bus short on row 0 left strip: pins 2, -3 are on the same bus"
+      "R_G (resistor) at (14,2) has no wires connected"
     ],
     "components": [
       {
@@ -834,17 +833,15 @@
   "electrical": {
     "pinOvercurrent": 0,
     "railOvercurrent": 0,
-    "missingExternalSupply": 1,
+    "missingExternalSupply": 0,
     "maxPinFanout": 1,
     "pinsOverDirectFanout": 0,
     "directGroundCount": 1,
     "directPowerCount": 0,
     "railDistributionViolations": 0,
-    "errors": 1,
+    "errors": 0,
     "warnings": 0,
-    "issues": [
-      "Display (seven_segment) should use external power with common ground, not only Arduino rail."
-    ]
+    "issues": []
   },
   "intent": {
     "intentSatisfied": false,

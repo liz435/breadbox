@@ -118,9 +118,9 @@ export function analyzeCircuit(run: RunFile): CircuitAnalysis {
     if (comp.type === "servo" || comp.type === "potentiometer" || comp.type === "temperature_sensor" || comp.type === "capacitor") {
       positions.push({ row: comp.y + 1, col: comp.x }, { row: comp.y + 2, col: comp.x })
     }
-    // Seven segment: 7 rows (a..g)
+    // Seven segment: 9 rows (a..g, dp, gnd)
     if (comp.type === "seven_segment") {
-      for (let i = 1; i <= 6; i++) positions.push({ row: comp.y + i, col: comp.x })
+      for (let i = 1; i <= 8; i++) positions.push({ row: comp.y + i, col: comp.x })
     }
     // LCD 16x2: 12 rows of pin footprint
     if (comp.type === "lcd_16x2") {
@@ -152,7 +152,8 @@ export function analyzeCircuit(run: RunFile): CircuitAnalysis {
   for (const comp of components.values()) {
     if (comp.type !== "resistor") continue
     const leadA = { row: comp.y, col: comp.x }
-    const leadB = { row: comp.y, col: comp.x + 4 }
+    // Resistor footprint in Dreamer spans cols 3→6 (delta=3), not 3→7.
+    const leadB = { row: comp.y, col: comp.x + 3 }
     const hasDirectLeadWire = wireArray.some((w) =>
       (w.toRow === leadA.row && w.toCol === leadA.col) ||
       (w.fromRow !== -999 && w.fromRow === leadA.row && w.fromCol === leadA.col) ||
@@ -170,6 +171,9 @@ export function analyzeCircuit(run: RunFile): CircuitAnalysis {
   const rowStripPins = new Map<string, number[]>() // "row:strip" → [arduino pins]
   for (const w of wireArray) {
     if (w.fromRow === -999) {
+      // Skip wires landing on power/ground rails (col < 0 or col > 9) — those
+      // are not part of the main breadboard left/right strips.
+      if (w.toCol < 0 || w.toCol > 9) continue
       const strip = w.toCol <= 4 ? "L" : "R"
       const key = `${w.toRow}:${strip}`
       if (!rowStripPins.has(key)) rowStripPins.set(key, [])

@@ -101,7 +101,8 @@ export const COMPONENT_ELECTRICAL_PROFILES: Partial<Record<ComponentType, Compon
     typicalCurrentMa: 40,
     peakCurrentMa: 80,
     startupCurrentMa: 0,
-    mustUseExternalPower: true,
+    mustUseExternalPower: false,
+    notes: "Typical single-digit display can be powered from Arduino rails when segment current is resistor-limited.",
   },
   photoresistor: {
     type: "photoresistor",
@@ -181,4 +182,3 @@ export const COMPONENT_ELECTRICAL_PROFILES: Partial<Record<ComponentType, Compon
 export function getComponentElectricalProfile(type: ComponentType): ComponentElectricalProfile {
   return COMPONENT_ELECTRICAL_PROFILES[type] ?? { ...DEFAULT_PROFILE, type };
 }
-

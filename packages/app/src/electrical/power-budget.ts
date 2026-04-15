@@ -115,7 +115,7 @@ function componentPinPoints(component: BoardComponent): Record<string, Point> {
     case "resistor":
       return { a: { row: y, col: x }, b: { row: y, col: x + 4 } };
     case "button":
-      return { a: { row: y, col: x }, b: { row: y + 1, col: x + 3 } };
+      return { a: { row: y, col: x }, b: { row: y, col: x + 3 } };
     case "servo":
       return { signal: { row: y, col: x }, vcc: { row: y + 1, col: x }, gnd: { row: y + 2, col: x } };
     case "potentiometer":
@@ -140,6 +140,18 @@ function componentPinPoints(component: BoardComponent): Record<string, Point> {
         d7: { row: y + 9, col: x },
         a: { row: y + 10, col: x },
         k: { row: y + 11, col: x },
+      };
+    case "seven_segment":
+      return {
+        a: { row: y + 0, col: x },
+        b: { row: y + 1, col: x },
+        c: { row: y + 2, col: x },
+        d: { row: y + 3, col: x },
+        e: { row: y + 4, col: x },
+        f: { row: y + 5, col: x },
+        g: { row: y + 6, col: x },
+        dp: { row: y + 7, col: x },
+        gnd: { row: y + 8, col: x },
       };
     default:
       return { signal: { row: y, col: x } };
@@ -170,6 +182,7 @@ function powerSupplyNegativePoints(component: BoardComponent): Point[] {
 }
 
 function signalPins(component: BoardComponent): string[] {
+  if (component.type === "seven_segment") return ["a", "b", "c", "d", "e", "f", "g", "dp"];
   if (component.type === "led") return ["anode"];
   if (component.type === "rgb_led") return ["red", "green", "blue"];
   if (component.type === "servo") return ["signal"];
@@ -192,12 +205,12 @@ function powerPins(component: BoardComponent): string[] {
 }
 
 function groundPins(component: BoardComponent): string[] {
+  if (component.type === "seven_segment") return ["gnd"];
   if (component.type === "servo") return ["gnd"];
   if (component.type === "potentiometer") return ["gnd"];
   if (component.type === "temperature_sensor") return ["ground"];
   if (component.type === "buzzer") return ["negative"];
   if (component.type === "lcd_16x2") return ["vss", "k"];
-  if (component.type === "seven_segment") return ["common"];
   if (component.type === "led") return ["cathode"];
   if (component.type === "rgb_led") return ["common"];
   return ["gnd", "ground", "negative"];
@@ -541,6 +554,7 @@ export function useElectricalReport(): ElectricalReport {
         serialOutput: state.serialOutput,
         sketchCode: state.sketchCode,
         customLibraries: state.customLibraries,
+        environment: state.environment,
       }),
     [
       state.components,

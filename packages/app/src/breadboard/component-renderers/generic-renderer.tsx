@@ -127,6 +127,33 @@ function PotentiometerRenderer({ component, isSelected }: { component: BoardComp
   );
 }
 
+/** Render a single 5×8 CGRAM custom character as tiny SVG rects. */
+function CgramChar({ charData, x, y, cellW, cellH }: {
+  charData: number[]; x: number; y: number; cellW: number; cellH: number
+}) {
+  const pixW = cellW / 5;
+  const pixH = cellH / 8;
+  const rects: React.ReactNode[] = [];
+  for (let row = 0; row < 8; row++) {
+    const bits = charData[row] ?? 0;
+    for (let col = 0; col < 5; col++) {
+      if ((bits >> (4 - col)) & 1) {
+        rects.push(
+          <rect
+            key={`${row}-${col}`}
+            x={x + col * pixW}
+            y={y + row * pixH}
+            width={pixW - 0.1}
+            height={pixH - 0.1}
+            fill="#065f46"
+          />,
+        );
+      }
+    }
+  }
+  return <>{rects}</>;
+}
+
 function LcdRenderer({ component, isSelected, libraryState }: { component: BoardComponent; isSelected: boolean; libraryState?: LibraryState }) {
   // Vertical 6-pin header: rs/en/d4/d5/d6/d7 each on its own row.
   const pins = [0, 1, 2, 3, 4, 5].map(i =>
@@ -141,11 +168,20 @@ function LcdRenderer({ component, isSelected, libraryState }: { component: Board
   const bodyCx = pinTop.x - bodyW / 2 - 10;
   const bodyCy = (pinTop.y + pinBot.y) / 2;
 
-  // Read LCD text from library state if available
+  // Read LCD state from library state
   const lcdState = libraryState?.lcd;
   const line1 = lcdState?.textBuffer[0] ?? "";
   const line2 = lcdState?.textBuffer[1] ?? "";
   const hasText = line1.trim().length > 0 || line2.trim().length > 0;
+
+  const backlightOn = lcdState?.backlight ?? true;
+  const displayOn = lcdState?.displayOn ?? true;
+  const cursorVisible = lcdState?.cursorVisible ?? false;
+  const cursorBlink = lcdState?.cursorBlink ?? false;
+  const cursorCol = lcdState?.cursorCol ?? 0;
+  const cursorRow = lcdState?.cursorRow ?? 0;
+  const cgram = lcdState?.cgram;
+  const cols = lcdState?.cols ?? 16;
 
   const displayAreaX = bodyCx - bodyW / 2 + 4;
   const displayAreaY = bodyCy - bodyH / 2 + 4;
@@ -153,8 +189,57 @@ function LcdRenderer({ component, isSelected, libraryState }: { component: Board
   const displayHeight = bodyH - 8;
 
   const bodyGradId = `lcd-body-${component.id}`;
+  const blinkAnimId = `lcd-blink-${component.id}`;
+
+  // Display background color depends on backlight state
+  const displayBg = backlightOn ? "#a7f3d0" : "#3d6b5a";
+  const textColor = backlightOn ? "#065f46" : "#2a4a3d";
+
+  const cellW = (displayWidth - 2) / cols;
+  const cellH = (displayHeight - 4) / 2;
 
   const pinNames = ["rs", "en", "d4", "d5", "d6", "d7"];
+
+  // Determine visible cursor position relative to scroll offset
+  const scrollOffset = lcdState?.scrollOffset ?? 0;
+  const visibleCursorCol = cursorCol - scrollOffset;
+  const cursorInView = visibleCursorCol >= 0 && visibleCursorCol < cols
+    && cursorRow >= 0 && cursorRow < (lcdState?.rows ?? 2);
+
+  /** Render a single row of characters, handling CGRAM chars (code 0–7). */
+  function renderRow(text: string, rowIndex: number) {
+    const nodes: React.ReactNode[] = [];
+    const rowY = displayAreaY + 2 + rowIndex * (cellH + 1);
+    for (let i = 0; i < cols; i++) {
+      const code = text.charCodeAt(i);
+      const cellX = displayAreaX + 1 + i * cellW;
+      if (code >= 0 && code <= 7 && cgram && cgram[code]) {
+        // Custom CGRAM character — render as pixel grid
+        nodes.push(
+          <CgramChar
+            key={i}
+            charData={cgram[code]}
+            x={cellX}
+            y={rowY}
+            cellW={cellW - 0.4}
+            cellH={cellH}
+          />,
+        );
+      }
+      // Normal printable characters are handled by the <text> element below
+    }
+    return nodes;
+  }
+
+  /** Get printable text for a row (replace CGRAM codes 0–7 with spaces so they don't render as glyphs). */
+  function printableText(text: string): string {
+    let result = "";
+    for (let i = 0; i < Math.min(text.length, cols); i++) {
+      const code = text.charCodeAt(i);
+      result += (code >= 0 && code <= 7) ? " " : text[i];
+    }
+    return result;
+  }
 
   return (
     <g>
@@ -169,7 +254,6 @@ function LcdRenderer({ component, isSelected, libraryState }: { component: Board
       {pins.map((pin, i) => (
         <g key={i}>
           <circle cx={pin.x} cy={pin.y} r={2} fill="#9ca3af" opacity={0.55} />
-          {/* Lead from body into the pin */}
           <line
             x1={bodyCx + bodyW / 2}
             y1={pin.y}
@@ -206,62 +290,99 @@ function LcdRenderer({ component, isSelected, libraryState }: { component: Board
         width={displayWidth}
         height={displayHeight}
         rx={1}
-        fill="#a7f3d0"
+        fill={displayBg}
         stroke="#065f46"
         strokeWidth={0.4}
       />
 
-      {hasText ? (
+      {displayOn && hasText ? (
         <>
-          {/* Line 1 text */}
+          {/* Line 1 — printable text */}
           <text
             x={displayAreaX + 2}
             y={displayAreaY + 6}
             fontSize={4.5}
-            fill="#065f46"
+            fill={textColor}
             fontFamily="monospace"
             dominantBaseline="middle"
           >
-            {line1.slice(0, 16)}
+            {printableText(line1)}
           </text>
-          {/* Line 2 text */}
+          {/* Line 1 — CGRAM custom chars */}
+          {renderRow(line1, 0)}
+
+          {/* Line 2 — printable text */}
           <text
             x={displayAreaX + 2}
             y={displayAreaY + displayHeight - 3}
             fontSize={4.5}
-            fill="#065f46"
+            fill={textColor}
             fontFamily="monospace"
             dominantBaseline="middle"
           >
-            {line2.slice(0, 16)}
+            {printableText(line2)}
           </text>
+          {/* Line 2 — CGRAM custom chars */}
+          {renderRow(line2, 1)}
         </>
-      ) : (
+      ) : displayOn ? (
         <>
           {/* Text grid placeholder */}
-          {Array.from({ length: 16 }, (_, i) => (
+          {Array.from({ length: cols }, (_, i) => (
             <rect
               key={i}
-              x={displayAreaX + 1 + i * ((displayWidth - 2) / 16)}
+              x={displayAreaX + 1 + i * cellW}
               y={displayAreaY + 2}
-              width={(displayWidth - 2) / 16 - 0.4}
-              height={(displayHeight - 4) / 2}
-              fill="#065f46"
+              width={cellW - 0.4}
+              height={cellH}
+              fill={textColor}
               opacity={0.12}
             />
           ))}
-          {Array.from({ length: 16 }, (_, i) => (
+          {Array.from({ length: cols }, (_, i) => (
             <rect
               key={`b${i}`}
-              x={displayAreaX + 1 + i * ((displayWidth - 2) / 16)}
-              y={displayAreaY + 2 + (displayHeight - 4) / 2 + 1}
-              width={(displayWidth - 2) / 16 - 0.4}
-              height={(displayHeight - 4) / 2}
-              fill="#065f46"
+              x={displayAreaX + 1 + i * cellW}
+              y={displayAreaY + 2 + cellH + 1}
+              width={cellW - 0.4}
+              height={cellH}
+              fill={textColor}
               opacity={0.12}
             />
           ))}
         </>
+      ) : null}
+
+      {/* Cursor underline */}
+      {displayOn && cursorVisible && cursorInView && (
+        <line
+          x1={displayAreaX + 1 + visibleCursorCol * cellW}
+          y1={displayAreaY + 2 + cursorRow * (cellH + 1) + cellH - 0.5}
+          x2={displayAreaX + 1 + visibleCursorCol * cellW + cellW - 0.4}
+          y2={displayAreaY + 2 + cursorRow * (cellH + 1) + cellH - 0.5}
+          stroke={textColor}
+          strokeWidth={0.6}
+        />
+      )}
+
+      {/* Blinking block cursor */}
+      {displayOn && cursorBlink && cursorInView && (
+        <rect
+          x={displayAreaX + 1 + visibleCursorCol * cellW}
+          y={displayAreaY + 2 + cursorRow * (cellH + 1)}
+          width={cellW - 0.4}
+          height={cellH}
+          fill={textColor}
+        >
+          <animate
+            id={blinkAnimId}
+            attributeName="opacity"
+            values="1;1;0;0"
+            keyTimes="0;0.5;0.5;1"
+            dur="1.06s"
+            repeatCount="indefinite"
+          />
+        </rect>
       )}
 
       {/* Component name */}
@@ -1202,12 +1323,12 @@ function SevenSegmentRenderer({ component, components, pinStates, wires, isSelec
   wires?: Record<string, Wire>;
   isSelected: boolean;
 }) {
-  // Vertical 7-pin layout: a/b/c/d/e/f/g each on its own row (row..row+6, col)
-  const pins = [0, 1, 2, 3, 4, 5, 6].map(i =>
+  // Vertical 9-pin layout: a/b/c/d/e/f/g/dp/gnd each on its own row (row..row+8, col)
+  const pins = [0, 1, 2, 3, 4, 5, 6, 7, 8].map(i =>
     gridToPixel({ row: component.y + i, col: component.x }),
   );
   const pinTop = pins[0];
-  const pinBot = pins[6];
+  const pinBot = pins[8];
 
   const w = 34;
   const h = (pinBot.y - pinTop.y) + 12;
@@ -1219,8 +1340,9 @@ function SevenSegmentRenderer({ component, components, pinStates, wires, isSelec
   const segOffColor = "#2a0a0a";
 
   // Strict mode: segment lighting is resolved from physical wiring only.
-  // We intentionally do not trust component.pins.a..g here.
-  const segments = ["a", "b", "c", "d", "e", "f", "g"] as const;
+  // We intentionally do not trust component.pins here.
+  const signalSegments = ["a", "b", "c", "d", "e", "f", "g", "dp"] as const;
+  const pinLabels = [...signalSegments, "gnd"] as const;
   const footprint = getComponentFootprint(
     component.type,
     component.y,
@@ -1228,14 +1350,14 @@ function SevenSegmentRenderer({ component, components, pinStates, wires, isSelec
     component.rotation,
     component.properties,
   );
-  const segmentPoints = footprint.points.slice(0, segments.length);
-  const lit: Record<(typeof segments)[number], boolean> = {
-    a: false, b: false, c: false, d: false, e: false, f: false, g: false,
+  const segmentPoints = footprint.points.slice(0, signalSegments.length);
+  const lit: Record<(typeof signalSegments)[number], boolean> = {
+    a: false, b: false, c: false, d: false, e: false, f: false, g: false, dp: false,
   };
 
   if (wires) {
-    const segmentPins = new Map<(typeof segments)[number], Set<number>>();
-    for (const seg of segments) segmentPins.set(seg, new Set<number>());
+    const segmentPins = new Map<(typeof signalSegments)[number], Set<number>>();
+    for (const seg of signalSegments) segmentPins.set(seg, new Set<number>());
     const arduinoWires = Object.values(wires).filter(
       (wire) => wire.fromRow === -999 && wire.fromCol >= 0 && wire.fromCol <= MAX_ARDUINO_PIN,
     );
@@ -1260,7 +1382,7 @@ function SevenSegmentRenderer({ component, components, pinStates, wires, isSelec
         const segmentPoint = segmentPoints[i];
         if (!segmentPoint) continue;
         if (areConnected(wireTo, segmentPoint)) {
-          const seg = segments[i];
+          const seg = signalSegments[i];
           segmentPins.get(seg)?.add(arduinoPin);
         }
       }
@@ -1288,7 +1410,7 @@ function SevenSegmentRenderer({ component, components, pinStates, wires, isSelec
         for (let i = 0; i < segmentPoints.length; i++) {
           const segmentPoint = segmentPoints[i];
           if (!segmentPoint) continue;
-          const seg = segments[i];
+          const seg = signalSegments[i];
 
           if (areConnected(segmentPoint, endA)) {
             for (const pin of pinsOnB) segmentPins.get(seg)?.add(pin);
@@ -1300,7 +1422,7 @@ function SevenSegmentRenderer({ component, components, pinStates, wires, isSelec
       }
     }
 
-    for (const seg of segments) {
+    for (const seg of signalSegments) {
       const pinsForSegment = segmentPins.get(seg);
       if (!pinsForSegment || pinsForSegment.size === 0) continue;
       for (const pin of pinsForSegment) {
@@ -1377,6 +1499,8 @@ function SevenSegmentRenderer({ component, components, pinStates, wires, isSelec
     f: vertSeg(leftX, topRowY),
     g: horizSeg(midX, midY),
   } as const;
+  const dpX = wx + ww + 2.6;
+  const dpY = botY;
 
   const housingGradId = `seg-housing-${component.id}`;
   const windowGradId = `seg-window-${component.id}`;
@@ -1418,7 +1542,7 @@ function SevenSegmentRenderer({ component, components, pinStates, wires, isSelec
             strokeWidth={1.1}
             strokeLinecap="round"
           />
-          <PinLabel x={pin.x} y={pin.y} name={segments[i]} side="right" />
+          <PinLabel x={pin.x} y={pin.y} name={pinLabels[i]} side="right" />
         </g>
       ))}
 
@@ -1442,6 +1566,7 @@ function SevenSegmentRenderer({ component, components, pinStates, wires, isSelec
       {(Object.keys(paths) as Array<keyof typeof paths>).map(seg => (
         <path key={`ghost-${seg}`} d={paths[seg]} fill={segOffColor} opacity={0.9} />
       ))}
+      <circle cx={dpX} cy={dpY} r={1.5} fill={segOffColor} opacity={0.9} />
 
       {/* Lit segments on top with glow */}
       {(Object.keys(paths) as Array<keyof typeof paths>).map(seg => lit[seg] && (
@@ -1450,6 +1575,11 @@ function SevenSegmentRenderer({ component, components, pinStates, wires, isSelec
           <path d={paths[seg]} fill="#ffffff" opacity={0.25} />
         </g>
       ))}
+      {lit.dp && (
+        <g filter={`url(#${glowId})`}>
+          <circle cx={dpX} cy={dpY} r={1.5} fill={segOnColor} />
+        </g>
+      )}
 
       {/* Decimal point */}
       <circle cx={rightX + 3} cy={botY - 0.5} r={1.2} fill={segOffColor} />

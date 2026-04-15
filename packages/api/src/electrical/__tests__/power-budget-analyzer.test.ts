@@ -196,13 +196,34 @@ describe("analyzePowerBudget", () => {
       x: 2,
       y: 5,
       rotation: 0,
-      pins: { a: null, b: null, c: null, d: null, e: null, f: null, g: null },
+      pins: { a: null, b: null, c: null, d: null, e: null, f: null, g: null, dp: null, gnd: null },
       properties: {},
     });
 
     const report = analyzePowerBudget(board);
     const errorCodes = report.issues.filter((i) => i.severity === "error").map((i) => i.code);
     expect(errorCodes).not.toContain("EXTERNAL_POWER_REQUIRED");
+  });
+
+  test("does not require external supply for seven-segment", () => {
+    const board = createDefaultBoardState();
+    place(board, {
+      id: "seg-1",
+      type: "seven_segment",
+      name: "Seven Segment",
+      x: 2,
+      y: 5,
+      rotation: 0,
+      pins: { a: null, b: null, c: null, d: null, e: null, f: null, g: null, dp: null, gnd: null },
+      properties: {},
+    });
+
+    connect(board, "w-a", -999, 2, 5, 2);
+
+    const report = analyzePowerBudget(board);
+    const errorCodes = report.issues.filter((i) => i.severity === "error").map((i) => i.code);
+    expect(errorCodes).not.toContain("EXTERNAL_POWER_REQUIRED");
+    expect(errorCodes).not.toContain("HIGH_CURRENT_ON_ARDUINO_5V");
   });
 
   test("flags LCD with control wiring but missing VDD and VSS", () => {
@@ -298,7 +319,7 @@ describe("analyzePowerBudget", () => {
     });
 
     connect(board, "w-btn-signal-a", -999, 2, 10, 3);
-    connect(board, "w-btn-signal-b", -999, 4, 11, 6);
+    connect(board, "w-btn-signal-b", -999, 4, 10, 6);
 
     const report = analyzePowerBudget(board);
     const codes = report.issues.filter((i) => i.severity === "error").map((i) => i.code);
@@ -319,7 +340,7 @@ describe("analyzePowerBudget", () => {
     });
 
     connect(board, "w-btn-signal", -999, 2, 10, 3);
-    connect(board, "w-btn-gnd", -999, -3, 11, 6);
+    connect(board, "w-btn-gnd", -999, -3, 10, 6);
 
     const report = analyzePowerBudget(board);
     const codes = report.issues.filter((i) => i.severity === "error").map((i) => i.code);

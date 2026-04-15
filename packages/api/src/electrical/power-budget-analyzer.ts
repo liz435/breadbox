@@ -105,6 +105,7 @@ function powerSupplyNegativePoints(component: BoardComponent): Point[] {
 }
 
 function chooseSignalPins(component: BoardComponent): string[] {
+  if (component.type === "seven_segment") return ["a", "b", "c", "d", "e", "f", "g", "dp"];
   if (component.type === "led") return ["anode"];
   if (component.type === "rgb_led") return ["red", "green", "blue"];
   if (component.type === "servo") return ["signal"];
@@ -126,18 +127,17 @@ function choosePowerPins(component: BoardComponent): string[] {
   if (component.type === "neopixel") return ["vcc"];
   if (component.type === "lcd_16x2") return ["vdd", "a"];
   if (component.type === "oled_display") return ["vcc"];
-  if (component.type === "seven_segment") return ["common"];
   if (component.type === "led" || component.type === "rgb_led") return ["anode", "common"];
   return ["vcc", "positive"];
 }
 
 function chooseGroundPins(component: BoardComponent): string[] {
+  if (component.type === "seven_segment") return ["gnd"];
   if (component.type === "servo") return ["gnd"];
   if (component.type === "potentiometer") return ["gnd"];
   if (component.type === "temperature_sensor") return ["gnd"];
   if (component.type === "buzzer") return ["negative"];
   if (component.type === "lcd_16x2") return ["vss", "k"];
-  if (component.type === "seven_segment") return ["common"];
   if (component.type === "led") return ["cathode"];
   if (component.type === "rgb_led") return ["common"];
   return ["gnd", "negative"];
@@ -426,6 +426,7 @@ export function analyzePowerBudget(board: BoardState): PowerBudgetReport {
         }
       }
     }
+
   }
 
   const hasLcd = components.some((c) => c.type === "lcd_16x2");
