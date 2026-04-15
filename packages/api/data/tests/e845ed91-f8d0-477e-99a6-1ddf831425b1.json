@@ -1,9 +1,12 @@
 {
   "runId": "e845ed91-f8d0-477e-99a6-1ddf831425b1",
-  "evaluatedAt": "2026-04-09T16:21:08.852Z",
+  "evaluatedAt": "2026-04-10T23:57:34.988Z",
   "agent": "core",
   "prompt": "build led",
   "status": "completed",
+  "evaluable": true,
+  "domain": "breadboard",
+  "category": "top_level",
   "path": {
     "stepCount": 1,
     "stepLimit": 10,
@@ -44,6 +47,8 @@
     "inputTokens": 21274,
     "outputTokens": 129,
     "totalTokens": 21403,
+    "childTokens": 0,
+    "overheadTokens": 0,
     "estimatedCost": 0.0658,
     "wastedTokens": 0,
     "wasteDetails": []
@@ -52,9 +57,10 @@
     "totalCalls": 1,
     "errors": 0,
     "errorRate": 0,
-    "hallucatedIds": 0,
+    "hallucinatedIds": 0,
     "wrongPinNames": 0,
     "invalidPositions": 0,
+    "invalidGraphConnections": 0,
     "details": [
       {
         "tool": "create_blink_circuit",
@@ -109,6 +115,7 @@
     "wires": [],
     "sketch": "void setup() {\n  pinMode(13, OUTPUT);\n}\n\nvoid loop() {\n  digitalWrite(13, HIGH);\n  delay(1000);\n  digitalWrite(13, LOW);\n  delay(1000);\n}\n"
   },
+  "graph": null,
   "score": {
     "total": 75,
     "breakdown": {

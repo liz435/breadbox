@@ -40,6 +40,7 @@ export type ProjectSummary = {
   name: string;
   createdAt: string;
   updatedAt: string;
+  hasContent: boolean;
 };
 
 export async function listProjects(): Promise<ProjectSummary[]> {
@@ -126,6 +127,33 @@ export async function saveBoardState(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(boardState),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new ApiError(res.status, `${res.status} ${text}`);
+  }
+}
+
+/**
+ * Atomic combined save: persists board state and graph in a single
+ * read-modify-write on the server. Prefer this over calling
+ * `saveBoardState` and `saveProjectGraph` in parallel — concurrent
+ * single-field writes can clobber each other's field.
+ *
+ * Pass `undefined` for either field to leave it untouched on disk.
+ */
+export async function saveProjectState(
+  projectId: string,
+  payload: {
+    boardState?: Record<string, unknown>;
+    graph?: { nodes: Record<string, unknown>; edges: Record<string, unknown> };
+  },
+): Promise<void> {
+  const url = `${API_ORIGIN}/project/${encodeURIComponent(projectId)}/state`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);

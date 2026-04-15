@@ -31,7 +31,7 @@
 //     a cached mirror, updated on `onPinChange` callbacks and on external writes
 //     (which are forwarded to `avrRunner.setExternalPin`).
 
-import type { PinMode, PinState } from "@dreamer/schemas"
+import { MAX_ARDUINO_PIN, type PinMode, type PinState } from "@dreamer/schemas"
 
 export type PinSnapshot = {
   pin: number
@@ -66,7 +66,7 @@ function createDefaultPin(pin: number): PinSnapshot {
 }
 
 function createDefaultSnapshot(): PinSnapshot[] {
-  return Array.from({ length: 20 }, (_, i) => createDefaultPin(i))
+  return Array.from({ length: MAX_ARDUINO_PIN + 1 }, (_, i) => createDefaultPin(i))
 }
 
 export class PinStateStore {
@@ -80,7 +80,7 @@ export class PinStateStore {
   private interrupts = new Map<number, InterruptEntry>()
 
   // Previous digital values, for edge detection
-  private prevDigital = new Array<number>(20).fill(0)
+  private prevDigital = new Array<number>(MAX_ARDUINO_PIN + 1).fill(0)
 
   // ── Subscription ─────────────────────────────────────────────────
 
@@ -95,25 +95,25 @@ export class PinStateStore {
 
   /** Read a single pin (non-reactive, for VM stdlib use). */
   getPin(pin: number): PinSnapshot | null {
-    if (pin < 0 || pin > 19) return null
+    if (pin < 0 || pin > MAX_ARDUINO_PIN) return null
     return this.snapshot[pin]
   }
 
   /** Fast path: return the digital value for a pin (used by digitalRead). */
   readDigital(pin: number): 0 | 1 {
-    if (pin < 0 || pin > 19) return 0
+    if (pin < 0 || pin > MAX_ARDUINO_PIN) return 0
     return this.snapshot[pin].digitalValue
   }
 
   /** Fast path: return the analog value for a pin (used by analogRead). */
   readAnalog(pin: number): number {
-    if (pin < 0 || pin > 19) return 0
+    if (pin < 0 || pin > MAX_ARDUINO_PIN) return 0
     return this.snapshot[pin].analogValue
   }
 
   /** Fast path: return the pin mode. */
   readMode(pin: number): PinMode {
-    if (pin < 0 || pin > 19) return "UNSET"
+    if (pin < 0 || pin > MAX_ARDUINO_PIN) return "UNSET"
     return this.snapshot[pin].mode
   }
 
@@ -132,7 +132,7 @@ export class PinStateStore {
    * These writes are skipped for pins that the sketch has explicitly set to OUTPUT.
    */
   writeExternal(pin: number, changes: Partial<PinSnapshot>): void {
-    if (pin < 0 || pin > 19) return
+    if (pin < 0 || pin > MAX_ARDUINO_PIN) return
     const current = this.snapshot[pin]
     // If the sketch has claimed this pin as an output, external writes are ignored.
     // (A real button wired to an OUTPUT pin would short-circuit the MCU; we just no-op.)
@@ -150,7 +150,7 @@ export class PinStateStore {
     changes: Partial<PinSnapshot>,
     _source: "sketch" | "external",
   ): void {
-    if (pin < 0 || pin > 19) return
+    if (pin < 0 || pin > MAX_ARDUINO_PIN) return
     const current = this.snapshot[pin]
 
     // Build the next pin state; bail if nothing actually changed (avoids spurious notifies)

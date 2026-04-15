@@ -5,8 +5,7 @@
 // button, and the board status pill.
 
 import { useState, useEffect, useCallback, useRef } from "react"
-
-const API = "http://localhost:4111"
+import { API_ORIGIN } from "@dreamer/config"
 
 export type PortInfo = {
   path: string
@@ -57,7 +56,7 @@ export function useBoardConnection(): BoardConnectionState {
   const fetchPorts = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`${API}/api/boards`)
+      const res = await fetch(`${API_ORIGIN}/api/boards`)
       if (!res.ok) return
       const data = (await res.json()) as { ports: PortInfo[]; cliAvailable: boolean }
       setPorts(data.ports ?? [])

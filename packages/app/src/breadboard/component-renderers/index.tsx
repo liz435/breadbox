@@ -1,5 +1,5 @@
 import React from "react";
-import type { BoardComponent, PinState, ComponentType, LibraryState } from "@dreamer/schemas";
+import type { BoardComponent, PinState, ComponentType, LibraryState, Wire } from "@dreamer/schemas";
 import type { ComponentElectricalState } from "@/simulator/circuit-solver";
 import { LedRenderer } from "./led-renderer";
 import { RgbLedRenderer } from "./rgb-led-renderer";
@@ -8,11 +8,15 @@ import { ResistorRenderer } from "./resistor-renderer";
 import { CapacitorRenderer } from "./capacitor-renderer";
 import { IcRenderer } from "./ic-renderer";
 import { ServoRenderer } from "./servo-renderer";
+import { PowerSupplyRenderer } from "./power-supply-renderer";
+import { MultimeterRenderer } from "./multimeter-renderer";
 import { GenericRenderer } from "./generic-renderer";
 
 export type ComponentRendererProps = {
   component: BoardComponent;
+  components?: BoardComponent[];
   pinStates: PinState[];
+  wires?: Record<string, Wire>;
   isSelected: boolean;
   electricalState?: ComponentElectricalState;
   libraryState?: LibraryState;
@@ -29,6 +33,8 @@ const RENDERER_MAP: Record<
   capacitor: CapacitorRenderer,
   ic: IcRenderer,
   servo: ServoRenderer,
+  power_supply: PowerSupplyRenderer,
+  multimeter: MultimeterRenderer,
   // arduino_uno is rendered as a fixed board, not as a component
 };
 
@@ -38,9 +44,9 @@ export function getComponentRenderer(
   return RENDERER_MAP[componentType] ?? GenericRenderer;
 }
 
-function ComponentRendererInner({ component, pinStates, isSelected, electricalState, libraryState }: ComponentRendererProps) {
+function ComponentRendererInner({ component, components, pinStates, wires, isSelected, electricalState, libraryState }: ComponentRendererProps) {
   const Renderer = getComponentRenderer(component.type);
-  return <Renderer component={component} pinStates={pinStates} isSelected={isSelected} electricalState={electricalState} libraryState={libraryState} />;
+  return <Renderer component={component} components={components} pinStates={pinStates} wires={wires} isSelected={isSelected} electricalState={electricalState} libraryState={libraryState} />;
 }
 
 export const ComponentRenderer = React.memo(ComponentRendererInner);

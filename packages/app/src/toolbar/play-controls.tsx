@@ -2,11 +2,12 @@ import { useCallback, useRef, useState } from "react"
 import { Play, Pause, Square, Cpu, Upload, Zap, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
-import type { LibraryState } from "@dreamer/schemas"
+import { BOARD_TARGETS, DEFAULT_BOARD_TARGET, type BoardTarget, type LibraryState } from "@dreamer/schemas"
 import { useBoard } from "@/store/board-context"
 import { useDockviewApi } from "@/store/dockview-context"
 import { useSimulation } from "@/simulator/simulation-loop"
 import { useBoardConnection } from "@/simulator/use-board-connection"
+import { useElectricalReport } from "@/electrical/power-budget"
 import { cn } from "@/utils/classnames"
 import { markSerialUnread } from "./edit-toolbar"
 import { simulationRef } from "@/simulator/simulation-ref"
@@ -19,6 +20,7 @@ export function PlayControls() {
   const { state, send: boardSend } = useBoard()
   const dockviewApi = useDockviewApi()
   const { selectedPort } = useBoardConnection()
+  const electrical = useElectricalReport()
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>("idle")
   const [uploadError, setUploadError] = useState<string | null>(null)
 
@@ -48,8 +50,11 @@ export function PlayControls() {
 
   const sketchCodeRef = useRef(state.sketchCode)
   sketchCodeRef.current = state.sketchCode
+  const boardTarget = (state.boardTarget ?? DEFAULT_BOARD_TARGET) as BoardTarget
+  const boardTargetInfo = BOARD_TARGETS[boardTarget]
 
   const handlePlay = useCallback(() => {
+    if (electrical.hasErrors) return
     if (status === "paused") {
       resume()
       return
@@ -71,7 +76,7 @@ export function PlayControls() {
         })
       }
     }
-  }, [status, play, resume, dockviewApi])
+  }, [electrical.hasErrors, status, play, resume, dockviewApi])
 
   const handlePause = useCallback(() => {
     pause()
@@ -83,6 +88,7 @@ export function PlayControls() {
   }, [stop, boardSend])
 
   const handleUpload = useCallback(async () => {
+    if (electrical.hasErrors) return
     if (!selectedPort || !sketchCodeRef.current) return
     setUploadError(null)
     setUploadStatus("compiling")
@@ -90,7 +96,12 @@ export function PlayControls() {
       const res = await fetch(`${API}/api/flash`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ port: selectedPort, code: sketchCodeRef.current }),
+        body: JSON.stringify({
+          port: selectedPort,
+          code: sketchCodeRef.current,
+          boardTarget,
+          fqbn: boardTargetInfo.fqbn,
+        }),
       })
       const data = (await res.json()) as { success?: boolean; stage?: string; error?: string }
       if (!data.success) {
@@ -105,13 +116,14 @@ export function PlayControls() {
       setUploadError(err instanceof Error ? err.message : "Upload failed")
       setUploadStatus("error")
     }
-  }, [selectedPort])
+  }, [electrical.hasErrors, selectedPort, boardTarget, boardTargetInfo.fqbn])
 
   const isRunning = status === "running"
   const isPaused = status === "paused"
   const isCompiling = status === "compiling"
   const isStopped = status === "stopped"
   const isError = status === "error"
+  const electricalBlockReason = electrical.issues.find((issue) => issue.severity === "error")?.message
 
   return (
     <div className="flex items-center gap-1">
@@ -135,7 +147,7 @@ export function PlayControls() {
                 variant="ghost"
                 size="icon"
                 onClick={handlePlay}
-                disabled={isCompiling}
+                disabled={isCompiling || electrical.hasErrors}
               />
             }
           >
@@ -151,7 +163,9 @@ export function PlayControls() {
             )}
           </TooltipTrigger>
           <TooltipContent>
-            {isPaused ? "Resume" : isCompiling ? "Compiling..." : "Compile & Run"}
+            {electrical.hasErrors
+              ? "Electrical issue blocks Run"
+              : isPaused ? "Resume" : isCompiling ? "Compiling..." : "Compile & Run"}
           </TooltipContent>
         </Tooltip>
       )}
@@ -184,6 +198,11 @@ export function PlayControls() {
           {status}
         </span>
       )}
+      {!boardTargetInfo.supportsAvr8js && (
+        <span className="ml-1 text-[10px] text-amber-400" title="This board target uses transpile mode in-browser; hardware upload still uses board-specific FQBN.">
+          compat mode
+        </span>
+      )}
 
       {/* Error message */}
       {isError && error && (
@@ -191,11 +210,29 @@ export function PlayControls() {
           {error}
         </span>
       )}
+      {electrical.hasErrors && electricalBlockReason && (
+        <span className="ml-1 max-w-[240px] truncate text-[10px] text-red-400" title={electricalBlockReason}>
+          Electrical: {electricalBlockReason}
+        </span>
+      )}
+
+      <div className="mx-1 h-4 w-px bg-zinc-700" />
+      <select
+        value={boardTarget}
+        onChange={(e) => boardSend({ type: "SET_BOARD_TARGET", boardTarget: e.target.value as BoardTarget })}
+        className="h-6 rounded border border-zinc-700 bg-zinc-900 px-2 text-[10px] text-zinc-200"
+        title={`${boardTargetInfo.label} • ${boardTargetInfo.mcu}`}
+      >
+        {Object.values(BOARD_TARGETS).map((target) => (
+          <option key={target.id} value={target.id}>
+            {target.label}
+          </option>
+        ))}
+      </select>
 
       {/* Upload to Arduino — only shown when a port is selected */}
       {selectedPort && (
         <>
-          <div className="mx-1 h-4 w-px bg-zinc-700" />
           <Tooltip>
             <TooltipTrigger
               render={
@@ -203,7 +240,12 @@ export function PlayControls() {
                   variant="ghost"
                   size="icon"
                   onClick={handleUpload}
-                  disabled={uploadStatus === "compiling" || uploadStatus === "flashing" || uploadStatus === "reconnecting"}
+                  disabled={
+                    electrical.hasErrors ||
+                    uploadStatus === "compiling" ||
+                    uploadStatus === "flashing" ||
+                    uploadStatus === "reconnecting"
+                  }
                 />
               }
             >
@@ -227,8 +269,9 @@ export function PlayControls() {
               {uploadStatus === "compiling" ? "Compiling…"
                 : uploadStatus === "flashing" ? "Flashing…"
                 : uploadStatus === "reconnecting" ? "Reconnecting…"
+                : electrical.hasErrors ? (electricalBlockReason ?? "Electrical issue blocks upload")
                 : uploadStatus === "error" ? (uploadError ?? "Upload failed")
-                : "Compile & Upload to Arduino"}
+                : `Compile & Upload (${boardTargetInfo.label})`}
             </TooltipContent>
           </Tooltip>
 

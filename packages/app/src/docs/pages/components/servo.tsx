@@ -115,6 +115,15 @@ void loop() {
           Larger servos require an external 5–6V supply — do not power them from the Arduino 5V pin.
         </p>
       </Section>
+
+      <Section title="Example board">
+        <p className="text-sm text-gray-300 leading-relaxed">
+          A ready-made example board with a servo is available in the sketch editor.
+          Click the <strong className="text-gray-200">Examples</strong> button in the toolbar
+          (right of Run/Stop) and select <strong className="text-gray-200">"Servo Sweep"</strong> to
+          load a complete circuit with a working sketch.
+        </p>
+      </Section>
     </DocsLayout>
   )
 }

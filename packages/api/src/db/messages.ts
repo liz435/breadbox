@@ -3,8 +3,9 @@ import type { AgentRunFile } from "./schemas";
 
 /**
  * Builds a ModelMessage[] conversation history from completed agent runs.
- * Each run contributes a user message (from run.prompt) and the stored
- * model messages from the agent's conversation (run.messages).
+ * Each run contributes a compact user/assistant pair instead of replaying the
+ * raw tool transcript. This keeps follow-up turns cheap and avoids feeding the
+ * model its own earlier low-level tool chatter.
  *
  * Only includes runs with agent === "core" (top-level runs),
  * so child specialist runs don't pollute the history.
@@ -20,11 +21,62 @@ export function buildModelMessagesFromRuns(runs: AgentRunFile[]): ModelMessage[]
     // Add the user prompt
     result.push({ role: "user", content: run.prompt });
 
-    // Add stored model messages from the agent conversation
-    for (const msg of run.messages) {
-      if (msg && typeof msg === "object" && "role" in msg) {
-        result.push(msg as ModelMessage);
-      }
+    // Replay only the final assistant outcome, not the raw tool trace.
+    const assistantText = run.assistantText?.trim();
+    if (assistantText) {
+      result.push({ role: "assistant", content: assistantText });
+      continue;
+    }
+
+    // Fallback for older runs that may not have assistantText persisted.
+    const lastAssistantText = [...run.messages]
+      .reverse()
+      .find((msg) => {
+        if (!msg || typeof msg !== "object" || !("role" in msg) || msg.role !== "assistant") {
+          return false;
+        }
+        const content = (msg as { content?: unknown }).content;
+        if (typeof content === "string" && content.trim()) return true;
+        if (Array.isArray(content)) {
+          return content.some((part) => {
+            return (
+              part &&
+              typeof part === "object" &&
+              "type" in part &&
+              part.type === "text" &&
+              "text" in part &&
+              typeof part.text === "string" &&
+              part.text.trim().length > 0
+            );
+          });
+        }
+        return false;
+      });
+
+    if (!lastAssistantText) continue;
+
+    const content = (lastAssistantText as { content?: unknown }).content;
+    if (typeof content === "string" && content.trim()) {
+      result.push({ role: "assistant", content });
+      continue;
+    }
+
+    if (Array.isArray(content)) {
+      const text = content
+        .filter((part): part is { type: "text"; text: string } => {
+          return (
+            !!part &&
+            typeof part === "object" &&
+            "type" in part &&
+            part.type === "text" &&
+            "text" in part &&
+            typeof part.text === "string"
+          );
+        })
+        .map((part) => part.text.trim())
+        .filter(Boolean)
+        .join("\n");
+      if (text) result.push({ role: "assistant", content: text });
     }
   }
 

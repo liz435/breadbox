@@ -6,7 +6,7 @@ export function UltrasonicSensorPage() {
       <PageTitle
         title="Ultrasonic Sensor"
         subtitle="HC-SR04 distance sensor. Measures distance by echo time."
-        badge={<Badge variant="partial">Partial — Inspector-driven</Badge>}
+        badge={<Badge variant="implemented">Environment Ray-Cast</Badge>}
       />
 
       <Section title="Pins">
@@ -39,15 +39,21 @@ export function UltrasonicSensorPage() {
           headers={["Feature", "Status"]}
           rows={[
             ["Visual placement and rendering", "Implemented"],
-            ["Distance slider in Inspector", "Implemented"],
+            ["Distance slider in Inspector", "Implemented — fallback when no obstacles present"],
+            ["Environment layer (obstacles + boundary walls)", "Implemented — ray-cast distance measurement"],
             ["pulseIn(echoPin, HIGH) returns distance × 58 µs", "Implemented — via sensor bus"],
-            ["SPICE electrical simulation", "Not included in netlist"],
-            ["Cone / obstacle interaction on the canvas", "Not implemented (coming in environment layer)"],
+            ["Trigger pulse validation", "Implemented — sketch must set trigger pin to OUTPUT"],
+            ["pulseIn timeout parameter", "Implemented — returns 0 when exceeding timeout"],
+            ["Max range behavior (> 400 cm)", "Implemented — returns 0 (timeout)"],
+            ["SPICE electrical simulation", "Implemented — 10kΩ input impedance per pin"],
+            ["Schematic symbol", "Implemented"],
+            ["Beam visualization on breadboard", "Implemented — dashed ray with hit-point marker"],
           ]}
         />
         <Note>
-          <code>pulseIn(echoPin, HIGH)</code> returns <code>distance × 58 µs</code>, matching the
-          HC-SR04 datasheet. Adjust the distance slider in the Inspector to change what the sketch reads.
+          When obstacles or boundary walls are present in the environment, the sensor uses ray-casting
+          to measure distance automatically. The inspector slider is disabled in this mode. When no
+          obstacles exist, the slider controls the distance manually.
         </Note>
       </Section>
 
@@ -100,6 +106,15 @@ void loop() {
             ["Frequency", "40 kHz ultrasonic"],
           ]}
         />
+      </Section>
+
+      <Section title="Example board">
+        <p className="text-sm text-gray-300 leading-relaxed">
+          A ready-made example board with a ultrasonic sensor is available in the sketch editor.
+          Click the <strong className="text-gray-200">Examples</strong> button in the toolbar
+          (right of Run/Stop) and select <strong className="text-gray-200">"Distance Sensor"</strong> to
+          load a complete circuit with a working sketch.
+        </p>
       </Section>
     </DocsLayout>
   )

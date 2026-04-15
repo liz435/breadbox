@@ -8,7 +8,9 @@ import { GraphInspector } from "./graph-inspector";
 import { pinStateStore } from "@/simulator/pin-state-store";
 import { buttonPressStore, useButtonPressed } from "@/simulator/button-press-store";
 import { usePinState } from "@/simulator/use-pin-state";
-import { findInputPinForComponent } from "@/breadboard/component-pin-resolver";
+import { analyzeButtonWiring } from "@/breadboard/component-pin-resolver";
+import { useCircuitAnalysis } from "@/simulator/circuit-analysis-hook";
+import { useElectricalReport } from "@/electrical/power-budget";
 import type { BoardComponent, Wire } from "@dreamer/schemas";
 
 // ── Wire colors ──
@@ -40,6 +42,11 @@ const LED_COLORS = [
 const DIGITAL_PINS = Array.from({ length: 14 }, (_, i) => ({ label: `D${i}`, value: i }));
 const ANALOG_PINS = Array.from({ length: 6 }, (_, i) => ({ label: `A${i}`, value: 14 + i }));
 const ALL_PINS = [...DIGITAL_PINS, ...ANALOG_PINS];
+const GROUND_PIN_OPTIONS = [
+  { label: "GND (-3)", value: -3 },
+  { label: "GND (-4)", value: -4 },
+  { label: "GND (-6)", value: -6 },
+];
 
 // ── Helpers ──
 
@@ -64,11 +71,14 @@ function PinSelect({
   value,
   onChange,
   includeNone,
+  includeGroundPins,
 }: {
   value: number | null;
   onChange: (pin: number | null) => void;
   includeNone?: boolean;
+  includeGroundPins?: boolean;
 }) {
+  const options = includeGroundPins ? [...ALL_PINS, ...GROUND_PIN_OPTIONS] : ALL_PINS;
   return (
     <select
       className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs text-neutral-200 outline-none focus:border-zinc-500"
@@ -79,10 +89,59 @@ function PinSelect({
       }}
     >
       {(includeNone !== false) && <option value="">None</option>}
-      {ALL_PINS.map((p) => (
+      {options.map((p) => (
         <option key={p.value} value={p.value}>{p.label}</option>
       ))}
     </select>
+  );
+}
+
+// ── Component Warnings ──
+
+function ComponentWarnings({ componentId }: { componentId: string }) {
+  const { analysis } = useCircuitAnalysis();
+  const electrical = useElectricalReport();
+
+  const warnings = useMemo(() => {
+    const msgs: Array<{ severity: "error" | "warning"; message: string }> = [];
+
+    // Circuit analysis warnings (no resistor, reverse polarity, open circuit, etc.)
+    if (analysis?.warnings) {
+      for (const w of analysis.warnings) {
+        if (w.componentId === componentId) {
+          msgs.push({ severity: "warning", message: w.message });
+        }
+      }
+    }
+
+    // Power budget issues (external power required, overcurrent, etc.)
+    for (const issue of electrical.issues) {
+      if (issue.componentId === componentId) {
+        msgs.push({ severity: issue.severity, message: issue.message });
+      }
+    }
+
+    return msgs;
+  }, [componentId, analysis, electrical]);
+
+  if (warnings.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-1.5 mt-1">
+      <SectionTitle>Warnings</SectionTitle>
+      {warnings.map((w, i) => (
+        <div
+          key={i}
+          className={`rounded px-2 py-1.5 text-[11px] leading-snug ${
+            w.severity === "error"
+              ? "bg-red-900/30 text-red-300 border border-red-800/50"
+              : "bg-amber-900/30 text-amber-300 border border-amber-800/50"
+          }`}
+        >
+          {w.message}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -211,29 +270,30 @@ function ButtonInspector({ component, onUpdate }: {
   component: BoardComponent;
   onUpdate: (changes: Partial<BoardComponent>) => void;
 }) {
-  // Derive the input pin from the wire graph (buttons have pins.a/b set
-  // to null because connections come from wires, not pin assignments).
   const { state: boardState } = useBoard();
-  const inputPin = useMemo(
-    () => findInputPinForComponent(component, boardState.wires),
+  const wiring = useMemo(
+    () => analyzeButtonWiring(component, boardState.wires),
     [component, boardState.wires],
   );
+  const inputPin = wiring.inputPin;
   const pinState = usePinState(inputPin ?? -1);
   // INPUT_PULLUP: pressed = pin LOW. INPUT: pressed = HIGH.
   const isPullup = pinState?.mode === "INPUT_PULLUP";
   const pressedValue: 0 | 1 = isPullup ? 0 : 1;
   const releasedValue: 0 | 1 = isPullup ? 1 : 0;
-  // Physical press state drives the circuit; fall back to pin state for the
-  // label when the button is also wired to an Arduino input pin.
+  const canDrivePress =
+    inputPin != null &&
+    !wiring.hasSignalOnBothSides &&
+    ((isPullup && wiring.hasGroundReference) || (!isPullup && pinState?.mode === "INPUT" && wiring.hasPowerReference));
   const physicallyPressed = useButtonPressed(component.id);
-  const isPressed = physicallyPressed || pinState?.digitalValue === pressedValue;
+  const isPressed = physicallyPressed;
 
   const handlePress = useCallback(() => {
     buttonPressStore.press(component.id);
-    if (inputPin != null) {
+    if (canDrivePress && inputPin != null) {
       pinStateStore.writeExternal(inputPin, { digitalValue: pressedValue });
     }
-  }, [component.id, inputPin, pressedValue]);
+  }, [canDrivePress, component.id, inputPin, pressedValue]);
 
   const handleRelease = useCallback(() => {
     buttonPressStore.release(component.id);
@@ -271,6 +331,12 @@ function ButtonInspector({ component, onUpdate }: {
           {isPressed ? "Pressed" : "Hold to press"}
         </button>
       </PropertyRow>
+      {!canDrivePress && (
+        <div className="rounded px-2 py-1.5 text-[11px] leading-snug bg-amber-900/30 text-amber-300 border border-amber-800/50">
+          Button press is in strict mode: wire one side to an Arduino input pin and the opposite side to
+          {isPullup ? " GND" : " 5V/3V3"}.
+        </div>
+      )}
     </>
   );
 }
@@ -349,6 +415,112 @@ function CapacitorInspector({ component, onUpdate }: {
           }}
         />
       </PropertyRow>
+    </>
+  );
+}
+
+function PowerSupplyInspector({ component, onUpdate }: {
+  component: BoardComponent;
+  onUpdate: (changes: Partial<BoardComponent>) => void;
+}) {
+  const leftVoltage = (component.properties.leftVoltage as number) ?? 5;
+  const rightVoltage = (component.properties.rightVoltage as number) ?? 3.3;
+
+  const VoltagePicker = ({
+    label,
+    value,
+    onChange,
+  }: {
+    label: string;
+    value: number;
+    onChange: (v: number) => void;
+  }) => (
+    <PropertyRow label={label}>
+      <div className="flex gap-1">
+        {[5, 3.3].map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => onChange(v)}
+            className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+              value === v
+                ? "bg-emerald-600 text-white"
+                : "bg-zinc-800 text-neutral-300 hover:bg-zinc-700"
+            }`}
+          >
+            {v}V
+          </button>
+        ))}
+      </div>
+    </PropertyRow>
+  );
+
+  return (
+    <>
+      <VoltagePicker
+        label="Left Rail"
+        value={leftVoltage}
+        onChange={(v) =>
+          onUpdate({
+            properties: { ...component.properties, leftVoltage: v },
+          })
+        }
+      />
+      <VoltagePicker
+        label="Right Rail"
+        value={rightVoltage}
+        onChange={(v) =>
+          onUpdate({
+            properties: { ...component.properties, rightVoltage: v },
+          })
+        }
+      />
+      <p className="text-[10px] text-neutral-500 leading-snug mt-1">
+        Each side feeds the adjacent + and − power rails on the breadboard.
+        No wiring required — drop the module on and the rails are live.
+      </p>
+    </>
+  );
+}
+
+function MultimeterInspector({ component, onUpdate }: {
+  component: BoardComponent;
+  onUpdate: (changes: Partial<BoardComponent>) => void;
+}) {
+  const mode = (component.properties.mode as string | undefined) ?? "volts";
+  const modes: Array<{ key: "volts" | "amps" | "ohms"; label: string; hint: string }> = [
+    { key: "volts", label: "DC V", hint: "Voltage drop between probes (high-Z)" },
+    { key: "amps", label: "DC A", hint: "Series current (near-short — put in the current path)" },
+    { key: "ohms", label: "Ω", hint: "Resistance between probes (reads component value)" },
+  ];
+  const activeHint = modes.find((m) => m.key === mode)?.hint ?? "";
+  return (
+    <>
+      <PropertyRow label="Mode">
+        <div className="flex gap-1">
+          {modes.map((m) => (
+            <button
+              key={m.key}
+              type="button"
+              onClick={() =>
+                onUpdate({
+                  properties: { ...component.properties, mode: m.key },
+                })
+              }
+              className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                mode === m.key
+                  ? "bg-amber-600 text-white"
+                  : "bg-zinc-800 text-neutral-300 hover:bg-zinc-700"
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      </PropertyRow>
+      <p className="text-[10px] text-neutral-500 leading-snug mt-1">
+        {activeHint}
+      </p>
     </>
   );
 }
@@ -467,18 +639,31 @@ function UltrasonicInspector({ component, onUpdate }: {
   component: BoardComponent;
   onUpdate: (changes: Partial<BoardComponent>) => void;
 }) {
+  const { state: boardState, send: boardSend } = useBoard();
+  const env = boardState.environment;
+  const hasObstacles = Object.keys(env.obstacles).length > 0 || env.boundaryEnabled;
   const distance = (component.properties.distance as number) ?? 50;
+
   return (
     <>
+      {/* Manual distance slider — shown as fallback when no environment */}
       <PropertyRow label="Distance">
         <div className="flex items-center gap-2">
           <input type="range" min={2} max={400} value={distance} className="flex-1"
+            disabled={hasObstacles}
             onChange={(e) => onUpdate({
               properties: { ...component.properties, distance: parseInt(e.target.value, 10) },
             })} />
-          <span className="text-xs text-neutral-300 w-12 text-right">{distance} cm</span>
+          <span className="text-xs text-neutral-300 w-12 text-right">
+            {hasObstacles ? "auto" : `${distance} cm`}
+          </span>
         </div>
       </PropertyRow>
+      {hasObstacles && (
+        <PropertyRow label="Mode">
+          <span className="text-xs text-cyan-400">Ray-cast (environment)</span>
+        </PropertyRow>
+      )}
       <PropertyRow label="Trigger">
         <PinSelect value={component.pins.trigger ?? null}
           onChange={(pin) => onUpdate({ pins: { ...component.pins, trigger: pin } })} />
@@ -487,6 +672,78 @@ function UltrasonicInspector({ component, onUpdate }: {
         <PinSelect value={component.pins.echo ?? null}
           onChange={(pin) => onUpdate({ pins: { ...component.pins, echo: pin } })} />
       </PropertyRow>
+
+      <Separator />
+
+      {/* Environment controls */}
+      <PropertyRow label="Boundary">
+        <label className="flex items-center gap-1.5 cursor-pointer">
+          <input type="checkbox" checked={env.boundaryEnabled}
+            onChange={(e) => boardSend({
+              type: "UPDATE_ENVIRONMENT",
+              changes: { boundaryEnabled: e.target.checked },
+            })} />
+          <span className="text-xs text-neutral-300">Room walls</span>
+        </label>
+      </PropertyRow>
+      <PropertyRow label="Obstacles">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-neutral-400">{Object.keys(env.obstacles).length} placed</span>
+          <button
+            className="px-1.5 py-0.5 text-xs rounded bg-neutral-700 hover:bg-neutral-600 text-neutral-200"
+            onClick={() => {
+              const id = `obs_${Date.now()}`
+              boardSend({
+                type: "ADD_OBSTACLE",
+                obstacle: {
+                  id,
+                  shape: "box",
+                  x1: 200, y1: 100,
+                  x2: 260, y2: 140,
+                  label: "",
+                },
+              })
+            }}
+          >
+            + Box
+          </button>
+          <button
+            className="px-1.5 py-0.5 text-xs rounded bg-neutral-700 hover:bg-neutral-600 text-neutral-200"
+            onClick={() => {
+              const id = `obs_${Date.now()}`
+              boardSend({
+                type: "ADD_OBSTACLE",
+                obstacle: {
+                  id,
+                  shape: "wall",
+                  x1: 200, y1: 100,
+                  x2: 300, y2: 100,
+                  label: "",
+                },
+              })
+            }}
+          >
+            + Wall
+          </button>
+        </div>
+      </PropertyRow>
+
+      {/* List placed obstacles with remove buttons */}
+      {Object.values(env.obstacles).map((obs) => (
+        <PropertyRow key={obs.id} label={obs.shape === "wall" ? "Wall" : "Box"}>
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-neutral-400">
+              ({Math.round(obs.x1)},{Math.round(obs.y1)})
+            </span>
+            <button
+              className="px-1 text-xs text-red-400 hover:text-red-300"
+              onClick={() => boardSend({ type: "REMOVE_OBSTACLE", id: obs.id })}
+            >
+              x
+            </button>
+          </div>
+        </PropertyRow>
+      ))}
     </>
   );
 }
@@ -513,12 +770,19 @@ function SevenSegmentInspector({ component, onUpdate }: {
 }) {
   return (
     <>
-      {["a", "b", "c", "d", "e", "f", "g"].map((seg) => (
+      {["a", "b", "c", "d", "e", "f", "g", "dp"].map((seg) => (
         <PropertyRow key={seg} label={`Seg ${seg.toUpperCase()}`}>
           <PinSelect value={component.pins[seg] ?? null}
             onChange={(v) => onUpdate({ pins: { ...component.pins, [seg]: v } })} />
         </PropertyRow>
       ))}
+      <PropertyRow label="Ground">
+        <PinSelect
+          value={component.pins.gnd ?? null}
+          includeGroundPins
+          onChange={(v) => onUpdate({ pins: { ...component.pins, gnd: v } })}
+        />
+      </PropertyRow>
     </>
   );
 }
@@ -818,9 +1082,11 @@ function ComponentInspector({ component, onUpdate }: {
       {component.type === "pir_sensor" && <PirSensorInspector component={component} onUpdate={onUpdate} />}
       {component.type === "dht_sensor" && <DhtSensorInspector component={component} onUpdate={onUpdate} />}
       {component.type === "ir_receiver" && <IrReceiverInspector component={component} onUpdate={onUpdate} />}
+      {component.type === "power_supply" && <PowerSupplyInspector component={component} onUpdate={onUpdate} />}
+      {component.type === "multimeter" && <MultimeterInspector component={component} onUpdate={onUpdate} />}
 
       {/* Generic pin inspector for any remaining types */}
-      {!["led", "rgb_led", "resistor", "button", "servo", "buzzer", "capacitor", "potentiometer", "temperature_sensor", "photoresistor", "ultrasonic_sensor", "lcd_16x2", "seven_segment", "pir_sensor", "dht_sensor", "ir_receiver"].includes(component.type) && (
+      {!["led", "rgb_led", "resistor", "button", "servo", "buzzer", "capacitor", "potentiometer", "temperature_sensor", "photoresistor", "ultrasonic_sensor", "lcd_16x2", "seven_segment", "pir_sensor", "dht_sensor", "ir_receiver", "power_supply", "multimeter"].includes(component.type) && (
         <GenericPinInspector component={component} onUpdate={onUpdate} />
       )}
     </div>
@@ -895,10 +1161,13 @@ export default function Inspector() {
       ) : (
         <div className="p-3 flex flex-col gap-2">
           {selectedComponent && (
-            <ComponentInspector
-              component={selectedComponent}
-              onUpdate={handleComponentUpdate}
-            />
+            <>
+              <ComponentInspector
+                component={selectedComponent}
+                onUpdate={handleComponentUpdate}
+              />
+              <ComponentWarnings componentId={selectedComponent.id} />
+            </>
           )}
           {selectedWire && (
             <WireInspector

@@ -1,8 +1,14 @@
 // ── Arduino Standard Library (injectable globals for transpiled sketches) ───
 
 import type { PinStateStore } from "./pin-state-store"
-import type { PinMode } from "@dreamer/schemas"
-import { ultrasonicDistanceBus, dhtSensorBus, irReceiverBus } from "./sensor-inputs"
+import {
+  DEFAULT_BOARD_TARGET,
+  MAX_ARDUINO_PIN,
+  getBoardAnalogPins,
+  type BoardTarget,
+  type PinMode,
+} from "@dreamer/schemas"
+import { ultrasonicDistanceBus, ultrasonicTriggerPinBus, dhtSensorBus, irReceiverBus } from "./sensor-inputs"
 
 /** Virtual I2C device that can be registered on the bus. */
 export type I2CDevice = {
@@ -31,7 +37,15 @@ export type StdlibState = {
     rows: number
     cursorCol: number
     cursorRow: number
-    buffer: string[]
+    buffer: string[]          // 40-char DDRAM rows (HD44780 internal width)
+    backlight: boolean
+    displayOn: boolean
+    cursorVisible: boolean
+    cursorBlink: boolean
+    direction: 1 | -1         // entry mode: left-to-right or right-to-left
+    autoscroll: boolean
+    scrollOffset: number       // display shift offset
+    cgram: number[][]          // 8 custom chars, each 8 bytes of 5-bit pixel data
   } | null
   delayUntil: number // set by delay(), checked by VM
   serialBaud: number
@@ -73,7 +87,12 @@ export function createStdlib(
   callbacks: StdlibCallbacks,
   getMillis: () => number,
   pinStore: PinStateStore,
+  boardTarget: BoardTarget = DEFAULT_BOARD_TARGET,
 ): Record<string, unknown> {
+  const analogPinConstants = Object.fromEntries(
+    getBoardAnalogPins(boardTarget).map((pin, idx) => [`A${idx}`, pin]),
+  ) as Record<string, number>
+
   // ── Pin I/O ──────────────────────────────────────────────────────
   //
   // All pin reads/writes go through the PinStateStore — single source of truth.
@@ -157,7 +176,8 @@ export function createStdlib(
     toLow: number,
     toHigh: number,
   ): number {
-    return ((value - fromLow) * (toHigh - toLow)) / (fromHigh - fromLow) + toLow
+    // Arduino's map() returns long (integer). Truncate toward zero to match.
+    return Math.trunc(((value - fromLow) * (toHigh - toLow)) / (fromHigh - fromLow) + toLow)
   }
 
   function constrain(value: number, low: number, high: number): number {
@@ -221,12 +241,29 @@ export function createStdlib(
 
   // ── pulseIn ─────────────────────────────────────────────────────
 
-  function pulseIn(pin: number, _value: number, _timeout?: number): number {
-    if (pin < 0 || pin > 19) return 0
-    // Prefer the ultrasonic sensor bus: sensor-inputs.ts publishes the
-    // inspector distance (cm) keyed by echo pin. 58 µs per cm round-trip.
+  function pulseIn(pin: number, _value: number, timeout?: number): number {
+    if (pin < 0 || pin > MAX_ARDUINO_PIN) return 0
+
     const cm = ultrasonicDistanceBus.get(pin)
-    if (cm != null) return Math.round(cm * 58)
+    if (cm != null) {
+      // Validate: sketch must have set the trigger pin to OUTPUT mode
+      const trigPin = ultrasonicTriggerPinBus.get(pin)
+      if (trigPin != null) {
+        const trigState = pinStore.getPin(trigPin)
+        if (!trigState || trigState.mode !== "OUTPUT") return 0
+      }
+
+      // Out of range (> 400 cm or Infinity) → return 0 (timeout)
+      if (!isFinite(cm) || cm > 400) return 0
+
+      const us = Math.round(cm * 58)
+
+      // Respect timeout parameter (in microseconds)
+      if (timeout != null && us > timeout) return 0
+
+      return us
+    }
+
     // Legacy fallback: some sketches reuse analog values to fake a pulse width.
     const distance = pinStore.readAnalog(pin) || 50
     return distance * 58
@@ -506,6 +543,12 @@ export function createStdlib(
   }
 
   // ── LiquidCrystal class ──────────────────────────────────────────
+  //
+  // Full HD44780 simulation: 40-char DDRAM per row, display/cursor/blink
+  // control, entry mode, display shift, CGRAM custom characters, raw
+  // command() access, and read-back support.
+
+  const LCD_DDRAM_WIDTH = 40 // HD44780 internal row width
 
   class LiquidCrystalClass {
     constructor(
@@ -523,7 +566,15 @@ export function createStdlib(
         rows,
         cursorCol: 0,
         cursorRow: 0,
-        buffer: Array.from({ length: rows }, () => " ".repeat(cols)),
+        buffer: Array.from({ length: rows }, () => " ".repeat(LCD_DDRAM_WIDTH)),
+        backlight: true,
+        displayOn: true,
+        cursorVisible: false,
+        cursorBlink: false,
+        direction: 1,
+        autoscroll: false,
+        scrollOffset: 0,
+        cgram: Array.from({ length: 8 }, () => Array<number>(8).fill(0)),
       }
     }
 
@@ -533,26 +584,207 @@ export function createStdlib(
       state.lcd.cursorRow = row
     }
 
+    home(): void {
+      if (!state.lcd) return
+      state.lcd.cursorCol = 0
+      state.lcd.cursorRow = 0
+      state.lcd.scrollOffset = 0
+    }
+
     print(text: unknown): void {
       if (!state.lcd) return
       const str = String(text)
-      const row = state.lcd.cursorRow
-      const col = state.lcd.cursorCol
-      if (row < 0 || row >= state.lcd.rows) return
-      const currentRow = state.lcd.buffer[row]
-      const before = currentRow.slice(0, col)
-      const after = currentRow.slice(col + str.length)
-      state.lcd.buffer[row] = (before + str + after).slice(0, state.lcd.cols)
-      state.lcd.cursorCol = Math.min(col + str.length, state.lcd.cols)
+      for (let i = 0; i < str.length; i++) {
+        this.writeChar(str.charCodeAt(i))
+      }
+    }
+
+    /** Write a single character code at the cursor and advance. */
+    write(value: number): void {
+      if (!state.lcd) return
+      this.writeChar(value)
+    }
+
+    private writeChar(code: number): void {
+      const lcd = state.lcd!
+      const row = lcd.cursorRow
+      const col = lcd.cursorCol
+      if (row < 0 || row >= lcd.rows) return
+      if (col < 0 || col >= LCD_DDRAM_WIDTH) return
+
+      const ch = String.fromCharCode(code)
+      const currentRow = lcd.buffer[row]
+      lcd.buffer[row] =
+        currentRow.slice(0, col) + ch + currentRow.slice(col + 1)
+
+      if (lcd.autoscroll) {
+        lcd.scrollOffset += lcd.direction
+      } else {
+        lcd.cursorCol += lcd.direction
+      }
     }
 
     clear(): void {
       if (!state.lcd) return
       state.lcd.buffer = Array.from({ length: state.lcd.rows }, () =>
-        " ".repeat(state.lcd!.cols),
+        " ".repeat(LCD_DDRAM_WIDTH),
       )
       state.lcd.cursorCol = 0
       state.lcd.cursorRow = 0
+      state.lcd.scrollOffset = 0
+    }
+
+    // ── Display on/off control ──────────────────────────────────────
+
+    display(): void {
+      if (state.lcd) state.lcd.displayOn = true
+    }
+
+    noDisplay(): void {
+      if (state.lcd) state.lcd.displayOn = false
+    }
+
+    // ── Cursor visibility ───────────────────────────────────────────
+
+    cursor(): void {
+      if (state.lcd) state.lcd.cursorVisible = true
+    }
+
+    noCursor(): void {
+      if (state.lcd) state.lcd.cursorVisible = false
+    }
+
+    blink(): void {
+      if (state.lcd) state.lcd.cursorBlink = true
+    }
+
+    noBlink(): void {
+      if (state.lcd) state.lcd.cursorBlink = false
+    }
+
+    // ── Backlight ───────────────────────────────────────────────────
+
+    backlight(): void {
+      if (state.lcd) state.lcd.backlight = true
+    }
+
+    noBacklight(): void {
+      if (state.lcd) state.lcd.backlight = false
+    }
+
+    // ── Entry mode ──────────────────────────────────────────────────
+
+    leftToRight(): void {
+      if (state.lcd) state.lcd.direction = 1
+    }
+
+    rightToLeft(): void {
+      if (state.lcd) state.lcd.direction = -1
+    }
+
+    autoscroll(): void {
+      if (state.lcd) state.lcd.autoscroll = true
+    }
+
+    noAutoscroll(): void {
+      if (state.lcd) state.lcd.autoscroll = false
+    }
+
+    // ── Display shift ───────────────────────────────────────────────
+
+    scrollDisplayLeft(): void {
+      if (state.lcd) state.lcd.scrollOffset--
+    }
+
+    scrollDisplayRight(): void {
+      if (state.lcd) state.lcd.scrollOffset++
+    }
+
+    // ── CGRAM custom characters ─────────────────────────────────────
+
+    createChar(index: number, charmap: number[]): void {
+      if (!state.lcd) return
+      if (index < 0 || index > 7) return
+      state.lcd.cgram[index] = charmap.slice(0, 8)
+      while (state.lcd.cgram[index].length < 8) {
+        state.lcd.cgram[index].push(0)
+      }
+    }
+
+    // ── Read operations ─────────────────────────────────────────────
+
+    /** Read character at current cursor position from DDRAM. */
+    read(): number {
+      if (!state.lcd) return 0x20
+      const row = state.lcd.cursorRow
+      const col = state.lcd.cursorCol
+      if (row < 0 || row >= state.lcd.rows) return 0x20
+      if (col < 0 || col >= LCD_DDRAM_WIDTH) return 0x20
+      return state.lcd.buffer[row].charCodeAt(col) || 0x20
+    }
+
+    /** Busy flag — always false in simulation (operations are instant). */
+    busy(): boolean {
+      return false
+    }
+
+    // ── Raw HD44780 command register ────────────────────────────────
+
+    command(value: number): void {
+      if (!state.lcd) return
+
+      // Clear display
+      if (value === 0x01) {
+        this.clear()
+        return
+      }
+
+      // Return home
+      if (value === 0x02 || value === 0x03) {
+        this.home()
+        return
+      }
+
+      // Entry mode set (0b0000_01DS)
+      if ((value & 0xfc) === 0x04) {
+        state.lcd.direction = (value & 0x02) ? 1 : -1
+        state.lcd.autoscroll = !!(value & 0x01)
+        return
+      }
+
+      // Display on/off control (0b0000_1DCB)
+      if ((value & 0xf8) === 0x08) {
+        state.lcd.displayOn = !!(value & 0x04)
+        state.lcd.cursorVisible = !!(value & 0x02)
+        state.lcd.cursorBlink = !!(value & 0x01)
+        return
+      }
+
+      // Cursor / display shift (0b0001_SRXX)
+      if ((value & 0xf0) === 0x10) {
+        const shiftDisplay = !!(value & 0x08)
+        const shiftRight = !!(value & 0x04)
+        if (shiftDisplay) {
+          if (shiftRight) this.scrollDisplayRight()
+          else this.scrollDisplayLeft()
+        } else {
+          state.lcd.cursorCol += shiftRight ? 1 : -1
+        }
+        return
+      }
+
+      // Set CGRAM address (0b01AA_AAAA) — no-op, createChar handles this
+      if ((value & 0xc0) === 0x40) {
+        return
+      }
+
+      // Set DDRAM address (0b1AAA_AAAA)
+      if ((value & 0x80) === 0x80) {
+        const addr = value & 0x7f
+        state.lcd.cursorRow = addr >= 0x40 ? 1 : 0
+        state.lcd.cursorCol = addr >= 0x40 ? addr - 0x40 : addr
+        return
+      }
     }
   }
 
@@ -655,12 +887,7 @@ export function createStdlib(
     OUTPUT: 1,
     INPUT_PULLUP: 2,
     LED_BUILTIN: 13,
-    A0: 14,
-    A1: 15,
-    A2: 16,
-    A3: 17,
-    A4: 18,
-    A5: 19,
+    ...analogPinConstants,
     MSBFIRST: 1,
     LSBFIRST: 0,
 

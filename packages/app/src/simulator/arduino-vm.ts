@@ -9,11 +9,13 @@
 
 import { transpile, type CustomLibraryMap } from "./arduino-transpiler"
 import { transpileErrorRef } from "./transpile-error-ref"
+import { sketchSizeRef } from "./sketch-size-ref"
 import { createStdlib, createStdlibState, type StdlibState } from "./arduino-stdlib"
 import { createAVRRunner, arduinoPinToPort, portToArduinoPin, type AVRRunner } from "./avr-runner"
 import { compileSketch } from "./avr-compiler"
 import { PinState } from "avr8js"
 import { pinStateStore, type PinStateStore } from "./pin-state-store"
+import { DEFAULT_BOARD_TARGET, MAX_ARDUINO_PIN, type BoardTarget } from "@dreamer/schemas"
 
 export type VMMode = "transpile" | "avr"
 
@@ -33,7 +35,11 @@ export type PinSnapshot = {
 
 export type ArduinoVM = {
   loadSketch: (code: string, customLibraries?: CustomLibraryMap) => { success: boolean; error?: string }
-  loadSketchAsync: (code: string, customLibraries?: CustomLibraryMap) => Promise<{ success: boolean; error?: string }>
+  loadSketchAsync: (
+    code: string,
+    customLibraries?: CustomLibraryMap,
+    options?: { fqbn?: string },
+  ) => Promise<{ success: boolean; error?: string }>
   runSetup: () => void
   runLoopIteration: () => boolean // returns false if delaying
   getMillis: () => number
@@ -56,8 +62,10 @@ export function createArduinoVM(
   callbacks: ArduinoVMCallbacks,
   mode: VMMode = "transpile",
   store: PinStateStore = pinStateStore,
+  boardTarget: BoardTarget = DEFAULT_BOARD_TARGET,
 ): ArduinoVM {
   // ── Shared state ────────────────────────────────────────────────
+  const currentBoardTarget = boardTarget
   let currentMode = mode
   let state = createStdlibState(Date.now())
   let simulationStartTime = Date.now()
@@ -74,7 +82,7 @@ export function createArduinoVM(
   }
 
   // ── Transpile-mode state ────────────────────────────────────────
-  let stdlib = createStdlib(state, callbacks, getMillis, store)
+  let stdlib = createStdlib(state, callbacks, getMillis, store, currentBoardTarget)
   let setupFn: (() => void) | null = null
   let loopFn: (() => void) | null = null
   // Generator-based loop: when loop() calls delay(), it yields control
@@ -132,6 +140,11 @@ export function createArduinoVM(
     }
     // Clear any previous error on success
     transpileErrorRef.current = null
+
+    // Store size estimate
+    if (result.sizeEstimate) {
+      sketchSizeRef.current = { ...result.sizeEstimate, source: "estimate" }
+    }
 
     try {
       const globalNames = Object.keys(stdlib)
@@ -238,6 +251,7 @@ return { setup: _setup, loop: _loop, genLoop: null };
   async function loadSketchAsync(
     code: string,
     customLibraries?: CustomLibraryMap,
+    options?: { fqbn?: string },
   ): Promise<{ success: boolean; error?: string }> {
     if (currentMode === "transpile") {
       return loadSketch(code, customLibraries)
@@ -246,9 +260,14 @@ return { setup: _setup, loop: _loop, genLoop: null };
     // AVR mode: compile on the server, then load the hex
     reset()
 
-    const result = await compileSketch(code)
+    const result = await compileSketch(code, { fqbn: options?.fqbn })
     if (!result.success) {
       return { success: false, error: result.error }
+    }
+
+    // Store actual size info from compiler
+    if (result.sizeInfo) {
+      sketchSizeRef.current = { ...result.sizeInfo, source: "actual" }
     }
 
     avrRunner = createAVRRunnerInstance()
@@ -375,7 +394,7 @@ return { setup: _setup, loop: _loop, genLoop: null };
   // `vm.getPinStore().writeExternal(...)` directly — no VM-level wrappers.
 
   function getPinState(pin: number): PinSnapshot {
-    if (pin < 0 || pin > 19) {
+    if (pin < 0 || pin > MAX_ARDUINO_PIN) {
       return { digital: 0, analog: 0, pwm: 0, mode: 0 }
     }
 
@@ -416,7 +435,7 @@ return { setup: _setup, loop: _loop, genLoop: null };
     simulationStartTime = Date.now()
     virtualMs = 0
     state = createStdlibState(simulationStartTime)
-    stdlib = createStdlib(state, callbacks, getMillis, store)
+    stdlib = createStdlib(state, callbacks, getMillis, store, currentBoardTarget)
     setupFn = null
     loopFn = null
     loopGenerator = null

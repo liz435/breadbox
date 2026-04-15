@@ -48,18 +48,18 @@ export function SevenSegmentPage() {
           headers={["Feature", "Status"]}
           rows={[
             ["Visual placement", "Implemented"],
-            ["Per-segment lighting from pin states", "Implemented — each of a–g lights on HIGH / PWM > 0"],
+            ["Per-segment lighting from pin states", "Implemented — strict wiring mode (segment must be physically wired to a driven Arduino pin)"],
             ["Active-high common-cathode logic", "Implemented (LOW = off, HIGH = on)"],
-            ["Individual segment SPICE simulation", "Not implemented"],
+            ["Individual segment SPICE simulation", "Implemented — each segment modeled as a 220 Ω branch to GND"],
             ["Multiplexing support (multi-digit)", "Not implemented"],
             ["Common-anode variants (inverted logic)", "Not implemented"],
           ]}
         />
         <Note>
-          Assign pins to each segment (a–g) in the Inspector or via wires. The renderer reads
-          the live pin state every frame, so <code>digitalWrite(segPin, HIGH)</code> lights that
-          segment immediately. A decimal-point dot is drawn for reference but is not yet wired
-          to a pin.
+          In strict mode, rendering follows physical connectivity only: a segment lights only when
+          its footprint pin is wired to an Arduino output that is HIGH (or PWM{">"}0). Pin fields
+          in the Inspector can still help code generation, but do not bypass circuit wiring.
+          A decimal-point dot is drawn for reference but is not yet wired to a pin.
         </Note>
       </Section>
 
@@ -103,6 +103,15 @@ void showDigit(int digit) {
         <p className="text-sm text-gray-400 mt-2">
           Common-anode variants exist — wire cathodes to Arduino pins and anode to 5V through resistors.
           Logic is inverted (LOW = on).
+        </p>
+      </Section>
+
+      <Section title="Example board">
+        <p className="text-sm text-gray-300 leading-relaxed">
+          A ready-made example board with a 7-segment display is available in the sketch editor.
+          Click the <strong className="text-gray-200">Examples</strong> button in the toolbar
+          (right of Run/Stop) and select <strong className="text-gray-200">"7-Segment Counter"</strong> to
+          load a complete circuit with a working sketch.
         </p>
       </Section>
     </DocsLayout>

@@ -4,7 +4,7 @@
     "name": "sunny-wren-band",
     "version": 8,
     "createdAt": "2026-04-08T04:32:27.202Z",
-    "updatedAt": "2026-04-08T21:32:05.534Z",
+    "updatedAt": "2026-04-10T02:45:20.468Z",
     "threadId": "ed94cfa1-c11b-4d61-9e08-60f1feef0c60",
     "activeSceneId": "05af2fbf-4afc-4642-895e-e38a58c09918"
   },
@@ -98,7 +98,7 @@
         "id": "d4a094c0-d80b-45bd-a51e-5a8facaf5065",
         "type": "potentiometer",
         "name": "Servo Pot",
-        "x": 2,
+        "x": 3,
         "y": 17,
         "rotation": 0,
         "pins": {
@@ -107,23 +107,7 @@
           "gnd": null
         },
         "properties": {
-          "value": 22
-        }
-      },
-      "2d16a1a7-679e-413a-85f5-f96921352678": {
-        "id": "2d16a1a7-679e-413a-85f5-f96921352678",
-        "type": "neopixel",
-        "name": "Neopixel Strip",
-        "x": 6,
-        "y": 10,
-        "rotation": 0,
-        "pins": {
-          "din": null,
-          "vcc": null,
-          "gnd": null
-        },
-        "properties": {
-          "ledCount": 8
+          "value": 76
         }
       },
       "dedd6c64-a64f-4ef2-b8fa-b61b9f8cc390": {
@@ -145,7 +129,7 @@
         "id": "4aed782c-2cf0-4f10-aa7a-09202c01df03",
         "type": "resistor",
         "name": "LED Resistor",
-        "x": 6,
+        "x": 5,
         "y": 13,
         "rotation": 0,
         "pins": {
@@ -247,208 +231,6 @@
         "color": "#42a5f5"
       }
     },
-    "pinStates": [
-      {
-        "pin": 0,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 1,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 2,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 3,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 4,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 5,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 6,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 7,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 8,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 9,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 10,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 11,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 12,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 13,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 14,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 15,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 16,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 17,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 18,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      },
-      {
-        "pin": 19,
-        "mode": "UNSET",
-        "digitalValue": 0,
-        "analogValue": 0,
-        "pwmValue": 0,
-        "isPwm": false,
-        "pwmFrequency": 490,
-        "interruptMode": "NONE"
-      }
-    ],
     "libraryState": {
       "servos": {},
       "lcd": null,

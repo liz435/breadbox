@@ -87,6 +87,15 @@ void loop() {
           &nbsp;→ e.g. (5V − 2.0V) / 0.01A = <strong className="text-gray-300">300 Ω</strong> (use 330 Ω standard).
         </p>
       </Section>
+
+      <Section title="Example board">
+        <p className="text-sm text-gray-300 leading-relaxed">
+          A ready-made example board with a LED is available in the sketch editor.
+          Click the <strong className="text-gray-200">Examples</strong> button in the toolbar
+          (right of Run/Stop) and select <strong className="text-gray-200">"Blink LED"</strong> to
+          load a complete circuit with a working sketch.
+        </p>
+      </Section>
     </DocsLayout>
   )
 }

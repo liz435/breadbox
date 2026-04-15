@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { useProject } from "@/project/project-context"
 import {
   listProjects,
@@ -18,8 +18,17 @@ export function ProjectSelector() {
   const [isLoading, setIsLoading] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [showEmptyProjects, setShowEmptyProjects] = useState(false)
 
   const currentProject = projects.find((p) => p.id === projectId)
+  const visibleProjects = useMemo(
+    () =>
+      projects.filter((p) => {
+        if (p.id === projectId) return true
+        return showEmptyProjects || p.hasContent
+      }),
+    [projects, projectId, showEmptyProjects],
+  )
 
   const refresh = useCallback(() => {
     setIsLoading(true)
@@ -125,7 +134,7 @@ export function ProjectSelector() {
               </div>
             ) : (
               <div className="max-h-48 overflow-auto">
-                {projects.map((p) => (
+                {visibleProjects.map((p) => (
                   <div
                     key={p.id}
                     className={cn(
@@ -179,8 +188,23 @@ export function ProjectSelector() {
                     )}
                   </div>
                 ))}
+                {projects.length > visibleProjects.length && (
+                  <div className="px-3 py-1 text-[10px] text-muted-foreground">
+                    {projects.length - visibleProjects.length} empty project(s) hidden
+                  </div>
+                )}
               </div>
             )}
+            <div className="border-t border-border px-3 py-1.5">
+              <label className="flex items-center gap-2 text-[10px] text-muted-foreground cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showEmptyProjects}
+                  onChange={(e) => setShowEmptyProjects(e.target.checked)}
+                />
+                Show empty projects
+              </label>
+            </div>
             <div className="border-t border-border">
               <button
                 type="button"

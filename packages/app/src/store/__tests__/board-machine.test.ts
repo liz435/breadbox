@@ -1,7 +1,7 @@
 import { describe, test, expect } from "bun:test";
 import { createActor } from "xstate";
 import { boardMachine } from "../board-machine";
-import type { BoardComponent, Wire } from "@dreamer/schemas";
+import { DEFAULT_SKETCH_CODE, type BoardComponent, type Wire } from "@dreamer/schemas";
 
 function createTestComponent(overrides: Partial<BoardComponent> = {}): BoardComponent {
   return {
@@ -36,7 +36,7 @@ describe("boardMachine", () => {
     expect(Object.keys(ctx.components)).toHaveLength(0);
     expect(Object.keys(ctx.wires)).toHaveLength(0);
     expect(ctx.selectedId).toBeNull();
-    expect(ctx.sketchCode).toBe("");
+    expect(ctx.sketchCode).toBe(DEFAULT_SKETCH_CODE);
     expect(ctx.serialOutput).toEqual([]);
     actor.stop();
   });
@@ -119,6 +119,50 @@ describe("boardMachine", () => {
     actor.stop();
   });
 
+  test("UNDO/REDO for component move", () => {
+    const actor = createActor(boardMachine).start();
+    const led = createTestComponent({ id: "led-1", x: 10, y: 5 });
+    actor.send({ type: "PLACE_COMPONENT", component: led });
+    actor.send({ type: "MOVE_COMPONENT", id: "led-1", x: 20, y: 15 });
+    expect(actor.getSnapshot().context.components["led-1"].x).toBe(20);
+    expect(actor.getSnapshot().context.components["led-1"].y).toBe(15);
+
+    actor.send({ type: "UNDO" });
+    expect(actor.getSnapshot().context.components["led-1"].x).toBe(10);
+    expect(actor.getSnapshot().context.components["led-1"].y).toBe(5);
+
+    actor.send({ type: "REDO" });
+    expect(actor.getSnapshot().context.components["led-1"].x).toBe(20);
+    expect(actor.getSnapshot().context.components["led-1"].y).toBe(15);
+    actor.stop();
+  });
+
+  test("UNDO/REDO for component update", () => {
+    const actor = createActor(boardMachine).start();
+    const led = createTestComponent({
+      id: "led-1",
+      properties: { color: "#ef4444" },
+      rotation: 0,
+    });
+    actor.send({ type: "PLACE_COMPONENT", component: led });
+    actor.send({
+      type: "UPDATE_COMPONENT",
+      id: "led-1",
+      changes: { rotation: 1, properties: { color: "#22c55e" } },
+    });
+    expect(actor.getSnapshot().context.components["led-1"].rotation).toBe(1);
+    expect(actor.getSnapshot().context.components["led-1"].properties.color).toBe("#22c55e");
+
+    actor.send({ type: "UNDO" });
+    expect(actor.getSnapshot().context.components["led-1"].rotation).toBe(0);
+    expect(actor.getSnapshot().context.components["led-1"].properties.color).toBe("#ef4444");
+
+    actor.send({ type: "REDO" });
+    expect(actor.getSnapshot().context.components["led-1"].rotation).toBe(1);
+    expect(actor.getSnapshot().context.components["led-1"].properties.color).toBe("#22c55e");
+    actor.stop();
+  });
+
   test("RESET_PINS dispatches without error (pin state owned by PinStateStore)", () => {
     const actor = createActor(boardMachine).start();
     actor.send({ type: "RESET_PINS" });
@@ -138,6 +182,7 @@ describe("boardMachine", () => {
         serialOutput: [{ text: "loaded", ts: 0 }],
         sketchCode: "// loaded",
         customLibraries: {},
+        environment: { obstacles: {}, boundaryEnabled: true, boundaryMargin: 100 },
       },
     });
     const ctx = actor.getSnapshot().context;
@@ -146,6 +191,24 @@ describe("boardMachine", () => {
     expect(ctx.serialOutput.map((e) => e.text)).toEqual(["loaded"]);
     expect(ctx.libraryState.serialBaud).toBe(9600);
     expect(ctx._past).toHaveLength(0); // history reset on load
+    actor.stop();
+  });
+
+  test("LOAD_BOARD seeds default sketch for empty legacy board", () => {
+    const actor = createActor(boardMachine).start();
+    actor.send({
+      type: "LOAD_BOARD",
+      state: {
+        components: {},
+        wires: {},
+        libraryState: { servos: {}, lcd: null, serialBaud: 0 },
+        serialOutput: [],
+        sketchCode: "",
+        customLibraries: {},
+        environment: { obstacles: {}, boundaryEnabled: true, boundaryMargin: 100 },
+      },
+    });
+    expect(actor.getSnapshot().context.sketchCode).toBe(DEFAULT_SKETCH_CODE);
     actor.stop();
   });
 });

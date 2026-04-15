@@ -1,84 +1,144 @@
 {
-  "generatedAt": "2026-04-09T16:21:08.870Z",
-  "totalRuns": 38,
-  "byModel": {
+  "generatedAt": "2026-04-15T08:45:44.152Z",
+  "totalRuns": 32,
+  "notEvaluable": 0,
+  "categories": {
     "template": {
-      "runs": 8,
-      "avgScore": 93,
-      "totalTokens": 0,
-      "totalCost": 0
+      "runs": 0,
+      "scored": 0,
+      "avgScore": 0,
+      "avgToolErrorRate": 0,
+      "avgTokensPerRun": 0,
+      "hallucinationRate": 0,
+      "totalCost": 0,
+      "byModel": {}
     },
-    "claude-haiku-4-5-20251001": {
-      "runs": 13,
+    "topLevel": {
+      "runs": 30,
+      "scored": 30,
       "avgScore": 74,
-      "totalTokens": 324265,
-      "totalCost": 0.3069
+      "avgToolErrorRate": 0.03,
+      "avgTokensPerRun": 30323,
+      "hallucinationRate": 7,
+      "totalCost": 2.5205,
+      "byModel": {
+        "claude-haiku-4-5-20251001": {
+          "runs": 16,
+          "avgScore": 76,
+          "totalTokens": 440438,
+          "totalCost": 0.501
+        },
+        "claude-sonnet-4-6": {
+          "runs": 14,
+          "avgScore": 71,
+          "totalTokens": 469240,
+          "totalCost": 2.0195
+        }
+      }
     },
-    "claude-sonnet-4-6": {
-      "runs": 14,
-      "avgScore": 75,
-      "totalTokens": 608281,
-      "totalCost": 2.0794
+    "delegated": {
+      "runs": 2,
+      "scored": 2,
+      "avgScore": 79,
+      "avgToolErrorRate": 0,
+      "avgTokensPerRun": 27614,
+      "hallucinationRate": 0,
+      "totalCost": 0.1855,
+      "byModel": {
+        "claude-sonnet-4-6": {
+          "runs": 2,
+          "avgScore": 79,
+          "totalTokens": 55228,
+          "totalCost": 0.1855
+        }
+      }
     },
-    "unknown": {
-      "runs": 3,
-      "avgScore": 63,
-      "totalTokens": 0,
-      "totalCost": 0
+    "specialist": {
+      "runs": 0,
+      "scored": 0,
+      "avgScore": 0,
+      "avgToolErrorRate": 0,
+      "avgTokensPerRun": 0,
+      "hallucinationRate": 0,
+      "totalCost": 0,
+      "byModel": {}
     }
   },
-  "avgScore": 77,
-  "avgToolErrorRate": 0.03,
-  "avgTokensPerRun": 24541,
-  "hallucationRate": 13,
-  "proposeCircuitAdoption": 8,
+  "byDomain": {
+    "breadboard": 30,
+    "chat_only": 2
+  },
   "topIssues": [
-    {
-      "issue": "Missing resistors",
-      "count": 33
-    },
-    {
-      "issue": "Hallucination",
-      "count": 18
-    },
     {
       "issue": "Floating components",
       "count": 13
     },
     {
       "issue": "Tool errors",
-      "count": 12
+      "count": 7
+    },
+    {
+      "issue": "Hallucination",
+      "count": 4
     },
     {
       "issue": "Bus shorts",
-      "count": 3
+      "count": 1
+    },
+    {
+      "issue": "Pin overcurrent",
+      "count": 1
     }
   ],
   "worstRuns": [
     {
-      "runId": "bbb75b9e-2f71-4b8b-8f09-4f88d265d667",
-      "score": 25,
-      "issue": "Low score"
+      "runId": "4a7f624f-4df3-44c6-a834-ef37268f154f",
+      "score": 39,
+      "issue": "wire_component_to_pin: Component Pot_Control not found.",
+      "category": "top_level"
     },
     {
-      "runId": "88f74485-72dd-406f-acf2-87da056f31a5",
-      "score": 25,
-      "issue": "Low score"
+      "runId": "eb694e17-7bc0-4f8c-8faf-09073963d817",
+      "score": 54,
+      "issue": "R_d (resistor) at (8,2) has no wires connected",
+      "category": "top_level"
     },
     {
-      "runId": "0b5a2ac0-df1b-4ff9-8a73-1721eccec19c",
-      "score": 25,
-      "issue": "Low score"
+      "runId": "5f3babb0-da5a-4815-9a1a-362184195c32",
+      "score": 54,
+      "issue": "R_d (resistor) at (8,2) has no wires connected",
+      "category": "top_level"
     },
     {
-      "runId": "4a062b27-5dff-4a32-81b0-489095e4a8f3",
-      "score": 53,
-      "issue": "wire_component_to_pin: Component d136103b-7a87-4f07-9b84-541f13d5c4d5 not found."
+      "runId": "ecb7ab2e-d1a9-4fc4-bcea-7e693576d473",
+      "score": 54,
+      "issue": "R_D (resistor) at (8,2) has no wires connected",
+      "category": "top_level"
     },
     {
-      "runId": "873677ae-cc23-4d24-9385-1464f8b4349d",
-      "score": 60,
-      "issue": "Low score"
+      "runId": "ff7dacf3-6b22-4c55-a2e4-1a0080bf9a9f",
+      "score": 59,
+      "issue": "Bus short on row 5 left strip: pins -1, 8 are on the same bus",
+      "category": "top_level"
     }
-  ]
+  ],
+  "avgScore": 74,
+  "avgToolErrorRate": 0.03,
+  "avgTokensPerRun": 30323,
+  "hallucinationRate": 7,
+  "proposeCircuitAdoption": 70,
+  "byModel": {
+    "claude-haiku-4-5-20251001": {
+      "runs": 16,
+      "avgScore": 76,
+      "totalTokens": 440438,
+      "totalCost": 0.501
+    },
+    "claude-sonnet-4-6": {
+      "runs": 14,
+      "avgScore": 71,
+      "totalTokens": 469240,
+      "totalCost": 2.0195
+    }
+  }
 }

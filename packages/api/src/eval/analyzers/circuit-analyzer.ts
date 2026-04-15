@@ -5,6 +5,13 @@
 
 import type { RunFile, CircuitAnalysis, PlacedComponent, PlacedWire } from "../types"
 import { transpile } from "../../../../app/src/simulator/arduino-transpiler"
+import {
+  DEFAULT_BOARD_TARGET,
+  formatArduinoPin,
+  isArduinoSignalPin,
+  isBoardComponentType,
+  type BoardTarget,
+} from "@dreamer/schemas"
 
 type SimpleComponent = {
   id: string
@@ -25,14 +32,18 @@ type SimpleWire = {
   color?: string
 }
 
-function wireLabel(row: number, col: number): string {
+function detectBoardTarget(components: Iterable<SimpleComponent>): BoardTarget {
+  for (const component of components) {
+    if (component.type === "arduino_uno" || component.type === "arduino_nano" || component.type === "arduino_mega_2560") {
+      return component.type as BoardTarget
+    }
+  }
+  return DEFAULT_BOARD_TARGET
+}
+
+function wireLabel(row: number, col: number, boardTarget: BoardTarget): string {
   if (row === -999) {
-    if (col === -1) return "5V"
-    if (col === -2) return "3.3V"
-    if (col === -3 || col === -4 || col === -6) return "GND"
-    if (col >= 14) return `A${col - 14}`
-    if (col >= 0) return `D${col}`
-    return `pin ${col}`
+    return formatArduinoPin(col, boardTarget)
   }
   return `(${row},${col})`
 }
@@ -79,10 +90,12 @@ export function analyzeCircuit(run: RunFile): CircuitAnalysis {
   let floatingComponents = 0
   let busShorts = 0
   let missingResistors = 0
+  const floatingComponentIds = new Set<string>()
 
   // Check floating components — no wire touches any of their footprint positions
   // or any position on the same breadboard bus (same row, same strip)
   const wireArray = [...wires.values()]
+  const boardTarget = detectBoardTarget(components.values())
 
   function isOnSameBus(wireRow: number, wireCol: number, compRow: number, compCol: number): boolean {
     if (wireRow !== compRow) return false
@@ -93,7 +106,7 @@ export function analyzeCircuit(run: RunFile): CircuitAnalysis {
   }
 
   for (const comp of components.values()) {
-    if (comp.type === "arduino_uno" || comp.type === "wire") continue
+    if (isBoardComponentType(comp.type) || comp.type === "wire") continue
 
     // Build all positions this component occupies (footprint)
     const positions: Array<{ row: number; col: number }> = [{ row: comp.y, col: comp.x }]
@@ -104,6 +117,14 @@ export function analyzeCircuit(run: RunFile): CircuitAnalysis {
     // Servo/pot/temp: 3 rows
     if (comp.type === "servo" || comp.type === "potentiometer" || comp.type === "temperature_sensor" || comp.type === "capacitor") {
       positions.push({ row: comp.y + 1, col: comp.x }, { row: comp.y + 2, col: comp.x })
+    }
+    // Seven segment: 9 rows (a..g, dp, gnd)
+    if (comp.type === "seven_segment") {
+      for (let i = 1; i <= 8; i++) positions.push({ row: comp.y + i, col: comp.x })
+    }
+    // LCD 16x2: 12 rows of pin footprint
+    if (comp.type === "lcd_16x2") {
+      for (let i = 1; i <= 11; i++) positions.push({ row: comp.y + i, col: comp.x })
     }
     // Resistor: spans 5 cols
     if (comp.type === "resistor") {
@@ -121,7 +142,28 @@ export function analyzeCircuit(run: RunFile): CircuitAnalysis {
     )
     if (!hasWire) {
       floatingComponents++
+      floatingComponentIds.add(comp.id)
       issues.push(`${comp.name} (${comp.type}) at (${comp.y},${comp.x}) has no wires connected`)
+    }
+  }
+
+  // For resistors, require at least one direct endpoint wire on a lead.
+  // Same-row bus adjacency alone can mask an actually unconnected part.
+  for (const comp of components.values()) {
+    if (comp.type !== "resistor") continue
+    const leadA = { row: comp.y, col: comp.x }
+    // Resistor footprint in Dreamer spans cols 3→6 (delta=3), not 3→7.
+    const leadB = { row: comp.y, col: comp.x + 3 }
+    const hasDirectLeadWire = wireArray.some((w) =>
+      (w.toRow === leadA.row && w.toCol === leadA.col) ||
+      (w.fromRow !== -999 && w.fromRow === leadA.row && w.fromCol === leadA.col) ||
+      (w.toRow === leadB.row && w.toCol === leadB.col) ||
+      (w.fromRow !== -999 && w.fromRow === leadB.row && w.fromCol === leadB.col)
+    )
+    if (!hasDirectLeadWire && !floatingComponentIds.has(comp.id)) {
+      floatingComponents++
+      floatingComponentIds.add(comp.id)
+      issues.push(`${comp.name} (resistor) has no direct wire on either lead`)
     }
   }
 
@@ -129,6 +171,9 @@ export function analyzeCircuit(run: RunFile): CircuitAnalysis {
   const rowStripPins = new Map<string, number[]>() // "row:strip" → [arduino pins]
   for (const w of wireArray) {
     if (w.fromRow === -999) {
+      // Skip wires landing on power/ground rails (col < 0 or col > 9) — those
+      // are not part of the main breadboard left/right strips.
+      if (w.toCol < 0 || w.toCol > 9) continue
       const strip = w.toCol <= 4 ? "L" : "R"
       const key = `${w.toRow}:${strip}`
       if (!rowStripPins.has(key)) rowStripPins.set(key, [])
@@ -140,7 +185,7 @@ export function analyzeCircuit(run: RunFile): CircuitAnalysis {
       // Check if they're different signal types (not just two GND wires)
       const unique = new Set(pins)
       if (unique.size > 1) {
-        const hasSignal = pins.some(p => p >= 0 && p <= 19)
+        const hasSignal = pins.some((p) => isArduinoSignalPin(p))
         const hasPower = pins.some(p => p === -1 || p === -2)
         const hasGround = pins.some(p => p === -3 || p === -4 || p === -6)
         if ((hasSignal && hasPower) || (hasSignal && hasGround) || (hasPower && hasGround)) {
@@ -228,8 +273,8 @@ export function analyzeCircuit(run: RunFile): CircuitAnalysis {
     toRow: w.toRow,
     toCol: w.toCol,
     color: w.color ?? "#22c55e",
-    fromLabel: wireLabel(w.fromRow, w.fromCol),
-    toLabel: wireLabel(w.toRow, w.toCol),
+    fromLabel: wireLabel(w.fromRow, w.fromCol, boardTarget),
+    toLabel: wireLabel(w.toRow, w.toCol, boardTarget),
   }))
 
   return {

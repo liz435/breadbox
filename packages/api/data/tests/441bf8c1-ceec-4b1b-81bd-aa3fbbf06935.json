@@ -1,9 +1,12 @@
 {
   "runId": "441bf8c1-ceec-4b1b-81bd-aa3fbbf06935",
-  "evaluatedAt": "2026-04-09T16:21:08.855Z",
+  "evaluatedAt": "2026-04-10T23:57:34.994Z",
   "agent": "core",
   "prompt": "can you update the project, i want to use a pot to control the rotation of the servo",
   "status": "completed",
+  "evaluable": true,
+  "domain": "breadboard",
+  "category": "top_level",
   "path": {
     "stepCount": 6,
     "stepLimit": 10,
@@ -251,6 +254,8 @@
     "inputTokens": 80113,
     "outputTokens": 954,
     "totalTokens": 81067,
+    "childTokens": 0,
+    "overheadTokens": 0,
     "estimatedCost": 0.2546,
     "wastedTokens": 1400,
     "wasteDetails": [
@@ -263,9 +268,10 @@
     "totalCalls": 6,
     "errors": 0,
     "errorRate": 0,
-    "hallucatedIds": 0,
+    "hallucinatedIds": 0,
     "wrongPinNames": 0,
     "invalidPositions": 0,
+    "invalidGraphConnections": 0,
     "details": [
       {
         "tool": "get_board_state",
@@ -387,6 +393,7 @@
     ],
     "sketch": "#include <Servo.h>\n\nServo myServo;\n\nconst int potPin = A0;  // Potentiometer wiper\nconst int servoPin = 9; // Servo signal\n\nvoid setup() {\n  myServo.attach(servoPin);\n}\n\nvoid loop() {\n  int potValue = analogRead(potPin);           // Read pot: 0–1023\n  int angle = map(potValue, 0, 1023, 0, 180); // Map to servo range\n  myServo.write(angle);\n  delay(15); // Small delay for servo to settle\n}\n"
   },
+  "graph": null,
   "score": {
     "total": 99,
     "breakdown": {

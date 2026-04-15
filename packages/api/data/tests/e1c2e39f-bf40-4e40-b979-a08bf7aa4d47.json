@@ -1,9 +1,12 @@
 {
   "runId": "e1c2e39f-bf40-4e40-b979-a08bf7aa4d47",
-  "evaluatedAt": "2026-04-09T16:21:08.866Z",
+  "evaluatedAt": "2026-04-10T23:57:35.010Z",
   "agent": "core",
   "prompt": "add a neopixel that flashes",
   "status": "completed",
+  "evaluable": true,
+  "domain": "breadboard",
+  "category": "top_level",
   "path": {
     "stepCount": 1,
     "stepLimit": 10,
@@ -108,6 +111,8 @@
     "inputTokens": 19815,
     "outputTokens": 782,
     "totalTokens": 20597,
+    "childTokens": 0,
+    "overheadTokens": 0,
     "estimatedCost": 0.019,
     "wastedTokens": 0,
     "wasteDetails": []
@@ -116,9 +121,10 @@
     "totalCalls": 1,
     "errors": 0,
     "errorRate": 0,
-    "hallucatedIds": 0,
+    "hallucinatedIds": 0,
     "wrongPinNames": 0,
     "invalidPositions": 0,
+    "invalidGraphConnections": 0,
     "details": [
       {
         "tool": "propose_circuit",
@@ -332,6 +338,7 @@
     ],
     "sketch": "#include <Servo.h>\n#include <Adafruit_NeoPixel.h>\n\nconst int SERVO_PIN = 6;\nconst int POT_PIN = A0;\nconst int NEO_PIN = 8;\nconst int NEO_COUNT = 1;\n\nServo servo;\nAdafruit_NeoPixel pixels(NEO_COUNT, NEO_PIN, NEO_GRB + NEO_KHZ800);\n\nvoid setup() {\n  servo.attach(SERVO_PIN);\n  pixels.begin();\n  Serial.begin(9600);\n}\n\nvoid loop() {\n  // Read potentiometer and control servo\n  int potValue = analogRead(POT_PIN);\n  int angle = map(potValue, 0, 1023, 0, 180);\n  servo.write(angle);\n  \n  Serial.print(\"Pot: \");\n  Serial.print(potValue);\n  Serial.print(\" -> Angle: \");\n  Serial.println(angle);\n  \n  // Flash NeoPixel\n  pixels.setPixelColor(0, pixels.Color(255, 0, 0));  // Red\n  pixels.show();\n  delay(250);\n  \n  pixels.setPixelColor(0, pixels.Color(0, 0, 0));    // Off\n  pixels.show();\n  delay(250);\n}"
   },
+  "graph": null,
   "score": {
     "total": 100,
     "breakdown": {

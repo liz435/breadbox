@@ -387,6 +387,118 @@ export function WireJunction({ x, y }: { x: number; y: number }) {
   return <circle cx={x} cy={y} r={4} fill="#1a1a1a" />
 }
 
+export function SevenSegmentSymbol({ x, y, label, value, voltage, current, isActive }: SymbolProps) {
+  const w = 60
+  const h = 50
+  const stroke = isActive ? STROKE_ACTIVE : STROKE
+  const segColor = isActive ? "#ef4444" : "#666"
+
+  // Segment geometry inside the box (scaled to fit)
+  const bx = x + 18  // inner display area left
+  const by = y - 16   // inner display area top
+  const sw = 24       // inner display width
+  const sh = 34       // inner display height
+  const segW = 2      // segment thickness
+
+  return (
+    <g>
+      {/* Rectangular IC body */}
+      <rect
+        x={x + 5}
+        y={y - h / 2}
+        width={w - 10}
+        height={h}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={STROKE_WIDTH}
+        rx={2}
+      />
+      {/* Stylized 7-segment digit "8" inside */}
+      {/* Segment a (top horizontal) */}
+      <line x1={bx + 3} y1={by} x2={bx + sw - 3} y2={by} stroke={segColor} strokeWidth={segW} strokeLinecap="round" />
+      {/* Segment b (top-right vertical) */}
+      <line x1={bx + sw} y1={by + 2} x2={bx + sw} y2={by + sh / 2 - 2} stroke={segColor} strokeWidth={segW} strokeLinecap="round" />
+      {/* Segment c (bottom-right vertical) */}
+      <line x1={bx + sw} y1={by + sh / 2 + 2} x2={bx + sw} y2={by + sh - 2} stroke={segColor} strokeWidth={segW} strokeLinecap="round" />
+      {/* Segment d (bottom horizontal) */}
+      <line x1={bx + 3} y1={by + sh} x2={bx + sw - 3} y2={by + sh} stroke={segColor} strokeWidth={segW} strokeLinecap="round" />
+      {/* Segment e (bottom-left vertical) */}
+      <line x1={bx} y1={by + sh / 2 + 2} x2={bx} y2={by + sh - 2} stroke={segColor} strokeWidth={segW} strokeLinecap="round" />
+      {/* Segment f (top-left vertical) */}
+      <line x1={bx} y1={by + 2} x2={bx} y2={by + sh / 2 - 2} stroke={segColor} strokeWidth={segW} strokeLinecap="round" />
+      {/* Segment g (middle horizontal) */}
+      <line x1={bx + 3} y1={by + sh / 2} x2={bx + sw - 3} y2={by + sh / 2} stroke={segColor} strokeWidth={segW} strokeLinecap="round" />
+      {/* DP dot */}
+      <circle cx={bx + sw + 5} cy={by + sh} r={1.5} fill={segColor} />
+      {/* Lead left (input) */}
+      <line x1={x} y1={y} x2={x + 5} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Lead right (GND) */}
+      <line x1={x + w - 5} y1={y} x2={x + w} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Terminal dots */}
+      <circle cx={x} cy={y} r={3} fill={stroke} />
+      <circle cx={x + w} cy={y} r={3} fill={stroke} />
+      {/* Label */}
+      <text x={x + w / 2} y={y - h / 2 - 6} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+        {label}
+      </text>
+      {value && (
+        <text x={x + w / 2} y={y + h / 2 + 14} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+          {value}
+        </text>
+      )}
+      <Annotation x={x + w / 2} y={y + h / 2 + 26} voltage={voltage} current={current} />
+    </g>
+  )
+}
+
+export function UltrasonicSensorSymbol({ x, y, label, value, voltage, current, isActive }: SymbolProps) {
+  const w = 60
+  const h = 36
+  const stroke = isActive ? STROKE_ACTIVE : STROKE
+
+  return (
+    <g>
+      {/* Rectangular module body */}
+      <rect
+        x={x + 5}
+        y={y - h / 2}
+        width={w - 10}
+        height={h}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={STROKE_WIDTH}
+        rx={2}
+      />
+      {/* Two transducer circles */}
+      <circle cx={x + 20} cy={y} r={6} fill="none" stroke={stroke} strokeWidth={1.5} />
+      <circle cx={x + 40} cy={y} r={6} fill="none" stroke={stroke} strokeWidth={1.5} />
+      {/* T and R labels */}
+      <text x={x + 20} y={y + 3} textAnchor="middle" fill="#ddd" style={{ font: "7px monospace" }}>T</text>
+      <text x={x + 40} y={y + 3} textAnchor="middle" fill="#ddd" style={{ font: "7px monospace" }}>R</text>
+      {/* Wave arcs from transmitter */}
+      <path d={`M ${x + 10} ${y - 4} Q ${x + 6} ${y} ${x + 10} ${y + 4}`} fill="none" stroke={stroke} strokeWidth={1} />
+      <path d={`M ${x + 7} ${y - 6} Q ${x + 2} ${y} ${x + 7} ${y + 6}`} fill="none" stroke={stroke} strokeWidth={1} />
+      {/* Lead left (input) */}
+      <line x1={x} y1={y} x2={x + 5} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Lead right (GND) */}
+      <line x1={x + w - 5} y1={y} x2={x + w} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Terminal dots */}
+      <circle cx={x} cy={y} r={3} fill={stroke} />
+      <circle cx={x + w} cy={y} r={3} fill={stroke} />
+      {/* Label */}
+      <text x={x + w / 2} y={y - h / 2 - 6} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+        {label}
+      </text>
+      {value && (
+        <text x={x + w / 2} y={y + h / 2 + 14} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+          {value}
+        </text>
+      )}
+      <Annotation x={x + w / 2} y={y + h / 2 + 26} voltage={voltage} current={current} />
+    </g>
+  )
+}
+
 // ── Symbol Lookup ──────────────────────────────────────────────────────
 
 export type SchematicSymbolType =
@@ -397,6 +509,8 @@ export type SchematicSymbolType =
   | "buzzer"
   | "servo"
   | "potentiometer"
+  | "seven_segment"
+  | "ultrasonic_sensor"
   | "voltage_source"
   | "ground"
   | "arduino_pin"
@@ -421,6 +535,10 @@ export function renderSymbol(
       return <ServoSymbol {...props} />
     case "potentiometer":
       return <PotentiometerSymbol {...props} />
+    case "seven_segment":
+      return <SevenSegmentSymbol {...props} />
+    case "ultrasonic_sensor":
+      return <UltrasonicSensorSymbol {...props} />
     case "voltage_source":
       return <VoltageSourceSymbol {...props} />
     case "ground":

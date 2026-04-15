@@ -1,9 +1,12 @@
 {
   "runId": "4be9e7f6-3f61-4a79-b243-61d12bbbb3cf",
-  "evaluatedAt": "2026-04-09T16:21:08.864Z",
+  "evaluatedAt": "2026-04-10T23:57:35.005Z",
   "agent": "core",
   "prompt": "add a neopiexl strip that goes through all colors in sequence",
   "status": "completed",
+  "evaluable": true,
+  "domain": "breadboard",
+  "category": "top_level",
   "path": {
     "stepCount": 5,
     "stepLimit": 10,
@@ -155,6 +158,8 @@
     "inputTokens": 31390,
     "outputTokens": 1132,
     "totalTokens": 32522,
+    "childTokens": 0,
+    "overheadTokens": 0,
     "estimatedCost": 0.0296,
     "wastedTokens": 400,
     "wasteDetails": [
@@ -166,9 +171,10 @@
     "totalCalls": 5,
     "errors": 0,
     "errorRate": 0,
-    "hallucatedIds": 0,
+    "hallucinatedIds": 0,
     "wrongPinNames": 2,
     "invalidPositions": 0,
+    "invalidGraphConnections": 0,
     "details": [
       {
         "tool": "place_component",
@@ -187,7 +193,7 @@
           }
         },
         "result": "error",
-        "issue": "Pin name \"gnd\" not valid for neopixel (expected: din)"
+        "issue": "Pin name \"vcc\" not valid for neopixel (expected: din)"
       },
       {
         "tool": "wire_component_to_pin",
@@ -287,6 +293,7 @@
     ],
     "sketch": "#include <Servo.h>\n#include <Adafruit_NeoPixel.h>\n\nServo myServo;\nAdafruit_NeoPixel strip(8, 8, NEO_GRB + NEO_KHZ800);\n\nconst int potPin = A0; \nconst int servoPin = 9; \nconst int neopixelPin = 8;\n\nvoid setup() {\n  myServo.attach(servoPin);\n  pinMode(potPin, INPUT);\n  strip.begin();\n  strip.show();\n}\n\nvoid loop() {\n  int potValue = analogRead(potPin);      \n  int angle = map(potValue, 0, 1023, 0, 180); \n  myServo.write(angle);\n  \n  // Cycle through colors\n  static unsigned long lastColorChange = 0;\n  static int colorIndex = 0;\n  \n  if (millis() - lastColorChange > 500) {\n    lastColorChange = millis();\n    colorIndex = (colorIndex + 1) % 6;\n    \n    uint32_t color;\n    switch(colorIndex) {\n      case 0: color = strip.Color(255, 0, 0); break;      // Red\n      case 1: color = strip.Color(255, 165, 0); break;    // Orange\n      case 2: color = strip.Color(255, 255, 0); break;    // Yellow\n      case 3: color = strip.Color(0, 255, 0); break;      // Green\n      case 4: color = strip.Color(0, 0, 255); break;      // Blue\n      case 5: color = strip.Color(128, 0, 128); break;    // Purple\n    }\n    \n    for(int i = 0; i < strip.numPixels(); i++) {\n      strip.setPixelColor(i, color);\n    }\n    strip.show();\n  }\n  \n  delay(15); \n}\n"
   },
+  "graph": null,
   "score": {
     "total": 94,
     "breakdown": {

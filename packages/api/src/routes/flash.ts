@@ -9,13 +9,15 @@ import { Elysia } from "elysia"
 import { z } from "zod"
 import { createLogger } from "../logger"
 import { reconnectAfter } from "../serial/board-manager"
+import { BOARD_TARGETS, boardTargetSchema, DEFAULT_BOARD_TARGET } from "@dreamer/schemas"
 
 const log = createLogger("flash")
 
 const flashRequestSchema = z.object({
   port: z.string().min(1, "port is required"),
   code: z.string().min(1, "sketch code is required"),
-  fqbn: z.string().default("arduino:avr:uno"),
+  fqbn: z.string().optional(),
+  boardTarget: boardTargetSchema.optional(),
 })
 
 async function exec(
@@ -36,7 +38,9 @@ export const flashRoutes = new Elysia().post("/api/flash", async ({ body, set })
     return { error: parsed.error.issues[0]?.message ?? "Invalid request" }
   }
 
-  const { port, code, fqbn } = parsed.data
+  const boardTarget = parsed.data.boardTarget ?? DEFAULT_BOARD_TARGET
+  const fqbn = parsed.data.fqbn ?? BOARD_TARGETS[boardTarget].fqbn
+  const { port, code } = parsed.data
   const sketchId = crypto.randomUUID()
   const sketchDir = `/tmp/arduino-flash-${sketchId}`
   const sketchFile = `${sketchDir}/sketch/sketch.ino`

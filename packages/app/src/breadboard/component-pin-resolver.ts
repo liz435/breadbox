@@ -7,20 +7,36 @@
 // trace the wire graph.
 //
 // This module provides small helpers that walk the breadboard wire graph
-// to find Arduino pins (D0-D19) connected to a given component, optionally
+// to find Arduino pins connected to a given component, optionally
 // filtered by direction (input pins only, excluding 5V/GND).
 
-import type { BoardComponent, Wire } from "@dreamer/schemas"
-import { getComponentFootprint, areConnected } from "./breadboard-grid"
+import { MAX_ARDUINO_PIN, type BoardComponent, type Wire } from "@dreamer/schemas"
+import { getComponentFootprint, areConnected, resolveNets } from "./breadboard-grid"
+
+const GROUND_PINS = new Set([-3, -4, -6])
+const POWER_PINS = new Set([-1, -2])
+
+type ButtonSideAnalysis = {
+  signalPins: Set<number>
+  hasGroundReference: boolean
+  hasPowerReference: boolean
+}
+
+export type ButtonWiringAnalysis = {
+  inputPin: number | null
+  hasGroundReference: boolean
+  hasPowerReference: boolean
+  hasSignalOnBothSides: boolean
+}
 
 /**
- * Find all Arduino digital/analog pins (0-19) connected to a component.
+ * Find all Arduino digital/analog pins (>=0) connected to a component.
  * Excludes power-rail wires (negative fromCol like -1=5V, -3=GND).
  *
  * Resolution rules:
  *   1. Iterate all wires.
  *   2. Skip non-Arduino wires (fromRow !== -999).
- *   3. Skip power/ground wires (fromCol < 0 or fromCol > 19).
+ *   3. Skip power/ground wires (fromCol < 0 or fromCol > MAX_ARDUINO_PIN).
  *   4. Check if the wire's `to` endpoint is on the same breadboard bus
  *      as ANY of the component's footprint points.
  */
@@ -33,13 +49,14 @@ export function findArduinoPinsForComponent(
     component.y,
     component.x,
     component.rotation,
+    component.properties,
   )
   const pins = new Set<number>()
 
   for (const wire of Object.values(wires)) {
     if (wire.fromRow !== -999) continue
     const arduinoPin = wire.fromCol
-    if (arduinoPin < 0 || arduinoPin > 19) continue
+    if (arduinoPin < 0 || arduinoPin > MAX_ARDUINO_PIN) continue
 
     const wireTo = { row: wire.toRow, col: wire.toCol }
     for (const fpPoint of footprint.points) {
@@ -71,4 +88,112 @@ export function findInputPinForComponent(
     component.pins.input ??
     component.pins.signal
   return explicit ?? null
+}
+
+function analyzeButtonSide(
+  netIds: Set<string>,
+  netById: Map<string, ReturnType<typeof resolveNets>[number]>,
+): ButtonSideAnalysis {
+  const signalPins = new Set<number>()
+  let hasGroundReference = false
+  let hasPowerReference = false
+
+  for (const netId of netIds) {
+    const net = netById.get(netId)
+    if (!net) continue
+    for (const pin of net.arduinoPins) {
+      if (pin >= 0 && pin <= MAX_ARDUINO_PIN) signalPins.add(pin)
+      if (GROUND_PINS.has(pin)) hasGroundReference = true
+      if (POWER_PINS.has(pin)) hasPowerReference = true
+    }
+    for (const point of net.points) {
+      if (point.col === -1 || point.col === 10) hasGroundReference = true
+      if (point.col === -2 || point.col === 11) hasPowerReference = true
+    }
+  }
+
+  return { signalPins, hasGroundReference, hasPowerReference }
+}
+
+/**
+ * Strict button topology analysis.
+ *
+ * Valid Arduino-driven topology:
+ * - exactly one button side has a signal pin (input)
+ * - opposite side has a reference source (GND for pull-up workflows, or 5V/3V3 for INPUT workflows)
+ */
+export function analyzeButtonWiring(
+  component: BoardComponent,
+  wires: Record<string, Wire>,
+): ButtonWiringAnalysis {
+  if (component.type !== "button") {
+    return {
+      inputPin: null,
+      hasGroundReference: false,
+      hasPowerReference: false,
+      hasSignalOnBothSides: false,
+    }
+  }
+
+  const footprint = getComponentFootprint(
+    component.type,
+    component.y,
+    component.x,
+    component.rotation,
+    component.properties,
+  )
+  const points = footprint.points
+  const leftPins = [points[0], points[1]].filter(Boolean) as Array<{ row: number; col: number }>
+  const rightPins = [points[2], points[3]].filter(Boolean) as Array<{ row: number; col: number }>
+
+  if (leftPins.length === 0 || rightPins.length === 0) {
+    return {
+      inputPin: null,
+      hasGroundReference: false,
+      hasPowerReference: false,
+      hasSignalOnBothSides: false,
+    }
+  }
+
+  const nets = resolveNets({ [component.id]: component }, wires)
+  const netById = new Map(nets.map((n) => [n.id, n]))
+
+  const netIdsForPoints = (targets: Array<{ row: number; col: number }>): Set<string> => {
+    const ids = new Set<string>()
+    for (const net of nets) {
+      if (net.points.some((p) => targets.some((t) => areConnected(p, t)))) {
+        ids.add(net.id)
+      }
+    }
+    return ids
+  }
+
+  const leftNetIds = netIdsForPoints(leftPins)
+  const rightNetIds = netIdsForPoints(rightPins)
+  const left = analyzeButtonSide(leftNetIds, netById)
+  const right = analyzeButtonSide(rightNetIds, netById)
+
+  const leftHasSignal = left.signalPins.size > 0
+  const rightHasSignal = right.signalPins.size > 0
+  const hasSignalOnBothSides = leftHasSignal && rightHasSignal
+
+  if (hasSignalOnBothSides || (!leftHasSignal && !rightHasSignal)) {
+    return {
+      inputPin: null,
+      hasGroundReference: false,
+      hasPowerReference: false,
+      hasSignalOnBothSides,
+    }
+  }
+
+  const signalSide = leftHasSignal ? left : right
+  const referenceSide = leftHasSignal ? right : left
+  const sortedSignalPins = [...signalSide.signalPins].sort((a, b) => a - b)
+
+  return {
+    inputPin: sortedSignalPins[0] ?? null,
+    hasGroundReference: referenceSide.hasGroundReference,
+    hasPowerReference: referenceSide.hasPowerReference,
+    hasSignalOnBothSides,
+  }
 }

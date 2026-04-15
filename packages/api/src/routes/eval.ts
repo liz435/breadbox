@@ -36,7 +36,11 @@ export const evalRoutes = new Elysia()
 
   .get("/api/eval/all", async () => {
     const result = await runBatchEval()
-    return result.evals.sort((a, b) => b.score.total - a.score.total)
+    return result.evals.sort((a, b) => {
+      const ta = Date.parse(a.runCompletedAt ?? a.runCreatedAt ?? a.evaluatedAt ?? "")
+      const tb = Date.parse(b.runCompletedAt ?? b.runCreatedAt ?? b.evaluatedAt ?? "")
+      return (isNaN(tb) ? 0 : tb) - (isNaN(ta) ? 0 : ta)
+    })
   })
 
   .post("/api/eval/refresh", async () => {

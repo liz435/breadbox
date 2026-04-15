@@ -1,9 +1,12 @@
 {
   "runId": "4a062b27-5dff-4a32-81b0-489095e4a8f3",
-  "evaluatedAt": "2026-04-09T16:21:08.869Z",
+  "evaluatedAt": "2026-04-10T23:57:35.018Z",
   "agent": "core",
   "prompt": "create a proper circuit that has the pot control the led brightness",
   "status": "completed",
+  "evaluable": true,
+  "domain": "breadboard",
+  "category": "top_level",
   "path": {
     "stepCount": 12,
     "stepLimit": 10,
@@ -353,6 +356,8 @@
     "inputTokens": 59582,
     "outputTokens": 1674,
     "totalTokens": 61256,
+    "childTokens": 0,
+    "overheadTokens": 0,
     "estimatedCost": 0.2039,
     "wastedTokens": 4000,
     "wasteDetails": [
@@ -368,9 +373,10 @@
     "totalCalls": 12,
     "errors": 2,
     "errorRate": 0.17,
-    "hallucatedIds": 2,
+    "hallucinatedIds": 2,
     "wrongPinNames": 6,
     "invalidPositions": 4,
+    "invalidGraphConnections": 0,
     "details": [
       {
         "tool": "place_component",
@@ -422,7 +428,7 @@
           }
         },
         "result": "error",
-        "issue": "Pin name \"pin2\" not valid for resistor (expected: a, b)"
+        "issue": "x=23 is out of range (0-9)"
       },
       {
         "tool": "wire_component_to_pin",
@@ -499,7 +505,7 @@
           }
         },
         "result": "error",
-        "issue": "Pin name \"pin2\" not valid for resistor (expected: a, b)"
+        "issue": "x=23 is out of range (0-9)"
       },
       {
         "tool": "get_board_state",
@@ -686,6 +692,7 @@
     ],
     "sketch": ""
   },
+  "graph": null,
   "score": {
     "total": 53,
     "breakdown": {

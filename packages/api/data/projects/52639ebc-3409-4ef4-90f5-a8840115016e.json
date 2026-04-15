@@ -1,0 +1,245 @@
+{
+  "project": {
+    "id": "52639ebc-3409-4ef4-90f5-a8840115016e",
+    "name": "crisp-newt-moon",
+    "version": 1,
+    "createdAt": "2026-04-11T21:55:20.391Z",
+    "updatedAt": "2026-04-11T22:06:21.519Z",
+    "threadId": "5eb098e0-c582-43d6-80a1-f828c7c25a9a",
+    "activeSceneId": "ef215af9-a81c-4993-ba78-08389f76dfef"
+  },
+  "scenes": {
+    "ef215af9-a81c-4993-ba78-08389f76dfef": {
+      "id": "ef215af9-a81c-4993-ba78-08389f76dfef",
+      "name": "Main Scene",
+      "version": 0,
+      "settings": {
+        "background": "#252525",
+        "gravity": {
+          "x": 0,
+          "y": 9.8
+        }
+      }
+    }
+  },
+  "entities": {},
+  "sceneEntityIds": {
+    "ef215af9-a81c-4993-ba78-08389f76dfef": []
+  },
+  "components": {
+    "transform": {},
+    "sprite": {},
+    "tilemap": {},
+    "physicsBody": {},
+    "script": {},
+    "camera": {}
+  },
+  "assets": {},
+  "graph": {
+    "nodes": {
+      "node-1775944520428-zoak6x": {
+        "id": "node-1775944520428-zoak6x",
+        "type": "setup",
+        "name": "Setup",
+        "x": 60,
+        "y": 60,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      },
+      "node-1775944520428-35ltnz": {
+        "id": "node-1775944520428-35ltnz",
+        "type": "loop",
+        "name": "Loop",
+        "x": 60,
+        "y": 200,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      }
+    },
+    "edges": {}
+  },
+  "boardState": {
+    "components": {
+      "7f172be7-fb47-40da-a55e-e547673cd1ce": {
+        "id": "7f172be7-fb47-40da-a55e-e547673cd1ce",
+        "type": "led",
+        "name": "LED1",
+        "x": 2,
+        "y": 0,
+        "rotation": 0,
+        "pins": {
+          "anode": null,
+          "cathode": null
+        },
+        "properties": {
+          "color": "#ef4444"
+        }
+      },
+      "e894ade4-dd59-4a14-ad7a-bf3f78112dec": {
+        "id": "e894ade4-dd59-4a14-ad7a-bf3f78112dec",
+        "type": "resistor",
+        "name": "R1",
+        "x": 3,
+        "y": 1,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 100
+        }
+      },
+      "40a9aa16-779b-40f9-81b0-a335aa0e2ae5": {
+        "id": "40a9aa16-779b-40f9-81b0-a335aa0e2ae5",
+        "type": "led",
+        "name": "LED2",
+        "x": 2,
+        "y": 3,
+        "rotation": 0,
+        "pins": {
+          "anode": null,
+          "cathode": null
+        },
+        "properties": {
+          "color": "#22c55e"
+        }
+      },
+      "116e14e9-8702-405b-8941-0bf8c65ac010": {
+        "id": "116e14e9-8702-405b-8941-0bf8c65ac010",
+        "type": "resistor",
+        "name": "R2",
+        "x": 3,
+        "y": 4,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 100
+        }
+      },
+      "4c91286f-4bd5-418a-9144-d017f4b67ef9": {
+        "id": "4c91286f-4bd5-418a-9144-d017f4b67ef9",
+        "type": "button",
+        "name": "BTN1",
+        "x": 3,
+        "y": 6,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {}
+      },
+      "964d3e1b-20c6-4ee1-9961-573575594553": {
+        "id": "964d3e1b-20c6-4ee1-9961-573575594553",
+        "type": "resistor",
+        "name": "R3",
+        "x": 2,
+        "y": 9,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 10000
+        }
+      }
+    },
+    "wires": {
+      "95f39da0-e892-42f6-8132-a8dd1eb88668": {
+        "id": "95f39da0-e892-42f6-8132-a8dd1eb88668",
+        "fromRow": -999,
+        "fromCol": 12,
+        "toRow": 0,
+        "toCol": 2,
+        "color": "red"
+      },
+      "f090bd4e-7285-47e8-8203-4b47c3c2743c": {
+        "id": "f090bd4e-7285-47e8-8203-4b47c3c2743c",
+        "fromRow": -999,
+        "fromCol": 13,
+        "toRow": 3,
+        "toCol": 2,
+        "color": "green"
+      },
+      "0e6f50b2-9100-4992-8e3c-dd9d0c149e57": {
+        "id": "0e6f50b2-9100-4992-8e3c-dd9d0c149e57",
+        "fromRow": -999,
+        "fromCol": 2,
+        "toRow": 6,
+        "toCol": 3,
+        "color": "yellow"
+      },
+      "b2b5bb24-621d-4383-9fc5-427c86126ca5": {
+        "id": "b2b5bb24-621d-4383-9fc5-427c86126ca5",
+        "fromRow": -999,
+        "fromCol": -1,
+        "toRow": 7,
+        "toCol": 3,
+        "color": "red"
+      },
+      "f3bf157f-ff3e-41fc-9e07-1ba51595b414": {
+        "id": "f3bf157f-ff3e-41fc-9e07-1ba51595b414",
+        "fromRow": -999,
+        "fromCol": -3,
+        "toRow": 9,
+        "toCol": 2,
+        "color": "black"
+      },
+      "32b15619-3dab-4e1c-a198-84709102178e": {
+        "id": "32b15619-3dab-4e1c-a198-84709102178e",
+        "fromRow": -999,
+        "fromCol": 2,
+        "toRow": 10,
+        "toCol": 2,
+        "color": "yellow"
+      },
+      "11d786ff-471a-47fd-afe7-70893dbe318e": {
+        "id": "11d786ff-471a-47fd-afe7-70893dbe318e",
+        "fromRow": -999,
+        "fromCol": -3,
+        "toRow": 1,
+        "toCol": 7,
+        "color": "#42a5f5"
+      },
+      "5cab36df-e8e2-4218-92eb-1964f6b084d3": {
+        "id": "5cab36df-e8e2-4218-92eb-1964f6b084d3",
+        "fromRow": -999,
+        "fromCol": -3,
+        "toRow": 4,
+        "toCol": 7,
+        "color": "#42a5f5"
+      }
+    },
+    "libraryState": {
+      "servos": {},
+      "lcd": null,
+      "serialBaud": 0
+    },
+    "serialOutput": [],
+    "sketchCode": "// === Two LEDs + Pushbutton ===\n// D12 → LED1 (Red)  via 220Ω\n// D13 → LED2 (Green) via 220Ω\n// D2  ← Button with 10kΩ pull-down to GND\n\nconst int LED1_PIN   = 12;\nconst int LED2_PIN   = 13;\nconst int BUTTON_PIN =  2;\n\nvoid setup() {\n  pinMode(LED1_PIN,   OUTPUT);\n  pinMode(LED2_PIN,   OUTPUT);\n  pinMode(BUTTON_PIN, INPUT);   // pull-down resistor on board\n  Serial.begin(9600);\n  Serial.println(\"Circuit ready. Press button to toggle LEDs.\");\n}\n\nvoid loop() {\n  int btnState = digitalRead(BUTTON_PIN);\n\n  if (btnState == HIGH) {\n    // Button pressed: both LEDs ON\n    digitalWrite(LED1_PIN, HIGH);\n    digitalWrite(LED2_PIN, HIGH);\n    Serial.println(\"Button pressed  → LEDs ON\");\n  } else {\n    // Button released: LEDs alternate blink\n    digitalWrite(LED1_PIN, HIGH);\n    digitalWrite(LED2_PIN, LOW);\n    delay(400);\n    digitalWrite(LED1_PIN, LOW);\n    digitalWrite(LED2_PIN, HIGH);\n    delay(400);\n  }\n}",
+    "customLibraries": {}
+  }
+}

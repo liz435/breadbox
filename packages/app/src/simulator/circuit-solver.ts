@@ -4,11 +4,12 @@
 // Converts the board into a netlist, runs the simulation, and extracts
 // per-component electrical state for rendering.
 
-import type { BoardComponent, Wire, PinState } from "@dreamer/schemas"
+import { isBoardComponentType, type BoardComponent, type Wire, type PinState } from "@dreamer/schemas"
 import { simulate } from "spicey"
 import { buildNetlist } from "./netlist-builder"
 import { gridToPixel, getComponentFootprint } from "@/breadboard/breadboard-grid"
 import { getComponentDef } from "@/components/registry"
+import { stepCapVoltage } from "./capacitor-state"
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -60,7 +61,7 @@ export function analyzeCircuit(
 
   // Filter out non-circuit components
   const circuitComponents = Object.values(components).filter(
-    (c) => c.type !== "arduino_uno" && c.type !== "wire",
+    (c) => !isBoardComponentType(c.type) && c.type !== "wire",
   )
 
   if (circuitComponents.length === 0) {
@@ -186,6 +187,29 @@ export function analyzeCircuit(
 
     componentStates.set(comp.id, state)
 
+    // Step capacitor charge forward using the current from this frame.
+    // The cap is modeled as a voltage source in the netlist; the current
+    // SPICE computes tells us how fast it's charging or discharging.
+    // V_source current convention: positive = current flowing INTO the +
+    // terminal, which for a cap means DISCHARGING (voltage decreasing).
+    if (comp.type === "capacitor") {
+      const capUf = (comp.properties.capacitance as number) ?? 100
+      const capF = capUf * 1e-6
+      // SPICE voltage source current: negative = current flows from + to -
+      // through external circuit (charging the cap). We want:
+      //   charging (external current into cap +) → voltage increases
+      //   discharging (current out of cap +) → voltage decreases
+      // getElementCurrent returns the raw SPICE value; for a V source
+      // positive means current INTO the + terminal from the external circuit.
+      const rawCurrentA = getElementCurrent(elementName)
+      // dt = approximate frame interval. The circuit-analysis hook runs at
+      // ~200ms throttle; the simulation loop runs faster (~16ms). Use a
+      // conservative 50ms as a middle ground that produces visible charge/
+      // discharge behavior without oscillating.
+      const dt = 0.05
+      stepCapVoltage(comp.id, rawCurrentA, capF, dt)
+    }
+
     if (result?.warnings) {
       for (const w of result.warnings) {
         warnings.push({ componentId: comp.id, ...w })
@@ -193,7 +217,7 @@ export function analyzeCircuit(
     }
 
     if (result?.emitCurrentPath && state.isActive) {
-      const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation)
+      const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties)
       const points = footprint.points.map((pt) => gridToPixel(pt))
       currentPaths.push({ fromNode: pair.nodeA, toNode: pair.nodeB, current: currentA, points })
     }

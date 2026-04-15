@@ -6,24 +6,32 @@
 import type { Diagnostic } from "@codemirror/lint"
 import type { EditorView } from "@codemirror/view"
 import { transpileErrorRef } from "@/simulator/transpile-error-ref"
+import { getBoardAnalogPins, parseArduinoPinToken, type BoardTarget } from "@dreamer/schemas"
 
-const PWM_PINS = new Set([3, 5, 6, 9, 10, 11])
-const ANALOG_PINS = new Set([14, 15, 16, 17, 18, 19]) // A0-A5
-
-function parsePin(raw: string): number | null {
-  const analogMatch = raw.match(/^A(\d)$/)
-  if (analogMatch) {
-    const idx = parseInt(analogMatch[1], 10)
-    if (idx >= 0 && idx <= 5) return 14 + idx
-    return null
-  }
-  const num = parseInt(raw, 10)
-  return Number.isNaN(num) ? null : num
+const PWM_PINS_BY_TARGET: Record<BoardTarget, Set<number>> = {
+  arduino_uno: new Set([3, 5, 6, 9, 10, 11]),
+  arduino_nano: new Set([3, 5, 6, 9, 10, 11]),
+  arduino_mega_2560: new Set([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 44, 45, 46]),
 }
 
-export function arduinoLinter(view: EditorView): Diagnostic[] {
+const ANALOG_PINS_BY_TARGET: Record<BoardTarget, Set<number>> = {
+  arduino_uno: new Set(getBoardAnalogPins("arduino_uno")),
+  arduino_nano: new Set(getBoardAnalogPins("arduino_nano")),
+  arduino_mega_2560: new Set(getBoardAnalogPins("arduino_mega_2560")),
+}
+
+function parsePin(raw: string, boardTarget: BoardTarget): number | null {
+  return parseArduinoPinToken(raw, boardTarget)
+}
+
+export function arduinoLinter(
+  view: EditorView,
+  boardTarget: BoardTarget = "arduino_uno",
+): Diagnostic[] {
   const text = view.state.doc.toString()
   const diagnostics: Diagnostic[] = []
+  const pwmPins = PWM_PINS_BY_TARGET[boardTarget]
+  const analogPins = ANALOG_PINS_BY_TARGET[boardTarget]
 
   // ── Transpile error from last compilation attempt ──
   const transpileErr = transpileErrorRef.current
@@ -68,13 +76,13 @@ export function arduinoLinter(view: EditorView): Diagnostic[] {
   let match: RegExpExecArray | null = null
   while ((match = analogWriteRegex.exec(text)) !== null) {
     const pinArg = match[1]
-    const pin = parsePin(pinArg)
-    if (pin !== null && !PWM_PINS.has(pin)) {
+    const pin = parsePin(pinArg, boardTarget)
+    if (pin !== null && !pwmPins.has(pin)) {
       diagnostics.push({
         from: match.index,
         to: match.index + match[0].length,
         severity: "error",
-        message: `analogWrite: pin ${pinArg} is not a PWM pin. PWM is available on pins 3, 5, 6, 9, 10, 11.`,
+        message: `analogWrite: pin ${pinArg} is not a PWM pin for ${boardTarget}.`,
       })
     }
   }
@@ -83,13 +91,13 @@ export function arduinoLinter(view: EditorView): Diagnostic[] {
   const analogReadRegex = /\banalogRead\s*\(\s*(\w+)/g
   while ((match = analogReadRegex.exec(text)) !== null) {
     const pinArg = match[1]
-    const pin = parsePin(pinArg)
-    if (pin !== null && !ANALOG_PINS.has(pin)) {
+    const pin = parsePin(pinArg, boardTarget)
+    if (pin !== null && !analogPins.has(pin)) {
       diagnostics.push({
         from: match.index,
         to: match.index + match[0].length,
         severity: "error",
-        message: `analogRead: pin ${pinArg} is not an analog pin. Analog read is available on A0-A5 (pins 14-19).`,
+        message: `analogRead: pin ${pinArg} is not an analog pin for ${boardTarget}.`,
       })
     }
   }

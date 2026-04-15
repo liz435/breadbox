@@ -2,23 +2,61 @@
 //
 // The single source of truth for all component types.
 //
+// IMPORTANT: Pin-to-grid-position mapping lives in @dreamer/schemas/component-pins.ts
+// (resolveComponentPins). The registry footprint functions should use
+// footprintFromPins() where possible so the API (propose_circuit, power-budget-
+// analyzer) and the frontend always agree on pin positions. Components that
+// have physical footprint points beyond their electrical pins (e.g., button
+// spans 4 holes but has 2 electrical nodes) should document the mapping.
+//
 // To add a new component:
 //   1. Add its type to componentTypeSchema in packages/schemas/src/arduino.ts
-//   2. Add a ComponentDefinition entry to COMPONENT_REGISTRY below
-//   3. Optionally create a custom renderer in component-renderers/ and/or
+//   2. Add pin mapping in packages/schemas/src/component-pins.ts
+//   3. Add a ComponentDefinition entry to COMPONENT_REGISTRY below
+//   4. Optionally create a custom renderer in component-renderers/ and/or
 //      a custom inspector in panels/inspector.tsx
 
 import type React from "react"
 import { HOLE_SPACING } from "@/breadboard/breadboard-constants"
-import { findInputPinForComponent } from "@/breadboard/component-pin-resolver"
 import { buttonPressStore } from "@/simulator/button-press-store"
+import { getCapVoltage } from "@/simulator/capacitor-state"
+import { resolveComponentPins } from "@dreamer/schemas"
 import type { ComponentDefinition } from "./component-definition"
+import type { ComponentFootprint } from "@/breadboard/breadboard-grid"
 
 // ── Icons ─────────────────────────────────────────────────────────────────
 
 // Inline SVG icons so this file has no React component deps
 function icon(content: React.ReactNode): React.ReactNode {
   return content
+}
+
+// ── Footprint helper ─────────────────────────────────────────────────────
+//
+// Derives footprint points from the canonical pin resolver in @dreamer/schemas.
+// This ensures registry footprints and the API's pin-to-grid mapping can never
+// disagree. Width and height are still specified manually since they're pixel
+// dimensions, not grid positions.
+
+function footprintFromPins(
+  type: string,
+  row: number,
+  col: number,
+  width: number,
+  height: number,
+  properties?: Record<string, unknown>,
+): ComponentFootprint {
+  const pins = resolveComponentPins(type, row, col, properties)
+  const points = Object.values(pins)
+  // Deduplicate any overlapping pin points returned by the shared resolver.
+  const seen = new Set<string>()
+  const unique = points.filter((p) => {
+    const key = `${p.row},${p.col}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+  return { points: unique, width, height }
 }
 
 // ── Registry ──────────────────────────────────────────────────────────────
@@ -33,11 +71,7 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     defaultPins: { anode: null, cathode: null },
     defaultProperties: { color: "#ef4444" },
     accentColor: "#ef4444",
-    footprint: (row, col) => ({
-      points: [{ row, col }, { row: row + 1, col }],
-      width: HOLE_SPACING,
-      height: HOLE_SPACING * 2,
-    }),
+    footprint: (row, col) => footprintFromPins("led", row, col, HOLE_SPACING, HOLE_SPACING * 2),
     paletteIcon: (
       <svg viewBox="0 0 24 24" width={20} height={20}>
         <ellipse cx={12} cy={10} rx={6} ry={7} fill="#ef4444" opacity={0.9} />
@@ -164,11 +198,7 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     // resistors are placed on a real breadboard and keeps the two legs in
     // separate nets. The stored `x` (col) is ignored for pin placement — the
     // `row` decides which row of 5 each leg lives in.
-    footprint: (row) => ({
-      points: [{ row, col: 3 }, { row, col: 6 }],
-      width: HOLE_SPACING * 5,
-      height: HOLE_SPACING,
-    }),
+    footprint: (row, col) => footprintFromPins("resistor", row, col, HOLE_SPACING * 5, HOLE_SPACING),
     paletteIcon: (
       <svg viewBox="0 0 24 24" width={20} height={20}>
         <rect x={3} y={9} width={18} height={6} rx={2} fill="#d2b48c" stroke="#a0825a" strokeWidth={1} />
@@ -210,11 +240,7 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     defaultPins: { a: null, b: null },
     defaultProperties: { capacitance: 100 },
     accentColor: "#3b82f6",
-    footprint: (row, col) => ({
-      points: [{ row, col }, { row: row + 2, col }],
-      width: HOLE_SPACING,
-      height: HOLE_SPACING * 3,
-    }),
+    footprint: (row, col) => footprintFromPins("capacitor", row, col, HOLE_SPACING, HOLE_SPACING * 3),
     paletteIcon: (
       <svg viewBox="0 0 24 24" width={20} height={20}>
         <line x1={12} y1={2} x2={12} y2={8} stroke="#ccc" strokeWidth={1.5} />
@@ -223,9 +249,29 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
         <line x1={12} y1={12} x2={12} y2={22} stroke="#ccc" strokeWidth={1.5} />
       </svg>
     ),
-    // Visual only — not included in SPICE netlist
-    buildNetlist: () => null,
-    generateSketch: () => null,
+    spicePrefix: "V",
+    buildNetlist: (comp, { footprint, resolveNode }) => {
+      const nodeA = resolveNode(footprint.points[0])
+      const nodeB = resolveNode(footprint.points[1])
+      // Model the capacitor as a voltage source at its current charge level.
+      // The circuit solver steps the voltage forward each frame using the
+      // resulting SPICE current (see capacitor-state.ts).
+      const storedV = getCapVoltage(comp.id)
+      return {
+        lines: [`V_${sanitize(comp.id)} ${nodeA} ${nodeB} ${storedV}`],
+        nodeA,
+        nodeB,
+      }
+    },
+    computeElectricalState: (_comp, { voltageDrop, currentMa }) => ({
+      isActive: Math.abs(currentMa) > 0.01,
+      voltage: voltageDrop,
+      current: currentMa,
+      isReversed: false,
+      brightness: 0,
+      emitCurrentPath: Math.abs(currentMa) > 0.01,
+    }),
+    generateSketch: () => null, // passive — no sketch code
     schematicSymbol: "capacitor",
     schematicValue: (comp) => {
       const cap = comp.properties.capacitance as number | undefined
@@ -241,6 +287,11 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     label: "Push Button",
     defaultPins: { a: null, b: null },
     accentColor: "#f59e0b",
+    // Button has 4 physical footprint points (2 rows x 2 sides) but only 2
+    // electrical nodes. resolveComponentPins returns the wire-targeting points
+    // (row,3) and (row,6); this footprint includes all 4 physical holes for
+    // rendering and bus connectivity. If pin positions change in component-pins.ts,
+    // update the cols here to match.
     footprint: (row) => ({
       points: [
         { row, col: 3 },
@@ -257,24 +308,12 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
         <circle cx={12} cy={12} r={3} fill="#f59e0b" />
       </svg>
     ),
-    buildNetlist: (comp, { footprint, resolveNode, pinStates, wires }) => {
+    buildNetlist: (comp, { footprint, resolveNode }) => {
       const leftNode = resolveNode(footprint.points[0])
       const rightNode = resolveNode(footprint.points[2])
-      // Physical press (UI interaction) takes priority — works for pure hardware
-      // circuits with no Arduino pin connected.
-      let isPressed = buttonPressStore.isPressed(comp.id)
-      // Fallback: derive from Arduino pin state for sketch-controlled circuits
-      // (e.g. INPUT_PULLUP where the VM reads digitalRead and drives outputs).
-      if (!isPressed) {
-        const inputPin = findInputPinForComponent(comp, wires)
-        if (inputPin != null) {
-          const ps = pinStates[inputPin]
-          if (ps) {
-            const pressedValue = ps.mode === "INPUT_PULLUP" ? 0 : 1
-            isPressed = ps.digitalValue === pressedValue
-          }
-        }
-      }
+      // Strict button model: only physical press changes contact resistance.
+      // Do not infer press state from pin values, which can create feedback loops.
+      const isPressed = buttonPressStore.isPressed(comp.id)
       const resistance = isPressed ? 0.01 : 10_000_000
       return { lines: [`R_${sanitize(comp.id)} ${leftNode} ${rightNode} ${resistance}`], nodeA: leftNode, nodeB: rightNode }
     },
@@ -323,7 +362,12 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
       const n2 = resolveNode(footprint.points[1])
       const n3 = resolveNode(footprint.points[2])
       const totalR = 10_000
-      const ratio = ((comp.properties.value as number) ?? 50) / 100
+      // Clamp the ratio away from 0 and 1 — a 0Ω element in the divider
+      // (e.g. wiper at an end stop) collapses a node in the conductance
+      // matrix and makes spicey throw "Singular matrix". 0.5Ω is electrically
+      // indistinguishable from the end stop at the pot's precision.
+      const rawRatio = ((comp.properties.value as number) ?? 50) / 100
+      const ratio = Math.max(0.00005, Math.min(0.99995, rawRatio))
       return {
         lines: [
           `R_${sanitize(comp.id)}_A ${n1} ${n2} ${totalR * ratio}`,
@@ -504,7 +548,29 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
         <circle cx={12} cy={14} r={2.5} fill="#ef4444" opacity={0.8} />
       </svg>
     ),
-    buildNetlist: () => null,
+    spicePrefix: "R",
+    buildNetlist: (comp, { footprint, resolveNode }) => {
+      const segments = ["a", "b", "c", "d", "e", "f", "g"] as const
+      const lines: string[] = []
+
+      for (let i = 0; i < segments.length; i++) {
+        const point = footprint.points[i]
+        if (!point) continue
+        const node = resolveNode(point)
+        // Common-cathode model: each segment is an LED+resistor branch to GND.
+        // We use a linear 220Ω branch for stability in spicey's solver.
+        if (node !== "0") {
+          lines.push(`R_${sanitize(comp.id)}_${segments[i]} ${node} 0 220`)
+        }
+      }
+
+      const nodeA = resolveNode(footprint.points[0] ?? { row: comp.y, col: comp.x })
+      return {
+        lines,
+        nodeA,
+        nodeB: "0",
+      }
+    },
     computeElectricalState: (comp) => {
       // TMP36: output voltage = (temperature × 10mV) + 500mV
       const temp = (comp.properties.temperature as number) ?? 25
@@ -551,7 +617,31 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
         <circle cx={16} cy={12} r={2.5} fill="#1d4ed8" stroke="#3b82f6" strokeWidth={0.5} />
       </svg>
     ),
-    buildNetlist: () => null,
+    // Model VCC/trigger/echo/GND as 10kΩ input impedance (high-Z CMOS inputs).
+    spicePrefix: "R",
+    buildNetlist: (comp, { footprint, resolveNode }) => {
+      const pinNames = ["vcc", "trigger", "echo", "gnd"]
+      const lines: string[] = []
+      let nodeA = "0"
+      let nodeB = "0"
+      for (let i = 0; i < 4; i++) {
+        const node = resolveNode(footprint.points[i])
+        if (i === 0) nodeA = node
+        if (i === 3) nodeB = node
+        if (node !== "0") {
+          lines.push(`R_${sanitize(comp.id)}_${pinNames[i]} ${node} 0 10000`)
+        }
+      }
+      return { lines, nodeA, nodeB }
+    },
+    computeElectricalState: (_comp, { voltageDrop, currentMa }) => ({
+      isActive: Math.abs(voltageDrop) > 2,
+      voltage: voltageDrop,
+      current: currentMa,
+      isReversed: false,
+      brightness: 0,
+      warnings: [],
+    }),
     generateSketch: (comp) => {
       const { trigger, echo } = comp.pins
       const lines: string[] = []
@@ -560,6 +650,8 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
       if (echo != null) { lines.push(`  pinMode(${echo}, INPUT); // ${comp.name} echo`); hasPin = true }
       return hasPin ? { setupLines: lines, hasPin } : null
     },
+    schematicSymbol: "ultrasonic_sensor",
+    schematicValue: () => "HC-SR04",
   },
 
   // ── LCD 16×2 ──────────────────────────────────────────────────────────
@@ -596,7 +688,32 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
         ))}
       </svg>
     ),
-    buildNetlist: () => null,
+    // Model each of the 6 input pins as a high-impedance 10kΩ pull-down.
+    // This gives the SPICE solver a DC path without drawing meaningful current.
+    spicePrefix: "R",
+    buildNetlist: (comp, { footprint, resolveNode }) => {
+      const pinNames = ["rs", "en", "d4", "d5", "d6", "d7"]
+      const lines: string[] = []
+      let nodeA = "0"
+      let nodeB = "0"
+      for (let i = 0; i < 6; i++) {
+        const node = resolveNode(footprint.points[i])
+        if (i === 0) nodeA = node
+        if (i === 5) nodeB = node
+        if (node !== "0") {
+          lines.push(`R_${sanitize(comp.id)}_${pinNames[i]} ${node} 0 10000`)
+        }
+      }
+      return { lines, nodeA, nodeB }
+    },
+    computeElectricalState: (_comp, { voltageDrop, currentMa }) => ({
+      isActive: Math.abs(voltageDrop) > 2,
+      voltage: voltageDrop,
+      current: currentMa,
+      isReversed: false,
+      brightness: 0,
+      warnings: [],
+    }),
     generateSketch: (comp) => {
       const { rs, en, d4, d5, d6, d7 } = comp.pins
       if (rs == null || en == null || d4 == null || d5 == null || d6 == null || d7 == null) return null
@@ -615,22 +732,10 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     category: "display",
     description: "7-segment numeric display (0-9)",
     label: "7-Segment Display",
-    defaultPins: { a: null, b: null, c: null, d: null, e: null, f: null, g: null },
-    // Vertical pin column: a..g each in their own row so no two segment pins
+    defaultPins: { a: null, b: null, c: null, d: null, e: null, f: null, g: null, dp: null, gnd: null },
+    // Vertical pin column: a..g, dp, gnd each in their own row so no two pins
     // share a breadboard net.
-    footprint: (row, col) => ({
-      points: [
-        { row, col },
-        { row: row + 1, col },
-        { row: row + 2, col },
-        { row: row + 3, col },
-        { row: row + 4, col },
-        { row: row + 5, col },
-        { row: row + 6, col },
-      ],
-      width: HOLE_SPACING * 5,
-      height: HOLE_SPACING * 7,
-    }),
+    footprint: (row, col) => footprintFromPins("seven_segment", row, col, HOLE_SPACING * 5, HOLE_SPACING * 9),
     paletteIcon: (
       <svg viewBox="0 0 24 24" width={20} height={20}>
         <rect x={4} y={3} width={16} height={18} rx={2} fill="#1f2937" stroke="#374151" strokeWidth={1} />
@@ -643,22 +748,48 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
         <rect x={17} y={11} width={2} height={8} rx={1} fill="#ef4444" opacity={0.8} />
       </svg>
     ),
-    buildNetlist: () => null,
+    spicePrefix: "R",
+    buildNetlist: (comp, { footprint, resolveNode }) => {
+      const segments = ["a", "b", "c", "d", "e", "f", "g"] as const
+      const lines: string[] = []
+
+      for (let i = 0; i < segments.length; i++) {
+        const point = footprint.points[i]
+        if (!point) continue
+        const node = resolveNode(point)
+        // Common-cathode approximation: each segment acts like a branch to GND.
+        if (node !== "0") {
+          lines.push(`R_${sanitize(comp.id)}_${segments[i]} ${node} 0 220`)
+        }
+      }
+
+      const nodeA = resolveNode(footprint.points[0] ?? { row: comp.y, col: comp.x })
+      return {
+        lines,
+        nodeA,
+        nodeB: "0",
+      }
+    },
     generateSketch: (comp) => {
       const segPins = [comp.pins.a, comp.pins.b, comp.pins.c, comp.pins.d, comp.pins.e, comp.pins.f, comp.pins.g]
+      const dpPin = comp.pins.dp
       const assigned = segPins.filter(p => p != null)
-      if (assigned.length === 0) return null
+      if (assigned.length === 0 && dpPin == null) return null
       const setupLines = segPins.map((p, i) => {
         const seg = "abcdefg"[i]
         return p != null ? `  pinMode(${p}, OUTPUT); // ${comp.name} segment ${seg}` : null
       }).filter(Boolean) as string[]
+      if (dpPin != null) setupLines.push(`  pinMode(${dpPin}, OUTPUT); // ${comp.name} segment dp`)
       // Display digit 0 by default (segments a,b,c,d,e,f on, g off)
       const pattern = [1, 1, 1, 1, 1, 1, 0] // 0 = abcdef
       const loopLines = segPins.map((p, i) => {
         return p != null ? `  digitalWrite(${p}, ${pattern[i] ? "HIGH" : "LOW"}); // seg ${("abcdefg")[i]}` : null
       }).filter(Boolean) as string[]
+      if (dpPin != null) loopLines.push(`  digitalWrite(${dpPin}, LOW); // seg dp`)
       return { setupLines, loopLines, hasPin: true }
     },
+    schematicSymbol: "seven_segment",
+    schematicValue: () => "7-Seg",
   },
 
   // ── NeoPixel / WS2812 LED Strip ──────────────────────────────────────
@@ -1095,6 +1226,170 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
       </svg>
     ),
     buildNetlist: () => null,
+    generateSketch: () => null,
+  },
+
+  // ── Power Supply (MB102-style breadboard PSU) ─────────────────────────
+  //
+  // Drops onto the top of the breadboard and feeds all four power rails.
+  // Each side (left/right) has its own voltage selector (5V or 3.3V).
+  // Footprint ignores the click column — pins are anchored to the four
+  // rail columns (-2, -1, 10, 11), so wherever the user clicks horizontally
+  // the module always lands across both rail pairs.
+  {
+    type: "power_supply",
+    category: "other",
+    description: "MB102 breadboard PSU — feeds 5V/3.3V to both power rails",
+    label: "Power Supply",
+    defaultPins: {},
+    defaultProperties: { leftVoltage: 5, rightVoltage: 3.3 },
+    accentColor: "#10b981",
+    footprint: (row) => ({
+      points: [
+        { row, col: -2 },
+        { row, col: -1 },
+        { row, col: 10 },
+        { row, col: 11 },
+        { row: row + 1, col: -2 },
+        { row: row + 1, col: -1 },
+        { row: row + 1, col: 10 },
+        { row: row + 1, col: 11 },
+      ],
+      width: HOLE_SPACING * 18,
+      height: HOLE_SPACING * 2,
+    }),
+    paletteIcon: (
+      <svg viewBox="0 0 24 24" width={20} height={20}>
+        <rect x={2} y={6} width={20} height={12} rx={2} fill="#0c4a3a" stroke="#0e6b51" strokeWidth={1} />
+        <rect x={6} y={9} width={6} height={6} rx={1} fill="#1a1a1a" />
+        <circle cx={9} cy={12} r={1.4} fill="#404040" />
+        <rect x={14} y={9} width={6} height={5} rx={0.6} fill="#9ca3af" />
+        <text x={12} y={5} textAnchor="middle" fontSize={3} fill="#9ca3af" fontFamily="monospace">PSU</text>
+      </svg>
+    ),
+    buildNetlist: (comp, { footprint, resolveNode }) => {
+      // The 8 footprint points correspond to:
+      //   0,4: left + rail (red)
+      //   1,5: left − rail (blue, ground)
+      //   2,6: right − rail (blue, ground)
+      //   3,7: right + rail (red)
+      const lPlusNode = resolveNode(footprint.points[0])
+      const lMinusNode = resolveNode(footprint.points[1])
+      const rMinusNode = resolveNode(footprint.points[2])
+      const rPlusNode = resolveNode(footprint.points[3])
+
+      const leftV = (comp.properties.leftVoltage as number | undefined) ?? 5
+      const rightV = (comp.properties.rightVoltage as number | undefined) ?? 3.3
+
+      const id = sanitize(comp.id)
+      const lines: string[] = []
+
+      // Tie both − rails to ground via a tiny resistor. Using 1Ω instead
+      // of a hard short avoids the singular-matrix trap that 0Ω elements
+      // create in spicey's MNA solver, while still being negligible
+      // compared to any real load on the rail (the rail effectively
+      // sits at < 1 mV under normal currents).
+      lines.push(`R_${id}_LGND ${lMinusNode} 0 1`)
+      lines.push(`R_${id}_RGND ${rMinusNode} 0 1`)
+
+      // Voltage sources from each + rail to ground.
+      lines.push(`V_${id}_L ${lPlusNode} 0 ${leftV}`)
+      lines.push(`V_${id}_R ${rPlusNode} 0 ${rightV}`)
+
+      // Report the left + rail and left − rail as the primary node pair
+      // — the electrical state lookup uses these to display voltage/current.
+      return { lines, nodeA: lPlusNode, nodeB: lMinusNode }
+    },
+    computeElectricalState: (_comp, { voltageDrop }) => ({
+      // Always "active" — this is a power source, not a passive load.
+      // We don't want the dim-when-inactive overlay obscuring the module.
+      isActive: true,
+      voltage: Math.abs(voltageDrop),
+      current: 0,
+      isReversed: false,
+      brightness: 0,
+    }),
+    generateSketch: () => null,
+  },
+
+  // ── Multimeter (DC voltmeter probe) ───────────────────────────────────
+  //
+  // A simple test instrument: drop two probes onto any two breadboard rows
+  // and the LCD on the body shows the DC voltage between them. The user
+  // doesn't have to wire it to anything — it just reports whatever voltage
+  // exists between the two grid points it's anchored to.
+  //
+  // Inserted into the netlist as a 10 MΩ element so it acts like a real
+  // high-impedance voltmeter: the simulator gives us the voltage across
+  // its two nodes for free via componentNodePairs / voltageDrop, and the
+  // load is small enough that it doesn't perturb the circuit being tested.
+  {
+    type: "multimeter",
+    category: "input",
+    description: "Two-probe DMM — measures DC volts, current, or resistance",
+    label: "Multimeter",
+    defaultPins: {},
+    // Probe A is the component's (x, y); probe B lives in properties so the
+    // user can drop the two probes anywhere on the board (jumper-wire style).
+    // `mode` selects what the LCD displays: "volts" (DC voltage drop between
+    // probes), "amps" (current flowing through the meter — inserted as a
+    // near-short in series), or "ohms" (resistance between the probes,
+    // computed geometrically from the board state in the renderer).
+    defaultProperties: { probeBRow: 1, probeBCol: 0, mode: "volts" },
+    accentColor: "#fbbf24",
+    footprint: (row, col, properties) => {
+      const probeBRow = (properties?.probeBRow as number | undefined) ?? row + 1
+      const probeBCol = (properties?.probeBCol as number | undefined) ?? col
+      const minRow = Math.min(row, probeBRow)
+      const maxRow = Math.max(row, probeBRow)
+      const minCol = Math.min(col, probeBCol)
+      const maxCol = Math.max(col, probeBCol)
+      return {
+        points: [
+          { row, col },
+          { row: probeBRow, col: probeBCol },
+        ],
+        width: (maxCol - minCol + 1) * HOLE_SPACING,
+        height: (maxRow - minRow + 1) * HOLE_SPACING,
+      }
+    },
+    paletteIcon: (
+      <svg viewBox="0 0 24 24" width={20} height={20}>
+        <rect x={3} y={5} width={18} height={14} rx={2} fill="#fbbf24" stroke="#7c2d12" strokeWidth={1} />
+        <rect x={5} y={7} width={14} height={5} rx={0.6} fill="#0a0a0a" />
+        <rect x={5.5} y={7.5} width={13} height={4} rx={0.4} fill="#9ade7a" />
+        <text x={18} y={11} textAnchor="end" fontSize={3.5} fill="#0a1f08" fontFamily="monospace" fontWeight="bold">5.00V</text>
+        <circle cx={8} cy={16} r={1.2} fill="#ef4444" />
+        <circle cx={16} cy={16} r={1.2} fill="#1f2937" />
+      </svg>
+    ),
+    spicePrefix: "R",
+    buildNetlist: (comp, { footprint, resolveNode }) => {
+      const nodeA = resolveNode(footprint.points[0])
+      const nodeB = resolveNode(footprint.points[1])
+      const mode = (comp.properties.mode as string | undefined) ?? "volts"
+      // Amps mode: insert as a near-short (0.01 Ω) so the meter sits in
+      // series and the solver reports the current flowing through it.
+      // Volts / Ohms modes: 10 MΩ so the meter doesn't perturb the circuit
+      // under test. (Ohms is read geometrically in the renderer, not from
+      // SPICE, so the impedance choice doesn't affect its accuracy.)
+      const resistance = mode === "amps" ? "0.01" : "10000000"
+      return {
+        lines: [`R_${sanitize(comp.id)} ${nodeA} ${nodeB} ${resistance}`],
+        nodeA,
+        nodeB,
+      }
+    },
+    computeElectricalState: (_comp, { voltageDrop, currentMa }) => ({
+      // Report BOTH the raw voltage drop (signed so reversed probes read
+      // negative) and the current through the element. The renderer picks
+      // which one to display based on the selected mode.
+      isActive: true,
+      voltage: voltageDrop,
+      current: currentMa,
+      isReversed: false,
+      brightness: 0,
+    }),
     generateSketch: () => null,
   },
 ]

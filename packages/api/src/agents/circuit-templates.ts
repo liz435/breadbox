@@ -138,17 +138,24 @@ function servoSweepTemplate(ctx: OpContext, board: BoardState, params: { pin?: n
   const signalRow = findOpenRow(board, 2);
   const vccRow = signalRow + 1;
   const gndRow = signalRow + 2;
+  const supplyRow = gndRow + 2;
 
   return {
     ops: [
       makeComponent(ctx, "servo", "Servo", 2, signalRow, { signal: null, vcc: null, gnd: null }),
+      makeComponent(ctx, "power_supply", "External 5V Supply", 8, supplyRow, { positive: null, negative: null }),
       // Each wire on a DIFFERENT row so they're on separate buses
       makeArduinoWire(ctx, pin, signalRow, 2, "#ff9800"),
-      makeArduinoWire(ctx, -1, vccRow, 2, "#ef5350"),     // 5V on separate row
-      makeArduinoWire(ctx, -3, gndRow, 2, "#42a5f5"),     // GND on separate row
+      // Power the servo motor rail from external supply.
+      // Positive rail: supply+ -> servo vcc row
+      makeWire(ctx, supplyRow, 8, vccRow, 2, "#ef5350"),
+      // Negative rail: supply- -> servo gnd row
+      makeWire(ctx, supplyRow + 1, 8, gndRow, 2, "#42a5f5"),
+      // Common ground: Arduino GND tied to external negative rail
+      makeArduinoWire(ctx, -3, supplyRow + 1, 8, "#42a5f5"),
       makeSketch(ctx, `#include <Servo.h>\n\nServo myServo;\n\nvoid setup() {\n  myServo.attach(${pin});\n}\n\nvoid loop() {\n  for (int angle = 0; angle <= 180; angle++) {\n    myServo.write(angle);\n    delay(15);\n  }\n  for (int angle = 180; angle >= 0; angle--) {\n    myServo.write(angle);\n    delay(15);\n  }\n}\n`),
     ],
-    description: `Created servo sweep on D${pin}: sweeps 0-180°. Signal, 5V, GND each on separate rows.`,
+    description: `Created servo sweep on D${pin}: signal from Arduino, servo power from external 5V supply, and common ground tied to Arduino GND.`,
   };
 }
 

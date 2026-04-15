@@ -1,14 +1,20 @@
 import { usePinStates } from "@/simulator/use-pin-state"
+import { useBoardSelector } from "@/store/board-context"
 import { cn } from "@/utils/classnames"
-
-function pinName(pin: number): string {
-  if (pin >= 0 && pin <= 13) return `D${pin}`
-  if (pin >= 14 && pin <= 19) return `A${pin - 14}`
-  return `P${pin}`
-}
+import { getBoardPinLayout } from "@/breadboard/breadboard-grid"
+import { DEFAULT_BOARD_TARGET } from "@dreamer/schemas"
 
 export function PinInspector() {
   const pinStates = usePinStates()
+  const boardTarget = useBoardSelector((s) => s.boardTarget ?? DEFAULT_BOARD_TARGET)
+  const pinLayout = getBoardPinLayout(boardTarget)
+  const displayPins = Array.from(
+    new Map(
+      pinLayout.allPins
+        .filter((p) => p.pin >= 0)
+        .map((p) => [p.pin, p.label] as const),
+    ),
+  ).map(([pin, label]) => ({ pin, label }))
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-card">
@@ -28,18 +34,20 @@ export function PinInspector() {
             </tr>
           </thead>
           <tbody>
-            {pinStates.map((ps) => {
+            {displayPins.map(({ pin, label }) => {
+              const ps = pinStates[pin]
+              if (!ps) return null
               const isHigh = ps.digitalValue === 1
               const isPwmActive = ps.isPwm && ps.pwmValue > 0
-              const isAnalogPin = ps.pin >= 14
+              const isAnalogPin = label.startsWith("A")
 
               return (
                 <tr
-                  key={ps.pin}
+                  key={pin}
                   className="border-b border-zinc-800/50 hover:bg-zinc-800/30"
                 >
                   <td className="px-2 py-0.5 font-mono text-zinc-300">
-                    {pinName(ps.pin)}
+                    {label}
                   </td>
                   <td className="px-2 py-0.5 text-zinc-500">
                     {ps.mode === "UNSET" ? "-" : ps.mode}

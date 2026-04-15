@@ -1,13 +1,16 @@
 {
   "runId": "e79c77ad-b325-411a-9074-ff9e336b9244",
-  "evaluatedAt": "2026-04-09T16:21:08.863Z",
+  "evaluatedAt": "2026-04-10T23:57:35.004Z",
   "agent": "core",
   "prompt": "delete all the leds",
   "status": "completed",
+  "evaluable": true,
+  "domain": "breadboard",
+  "category": "top_level",
   "path": {
     "stepCount": 16,
     "stepLimit": 10,
-    "retryCount": 1,
+    "retryCount": 0,
     "hallucinations": [
       "remove_component: Component f24afb6f not found.",
       "remove_component: Component 9d888bc7 not found.",
@@ -447,6 +450,8 @@
     "inputTokens": 31667,
     "outputTokens": 1012,
     "totalTokens": 32679,
+    "childTokens": 0,
+    "overheadTokens": 0,
     "estimatedCost": 0.0294,
     "wastedTokens": 3400,
     "wasteDetails": [
@@ -469,9 +474,10 @@
     "totalCalls": 16,
     "errors": 3,
     "errorRate": 0.19,
-    "hallucatedIds": 6,
+    "hallucinatedIds": 6,
     "wrongPinNames": 0,
     "invalidPositions": 0,
+    "invalidGraphConnections": 0,
     "details": [
       {
         "tool": "remove_component",
@@ -589,6 +595,7 @@
     ]
   },
   "circuit": null,
+  "graph": null,
   "score": {
     "total": 65,
     "breakdown": {

@@ -1,9 +1,12 @@
 {
   "runId": "1e55edd7-973e-44b1-a77a-1ff09093db5c",
-  "evaluatedAt": "2026-04-09T16:21:08.865Z",
+  "evaluatedAt": "2026-04-10T23:57:35.009Z",
   "agent": "core",
   "prompt": "create a simple led matrix",
   "status": "completed",
+  "evaluable": true,
+  "domain": "breadboard",
+  "category": "top_level",
   "path": {
     "stepCount": 47,
     "stepLimit": 10,
@@ -1420,6 +1423,8 @@
     "inputTokens": 121971,
     "outputTokens": 8399,
     "totalTokens": 130370,
+    "childTokens": 0,
+    "overheadTokens": 0,
     "estimatedCost": 0.4919,
     "wastedTokens": 9400,
     "wasteDetails": [
@@ -1472,9 +1477,10 @@
     "totalCalls": 47,
     "errors": 0,
     "errorRate": 0,
-    "hallucatedIds": 0,
+    "hallucinatedIds": 0,
     "wrongPinNames": 8,
     "invalidPositions": 5,
+    "invalidGraphConnections": 0,
     "details": [
       {
         "tool": "get_board_state",
@@ -1808,7 +1814,7 @@
           }
         },
         "result": "error",
-        "issue": "Pin name \"pin2\" not valid for resistor (expected: a, b)"
+        "issue": "Pin name \"pin1\" not valid for resistor (expected: a, b)"
       },
       {
         "tool": "place_component",
@@ -1826,7 +1832,7 @@
           }
         },
         "result": "error",
-        "issue": "Pin name \"pin2\" not valid for resistor (expected: a, b)"
+        "issue": "Pin name \"pin1\" not valid for resistor (expected: a, b)"
       },
       {
         "tool": "place_component",
@@ -1844,7 +1850,7 @@
           }
         },
         "result": "error",
-        "issue": "Pin name \"pin2\" not valid for resistor (expected: a, b)"
+        "issue": "Pin name \"pin1\" not valid for resistor (expected: a, b)"
       },
       {
         "tool": "place_component",
@@ -1862,7 +1868,7 @@
           }
         },
         "result": "error",
-        "issue": "Pin name \"pin2\" not valid for resistor (expected: a, b)"
+        "issue": "x=11 is out of range (0-9)"
       },
       {
         "tool": "connect_wire",
@@ -2606,6 +2612,7 @@
     ],
     "sketch": "// ============================================\n//   4x4 LED MATRIX — Arduino Uno\n//   16 LEDs individually controlled via\n//   D2–D13 + A0(14)–A3(17)\n//\n//   Matrix layout:\n//     Row 0: D2  D3  D4  D5\n//     Row 1: D6  D7  D8  D9\n//     Row 2: D10 D11 D12 D13\n//     Row 3: A0  A1  A2  A3\n//\n//   All cathodes share 220Ω resistors to GND\n//   Animations: Fill, Wipe, Bounce, Checkerboard,\n//               Spiral, Snake, Rain, Heart, X\n// ============================================\n\nconst int ROWS = 4;\nconst int COLS = 4;\n\n// Pin mapping: led[row][col] → Arduino pin\nconst int ledPin[ROWS][COLS] = {\n  {  2,  3,  4,  5 },  // Row 0\n  {  6,  7,  8,  9 },  // Row 1\n  { 10, 11, 12, 13 },  // Row 2\n  { 14, 15, 16, 17 }   // Row 3  (A0–A3)\n};\n\n// ── Helpers ──────────────────────────────────\n\nvoid setLed(int r, int c, bool on) {\n  digitalWrite(ledPin[r][c], on ? HIGH : LOW);\n}\n\nvoid allOff() {\n  for (int r = 0; r < ROWS; r++)\n    for (int c = 0; c < COLS; c++)\n      setLed(r, c, false);\n}\n\nvoid allOn() {\n  for (int r = 0; r < ROWS; r++)\n    for (int c = 0; c < COLS; c++)\n      setLed(r, c, true);\n}\n\n// Display a 4x4 bitmap (1 = on, 0 = off)\nvoid showPattern(const bool pat[ROWS][COLS]) {\n  for (int r = 0; r < ROWS; r++)\n    for (int c = 0; c < COLS; c++)\n      setLed(r, c, pat[r][c]);\n}\n\n// ── Animations ───────────────────────────────\n\n// 1. Fill in row by row, then clear row by row\nvoid animFill(int spd = 120) {\n  for (int r = 0; r < ROWS; r++) {\n    for (int c = 0; c < COLS; c++) {\n      setLed(r, c, true);\n      delay(spd);\n    }\n  }\n  delay(300);\n  for (int r = ROWS - 1; r >= 0; r--) {\n    for (int c = COLS - 1; c >= 0; c--) {\n      setLed(r, c, false);\n      delay(spd);\n    }\n  }\n}\n\n// 2. Column wipe left→right, then right→left\nvoid animWipe(int spd = 150) {\n  for (int c = 0; c < COLS; c++) {\n    for (int r = 0; r < ROWS; r++) setLed(r, c, true);\n    delay(spd);\n  }\n  delay(300);\n  for (int c = COLS - 1; c >= 0; c--) {\n    for (int r = 0; r < ROWS; r++) setLed(r, c, false);\n    delay(spd);\n  }\n}\n\n// 3. Checkerboard blink\nvoid animCheckerboard(int reps = 6, int spd = 250) {\n  for (int i = 0; i < reps; i++) {\n    for (int r = 0; r < ROWS; r++)\n      for (int c = 0; c < COLS; c++)\n        setLed(r, c, (r + c + i) % 2 == 0);\n    delay(spd);\n  }\n  allOff();\n}\n\n// 4. Spiral inward → outward\nvoid animSpiral(int spd = 130) {\n  // Spiral order for a 4x4 matrix (16 cells)\n  const int spiralR[] = {0,0,0,0,1,2,3,3,3,3,2,1,1,1,2,2};\n  const int spiralC[] = {0,1,2,3,3,3,3,2,1,0,0,0,1,2,2,1};\n\n  // Turn on in spiral order\n  for (int i = 0; i < 16; i++) {\n    setLed(spiralR[i], spiralC[i], true);\n    delay(spd);\n  }\n  delay(300);\n  // Turn off in reverse spiral\n  for (int i = 15; i >= 0; i--) {\n    setLed(spiralR[i], spiralC[i], false);\n    delay(spd);\n  }\n}\n\n// 5. Snake — single LED travels across the grid\nvoid animSnake(int spd = 100) {\n  for (int r = 0; r < ROWS; r++) {\n    for (int pass = 0; pass < COLS; pass++) {\n      int c = (r % 2 == 0) ? pass : (COLS - 1 - pass);\n      allOff();\n      setLed(r, c, true);\n      delay(spd);\n    }\n  }\n  allOff();\n}\n\n// 6. Rain — columns fall from top\nvoid animRain(int drops = 3, int spd = 100) {\n  for (int d = 0; d < drops; d++) {\n    int col = random(COLS);\n    for (int r = 0; r < ROWS; r++) {\n      if (r > 0) setLed(r - 1, col, false);\n      setLed(r, col, true);\n      delay(spd);\n    }\n    setLed(ROWS - 1, col, false);\n  }\n}\n\n// 7. Bounce — single row sweeps up and down\nvoid animBounce(int reps = 3, int spd = 120) {\n  for (int i = 0; i < reps; i++) {\n    for (int r = 0; r < ROWS; r++) {\n      allOff();\n      for (int c = 0; c < COLS; c++) setLed(r, c, true);\n      delay(spd);\n    }\n    for (int r = ROWS - 2; r >= 1; r--) {\n      allOff();\n      for (int c = 0; c < COLS; c++) setLed(r, c, true);\n      delay(spd);\n    }\n  }\n  allOff();\n}\n\n// 8. Heart pattern (static, then pulse)\nvoid animHeart(int reps = 4, int spd = 400) {\n  const bool heart[ROWS][COLS] = {\n    { 0, 1, 0, 1 },\n    { 1, 1, 1, 1 },\n    { 1, 1, 1, 1 },\n    { 0, 1, 1, 0 }\n  };\n  for (int i = 0; i < reps; i++) {\n    showPattern(heart);\n    delay(spd);\n    allOff();\n    delay(spd / 2);\n  }\n}\n\n// 9. X / cross pattern blink\nvoid animX(int reps = 4, int spd = 300) {\n  const bool xpat[ROWS][COLS] = {\n    { 1, 0, 0, 1 },\n    { 0, 1, 1, 0 },\n    { 0, 1, 1, 0 },\n    { 1, 0, 0, 1 }\n  };\n  for (int i = 0; i < reps; i++) {\n    showPattern(xpat);\n    delay(spd);\n    allOff();\n    delay(spd);\n  }\n}\n\n// ── Setup & Loop ─────────────────────────────\n\nvoid setup() {\n  for (int r = 0; r < ROWS; r++)\n    for (int c = 0; c < COLS; c++)\n      pinMode(ledPin[r][c], OUTPUT);\n\n  allOff();\n  randomSeed(analogRead(A4)); // use floating A4 for randomness\n}\n\nvoid loop() {\n  animFill(100);\n  delay(400);\n\n  animWipe(150);\n  delay(400);\n\n  animCheckerboard(6, 250);\n  delay(400);\n\n  animSpiral(120);\n  delay(400);\n\n  animSnake(90);\n  delay(400);\n\n  animRain(8, 90);\n  delay(400);\n\n  animBounce(3, 120);\n  delay(400);\n\n  animHeart(4, 400);\n  delay(400);\n\n  animX(4, 300);\n  delay(600);\n}\n"
   },
+  "graph": null,
   "score": {
     "total": 71,
     "breakdown": {

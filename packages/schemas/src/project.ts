@@ -156,6 +156,14 @@ export type Asset = z.infer<typeof assetSchema>;
 
 // ── ProjectFile (the shape stored on disk) ──────────────────────────────────
 
+// Inner shape of `projectFile.graph` — exported so the persistence routes can
+// validate save payloads against the same schema the project file uses.
+export const projectGraphSchema = z.object({
+  nodes: z.record(z.string(), graphNodeSchema),
+  edges: z.record(z.string(), edgeSchema),
+});
+export type ProjectGraph = z.infer<typeof projectGraphSchema>;
+
 export const projectFileSchema = z.object({
   project: projectSchema,
   scenes: z.record(z.string(), sceneSchema),
@@ -163,12 +171,7 @@ export const projectFileSchema = z.object({
   sceneEntityIds: z.record(z.string(), z.array(nonEmptyStringSchema)),
   components: componentsSchema,
   assets: z.record(z.string(), assetSchema),
-  graph: z
-    .object({
-      nodes: z.record(z.string(), graphNodeSchema),
-      edges: z.record(z.string(), edgeSchema),
-    })
-    .optional(),
+  graph: projectGraphSchema.optional(),
   boardState: boardStateSchema.optional(),
 });
 

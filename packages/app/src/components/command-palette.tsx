@@ -94,6 +94,7 @@ function buildCommands(dockviewApi: ReturnType<typeof useDockviewApi>): Command[
     { id: "sketchEditor", label: "Sketch Editor" },
     { id: "schematic", label: "Schematic" },
     { id: "inspector", label: "Inspector" },
+    { id: "electricalReport", label: "Electrical Report" },
     { id: "serialMonitor", label: "Serial Monitor" },
     { id: "pinInspector", label: "Pin Inspector" },
     { id: "projectFiles", label: "Project Files" },

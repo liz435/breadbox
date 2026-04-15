@@ -5,9 +5,60 @@ import type {
   BoardState,
   LibraryState,
   CustomLibrary,
+  BoardTarget,
+  Obstacle,
+  Environment,
 } from "@dreamer/schemas";
-import { createDefaultBoardState } from "@dreamer/schemas";
+import { createDefaultBoardState, DEFAULT_BOARD_TARGET } from "@dreamer/schemas";
 import { pinStateStore } from "@/simulator/pin-state-store";
+import { getComponentFootprint, areConnected } from "@/breadboard/breadboard-grid";
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+/**
+ * Find every wire that has at least one endpoint electrically attached to
+ * `component`'s footprint. Used by REMOVE_COMPONENT so we don't leave
+ * orphaned wires pointing at a hole that no longer hosts a pin.
+ *
+ * "Electrically attached" means the wire endpoint is on the same breadboard
+ * net (same row of 5 in the same half, same power rail, etc.) as one of the
+ * component's pin holes — not just exact-coordinate matches.
+ *
+ * Arduino-pin wires (`fromRow === -999`) only land on the breadboard at their
+ * `to` end; their `from` is a virtual Arduino pin coordinate, so we only test
+ * the `to` endpoint for those.
+ */
+function wiresAttachedToComponent(
+  component: BoardComponent,
+  wires: Record<string, Wire>,
+): string[] {
+  const footprint = getComponentFootprint(
+    component.type,
+    component.y,
+    component.x,
+    component.rotation,
+    component.properties,
+  );
+  const attached: string[] = [];
+  for (const [id, wire] of Object.entries(wires)) {
+    const isArduinoPinWire = wire.fromRow === -999;
+    const toPoint = { row: wire.toRow, col: wire.toCol };
+    for (const fp of footprint.points) {
+      if (areConnected(toPoint, fp)) {
+        attached.push(id);
+        break;
+      }
+      if (!isArduinoPinWire) {
+        const fromPoint = { row: wire.fromRow, col: wire.fromCol };
+        if (areConnected(fromPoint, fp)) {
+          attached.push(id);
+          break;
+        }
+      }
+    }
+  }
+  return attached;
+}
 
 // ── Events ─────────────────────────────────────────────────────────────────
 
@@ -28,6 +79,11 @@ export type BoardEvent =
   | { type: "ADD_CUSTOM_LIBRARY"; name: string; library: CustomLibrary }
   | { type: "UPDATE_CUSTOM_LIBRARY"; name: string; library: CustomLibrary }
   | { type: "REMOVE_CUSTOM_LIBRARY"; name: string }
+  | { type: "SET_BOARD_TARGET"; boardTarget: BoardTarget }
+  | { type: "ADD_OBSTACLE"; obstacle: Obstacle }
+  | { type: "UPDATE_OBSTACLE"; id: string; changes: Partial<Obstacle> }
+  | { type: "REMOVE_OBSTACLE"; id: string }
+  | { type: "UPDATE_ENVIRONMENT"; changes: Partial<Environment> }
   | { type: "LOAD_BOARD"; state: BoardState }
   | { type: "SNAPSHOT" }
   | { type: "UNDO" }
@@ -55,6 +111,8 @@ function boardData(ctx: BoardMachineContext): BoardState {
     serialOutput: ctx.serialOutput,
     sketchCode: ctx.sketchCode,
     customLibraries: ctx.customLibraries,
+    boardTarget: ctx.boardTarget ?? DEFAULT_BOARD_TARGET,
+    environment: ctx.environment,
   };
 }
 
@@ -140,10 +198,28 @@ export const boardMachine = setup({
 
     REMOVE_COMPONENT: {
       actions: assign(({ context, event }) => {
-        const { [event.id]: _, ...rest } = context.components;
+        const removed = context.components[event.id];
+        const { [event.id]: _, ...remainingComponents } = context.components;
+
+        // Drop any wires whose endpoint landed on this component's footprint.
+        // Without this, deleting a component leaves orphaned wires pointing
+        // at empty holes — they'd survive into codegen, the netlist, and the
+        // schematic view as bogus connections.
+        let remainingWires = context.wires;
+        if (removed) {
+          const orphanedIds = wiresAttachedToComponent(removed, context.wires);
+          if (orphanedIds.length > 0) {
+            remainingWires = { ...context.wires };
+            for (const wireId of orphanedIds) {
+              delete remainingWires[wireId];
+            }
+          }
+        }
+
         return {
           ...pushHistory(context),
-          components: rest,
+          components: remainingComponents,
+          wires: remainingWires,
           selectedId: context.selectedId === event.id ? null : context.selectedId,
         };
       }),
@@ -154,6 +230,7 @@ export const boardMachine = setup({
         const existing = context.components[event.id];
         if (!existing) return {};
         return {
+          ...pushHistory(context),
           components: {
             ...context.components,
             [event.id]: { ...existing, ...event.changes },
@@ -166,10 +243,30 @@ export const boardMachine = setup({
       actions: assign(({ context, event }) => {
         const existing = context.components[event.id];
         if (!existing) return {};
+        // Components that store extra anchor points in `properties` (e.g.
+        // the multimeter's second probe) need those points translated by
+        // the same delta as (x, y) so dragging the body moves both ends
+        // together. Plain components only update x/y.
+        const dx = event.x - existing.x;
+        const dy = event.y - existing.y;
+        const updatedProps = { ...existing.properties };
+        if (
+          typeof updatedProps.probeBRow === "number" &&
+          typeof updatedProps.probeBCol === "number"
+        ) {
+          updatedProps.probeBRow = updatedProps.probeBRow + dy;
+          updatedProps.probeBCol = updatedProps.probeBCol + dx;
+        }
         return {
+          ...pushHistory(context),
           components: {
             ...context.components,
-            [event.id]: { ...existing, x: event.x, y: event.y },
+            [event.id]: {
+              ...existing,
+              x: event.x,
+              y: event.y,
+              properties: updatedProps,
+            },
           },
         };
       }),
@@ -275,6 +372,65 @@ export const boardMachine = setup({
       }),
     },
 
+    SET_BOARD_TARGET: {
+      actions: [
+        () => {
+          // Drop stale per-pin runtime state when changing board model.
+          pinStateStore.resetValues();
+        },
+        assign(({ context, event }) => ({
+          ...pushHistory(context),
+          boardTarget: event.boardTarget,
+        })),
+      ],
+    },
+
+    // ── Environment (obstacles for sensor simulation) ──
+
+    ADD_OBSTACLE: {
+      actions: assign(({ context, event }) => ({
+        ...pushHistory(context),
+        environment: {
+          ...context.environment,
+          obstacles: { ...context.environment.obstacles, [event.obstacle.id]: event.obstacle },
+        },
+      })),
+    },
+
+    UPDATE_OBSTACLE: {
+      actions: assign(({ context, event }) => {
+        const existing = context.environment.obstacles[event.id];
+        if (!existing) return {};
+        return {
+          ...pushHistory(context),
+          environment: {
+            ...context.environment,
+            obstacles: {
+              ...context.environment.obstacles,
+              [event.id]: { ...existing, ...event.changes },
+            },
+          },
+        };
+      }),
+    },
+
+    REMOVE_OBSTACLE: {
+      actions: assign(({ context, event }) => {
+        const { [event.id]: _, ...rest } = context.environment.obstacles;
+        return {
+          ...pushHistory(context),
+          environment: { ...context.environment, obstacles: rest },
+        };
+      }),
+    },
+
+    UPDATE_ENVIRONMENT: {
+      actions: assign(({ context, event }) => ({
+        ...pushHistory(context),
+        environment: { ...context.environment, ...event.changes },
+      })),
+    },
+
     // ── Selection ──
 
     SELECT: {
@@ -286,10 +442,20 @@ export const boardMachine = setup({
     LOAD_BOARD: {
       actions: assign(({ event }) => {
         const s = event.state;
+        const isEmptyBoard =
+          Object.keys(s.components ?? {}).length === 0 &&
+          Object.keys(s.wires ?? {}).length === 0;
+        const normalizedSketch =
+          isEmptyBoard && s.sketchCode.trim() === ""
+            ? createDefaultBoardState().sketchCode
+            : s.sketchCode;
         return {
           ...s,
           libraryState: s.libraryState ?? { servos: {}, lcd: null, serialBaud: 0 },
           serialOutput: s.serialOutput ?? [],
+          sketchCode: normalizedSketch,
+          boardTarget: s.boardTarget ?? DEFAULT_BOARD_TARGET,
+          environment: s.environment ?? { obstacles: {}, boundaryEnabled: true, boundaryMargin: 100 },
           selectedId: null,
           _past: [],
           _future: [],

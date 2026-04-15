@@ -96,12 +96,15 @@ export function SerialMonitor() {
     if (!input) return
     const data = input + LINE_ENDING_CHARS[lineEnding]
 
+    // Echo the input into the serial output so the user sees what they sent
+    send({ type: "APPEND_SERIAL", text: `> ${input}\n`, ts: Date.now() })
+
     if (boardRef.current?.isConnected()) {
       boardRef.current.write(data)
     }
     simulationRef.current?.sendSerialInput(data)
     setInput("")
-  }, [input, lineEnding])
+  }, [input, lineEnding, send])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -114,22 +117,25 @@ export function SerialMonitor() {
   )
 
   const formatLine = (entry: { text: string; ts: number }, index: number) => {
-    if (showTimestamps && entry.ts > 0) {
-      const d = new Date(entry.ts)
-      const ts = d.toLocaleTimeString("en-US", {
-        hour12: false,
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-      }) + "." + String(d.getMilliseconds()).padStart(3, "0")
-      return (
-        <div key={index}>
-          <span className="text-zinc-600 mr-2">[{ts}]</span>
-          {entry.text}
-        </div>
-      )
-    }
-    return <div key={index}>{entry.text}</div>
+    const isInput = entry.text.startsWith("> ")
+    const tsStr = showTimestamps && entry.ts > 0
+      ? (() => {
+          const d = new Date(entry.ts)
+          return d.toLocaleTimeString("en-US", {
+            hour12: false,
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          }) + "." + String(d.getMilliseconds()).padStart(3, "0")
+        })()
+      : null
+
+    return (
+      <div key={index} className={isInput ? "text-blue-400" : undefined}>
+        {tsStr && <span className="text-zinc-600 mr-2">[{tsStr}]</span>}
+        {entry.text}
+      </div>
+    )
   }
 
   return (
