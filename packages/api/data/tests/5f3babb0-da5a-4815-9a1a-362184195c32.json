@@ -1,7 +1,11 @@
 {
   "runId": "5f3babb0-da5a-4815-9a1a-362184195c32",
-  "evaluatedAt": "2026-04-14T21:55:48.882Z",
+  "evaluatedAt": "2026-04-15T01:19:06.172Z",
+  "runCreatedAt": "2026-04-14T21:54:46.247Z",
+  "runCompletedAt": "2026-04-14T21:55:48.877Z",
+  "runDurationMs": 62630,
   "agent": "core",
+  "agentVersion": "unknown",
   "prompt": "create a counter using 7 segment display. every time user hit button, the number increse, after 9 goes back to 0",
   "status": "completed",
   "evaluable": true,
@@ -1305,15 +1309,16 @@
   "electrical": {
     "pinOvercurrent": 0,
     "railOvercurrent": 0,
-    "missingExternalSupply": 0,
+    "missingExternalSupply": 1,
     "maxPinFanout": 1,
     "pinsOverDirectFanout": 0,
     "directGroundCount": 1,
     "directPowerCount": 1,
     "railDistributionViolations": 0,
-    "errors": 1,
+    "errors": 2,
     "warnings": 0,
     "issues": [
+      "7SEG (seven_segment) should use external power with common ground, not only Arduino rail.",
       "BTN (button) input has no opposite-side reference. Wire the other side to GND (for INPUT_PULLUP) or 5V/3V3 (for INPUT)."
     ]
   },

@@ -1,6 +1,7 @@
 import { Elysia } from "elysia";
 import { ZodError } from "zod";
 import { runCoreAgent } from "../agents/core/agent";
+import { resolveAgentSnapshotVersion } from "../agents/version";
 import { buildSummarizedHistory } from "../agents/history-summarizer";
 import { agentRunRepo } from "../db/agent-run-repo";
 import { agentRunRequestSchema } from "../db/schemas";
@@ -34,6 +35,7 @@ export const agentRunRoutes = new Elysia({ prefix: "/agent" }).post(
       }
 
       await agentRunRepo.getOrCreateThread(input.threadId, input.projectId);
+      const snapshotVersion = resolveAgentSnapshotVersion(input.snapshotVersion);
       const runFile = await agentRunRepo.createRun({
         threadId: input.threadId,
         projectId: input.projectId,
@@ -41,6 +43,7 @@ export const agentRunRoutes = new Elysia({ prefix: "/agent" }).post(
         sessionId: input.sessionId,
         prompt: input.prompt,
         agent: "core",
+        snapshotVersion,
       });
       await agentRunRepo.attachRunToThread(input.threadId, runFile.run.id);
 
@@ -60,6 +63,7 @@ export const agentRunRoutes = new Elysia({ prefix: "/agent" }).post(
         threadId: input.threadId,
         projectId: input.projectId,
         sessionId: input.sessionId,
+        snapshotVersion,
         parentLog: log,
         history,
         priorRuns: completedRuns,

@@ -13,6 +13,7 @@ import { CIRCUIT_TEMPLATES } from "../agents/circuit-templates";
 import { makeBoardOp } from "../agents/make-op";
 import { boardTracker } from "../db/board-state-tracker";
 import { createTrace, startSpan, closeTrace, serializeTrace } from "../agents/trace";
+import { resolveAgentSnapshotVersion } from "../agents/version";
 import { createLogger } from "../logger";
 
 const log = createLogger("chat");
@@ -33,6 +34,7 @@ const chatRequestSchema = z.object({
   threadId: nonEmptyStringSchema,
   sessionId: nonEmptyStringSchema,
   expectedVersion: z.number().int().nonnegative(),
+  snapshotVersion: z.string().optional(),
 });
 
 /** Extract the text from the last user message's parts. */
@@ -88,6 +90,7 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
   reqLog.info(
     `incoming — project: ${input.projectId}, thread: ${input.threadId}, prompt: ${prompt.slice(0, 80)}`
   );
+  const snapshotVersion = resolveAgentSnapshotVersion(input.snapshotVersion);
 
   // 1. Read or bootstrap project
   let project = await projectRepo.readProject(input.projectId);
@@ -117,6 +120,7 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
     sessionId: input.sessionId,
     prompt,
     agent: "core",
+    snapshotVersion,
   });
   await agentRunRepo.attachRunToThread(input.threadId, runFile.run.id);
   reqLog.info(`created run: ${runFile.run.id}`);
@@ -265,6 +269,7 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
     threadId: input.threadId,
     projectId: input.projectId,
     sessionId: input.sessionId,
+    snapshotVersion,
     parentLog: reqLog,
     history,
     priorRuns: completedRuns,

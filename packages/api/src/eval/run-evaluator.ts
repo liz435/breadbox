@@ -204,10 +204,21 @@ export function evaluateRun(run: RunFile): RunEval {
     ? undefined
     : `Domain "${domain}" has no analyzer — the run did work outside breadboard/graph and cannot be scored with the current rubric.`
 
+  const runCreatedAt = run.run.createdAt
+  const runCompletedAt = run.run.completedAt
+  const runDurationMs =
+    runCreatedAt && runCompletedAt
+      ? Math.max(0, new Date(runCompletedAt).getTime() - new Date(runCreatedAt).getTime())
+      : undefined
+
   const partial: Omit<RunEval, "score"> & { assistantText?: string } = {
     runId: run.run.id,
     evaluatedAt: new Date().toISOString(),
+    runCreatedAt,
+    runCompletedAt,
+    runDurationMs,
     agent: run.run.agent,
+    agentVersion: (run.run as { agentVersion?: string }).agentVersion ?? "unknown",
     prompt: run.prompt ?? "",
     status: run.run.status,
     evaluable,

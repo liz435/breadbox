@@ -1,7 +1,11 @@
 {
   "runId": "ff7dacf3-6b22-4c55-a2e4-1a0080bf9a9f",
-  "evaluatedAt": "2026-04-14T18:45:54.305Z",
+  "evaluatedAt": "2026-04-15T01:19:06.165Z",
+  "runCreatedAt": "2026-04-14T18:45:30.850Z",
+  "runCompletedAt": "2026-04-14T18:45:54.302Z",
+  "runDurationMs": 23452,
   "agent": "core",
+  "agentVersion": "unknown",
   "prompt": "create a counter using 7 segment display. every time user hit button, the number increse, after 9 goes back to 0",
   "status": "completed",
   "evaluable": true,
@@ -804,15 +808,18 @@
   "electrical": {
     "pinOvercurrent": 0,
     "railOvercurrent": 0,
-    "missingExternalSupply": 0,
+    "missingExternalSupply": 1,
     "maxPinFanout": 1,
     "pinsOverDirectFanout": 0,
     "directGroundCount": 1,
     "directPowerCount": 1,
     "railDistributionViolations": 0,
-    "errors": 0,
+    "errors": 2,
     "warnings": 0,
-    "issues": []
+    "issues": [
+      "SSD1 (seven_segment) should use external power with common ground, not only Arduino rail.",
+      "Button1 (button) input has no opposite-side reference. Wire the other side to GND (for INPUT_PULLUP) or 5V/3V3 (for INPUT)."
+    ]
   },
   "intent": {
     "intentSatisfied": false,
@@ -820,11 +827,11 @@
     "partialSuccessWithoutIntent": true
   },
   "score": {
-    "total": 66,
+    "total": 59,
     "breakdown": {
       "accuracy": 25,
       "efficiency": 25,
-      "quality": 7,
+      "quality": 0,
       "completeness": 9
     }
   }

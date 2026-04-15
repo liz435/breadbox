@@ -198,7 +198,12 @@ export type RoutingRecord = {
 export type RunEval = {
   runId: string
   evaluatedAt: string
+  runCreatedAt: string
+  runCompletedAt?: string
+  runDurationMs?: number
   agent: string
+  /** Agent architecture version stamped at run creation time (from version.ts). */
+  agentVersion: string
   prompt: string
   status: string
   /** Whether this run can be scored at all. */
@@ -304,7 +309,8 @@ export type RunFile = {
     status: string
     parentRunId?: string
     createdAt: string
-    updatedAt: string
+    updatedAt?: string
+    completedAt?: string
   }
   prompt: string
   messages: Array<{

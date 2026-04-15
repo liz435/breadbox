@@ -11,6 +11,8 @@ export type AgentContext = {
   threadId: string;
   projectId: string;
   sessionId: string;
+  /** Frozen behavior profile version (prompt/config snapshot) for this run. */
+  snapshotVersion?: string;
   parentLog: Logger;
   /** Pre-built conversation history for the agent (core agent only). */
   history?: ModelMessage[];
@@ -101,6 +103,8 @@ export type DelegationContext = {
   threadId: string;
   projectId: string;
   sessionId: string;
+  /** Snapshot profile inherited from the parent run. */
+  snapshotVersion?: string;
   parentRunId: string;
   parentLog: Logger;
   childUsage: ChildTokenUsage[];

@@ -49,6 +49,18 @@ export const agentRunRecordSchema = z.object({
   createdAt: timestampSchema,
   completedAt: timestampSchema.optional(),
   error: z.string().optional(),
+  /**
+   * Agent architecture version at the time the run was created.
+   * Used by the debug visualizer to detect when a run was produced
+   * by a different version of the agent flow diagram.
+   * Optional so existing run files without this field remain valid.
+   */
+  agentVersion: z.string().optional(),
+  /**
+   * Frozen snapshot profile used by the run (prompt/config bundle).
+   * Optional for backward compatibility with older run files.
+   */
+  agentSnapshotVersion: z.string().optional(),
 });
 
 export type AgentRunRecord = z.infer<typeof agentRunRecordSchema>;
@@ -149,6 +161,7 @@ export const agentRunRequestSchema = z.object({
   sessionId: nonEmptyStringSchema,
   prompt: z.string().min(1),
   expectedVersion: z.number().int().nonnegative(),
+  snapshotVersion: z.string().optional(),
 });
 
 export type AgentRunRequest = z.infer<typeof agentRunRequestSchema>;

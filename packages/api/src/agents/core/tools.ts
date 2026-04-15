@@ -214,6 +214,7 @@ function makeDelegationTool(
         prompt: input.task,
         agent: agentName,
         parentRunId: delegation.parentRunId,
+        snapshotVersion: delegation.snapshotVersion,
       });
       await agentRunRepo.attachRunToThread(delegation.threadId, childRun.run.id);
 
@@ -238,6 +239,7 @@ function makeDelegationTool(
             threadId: delegation.threadId,
             projectId: delegation.projectId,
             sessionId: delegation.sessionId,
+            snapshotVersion: delegation.snapshotVersion,
             parentLog: log,
             sharedWorkingBoard,
             sharedOps: sharedWorkingBoard ? ops : undefined,

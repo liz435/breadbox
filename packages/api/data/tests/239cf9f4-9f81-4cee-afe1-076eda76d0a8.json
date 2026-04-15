@@ -1,7 +1,11 @@
 {
   "runId": "239cf9f4-9f81-4cee-afe1-076eda76d0a8",
-  "evaluatedAt": "2026-04-14T23:06:17.432Z",
+  "evaluatedAt": "2026-04-15T01:19:06.163Z",
+  "runCreatedAt": "2026-04-14T23:05:07.081Z",
+  "runCompletedAt": "2026-04-14T23:06:17.431Z",
+  "runDurationMs": 70350,
   "agent": "core",
+  "agentVersion": "unknown",
   "prompt": "can you fix the error",
   "status": "completed",
   "evaluable": true,

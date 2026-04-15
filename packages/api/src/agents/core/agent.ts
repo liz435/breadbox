@@ -12,6 +12,7 @@ import { runPolicies } from "../policy-engine";
 import { generatePlan, type AgentPlan, type PlannerUsage } from "../planner";
 import { reflectOnOutput, shouldReplan } from "../reflection";
 import { normalizeAgentPrompt } from "../prompt-normalizer";
+import { AGENT_VERSION } from "../version";
 
 // ── Model context limits (used for message sizing) ──────────────────────
 
@@ -126,6 +127,25 @@ The board already has components and wires. Use the granular CRUD tools to make 
 - update_sketch (full rewrite) or patch_sketch (small edits)
 
 Do NOT replace the whole circuit. Make the smallest change that satisfies the user's request. Reuse existing component IDs from the board state below — never invent IDs.`;
+
+type CorePromptSnapshot = {
+  commonPrompt: string;
+  buildPrompt: string;
+  editPrompt: string;
+};
+
+const CORE_PROMPT_SNAPSHOTS: Record<string, CorePromptSnapshot> = {
+  "1.0.0": {
+    commonPrompt: COMMON_PROMPT,
+    buildPrompt: BUILD_PROMPT,
+    editPrompt: EDIT_PROMPT,
+  },
+};
+const DEFAULT_CORE_PROMPT_SNAPSHOT: CorePromptSnapshot = {
+  commonPrompt: COMMON_PROMPT,
+  buildPrompt: BUILD_PROMPT,
+  editPrompt: EDIT_PROMPT,
+};
 
 export type CoreAgentStream = {
   uiMessageStream: ReturnType<ReturnType<typeof streamText>["toUIMessageStream"]>
@@ -316,6 +336,11 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
   });
   const CORE_MODEL = decision.model;
   const mode = decision.toolMode;
+  const snapshotVersion = ctx.snapshotVersion ?? AGENT_VERSION;
+  const snapshotPrompts =
+    CORE_PROMPT_SNAPSHOTS[snapshotVersion] ??
+    CORE_PROMPT_SNAPSHOTS[AGENT_VERSION] ??
+    DEFAULT_CORE_PROMPT_SNAPSHOT;
 
   // Persist the routing decision on the run file immediately so it survives
   // a mid-turn crash and eval can measure router quality post-hoc.
@@ -324,7 +349,7 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
   });
 
   log.info(
-    `routing — model: ${CORE_MODEL}, mode: ${mode}, domain: ${decision.domain}, requestType: ${decision.requestType}, complexity: ${decision.complexity}`
+    `routing — model: ${CORE_MODEL}, mode: ${mode}, domain: ${decision.domain}, requestType: ${decision.requestType}, complexity: ${decision.complexity}, snapshot: ${snapshotVersion}`
   );
   for (const r of decision.reasons) {
     log.info(`  reason: ${r}`);
@@ -363,6 +388,7 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
       threadId: ctx.threadId,
       projectId: ctx.projectId,
       sessionId: ctx.sessionId,
+      snapshotVersion,
       parentRunId: ctx.runId,
       parentLog: log,
       childUsage,
@@ -375,9 +401,11 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
 
   const boardSummary = summarizeBoardState({ ...ctx.project, boardState: workingBoard });
   const systemPrompt =
-    mode === "build" ? BUILD_PROMPT :
-    mode === "edit" ? EDIT_PROMPT :
-    EDIT_PROMPT;
+    mode === "build"
+      ? snapshotPrompts.buildPrompt
+      : mode === "edit"
+        ? snapshotPrompts.editPrompt
+        : snapshotPrompts.editPrompt;
 
   // Size messages to fit model context
   const rawMessages: ModelMessage[] = [
