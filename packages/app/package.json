@@ -4,7 +4,7 @@
   "scripts": {
     "dev": "bunx --bun vite",
     "build": "bunx --bun vite build",
-    "start": "bunx --bun vite preview --host --port ${PORT:-3000}",
+    "start": "bun run serve.ts",
     "preview": "bunx --bun vite preview",
     "typecheck": "bunx tsc --noEmit"
   },
