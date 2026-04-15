@@ -2,7 +2,7 @@ import { z } from "zod";
 import { nonEmptyStringSchema, timestampSchema } from "./project";
 import { boardOpSchema } from "@dreamer/schemas";
 
-// ── Agent Kind ──────────────────────────────────────────────────────────────
+// ── Agent Kind z──────────────────────────────────────────────────────────────
 
 export const agentKindSchema = z.enum(["core"]);
 export type AgentKind = z.infer<typeof agentKindSchema>;
