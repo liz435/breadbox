@@ -11,6 +11,8 @@ export type AgentContext = {
   threadId: string;
   projectId: string;
   sessionId: string;
+  /** Frozen behavior profile version (prompt/config snapshot) for this run. */
+  snapshotVersion?: string;
   parentLog: Logger;
   /** Pre-built conversation history for the agent (core agent only). */
   history?: ModelMessage[];
@@ -60,6 +62,9 @@ export type TokenUsage = {
   /** End-to-end total: parent + rolled-up child runs + overhead. */
   totalTokens: number;
   model: string;
+  /** Prompt caching breakdown — how many input tokens were cache hits vs writes. */
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
   /** Breakdown of child-run costs when specialists were delegated. */
   children?: ChildTokenUsage[];
   /** Overhead calls (summarizer, etc.) attributed to this run. */
@@ -98,6 +103,8 @@ export type DelegationContext = {
   threadId: string;
   projectId: string;
   sessionId: string;
+  /** Snapshot profile inherited from the parent run. */
+  snapshotVersion?: string;
   parentRunId: string;
   parentLog: Logger;
   childUsage: ChildTokenUsage[];

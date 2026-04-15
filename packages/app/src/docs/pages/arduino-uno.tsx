@@ -4,105 +4,63 @@ export function ArduinoUnoPage() {
   return (
     <DocsLayout>
       <PageTitle
-        title="Arduino Uno"
-        subtitle="ATmega328P-based microcontroller board. The fixed left-side panel in every project."
+        title="Board Targets"
+        subtitle="Dreamer supports Uno, Nano, and Mega board targets with board-specific visuals and pin placement."
       />
 
-      <Section title="Digital Pins (D0 – D13)">
+      <Section title="Supported Boards">
         <Table
-          headers={["Pin", "Label", "Special Function", "Notes"]}
+          headers={["Board", "MCU", "Compile/Flash FQBN", "Live VM"]}
           rows={[
-            ["D0", "RX", "Serial receive", "Avoid using — conflicts with USB serial upload"],
-            ["D1", "TX", "Serial transmit", "Avoid using — conflicts with USB serial upload"],
-            ["D2", "2", "External interrupt 0", "INT0 — attach interrupt"],
-            ["D3", "~3", "PWM + interrupt 1", "INT1 + 490 Hz PWM"],
-            ["D4", "4", "—", "General purpose digital I/O"],
-            ["D5", "~5", "PWM", "980 Hz PWM"],
-            ["D6", "~6", "PWM", "980 Hz PWM"],
-            ["D7", "7", "—", "General purpose digital I/O"],
-            ["D8", "8", "—", "General purpose digital I/O"],
-            ["D9", "~9", "PWM", "490 Hz PWM"],
-            ["D10", "~10", "PWM + SS", "490 Hz PWM, SPI slave select"],
-            ["D11", "~11", "PWM + MOSI", "490 Hz PWM, SPI data out"],
-            ["D12", "12", "MISO", "SPI data in"],
-            ["D13", "13", "Built-in LED", "On-board LED — active HIGH"],
+            ["Arduino Uno R3", "ATmega328P @ 16 MHz", "arduino:avr:uno", "Yes (avr8js)"],
+            ["Arduino Nano", "ATmega328P @ 16 MHz", "arduino:avr:nano", "Yes (avr8js-compatible mapping)"],
+            ["Arduino Mega 2560 Rev3", "ATmega2560 @ 16 MHz", "arduino:avr:mega", "Compile/flash only"],
+          ]}
+        />
+      </Section>
+
+      <Section title="Pin Mapping in Dreamer">
+        <Table
+          headers={["Category", "Fully simulated pins", "Visual-only pins"]}
+          rows={[
+            ["Digital", "D0–D53 on Mega, D0–D13 on Uno/Nano", "None"],
+            ["Analog", "A0–A5 on all targets", "Nano A6/A7 and Mega A6–A15 are wireable but not VM-simulated"],
+            ["Power", "5V, 3V3, GND, VIN, RESET, AREF, IOREF (where present)", "NC pins"],
           ]}
         />
         <Note>
-          Pins marked <strong>~</strong> support <code>analogWrite()</code> (PWM). Required for servos,
-          LED fading, and motor speed control.
+          Extra Nano/Mega pins are now interactive for wiring/compile flows. The in-browser live VM still
+          executes the common Uno-compatible subset.
         </Note>
       </Section>
 
-      <Section title="Analog Pins (A0 – A5)">
+      <Section title="Board-Specific Header Layouts">
         <Table
-          headers={["Pin", "Analog #", "Digital Alias", "Notes"]}
+          headers={["Board", "Header style in canvas", "Notes"]}
           rows={[
-            ["A0", "0", "D14", "10-bit ADC (0–1023)"],
-            ["A1", "1", "D15", "10-bit ADC"],
-            ["A2", "2", "D16", "10-bit ADC"],
-            ["A3", "3", "D17", "10-bit ADC"],
-            ["A4", "4", "D18", "10-bit ADC + I²C SDA"],
-            ["A5", "5", "D19", "10-bit ADC + I²C SCL"],
+            ["Uno", "Top digital header + bottom power/analog headers", "Matches classic Uno R3 board shape"],
+            ["Nano", "Dual side headers (15 per side)", "Pins ordered like official Nano pinout (USB-at-top orientation)"],
+            ["Mega 2560", "Top D0–D21 + lower D22–D53 + analog/power headers", "All shown Mega digital headers are interactive"],
           ]}
         />
-        <Note>
-          Use <code>analogRead(A0)</code> to read sensor values (0 = 0V, 1023 = 5V).
-          Analog pins can also be used as digital I/O with <code>pinMode(A0, OUTPUT)</code>.
-        </Note>
       </Section>
 
-      <Section title="Power Pins">
-        <Table
-          headers={["Pin", "Voltage", "Max Current", "Use"]}
-          rows={[
-            ["5V", "5.0 V", "500 mA (USB)", "Power supply for most components"],
-            ["3.3V", "3.3 V", "50 mA", "3.3V sensors and modules"],
-            ["GND", "0 V (ground)", "—", "Common ground — connect all component negatives here"],
-            ["VIN", "7–12 V", "—", "External power input (not available in simulator)"],
-          ]}
-        />
+      <Section title="Electrical Safety Reminder">
         <Warn>
-          The 5V pin is limited to ~500 mA over USB. Servos and motors may need an external power supply.
+          Board selection changes compile target and board pin geometry. It does <strong>not</strong> increase
+          safe current per pin. Use external supplies for servos/motors/high LED counts and always share GND.
         </Warn>
       </Section>
 
-      <Section title="In Dreamer">
+      <Section title="Official References">
         <p className="text-sm text-gray-300 leading-relaxed mb-2">
-          The Arduino Uno is rendered as a fixed left panel on the breadboard — it is not a placeable component.
-          Its pins appear as labeled holes you can wire directly from the breadboard.
+          Pin names and header ordering are based on the official Arduino pinout references:
         </p>
-        <Table
-          headers={["Simulator Feature", "Status"]}
-          rows={[
-            ["5V and GND rails as voltage sources", "Implemented — used as SPICE voltage nodes"],
-            ["Digital pin HIGH/LOW states (from sketch)", "Implemented — drives LED brightness simulation"],
-            ["PWM output (analogWrite)", "Implemented — modeled as fractional voltage"],
-            ["analogRead from sensors", "Implemented — circuit voltages mapped to 0-1023 ADC values"],
-            ["Serial.print / Serial.read", "Implemented — full bidirectional Serial Monitor with Web Serial support"],
-            ["Interrupts (pins 2, 3)", "Implemented — RISING, FALLING, CHANGE modes"],
-            ["tone() / noTone()", "Implemented — real audio output via Web Audio API"],
-            ["Sketch execution", "Implemented — transpiles C++ to JS, runs setup() + loop() at 60fps"],
-          ]}
-        />
-      </Section>
-
-      <Section title="Datasheet">
-        <Table
-          headers={["Parameter", "Value"]}
-          rows={[
-            ["Microcontroller", "ATmega328P"],
-            ["Operating voltage", "5 V"],
-            ["Input voltage (recommended)", "7–12 V"],
-            ["Digital I/O pins", "14 (6 with PWM)"],
-            ["Analog input pins", "6 (10-bit)"],
-            ["DC current per I/O pin", "40 mA max"],
-            ["Flash memory", "32 KB"],
-            ["SRAM", "2 KB"],
-            ["EEPROM", "1 KB"],
-            ["Clock speed", "16 MHz"],
-          ]}
-        />
+        <ul className="list-disc pl-5 text-sm text-gray-300 space-y-1">
+          <li><a href="https://docs.arduino.cc/resources/pinouts/A000066-full-pinout.pdf" className="text-blue-400 hover:text-blue-300" target="_blank" rel="noreferrer">Uno R3 pinout (A000066)</a></li>
+          <li><a href="https://docs.arduino.cc/resources/pinouts/A000005-full-pinout.pdf" className="text-blue-400 hover:text-blue-300" target="_blank" rel="noreferrer">Nano pinout (A000005)</a></li>
+          <li><a href="https://docs.arduino.cc/resources/pinouts/A000067-full-pinout.pdf" className="text-blue-400 hover:text-blue-300" target="_blank" rel="noreferrer">Mega 2560 Rev3 pinout (A000067)</a></li>
+        </ul>
       </Section>
     </DocsLayout>
   )

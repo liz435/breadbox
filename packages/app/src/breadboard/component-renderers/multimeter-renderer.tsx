@@ -22,7 +22,7 @@
 // power, which isn't something we can really do mid-simulation.
 
 import React from "react"
-import type { BoardComponent } from "@dreamer/schemas"
+import { isBoardComponentType, type BoardComponent } from "@dreamer/schemas"
 import type { ComponentElectricalState } from "@/simulator/circuit-solver"
 import {
   gridToPixel,
@@ -114,7 +114,7 @@ function computeResistance(
 
   for (const comp of Object.values(components)) {
     if (comp.id === meterId) continue
-    if (comp.type === "arduino_uno" || comp.type === "wire") continue
+    if (isBoardComponentType(comp.type) || comp.type === "wire") continue
     if (comp.type === "multimeter") continue
 
     const footprint = getComponentFootprint(

@@ -173,4 +173,157 @@ describe("analyzePowerBudget", () => {
     expect(overcurrentIssues.length).toBeGreaterThan(0);
     expect(overcurrentIssues.some((issue) => issue.pin === 9)).toBe(true);
   });
+
+  test("flags direct-fanout wiring that should be rail/bus distributed", () => {
+    const board = createDefaultBoardState();
+    connect(board, "w-gnd-1", -999, -3, 5, 2);
+    connect(board, "w-gnd-2", -999, -3, 9, 2);
+    connect(board, "w-sig-1", -999, 9, 4, 2);
+    connect(board, "w-sig-2", -999, 9, 10, 2);
+
+    const report = analyzePowerBudget(board);
+    const codes = report.issues.map((i) => i.code);
+    expect(codes).toContain("PIN_DIRECT_FANOUT");
+    expect(codes).toContain("GROUND_NOT_RAIL_DISTRIBUTED");
+  });
+
+  test("does not flag external-power-required when high-current part is placed but unpowered", () => {
+    const board = createDefaultBoardState();
+    place(board, {
+      id: "seg-1",
+      type: "seven_segment",
+      name: "Seven Segment",
+      x: 2,
+      y: 5,
+      rotation: 0,
+      pins: { a: null, b: null, c: null, d: null, e: null, f: null, g: null },
+      properties: {},
+    });
+
+    const report = analyzePowerBudget(board);
+    const errorCodes = report.issues.filter((i) => i.severity === "error").map((i) => i.code);
+    expect(errorCodes).not.toContain("EXTERNAL_POWER_REQUIRED");
+  });
+
+  test("flags LCD with control wiring but missing VDD and VSS", () => {
+    const board = createDefaultBoardState();
+    place(board, {
+      id: "lcd-1",
+      type: "lcd_16x2",
+      name: "LCD",
+      x: 5,
+      y: 5,
+      rotation: 0,
+      pins: { vss: null, vdd: null, vo: null, rs: null, rw: null, e: null, d4: null, d5: null, d6: null, d7: null, a: null, k: null },
+      properties: {},
+    });
+
+    connect(board, "w-rs", -999, 12, 8, 5);
+    connect(board, "w-en", -999, 11, 10, 5);
+    connect(board, "w-d4", -999, 5, 11, 5);
+    connect(board, "w-d5", -999, 4, 12, 5);
+    connect(board, "w-d6", -999, 3, 13, 5);
+    connect(board, "w-d7", -999, 2, 14, 5);
+
+    const report = analyzePowerBudget(board);
+    const codes = report.issues.filter((i) => i.severity === "error").map((i) => i.code);
+    expect(codes).toContain("LCD_POWER_MISSING");
+    expect(codes).toContain("LCD_GROUND_MISSING");
+  });
+
+  test("flags unconnected LCD-related resistor", () => {
+    const board = createDefaultBoardState();
+    place(board, {
+      id: "lcd-1",
+      type: "lcd_16x2",
+      name: "LCD",
+      x: 5,
+      y: 5,
+      rotation: 0,
+      pins: { vss: null, vdd: null, vo: null, rs: null, rw: null, e: null, d4: null, d5: null, d6: null, d7: null, a: null, k: null },
+      properties: {},
+    });
+    place(board, {
+      id: "r-lcd-contrast",
+      type: "resistor",
+      name: "LCD_contrast_resistor",
+      x: 2,
+      y: 20,
+      rotation: 0,
+      pins: { a: null, b: null },
+      properties: { resistance: 1000 },
+    });
+
+    // Valid LCD power/ground so only resistor-specific issue is tested.
+    connect(board, "w-vdd", -999, -1, 6, 5);
+    connect(board, "w-vss", -999, -3, 5, 5);
+    connect(board, "w-rs", -999, 12, 8, 5);
+
+    const report = analyzePowerBudget(board);
+    const codes = report.issues.filter((i) => i.severity === "error").map((i) => i.code);
+    expect(codes).toContain("LCD_RESISTOR_UNCONNECTED");
+  });
+
+  test("flags button input with no opposite-side reference", () => {
+    const board = createDefaultBoardState();
+    place(board, {
+      id: "btn-1",
+      type: "button",
+      name: "Button",
+      x: 3,
+      y: 10,
+      rotation: 0,
+      pins: { a: null, b: null },
+      properties: {},
+    });
+
+    connect(board, "w-btn-signal", -999, 2, 10, 3);
+
+    const report = analyzePowerBudget(board);
+    const codes = report.issues.filter((i) => i.severity === "error").map((i) => i.code);
+    expect(codes).toContain("BUTTON_REFERENCE_MISSING");
+  });
+
+  test("flags button wired with signals on both sides", () => {
+    const board = createDefaultBoardState();
+    place(board, {
+      id: "btn-1",
+      type: "button",
+      name: "Button",
+      x: 3,
+      y: 10,
+      rotation: 0,
+      pins: { a: null, b: null },
+      properties: {},
+    });
+
+    connect(board, "w-btn-signal-a", -999, 2, 10, 3);
+    connect(board, "w-btn-signal-b", -999, 4, 11, 6);
+
+    const report = analyzePowerBudget(board);
+    const codes = report.issues.filter((i) => i.severity === "error").map((i) => i.code);
+    expect(codes).toContain("BUTTON_SIGNAL_BOTH_SIDES");
+  });
+
+  test("accepts button with opposite-side ground reference", () => {
+    const board = createDefaultBoardState();
+    place(board, {
+      id: "btn-1",
+      type: "button",
+      name: "Button",
+      x: 3,
+      y: 10,
+      rotation: 0,
+      pins: { a: null, b: null },
+      properties: {},
+    });
+
+    connect(board, "w-btn-signal", -999, 2, 10, 3);
+    connect(board, "w-btn-gnd", -999, -3, 11, 6);
+
+    const report = analyzePowerBudget(board);
+    const codes = report.issues.filter((i) => i.severity === "error").map((i) => i.code);
+    expect(codes).not.toContain("BUTTON_REFERENCE_MISSING");
+    expect(codes).not.toContain("BUTTON_SIGNAL_BOTH_SIDES");
+  });
 });

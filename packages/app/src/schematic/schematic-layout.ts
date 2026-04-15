@@ -3,7 +3,14 @@
 // Converts board state (components + wires) into a schematic layout
 // with positioned nodes and edges for SVG rendering.
 
-import type { BoardComponent, Wire } from "@dreamer/schemas"
+import {
+  DEFAULT_BOARD_TARGET,
+  formatArduinoPin,
+  isBoardComponentType,
+  type BoardComponent,
+  type BoardTarget,
+  type Wire,
+} from "@dreamer/schemas"
 import { resolveNets, getComponentFootprint } from "@/breadboard/breadboard-grid"
 import type { SchematicSymbolType } from "./schematic-symbols"
 import { getComponentDef } from "@/components/registry"
@@ -63,9 +70,13 @@ function getPowerLabel(pin: number): string {
   return "VCC"
 }
 
-function getDigitalPinLabel(pin: number): string {
-  if (pin >= 14) return `A${pin - 14}`
-  return `D${pin}`
+function detectBoardTarget(components: BoardComponent[]): BoardTarget {
+  for (const component of components) {
+    if (component.type === "arduino_uno" || component.type === "arduino_nano" || component.type === "arduino_mega_2560") {
+      return component.type
+    }
+  }
+  return DEFAULT_BOARD_TARGET
 }
 
 // ── Layout Generation ──────────────────────────────────────────────────
@@ -80,10 +91,12 @@ export function generateSchematicLayout(
 ): SchematicLayout {
   const nodes: SchematicNode[] = []
   const edges: SchematicEdge[] = []
+  const allComponents = Object.values(components)
+  const boardTarget = detectBoardTarget(allComponents)
 
   // 1. Filter circuit components (not arduino_uno or wire)
-  const circuitComponents = Object.values(components).filter(
-    (c) => c.type !== "arduino_uno" && c.type !== "wire",
+  const circuitComponents = allComponents.filter(
+    (c) => !isBoardComponentType(c.type) && c.type !== "wire",
   )
 
   if (circuitComponents.length === 0) {
@@ -132,7 +145,7 @@ export function generateSchematicLayout(
       type: "arduino_pin",
       x: PADDING + col * HORIZONTAL_SPACING,
       y: PADDING + signalRow * VERTICAL_SPACING,
-      label: getDigitalPinLabel(pin),
+      label: formatArduinoPin(pin, boardTarget),
       arduinoPin: pin,
     })
     signalRow++

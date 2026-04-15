@@ -3,7 +3,13 @@
 // Converts board state (components, wires, pin states) into a SPICE
 // netlist string that can be fed to `spicey.simulate()`.
 
-import type { BoardComponent, Wire, PinState } from "@dreamer/schemas"
+import {
+  MAX_ARDUINO_PIN,
+  isBoardComponentType,
+  type BoardComponent,
+  type Wire,
+  type PinState,
+} from "@dreamer/schemas"
 import {
   resolveNets,
   getComponentFootprint,
@@ -84,25 +90,17 @@ export function buildNetlist(
     }
   }
 
-  // Build a set of component types per net for topology-based inference
-  const netComponentTypes = new Map<string, Set<string>>()
+  // Track which nets touch any component footprint so we can identify floating
+  // component nets and add bleed resistors for solver stability.
+  const componentNets = new Set<string>()
   for (const comp of Object.values(components)) {
-    if (comp.type === "arduino_uno" || comp.type === "wire") continue
+    if (isBoardComponentType(comp.type) || comp.type === "wire") continue
     const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties)
     for (const pt of footprint.points) {
       const nid = pointToNetId.get(pointKey(pt))
-      if (nid) {
-        if (!netComponentTypes.has(nid)) netComponentTypes.set(nid, new Set())
-        netComponentTypes.get(nid)!.add(comp.type)
-      }
+      if (nid) componentNets.add(nid)
     }
   }
-
-  // Output component types — if one of these is on a net with a digital pin,
-  // infer the pin is OUTPUT HIGH when the sketch isn't running
-  const OUTPUT_COMPONENT_TYPES = new Set([
-    "led", "rgb_led", "buzzer", "servo", "dc_motor", "relay", "neopixel",
-  ])
 
   for (const net of nets) {
     for (const arduinoPin of net.arduinoPins) {
@@ -121,7 +119,7 @@ export function buildNetlist(
       } else if (arduinoPin === -6) {
         // Second GND
         groundNetIds.add(net.id)
-      } else if (arduinoPin >= 0 && arduinoPin <= 19) {
+      } else if (arduinoPin >= 0 && arduinoPin <= MAX_ARDUINO_PIN) {
         // Digital/analog pin — check pin state from simulation
         const ps = pinStates[arduinoPin]
         if (ps && ps.mode === "OUTPUT") {
@@ -144,21 +142,7 @@ export function buildNetlist(
             groundNetIds.add(net.id)
           }
         } else if (!ps || ps.mode === "UNSET") {
-          // Sketch is NOT running — infer pin direction from wire topology.
-          // If this net contains an output component (LED, buzzer, etc.),
-          // assume the pin is driving it at 5V so the circuit analysis works
-          // even before the user clicks Run.
-          const compTypes = netComponentTypes.get(net.id)
-          if (compTypes) {
-            const hasOutputComponent = [...compTypes].some((t) => OUTPUT_COMPONENT_TYPES.has(t))
-            if (hasOutputComponent) {
-              voltageSourceNets.push({
-                label: `V_D${arduinoPin}`,
-                netId: net.id,
-                voltage: 5,
-              })
-            }
-          }
+          // UNSET pins are high-impedance by default: do not source/sink.
         }
       }
     }
@@ -193,7 +177,7 @@ export function buildNetlist(
   for (const net of nets) {
     if (groundNetIds.has(net.id)) continue
     if (voltageSourceNetIds.has(net.id)) continue
-    if (!netComponentTypes.has(net.id)) continue
+    if (!componentNets.has(net.id)) continue
     // Use the net's first point to look up its SPICE node name.
     const representativeKey = pointKey(net.points[0])
     const nodeName = nodeMap.get(representativeKey)
@@ -221,7 +205,7 @@ export function buildNetlist(
 
   // Build component elements
   for (const comp of Object.values(components)) {
-    if (comp.type === "arduino_uno" || comp.type === "wire") continue
+    if (isBoardComponentType(comp.type) || comp.type === "wire") continue
 
     const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties)
     const def = getComponentDef(comp.type)

@@ -139,6 +139,11 @@ export type ElectricalAnalysis = {
   pinOvercurrent: number
   railOvercurrent: number
   missingExternalSupply: number
+  maxPinFanout: number
+  pinsOverDirectFanout: number
+  directGroundCount: number
+  directPowerCount: number
+  railDistributionViolations: number
   errors: number
   warnings: number
   issues: string[]
@@ -193,7 +198,12 @@ export type RoutingRecord = {
 export type RunEval = {
   runId: string
   evaluatedAt: string
+  runCreatedAt: string
+  runCompletedAt?: string
+  runDurationMs?: number
   agent: string
+  /** Agent architecture version stamped at run creation time (from version.ts). */
+  agentVersion: string
   prompt: string
   status: string
   /** Whether this run can be scored at all. */
@@ -215,6 +225,11 @@ export type RunEval = {
   graph: GraphAnalysis
   /** Populated only when board ops exist (breadboard/template/mixed). */
   electrical: ElectricalAnalysis
+  intent: {
+    intentSatisfied: boolean
+    repeatedToolFailureLoops: number
+    partialSuccessWithoutIntent: boolean
+  }
   /** Null when not evaluable — callers should skip null scores in aggregates. */
   score: {
     total: number
@@ -294,7 +309,8 @@ export type RunFile = {
     status: string
     parentRunId?: string
     createdAt: string
-    updatedAt: string
+    updatedAt?: string
+    completedAt?: string
   }
   prompt: string
   messages: Array<{

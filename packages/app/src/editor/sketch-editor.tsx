@@ -3,7 +3,8 @@
 // CodeMirror 6 editor for Arduino sketches with syntax highlighting,
 // Arduino-specific autocomplete, and a custom linter.
 
-import React, { useRef, useEffect, useCallback } from "react"
+import React, { useRef, useEffect, useCallback, useState } from "react"
+import { ExampleButton } from "./example-button"
 import {
   EditorView,
   keymap,
@@ -41,7 +42,10 @@ import { useBoard } from "@/store/board-context"
 import { simulationRef } from "@/simulator/simulation-ref"
 import { saveRef, editorContentRef } from "@/project/save-ref"
 import { transpileErrorRef } from "@/simulator/transpile-error-ref"
+import { sketchSizeRef } from "@/simulator/sketch-size-ref"
+import { resetAllCapVoltages } from "@/simulator/capacitor-state"
 import { useElectricalReport } from "@/electrical/power-budget"
+import { DEFAULT_BOARD_TARGET } from "@dreamer/schemas"
 
 // ── 1. Syntax Highlighting Colors (VS Code Dark+ inspired) ─────────────────
 
@@ -179,7 +183,36 @@ const darkTheme = EditorView.theme(
   { dark: true },
 )
 
+const OUTPUT_HEIGHT_STORAGE_KEY = "dreamer:sketch-output-height"
+const OUTPUT_MIN_HEIGHT = 96
+const OUTPUT_DEFAULT_HEIGHT = 144
+const OUTPUT_EXPANDED_HEIGHT = 256
+const OUTPUT_MAX_HEIGHT = 520
+
+function clampOutputHeight(height: number): number {
+  return Math.max(OUTPUT_MIN_HEIGHT, Math.min(OUTPUT_MAX_HEIGHT, Math.round(height)))
+}
+
+function loadStoredOutputHeight(): number {
+  if (typeof window === "undefined") return OUTPUT_DEFAULT_HEIGHT
+  const raw = window.localStorage.getItem(OUTPUT_HEIGHT_STORAGE_KEY)
+  if (!raw) return OUTPUT_DEFAULT_HEIGHT
+  const parsed = Number(raw)
+  if (!Number.isFinite(parsed)) return OUTPUT_DEFAULT_HEIGHT
+  return clampOutputHeight(parsed)
+}
+
+function persistOutputHeight(height: number): void {
+  if (typeof window === "undefined") return
+  window.localStorage.setItem(OUTPUT_HEIGHT_STORAGE_KEY, String(clampOutputHeight(height)))
+}
+
 // ── Component ─────────────────────────────────────────────────────────────
+
+function ts() {
+  const d = new Date()
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`
+}
 
 function SketchEditorInner() {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -187,6 +220,8 @@ function SketchEditorInner() {
   const isExternalUpdate = useRef(false)
 
   const { state: boardState, send } = useBoard()
+  const boardTargetRef = useRef(boardState.boardTarget ?? DEFAULT_BOARD_TARGET)
+  boardTargetRef.current = boardState.boardTarget ?? DEFAULT_BOARD_TARGET
   const electrical = useElectricalReport()
 
   // Use the shared simulation from PlayControls (not a separate instance)
@@ -197,6 +232,11 @@ function SketchEditorInner() {
     return () => clearInterval(id)
   }, [])
   const sim = simulationRef.current ?? { status: "stopped" as const, error: null, play: () => {}, pause: () => {}, resume: () => {}, stop: () => {}, sendSerialInput: () => {}, vm: null }
+  const transpileErr = transpileErrorRef.current
+  const sketchSize = sketchSizeRef.current
+  const [outputHeight, setOutputHeight] = useState(loadStoredOutputHeight)
+  const resizeStartYRef = useRef(0)
+  const resizeStartHeightRef = useRef(OUTPUT_DEFAULT_HEIGHT)
 
   const lastCodeRef = useRef(boardState.sketchCode)
   lastCodeRef.current = boardState.sketchCode
@@ -255,7 +295,7 @@ function SketchEditorInner() {
         }),
 
         // ── Linting ──
-        linter(arduinoLinter),
+        linter((view) => arduinoLinter(view, boardTargetRef.current)),
 
         // ── Keymaps ──
         keymap.of([
@@ -338,6 +378,7 @@ function SketchEditorInner() {
 
   const handleStop = useCallback(() => {
     sim.stop()
+    resetAllCapVoltages()
     send({ type: "RESET_PINS" } as never)
   }, [sim, send])
 
@@ -345,6 +386,42 @@ function SketchEditorInner() {
   const isPaused = sim.status === "paused"
   const isCompiling = sim.status === "compiling"
   const isStopped = sim.status === "stopped"
+  const electricalErrors = electrical.issues.filter((i) => i.severity === "error")
+  const outputHasErrors = Boolean(sim.error || transpileErr || electricalErrors.length > 0)
+
+  const handleResizeStart = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    resizeStartYRef.current = e.clientY
+    resizeStartHeightRef.current = outputHeight
+    document.body.style.cursor = "row-resize"
+    document.body.style.userSelect = "none"
+    let latestHeight = outputHeight
+
+    const onPointerMove = (ev: PointerEvent) => {
+      const deltaY = ev.clientY - resizeStartYRef.current
+      latestHeight = clampOutputHeight(resizeStartHeightRef.current - deltaY)
+      setOutputHeight(latestHeight)
+    }
+
+    const onPointerUp = () => {
+      document.body.style.cursor = ""
+      document.body.style.userSelect = ""
+      window.removeEventListener("pointermove", onPointerMove)
+      window.removeEventListener("pointerup", onPointerUp)
+      persistOutputHeight(latestHeight)
+    }
+
+    window.addEventListener("pointermove", onPointerMove)
+    window.addEventListener("pointerup", onPointerUp)
+  }, [outputHeight])
+
+  const handleToggleOutputSize = useCallback(() => {
+    setOutputHeight((prev) => {
+      const next = prev < OUTPUT_EXPANDED_HEIGHT ? OUTPUT_EXPANDED_HEIGHT : OUTPUT_DEFAULT_HEIGHT
+      persistOutputHeight(next)
+      return next
+    })
+  }, [])
 
   return (
     <div className="flex h-full w-full flex-col bg-[#1e1e1e]">
@@ -410,10 +487,85 @@ function SketchEditorInner() {
             Electrical issue blocks Run: {electrical.issues.find((i) => i.severity === "error")?.message}
           </span>
         )}
+
+        {/* Spacer pushes Example button to the right */}
+        <div className="flex-1" />
+
+        <ExampleButton />
       </div>
 
       {/* Editor container */}
       <div ref={containerRef} className="min-h-0 flex-1" />
+
+      {/* Code output window */}
+      <div className="border-t border-neutral-700 bg-[#161616]" style={{ height: `${outputHeight}px` }}>
+        <div
+          onPointerDown={handleResizeStart}
+          className="h-1 cursor-row-resize bg-neutral-800 hover:bg-neutral-700"
+          title="Drag to resize output panel"
+        />
+        <div className="flex items-center justify-between border-b border-neutral-800 px-3 py-1.5">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-300">Code Output</span>
+          <div className="flex items-center gap-3">
+            {outputHasErrors ? (
+              <span className="text-[10px] text-red-400">errors</span>
+            ) : (
+              <span className="text-[10px] text-neutral-500">no errors</span>
+            )}
+            <button
+              type="button"
+              onClick={handleToggleOutputSize}
+              className="rounded px-1.5 py-0.5 text-[10px] text-neutral-300 hover:bg-neutral-700"
+            >
+              {outputHeight < OUTPUT_EXPANDED_HEIGHT ? "Expand" : "Default"}
+            </button>
+          </div>
+        </div>
+        <div className="h-[calc(100%-29px)] overflow-auto whitespace-pre-wrap break-words px-3 py-2 font-mono text-[11px] leading-5">
+          {!outputHasErrors && (
+            <div className="text-neutral-500">Build and runtime messages will appear here.</div>
+          )}
+
+          {transpileErr && (
+            <div className="text-red-400">
+              <span className="text-neutral-600">{ts()}</span>{" "}
+              <span className="text-red-300">[TRANSPILER]</span>{" "}
+              {`line ${transpileErr.line}: ${transpileErr.message}`}
+            </div>
+          )}
+
+          {sim.error && (
+            <div className="text-red-400">
+              <span className="text-neutral-600">{ts()}</span>{" "}
+              <span className="text-red-300">[SIMULATION]</span>{" "}
+              {sim.error}
+            </div>
+          )}
+
+          {electricalErrors.map((issue) => (
+            <div key={`${issue.code}-${issue.componentId ?? ""}-${issue.pin ?? ""}`} className="text-red-400">
+              <span className="text-neutral-600">{ts()}</span>{" "}
+              <span className="text-red-300">[ELECTRICAL]</span>{" "}
+              {issue.message}
+            </div>
+          ))}
+
+          {sketchSize && !outputHasErrors && (
+            <div className="mt-1 space-y-0.5 text-neutral-400">
+              <div>
+                <span className="text-neutral-600">{ts()}</span>{" "}
+                <span className="text-neutral-500">{sketchSize.source === "actual" ? "[COMPILER]" : "[ESTIMATE]"}</span>{" "}
+                Sketch uses <span className="text-neutral-200">{sketchSize.flashUsed.toLocaleString()}</span> bytes ({sketchSize.flashPercent}%) of program storage space. Maximum is {sketchSize.flashMax.toLocaleString()} bytes.
+              </div>
+              <div>
+                <span className="text-neutral-600">{ts()}</span>{" "}
+                <span className="text-neutral-500">{sketchSize.source === "actual" ? "[COMPILER]" : "[ESTIMATE]"}</span>{" "}
+                Global variables use <span className="text-neutral-200">{sketchSize.ramUsed.toLocaleString()}</span> bytes ({sketchSize.ramPercent}%) of dynamic memory, leaving {(sketchSize.ramMax - sketchSize.ramUsed).toLocaleString()} bytes for local variables. Maximum is {sketchSize.ramMax.toLocaleString()} bytes.
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { ProjectFile } from "../../db/schemas";
 import type { AgentKind } from "../../db/schemas";
 import type { BoardOp, BoardState } from "@dreamer/schemas";
-import { createDefaultBoardState } from "@dreamer/schemas";
+import { createDefaultBoardState, resolveComponentPins, resolveComponentPin, getComponentPinNames as getSharedPinNames } from "@dreamer/schemas";
 import { agentRunRepo } from "../../db/agent-run-repo";
 import { boardTracker } from "../../db/board-state-tracker";
 import { makeBoardOp } from "../make-op";
@@ -39,6 +39,22 @@ const ALL_COMPONENT_TYPES = [
   "neopixel", "pir_sensor", "relay", "dc_motor", "dht_sensor",
   "ir_receiver", "shift_register", "oled_display",
 ] as const;
+
+// Pin names and pin-to-grid resolution now come from the shared canonical
+// resolver in @dreamer/schemas/component-pins.ts. This ensures agreement
+// between propose_circuit wire generation, power-budget-analyzer validation,
+// and frontend breadboard-grid connectivity.
+
+function getComponentPinNames(type: string): string[] {
+  return getSharedPinNames(type);
+}
+
+function resolveComponentPinTarget(
+  component: { type: string; x: number; y: number },
+  pinName: string,
+): { row: number; col: number } | null {
+  return resolveComponentPin(component.type, component.y, component.x, pinName);
+}
 
 // ── Board state summary for system prompt injection ─────────────────────
 
@@ -126,6 +142,19 @@ export function summarizeBoardState(project: ProjectFile): string {
 
 // ── Delegation tool factory ─────────────────────────────────────────────
 
+/** Detect transient errors that are safe to retry (network, timeout, rate limit). */
+function isTransientError(err: unknown): boolean {
+  if (err instanceof Error) {
+    const msg = err.message.toLowerCase();
+    if (msg.includes("timeout") || msg.includes("timed out")) return true;
+    if (msg.includes("econnreset") || msg.includes("econnrefused")) return true;
+    if (msg.includes("rate limit") || msg.includes("429")) return true;
+    if (msg.includes("503") || msg.includes("overloaded")) return true;
+    if (msg.includes("abort")) return true;
+  }
+  return false;
+}
+
 function makeDelegationTool(
   agentName: AgentKind,
   runner: AgentRunner,
@@ -185,87 +214,113 @@ function makeDelegationTool(
         prompt: input.task,
         agent: agentName,
         parentRunId: delegation.parentRunId,
+        snapshotVersion: delegation.snapshotVersion,
       });
       await agentRunRepo.attachRunToThread(delegation.threadId, childRun.run.id);
 
-      try {
-        // Pass the parent's current working project so the specialist sees
-        // any tentative mutations the parent has already made this turn.
-        const workingProject = delegation.getWorkingProject();
-        const result = await runner({
-          prompt: input.task,
-          project: workingProject,
-          sceneId: delegation.sceneId,
-          runId: childRun.run.id,
-          threadId: delegation.threadId,
-          projectId: delegation.projectId,
-          sessionId: delegation.sessionId,
-          parentLog: log,
-          // Share the parent's workingBoard + ops with the circuit specialist
-          // so mutations flow through one tool layer, one contract.
-          sharedWorkingBoard,
-          sharedOps: sharedWorkingBoard ? ops : undefined,
-        });
+      // Retry with exponential backoff for transient errors (max 2 retries).
+      const MAX_RETRIES = 2;
+      let lastError: unknown = null;
 
-        // When not sharing state, the specialist returns its own ops; append
-        // them. When sharing, ops are already in the parent's array.
-        if (!sharedWorkingBoard) {
-          for (const op of result.proposedOps) {
-            ops.push(op);
-          }
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        if (attempt > 0) {
+          const backoffMs = Math.min(1000 * Math.pow(2, attempt - 1), 4000);
+          log.info(`retrying ${agentName} agent (attempt ${attempt + 1}/${MAX_RETRIES + 1}) after ${backoffMs}ms backoff`);
+          await new Promise((resolve) => setTimeout(resolve, backoffMs));
         }
 
-        // Record this child's cost for roll-up into the parent's tokenUsage
-        delegation.childUsage.push({
-          agent: agentName,
-          runId: childRun.run.id,
-          inputTokens: result.tokenUsage.inputTokens,
-          outputTokens: result.tokenUsage.outputTokens,
-          totalTokens: result.tokenUsage.totalTokens,
-          model: result.tokenUsage.model,
-        });
+        try {
+          const workingProject = delegation.getWorkingProject();
+          const result = await runner({
+            prompt: input.task,
+            project: workingProject,
+            sceneId: delegation.sceneId,
+            runId: childRun.run.id,
+            threadId: delegation.threadId,
+            projectId: delegation.projectId,
+            sessionId: delegation.sessionId,
+            snapshotVersion: delegation.snapshotVersion,
+            parentLog: log,
+            sharedWorkingBoard,
+            sharedOps: sharedWorkingBoard ? ops : undefined,
+          });
 
-        await agentRunRepo.completeRun({
-          runId: childRun.run.id,
-          assistantText: result.assistantText,
-          messages: result.messages,
-          proposedOps: result.proposedOps,
-          appliedOps: [],
-          tokenUsage: result.tokenUsage,
-        });
+          if (!sharedWorkingBoard) {
+            for (const op of result.proposedOps) {
+              ops.push(op);
+            }
+          }
 
-        log.info(
-          `${agentName} agent returned — ${result.proposedOps.length} ops, text: ${result.assistantText.slice(0, 80)}`
-        );
+          delegation.childUsage.push({
+            agent: agentName,
+            runId: childRun.run.id,
+            inputTokens: result.tokenUsage.inputTokens,
+            outputTokens: result.tokenUsage.outputTokens,
+            totalTokens: result.tokenUsage.totalTokens,
+            model: result.tokenUsage.model,
+          });
 
-        return {
-          assistantText: result.assistantText,
-          opsCount: result.proposedOps.length,
-          tokenUsage: result.tokenUsage,
-        };
-      } catch (err) {
-        log.error(`${agentName} agent failed`, err);
-        // Record the failure so the parent's roll-up still surfaces it
-        delegation.childUsage.push({
-          agent: agentName,
-          runId: childRun.run.id,
-          inputTokens: 0,
-          outputTokens: 0,
-          totalTokens: 0,
-          model: "unknown",
-          error: err instanceof Error ? err.message : String(err),
-        });
-        await agentRunRepo.completeRun({
-          runId: childRun.run.id,
-          proposedOps: [],
-          appliedOps: [],
-          error: String(err),
-        }).catch((e) => log.warn(`failed to mark ${agentName} run as errored: ${e}`));
-        return {
-          error: `${agentName} agent failed: ${err instanceof Error ? err.message : String(err)}`,
-          opsCount: 0,
-        };
+          await agentRunRepo.completeRun({
+            runId: childRun.run.id,
+            assistantText: result.assistantText,
+            messages: result.messages,
+            proposedOps: result.proposedOps,
+            appliedOps: [],
+            tokenUsage: result.tokenUsage,
+          });
+
+          log.info(
+            `${agentName} agent returned — ${result.proposedOps.length} ops, text: ${result.assistantText.slice(0, 80)}`
+          );
+
+          return {
+            assistantText: result.assistantText,
+            opsCount: result.proposedOps.length,
+            tokenUsage: result.tokenUsage,
+          };
+        } catch (err) {
+          lastError = err;
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          const isTransient = isTransientError(err);
+
+          if (isTransient && attempt < MAX_RETRIES) {
+            log.warn(`${agentName} agent transient error (attempt ${attempt + 1}): ${errorMsg}`);
+            continue;
+          }
+
+          // Hard fail or retries exhausted — return structured fallback
+          log.error(`${agentName} agent failed after ${attempt + 1} attempt(s)`, err);
+          delegation.childUsage.push({
+            agent: agentName,
+            runId: childRun.run.id,
+            inputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0,
+            model: "unknown",
+            error: errorMsg,
+          });
+          await agentRunRepo.completeRun({
+            runId: childRun.run.id,
+            proposedOps: [],
+            appliedOps: [],
+            error: errorMsg,
+          }).catch((e) => log.warn(`failed to mark ${agentName} run as errored: ${e}`));
+
+          // Structured fallback: return partial result + structured error
+          // instead of throwing, so the parent agent can continue gracefully.
+          return {
+            error: `${agentName} agent failed: ${errorMsg}`,
+            opsCount: 0,
+            partialResult: true,
+            retriesAttempted: attempt,
+            suggestion: `The ${agentName} specialist couldn't complete this task. You can try the operation manually using the granular tools.`,
+          };
+        }
       }
+
+      // Should never reach here, but satisfy TypeScript
+      const fallbackMsg = lastError instanceof Error ? lastError.message : String(lastError);
+      return { error: `${agentName} agent exhausted retries: ${fallbackMsg}`, opsCount: 0, partialResult: true }
     },
   });
 }
@@ -298,6 +353,8 @@ const BUILD_MODE_TOOLS = new Set([
   "analyze_power_budget",
   "get_wiring_guide",
   "propose_circuit",
+  "update_sketch",
+  "patch_sketch",
   "delegate_to_graph_agent",
   "delegate_to_circuit_agent",
 ])
@@ -367,6 +424,56 @@ export function createCoreTools(params: {
   const workingBoard: BoardState = params.workingBoard ?? structuredClone(
     trackedBoard ?? project.boardState ?? createDefaultBoardState()
   );
+  const MAX_SKETCH_FIX_FAILURES = 2;
+  const MAX_CONSECUTIVE_SAME_LIMITATION_FAILURES = 2;
+  let sketchFixValidationFailures = 0;
+  let sketchRecoveryRequiredInBuild = false;
+  /** Set to true when sketch recovery is exhausted — signals the agent to abandon and explain. */
+  let sketchRecoveryAbandoned = false;
+  let lastSketchFailureClass: "pointer_reference" | "array_initializer" | "unsupported_feature" | "other" | null = null;
+  let consecutiveSameSketchFailureClass = 0;
+
+  function formatSketchError(check: { error?: string; line?: number }): string {
+    return `${check.error}${check.line ? ` (line ${check.line})` : ""}`;
+  }
+
+  function classifySketchFailure(check: { error?: string }): "pointer_reference" | "array_initializer" | "unsupported_feature" | "other" {
+    const msg = (check.error ?? "").toLowerCase();
+    if (
+      msg.includes("pass-by-reference") ||
+      /\bpointer\b/.test(msg) ||
+      msg.includes("->")
+    ) {
+      return "pointer_reference";
+    }
+    if (
+      msg.includes("unexpected identifier") ||
+      msg.includes("must have an initializer")
+    ) {
+      return "array_initializer";
+    }
+    if (msg.includes("not supported") || msg.includes("unsupported")) {
+      return "unsupported_feature";
+    }
+    return "other";
+  }
+
+  function noteSketchFailureClass(check: { error?: string }): "pointer_reference" | "array_initializer" | "unsupported_feature" | "other" {
+    const failureClass = classifySketchFailure(check);
+    if (failureClass === lastSketchFailureClass) {
+      consecutiveSameSketchFailureClass += 1;
+    } else {
+      lastSketchFailureClass = failureClass;
+      consecutiveSameSketchFailureClass = 1;
+    }
+    return failureClass;
+  }
+
+  function clearSketchFailureTracking(): void {
+    sketchFixValidationFailures = 0;
+    lastSketchFailureClass = null;
+    consecutiveSameSketchFailureClass = 0;
+  }
 
   const allTools = {
     // ── Read ────────────────────────────────────────────────────────
@@ -465,22 +572,27 @@ export function createCoreTools(params: {
         guide: `## Wiring Rules
 - ALL connections come from WIRES, not pin assignments. Set all component pins to null.
 - Same-row cols 0-4 are connected (left bus). Same-row cols 5-9 are connected (right bus). No wire needed within a bus.
-- LED: always add 220Ω resistor. Place LED at col 2 row N, resistor at col 3 row N+1 (cathode row). Wire pin→(N,2), GND→(N+1,7). Cathode and resistor share left bus.
+- Use ONE direct wire per Arduino pin. If a net fans out (multiple loads), land one wire on a breadboard row/rail and branch from there.
+- LED: always add 220Ω resistor. Use ledResistorPairs in propose_circuit — auto-wires cathode→resistor→GND.
+- **Series resistors** (7-segment, etc.): Use throughComponent in propose_circuit wires. Example: {arduinoPin:2, toComponent:0, toPin:"a", throughComponent:1, throughEntryPin:"b", throughExitPin:"a"}. The tool auto-places the resistor on the same row as the target pin.
 - 3-pin components (servo/pot/sensor): each pin on a SEPARATE ROW or they short via bus. Wire signal→(row,x), 5V→(row+1,x), GND→(row+2,x).
-- High-current loads (servo, motor, relay, large LED arrays) should use external power_supply with common ground to Arduino GND.
-- power_supply (MB102) anchors on fixed rail columns, not component.x:
-  top row y: left+=(-2), left-=(-1), right-=(10), right+=(11)
-  bottom row y+1: left+=(-2), left-=(-1), right-=(10), right+=(11)
-- Resistor spans 5 cols: place at col 3 to bridge gap (pinA at col 3, pinB at col 7).
+- Button: straddles center gap. Pin "a" at col 3, pin "b" at col 6. Wire signal to one side, GND/5V to the other.
+- High-current loads (servo, motor, relay) should use external power_supply with common ground.
+- For shared GND or shared power, prefer rail distribution: Arduino GND/5V → rail once, then rail → each component.
+- Resistor: always at cols 3 (pin a) and 6 (pin b), bridging the center gap. Placement col is ignored.
 
 ## Footprints
-LED: 2 rows vertical (anode y, cathode y+1) | Resistor: 5 cols horizontal (a at x, b at x+4) | Button: cols 3,6 rows y,y+1 | Servo/Pot: 3 rows (signal, vcc, gnd) | Capacitor: 3 rows (pos, neg)
+LED: 2 rows vertical (anode y, cathode y+1) | Resistor: horizontal at cols 3,6 (a=col3, b=col6) | Button: cols 3,6 rows y,y+1 (a=col3, b=col6) | Servo/Pot: 3 rows | 7-seg: 7 rows (a-g) | Capacitor: 2 rows
 
 ## Pin Names
-LED: anode,cathode | RGB: red,green,blue,common | Button: a,b | Resistor: a,b | Capacitor: positive,negative | Pot: vcc,signal,gnd | Buzzer: positive,negative | Servo: signal,vcc,gnd | NeoPixel: din | PIR/DHT/IR: signal | Relay/Motor: signal | ShiftReg: data,clock,latch | OLED: sda,scl | LCD: rs,en,d4,d5,d6,d7 | 7seg: a,b,c,d,e,f,g
+LED: anode,cathode | RGB: red,green,blue,common | Button: a,b | Resistor: a,b | Capacitor: positive,negative | Pot: vcc,signal,gnd | Buzzer: positive,negative | Servo: signal,vcc,gnd | NeoPixel: din,vcc,gnd | PIR/DHT/IR: signal | Relay/Motor: signal | ShiftReg: data,clock,latch | OLED: gnd,vcc,scl,sda | LCD: vss,vdd,vo,rs,rw,en,d4,d5,d6,d7,a,k | 7seg: a,b,c,d,e,f,g,common
 
 ## Arduino Pins
-Digital: D0-D13 | Analog: A0-A5 (=D14-19) | PWM: D3,5,6,9,10,11 | I2C: A4(SDA), A5(SCL)`,
+Board target: arduino_uno
+Signal pin IDs: 0-69 (board-dependent)
+Analog pins: A0=14, A1=15, A2=16, A3=17, A4=18, A5=19
+PWM pins: D3,D5,D6,D9,D10,D11
+Special wire pin IDs: 5V=-1, 3V3=-2, GND=-3/-4/-6, VIN=-5, AREF=-7`,
       }),
     }),
 
@@ -671,10 +783,11 @@ Digital: D0-D13 | Analog: A0-A5 (=D14-19) | PWM: D3,5,6,9,10,11 | I2C: A4(SDA), 
     }),
 
     wire_component_to_pin: tool({
-      description: "Wire a component to an Arduino pin by component ID. Resolves coordinates automatically.",
+      description: "Wire a specific logical component pin to an Arduino pin by component ID.",
       inputSchema: z.object({
         componentId: z.string(),
         arduinoPin: z.number().describe("Pin# (-1=5V, -3=GND, 0-19=digital/analog)"),
+        componentPin: z.string().describe("Logical pin name on the component, e.g. anode/cathode, a/b, signal/vcc/gnd."),
         color: z.string().optional(),
       }),
       execute: async (input) => {
@@ -683,18 +796,36 @@ Digital: D0-D13 | Analog: A0-A5 (=D14-19) | PWM: D3,5,6,9,10,11 | I2C: A4(SDA), 
           return { error: `Component ${input.componentId} not found.` };
         }
 
+        const allowedPins = getComponentPinNames(comp.type);
+        if (allowedPins.length === 0) {
+          return { error: `Component type "${comp.type}" does not expose logical pins for wire_component_to_pin.` };
+        }
+        if (!allowedPins.includes(input.componentPin)) {
+          return {
+            error: `Invalid pin "${input.componentPin}" for ${comp.type}. Allowed: ${allowedPins.join(", ")}`,
+          };
+        }
+        const target = resolveComponentPinTarget(comp, input.componentPin);
+        if (!target) {
+          return { error: `Unable to resolve pin target for ${comp.type}.${input.componentPin}` };
+        }
+
         const wireId = crypto.randomUUID();
         const wire = {
           id: wireId,
           fromRow: -999,
           fromCol: input.arduinoPin,
-          toRow: comp.y,
-          toCol: comp.x,
+          toRow: target.row,
+          toCol: target.col,
           color: input.color ?? "#22c55e",
         };
         ops.push(makeBoardOp(opCtx, { kind: "connect_wire", payload: { wire } }));
         workingBoard.wires[wireId] = wire;
-        return { wireId, from: `Arduino pin ${input.arduinoPin}`, to: `${comp.name} at row=${comp.y} col=${comp.x}` };
+        return {
+          wireId,
+          from: `Arduino pin ${input.arduinoPin}`,
+          to: `${comp.name}.${input.componentPin} at row=${target.row} col=${target.col}`,
+        };
       },
     }),
 
@@ -778,10 +909,43 @@ Digital: D0-D13 | Analog: A0-A5 (=D14-19) | PWM: D3,5,6,9,10,11 | I2C: A4(SDA), 
         code: z.string(),
       }),
       execute: async (input) => {
+        if (sketchRecoveryAbandoned) {
+          return {
+            error: "Sketch recovery is already abandoned for this run. Do not retry update_sketch.",
+            blocked: true,
+            abandoned: true,
+            failureKind: "sketch_fix_attempt_limit",
+            nextStep: "STOP retrying sketch fixes in this run. Explain the transpiler limitation and ask for a simpler/manual sketch.",
+          };
+        }
         const check = validateSketch(input.code);
         if (!check.valid) {
-          return { error: `Sketch has errors: ${check.error}${check.line ? ` (line ${check.line})` : ""}. Fix the code and retry.` };
+          const failureClass = noteSketchFailureClass(check);
+          sketchFixValidationFailures += 1;
+          if (
+            sketchFixValidationFailures >= MAX_SKETCH_FIX_FAILURES ||
+            consecutiveSameSketchFailureClass >= MAX_CONSECUTIVE_SAME_LIMITATION_FAILURES
+          ) {
+            sketchRecoveryAbandoned = true;
+            sketchRecoveryRequiredInBuild = mode === "build";
+            return {
+              error: `Sketch fix attempt budget exceeded (${MAX_SKETCH_FIX_FAILURES}). Last error: ${formatSketchError(check)}.`,
+              blocked: true,
+              abandoned: true,
+              failureKind: "sketch_fix_attempt_limit",
+              limiter: `repeated_${failureClass}`,
+              nextStep: "STOP trying to fix the sketch. Explain to the user what went wrong and what they can try manually.",
+            };
+          }
+          return {
+            error: `Sketch has errors: ${formatSketchError(check)}. Fix the code and retry.`,
+            failureKind: "sketch_validation",
+            attemptsRemaining: MAX_SKETCH_FIX_FAILURES - sketchFixValidationFailures,
+          };
         }
+        clearSketchFailureTracking();
+        sketchRecoveryRequiredInBuild = false;
+        sketchRecoveryAbandoned = false;
         ops.push(makeBoardOp(opCtx, { kind: "update_sketch", payload: { code: input.code } }));
         workingBoard.sketchCode = input.code;
         return { updated: true, codeLength: input.code.length };
@@ -796,6 +960,15 @@ Digital: D0-D13 | Analog: A0-A5 (=D14-19) | PWM: D3,5,6,9,10,11 | I2C: A4(SDA), 
         newCode: z.string(),
       }),
       execute: async (input) => {
+        if (sketchRecoveryAbandoned) {
+          return {
+            error: "Sketch recovery is already abandoned for this run. Do not retry patch_sketch.",
+            blocked: true,
+            abandoned: true,
+            failureKind: "sketch_fix_attempt_limit",
+            nextStep: "STOP retrying sketch fixes in this run. Explain the transpiler limitation and ask for a simpler/manual sketch.",
+          };
+        }
         const currentCode = workingBoard.sketchCode ?? "";
         const lines = currentCode.split("\n");
 
@@ -809,9 +982,33 @@ Digital: D0-D13 | Analog: A0-A5 (=D14-19) | PWM: D3,5,6,9,10,11 | I2C: A4(SDA), 
 
         const check = validateSketch(patched);
         if (!check.valid) {
-          return { error: `Patched sketch has errors: ${check.error}${check.line ? ` (line ${check.line})` : ""}. Fix and retry.` };
+          const failureClass = noteSketchFailureClass(check);
+          sketchFixValidationFailures += 1;
+          if (
+            sketchFixValidationFailures >= MAX_SKETCH_FIX_FAILURES ||
+            consecutiveSameSketchFailureClass >= MAX_CONSECUTIVE_SAME_LIMITATION_FAILURES
+          ) {
+            sketchRecoveryAbandoned = true;
+            sketchRecoveryRequiredInBuild = mode === "build";
+            return {
+              error: `Sketch fix attempt budget exceeded (${MAX_SKETCH_FIX_FAILURES}). Last error: ${formatSketchError(check)}.`,
+              blocked: true,
+              abandoned: true,
+              failureKind: "sketch_fix_attempt_limit",
+              limiter: `repeated_${failureClass}`,
+              nextStep: "STOP trying to fix the sketch. Explain to the user what went wrong and what they can try manually.",
+            };
+          }
+          return {
+            error: `Patched sketch has errors: ${formatSketchError(check)}. Fix and retry.`,
+            failureKind: "sketch_validation",
+            attemptsRemaining: MAX_SKETCH_FIX_FAILURES - sketchFixValidationFailures,
+          };
         }
 
+        clearSketchFailureTracking();
+        sketchRecoveryRequiredInBuild = false;
+        sketchRecoveryAbandoned = false;
         ops.push(makeBoardOp(opCtx, { kind: "update_sketch", payload: { code: patched } }));
         workingBoard.sketchCode = patched;
 
@@ -834,13 +1031,13 @@ Digital: D0-D13 | Analog: A0-A5 (=D14-19) | PWM: D3,5,6,9,10,11 | I2C: A4(SDA), 
 
 Components: list type + name + properties. They'll be auto-positioned on the breadboard.
 Wires: reference components by their INDEX in the components array (0, 1, 2...).
-  - Use "component:N" to wire an Arduino pin to a component's grid position.
+  - Every wire MUST specify a logical target pin via "toPin" (e.g. anode/cathode, a/b, signal/vcc/gnd).
   - For LED circuits: pair each LED with a resistor — the tool wires LED→resistor→GND correctly.
 Sketch: provide full Arduino sketch code.
 
 Example — LED blink:
   components: [{type:"led", name:"LED"}, {type:"resistor", name:"R1", properties:{resistance:220}}]
-  wires: [{arduinoPin:13, toComponent:0}]
+  wires: [{arduinoPin:13, toComponent:0, toPin:"anode"}]
   ledResistorPairs: [{ledIndex:0, resistorIndex:1}]
   sketch: "void setup(){...}"`,
 
@@ -854,9 +1051,17 @@ Example — LED blink:
         wires: z.array(z.object({
           arduinoPin: z.number().describe("Arduino pin number (D0-D13=0-13, A0-A5=14-19, 5V=-1, GND=-3)"),
           toComponent: z.number().int().min(0).describe("Index into components array"),
+          toPin: z.string().describe("Logical target pin on that component (required)."),
           color: z.string().optional(),
-          pinOffset: z.number().int().optional().describe("Row offset for most parts. For power_supply: 0=L+, 1=L-, 2=R-, 3=R+, 4=L+ (bottom), 5=L- (bottom), 6=R- (bottom), 7=R+ (bottom)."),
-        })).describe("Wires from Arduino pins to components"),
+          pinOffset: z.number().int().optional().describe("Deprecated fallback offset. Prefer toPin."),
+          // Series routing: route signal through an intermediate component (e.g., resistor)
+          throughComponent: z.number().int().min(0).optional()
+            .describe("Index of intermediate component to route through (e.g., a series resistor between Arduino pin and target)"),
+          throughEntryPin: z.string().optional()
+            .describe("Pin on the intermediate component where signal enters (e.g., 'b' for resistor right side)"),
+          throughExitPin: z.string().optional()
+            .describe("Pin on the intermediate component where signal exits toward the target (e.g., 'a' for resistor left side)"),
+        })).describe("Wires from Arduino pins to components. Use throughComponent for series routing (e.g., resistor in series with a display segment)."),
 
         ledResistorPairs: z.array(z.object({
           ledIndex: z.number().int().min(0).describe("Index of LED in components array"),
@@ -867,12 +1072,77 @@ Example — LED blink:
       }),
 
       execute: async (input) => {
+        if (mode === "build" && sketchRecoveryAbandoned) {
+          return {
+            success: false,
+            blocked: true,
+            abandoned: true,
+            failureKind: "sketch_fix_attempt_limit",
+            errors: [
+              "Sketch recovery is exhausted for this run. Do not retry propose_circuit with new sketch variants in this turn.",
+            ],
+            nextStep: "Stop retrying. Ask user to simplify the sketch or provide a transpiler-safe version.",
+          };
+        }
+        if (mode === "build" && sketchRecoveryRequiredInBuild) {
+          return {
+            success: false,
+            blocked: true,
+            failureKind: "sketch_recovery_required",
+            errors: [
+              "Build is paused on sketch recovery. Use update_sketch or patch_sketch to submit a valid sketch before calling propose_circuit again.",
+            ],
+          };
+        }
+
         const errors: string[] = [];
 
         // Validate indices
+        const usedTargetPins = new Set<string>();
         for (const wire of input.wires) {
           if (wire.toComponent >= input.components.length) {
             errors.push(`Wire references component index ${wire.toComponent} but only ${input.components.length} components defined.`);
+            continue;
+          }
+          const compType = input.components[wire.toComponent]?.type;
+          const allowedPins = getComponentPinNames(compType);
+          if (allowedPins.length === 0) {
+            errors.push(`Component ${wire.toComponent} (${compType}) does not expose logical pins for toPin wiring.`);
+            continue;
+          }
+          if (!wire.toPin) {
+            errors.push(`Wire to component ${wire.toComponent} is missing toPin. Use explicit logical pins.`);
+            continue;
+          }
+          if (!allowedPins.includes(wire.toPin)) {
+            errors.push(`Invalid toPin "${wire.toPin}" for component ${wire.toComponent} (${compType}). Allowed: ${allowedPins.join(", ")}`);
+            continue;
+          }
+          const pinKey = `${wire.toComponent}:${wire.toPin}`;
+          if (usedTargetPins.has(pinKey)) {
+            errors.push(`Duplicate pin target ${pinKey}. Each logical component pin can only be connected once in propose_circuit.`);
+          } else {
+            usedTargetPins.add(pinKey);
+          }
+
+          // Validate throughComponent (series routing)
+          if (wire.throughComponent !== undefined) {
+            if (wire.throughComponent >= input.components.length) {
+              errors.push(`Wire throughComponent index ${wire.throughComponent} out of range.`);
+            } else {
+              const throughType = input.components[wire.throughComponent]?.type;
+              const throughPins = getComponentPinNames(throughType);
+              if (!wire.throughEntryPin || !wire.throughExitPin) {
+                errors.push(`Wire with throughComponent ${wire.throughComponent} must specify both throughEntryPin and throughExitPin.`);
+              } else {
+                if (!throughPins.includes(wire.throughEntryPin)) {
+                  errors.push(`Invalid throughEntryPin "${wire.throughEntryPin}" for component ${wire.throughComponent} (${throughType}). Allowed: ${throughPins.join(", ")}`);
+                }
+                if (!throughPins.includes(wire.throughExitPin)) {
+                  errors.push(`Invalid throughExitPin "${wire.throughExitPin}" for component ${wire.throughComponent} (${throughType}). Allowed: ${throughPins.join(", ")}`);
+                }
+              }
+            }
           }
         }
         for (const pair of input.ledResistorPairs ?? []) {
@@ -885,7 +1155,51 @@ Example — LED blink:
             errors.push(`Component ${pair.resistorIndex} is ${input.components[pair.resistorIndex]?.type}, not a resistor.`);
           }
         }
-        if (errors.length > 0) return { success: false, errors };
+        if (errors.length > 0) return { success: false, failureKind: "validation", errors };
+
+        // ── Layout feasibility pre-check ────────────────────────
+        // Estimate total rows needed before doing expensive sketch
+        // validation. This avoids burning tokens on a valid sketch
+        // for a circuit that won't fit on the board.
+        {
+          const MAX_BOARD_ROW = 27;
+          let estimatedNextRow = 0;
+          for (const c of Object.values(workingBoard.components)) {
+            if (c.type !== "arduino_uno") estimatedNextRow = Math.max(estimatedNextRow, c.y + 4);
+          }
+          for (const comp of input.components) {
+            estimatedNextRow += componentHeight(comp.type) + 1;
+          }
+          if (estimatedNextRow > MAX_BOARD_ROW + 5) {
+            return {
+              success: false,
+              failureKind: "layout_overflow",
+              errors: [
+                `Too many components (${input.components.length}) — estimated ${estimatedNextRow} rows needed, but the board only has 30 rows.`,
+              ],
+              hint: "Reduce the component count. For 7-segment displays, skip individual series resistors — the display's built-in forward voltage drop is usually safe at 5V with the simulator's virtual LEDs.",
+            };
+          }
+        }
+
+        if (input.sketch) {
+          const check = validateSketch(input.sketch);
+          if (!check.valid) {
+            noteSketchFailureClass(check);
+            if (mode === "build") {
+              sketchRecoveryRequiredInBuild = true;
+            }
+            return {
+              success: false,
+              failureKind: "sketch_validation",
+              errors: [`Sketch has errors: ${formatSketchError(check)}`],
+              nextStep:
+                mode === "build"
+                  ? "Recover sketch first with update_sketch/patch_sketch, then retry propose_circuit."
+                  : "Fix sketch and retry.",
+            };
+          }
+        }
 
         // ── Auto-position components ──
         // Build a working copy for position checks
@@ -893,6 +1207,23 @@ Example — LED blink:
         const placedComponents: Array<{ id: string; type: string; name: string; row: number; col: number }> = [];
         const pairedResistors = new Set((input.ledResistorPairs ?? []).map(p => p.resistorIndex));
         const pairedLeds = new Set((input.ledResistorPairs ?? []).map(p => p.ledIndex));
+
+        // Build throughComponent mapping: which components are series intermediates,
+        // and which target component + pin they connect to.
+        // seriesMap: intermediateIndex → { targetIndex, targetPin, entryPin, exitPin }
+        const seriesMap = new Map<number, { targetIndex: number; targetPin: string; entryPin: string; exitPin: string }>();
+        for (const wire of input.wires) {
+          if (wire.throughComponent !== undefined && wire.throughEntryPin && wire.throughExitPin) {
+            seriesMap.set(wire.throughComponent, {
+              targetIndex: wire.toComponent,
+              targetPin: wire.toPin,
+              entryPin: wire.throughEntryPin,
+              exitPin: wire.throughExitPin,
+            });
+          }
+        }
+        // Components that are series intermediates get placed alongside their target, not sequentially
+        const seriesIntermediates = new Set(seriesMap.keys());
 
         let nextRow = 0;
         // Find first open row
@@ -909,27 +1240,17 @@ Example — LED blink:
           return 1;
         }
 
-        // Default column for component types
+        // Default column for component types.
+        // Resistors and buttons use fixed columns matching the registry footprint.
         function componentCol(type: string): number {
-          if (type === "button") return 3; // straddles gap
+          if (type === "button") return 3; // straddles gap at cols 3/6
+          if (type === "resistor") return 3; // straddles gap at cols 3/6
           return 2; // left strip
         }
 
         // Default pin map (all null)
         function defaultPins(type: string): Record<string, null> {
-          const pinMaps: Record<string, string[]> = {
-            led: ["anode", "cathode"], rgb_led: ["red", "green", "blue", "common"],
-            button: ["a", "b"], resistor: ["a", "b"], capacitor: ["positive", "negative"],
-            potentiometer: ["vcc", "signal", "gnd"], buzzer: ["positive", "negative"],
-            servo: ["signal", "vcc", "gnd"], neopixel: ["din"],
-            pir_sensor: ["signal"], relay: ["signal"], dc_motor: ["signal"],
-            dht_sensor: ["signal"], ir_receiver: ["signal"],
-            shift_register: ["data", "clock", "latch"],
-            oled_display: ["sda", "scl"], lcd_16x2: ["rs", "en", "d4", "d5", "d6", "d7"],
-            seven_segment: ["a", "b", "c", "d", "e", "f", "g"],
-            ic: [], temperature_sensor: ["vcc", "signal", "gnd"],
-          };
-          const names = pinMaps[type] ?? [];
+          const names = getComponentPinNames(type).filter((name) => name !== "common");
           const result: Record<string, null> = {};
           for (const n of names) result[n] = null;
           return result;
@@ -938,8 +1259,8 @@ Example — LED blink:
         for (let i = 0; i < input.components.length; i++) {
           const comp = input.components[i];
 
-          // Skip resistors that are paired with LEDs — they'll be positioned with the LED
-          if (pairedResistors.has(i)) continue;
+          // Skip components that will be positioned alongside their target
+          if (pairedResistors.has(i) || seriesIntermediates.has(i)) continue;
 
           const col = componentCol(comp.type);
           const row = nextRow;
@@ -954,14 +1275,53 @@ Example — LED blink:
               const resComp = input.components[pair.resistorIndex];
               const cathodeRow = row + 1;
               const resId = crypto.randomUUID();
-              // Resistor at col 3, same row as cathode — spans gap to col 7
               placedComponents[pair.resistorIndex] = {
                 id: resId, type: "resistor", name: resComp.name, row: cathodeRow, col: 3,
               };
-              nextRow = cathodeRow + 2; // leave gap after LED+resistor pair
+              nextRow = cathodeRow + 2;
             }
           } else {
             nextRow = row + componentHeight(comp.type) + 1;
+          }
+        }
+
+        // Place series intermediates alongside their target components.
+        // For each intermediate (e.g., resistor), place it on the same row as the
+        // target pin it connects to, so the exit pin shares a breadboard bus with
+        // the target and no extra jumper wire is needed.
+        for (const [intermediateIdx, seriesInfo] of seriesMap.entries()) {
+          if (placedComponents[intermediateIdx]) continue; // already placed
+          const target = placedComponents[seriesInfo.targetIndex];
+          if (!target) continue;
+
+          const comp = input.components[intermediateIdx];
+          const targetPinPos = resolveComponentPinTarget(
+            { type: target.type, x: target.col, y: target.row },
+            seriesInfo.targetPin,
+          );
+
+          if (targetPinPos) {
+            // Place the intermediate (resistor) on the target pin's row.
+            // Resistors always use cols 3/6 regardless of placement col.
+            const col = componentCol(comp.type);
+            placedComponents[intermediateIdx] = {
+              id: crypto.randomUUID(),
+              type: comp.type,
+              name: comp.name,
+              row: targetPinPos.row,
+              col,
+            };
+          } else {
+            // Fallback: place sequentially
+            const col = componentCol(comp.type);
+            placedComponents[intermediateIdx] = {
+              id: crypto.randomUUID(),
+              type: comp.type,
+              name: comp.name,
+              row: nextRow,
+              col,
+            };
+            nextRow += componentHeight(comp.type) + 1;
           }
         }
 
@@ -1013,54 +1373,223 @@ Example — LED blink:
           } as typeof workingBoard.components[string];
         }
 
-        function resolveWireTarget(
-          target: { type: string; row: number; col: number },
-          pinOffset: number | undefined,
-        ): { row: number; col: number } {
-          if (target.type !== "power_supply") {
-            return {
-              row: target.row + (pinOffset ?? 0),
-              col: target.col,
-            };
-          }
+        // Wire Arduino pins to components.
+        // For wires with throughComponent (series routing), we generate:
+        //   1. Arduino pin → throughComponent.throughEntryPin
+        //   2. throughComponent.throughExitPin → toComponent.toPin (if not same bus)
+        // For direct wires, we generate: Arduino pin → toComponent.toPin (as before)
+        const wiresByPin = new Map<number, Array<{
+          target: { row: number; col: number };
+          color: string;
+        }>>();
+        // Extra wires generated by series routing (component-to-component jumpers)
+        const seriesJumperOps: BoardOp[] = [];
 
-          const slot = pinOffset ?? 0;
-          const slots: Array<{ row: number; col: number }> = [
-            { row: target.row, col: -2 },      // left+ top
-            { row: target.row, col: -1 },      // left- top
-            { row: target.row, col: 10 },      // right- top
-            { row: target.row, col: 11 },      // right+ top
-            { row: target.row + 1, col: -2 },  // left+ bottom
-            { row: target.row + 1, col: -1 },  // left- bottom
-            { row: target.row + 1, col: 10 },  // right- bottom
-            { row: target.row + 1, col: 11 },  // right+ bottom
-          ];
-          return slots[Math.max(0, Math.min(7, slot))] ?? slots[0]!;
+        for (const wire of input.wires) {
+          const color = wire.color ?? "#22c55e";
+
+          if (wire.throughComponent !== undefined && wire.throughEntryPin && wire.throughExitPin) {
+            // Series routing: Arduino → throughComponent.entryPin
+            const through = placedComponents[wire.throughComponent];
+            const entryPoint = resolveComponentPinTarget(
+              { type: through.type, x: through.col, y: through.row },
+              wire.throughEntryPin,
+            );
+            if (!entryPoint) {
+              errors.push(`Unable to resolve throughComponent ${wire.throughComponent}.${wire.throughEntryPin}`);
+              continue;
+            }
+
+            // Wire Arduino pin to the intermediate's entry pin
+            if (!wiresByPin.has(wire.arduinoPin)) wiresByPin.set(wire.arduinoPin, []);
+            wiresByPin.get(wire.arduinoPin)!.push({ target: entryPoint, color });
+
+            // Now check if the exit pin needs a jumper to the final target
+            const exitPoint = resolveComponentPinTarget(
+              { type: through.type, x: through.col, y: through.row },
+              wire.throughExitPin,
+            );
+            const finalTarget = placedComponents[wire.toComponent];
+            const finalPoint = resolveComponentPinTarget(
+              { type: finalTarget.type, x: finalTarget.col, y: finalTarget.row },
+              wire.toPin,
+            );
+            if (!exitPoint || !finalPoint) {
+              errors.push(`Unable to resolve series endpoints for through=${wire.throughComponent}.${wire.throughExitPin} → ${wire.toComponent}.${wire.toPin}`);
+              continue;
+            }
+
+            // If exit and target are on the same breadboard bus, no jumper needed
+            const exitLeft = exitPoint.col >= 0 && exitPoint.col <= 4;
+            const exitRight = exitPoint.col >= 5 && exitPoint.col <= 9;
+            const targetLeft = finalPoint.col >= 0 && finalPoint.col <= 4;
+            const targetRight = finalPoint.col >= 5 && finalPoint.col <= 9;
+            const sameBus =
+              exitPoint.row === finalPoint.row &&
+              ((exitLeft && targetLeft) || (exitRight && targetRight));
+
+            if (!sameBus) {
+              // Generate a jumper wire from exit to target
+              seriesJumperOps.push(makeBoardOp(opCtx, {
+                kind: "connect_wire",
+                payload: {
+                  wire: {
+                    id: crypto.randomUUID(),
+                    fromRow: exitPoint.row,
+                    fromCol: exitPoint.col,
+                    toRow: finalPoint.row,
+                    toCol: finalPoint.col,
+                    color,
+                  },
+                },
+              }));
+            }
+          } else {
+            // Direct wire (no series routing)
+            const target = placedComponents[wire.toComponent];
+            const to = resolveComponentPinTarget(
+              { type: target.type, x: target.col, y: target.row },
+              wire.toPin,
+            );
+            if (!to) {
+              errors.push(`Unable to resolve target for component ${wire.toComponent}.${wire.toPin}`);
+              continue;
+            }
+            if (!wiresByPin.has(wire.arduinoPin)) wiresByPin.set(wire.arduinoPin, []);
+            wiresByPin.get(wire.arduinoPin)!.push({ target: to, color });
+          }
+        }
+        if (errors.length > 0) return { success: false, failureKind: "validation", errors };
+
+        function railColForPin(pin: number): number {
+          if (pin === -3 || pin === -4 || pin === -6) return -1;
+          if (pin === -1) return -2;
+          if (pin === -2) return 11;
+          return -1;
         }
 
-        // Wire Arduino pins to components
-        for (const wire of input.wires) {
-          const target = placedComponents[wire.toComponent];
-          const to = resolveWireTarget(target, wire.pinOffset);
-          const wireId = crypto.randomUUID();
+        function sameStrip(a: { row: number; col: number }, b: { row: number; col: number }): boolean {
+          if (a.row !== b.row) return false;
+          const aLeft = a.col >= 0 && a.col <= 4;
+          const aRight = a.col >= 5 && a.col <= 9;
+          const bLeft = b.col >= 0 && b.col <= 4;
+          const bRight = b.col >= 5 && b.col <= 9;
+          return (aLeft && bLeft) || (aRight && bRight);
+        }
+
+        for (const [pin, fanout] of wiresByPin.entries()) {
+          if (fanout.length === 0) continue;
+          if (fanout.length === 1) {
+            const only = fanout[0]!;
+            const wireId = crypto.randomUUID();
+            generatedOps.push(makeBoardOp(opCtx, {
+              kind: "connect_wire",
+              payload: {
+                wire: {
+                  id: wireId,
+                  fromRow: -999,
+                  fromCol: pin,
+                  toRow: only.target.row,
+                  toCol: only.target.col,
+                  color: only.color,
+                },
+              },
+            }));
+            continue;
+          }
+
+          const isPowerOrGround = pin < 0;
+          if (isPowerOrGround) {
+            const railCol = railColForPin(pin);
+            const sourceId = crypto.randomUUID();
+            generatedOps.push(makeBoardOp(opCtx, {
+              kind: "connect_wire",
+              payload: {
+                wire: {
+                  id: sourceId,
+                  fromRow: -999,
+                  fromCol: pin,
+                  toRow: 0,
+                  toCol: railCol,
+                  color: fanout[0]!.color,
+                },
+              },
+            }));
+
+            for (const branch of fanout) {
+              if (branch.target.col === railCol) continue;
+              const branchId = crypto.randomUUID();
+              generatedOps.push(makeBoardOp(opCtx, {
+                kind: "connect_wire",
+                payload: {
+                  wire: {
+                    id: branchId,
+                    fromRow: branch.target.row,
+                    fromCol: railCol,
+                    toRow: branch.target.row,
+                    toCol: branch.target.col,
+                    color: branch.color,
+                  },
+                },
+              }));
+            }
+            continue;
+          }
+
+          const anchor = {
+            row: fanout[0]!.target.row,
+            col: fanout[0]!.target.col <= 4 ? 0 : 5,
+          };
+          const sourceId = crypto.randomUUID();
           generatedOps.push(makeBoardOp(opCtx, {
             kind: "connect_wire",
             payload: {
               wire: {
-                id: wireId,
+                id: sourceId,
                 fromRow: -999,
-                fromCol: wire.arduinoPin,
-                toRow: to.row,
-                toCol: to.col,
-                color: wire.color ?? "#22c55e",
+                fromCol: pin,
+                toRow: anchor.row,
+                toCol: anchor.col,
+                color: fanout[0]!.color,
               },
             },
           }));
+
+          for (const branch of fanout) {
+            if (sameStrip(anchor, branch.target)) continue;
+            const branchId = crypto.randomUUID();
+            generatedOps.push(makeBoardOp(opCtx, {
+              kind: "connect_wire",
+              payload: {
+                wire: {
+                  id: branchId,
+                  fromRow: anchor.row,
+                  fromCol: anchor.col,
+                  toRow: branch.target.row,
+                  toCol: branch.target.col,
+                  color: branch.color,
+                },
+              },
+            }));
+          }
+        }
+
+        // Append series jumper wires (throughComponent exit → target)
+        for (const op of seriesJumperOps) {
+          generatedOps.push(op);
         }
 
         // Auto-wire LED+resistor pairs: GND → resistor pin B (col 7, right strip)
         for (const pair of input.ledResistorPairs ?? []) {
           const res = placedComponents[pair.resistorIndex];
+          const resistorPinB = resolveComponentPinTarget(
+            { type: res.type, x: res.col, y: res.row },
+            "b",
+          );
+          if (!resistorPinB) {
+            errors.push(`Unable to resolve resistor pin B for component ${pair.resistorIndex}.`);
+            continue;
+          }
           const wireId = crypto.randomUUID();
           generatedOps.push(makeBoardOp(opCtx, {
             kind: "connect_wire",
@@ -1069,27 +1598,22 @@ Example — LED blink:
                 id: wireId,
                 fromRow: -999,
                 fromCol: -3, // GND
-                toRow: res.row,
-                toCol: 7, // resistor pin B on right strip
+                toRow: resistorPinB.row,
+                toCol: resistorPinB.col,
                 color: "#42a5f5",
               },
             },
           }));
         }
+        if (errors.length > 0) return { success: false, failureKind: "validation", errors };
 
-        // Write sketch (validate first)
-        let sketchError: string | undefined;
+        // Write sketch (already validated before placement)
         if (input.sketch) {
-          const check = validateSketch(input.sketch);
-          if (!check.valid) {
-            sketchError = `${check.error}${check.line ? ` (line ${check.line})` : ""}`;
-          } else {
-            generatedOps.push(makeBoardOp(opCtx, {
-              kind: "update_sketch",
-              payload: { code: input.sketch },
-            }));
-            workingBoard.sketchCode = input.sketch;
-          }
+          generatedOps.push(makeBoardOp(opCtx, {
+            kind: "update_sketch",
+            payload: { code: input.sketch },
+          }));
+          workingBoard.sketchCode = input.sketch;
         }
 
         // Push all ops
@@ -1103,9 +1627,8 @@ Example — LED blink:
         return {
           success: true,
           componentsPlaced: placedComponents.length,
-          wiresCreated: input.wires.length + (input.ledResistorPairs?.length ?? 0),
-          sketchUpdated: !!input.sketch && !sketchError,
-          sketchError,
+          wiresCreated: generatedOps.filter((op) => op.kind === "connect_wire").length,
+          sketchUpdated: !!input.sketch,
           layout: summary,
         };
       },
@@ -1133,20 +1656,26 @@ Example — LED blink:
     ),
   } as const;
 
+  let filteredTools: typeof allTools;
   if (mode === "build") {
-    return Object.fromEntries(
+    filteredTools = Object.fromEntries(
       Object.entries(allTools).filter(([name]) => BUILD_MODE_TOOLS.has(name)),
     ) as typeof allTools;
-  }
-  if (mode === "edit") {
-    return Object.fromEntries(
+  } else if (mode === "edit") {
+    filteredTools = Object.fromEntries(
       Object.entries(allTools).filter(([name]) => EDIT_MODE_TOOLS.has(name)),
     ) as typeof allTools;
-  }
-  if (mode === "circuit") {
-    return Object.fromEntries(
+  } else if (mode === "circuit") {
+    filteredTools = Object.fromEntries(
       Object.entries(allTools).filter(([name]) => CIRCUIT_MODE_TOOLS.has(name)),
     ) as typeof allTools;
+  } else {
+    filteredTools = allTools;
   }
-  return allTools;
+
+  return {
+    tools: filteredTools,
+    /** Check after tool loop: true if sketch recovery was exhausted and the agent should abandon. */
+    isSketchRecoveryAbandoned: () => sketchRecoveryAbandoned,
+  };
 }

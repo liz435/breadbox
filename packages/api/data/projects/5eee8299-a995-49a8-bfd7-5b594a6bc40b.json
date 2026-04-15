@@ -1,0 +1,337 @@
+{
+  "project": {
+    "id": "5eee8299-a995-49a8-bfd7-5b594a6bc40b",
+    "name": "amber-boar-desk",
+    "version": 0,
+    "createdAt": "2026-04-12T16:56:38.711Z",
+    "updatedAt": "2026-04-14T11:37:18.157Z",
+    "threadId": "faa360b6-a3ad-47a4-b479-96e082218a13",
+    "activeSceneId": "690858f7-ee07-4448-8098-94a4fc1dfdf9"
+  },
+  "scenes": {
+    "690858f7-ee07-4448-8098-94a4fc1dfdf9": {
+      "id": "690858f7-ee07-4448-8098-94a4fc1dfdf9",
+      "name": "Main Scene",
+      "version": 0,
+      "settings": {
+        "background": "#252525",
+        "gravity": {
+          "x": 0,
+          "y": 9.8
+        }
+      }
+    }
+  },
+  "entities": {},
+  "sceneEntityIds": {
+    "690858f7-ee07-4448-8098-94a4fc1dfdf9": []
+  },
+  "components": {
+    "transform": {},
+    "sprite": {},
+    "tilemap": {},
+    "physicsBody": {},
+    "script": {},
+    "camera": {}
+  },
+  "assets": {},
+  "graph": {
+    "nodes": {
+      "node-1776012998736-vp3dk0": {
+        "id": "node-1776012998736-vp3dk0",
+        "type": "setup",
+        "name": "Setup",
+        "x": 60,
+        "y": 60,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      },
+      "node-1776012998736-6xe6db": {
+        "id": "node-1776012998736-6xe6db",
+        "type": "loop",
+        "name": "Loop",
+        "x": 60,
+        "y": 200,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      }
+    },
+    "edges": {}
+  },
+  "boardState": {
+    "components": {
+      "seg-1": {
+        "id": "seg-1",
+        "type": "seven_segment",
+        "name": "7-Segment",
+        "x": 9,
+        "y": 5,
+        "rotation": 0,
+        "pins": {
+          "a": 2,
+          "b": 3,
+          "c": 4,
+          "d": 5,
+          "e": 6,
+          "f": 7,
+          "g": 8
+        },
+        "properties": {}
+      },
+      "res-a": {
+        "id": "res-a",
+        "type": "resistor",
+        "name": "Ra",
+        "x": 3,
+        "y": 5,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "res-b": {
+        "id": "res-b",
+        "type": "resistor",
+        "name": "Rb",
+        "x": 3,
+        "y": 6,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "res-c": {
+        "id": "res-c",
+        "type": "resistor",
+        "name": "Rc",
+        "x": 3,
+        "y": 7,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "res-d": {
+        "id": "res-d",
+        "type": "resistor",
+        "name": "Rd",
+        "x": 3,
+        "y": 8,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "res-e": {
+        "id": "res-e",
+        "type": "resistor",
+        "name": "Re",
+        "x": 3,
+        "y": 9,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "res-f": {
+        "id": "res-f",
+        "type": "resistor",
+        "name": "Rf",
+        "x": 3,
+        "y": 10,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "res-g": {
+        "id": "res-g",
+        "type": "resistor",
+        "name": "Rg",
+        "x": 3,
+        "y": 11,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      }
+    },
+    "wires": {
+      "wire-d2": {
+        "id": "wire-d2",
+        "fromRow": -999,
+        "fromCol": 2,
+        "toRow": 5,
+        "toCol": 3,
+        "color": "#fbbf24"
+      },
+      "wire-d3": {
+        "id": "wire-d3",
+        "fromRow": -999,
+        "fromCol": 3,
+        "toRow": 6,
+        "toCol": 3,
+        "color": "#fbbf24"
+      },
+      "wire-d4": {
+        "id": "wire-d4",
+        "fromRow": -999,
+        "fromCol": 4,
+        "toRow": 7,
+        "toCol": 3,
+        "color": "#fbbf24"
+      },
+      "wire-d5": {
+        "id": "wire-d5",
+        "fromRow": -999,
+        "fromCol": 5,
+        "toRow": 8,
+        "toCol": 3,
+        "color": "#22c55e"
+      },
+      "wire-d6": {
+        "id": "wire-d6",
+        "fromRow": -999,
+        "fromCol": 6,
+        "toRow": 9,
+        "toCol": 3,
+        "color": "#22c55e"
+      },
+      "wire-d7": {
+        "id": "wire-d7",
+        "fromRow": -999,
+        "fromCol": 7,
+        "toRow": 10,
+        "toCol": 3,
+        "color": "#22c55e"
+      },
+      "wire-d8": {
+        "id": "wire-d8",
+        "fromRow": -999,
+        "fromCol": 8,
+        "toRow": 11,
+        "toCol": 3,
+        "color": "#3b82f6"
+      },
+      "wire-ra-seg": {
+        "id": "wire-ra-seg",
+        "fromRow": 5,
+        "fromCol": 6,
+        "toRow": 5,
+        "toCol": 7,
+        "color": "#a855f7"
+      },
+      "wire-rb-seg": {
+        "id": "wire-rb-seg",
+        "fromRow": 6,
+        "fromCol": 6,
+        "toRow": 6,
+        "toCol": 7,
+        "color": "#a855f7"
+      },
+      "wire-rc-seg": {
+        "id": "wire-rc-seg",
+        "fromRow": 7,
+        "fromCol": 6,
+        "toRow": 7,
+        "toCol": 7,
+        "color": "#a855f7"
+      },
+      "wire-rd-seg": {
+        "id": "wire-rd-seg",
+        "fromRow": 8,
+        "fromCol": 6,
+        "toRow": 8,
+        "toCol": 7,
+        "color": "#a855f7"
+      },
+      "wire-re-seg": {
+        "id": "wire-re-seg",
+        "fromRow": 9,
+        "fromCol": 6,
+        "toRow": 9,
+        "toCol": 7,
+        "color": "#a855f7"
+      },
+      "wire-rf-seg": {
+        "id": "wire-rf-seg",
+        "fromRow": 10,
+        "fromCol": 6,
+        "toRow": 10,
+        "toCol": 7,
+        "color": "#a855f7"
+      },
+      "wire-rg-seg": {
+        "id": "wire-rg-seg",
+        "fromRow": 11,
+        "fromCol": 6,
+        "toRow": 11,
+        "toCol": 7,
+        "color": "#a855f7"
+      },
+      "wire-gnd": {
+        "id": "wire-gnd",
+        "fromRow": -999,
+        "fromCol": -3,
+        "toRow": 12,
+        "toCol": 9,
+        "color": "#1a1a1a"
+      }
+    },
+    "libraryState": {
+      "servos": {},
+      "lcd": null,
+      "serialBaud": 0
+    },
+    "serialOutput": [],
+    "sketchCode": "// Example: 7-Segment Display Counter\n// Count from 0-9 on a common-cathode 7-segment display.\n// Segments a-g on pins 2-8.\n// Each byte encodes segments a-g as bits 0-6.\n\nint segPins[] = {2, 3, 4, 5, 6, 7, 8};\nbyte digits[] = {0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F};\n\nvoid showDigit(int d) {\n  for (int i = 0; i < 7; i++) {\n    digitalWrite(segPins[i], (digits[d] >> i) & 1);\n  }\n}\n\nvoid setup() {\n  for (int i = 0; i < 7; i++) {\n    pinMode(segPins[i], OUTPUT);\n  }\n}\n\nvoid loop() {\n  for (int d = 0; d < 10; d++) {\n    showDigit(d);\n    delay(1000);\n  }\n}\n",
+    "customLibraries": {},
+    "boardTarget": "arduino_uno"
+  }
+}

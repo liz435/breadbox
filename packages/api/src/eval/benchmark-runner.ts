@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { dirname, join, resolve } from "path";
-import { createDefaultBoardState, type BoardOp, type BoardState } from "@dreamer/schemas";
+import { createDefaultBoardState, isBoardComponentType, type BoardOp, type BoardState } from "@dreamer/schemas";
 import { getBenchmarkSuite, type BenchmarkScenario } from "./benchmark-suite";
 import type { RunEval } from "./types";
 
@@ -269,7 +269,7 @@ async function completeTemplateTurn(params: {
       }));
     }
     for (const component of Object.values(project.boardState.components)) {
-      if (component.type === "arduino_uno") continue;
+      if (isBoardComponentType(component.type)) continue;
       clearOps.push(deps.makeBoardOp(opCtx, {
         kind: "remove_component",
         payload: { componentId: component.id },

@@ -1,13 +1,15 @@
 import React from "react";
-import type { BoardComponent, PinState, LibraryState } from "@dreamer/schemas";
+import { MAX_ARDUINO_PIN, type BoardComponent, type PinState, type LibraryState, type Wire } from "@dreamer/schemas";
 import type { ComponentElectricalState } from "@/simulator/circuit-solver";
-import { gridToPixel } from "@/breadboard/breadboard-grid";
-import { KNOB_RADIUS, GENERIC_BODY_WIDTH, GENERIC_BODY_HEIGHT, LABEL_FONT_SIZE } from "@/breadboard/breadboard-constants";
+import { areConnected, getComponentFootprint, gridToPixel } from "@/breadboard/breadboard-grid";
+import { KNOB_RADIUS, GENERIC_BODY_WIDTH, GENERIC_BODY_HEIGHT, LABEL_FONT_SIZE, HOLE_SPACING } from "@/breadboard/breadboard-constants";
 import { PinLabel } from "./pin-label";
 
 type GenericRendererProps = {
   component: BoardComponent;
+  components?: BoardComponent[];
   pinStates: PinState[];
+  wires?: Record<string, Wire>;
   isSelected: boolean;
   electricalState?: ComponentElectricalState;
   libraryState?: LibraryState;
@@ -1193,9 +1195,11 @@ function PirRenderer({ component, isSelected }: { component: BoardComponent; isS
   );
 }
 
-function SevenSegmentRenderer({ component, pinStates, isSelected }: {
+function SevenSegmentRenderer({ component, components, pinStates, wires, isSelected }: {
   component: BoardComponent;
+  components?: BoardComponent[];
   pinStates: PinState[];
+  wires?: Record<string, Wire>;
   isSelected: boolean;
 }) {
   // Vertical 7-pin layout: a/b/c/d/e/f/g each on its own row (row..row+6, col)
@@ -1207,24 +1211,107 @@ function SevenSegmentRenderer({ component, pinStates, isSelected }: {
 
   const w = 34;
   const h = (pinBot.y - pinTop.y) + 12;
-  // Display body sits to the LEFT of the pin column.
-  const x = pinTop.x - w / 2 - 10;
+  // Display body sits to the RIGHT of the pin column, offset by 3 breadboard holes.
+  const x = pinTop.x + w / 2 + (HOLE_SPACING * 3);
   const y = (pinTop.y + pinBot.y) / 2;
 
   const segOnColor = "#ff3030";
   const segOffColor = "#2a0a0a";
 
-  // Read segment pin states: HIGH = lit
+  // Strict mode: segment lighting is resolved from physical wiring only.
+  // We intentionally do not trust component.pins.a..g here.
   const segments = ["a", "b", "c", "d", "e", "f", "g"] as const;
+  const footprint = getComponentFootprint(
+    component.type,
+    component.y,
+    component.x,
+    component.rotation,
+    component.properties,
+  );
+  const segmentPoints = footprint.points.slice(0, segments.length);
   const lit: Record<(typeof segments)[number], boolean> = {
     a: false, b: false, c: false, d: false, e: false, f: false, g: false,
   };
-  for (const seg of segments) {
-    const pin = component.pins[seg];
-    if (pin == null) continue;
-    const state = pinStates[pin];
-    if (!state) continue;
-    lit[seg] = state.digitalValue === 1 || state.pwmValue > 0;
+
+  if (wires) {
+    const segmentPins = new Map<(typeof segments)[number], Set<number>>();
+    for (const seg of segments) segmentPins.set(seg, new Set<number>());
+    const arduinoWires = Object.values(wires).filter(
+      (wire) => wire.fromRow === -999 && wire.fromCol >= 0 && wire.fromCol <= MAX_ARDUINO_PIN,
+    );
+
+    const pinsAtPoint = (point: { row: number; col: number }): Set<number> => {
+      const pins = new Set<number>();
+      for (const wire of arduinoWires) {
+        const arduinoPin = wire.fromCol;
+        const wireTo = { row: wire.toRow, col: wire.toCol };
+        if (areConnected(wireTo, point)) {
+          pins.add(arduinoPin);
+        }
+      }
+      return pins;
+    };
+
+    // Direct mapping: Arduino wire terminates on the same bus as a segment pin.
+    for (const wire of arduinoWires) {
+      const arduinoPin = wire.fromCol;
+      const wireTo = { row: wire.toRow, col: wire.toCol };
+      for (let i = 0; i < segmentPoints.length; i++) {
+        const segmentPoint = segmentPoints[i];
+        if (!segmentPoint) continue;
+        if (areConnected(wireTo, segmentPoint)) {
+          const seg = segments[i];
+          segmentPins.get(seg)?.add(arduinoPin);
+        }
+      }
+    }
+
+    // Resistor path mapping: Arduino -> resistor -> segment.
+    // This captures the standard safe seven-segment wiring style.
+    if (components) {
+      for (const other of components) {
+        if (other.type !== "resistor") continue;
+        const fp = getComponentFootprint(
+          other.type,
+          other.y,
+          other.x,
+          other.rotation,
+          other.properties,
+        );
+        const endA = fp.points[0];
+        const endB = fp.points[1];
+        if (!endA || !endB) continue;
+
+        const pinsOnA = pinsAtPoint(endA);
+        const pinsOnB = pinsAtPoint(endB);
+
+        for (let i = 0; i < segmentPoints.length; i++) {
+          const segmentPoint = segmentPoints[i];
+          if (!segmentPoint) continue;
+          const seg = segments[i];
+
+          if (areConnected(segmentPoint, endA)) {
+            for (const pin of pinsOnB) segmentPins.get(seg)?.add(pin);
+          }
+          if (areConnected(segmentPoint, endB)) {
+            for (const pin of pinsOnA) segmentPins.get(seg)?.add(pin);
+          }
+        }
+      }
+    }
+
+    for (const seg of segments) {
+      const pinsForSegment = segmentPins.get(seg);
+      if (!pinsForSegment || pinsForSegment.size === 0) continue;
+      for (const pin of pinsForSegment) {
+        const state = pinStates[pin];
+        if (!state || state.mode !== "OUTPUT") continue;
+        if (state.digitalValue === 1 || state.pwmValue > 0) {
+          lit[seg] = true;
+          break;
+        }
+      }
+    }
   }
 
   // Beveled segment geometry — trapezoid shapes give authentic display look.
@@ -1803,7 +1890,7 @@ function OledRenderer({ component, isSelected, libraryState: _libraryState }: { 
   );
 }
 
-function GenericRendererInner({ component, pinStates, isSelected, electricalState, libraryState }: GenericRendererProps) {
+function GenericRendererInner({ component, components, pinStates, wires, isSelected, electricalState, libraryState }: GenericRendererProps) {
   const isDimmed = electricalState != null && !electricalState.isActive;
   const dimOpacity = isDimmed ? 0.5 : 1;
 
@@ -1832,7 +1919,7 @@ function GenericRendererInner({ component, pinStates, isSelected, electricalStat
     case "dc_motor":
       return <g opacity={dimOpacity}><DcMotorRenderer component={component} pinStates={pinStates} isSelected={isSelected} /></g>;
     case "seven_segment":
-      return <g opacity={dimOpacity}><SevenSegmentRenderer component={component} pinStates={pinStates} isSelected={isSelected} /></g>;
+      return <g opacity={dimOpacity}><SevenSegmentRenderer component={component} components={components} pinStates={pinStates} wires={wires} isSelected={isSelected} /></g>;
     case "oled_display":
       return <g opacity={dimOpacity}><OledRenderer component={component} isSelected={isSelected} libraryState={libraryState} /></g>;
     default:

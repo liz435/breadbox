@@ -5,8 +5,9 @@ import type {
   BoardState,
   LibraryState,
   CustomLibrary,
+  BoardTarget,
 } from "@dreamer/schemas";
-import { createDefaultBoardState } from "@dreamer/schemas";
+import { createDefaultBoardState, DEFAULT_BOARD_TARGET } from "@dreamer/schemas";
 import { pinStateStore } from "@/simulator/pin-state-store";
 import { getComponentFootprint, areConnected } from "@/breadboard/breadboard-grid";
 
@@ -76,6 +77,7 @@ export type BoardEvent =
   | { type: "ADD_CUSTOM_LIBRARY"; name: string; library: CustomLibrary }
   | { type: "UPDATE_CUSTOM_LIBRARY"; name: string; library: CustomLibrary }
   | { type: "REMOVE_CUSTOM_LIBRARY"; name: string }
+  | { type: "SET_BOARD_TARGET"; boardTarget: BoardTarget }
   | { type: "LOAD_BOARD"; state: BoardState }
   | { type: "SNAPSHOT" }
   | { type: "UNDO" }
@@ -103,6 +105,7 @@ function boardData(ctx: BoardMachineContext): BoardState {
     serialOutput: ctx.serialOutput,
     sketchCode: ctx.sketchCode,
     customLibraries: ctx.customLibraries,
+    boardTarget: ctx.boardTarget ?? DEFAULT_BOARD_TARGET,
   };
 }
 
@@ -220,6 +223,7 @@ export const boardMachine = setup({
         const existing = context.components[event.id];
         if (!existing) return {};
         return {
+          ...pushHistory(context),
           components: {
             ...context.components,
             [event.id]: { ...existing, ...event.changes },
@@ -247,6 +251,7 @@ export const boardMachine = setup({
           updatedProps.probeBCol = updatedProps.probeBCol + dx;
         }
         return {
+          ...pushHistory(context),
           components: {
             ...context.components,
             [event.id]: {
@@ -360,6 +365,19 @@ export const boardMachine = setup({
       }),
     },
 
+    SET_BOARD_TARGET: {
+      actions: [
+        () => {
+          // Drop stale per-pin runtime state when changing board model.
+          pinStateStore.resetValues();
+        },
+        assign(({ context, event }) => ({
+          ...pushHistory(context),
+          boardTarget: event.boardTarget,
+        })),
+      ],
+    },
+
     // ── Selection ──
 
     SELECT: {
@@ -371,10 +389,19 @@ export const boardMachine = setup({
     LOAD_BOARD: {
       actions: assign(({ event }) => {
         const s = event.state;
+        const isEmptyBoard =
+          Object.keys(s.components ?? {}).length === 0 &&
+          Object.keys(s.wires ?? {}).length === 0;
+        const normalizedSketch =
+          isEmptyBoard && s.sketchCode.trim() === ""
+            ? createDefaultBoardState().sketchCode
+            : s.sketchCode;
         return {
           ...s,
           libraryState: s.libraryState ?? { servos: {}, lcd: null, serialBaud: 0 },
           serialOutput: s.serialOutput ?? [],
+          sketchCode: normalizedSketch,
+          boardTarget: s.boardTarget ?? DEFAULT_BOARD_TARGET,
           selectedId: null,
           _past: [],
           _future: [],

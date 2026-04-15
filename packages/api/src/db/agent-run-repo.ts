@@ -1,5 +1,6 @@
 import { join } from "path";
 import { mkdir } from "fs/promises";
+import { AGENT_VERSION } from "../agents/version";
 import {
   agentRunFileSchema,
   agentRunRecordSchema,
@@ -89,6 +90,7 @@ async function createRun(params: {
   prompt: string;
   agent: AgentKind;
   parentRunId?: string;
+  snapshotVersion?: string;
 }): Promise<AgentRunFile> {
   const run: AgentRunRecord = agentRunRecordSchema.parse({
     id: createId(),
@@ -100,6 +102,8 @@ async function createRun(params: {
     parentRunId: params.parentRunId,
     status: "running",
     createdAt: now(),
+    agentVersion: AGENT_VERSION,
+    agentSnapshotVersion: params.snapshotVersion,
   });
 
   const file: AgentRunFile = {

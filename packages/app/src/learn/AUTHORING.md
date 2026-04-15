@@ -25,7 +25,8 @@ packages/app/src/learn/
 ├── LEARN_TOPICS.md               ← full topic roadmap by urgency
 ├── ENCYCLOPEDIA_TODO.md          ← milestone build plan for the reference tracks
 ├── learn-router.tsx              ← dispatches /learn/<slug> and /learn/reference/<track>/<slug>
-├── learn-layout.tsx              ← shell, collapsible sidebar, LESSONS catalog
+├── learn-layout.tsx              ← shell, expanded sidebar, LESSONS catalog
+├── learn-command-palette.tsx      ← Cmd+K fuzzy search across lessons/pages/glossary
 ├── breadboard-embed.tsx          ← <BreadboardEmbed> + side panels + controls
 ├── board-catalog.ts              ← eager glob of ./boards/*.json
 ├── encyclopedia-catalog.ts       ← metadata-only list of all reference pages
@@ -44,10 +45,21 @@ packages/app/src/learn/
 │   └── fade-led.tsx
 └── encyclopedia/                 ← reference pages grouped by track
     ├── planned-page.tsx          ← placeholder for unshipped entries
-    ├── board/                    ← Arduino Uno Reference (mostly stubs)
-    ├── programming/              ← Arduino Programming (mostly stubs)
-    └── electronics/              ← Electronics Fundamentals
-        └── schematic-symbols.tsx ← the one page that ships as part of Milestone 0
+    ├── board/                    ← Arduino Uno Reference (15 pages)
+    ├── programming/              ← Arduino Programming (36 pages)
+    └── electronics/              ← Electronics Fundamentals (35 pages)
+
+packages/app/src/examples/
+├── example-catalog.ts            ← metadata + glob for example boards
+└── boards/                       ← 21 example board JSONs (one per component type)
+    ├── ex-led.json
+    ├── ex-button.json
+    ├── ex-servo.json
+    └── … (21 files total)
+
+packages/app/src/editor/
+├── sketch-editor.tsx             ← CodeMirror editor + toolbar (Run/Stop/Examples)
+└── example-button.tsx            ← "Examples" popover in the sketch toolbar
 ```
 
 The routing entry point is [`app.tsx`](../app.tsx) — `/learn` is dispatched
@@ -291,7 +303,7 @@ and sketch generation won't find them.
 {
   "id":      "wire-d13",
   "fromRow": -999,     // -999 = "this end is an Arduino pin, not a breadboard row"
-  "fromCol": 13,       // Arduino pin number (0..19) or -1=5V, -3=GND, etc.
+  "fromCol": 13,       // Arduino pin number (signal 0..69, board-dependent) or -1=5V, -3=GND, etc.
   "toRow":   5,        // breadboard row (0–29)
   "toCol":   3,        // breadboard col (0–9 terminal, -2/-1/10/11 rails)
   "color":   "#fbbf24"
@@ -302,11 +314,10 @@ Arduino pin numbering for wires (the `fromCol` when `fromRow === -999`):
 
 | `fromCol` | Meaning |
 |---|---|
-| `0..13` | Digital pins D0–D13 |
-| `14..19` | Analog pins A0–A5 |
+| `0..69` | Signal pins (board-dependent; Uno/Nano/Mega layouts differ) |
 | `-1` | 5V |
 | `-2` | 3V3 |
-| `-3`, `-4` | GND |
+| `-3`, `-4`, `-6` | GND |
 | `-5` | VIN |
 
 Breadboard columns: cols `0..4` are the left terminal strip, `5..9` are

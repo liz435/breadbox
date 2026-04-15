@@ -195,6 +195,12 @@ function buildSummary(evals: RunEval[]): EvalSummary {
     if (e.electrical?.missingExternalSupply) {
       issueCounts.set("Missing external supply", (issueCounts.get("Missing external supply") ?? 0) + e.electrical.missingExternalSupply)
     }
+    if (e.electrical?.railDistributionViolations) {
+      issueCounts.set(
+        "Pin fan-out / rail distribution violations",
+        (issueCounts.get("Pin fan-out / rail distribution violations") ?? 0) + e.electrical.railDistributionViolations
+      )
+    }
   }
 
   for (const agg of Object.values(categories)) finalizeAggregate(agg)

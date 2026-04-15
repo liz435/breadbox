@@ -1,16 +1,19 @@
 import { Elysia } from "elysia";
 import { z, ZodError } from "zod";
 import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
-import { nonEmptyStringSchema } from "@dreamer/schemas";
+import { isBoardComponentType, nonEmptyStringSchema } from "@dreamer/schemas";
 import type { BoardOp } from "@dreamer/schemas";
 import { projectRepo, VersionConflictError, OpValidationError } from "../db/project-repo";
 import { agentRunRepo } from "../db/agent-run-repo";
-import { buildSummarizedHistory, generateThreadSummary } from "../agents/history-summarizer";
+import { buildTieredMemory } from "../agents/tiered-memory";
+import { generateThreadSummary } from "../agents/history-summarizer";
 import { streamCoreAgent } from "../agents/core/agent";
 import { classifyIntent } from "../agents/intent-classifier";
 import { CIRCUIT_TEMPLATES } from "../agents/circuit-templates";
 import { makeBoardOp } from "../agents/make-op";
 import { boardTracker } from "../db/board-state-tracker";
+import { createTrace, startSpan, closeTrace, serializeTrace } from "../agents/trace";
+import { resolveAgentSnapshotVersion } from "../agents/version";
 import { createLogger } from "../logger";
 
 const log = createLogger("chat");
@@ -31,6 +34,7 @@ const chatRequestSchema = z.object({
   threadId: nonEmptyStringSchema,
   sessionId: nonEmptyStringSchema,
   expectedVersion: z.number().int().nonnegative(),
+  snapshotVersion: z.string().optional(),
 });
 
 /** Extract the text from the last user message's parts. */
@@ -64,7 +68,6 @@ const BOARD_OP_KINDS = new Set([
 
 export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) => {
   const id = ++requestId;
-  const start = performance.now();
   const reqLog = log.child(`req-${id}`);
 
   let input;
@@ -87,6 +90,7 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
   reqLog.info(
     `incoming — project: ${input.projectId}, thread: ${input.threadId}, prompt: ${prompt.slice(0, 80)}`
   );
+  const snapshotVersion = resolveAgentSnapshotVersion(input.snapshotVersion);
 
   // 1. Read or bootstrap project
   let project = await projectRepo.readProject(input.projectId);
@@ -116,17 +120,26 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
     sessionId: input.sessionId,
     prompt,
     agent: "core",
+    snapshotVersion,
   });
   await agentRunRepo.attachRunToThread(input.threadId, runFile.run.id);
   reqLog.info(`created run: ${runFile.run.id}`);
 
+  // 3b. Open trace span for the full request
+  const trace = createTrace(runFile.run.id);
+  const { finish: finishValidation } = startSpan(trace.rootSpan, "validation");
+  finishValidation();
+
   // 4. Classify intent — template or agent?
+  const { finish: finishIntent } = startSpan(trace.rootSpan, "intent_classification");
   const intent = classifyIntent(prompt);
+  finishIntent({ confidence: intent.confidence, type: intent.type });
 
   if (intent.type === "template") {
-    reqLog.info(`template match: ${intent.template}, additive: ${intent.additive}`);
+    reqLog.info(`template match: ${intent.template}, additive: ${intent.additive}, confidence: ${intent.confidence}`);
     const templateFn = CIRCUIT_TEMPLATES[intent.template];
     if (templateFn && project.boardState) {
+      const { finish: finishTemplate } = startSpan(trace.rootSpan, "template_execution");
       const opCtx = {
         projectId: input.projectId,
         sceneId: input.sceneId,
@@ -137,16 +150,14 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
       const clearOps: BoardOp[] = [];
       if (!intent.additive) {
         const board = project.boardState;
-        // Remove all wires first (to avoid orphan issues)
         for (const wireId of Object.keys(board.wires)) {
           clearOps.push(makeBoardOp(opCtx, {
             kind: "remove_wire",
             payload: { wireId },
           }));
         }
-        // Remove all components (except arduino_uno)
         for (const comp of Object.values(board.components)) {
-          if (comp.type === "arduino_uno") continue;
+          if (isBoardComponentType(comp.type)) continue;
           clearOps.push(makeBoardOp(opCtx, {
             kind: "remove_component",
             payload: { componentId: comp.id },
@@ -178,19 +189,19 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
         tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, model: "template" },
       });
 
+      finishTemplate({ opsCount: templateOps.length });
+      closeTrace(trace);
+
       // Stream the response
       const uiStream = createUIMessageStream({
         async execute({ writer }) {
-          // Send ops to client
           writer.write({ type: "data-scene-ops", data: templateOps });
 
-          // Send assistant text as deltas
           const msgId = crypto.randomUUID();
           writer.write({ type: "text-start", id: msgId });
           writer.write({ type: "text-delta", delta: result.description, id: msgId });
           writer.write({ type: "text-end", id: msgId });
 
-          // Send result metadata
           writer.write({
             type: "data-token-usage" as never,
             data: { inputTokens: 0, outputTokens: 0, model: "template", childRuns: [] },
@@ -205,33 +216,51 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
               tokenUsage: { inputTokens: 0, outputTokens: 0, model: "template" },
             },
           });
+
+          // Emit trace data
+          writer.write({
+            type: "data-trace" as never,
+            data: serializeTrace(trace),
+          });
         },
       });
 
-      const elapsed = (performance.now() - start).toFixed(1);
-      reqLog.info(`template completed — ${templateOps.length} ops, ${elapsed}ms`);
-
+      reqLog.info(`template completed — ${templateOps.length} ops`);
       return createUIMessageStreamResponse({ stream: uiStream });
     }
   }
 
-  // 5. Build conversation history from prior runs (agent path)
+  // 5. Build conversation history using tiered memory retrieval
+  const { finish: finishMemory } = startSpan(trace.rootSpan, "tiered_memory");
   const priorRuns = await agentRunRepo.listRunsForThread(input.threadId);
   const cachedSummary = await agentRunRepo.readThreadSummary(input.threadId);
   const completedRuns = priorRuns.filter(
     (r) => r.run.id !== runFile.run.id && r.run.status === "completed"
   );
-  const historyResult = await buildSummarizedHistory(completedRuns, cachedSummary);
-  const history = historyResult.messages;
-  const liveSummarizerUsage = historyResult.usage;
+  const memoryResult = await buildTieredMemory({
+    prompt,
+    completedRuns,
+    cachedSummary,
+  });
+  const history = memoryResult.messages;
+  const liveSummarizerUsage = memoryResult.usage;
+  finishMemory({
+    historyMessages: history.length,
+    completedRuns: completedRuns.length,
+    tfidfHits: memoryResult.tfidfRunIds.length,
+  });
   reqLog.debug(`rebuilt ${history.length} history message(s) from ${completedRuns.length} prior run(s)`);
-  if (liveSummarizerUsage) {
+  if (memoryResult.tfidfRunIds.length > 0) {
+    reqLog.info(`TF-IDF retrieved ${memoryResult.tfidfRunIds.length} relevant older run(s)`);
+  }
+  if (liveSummarizerUsage && liveSummarizerUsage.totalTokens > 0) {
     reqLog.info(
       `live summarizer overhead: ${liveSummarizerUsage.totalTokens} tokens (${liveSummarizerUsage.model})`
     );
   }
 
   // 6. Start streaming agent
+  const { finish: finishAgentSetup } = startSpan(trace.rootSpan, "agent_setup");
   const agentStream = streamCoreAgent({
     prompt,
     project,
@@ -240,10 +269,12 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
     threadId: input.threadId,
     projectId: input.projectId,
     sessionId: input.sessionId,
+    snapshotVersion,
     parentLog: reqLog,
     history,
     priorRuns: completedRuns,
   });
+  finishAgentSetup();
 
   // Capture values for the stream execute callback
   const capturedExpectedVersion = input.expectedVersion;
@@ -252,8 +283,7 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
 
   const uiStream = createUIMessageStream({
     async execute({ writer }) {
-      // Stream board ops to the client as they're produced (after each agent step)
-      // Graph ops are NOT streamed here — they are sent once after collectResult()
+      // Stream board ops to the client as they're produced
       agentStream.onNewOps((newOps) => {
         const boardOnly = newOps.filter(
           (op) => BOARD_OP_KINDS.has(op.kind) && !GRAPH_OP_KINDS.has(op.kind)
@@ -266,11 +296,28 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
         }
       });
 
-      // Merge the AI SDK's UI message stream (text deltas, tool calls, etc.)
+      // Merge the AI SDK's UI message stream
       writer.merge(agentStream.uiMessageStream);
 
       // After the stream finishes, collect final results and apply ops server-side
+      const { finish: finishCollect } = startSpan(trace.rootSpan, "collect_result");
       const result = await agentStream.collectResult();
+      finishCollect({ opsCount: result.proposedOps.length });
+
+      // Check plan feasibility and stream preview for destructive ops
+      // Check plan feasibility and stream preview for destructive ops
+      const agentPlan = agentStream.getPlan();
+      if (agentPlan && agentPlan.isDestructive) {
+        writer.write({
+          type: "data-plan-preview" as never,
+          data: {
+            summary: agentPlan.summary,
+            steps: agentPlan.steps,
+            isDestructive: agentPlan.isDestructive,
+            approvalReason: agentPlan.destructiveDetails ?? "This plan involves removing or replacing existing components.",
+          },
+        });
+      }
 
       let newVersion = capturedProject.project.version;
       let appliedOps: BoardOp[] = [];
@@ -282,6 +329,8 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
       const graphOps = result.proposedOps.filter(
         (op) => GRAPH_OP_KINDS.has(op.kind)
       );
+
+      const { finish: finishApply } = startSpan(trace.rootSpan, "apply_ops");
 
       if (boardOps.length > 0) {
         try {
@@ -299,8 +348,21 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
             reqLog.warn(
               `version conflict: expected ${err.expectedVersion}, current ${err.currentVersion}`
             );
+            // Abort ALL ops (board + graph) on version conflict — coupled atomic rollback
+            writer.write({
+              type: "error",
+              errorText: `Board was modified by another session. All operations (board and graph) have been aborted. Please refresh and retry. (expected v${err.expectedVersion}, current v${err.currentVersion})`,
+            });
+            // Skip graph ops entirely — atomic abort
+            finishApply({ aborted: true, reason: "version_conflict" });
+            await finalizeRun(writer, result, runFile, input, trace, liveSummarizerUsage, reqLog, [], newVersion);
+            return;
           } else if (err instanceof OpValidationError) {
             reqLog.warn(`op validation error: ${err.message}`);
+            writer.write({
+              type: "error",
+              errorText: `Board operation rejected: ${err.message}`,
+            });
           } else if (err instanceof ZodError) {
             reqLog.warn(`op schema validation error: ${err.message}`);
           } else {
@@ -309,65 +371,7 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
         }
       }
 
-      // Roll up overhead (summarizer) into the parent run's tokenUsage so
-      // eval sees the true per-turn cost. Live summarizer runs blocked this
-      // request; background ones don't (yet) but we reserve the slot.
-      const overhead = liveSummarizerUsage
-        ? [{
-            kind: "summarizer_live" as const,
-            inputTokens: liveSummarizerUsage.inputTokens,
-            outputTokens: liveSummarizerUsage.outputTokens,
-            totalTokens: liveSummarizerUsage.totalTokens,
-            model: liveSummarizerUsage.model,
-          }]
-        : undefined;
-      const overheadTotal = overhead
-        ? overhead.reduce((acc, o) => acc + o.totalTokens, 0)
-        : 0;
-      const tokenUsageWithOverhead = {
-        ...result.tokenUsage,
-        totalTokens: result.tokenUsage.totalTokens + overheadTotal,
-        overhead,
-      };
-
-      // Persist completed run
-      await agentRunRepo.completeRun({
-        runId: runFile.run.id,
-        assistantText: result.assistantText,
-        messages: result.messages,
-        proposedOps: result.proposedOps,
-        appliedOps,
-        tokenUsage: tokenUsageWithOverhead,
-      });
-
-      const elapsed = (performance.now() - start).toFixed(1);
-      reqLog.info(
-        `completed — ${result.proposedOps.length} proposed (${graphOps.length} graph), ${appliedOps.length} applied, v${newVersion}, ${elapsed}ms`
-      );
-
-      // Fire-and-forget: pre-cache history summary for next turn. The tokens
-      // burned here are attributed to THIS run's overhead — otherwise they're
-      // invisible to eval/token-analyzer.
-      const runIdForBackground = runFile.run.id;
-      agentRunRepo.listRunsForThread(input.threadId).then(async (allThreadRuns) => {
-        const allCompleted = allThreadRuns.filter((r) => r.run.status === "completed");
-        const result = await generateThreadSummary(allCompleted);
-        if (!result) return;
-
-        await agentRunRepo.updateThreadSummary(input.threadId, result.summary);
-        // Attribute the background summarizer cost to the run that triggered it
-        await agentRunRepo.appendOverhead(runIdForBackground, {
-          kind: "summarizer_background",
-          inputTokens: result.usage.inputTokens,
-          outputTokens: result.usage.outputTokens,
-          totalTokens: result.usage.totalTokens,
-          model: result.usage.model,
-        });
-      }).catch((err) => {
-        reqLog.warn(`background summary cache failed: ${err}`);
-      });
-
-      // Apply graph ops to the project file server-side so they persist
+      // Apply graph ops to the project file — skip if board ops were aborted
       if (graphOps.length > 0) {
         try {
           const currentProject = await projectRepo.readProject(capturedProjectId);
@@ -433,52 +437,13 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
         });
       }
 
-      // Gather child run token usage (from delegated agents)
-      const allRuns = await agentRunRepo.listRunsForThread(input.threadId);
-      const childRuns = allRuns
-        .filter((r) => r.run.parentRunId === runFile.run.id && r.tokenUsage)
-        .map((r) => ({
-          agent: r.run.agent,
-          inputTokens: r.tokenUsage?.inputTokens ?? 0,
-          outputTokens: r.tokenUsage?.outputTokens ?? 0,
-          totalTokens: r.tokenUsage?.totalTokens ?? 0,
-          model: r.tokenUsage?.model ?? "unknown",
-        }));
+      finishApply({ boardOps: boardOps.length, graphOps: graphOps.length, appliedOps: appliedOps.length });
 
-      // Send token usage data
-      writer.write({
-        type: "data-token-usage",
-        data: {
-          inputTokens: result.tokenUsage.inputTokens,
-          outputTokens: result.tokenUsage.outputTokens,
-          totalTokens: result.tokenUsage.totalTokens,
-          model: result.tokenUsage.model,
-          childRuns,
-        },
-      });
-
-      // Send final result with applied ops and new version
-      writer.write({
-        type: "data-scene-result",
-        data: {
-          appliedOps,
-          newVersion,
-          runId: runFile.run.id,
-          tokenUsage: {
-            inputTokens: result.tokenUsage.inputTokens,
-            outputTokens: result.tokenUsage.outputTokens,
-            totalTokens: result.tokenUsage.totalTokens,
-            model: result.tokenUsage.model,
-            childRuns,
-          },
-        },
-      });
+      await finalizeRun(writer, result, runFile, input, trace, liveSummarizerUsage, reqLog, appliedOps, newVersion);
     },
     onError(error) {
-      const elapsed = (performance.now() - start).toFixed(1);
-      reqLog.error(`failed after ${elapsed}ms`, error);
+      reqLog.error(`failed`, error);
 
-      // Mark the run as failed so it doesn't stay stuck in "running" status
       agentRunRepo.completeRun({
         runId: runFile.run.id,
         proposedOps: [],
@@ -488,6 +453,7 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
         reqLog.warn(`failed to mark run as errored: ${err}`);
       });
 
+      closeTrace(trace);
       return String(error);
     },
   });
@@ -505,7 +471,6 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
     (r) => r.run.status === "completed" && r.run.agent === "core"
   );
 
-  // Convert runs to UIMessage format for the frontend
   type ChatUIMessage = {
     id: string;
     role: "user" | "assistant";
@@ -514,13 +479,11 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
 
   const messages: ChatUIMessage[] = [];
   for (const run of completedCoreRuns) {
-    // User message
     messages.push({
       id: `${run.run.id}-user`,
       role: "user",
       parts: [{ type: "text", text: run.prompt }],
     });
-    // Assistant message (final text only — skip tool calls for display)
     if (run.assistantText) {
       messages.push({
         id: `${run.run.id}-assistant`,
@@ -532,3 +495,126 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
 
   return { messages };
 });
+
+// ── Helper: finalize run + emit metadata ────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function finalizeRun(
+  writer: { write: (data: any) => void },
+  result: { tokenUsage: { inputTokens: number; outputTokens: number; totalTokens: number; model: string }; proposedOps: BoardOp[]; assistantText: string; messages: unknown[] },
+  runFile: { run: { id: string } },
+  input: { threadId: string; projectId: string },
+  trace: ReturnType<typeof createTrace>,
+  liveSummarizerUsage: { inputTokens: number; outputTokens: number; totalTokens: number; model: string } | null,
+  reqLog: ReturnType<typeof createLogger>,
+  appliedOps: BoardOp[],
+  newVersion: number,
+) {
+  // Roll up overhead (summarizer) into the parent run's tokenUsage
+  const overhead = liveSummarizerUsage && liveSummarizerUsage.totalTokens > 0
+    ? [{
+        kind: "summarizer_live" as const,
+        inputTokens: liveSummarizerUsage.inputTokens,
+        outputTokens: liveSummarizerUsage.outputTokens,
+        totalTokens: liveSummarizerUsage.totalTokens,
+        model: liveSummarizerUsage.model,
+      }]
+    : undefined;
+  const overheadTotal = overhead
+    ? overhead.reduce((acc, o) => acc + o.totalTokens, 0)
+    : 0;
+  const tokenUsageWithOverhead = {
+    ...result.tokenUsage,
+    totalTokens: result.tokenUsage.totalTokens + overheadTotal,
+    overhead,
+  };
+
+  // Persist completed run
+  await agentRunRepo.completeRun({
+    runId: runFile.run.id,
+    assistantText: result.assistantText,
+    messages: result.messages,
+    proposedOps: result.proposedOps,
+    appliedOps,
+    tokenUsage: tokenUsageWithOverhead,
+  });
+
+  reqLog.info(
+    `completed — ${result.proposedOps.length} proposed, ${appliedOps.length} applied, v${newVersion}`
+  );
+
+  // Fire-and-forget: pre-cache history summary for next turn with
+  // improved error handling (log + invalidate cache on failure).
+  const runIdForBackground = runFile.run.id;
+  agentRunRepo.listRunsForThread(input.threadId).then(async (allThreadRuns) => {
+    const allCompleted = allThreadRuns.filter((r) => r.run.status === "completed");
+    const summaryResult = await generateThreadSummary(allCompleted);
+    if (!summaryResult) return;
+
+    await agentRunRepo.updateThreadSummary(input.threadId, summaryResult.summary);
+    await agentRunRepo.appendOverhead(runIdForBackground, {
+      kind: "summarizer_background",
+      inputTokens: summaryResult.usage.inputTokens,
+      outputTokens: summaryResult.usage.outputTokens,
+      totalTokens: summaryResult.usage.totalTokens,
+      model: summaryResult.usage.model,
+    });
+  }).catch(async (err) => {
+    reqLog.warn(`background summary cache failed: ${err}`);
+    // Invalidate the stale cache so next request doesn't use it
+    try {
+      await agentRunRepo.updateThreadSummary(input.threadId, { text: "", runCount: 0 });
+      reqLog.info("invalidated stale summary cache after background failure");
+    } catch (invalidateErr) {
+      reqLog.warn(`failed to invalidate summary cache: ${invalidateErr}`);
+    }
+  });
+
+  // Gather child run token usage
+  const allRuns = await agentRunRepo.listRunsForThread(input.threadId);
+  const childRuns = allRuns
+    .filter((r) => r.run.parentRunId === runFile.run.id && r.tokenUsage)
+    .map((r) => ({
+      agent: r.run.agent,
+      inputTokens: r.tokenUsage?.inputTokens ?? 0,
+      outputTokens: r.tokenUsage?.outputTokens ?? 0,
+      totalTokens: r.tokenUsage?.totalTokens ?? 0,
+      model: r.tokenUsage?.model ?? "unknown",
+    }));
+
+  // Send token usage data
+  writer.write({
+    type: "data-token-usage",
+    data: {
+      inputTokens: result.tokenUsage.inputTokens,
+      outputTokens: result.tokenUsage.outputTokens,
+      totalTokens: result.tokenUsage.totalTokens,
+      model: result.tokenUsage.model,
+      childRuns,
+    },
+  });
+
+  // Send final result with applied ops and new version
+  writer.write({
+    type: "data-scene-result",
+    data: {
+      appliedOps,
+      newVersion,
+      runId: runFile.run.id,
+      tokenUsage: {
+        inputTokens: result.tokenUsage.inputTokens,
+        outputTokens: result.tokenUsage.outputTokens,
+        totalTokens: result.tokenUsage.totalTokens,
+        model: result.tokenUsage.model,
+        childRuns,
+      },
+    },
+  });
+
+  // Emit trace data
+  closeTrace(trace);
+  writer.write({
+    type: "data-trace" as never,
+    data: serializeTrace(trace),
+  });
+}

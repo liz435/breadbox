@@ -10,6 +10,7 @@ function boardEqual(a: BoardMachineContext, b: BoardMachineContext) {
     a.libraryState === b.libraryState &&
     a.serialOutput === b.serialOutput &&
     a.sketchCode === b.sketchCode &&
+    a.boardTarget === b.boardTarget &&
     a.selectedId === b.selectedId
   );
 }

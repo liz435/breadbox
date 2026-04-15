@@ -1,0 +1,318 @@
+{
+  "project": {
+    "id": "59cdf151-2bcd-49b5-82a6-797a5ead261b",
+    "name": "noble-cat-sail",
+    "version": 1,
+    "createdAt": "2026-04-15T00:35:40.748Z",
+    "updatedAt": "2026-04-15T00:36:12.009Z",
+    "threadId": "bfe06f46-f278-44cb-8dae-9245b31fedb1",
+    "activeSceneId": "e166e0d2-227d-43d9-9275-e269aa7e62db"
+  },
+  "scenes": {
+    "e166e0d2-227d-43d9-9275-e269aa7e62db": {
+      "id": "e166e0d2-227d-43d9-9275-e269aa7e62db",
+      "name": "Main Scene",
+      "version": 0,
+      "settings": {
+        "background": "#252525",
+        "gravity": {
+          "x": 0,
+          "y": 9.8
+        }
+      }
+    }
+  },
+  "entities": {},
+  "sceneEntityIds": {
+    "e166e0d2-227d-43d9-9275-e269aa7e62db": []
+  },
+  "components": {
+    "transform": {},
+    "sprite": {},
+    "tilemap": {},
+    "physicsBody": {},
+    "script": {},
+    "camera": {}
+  },
+  "assets": {},
+  "graph": {
+    "nodes": {
+      "node-1776213340768-8ay6bp": {
+        "id": "node-1776213340768-8ay6bp",
+        "type": "setup",
+        "name": "Setup",
+        "x": 60,
+        "y": 60,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      },
+      "node-1776213340768-fj3537": {
+        "id": "node-1776213340768-fj3537",
+        "type": "loop",
+        "name": "Loop",
+        "x": 60,
+        "y": 200,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      }
+    },
+    "edges": {}
+  },
+  "boardState": {
+    "components": {
+      "72670036-2983-416b-bbe4-5e3bb1a8f75d": {
+        "id": "72670036-2983-416b-bbe4-5e3bb1a8f75d",
+        "type": "seven_segment",
+        "name": "Display",
+        "x": 2,
+        "y": 0,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null,
+          "c": null,
+          "d": null,
+          "e": null,
+          "f": null,
+          "g": null
+        },
+        "properties": {}
+      },
+      "9ed01bf8-21c0-4c88-8d9b-db3c4a6ec066": {
+        "id": "9ed01bf8-21c0-4c88-8d9b-db3c4a6ec066",
+        "type": "resistor",
+        "name": "R_A",
+        "x": 3,
+        "y": 0,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "cb2e29c0-5216-438c-a6c4-747e1241e5f8": {
+        "id": "cb2e29c0-5216-438c-a6c4-747e1241e5f8",
+        "type": "resistor",
+        "name": "R_B",
+        "x": 3,
+        "y": 1,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "5e7a614d-b2f7-437f-9a9b-73c489624973": {
+        "id": "5e7a614d-b2f7-437f-9a9b-73c489624973",
+        "type": "resistor",
+        "name": "R_C",
+        "x": 3,
+        "y": 2,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "08fa24de-f4c7-46c9-9d47-e967ddb63093": {
+        "id": "08fa24de-f4c7-46c9-9d47-e967ddb63093",
+        "type": "resistor",
+        "name": "R_D",
+        "x": 3,
+        "y": 3,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "2021601d-2a54-42e6-b49a-41ee4e1aa732": {
+        "id": "2021601d-2a54-42e6-b49a-41ee4e1aa732",
+        "type": "resistor",
+        "name": "R_E",
+        "x": 3,
+        "y": 4,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "361732ac-b0f8-421a-8f7f-50f29aa13db5": {
+        "id": "361732ac-b0f8-421a-8f7f-50f29aa13db5",
+        "type": "resistor",
+        "name": "R_F",
+        "x": 3,
+        "y": 5,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "e06410df-bcdb-4cb6-9094-c33eebb2354c": {
+        "id": "e06410df-bcdb-4cb6-9094-c33eebb2354c",
+        "type": "resistor",
+        "name": "R_G",
+        "x": 3,
+        "y": 6,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "a27a85bb-cb4b-4712-b102-15ed0b27c6e5": {
+        "id": "a27a85bb-cb4b-4712-b102-15ed0b27c6e5",
+        "type": "button",
+        "name": "BTN",
+        "x": 3,
+        "y": 2,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {}
+      }
+    },
+    "wires": {
+      "60dd9e13-827b-453d-9d5b-82d12ae79f39": {
+        "id": "60dd9e13-827b-453d-9d5b-82d12ae79f39",
+        "fromRow": -999,
+        "fromCol": 2,
+        "toRow": 0,
+        "toCol": 6,
+        "color": "red"
+      },
+      "7d491682-6608-481d-bffd-dce83a51b2fd": {
+        "id": "7d491682-6608-481d-bffd-dce83a51b2fd",
+        "fromRow": -999,
+        "fromCol": 3,
+        "toRow": 1,
+        "toCol": 6,
+        "color": "orange"
+      },
+      "e50455f9-db0c-45c2-9094-1ebd8d5a3dfb": {
+        "id": "e50455f9-db0c-45c2-9094-1ebd8d5a3dfb",
+        "fromRow": -999,
+        "fromCol": 4,
+        "toRow": 2,
+        "toCol": 6,
+        "color": "yellow"
+      },
+      "54edfc20-507e-4313-937e-c65eef70b41f": {
+        "id": "54edfc20-507e-4313-937e-c65eef70b41f",
+        "fromRow": -999,
+        "fromCol": 5,
+        "toRow": 3,
+        "toCol": 6,
+        "color": "green"
+      },
+      "91135083-ae8a-4f41-a09c-8874e049a1a3": {
+        "id": "91135083-ae8a-4f41-a09c-8874e049a1a3",
+        "fromRow": -999,
+        "fromCol": 6,
+        "toRow": 4,
+        "toCol": 6,
+        "color": "blue"
+      },
+      "a1fdb890-57cd-44d6-a2b4-9692d465e613": {
+        "id": "a1fdb890-57cd-44d6-a2b4-9692d465e613",
+        "fromRow": -999,
+        "fromCol": 7,
+        "toRow": 5,
+        "toCol": 6,
+        "color": "purple"
+      },
+      "3e3fa9be-3942-44a0-8f50-c464242a288e": {
+        "id": "3e3fa9be-3942-44a0-8f50-c464242a288e",
+        "fromRow": -999,
+        "fromCol": 8,
+        "toRow": 6,
+        "toCol": 6,
+        "color": "white"
+      },
+      "c831ab84-6a61-4220-8f31-0a01beadeccf": {
+        "id": "c831ab84-6a61-4220-8f31-0a01beadeccf",
+        "fromRow": -999,
+        "fromCol": -3,
+        "toRow": 0,
+        "toCol": -1,
+        "color": "black"
+      },
+      "8b5cfec4-c53f-44bc-9cc7-3ec0d414cfe2": {
+        "id": "8b5cfec4-c53f-44bc-9cc7-3ec0d414cfe2",
+        "fromRow": 0,
+        "fromCol": -1,
+        "toRow": 0,
+        "toCol": 1,
+        "color": "black"
+      },
+      "85697b14-1cd6-4356-9f17-11da7450462a": {
+        "id": "85697b14-1cd6-4356-9f17-11da7450462a",
+        "fromRow": 2,
+        "fromCol": -1,
+        "toRow": 2,
+        "toCol": 6,
+        "color": "black"
+      },
+      "c5db2cf7-b351-46ef-a517-ea28d3701a51": {
+        "id": "c5db2cf7-b351-46ef-a517-ea28d3701a51",
+        "fromRow": -999,
+        "fromCol": 9,
+        "toRow": 2,
+        "toCol": 3,
+        "color": "green"
+      }
+    },
+    "libraryState": {
+      "servos": {},
+      "lcd": null,
+      "serialBaud": 0
+    },
+    "serialOutput": [],
+    "sketchCode": "\n// 7-Segment Counter: 0-9, increments on button press\n\nconst int SEG_A = 2;\nconst int SEG_B = 3;\nconst int SEG_C = 4;\nconst int SEG_D = 5;\nconst int SEG_E = 6;\nconst int SEG_F = 7;\nconst int SEG_G = 8;\nconst int BTN_PIN = 9;\n\nint count = 0;\nint lastBtnState = HIGH;\n\nvoid showDigit(int n) {\n  // a b c d e f g  (1=ON, 0=OFF) — common cathode\n  if (n == 0) { digitalWrite(SEG_A,1);digitalWrite(SEG_B,1);digitalWrite(SEG_C,1);digitalWrite(SEG_D,1);digitalWrite(SEG_E,1);digitalWrite(SEG_F,1);digitalWrite(SEG_G,0); }\n  else if (n == 1) { digitalWrite(SEG_A,0);digitalWrite(SEG_B,1);digitalWrite(SEG_C,1);digitalWrite(SEG_D,0);digitalWrite(SEG_E,0);digitalWrite(SEG_F,0);digitalWrite(SEG_G,0); }\n  else if (n == 2) { digitalWrite(SEG_A,1);digitalWrite(SEG_B,1);digitalWrite(SEG_C,0);digitalWrite(SEG_D,1);digitalWrite(SEG_E,1);digitalWrite(SEG_F,0);digitalWrite(SEG_G,1); }\n  else if (n == 3) { digitalWrite(SEG_A,1);digitalWrite(SEG_B,1);digitalWrite(SEG_C,1);digitalWrite(SEG_D,1);digitalWrite(SEG_E,0);digitalWrite(SEG_F,0);digitalWrite(SEG_G,1); }\n  else if (n == 4) { digitalWrite(SEG_A,0);digitalWrite(SEG_B,1);digitalWrite(SEG_C,1);digitalWrite(SEG_D,0);digitalWrite(SEG_E,0);digitalWrite(SEG_F,1);digitalWrite(SEG_G,1); }\n  else if (n == 5) { digitalWrite(SEG_A,1);digitalWrite(SEG_B,0);digitalWrite(SEG_C,1);digitalWrite(SEG_D,1);digitalWrite(SEG_E,0);digitalWrite(SEG_F,1);digitalWrite(SEG_G,1); }\n  else if (n == 6) { digitalWrite(SEG_A,1);digitalWrite(SEG_B,0);digitalWrite(SEG_C,1);digitalWrite(SEG_D,1);digitalWrite(SEG_E,1);digitalWrite(SEG_F,1);digitalWrite(SEG_G,1); }\n  else if (n == 7) { digitalWrite(SEG_A,1);digitalWrite(SEG_B,1);digitalWrite(SEG_C,1);digitalWrite(SEG_D,0);digitalWrite(SEG_E,0);digitalWrite(SEG_F,0);digitalWrite(SEG_G,0); }\n  else if (n == 8) { digitalWrite(SEG_A,1);digitalWrite(SEG_B,1);digitalWrite(SEG_C,1);digitalWrite(SEG_D,1);digitalWrite(SEG_E,1);digitalWrite(SEG_F,1);digitalWrite(SEG_G,1); }\n  else if (n == 9) { digitalWrite(SEG_A,1);digitalWrite(SEG_B,1);digitalWrite(SEG_C,1);digitalWrite(SEG_D,1);digitalWrite(SEG_E,0);digitalWrite(SEG_F,1);digitalWrite(SEG_G,1); }\n}\n\nvoid setup() {\n  pinMode(SEG_A, OUTPUT);\n  pinMode(SEG_B, OUTPUT);\n  pinMode(SEG_C, OUTPUT);\n  pinMode(SEG_D, OUTPUT);\n  pinMode(SEG_E, OUTPUT);\n  pinMode(SEG_F, OUTPUT);\n  pinMode(SEG_G, OUTPUT);\n  pinMode(BTN_PIN, INPUT_PULLUP);\n  showDigit(0);\n}\n\nvoid loop() {\n  int btnState = digitalRead(BTN_PIN);\n  if (btnState == LOW && lastBtnState == HIGH) {\n    count = count + 1;\n    if (count > 9) count = 0;\n    showDigit(count);\n    delay(50); // debounce\n  }\n  lastBtnState = btnState;\n}\n",
+    "customLibraries": {},
+    "boardTarget": "arduino_uno"
+  }
+}

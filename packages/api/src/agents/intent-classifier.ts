@@ -7,8 +7,8 @@
 // This runs BEFORE the expensive Sonnet call — ~0ms, zero tokens.
 
 export type ClassifiedIntent =
-  | { type: "template"; template: string; params: Record<string, unknown>; additive: boolean }
-  | { type: "agent" }
+  | { type: "template"; template: string; params: Record<string, unknown>; additive: boolean; confidence: number }
+  | { type: "agent"; confidence: number }
 
 export type AgentComplexity = "simple" | "complex"
 
@@ -56,7 +56,7 @@ export function classifyIntent(prompt: string): ClassifiedIntent {
 
   // Ambiguous prompts go to the agent — it has full context
   if (REPLACEMENT_PATTERNS.test(p) || SELECTIVE_PATTERNS.test(p)) {
-    return { type: "agent" }
+    return { type: "agent", confidence: 0.8 }
   }
 
   const additive = ADDITIVE_PATTERNS.test(p) || KEEP_PATTERNS.test(p)
@@ -71,45 +71,45 @@ export function classifyIntent(prompt: string): ClassifiedIntent {
       yellow: "#facc15", white: "#f5f5f5", orange: "#f97316",
     }
     return {
-      type: "template", template: "blink", additive,
+      type: "template", template: "blink", additive, confidence: 0.95,
       params: { pin, color: colorMap[colorMatch?.[1] ?? "red"] ?? "#ef4444" },
     }
   }
 
   // ── Button + LED ──
   if (/\bbutton\b/.test(p) && /\bled\b/.test(p) && !(/servo|lcd|motor|sensor/.test(p))) {
-    return { type: "template", template: "button_led", params: {}, additive }
+    return { type: "template", template: "button_led", params: {}, additive, confidence: 0.9 }
   }
 
   // ── Servo sweep ──
   if (/\bservo\b/.test(p) && /\bsweep\b/.test(p)) {
     const pinMatch = p.match(/\bpin\s*(\d+)\b/)
     const pin = pinMatch ? parseInt(pinMatch[1], 10) : 9
-    return { type: "template", template: "servo_sweep", params: { pin }, additive }
+    return { type: "template", template: "servo_sweep", params: { pin }, additive, confidence: 0.9 }
   }
 
   // ── Traffic light ──
   if (/\btraffic\s*light\b/.test(p)) {
-    return { type: "template", template: "traffic_light", params: {}, additive }
+    return { type: "template", template: "traffic_light", params: {}, additive, confidence: 0.95 }
   }
 
   // ── Potentiometer + LED (brightness control) ──
   if (/\bpot\b|\bpotentiometer\b/.test(p) && /\bled\b|\bbright\b/.test(p)) {
-    return { type: "template", template: "pot_led", params: {}, additive }
+    return { type: "template", template: "pot_led", params: {}, additive, confidence: 0.85 }
   }
 
   // ── Temperature sensor reading ──
   if (/\btemp\b|\btemperature\b/.test(p) && /\bread\b|\bsensor\b|\bmonitor\b/.test(p)) {
-    return { type: "template", template: "temperature_reading", params: {}, additive }
+    return { type: "template", template: "temperature_reading", params: {}, additive, confidence: 0.85 }
   }
 
   // ── Buzzer / tone ──
   if (/\bbuzz\b|\btone\b|\bmelody\b|\bbeep\b/.test(p) && !(/button|led|servo|motor/.test(p))) {
-    return { type: "template", template: "buzzer_tone", params: {}, additive }
+    return { type: "template", template: "buzzer_tone", params: {}, additive, confidence: 0.85 }
   }
 
   // No match — use full agent
-  return { type: "agent" }
+  return { type: "agent", confidence: 0.6 }
 }
 
 // ── Complexity Classifier ─────────────────────────────────────────────

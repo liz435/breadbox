@@ -4,7 +4,7 @@
 // and camera-related keyboard handling. Returns the current camera state
 // and stable event handlers that the SVG element can attach directly.
 
-import { useCallback, useRef } from "react"
+import { useCallback, useEffect, useRef } from "react"
 import React from "react"
 import {
   getCamera,
@@ -26,20 +26,33 @@ export function useBreadboardCamera({ svgRef, panMode }: UseBreadboardCameraOpti
   const [, setTick] = React.useState(0)
   const forceUpdate = useCallback(() => setTick((t) => t + 1), [])
 
-  const handleWheel = useCallback(
-    (e: React.WheelEvent<SVGSVGElement>) => {
+  // Attach wheel listener as non-passive so preventDefault() works.
+  // React registers onWheel as passive by default in modern browsers,
+  // which causes "Unable to preventDefault inside passive event listener"
+  // warnings. Using a native listener with { passive: false } avoids this.
+  useEffect(() => {
+    const el = svgRef.current
+    if (!el) return
+
+    const onWheel = (e: WheelEvent) => {
       e.preventDefault()
       const cam = getCamera()
       const factor = e.deltaY < 0 ? 1.1 : 0.9
-      const rect = svgRef.current?.getBoundingClientRect()
-      if (!rect) return
+      const rect = el.getBoundingClientRect()
       const sx = e.clientX - rect.left
       const sy = e.clientY - rect.top
       zoomAtPoint(sx, sy, cam.zoom * factor)
       forceUpdate()
-    },
-    [forceUpdate, svgRef],
-  )
+    }
+
+    el.addEventListener("wheel", onWheel, { passive: false })
+    return () => el.removeEventListener("wheel", onWheel)
+  }, [forceUpdate, svgRef])
+
+  // Keep handleWheel as a no-op so callers that pass it to onWheel don't break
+  const handleWheel = useCallback((_e: React.WheelEvent<SVGSVGElement>) => {
+    // Handled by native listener above
+  }, [])
 
   /** Call from the unified pointerDown handler when pan should start. */
   const startPan = useCallback(

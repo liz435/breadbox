@@ -8,7 +8,9 @@ import { GraphInspector } from "./graph-inspector";
 import { pinStateStore } from "@/simulator/pin-state-store";
 import { buttonPressStore, useButtonPressed } from "@/simulator/button-press-store";
 import { usePinState } from "@/simulator/use-pin-state";
-import { findInputPinForComponent } from "@/breadboard/component-pin-resolver";
+import { analyzeButtonWiring } from "@/breadboard/component-pin-resolver";
+import { useCircuitAnalysis } from "@/simulator/circuit-analysis-hook";
+import { useElectricalReport } from "@/electrical/power-budget";
 import type { BoardComponent, Wire } from "@dreamer/schemas";
 
 // ── Wire colors ──
@@ -83,6 +85,55 @@ function PinSelect({
         <option key={p.value} value={p.value}>{p.label}</option>
       ))}
     </select>
+  );
+}
+
+// ── Component Warnings ──
+
+function ComponentWarnings({ componentId }: { componentId: string }) {
+  const { analysis } = useCircuitAnalysis();
+  const electrical = useElectricalReport();
+
+  const warnings = useMemo(() => {
+    const msgs: Array<{ severity: "error" | "warning"; message: string }> = [];
+
+    // Circuit analysis warnings (no resistor, reverse polarity, open circuit, etc.)
+    if (analysis?.warnings) {
+      for (const w of analysis.warnings) {
+        if (w.componentId === componentId) {
+          msgs.push({ severity: "warning", message: w.message });
+        }
+      }
+    }
+
+    // Power budget issues (external power required, overcurrent, etc.)
+    for (const issue of electrical.issues) {
+      if (issue.componentId === componentId) {
+        msgs.push({ severity: issue.severity, message: issue.message });
+      }
+    }
+
+    return msgs;
+  }, [componentId, analysis, electrical]);
+
+  if (warnings.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-1.5 mt-1">
+      <SectionTitle>Warnings</SectionTitle>
+      {warnings.map((w, i) => (
+        <div
+          key={i}
+          className={`rounded px-2 py-1.5 text-[11px] leading-snug ${
+            w.severity === "error"
+              ? "bg-red-900/30 text-red-300 border border-red-800/50"
+              : "bg-amber-900/30 text-amber-300 border border-amber-800/50"
+          }`}
+        >
+          {w.message}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -211,29 +262,30 @@ function ButtonInspector({ component, onUpdate }: {
   component: BoardComponent;
   onUpdate: (changes: Partial<BoardComponent>) => void;
 }) {
-  // Derive the input pin from the wire graph (buttons have pins.a/b set
-  // to null because connections come from wires, not pin assignments).
   const { state: boardState } = useBoard();
-  const inputPin = useMemo(
-    () => findInputPinForComponent(component, boardState.wires),
+  const wiring = useMemo(
+    () => analyzeButtonWiring(component, boardState.wires),
     [component, boardState.wires],
   );
+  const inputPin = wiring.inputPin;
   const pinState = usePinState(inputPin ?? -1);
   // INPUT_PULLUP: pressed = pin LOW. INPUT: pressed = HIGH.
   const isPullup = pinState?.mode === "INPUT_PULLUP";
   const pressedValue: 0 | 1 = isPullup ? 0 : 1;
   const releasedValue: 0 | 1 = isPullup ? 1 : 0;
-  // Physical press state drives the circuit; fall back to pin state for the
-  // label when the button is also wired to an Arduino input pin.
+  const canDrivePress =
+    inputPin != null &&
+    !wiring.hasSignalOnBothSides &&
+    ((isPullup && wiring.hasGroundReference) || (!isPullup && pinState?.mode === "INPUT" && wiring.hasPowerReference));
   const physicallyPressed = useButtonPressed(component.id);
-  const isPressed = physicallyPressed || pinState?.digitalValue === pressedValue;
+  const isPressed = physicallyPressed;
 
   const handlePress = useCallback(() => {
     buttonPressStore.press(component.id);
-    if (inputPin != null) {
+    if (canDrivePress && inputPin != null) {
       pinStateStore.writeExternal(inputPin, { digitalValue: pressedValue });
     }
-  }, [component.id, inputPin, pressedValue]);
+  }, [canDrivePress, component.id, inputPin, pressedValue]);
 
   const handleRelease = useCallback(() => {
     buttonPressStore.release(component.id);
@@ -271,6 +323,12 @@ function ButtonInspector({ component, onUpdate }: {
           {isPressed ? "Pressed" : "Hold to press"}
         </button>
       </PropertyRow>
+      {!canDrivePress && (
+        <div className="rounded px-2 py-1.5 text-[11px] leading-snug bg-amber-900/30 text-amber-300 border border-amber-800/50">
+          Button press is in strict mode: wire one side to an Arduino input pin and the opposite side to
+          {isPullup ? " GND" : " 5V/3V3"}.
+        </div>
+      )}
     </>
   );
 }
@@ -1003,10 +1061,13 @@ export default function Inspector() {
       ) : (
         <div className="p-3 flex flex-col gap-2">
           {selectedComponent && (
-            <ComponentInspector
-              component={selectedComponent}
-              onUpdate={handleComponentUpdate}
-            />
+            <>
+              <ComponentInspector
+                component={selectedComponent}
+                onUpdate={handleComponentUpdate}
+              />
+              <ComponentWarnings componentId={selectedComponent.id} />
+            </>
           )}
           {selectedWire && (
             <WireInspector

@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
-import type { ComponentType } from "@dreamer/schemas";
+import { BOARD_TARGETS, DEFAULT_BOARD_TARGET, type BoardTarget, type ComponentType } from "@dreamer/schemas";
 import { breadboardInteractionActor } from "./breadboard-interaction";
 import { COMPONENT_REGISTRY } from "@/components/registry";
+import { useBoard } from "@/store/board-context";
 
 type PaletteItem = {
   type: ComponentType;
@@ -23,29 +24,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   wire: "Wiring",
 };
 
-const ARDUINO_PALETTE_ITEM: PaletteItem = {
-  type: "arduino_uno",
-  label: "Arduino Uno",
-  category: "board",
-  description: "ATmega328P microcontroller board",
-  icon: (
-    <svg viewBox="0 0 24 24" width={20} height={20}>
-      <rect x={2} y={4} width={20} height={16} rx={2} fill="#2B7EBF" stroke="#1A5F8B" strokeWidth={1} />
-      <rect x={0} y={7} width={5} height={4} rx={1} fill="#a0a0a0" stroke="#808080" strokeWidth={0.5} />
-      <text x={12} y={14} textAnchor="middle" fontSize={4} fill="#fff" fontWeight="bold">UNO</text>
-      <circle cx={5} cy={6} r={1} fill="#ef4444" />
-      <g>
-        {[0,1,2,3,4,5,6].map(i => (
-          <circle key={`t${i}`} cx={6 + i * 2} cy={4} r={0.7} fill="#ffd54f" />
-        ))}
-        {[0,1,2,3,4].map(i => (
-          <circle key={`b${i}`} cx={8 + i * 2} cy={20} r={0.7} fill="#81c784" />
-        ))}
-      </g>
-    </svg>
-  ),
-};
-
 const WIRE_PALETTE_ITEM: PaletteItem = {
   type: "wire",
   label: "Jumper Wire",
@@ -62,7 +40,6 @@ const WIRE_PALETTE_ITEM: PaletteItem = {
 };
 
 const ALL_ITEMS: PaletteItem[] = [
-  ARDUINO_PALETTE_ITEM,
   ...COMPONENT_REGISTRY.map(def => ({
     type: def.type as ComponentType,
     label: def.label,
@@ -76,19 +53,20 @@ const ALL_ITEMS: PaletteItem[] = [
 function handleItemClick(item: PaletteItem) {
   if (item.action === "wire") {
     breadboardInteractionActor.send({ type: "START_PLACE", componentType: "wire" });
-  } else if (item.type === "arduino_uno") {
-    return;
   } else {
     breadboardInteractionActor.send({ type: "START_PLACE", componentType: item.type });
   }
 }
 
-function PaletteItemButton({ item }: { item: PaletteItem }) {
-  const isArduino = item.type === "arduino_uno";
+function PaletteItemButton({
+  item,
+}: {
+  item: PaletteItem;
+}) {
   return (
     <button
       type="button"
-      className={`group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-neutral-300 hover:bg-neutral-700/60 active:bg-neutral-700 ${isArduino ? "opacity-50 cursor-default" : ""}`}
+      className="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-neutral-300 hover:bg-neutral-700/60 active:bg-neutral-700"
       onClick={() => handleItemClick(item)}
       title={item.description ?? item.label}
     >
@@ -101,7 +79,6 @@ function PaletteItemButton({ item }: { item: PaletteItem }) {
           </span>
         )}
       </span>
-      {isArduino && <span className="ml-auto text-[9px] text-neutral-500">placed</span>}
     </button>
   );
 }
@@ -109,6 +86,11 @@ function PaletteItemButton({ item }: { item: PaletteItem }) {
 const MemoizedPaletteItem = React.memo(PaletteItemButton);
 
 function ComponentPaletteInner() {
+  const { state, send } = useBoard();
+  const activeBoardTarget = (state.boardTarget ?? DEFAULT_BOARD_TARGET) as BoardTarget;
+  const setBoardTarget = (target: BoardTarget) => {
+    send({ type: "SET_BOARD_TARGET", boardTarget: target });
+  };
   const [search, setSearch] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -141,8 +123,30 @@ function ComponentPaletteInner() {
 
   return (
     <div className="flex h-full flex-col bg-neutral-800">
-      {/* Search */}
+      {/* Board Target Selector */}
       <div className="px-2 pt-2 pb-1">
+        <label className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+          Board
+        </label>
+        <select
+          value={activeBoardTarget}
+          onChange={(e) => setBoardTarget(e.target.value as BoardTarget)}
+          className="w-full rounded-md border border-neutral-600 bg-neutral-900 px-2.5 py-1.5 text-xs text-neutral-200 outline-none focus:border-blue-500"
+          title={`${BOARD_TARGETS[activeBoardTarget].label} • ${BOARD_TARGETS[activeBoardTarget].mcu}`}
+        >
+          {Object.values(BOARD_TARGETS).map((target) => (
+            <option key={target.id} value={target.id}>
+              {target.label}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 px-0.5 text-[9px] text-neutral-500">
+          The board is fixed on canvas; switch model here.
+        </p>
+      </div>
+
+      {/* Search */}
+      <div className="px-2 pb-1">
         <input
           ref={inputRef}
           type="text"
@@ -164,7 +168,10 @@ function ComponentPaletteInner() {
               {CATEGORY_LABELS[category] ?? category}
             </h3>
             {items.map((item) => (
-              <MemoizedPaletteItem key={item.type} item={item} />
+              <MemoizedPaletteItem
+                key={item.type}
+                item={item}
+              />
             ))}
           </div>
         ))}

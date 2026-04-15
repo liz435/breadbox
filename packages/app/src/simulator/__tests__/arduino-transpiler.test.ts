@@ -126,6 +126,18 @@ describe("transpile", () => {
     test("String array", () => {
       expect(ok("String names[3];")).toContain("let names = new Array(3).fill(0);")
     })
+
+    test("2D int array with initializer", () => {
+      expect(ok("const int digits[2][3] = {{1,2,3},{4,5,6}};")).toContain("const digits = [[1,2,3], [4,5,6]];")
+    })
+
+    test("2D bool array multiline initializer", () => {
+      const code = `const bool grid[2][3] = {
+  {true, false, true},
+  {false, true, false}
+};`
+      expect(ok(code)).toContain("const grid = [[true, false, true], [false, true, false]];")
+    })
   })
 
   // ═══════════════════════════════════════════════════════════════
@@ -245,6 +257,10 @@ describe("transpile", () => {
 
     test("INPUT_PULLUP → 2", () => {
       expect(ok("pinMode(2, INPUT_PULLUP);")).toContain("pinMode(2, 2);")
+    })
+
+    test('F("...") macro unwraps to a plain string literal', () => {
+      expect(ok('Serial.println(F("hello"));')).toContain('Serial.println("hello");')
     })
 
     test("multiple constants in one line", () => {

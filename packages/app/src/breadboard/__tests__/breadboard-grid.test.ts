@@ -65,11 +65,19 @@ describe("areConnected", () => {
 
 describe("resolveNets", () => {
   test("wire connects two rows into same net", () => {
-    const wire: Wire = {
+    const bridge: Wire = {
       id: "w1",
       fromRow: 5,
       fromCol: 0,
       toRow: 10,
+      toCol: 0,
+      color: "#ff0000",
+    };
+    const arduinoWire: Wire = {
+      id: "w2",
+      fromRow: -999,
+      fromCol: 13,
+      toRow: 5,
       toCol: 0,
       color: "#ff0000",
     };
@@ -80,10 +88,10 @@ describe("resolveNets", () => {
       x: 0,
       y: 5,
       rotation: 0,
-      pins: { anode: 13 },
+      pins: { anode: null },
       properties: {},
     };
-    const nets = resolveNets({ led1: comp }, { w1: wire });
+    const nets = resolveNets({ led1: comp }, { w1: bridge, w2: arduinoWire });
     const net = nets.find((n) => n.arduinoPins.includes(13));
     expect(net).toBeDefined();
   });
@@ -96,7 +104,7 @@ describe("resolveNets", () => {
       x: 0,
       y: 5,
       rotation: 0,
-      pins: { anode: 13 },
+      pins: { anode: null },
       properties: {},
     };
     const comp2: BoardComponent = {
@@ -106,10 +114,26 @@ describe("resolveNets", () => {
       x: 0,
       y: 20,
       rotation: 0,
-      pins: { anode: 12 },
+      pins: { anode: null },
       properties: {},
     };
-    const nets = resolveNets({ led1: comp1, led2: comp2 }, {});
+    const w1: Wire = {
+      id: "w1",
+      fromRow: -999,
+      fromCol: 13,
+      toRow: 5,
+      toCol: 0,
+      color: "#ffd54f",
+    };
+    const w2: Wire = {
+      id: "w2",
+      fromRow: -999,
+      fromCol: 12,
+      toRow: 20,
+      toCol: 0,
+      color: "#ffd54f",
+    };
+    const nets = resolveNets({ led1: comp1, led2: comp2 }, { w1, w2 });
     const net13 = nets.find((n) => n.arduinoPins.includes(13));
     const net12 = nets.find((n) => n.arduinoPins.includes(12));
     expect(net13).toBeDefined();

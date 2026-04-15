@@ -13,6 +13,7 @@
 import { useMemo, useRef, useCallback, useEffect, useReducer } from "react"
 import { useBoardSelector } from "@/store/board-context"
 import { snapshotAsPinStates } from "./pin-state-store"
+import { isBoardComponentType } from "@dreamer/schemas"
 import {
   analyzeCircuit,
   type CircuitAnalysis,
@@ -46,7 +47,7 @@ export function useCircuitAnalysis(): {
 
   const hasComponents = useMemo(() => {
     return Object.values(components).some(
-      (c) => c.type !== "arduino_uno" && c.type !== "wire",
+      (c) => !isBoardComponentType(c.type) && c.type !== "wire",
     )
   }, [components])
 

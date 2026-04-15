@@ -117,7 +117,7 @@ const NAV: NavGroup[] = [
   {
     title: "Reference",
     items: [
-      { label: "Arduino Uno", path: "/documentation/arduino-uno" },
+      { label: "Board Targets", path: "/documentation/arduino-uno" },
       { label: "Circuit Simulator", path: "/documentation/simulator" },
       { label: "Sketch Editor", path: "/documentation/sketch" },
       { label: "Visual Programming", path: "/documentation/graph" },

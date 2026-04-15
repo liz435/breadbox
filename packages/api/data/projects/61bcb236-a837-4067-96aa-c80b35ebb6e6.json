@@ -1,0 +1,42 @@
+{
+  "project": {
+    "id": "61bcb236-a837-4067-96aa-c80b35ebb6e6",
+    "name": "icy-elk-lamp",
+    "version": 0,
+    "createdAt": "2026-04-14T21:17:19.321Z",
+    "updatedAt": "2026-04-14T21:17:19.321Z",
+    "threadId": "e3f15aae-6193-4b34-9c27-b6d3e4e1d36b",
+    "activeSceneId": "7de24b6c-342c-46b1-acf2-8f59b9ca3cff"
+  },
+  "scenes": {
+    "7de24b6c-342c-46b1-acf2-8f59b9ca3cff": {
+      "id": "7de24b6c-342c-46b1-acf2-8f59b9ca3cff",
+      "name": "Main Scene",
+      "version": 0,
+      "settings": {
+        "background": "#252525",
+        "gravity": {
+          "x": 0,
+          "y": 9.8
+        }
+      }
+    }
+  },
+  "entities": {},
+  "sceneEntityIds": {
+    "7de24b6c-342c-46b1-acf2-8f59b9ca3cff": []
+  },
+  "components": {
+    "transform": {},
+    "sprite": {},
+    "tilemap": {},
+    "physicsBody": {},
+    "script": {},
+    "camera": {}
+  },
+  "assets": {},
+  "graph": {
+    "nodes": {},
+    "edges": {}
+  }
+}

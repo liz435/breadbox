@@ -1,0 +1,64 @@
+{
+  "components": {
+    "sr-1": {
+      "id": "sr-1",
+      "type": "shift_register",
+      "name": "74HC595",
+      "x": 7,
+      "y": 5,
+      "rotation": 0,
+      "pins": {
+        "data": null,
+        "clock": null,
+        "latch": null
+      },
+      "properties": {}
+    }
+  },
+  "wires": {
+    "wire-d8-data": {
+      "id": "wire-d8-data",
+      "fromRow": -999,
+      "fromCol": 8,
+      "toRow": 5,
+      "toCol": 7,
+      "color": "#fbbf24"
+    },
+    "wire-d11-clock": {
+      "id": "wire-d11-clock",
+      "fromRow": -999,
+      "fromCol": 11,
+      "toRow": 6,
+      "toCol": 7,
+      "color": "#3b82f6"
+    },
+    "wire-d12-latch": {
+      "id": "wire-d12-latch",
+      "fromRow": -999,
+      "fromCol": 12,
+      "toRow": 7,
+      "toCol": 7,
+      "color": "#22c55e"
+    },
+    "wire-5v": {
+      "id": "wire-5v",
+      "fromRow": -999,
+      "fromCol": -1,
+      "toRow": 8,
+      "toCol": 7,
+      "color": "#ef4444"
+    },
+    "wire-gnd": {
+      "id": "wire-gnd",
+      "fromRow": -999,
+      "fromCol": -3,
+      "toRow": 9,
+      "toCol": 7,
+      "color": "#1a1a1a"
+    }
+  },
+  "libraryState": { "servos": {}, "lcd": null, "serialBaud": 0 },
+  "serialOutput": [],
+  "sketchCode": "// Example: Shift Register LED Chaser\n// Use a 74HC595 to chase LEDs with shiftOut.\n\nint dataPin = 8;\nint clockPin = 11;\nint latchPin = 12;\n\nvoid setup() {\n  pinMode(dataPin, OUTPUT);\n  pinMode(clockPin, OUTPUT);\n  pinMode(latchPin, OUTPUT);\n}\n\nvoid loop() {\n  for (int i = 0; i < 8; i++) {\n    byte pattern = 1 << i;\n    digitalWrite(latchPin, LOW);\n    shiftOut(dataPin, clockPin, MSBFIRST, pattern);\n    digitalWrite(latchPin, HIGH);\n    delay(200);\n  }\n}\n",
+  "customLibraries": {}
+}

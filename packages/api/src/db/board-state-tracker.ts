@@ -1,4 +1,4 @@
-import type { BoardState, BoardOp } from "@dreamer/schemas";
+import { isBoardComponentType, type BoardState, type BoardOp } from "@dreamer/schemas";
 import { createLogger } from "../logger";
 
 const log = createLogger("board-tracker");
@@ -108,7 +108,7 @@ export function summarize(projectId: string): string {
   const lines: string[] = [];
   lines.push(`Components (${comps.length}):`);
   for (const c of comps) {
-    if (c.type === "arduino_uno") continue;
+    if (isBoardComponentType(c.type)) continue;
     lines.push(
       `  - ${c.name} (${c.type}, id=${c.id}) at row=${c.y} col=${c.x}`
     );

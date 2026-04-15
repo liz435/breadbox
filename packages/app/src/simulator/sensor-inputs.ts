@@ -94,7 +94,7 @@ function writePhotoresistor(
   store: PinStateStore,
 ): void {
   const pin = findInputPinForComponent(comp, wires)
-  if (pin == null || pin < 14 || pin > 19) return
+  if (pin == null || pin < 0) return
   const light = clamp((comp.properties.light as number) ?? 50, 0, 100)
   // 100% bright → ~0, 0% dark → ~1023. Non-linear curve feels more like a real LDR.
   const normalized = 1 - light / 100 // 0 bright → 1 dark
@@ -113,7 +113,7 @@ function writeTemperatureSensor(
   store: PinStateStore,
 ): void {
   const pin = resolveNamedPin(comp, "signal", wires)
-  if (pin == null || pin < 14 || pin > 19) return
+  if (pin == null || pin < 0) return
   const temp = clamp((comp.properties.temperature as number) ?? 25, -40, 125)
   const voltage = 0.5 + temp * 0.01
   const analogValue = Math.round((clamp(voltage, 0, 5) / 5) * 1023)

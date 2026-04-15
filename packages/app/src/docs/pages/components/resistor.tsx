@@ -78,6 +78,15 @@ export function ResistorPage() {
           Power: <strong className="text-gray-300">P = I² × R = V² / R</strong>
         </p>
       </Section>
+
+      <Section title="Example board">
+        <p className="text-sm text-gray-300 leading-relaxed">
+          A ready-made example board with a resistor is available in the sketch editor.
+          Click the <strong className="text-gray-200">Examples</strong> button in the toolbar
+          (right of Run/Stop) and select <strong className="text-gray-200">"Current Limiting"</strong> to
+          load a complete circuit with a working sketch.
+        </p>
+      </Section>
     </DocsLayout>
   )
 }
