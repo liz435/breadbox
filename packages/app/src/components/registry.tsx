@@ -527,6 +527,8 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
       if (pin == null) return null
       return { setupLines: [`  // ${comp.name} on analog pin ${pin}`], hasPin: true }
     },
+    schematicSymbol: "photoresistor",
+    schematicValue: () => "LDR",
   },
 
   // ── Temperature Sensor ────────────────────────────────────────────────
@@ -548,34 +550,34 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
         <circle cx={12} cy={14} r={2.5} fill="#ef4444" opacity={0.8} />
       </svg>
     ),
+    // TMP36: 3-pin analog sensor (VCC, Signal, GND).
+    // Model as 10kΩ input impedance per pin.
     spicePrefix: "R",
     buildNetlist: (comp, { footprint, resolveNode }) => {
-      const segments = ["a", "b", "c", "d", "e", "f", "g"] as const
+      const pinNames = ["vcc", "signal", "gnd"]
       const lines: string[] = []
-
-      for (let i = 0; i < segments.length; i++) {
-        const point = footprint.points[i]
-        if (!point) continue
-        const node = resolveNode(point)
-        // Common-cathode model: each segment is an LED+resistor branch to GND.
-        // We use a linear 220Ω branch for stability in spicey's solver.
+      let nodeA = "0"
+      let nodeB = "0"
+      for (let i = 0; i < 3; i++) {
+        const node = resolveNode(footprint.points[i])
+        if (i === 0) nodeA = node
+        if (i === 2) nodeB = node
         if (node !== "0") {
-          lines.push(`R_${sanitize(comp.id)}_${segments[i]} ${node} 0 220`)
+          lines.push(`R_${sanitize(comp.id)}_${pinNames[i]} ${node} 0 10000`)
         }
       }
-
-      const nodeA = resolveNode(footprint.points[0] ?? { row: comp.y, col: comp.x })
-      return {
-        lines,
-        nodeA,
-        nodeB: "0",
-      }
+      return { lines, nodeA, nodeB }
     },
     computeElectricalState: (comp) => {
       // TMP36: output voltage = (temperature × 10mV) + 500mV
       const temp = (comp.properties.temperature as number) ?? 25
       const voltage = temp * 0.01 + 0.5
       return { isActive: true, voltage, current: 0, isReversed: false, brightness: 0 }
+    },
+    schematicSymbol: "temperature_sensor",
+    schematicValue: (comp) => {
+      const temp = (comp.properties.temperature as number) ?? 25
+      return `TMP36 ${temp}°C`
     },
     generateSketch: (comp) => {
       const pin = comp.pins.signal
@@ -724,6 +726,8 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
         hasPin: true,
       }
     },
+    schematicSymbol: "lcd",
+    schematicValue: () => "LCD 16×2",
   },
 
   // ── 7-Segment Display ─────────────────────────────────────────────────
@@ -845,6 +849,11 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
         hasPin: true,
       }
     },
+    schematicSymbol: "neopixel",
+    schematicValue: (comp) => {
+      const n = (comp.properties.numLeds as number) ?? 8
+      return `WS2812 ×${n}`
+    },
   },
 
   // ── PIR Motion Sensor ───────────────────────────────────────────────
@@ -891,6 +900,8 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
         hasPin: true,
       }
     },
+    schematicSymbol: "pir_sensor",
+    schematicValue: () => "HC-SR501",
   },
 
   // ── Relay Module ────────────────────────────────────────────────────

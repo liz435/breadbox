@@ -11,6 +11,7 @@ function boardEqual(a: BoardMachineContext, b: BoardMachineContext) {
     a.serialOutput === b.serialOutput &&
     a.sketchCode === b.sketchCode &&
     a.boardTarget === b.boardTarget &&
+    a.environment === b.environment &&
     a.selectedId === b.selectedId
   );
 }
