@@ -66,6 +66,461 @@ const C_TYPES = new Set([
 /** Type keywords that can appear as return types or in declarations. */
 const TYPE_PATTERN = "(?:unsigned\\s+long|unsigned\\s+int|unsigned\\s+char|unsigned|int|float|double|bool|boolean|byte|char|long|short|word|String|void|uint8_t|uint16_t|uint32_t|int8_t|int16_t|int32_t|size_t)"
 
+/**
+ * Integer-typed declarations. Division on these must be truncated because
+ * C/C++ integer division discards the fractional part — plain JS `/`
+ * keeps decimals (e.g. `1023 / 102 = 10.029…` instead of `10`).
+ */
+const INTEGER_TYPE_RE = /^(?:unsigned(?:\s+(?:long|int|char))?|int|long|short|byte|char|word|uint8_t|uint16_t|uint32_t|int8_t|int16_t|int32_t|size_t)$/
+const FLOAT_TYPE_RE = /^(?:float|double)$/
+
+function isIntegerType(type: string): boolean {
+  const normalized = type.replace(/\s+/g, " ").trim()
+  return INTEGER_TYPE_RE.test(normalized)
+}
+
+function isFloatType(type: string): boolean {
+  const normalized = type.replace(/\s+/g, " ").trim()
+  return FLOAT_TYPE_RE.test(normalized)
+}
+
+/**
+ * Arduino/stdlib functions whose return value is an integer. Used when
+ * inferring whether a division expression operates on int operands.
+ */
+const INT_RETURNING_FUNCS = new Set([
+  "analogRead", "digitalRead",
+  "millis", "micros",
+  "map", "constrain",
+  "random", "abs", "min", "max",
+  "bitRead", "bitWrite", "bit", "lowByte", "highByte",
+  "Serial.available", "Serial.read",
+])
+
+/**
+ * Wrap an int-declaration RHS with Math.trunc() when it contains division,
+ * so the transpiled variable matches C/C++ integer-division semantics.
+ * Leaves other expressions untouched to keep output readable.
+ */
+function maybeTruncIntExpr(type: string, expr: string): string {
+  if (!isIntegerType(type)) return expr
+  if (!/[\/]/.test(expr)) return expr
+  return `Math.trunc(${expr})`
+}
+
+// ── Scope tracking for int-division truncation ──────────────────────────
+//
+// Tracks which variable names are integer-typed across the sketch so that
+// assignments, print statements, and inline expressions involving division
+// can be truncated to match C/C++ semantics.
+
+type TypeScope = {
+  intVars: Set<string>
+  floatVars: Set<string>
+}
+
+function createTypeScope(): TypeScope {
+  return { intVars: new Set(), floatVars: new Set() }
+}
+
+/**
+ * Walk the entire sketch once and collect all identifiers whose declared
+ * type is integer (or float, to avoid false positives). Covers:
+ *   - Global/local declarations: `int x = …;`
+ *   - Multi-var declarations: `int a, b, c;`
+ *   - Static: `static int x = …;`
+ *   - Const: `const int x = …;`
+ *   - Function params: `void foo(int x, long y) { … }`
+ *   - For-loop var: `for (int i = …; …)`
+ *
+ * This pass is intentionally conservative: it only marks names where the
+ * type prefix is unambiguous. Names without a preceding type are left
+ * untyped and their divisions are not modified.
+ */
+function collectTypedIdentifiers(source: string): TypeScope {
+  const scope = createTypeScope()
+  const intSet = scope.intVars
+  const floatSet = scope.floatVars
+
+  // Declarations with an explicit type followed by a single identifier
+  // (covers `int x`, `int x = …`, `static int x`, `const int x = …`).
+  const declRe = new RegExp(
+    `(?:static\\s+|const\\s+)*(${TYPE_PATTERN.slice(3, -1)})\\s+(\\w+)\\s*(?:=|;|,|\\))`,
+    "g",
+  )
+  for (const m of source.matchAll(declRe)) {
+    const type = m[1]
+    const name = m[2]
+    if (!type || !name) continue
+    if (isIntegerType(type)) intSet.add(name)
+    else if (isFloatType(type)) floatSet.add(name)
+  }
+
+  // Multi-var declarations: `int a, b, c;` — the regex above catches the
+  // first variable; scan for the rest via a continuation match.
+  const multiRe = new RegExp(
+    `(${TYPE_PATTERN.slice(3, -1)})\\s+\\w+(\\s*,\\s*\\w+)+\\s*;`,
+    "g",
+  )
+  for (const m of source.matchAll(multiRe)) {
+    const type = m[1]
+    // extract all identifiers in the group list
+    const nameListMatch = m[0].match(
+      new RegExp(`${type}\\s+([^;]+);`),
+    )
+    if (!nameListMatch) continue
+    const names = nameListMatch[1]
+      .split(",")
+      .map((n) => n.trim().replace(/\s*=.*$/, ""))
+      .filter((n) => /^\w+$/.test(n))
+    for (const name of names) {
+      if (isIntegerType(type)) intSet.add(name)
+      else if (isFloatType(type)) floatSet.add(name)
+    }
+  }
+
+  // Function parameters: `void foo(int x, long y, float z) { … }`
+  const fnRe = new RegExp(
+    `(?:${TYPE_PATTERN})\\s+\\w+\\s*\\(([^)]*)\\)\\s*\\{`,
+    "g",
+  )
+  for (const m of source.matchAll(fnRe)) {
+    const params = m[1]
+    if (!params || params.trim() === "void") continue
+    for (const p of params.split(",")) {
+      const parts = p.trim().match(
+        new RegExp(`^(?:const\\s+)?(${TYPE_PATTERN.slice(3, -1)})\\s+\\*?(\\w+)`),
+      )
+      if (!parts) continue
+      const type = parts[1]
+      const name = parts[2]
+      if (isIntegerType(type)) intSet.add(name)
+      else if (isFloatType(type)) floatSet.add(name)
+    }
+  }
+
+  return scope
+}
+
+/**
+ * Heuristic: does `expr` evaluate to an integer, given what we know about
+ * variable types? Returns true for:
+ *   - integer literals (1, 42, 0xFF, 0b1010)
+ *   - known int-typed variables
+ *   - calls to known int-returning functions
+ *   - parenthesized int expressions
+ *   - int op int (via recursion on common operators)
+ *
+ * Returns false (conservative "maybe not an int") if any operand is
+ * unknown or known-float. Only a true means we're confident it's int.
+ */
+function isIntExpression(expr: string, scope: TypeScope): boolean {
+  const trimmed = expr.trim()
+  if (trimmed === "") return false
+
+  // Integer literal (decimal, hex, binary, octal — with optional suffix L/U/UL)
+  if (/^-?\d+[uUlL]*$/.test(trimmed)) return true
+  if (/^0x[0-9a-fA-F]+[uUlL]*$/.test(trimmed)) return true
+  if (/^0b[01]+[uUlL]*$/.test(trimmed)) return true
+
+  // Float literal — not int
+  if (/^-?\d+\.\d*([eE][+-]?\d+)?[fF]?$/.test(trimmed)) return false
+  if (/^-?\.\d+([eE][+-]?\d+)?[fF]?$/.test(trimmed)) return false
+
+  // Bare identifier
+  if (/^\w+$/.test(trimmed)) {
+    if (scope.intVars.has(trimmed)) return true
+    if (scope.floatVars.has(trimmed)) return false
+    return false
+  }
+
+  // Parenthesized expression — recurse on inner
+  if (trimmed.startsWith("(") && trimmed.endsWith(")")) {
+    // Make sure the outer parens actually enclose the full expression
+    let depth = 0
+    let balanced = true
+    for (let i = 0; i < trimmed.length - 1; i++) {
+      if (trimmed[i] === "(") depth++
+      else if (trimmed[i] === ")") depth--
+      if (depth === 0 && i < trimmed.length - 1) { balanced = false; break }
+    }
+    if (balanced) return isIntExpression(trimmed.slice(1, -1), scope)
+  }
+
+  // Function call — check against known int-returning funcs
+  const callMatch = trimmed.match(/^(\w+(?:\.\w+)*)\s*\(.*\)$/s)
+  if (callMatch) {
+    const fname = callMatch[1]
+    if (INT_RETURNING_FUNCS.has(fname)) return true
+    return false
+  }
+
+  // Binary operation — split on the *outermost* operator.
+  // For trunc-safety we only need to confirm BOTH sides are int.
+  const topOp = findOutermostOperator(trimmed, ["+", "-", "*", "/", "%"])
+  if (topOp) {
+    const left = trimmed.slice(0, topOp.index).trim()
+    const right = trimmed.slice(topOp.index + 1).trim()
+    // Skip unary (e.g. "-5" where left is empty)
+    if (left === "") return isIntExpression(right, scope)
+    return isIntExpression(left, scope) && isIntExpression(right, scope)
+  }
+
+  return false
+}
+
+/**
+ * Find the index of the outermost (lowest-precedence, leftmost-associative)
+ * operator from `ops` in `expr`, skipping anything inside parens/brackets/
+ * strings. Returns null if none found at the top level.
+ */
+function findOutermostOperator(
+  expr: string,
+  ops: readonly string[],
+): { index: number; op: string } | null {
+  let depth = 0
+  let inSingle = false
+  let inDouble = false
+  // Walk right-to-left to pick the last operator (left-associative parse).
+  for (let i = expr.length - 1; i >= 0; i--) {
+    const ch = expr[i]
+    if (ch === "'" && !inDouble) inSingle = !inSingle
+    else if (ch === '"' && !inSingle) inDouble = !inDouble
+    if (inSingle || inDouble) continue
+    if (ch === ")" || ch === "]" || ch === "}") depth++
+    else if (ch === "(" || ch === "[" || ch === "{") depth--
+    if (depth !== 0) continue
+    for (const op of ops) {
+      if (ch === op) {
+        // Skip unary minus/plus (operator at start or after another operator)
+        const prev = expr[i - 1]
+        if ((op === "-" || op === "+") && (prev === undefined || /[+\-*/%<>=!&|^~(,]/.test(prev.trim() ? prev : ""))) {
+          continue
+        }
+        return { index: i, op }
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * Rewrite int-typed divisions to `Math.trunc(...)` so they match C/C++
+ * integer-division semantics. Operates on a transpiled JS line (NOT
+ * source C++), and uses a pre-built type scope to know which variables
+ * are int-typed.
+ *
+ * Strategy: scan for `/` that isn't inside a string or regex. For each,
+ * extract the immediate left and right operands (a simple token or
+ * parenthesized group), and wrap if both sides are int-typed.
+ *
+ * This doesn't attempt full expression parsing — it applies repeatedly
+ * from the innermost parens outward, matching the precedence of binary
+ * division. Chained `a / b / c` becomes `Math.trunc(Math.trunc(a / b) / c)`.
+ */
+function truncIntDivisions(line: string, scope: TypeScope): string {
+  if (!line.includes("/")) return line
+  // Skip line comments — only transform code before `//`
+  const cmtIdx = findCommentStart(line)
+  const code = cmtIdx >= 0 ? line.slice(0, cmtIdx) : line
+  const tail = cmtIdx >= 0 ? line.slice(cmtIdx) : ""
+
+  let current = code
+  // Cap iterations for safety; each pass wraps at most one division.
+  for (let pass = 0; pass < 64; pass++) {
+    const next = wrapOneIntDivision(current, scope)
+    if (next === current) break
+    current = next
+  }
+  return current + tail
+}
+
+/** Find the first `//` that starts a comment (not inside a string). */
+function findCommentStart(line: string): number {
+  let inS = false
+  let inD = false
+  for (let i = 0; i < line.length - 1; i++) {
+    const c = line[i]
+    if (c === "'" && !inD) inS = !inS
+    else if (c === '"' && !inS) inD = !inD
+    if (!inS && !inD && c === "/" && line[i + 1] === "/") return i
+  }
+  return -1
+}
+
+/**
+ * Find the first `/` operator in `code` whose left and right operands
+ * are both int-typed, and wrap `(left / right)` with Math.trunc. Scans
+ * at every paren-depth so divisions inside function calls (e.g.
+ * `Serial.print(x / 2)`) or conditionals (e.g. `if (a / b > 5)`) get
+ * rewritten. Returns `code` unchanged if no eligible division is found.
+ */
+function wrapOneIntDivision(code: string, scope: TypeScope): string {
+  const len = code.length
+  let inS = false
+  let inD = false
+  for (let i = 0; i < len; i++) {
+    const ch = code[i]
+    if (ch === "'" && !inD) inS = !inS
+    else if (ch === '"' && !inS) inD = !inD
+    if (inS || inD) continue
+    if (ch !== "/") continue
+    // Skip `//`, `/*`, `/=`
+    const next = code[i + 1]
+    if (next === "/" || next === "*" || next === "=") continue
+    // Skip `*/` endings
+    if (code[i - 1] === "*") continue
+
+    const leftSpan = readLeftOperand(code, i)
+    const rightSpan = readRightOperand(code, i)
+    if (!leftSpan || !rightSpan) continue
+
+    const leftText = code.slice(leftSpan.start, leftSpan.end).trim()
+    const rightText = code.slice(rightSpan.start, rightSpan.end).trim()
+    if (!leftText || !rightText) continue
+    if (!isIntExpression(leftText, scope)) continue
+    if (!isIntExpression(rightText, scope)) continue
+
+    // Skip if already wrapped: look for `Math.trunc(` immediately before.
+    const before = code.slice(0, leftSpan.start).trimEnd()
+    if (/Math\.trunc\($/.test(before)) continue
+
+    const wrapped = `Math.trunc(${leftText} / ${rightText})`
+    return (
+      code.slice(0, leftSpan.start) +
+      wrapped +
+      code.slice(rightSpan.end)
+    )
+  }
+  return code
+}
+
+/**
+ * Read the operand immediately to the LEFT of position `opIdx` (a `/`).
+ * Returns the span covering the operand + any surrounding whitespace
+ * between it and the operator. Returns null if no operand is found.
+ *
+ * Handles:
+ *   - parenthesized group:  `(a + b) / c` → returns the `(a + b)` span
+ *   - array/member access:  `arr[i].val / 2` → returns `arr[i].val`
+ *   - plain identifier:     `digit / 10` → returns `digit`
+ *   - numeric literal:      `1023 / 102` → returns `1023`
+ */
+function readLeftOperand(
+  code: string,
+  opIdx: number,
+): { start: number; end: number } | null {
+  let j = opIdx - 1
+  // Skip whitespace
+  while (j >= 0 && /\s/.test(code[j])) j--
+  if (j < 0) return null
+  const end = j + 1
+
+  // Parenthesized group? Scan back to matching `(`
+  if (code[j] === ")") {
+    let depth = 1
+    j--
+    while (j >= 0 && depth > 0) {
+      if (code[j] === ")") depth++
+      else if (code[j] === "(") depth--
+      if (depth > 0) j--
+    }
+    if (depth !== 0) return null
+    // Check for a function name preceding (e.g. `map(…)`). Include it.
+    let k = j - 1
+    while (k >= 0 && /\s/.test(code[k])) k--
+    const endOfName = k + 1
+    while (k >= 0 && /[\w.]/.test(code[k])) k--
+    if (k + 1 < endOfName) {
+      return { start: k + 1, end }
+    }
+    return { start: j, end }
+  }
+
+  // Array / member chain: walk left through identifier chars, `.`, and `]`
+  while (j >= 0) {
+    const c = code[j]
+    if (/[\w.]/.test(c)) { j--; continue }
+    if (c === "]") {
+      let depth = 1
+      j--
+      while (j >= 0 && depth > 0) {
+        if (code[j] === "]") depth++
+        else if (code[j] === "[") depth--
+        if (depth > 0) j--
+      }
+      if (depth !== 0) return null
+      j--
+      continue
+    }
+    break
+  }
+  const start = j + 1
+  if (start >= end) return null
+  return { start, end }
+}
+
+/**
+ * Read the operand immediately to the RIGHT of position `opIdx`.
+ */
+function readRightOperand(
+  code: string,
+  opIdx: number,
+): { start: number; end: number } | null {
+  let j = opIdx + 1
+  while (j < code.length && /\s/.test(code[j])) j++
+  if (j >= code.length) return null
+  const start = j
+
+  // Unary prefix (optional `-` or `+`)
+  if (code[j] === "-" || code[j] === "+") j++
+
+  // Parenthesized group?
+  if (code[j] === "(") {
+    let depth = 1
+    j++
+    while (j < code.length && depth > 0) {
+      if (code[j] === "(") depth++
+      else if (code[j] === ")") depth--
+      j++
+    }
+    if (depth !== 0) return null
+    return { start, end: j }
+  }
+
+  // Function call or member access: identifier-chars then optional args
+  while (j < code.length) {
+    const c = code[j]
+    if (/[\w.]/.test(c)) { j++; continue }
+    if (c === "(") {
+      let depth = 1
+      j++
+      while (j < code.length && depth > 0) {
+        if (code[j] === "(") depth++
+        else if (code[j] === ")") depth--
+        j++
+      }
+      if (depth !== 0) return null
+      continue
+    }
+    if (c === "[") {
+      let depth = 1
+      j++
+      while (j < code.length && depth > 0) {
+        if (code[j] === "[") depth++
+        else if (code[j] === "]") depth--
+        j++
+      }
+      if (depth !== 0) return null
+      continue
+    }
+    break
+  }
+
+  if (j === start) return null
+  return { start, end: j }
+}
+
 // Unsupported feature patterns
 const POINTER_RE = /[*&]\s*\w+|->|\w+\s*\*\s/
 const TEMPLATE_RE = /^\s*template\s*</
@@ -169,7 +624,14 @@ export function transpile(arduinoCode: string, customLibraries?: CustomLibraryMa
     output.push(transpileLine(line))
   }
 
-  return { success: true, code: output.join("\n"), sizeEstimate: estimateSize(arduinoCode) }
+  // Final pass: rewrite int-typed divisions to Math.trunc(...) to match
+  // C/C++ integer-division semantics. Uses a type scope collected from
+  // the transpiled output so it sees every declared variable (including
+  // those synthesized by transpileLine, e.g. `static` → `var`).
+  const typeScope = collectTypedIdentifiers(arduinoCode)
+  const truncated = output.map((line) => truncIntDivisions(line, typeScope))
+
+  return { success: true, code: truncated.join("\n"), sizeEstimate: estimateSize(arduinoCode) }
 }
 
 function detectUnsupported(
@@ -413,13 +875,17 @@ function processCodeLine(indent: string, trimmed: string): string {
   }
 
   // ── Variable declarations: `int x = 5;` or `int x;` ──────
+  // Match with TYPE_PATTERN (non-capturing), then re-extract the type
+  // with a separate capture so we can truncate int-typed division RHS.
   const varDeclRe = new RegExp(`^${TYPE_PATTERN}\\s+(\\w+)\\s*(?:=\\s*(.+))?\\s*;$`)
   const varDeclMatch = trimmed.match(varDeclRe)
   if (varDeclMatch) {
     const name = varDeclMatch[1]
     const value = varDeclMatch[2]
+    const typeMatch = trimmed.match(new RegExp(`^(${TYPE_PATTERN.replace(/^\(\?:/, "").replace(/\)$/, "")})`))
+    const type = typeMatch?.[1] ?? ""
     if (value !== undefined) {
-      return `${indent}let ${name} = ${value};`
+      return `${indent}let ${name} = ${maybeTruncIntExpr(type, value)};`
     }
     return `${indent}let ${name} = 0;`
   }

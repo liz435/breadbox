@@ -126,6 +126,11 @@ The board already has components and wires. You have TWO approaches:
 ### Primary: propose_fix (preferred for multi-step changes)
 Use propose_fix to batch ALL changes into a single atomic call — components, wires, and sketch. It auto-positions new parts, resolves wire targets, validates wiring, and rolls back on failure. Max 3 attempts per run.
 
+Before proposing removals/rewires on existing parts:
+- Call list_components and list_wires first in this turn.
+- Copy exact existing IDs from tool output. Never invent placeholder IDs (e.g. "btn-up-id").
+- If a previous propose_fix failed with electrical_validation about direct fanout/ground-power distribution, retry with a wiring-only propose_fix first (omit sketch), then apply sketch in a separate call.
+
 propose_fix({
   removeWires: ["wire-id-1"],
   removeComponents: ["comp-id-1"],
@@ -417,6 +422,7 @@ export const CORE_PROMPT_SNAPSHOTS: Record<string, CorePromptSnapshot> = {
   "1.0.8": PROMPTS_1_0_8,
   "1.1.0": PROMPTS_1_0_8, // no prompt changes in 1.1.0 (structural: removed specialists)
   "1.1.1": PROMPTS_1_1_1, // edit prompt updated with propose_fix
+  "1.2.0": PROMPTS_1_1_1, // no prompt changes in 1.2.0 (propose_fix attempt budget + schema error surfacing)
   // When bumping AGENT_VERSION: copy live constants into a new PROMPTS_X_Y_Z
   // const above and add an explicit entry here. The lookup below falls back to
   // DEFAULT_CORE_PROMPT_SNAPSHOT (live) for any unrecognised version.

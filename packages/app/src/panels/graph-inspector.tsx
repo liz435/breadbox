@@ -5,16 +5,53 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { useGraph } from "@/store/graph-context";
+import type { GraphState } from "@/store/graph-machine";
 import { getPortColor, getNodeColor } from "@/graph/port-colors";
 import { MATH_OPERATIONS, type InputAction } from "@/graph/node-factory";
-import type { GraphNode, GraphNodeType } from "@dreamer/schemas";
+import type { Edge, GraphNode, GraphNodeType } from "@dreamer/schemas";
 import { graphNodeTypeSchema } from "@dreamer/schemas";
 
 
-function formatFileSize(bytes: number): string {
+export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function getSelectedNodeForInspector(state: GraphState): GraphNode | null {
+  const ids = [...state.selectedNodeIds];
+  if (ids.length !== 1) return null;
+  return state.nodes[ids[0]] ?? null;
+}
+
+export function getSelectedEdgeForInspector(state: GraphState): Edge | null {
+  const ids = [...state.selectedEdgeIds];
+  if (ids.length !== 1) return null;
+  return state.edges[ids[0]] ?? null;
+}
+
+export function getConnectedEdgesForNode(state: GraphState, nodeId: string): Edge[] {
+  return Object.values(state.edges).filter(
+    (edge) => edge.sourceNodeId === nodeId || edge.targetNodeId === nodeId
+  );
+}
+
+export function splitNodePorts(node: GraphNode) {
+  return {
+    inputPorts: node.ports.filter((port) => port.direction === "in"),
+    outputPorts: node.ports.filter((port) => port.direction === "out"),
+  };
+}
+
+export function getEdgeEndpointDetails(
+  edge: Edge,
+  nodes: Record<string, GraphNode>
+) {
+  const sourceNode = nodes[edge.sourceNodeId];
+  const targetNode = nodes[edge.targetNodeId];
+  const sourcePort = sourceNode?.ports.find((port) => port.id === edge.sourcePortId);
+  const targetPort = targetNode?.ports.find((port) => port.id === edge.targetPortId);
+  return { sourceNode, targetNode, sourcePort, targetPort };
 }
 
 function PropertyRow({ label, value }: { label: string; value: string | number | boolean }) {
@@ -504,17 +541,15 @@ function NodeProperties({
 export function GraphInspector() {
   const { state, send } = useGraph();
 
-  const selectedNode = useMemo(() => {
-    const ids = [...state.selectedNodeIds];
-    if (ids.length !== 1) return null;
-    return state.nodes[ids[0]] ?? null;
-  }, [state.selectedNodeIds, state.nodes]);
+  const selectedNode = useMemo(
+    () => getSelectedNodeForInspector(state),
+    [state.selectedNodeIds, state.nodes]
+  );
 
-  const selectedEdge = useMemo(() => {
-    const ids = [...state.selectedEdgeIds];
-    if (ids.length !== 1) return null;
-    return state.edges[ids[0]] ?? null;
-  }, [state.selectedEdgeIds, state.edges]);
+  const selectedEdge = useMemo(
+    () => getSelectedEdgeForInspector(state),
+    [state.selectedEdgeIds, state.edges]
+  );
 
   // ── Multi-selection summary ──────────────────────────────────────────────
   if (state.selectedNodeIds.size > 1) {
@@ -542,14 +577,8 @@ export function GraphInspector() {
 
   // ── Edge inspector ───────────────────────────────────────────────────────
   if (selectedEdge) {
-    const sourceNode = state.nodes[selectedEdge.sourceNodeId];
-    const targetNode = state.nodes[selectedEdge.targetNodeId];
-    const sourcePort = sourceNode?.ports.find(
-      (p) => p.id === selectedEdge.sourcePortId
-    );
-    const targetPort = targetNode?.ports.find(
-      (p) => p.id === selectedEdge.targetPortId
-    );
+    const { sourceNode, targetNode, sourcePort, targetPort } =
+      getEdgeEndpointDetails(selectedEdge, state.nodes);
 
     return (
       <div className="p-3 flex flex-col gap-3">
@@ -592,15 +621,8 @@ export function GraphInspector() {
 
   // ── Node inspector ───────────────────────────────────────────────────────
   if (selectedNode) {
-    const inputPorts = selectedNode.ports.filter((p) => p.direction === "in");
-    const outputPorts = selectedNode.ports.filter((p) => p.direction === "out");
-
-    // Find connected edges for each port
-    const connectedEdges = Object.values(state.edges).filter(
-      (e) =>
-        e.sourceNodeId === selectedNode.id ||
-        e.targetNodeId === selectedNode.id
-    );
+    const { inputPorts, outputPorts } = splitNodePorts(selectedNode);
+    const connectedEdges = getConnectedEdgesForNode(state, selectedNode.id);
 
     return (
       <div className="p-3 flex flex-col gap-3">

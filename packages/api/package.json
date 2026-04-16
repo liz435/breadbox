@@ -5,6 +5,7 @@
     "dev": "bun run --watch src/index.ts",
     "start": "bun run src/index.ts",
     "typecheck": "bunx tsc --noEmit",
+    "test": "bun test src",
     "benchmark:agent": "bun run src/eval/benchmark-runner.ts"
   },
   "dependencies": {

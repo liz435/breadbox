@@ -204,15 +204,15 @@ export function PlayControls() {
         </span>
       )}
 
-      {/* Error message */}
+      {/* Error indicator */}
       {isError && error && (
-        <span className="ml-1 max-w-[200px] truncate text-[10px] text-red-400">
-          {error}
+        <span className="ml-1 text-[10px] text-red-400" title={error}>
+          error
         </span>
       )}
       {electrical.hasErrors && electricalBlockReason && (
-        <span className="ml-1 max-w-[240px] truncate text-[10px] text-red-400" title={electricalBlockReason}>
-          Electrical: {electricalBlockReason}
+        <span className="ml-1 text-[10px] text-red-400" title={electricalBlockReason}>
+          error
         </span>
       )}
 
@@ -276,8 +276,8 @@ export function PlayControls() {
           </Tooltip>
 
           {uploadStatus === "error" && uploadError && (
-            <span className="ml-1 max-w-[160px] truncate text-[10px] text-red-400" title={uploadError}>
-              {uploadError}
+            <span className="ml-1 text-[10px] text-red-400" title={uploadError}>
+              error
             </span>
           )}
         </>

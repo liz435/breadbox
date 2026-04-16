@@ -64,6 +64,8 @@ export type NetlistResult = {
   componentNodePairs: Map<string, { nodeA: string; nodeB: string }>
 }
 
+const ARDUINO_OUTPUT_SOURCE_RESISTANCE_OHMS = 25
+
 export function buildNetlist(
   components: Record<string, BoardComponent>,
   wires: Record<string, Wire>,
@@ -71,15 +73,18 @@ export function buildNetlist(
 ): NetlistResult {
   const nets = resolveNets(components, wires)
   const lines: string[] = []
+  const modelLines = new Set<string>()
   const componentNodePairs = new Map<string, { nodeA: string; nodeB: string }>()
 
-  // Determine which nets connect to GND (Arduino pin -3 or -4, or pins set to LOW with mode OUTPUT)
-  // Also determine voltage source nets (5V pin = -1, or digital pins set HIGH / PWM)
+  // Determine which nets connect to fixed ground (Arduino GND pins).
+  // Also determine voltage source nets (5V pin = -1, 3V3 pin = -2, or digital
+  // pins set OUTPUT HIGH/PWM/LOW).
   const groundNetIds = new Set<string>()
   const voltageSourceNets: Array<{
     label: string
     netId: string
     voltage: number
+    sourceResistanceOhms?: number
   }> = []
 
   // Build a point→netId lookup for fast component-to-net resolution
@@ -130,16 +135,23 @@ export function buildNetlist(
               label: `V_D${arduinoPin}`,
               netId: net.id,
               voltage,
+              sourceResistanceOhms: ARDUINO_OUTPUT_SOURCE_RESISTANCE_OHMS,
             })
           } else if (ps.digitalValue === 1) {
             voltageSourceNets.push({
               label: `V_D${arduinoPin}`,
               netId: net.id,
               voltage: 5,
+              sourceResistanceOhms: ARDUINO_OUTPUT_SOURCE_RESISTANCE_OHMS,
             })
           } else {
-            // Pin is LOW → connect to ground
-            groundNetIds.add(net.id)
+            // Pin is OUTPUT LOW → drive 0V through realistic output resistance.
+            voltageSourceNets.push({
+              label: `V_D${arduinoPin}_LOW`,
+              netId: net.id,
+              voltage: 0,
+              sourceResistanceOhms: ARDUINO_OUTPUT_SOURCE_RESISTANCE_OHMS,
+            })
           }
         } else if (!ps || ps.mode === "UNSET") {
           // UNSET pins are high-impedance by default: do not source/sink.
@@ -199,7 +211,13 @@ export function buildNetlist(
     if (seenSourceNodes.has(nodeName)) continue
     seenSourceNodes.add(nodeName)
 
-    lines.push(`${vs.label}_${vsIndex} ${nodeName} 0 ${vs.voltage}`)
+    if (vs.sourceResistanceOhms && vs.sourceResistanceOhms > 0) {
+      const sourceNode = `src_${vsIndex}`
+      lines.push(`${vs.label}_${vsIndex} ${sourceNode} 0 ${vs.voltage}`)
+      lines.push(`R_src_${vsIndex} ${sourceNode} ${nodeName} ${vs.sourceResistanceOhms}`)
+    } else {
+      lines.push(`${vs.label}_${vsIndex} ${nodeName} 0 ${vs.voltage}`)
+    }
     vsIndex++
   }
 
@@ -249,12 +267,22 @@ export function buildNetlist(
         if (nodeA !== nodeB) {
           lines.push(...result.lines)
         }
+        if (result.modelLines) {
+          for (const modelLine of result.modelLines) {
+            modelLines.add(modelLine)
+          }
+        }
         componentNodePairs.set(comp.id, { nodeA, nodeB })
       }
     }
   }
 
   // Transient analysis — short run for DC operating point
+  if (modelLines.size > 0) {
+    for (const modelLine of Array.from(modelLines).sort()) {
+      lines.push(modelLine)
+    }
+  }
   lines.push(".tran 0.001 0.01")
 
   const netlist = lines.join("\n")

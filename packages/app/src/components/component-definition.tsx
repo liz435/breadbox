@@ -46,6 +46,8 @@ export type NetlistContext = {
 export type NetlistOutput = {
   /** SPICE element lines to append to the netlist (e.g. "R_foo net_a net_b 220") */
   lines: string[]
+  /** Optional SPICE model lines required by `lines` (e.g. ".model DLED D(...)"). */
+  modelLines?: string[]
   /** Primary node A for this component (used by circuit solver to look up voltage/current) */
   nodeA: string
   /** Primary node B */

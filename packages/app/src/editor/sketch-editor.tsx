@@ -480,11 +480,14 @@ function SketchEditorInner() {
           <span className="ml-1 text-[10px] text-yellow-400">paused</span>
         )}
         {sim.status === "error" && sim.error && (
-          <span className="ml-1 max-w-[300px] truncate text-[10px] text-red-400">{sim.error}</span>
+          <span className="ml-1 text-[10px] text-red-400" title={sim.error}>error</span>
         )}
         {electrical.hasErrors && (
-          <span className="ml-1 max-w-[320px] truncate text-[10px] text-red-400">
-            Electrical issue blocks Run: {electrical.issues.find((i) => i.severity === "error")?.message}
+          <span
+            className="ml-1 text-[10px] text-red-400"
+            title={electrical.issues.find((i) => i.severity === "error")?.message}
+          >
+            error
           </span>
         )}
 

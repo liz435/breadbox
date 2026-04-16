@@ -275,6 +275,10 @@ function PowerRailStripes() {
 }
 
 // ── Ghost footprint preview ─────────────────────────────────────
+//
+// Shows where the component will appear: a faded render of the actual
+// component (so the user sees the body, not just the pin dots), plus
+// highlighted pin-hole circles for emphasis.
 
 function GhostPreview({
   row, col, componentType, rotation = 0,
@@ -283,18 +287,36 @@ function GhostPreview({
 }) {
   const footprint = getComponentFootprint(componentType, row, col, rotation);
 
+  // Build a preview component so the real renderer shows the body in the
+  // correct location (some components offset their body from the pin column).
+  const previewComponent: BoardComponent = {
+    id: "__ghost__",
+    type: componentType,
+    name: componentType.replace(/_/g, " "),
+    x: col,
+    y: row,
+    rotation,
+    pins: getDefaultPins(componentType),
+    properties: getDefaultProperties(componentType),
+  };
+
   return (
-    <g opacity={0.4} pointerEvents="none">
+    <g pointerEvents="none">
+      {/* Faded body: the actual renderer, dimmed */}
+      <g opacity={0.4}>
+        <ComponentRenderer
+          component={previewComponent}
+          components={[previewComponent]}
+          pinStates={[]}
+          wires={{}}
+          isSelected={false}
+        />
+      </g>
+      {/* Highlighted pin markers over the top */}
       {footprint.points.map((pt, i) => {
         const { x, y } = gridToPixel(pt);
-        return <circle key={i} cx={x} cy={y} r={5} fill="#3b82f6" stroke="#60a5fa" strokeWidth={1} />;
+        return <circle key={i} cx={x} cy={y} r={5} fill="#3b82f6" stroke="#60a5fa" strokeWidth={1} opacity={0.7} />;
       })}
-      <text
-        x={gridToPixel({ row, col }).x} y={gridToPixel({ row, col }).y - 14}
-        textAnchor="middle" fontSize={7} fill="#60a5fa" fontFamily="monospace"
-      >
-        {componentType.replace(/_/g, " ")}
-      </text>
     </g>
   );
 }
