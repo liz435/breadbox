@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-04-16T19:16:07.054Z",
-  "totalRuns": 39,
+  "generatedAt": "2026-04-16T19:32:21.495Z",
+  "totalRuns": 40,
   "notEvaluable": 0,
   "categories": {
     "template": {
@@ -14,19 +14,19 @@
       "byModel": {}
     },
     "topLevel": {
-      "runs": 37,
-      "scored": 37,
+      "runs": 38,
+      "scored": 38,
       "avgScore": 76,
       "avgToolErrorRate": 0.02,
-      "avgTokensPerRun": 34377,
+      "avgTokensPerRun": 34265,
       "hallucinationRate": 5,
-      "totalCost": 2.9124,
+      "totalCost": 2.9462,
       "byModel": {
         "claude-haiku-4-5-20251001": {
-          "runs": 23,
+          "runs": 24,
           "avgScore": 79,
-          "totalTokens": 802697,
-          "totalCost": 0.8929
+          "totalTokens": 832821,
+          "totalCost": 0.9267
         },
         "claude-sonnet-4-6": {
           "runs": 14,
@@ -65,7 +65,7 @@
     }
   },
   "byDomain": {
-    "breadboard": 37,
+    "breadboard": 38,
     "chat_only": 2
   },
   "topIssues": [
@@ -124,15 +124,15 @@
   ],
   "avgScore": 76,
   "avgToolErrorRate": 0.02,
-  "avgTokensPerRun": 34377,
+  "avgTokensPerRun": 34265,
   "hallucinationRate": 5,
-  "proposeCircuitAdoption": 68,
+  "proposeCircuitAdoption": 66,
   "byModel": {
     "claude-haiku-4-5-20251001": {
-      "runs": 23,
+      "runs": 24,
       "avgScore": 79,
-      "totalTokens": 802697,
-      "totalCost": 0.8929
+      "totalTokens": 832821,
+      "totalCost": 0.9267
     },
     "claude-sonnet-4-6": {
       "runs": 14,

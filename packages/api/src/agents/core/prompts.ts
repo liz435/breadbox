@@ -410,6 +410,16 @@ const PROMPTS_1_1_1: CorePromptSnapshot = {
   editPrompt: EDIT_PROMPT,
 };
 
+// v1.2.1 — EDIT_PROMPT forces list_components + list_wires before any
+// propose_fix that touches existing parts, adds wiring-only retry guidance
+// after direct-fanout validation failures, and bans placeholder IDs.
+// Snapshot captures the live strings at the time of the bump.
+const PROMPTS_1_2_1: CorePromptSnapshot = {
+  commonPrompt: COMMON_PROMPT,
+  buildPrompt: BUILD_PROMPT,
+  editPrompt: EDIT_PROMPT,
+};
+
 export const CORE_PROMPT_SNAPSHOTS: Record<string, CorePromptSnapshot> = {
   "1.0.0": PROMPTS_1_0_0,
   "1.0.1": PROMPTS_1_0_0, // no prompt changes in 1.0.1–1.0.4
@@ -423,6 +433,7 @@ export const CORE_PROMPT_SNAPSHOTS: Record<string, CorePromptSnapshot> = {
   "1.1.0": PROMPTS_1_0_8, // no prompt changes in 1.1.0 (structural: removed specialists)
   "1.1.1": PROMPTS_1_1_1, // edit prompt updated with propose_fix
   "1.2.0": PROMPTS_1_1_1, // no prompt changes in 1.2.0 (propose_fix attempt budget + schema error surfacing)
+  "1.2.1": PROMPTS_1_2_1, // EDIT_PROMPT: list_components/list_wires before propose_fix edits + wiring-only retry guidance
   // When bumping AGENT_VERSION: copy live constants into a new PROMPTS_X_Y_Z
   // const above and add an explicit entry here. The lookup below falls back to
   // DEFAULT_CORE_PROMPT_SNAPSHOT (live) for any unrecognised version.

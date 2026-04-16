@@ -14,7 +14,7 @@
  * Major bumps (X.0.0): structural rewrites — new agents, removed paths,
  *   fundamentally different routing logic.
  */
-export const AGENT_VERSION = "1.2.0";
+export const AGENT_VERSION = "1.2.1";
 
 /**
  * Snapshot version controls which frozen agent behavior profile is used at
@@ -28,7 +28,7 @@ export const DEFAULT_AGENT_SNAPSHOT_VERSION =
  * Explicitly listed snapshots that can be selected safely. Add a new entry
  * whenever introducing a new behavior profile.
  */
-export const SUPPORTED_AGENT_SNAPSHOTS = ["1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.0.4", "1.0.5", "1.0.6", "1.0.7", "1.0.8", "1.1.0", "1.1.1", "1.2.0"] as const;
+export const SUPPORTED_AGENT_SNAPSHOTS = ["1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.0.4", "1.0.5", "1.0.6", "1.0.7", "1.0.8", "1.1.0", "1.1.1", "1.2.0", "1.2.1"] as const;
 
 export type AgentSnapshotVersion = (typeof SUPPORTED_AGENT_SNAPSHOTS)[number];
 
@@ -62,6 +62,17 @@ export const AGENT_CHANGELOG: Array<{
   date: string;
   changes: string[];
 }> = [
+  {
+    version: "1.2.1",
+    date: "2026-04-16",
+    changes: [
+      "propose_fix: unknown removeWires / removeComponents IDs are now non-blocking warnings instead of hard validation failures, so stale-ID references don't waste an attempt.",
+      "propose_fix: shared GND/power fanout normalized to a single direct Arduino lead with branched rail distribution (reuses an existing direct source if one is already on the board — no extra direct ops).",
+      "EDIT_PROMPT: agent must now call list_components + list_wires first in the same turn before proposing removals/rewires on existing parts, and must copy exact existing IDs from tool output (no placeholder IDs).",
+      "EDIT_PROMPT: added wiring-only retry guidance — if a propose_fix fails with electrical_validation about direct fanout, retry with wiring-only (omit sketch), then apply sketch in a separate call.",
+      "Added regression tests in propose-fix.test.ts for the three behaviors above.",
+    ],
+  },
   {
     version: "1.2.0",
     date: "2026-04-16",
