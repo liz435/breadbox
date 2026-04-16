@@ -6,7 +6,9 @@ import tailwindcss from "@tailwindcss/vite";
 const APP_PORT = Number(process.env.APP_PORT ?? 3002)
 const API_PORT = Number(process.env.API_PORT ?? 4111)
 const APP_ORIGIN = process.env.APP_ORIGIN ?? `http://localhost:${APP_PORT}`
-const API_ORIGIN = process.env.API_ORIGIN ?? `http://localhost:${API_PORT}`
+const API_ORIGIN = process.env.API_ORIGIN ?? process.env.VITE_API_ORIGIN ?? `http://localhost:${API_PORT}`
+
+console.log(`[vite.config] API_ORIGIN=${API_ORIGIN} (from env: API_ORIGIN=${process.env.API_ORIGIN}, VITE_API_ORIGIN=${process.env.VITE_API_ORIGIN})`)
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],

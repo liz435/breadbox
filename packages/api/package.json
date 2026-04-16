@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "scripts": {
     "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
     "typecheck": "bunx tsc --noEmit",
     "benchmark:agent": "bun run src/eval/benchmark-runner.ts"
   },

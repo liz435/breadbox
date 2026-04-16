@@ -1,13 +1,10 @@
-// Read from environment. In Vite (browser), `process` does not exist —
-// values are injected at build time via vite.config.ts `define`. In Bun/Node
-// (API server), `process.env` is used directly.
-const env =
-  typeof process !== "undefined" && process.env
-    ? process.env
-    : ({} as Record<string, string | undefined>)
+// Vite replaces `process.env.X` tokens at build time via `define` in
+// vite.config.ts.  We must reference `process.env.X` directly — never
+// alias `process.env` to a local variable, or Vite cannot match and
+// replace the tokens.
 
-export const APP_PORT = Number(env.APP_PORT ?? 3002)
-export const API_PORT = Number(env.API_PORT ?? 4111)
+export const APP_PORT = Number(process.env.APP_PORT ?? 3002)
+export const API_PORT = Number(process.env.API_PORT ?? process.env.PORT ?? 4111)
 
-export const APP_ORIGIN = env.APP_ORIGIN ?? `http://localhost:${APP_PORT}`
-export const API_ORIGIN = env.API_ORIGIN ?? `http://localhost:${API_PORT}`
+export const APP_ORIGIN = process.env.APP_ORIGIN ?? `http://localhost:${APP_PORT}`
+export const API_ORIGIN = process.env.API_ORIGIN ?? `http://localhost:${API_PORT}`
