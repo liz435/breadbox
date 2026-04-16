@@ -185,8 +185,8 @@ const darkTheme = EditorView.theme(
 
 const OUTPUT_HEIGHT_STORAGE_KEY = "dreamer:sketch-output-height"
 const OUTPUT_MIN_HEIGHT = 96
-const OUTPUT_DEFAULT_HEIGHT = 144
-const OUTPUT_EXPANDED_HEIGHT = 256
+const OUTPUT_DEFAULT_HEIGHT = 256
+const OUTPUT_EXPANDED_HEIGHT = 400
 const OUTPUT_MAX_HEIGHT = 520
 
 function clampOutputHeight(height: number): number {

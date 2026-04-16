@@ -21,7 +21,7 @@ import { ViewportPanel } from "./viewport/viewport-panel";
 import { BreadboardPanel } from "./breadboard/breadboard-panel";
 import { SerialMonitor } from "./panels/serial-monitor";
 import { PinInspector } from "./panels/pin-inspector";
-import { ElectricalReportPanel } from "./panels/electrical-report";
+
 import { BottomToolbar } from "./toolbar/bottom-toolbar";
 import { useScene } from "./store/scene-context";
 import { useGraph } from "./store/graph-context";
@@ -71,9 +71,6 @@ function PinInspectorPanel(_props: IDockviewPanelProps) {
   return <ErrorBoundary name="Pin Inspector"><PinInspector /></ErrorBoundary>;
 }
 
-function ElectricalReportDockPanel(_props: IDockviewPanelProps) {
-  return <ErrorBoundary name="Electrical"><ElectricalReportPanel /></ErrorBoundary>;
-}
 
 function SketchEditorPanel(_props: IDockviewPanelProps) {
   return <ErrorBoundary name="Sketch Editor"><SketchEditor /></ErrorBoundary>;
@@ -95,7 +92,7 @@ const components = {
   viewport: ViewportPanelWrapper,
   serialMonitor: SerialMonitorPanel,
   pinInspector: PinInspectorPanel,
-  electricalReport: ElectricalReportDockPanel,
+
   sketchEditor: SketchEditorPanel,
   schematic: SchematicPanelWrapper,
   libraryManager: LibraryManagerPanel,
@@ -280,7 +277,7 @@ function AppInner() {
 
     // Clear stale layouts from before Arduino simulator conversion.
     // The old layout references "canvas" and missing panels — force a fresh default.
-    const LAYOUT_VERSION = "arduino-sim-v8";
+    const LAYOUT_VERSION = "arduino-sim-v12";
     const saved = localStorage.getItem(LAYOUT_STORAGE_KEY);
     const savedVersion = localStorage.getItem(LAYOUT_STORAGE_KEY + ":version");
     if (saved && savedVersion === LAYOUT_VERSION) {
@@ -296,7 +293,8 @@ function AppInner() {
       localStorage.removeItem(LAYOUT_STORAGE_KEY);
     }
 
-    // Default layout: 20% / 60% / 20%
+    // Default layout: Project | Breadboard | Sketch | Inspector
+    //                                      | Serial  |        | Pin Inspector
     const totalWidth = api.width;
 
     const projectFilesPanel = api.addPanel({
@@ -312,19 +310,12 @@ function AppInner() {
       position: { referencePanel: projectFilesPanel, direction: "right" },
     });
 
-    // Sketch editor is the default visible tab in the middle-right panel
+    // Sketch editor in the third column
     const sketchPanel = api.addPanel({
       id: "sketchEditor",
       component: "sketchEditor",
       title: "Sketch",
       position: { referencePanel: canvasPanel, direction: "right" },
-    });
-
-    api.addPanel({
-      id: "graph",
-      component: "graph",
-      title: "Graph",
-      position: { referencePanel: sketchPanel, direction: "within" },
     });
 
     api.addPanel({
@@ -341,10 +332,9 @@ function AppInner() {
       position: { referencePanel: sketchPanel, direction: "within" },
     });
 
-    // Ensure Sketch is the active tab
     sketchPanel.api.setActive();
 
-    // Inspector is the default visible tab in the right panel
+    // Inspector in the fourth column (right)
     const inspectorPanel = api.addPanel({
       id: "inspector",
       component: "inspector",
@@ -352,31 +342,29 @@ function AppInner() {
       position: { referencePanel: sketchPanel, direction: "right" },
     });
 
+    // Pin Inspector below Inspector
     api.addPanel({
       id: "pinInspector",
       component: "pinInspector",
       title: "Pin Inspector",
-      position: { referencePanel: inspectorPanel, direction: "within" },
-    });
-    api.addPanel({
-      id: "electricalReport",
-      component: "electricalReport",
-      title: "Electrical",
-      position: { referencePanel: inspectorPanel, direction: "within" },
+      position: { referencePanel: inspectorPanel, direction: "below" },
     });
 
-    // Serial Monitor below breadboard
-    api.addPanel({
+    // Serial Monitor below breadboard (aligns with code output in sketch)
+    const serialPanel = api.addPanel({
       id: "serialMonitor",
       component: "serialMonitor",
       title: "Serial Monitor",
       position: { referencePanel: canvasPanel, direction: "below" },
     });
 
-    projectFilesPanel.api.setSize({ width: totalWidth * 0.15 });
-    canvasPanel.api.setSize({ width: totalWidth * 0.35 });
-    sketchPanel.api.setSize({ width: totalWidth * 0.35 });
-    api.getPanel("inspector")?.api.setSize({ width: totalWidth * 0.15 });
+    projectFilesPanel.api.setSize({ width: totalWidth * 0.14 });
+    canvasPanel.api.setSize({ width: totalWidth * 0.45 });
+    sketchPanel.api.setSize({ width: totalWidth * 0.18 });
+    inspectorPanel.api.setSize({ width: totalWidth * 0.20 });
+
+    const totalHeight = api.height;
+    serialPanel.api.setSize({ height: totalHeight * 0.30 });
 
     setupPersistence(api);
   }, []);
@@ -389,7 +377,7 @@ function AppInner() {
       debounceRef.current = setTimeout(() => {
         const layout = api.toJSON();
         localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout));
-        localStorage.setItem(LAYOUT_STORAGE_KEY + ":version", "arduino-sim-v8");
+        localStorage.setItem(LAYOUT_STORAGE_KEY + ":version", "arduino-sim-v12");
       }, 300);
     });
   }
