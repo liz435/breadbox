@@ -324,12 +324,14 @@ function versionAtLeast(v, target){
 }
 function resolveDiagramVersion(rawVersion){
   var v = String(rawVersion || '').trim();
-  if (v === '1.0.0' || v === '1.0.1' || v === '1.0.2' || v === '1.0.3' || v === '1.0.4' || v === '1.0.5' || v === '1.0.6' || v === '1.0.7' || v === '1.0.8' || v === '1.1.0' || v === '1.1.1') return v;
+  if (v === '1.0.0' || v === '1.0.1' || v === '1.0.2' || v === '1.0.3' || v === '1.0.4' || v === '1.0.5' || v === '1.0.6' || v === '1.0.7' || v === '1.0.8' || v === '1.1.0' || v === '1.1.1' || v === '1.2.0' || v === '1.2.1') return v;
   // Default to the latest known diagram, but preserve 1.0.0 if current is old.
-  return versionAtLeast(CURRENT_VER, '1.1.1') ? '1.1.1' : versionAtLeast(CURRENT_VER, '1.1.0') ? '1.1.0' : versionAtLeast(CURRENT_VER, '1.0.8') ? '1.0.8' : versionAtLeast(CURRENT_VER, '1.0.7') ? '1.0.7' : versionAtLeast(CURRENT_VER, '1.0.6') ? '1.0.6' : versionAtLeast(CURRENT_VER, '1.0.5') ? '1.0.5' : versionAtLeast(CURRENT_VER, '1.0.4') ? '1.0.4' : versionAtLeast(CURRENT_VER, '1.0.3') ? '1.0.3' : versionAtLeast(CURRENT_VER, '1.0.2') ? '1.0.2' : versionAtLeast(CURRENT_VER, '1.0.1') ? '1.0.1' : '1.0.0';
+  return versionAtLeast(CURRENT_VER, '1.2.1') ? '1.2.1' : versionAtLeast(CURRENT_VER, '1.2.0') ? '1.2.0' : versionAtLeast(CURRENT_VER, '1.1.1') ? '1.1.1' : versionAtLeast(CURRENT_VER, '1.1.0') ? '1.1.0' : versionAtLeast(CURRENT_VER, '1.0.8') ? '1.0.8' : versionAtLeast(CURRENT_VER, '1.0.7') ? '1.0.7' : versionAtLeast(CURRENT_VER, '1.0.6') ? '1.0.6' : versionAtLeast(CURRENT_VER, '1.0.5') ? '1.0.5' : versionAtLeast(CURRENT_VER, '1.0.4') ? '1.0.4' : versionAtLeast(CURRENT_VER, '1.0.3') ? '1.0.3' : versionAtLeast(CURRENT_VER, '1.0.2') ? '1.0.2' : versionAtLeast(CURRENT_VER, '1.0.1') ? '1.0.1' : '1.0.0';
 }
 function previousDiagramVersion(v){
   var resolved = resolveDiagramVersion(v);
+  if (resolved === '1.2.1') return '1.2.0';
+  if (resolved === '1.2.0') return '1.1.1';
   if (resolved === '1.1.1') return '1.1.0';
   if (resolved === '1.1.0') return '1.0.8';
   if (resolved === '1.0.8') return '1.0.7';
@@ -348,13 +350,14 @@ function introducedNodesForVersion(v){
   if (resolved === '1.0.2') return ['PCV'];
   if (resolved === '1.1.0') return ['TMB', 'TMA', 'TME'];
   if (resolved === '1.1.1') return ['WPF'];
+  if (resolved === '1.2.0') return ['WPF']; // WPF label changed (max 3 → 5 attempts + schema validation)
   return [];
 }
 function changedNodesBetween(fromV, toV){
   var from = resolveDiagramVersion(fromV || baselineDiagramVersion());
   var to = resolveDiagramVersion(toV || CURRENT_VER);
   if (!versionAtLeast(to, from)) return [];
-  var known = ['1.0.1','1.0.2','1.0.3','1.0.4','1.0.5','1.0.6','1.0.7','1.0.8','1.1.0','1.1.1'];
+  var known = ['1.0.1','1.0.2','1.0.3','1.0.4','1.0.5','1.0.6','1.0.7','1.0.8','1.1.0','1.1.1','1.2.0','1.2.1'];
   var out = [];
   known.forEach(function(v){
     if (versionAtLeast(v, from) && versionAtLeast(to, v) && v !== from) {
@@ -397,7 +400,7 @@ function latestVersionFromRuns(evals){
 }
 function allKnownVersions(evals){
   var versions=Object.keys(versionBuckets(evals||[]));
-  var known=['1.0.0','1.0.1','1.0.2','1.0.3','1.0.4','1.0.5','1.0.6','1.0.7','1.0.8','1.1.0','1.1.1'];
+  var known=['1.0.0','1.0.1','1.0.2','1.0.3','1.0.4','1.0.5','1.0.6','1.0.7','1.0.8','1.1.0','1.1.1','1.2.0','1.2.1'];
   known.forEach(function(v){ if(versions.indexOf(v)<0) versions.push(v); });
   var currentResolved=resolveDiagramVersion(CURRENT_VER);
   if(versions.indexOf(currentResolved)<0) versions.push(currentResolved);
@@ -611,6 +614,18 @@ function buildFlowchart(nc, agg, diagramVersion, fromVersion) {
     L = L.map(function(line) {
       if (line.indexOf('TME[') >= 0 && line.indexOf('granular CRUD') >= 0) {
         return line.replace('edit · granular CRUD', 'edit · propose_fix + granular CRUD');
+      }
+      return line;
+    });
+  }
+  var isV120 = versionAtLeast(resolvedDiagramVersion, '1.2.0');
+  if (isV120) {
+    // v1.2.0: raise propose_fix attempt budget 3 → 5, schema failures now count + surface errors
+    L = L.map(function(line) {
+      if (line.indexOf('WPF[') >= 0) {
+        return line
+          .replace('max 3 attempts', 'max 5 attempts')
+          .replace('(new in v1.1.1)', '(schema + electrical validation · v1.2.0)');
       }
       return line;
     });

@@ -8,6 +8,9 @@
     "dev:api": "bun run --cwd packages/api dev",
     "build": "bun run --cwd packages/app build",
     "typecheck": "bun run --cwd packages/config typecheck && bun run --cwd packages/schemas typecheck && bun run --cwd packages/app typecheck && bun run --cwd packages/api typecheck",
-    "test": "bun test packages/"
+    "test:schemas": "bun run --cwd packages/schemas test",
+    "test:app": "bun run --cwd packages/app test",
+    "test:api": "bun run --cwd packages/api test",
+    "test": "bun run test:schemas && bun run test:app && bun run test:api"
   }
 }

@@ -80,10 +80,19 @@ function BuzzerRenderer({ component, isSelected, electricalState }: { component:
 }
 
 function PotentiometerRenderer({ component, isSelected }: { component: BoardComponent; isSelected: boolean }) {
-  // Vertical pin layout: vcc at (y, x), signal at (y+1, x), gnd at (y+2, x)
-  const pinVcc = gridToPixel({ row: component.y, col: component.x });
-  const pinSignal = gridToPixel({ row: component.y + 1, col: component.x });
-  const pinGnd = gridToPixel({ row: component.y + 2, col: component.x });
+  // Resolve pin positions from the footprint so rotation is honored
+  // (footprint is rotated by rotateFootprint when component.rotation != 0).
+  const footprint = getComponentFootprint(
+    component.type,
+    component.y,
+    component.x,
+    component.rotation,
+    component.properties,
+  );
+  const pts = footprint.points;
+  const pinVcc = gridToPixel(pts[0] ?? { row: component.y, col: component.x });
+  const pinSignal = gridToPixel(pts[1] ?? { row: component.y + 1, col: component.x });
+  const pinGnd = gridToPixel(pts[2] ?? { row: component.y + 2, col: component.x });
   const centerX = pinSignal.x;
   const centerY = pinSignal.y;
   const radius = KNOB_RADIUS;
@@ -1597,12 +1606,21 @@ function RelayRenderer({ component, pinStates, isSelected }: {
   pinStates: PinState[];
   isSelected: boolean;
 }) {
-  const { x, y } = gridToPixel({ row: component.y, col: component.x });
-  // PCB footprint
-  const pcbW = 36;
-  const pcbH = 42;
-  const pcbL = x - pcbW / 2;
-  const pcbT = y - 4;
+  // Vertical 3-pin layout: vcc / signal / gnd (row..row+2, col)
+  const pins = [0, 1, 2].map(i =>
+    gridToPixel({ row: component.y + i, col: component.x }),
+  );
+  const pinTop = pins[0];
+  const pinBot = pins[2];
+  // PCB sits to the LEFT of the pin column
+  const pcbW = 42;
+  const pcbH = 36;
+  const pcbCx = pinTop.x - pcbW / 2 - 8;
+  const pcbCy = (pinTop.y + pinBot.y) / 2;
+  const pcbL = pcbCx - pcbW / 2;
+  const pcbT = pcbCy - pcbH / 2;
+  const x = pcbCx;
+  const y = pcbT;
 
   // Read signal pin state: HIGH = energized (active-high module)
   const signalPin = component.pins.signal;
@@ -1743,19 +1761,20 @@ function RelayRenderer({ component, pinStates, isSelected }: {
         {energized ? "CLOSED" : "OPEN"}
       </text>
 
-      {/* Signal pin header below */}
-      {[-7, 0, 7].map((dx, i) => (
+      {/* Pin leads from PCB edge to actual breadboard pin holes */}
+      {pins.map((p, i) => (
         <g key={i}>
-          <rect x={x + dx - 1} y={pcbT + pcbH - 1} width={2} height={3} fill="#1a1a1a" />
-          <line x1={x + dx} y1={pcbT + pcbH + 2} x2={x + dx} y2={pcbT + pcbH + 6} stroke="#c0c0c0" strokeWidth={1.3} strokeLinecap="round" />
+          <line x1={pcbL + pcbW} y1={p.y} x2={p.x} y2={p.y} stroke="#c0c0c0" strokeWidth={1.3} strokeLinecap="round" />
+          <rect x={pcbL + pcbW - 1} y={p.y - 1} width={2} height={2} fill="#1a1a1a" />
+          <circle cx={p.x} cy={p.y} r={1.8} fill="#a0a0a0" opacity={0.5} />
         </g>
       ))}
 
-      <PinLabel x={x - 7} y={pcbT + pcbH + 6} name="vcc" side="below" />
-      <PinLabel x={x} y={pcbT + pcbH + 6} name="sig" side="below" />
-      <PinLabel x={x + 7} y={pcbT + pcbH + 6} name="gnd" side="below" />
+      <PinLabel x={pins[0].x} y={pins[0].y} name="vcc" side="right" />
+      <PinLabel x={pins[1].x} y={pins[1].y} name="sig" side="right" />
+      <PinLabel x={pins[2].x} y={pins[2].y} name="gnd" side="right" />
 
-      <text x={x} y={pcbT + pcbH + 12} textAnchor="middle" fontSize={LABEL_FONT_SIZE} fill={energized ? "#86efac" : "#888"} fontFamily="monospace">
+      <text x={pcbCx} y={pcbT + pcbH + 7} textAnchor="middle" fontSize={LABEL_FONT_SIZE} fill={energized ? "#86efac" : "#888"} fontFamily="monospace">
         {component.name}{energized ? " • ON" : ""}
       </text>
     </g>

@@ -2,7 +2,8 @@
   "name": "@dreamer/schemas",
   "version": "0.0.1",
   "scripts": {
-    "typecheck": "bunx tsc --noEmit"
+    "typecheck": "bunx tsc --noEmit",
+    "test": "bun test src"
   },
   "exports": {
     ".": "./src/index.ts"

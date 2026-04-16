@@ -20,6 +20,7 @@ import type React from "react"
 import { HOLE_SPACING } from "@/breadboard/breadboard-constants"
 import { buttonPressStore } from "@/simulator/button-press-store"
 import { getCapVoltage } from "@/simulator/capacitor-state"
+import { diodeModelLine, getLedDiodeModel, getRgbLedDiodeModel } from "@/simulator/diode-model"
 import { resolveComponentPins } from "@dreamer/schemas"
 import type { ComponentDefinition } from "./component-definition"
 import type { ComponentFootprint } from "@/breadboard/breadboard-grid"
@@ -79,14 +80,17 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
         <line x1={14} y1={17} x2={14} y2={21} stroke="#ccc" strokeWidth={1.5} />
       </svg>
     ),
-    // Model LED as a linearized resistor (≈120Ω ≈ Vf/typical_I) because
-    // spicey's transient solver lacks Newton-Raphson for non-linear diodes.
-    spicePrefix: "R",
+    spicePrefix: "D",
     buildNetlist: (comp, { footprint, resolveNode }) => {
-      const nodeA = resolveNode(footprint.points[0])
-      const nodeB = resolveNode(footprint.points[1])
+      const pinPoints = resolveComponentPins("led", comp.y, comp.x, comp.properties)
+      const anodePoint = pinPoints.anode ?? footprint.points[0]
+      const cathodePoint = pinPoints.cathode ?? footprint.points[1]
+      const nodeA = resolveNode(anodePoint)
+      const nodeB = resolveNode(cathodePoint)
+      const model = getLedDiodeModel(comp.properties.color as string | undefined)
       return {
-        lines: [`R_${sanitize(comp.id)} ${nodeA} ${nodeB} 120`],
+        lines: [`D_${sanitize(comp.id)} ${nodeA} ${nodeB} ${model.name}`],
+        modelLines: [diodeModelLine(model)],
         nodeA,
         nodeB,
       }
@@ -148,12 +152,17 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
         <line x1={14} y1={17} x2={14} y2={21} stroke="#ccc" strokeWidth={1.5} />
       </svg>
     ),
-    spicePrefix: "R",
+    spicePrefix: "D",
     buildNetlist: (comp, { footprint, resolveNode }) => {
-      const nodeA = resolveNode(footprint.points[0])
-      const nodeB = resolveNode(footprint.points[1])
+      const pinPoints = resolveComponentPins("rgb_led", comp.y, comp.x, comp.properties)
+      const channelPoint = pinPoints.red ?? footprint.points[0]
+      const commonPoint = pinPoints.common ?? footprint.points[3] ?? footprint.points[1] ?? footprint.points[0]
+      const nodeA = resolveNode(channelPoint)
+      const nodeB = resolveNode(commonPoint)
+      const model = getRgbLedDiodeModel()
       return {
-        lines: [`R_${sanitize(comp.id)} ${nodeA} ${nodeB} 120`],
+        lines: [`D_${sanitize(comp.id)} ${nodeA} ${nodeB} ${model.name}`],
+        modelLines: [diodeModelLine(model)],
         nodeA,
         nodeB,
       }
@@ -172,7 +181,7 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
       const loopLines: string[] = []
       let hasPin = false
       for (const [label, pin] of Object.entries(comp.pins)) {
-        if (pin != null && label !== "cathode") {
+        if (pin != null && label !== "cathode" && label !== "common") {
           hasPin = true
           setupLines.push(`  pinMode(${pin}, OUTPUT); // ${comp.name} ${label}`)
           loopLines.push(`  analogWrite(${pin}, 128); // ${comp.name} ${label}`)

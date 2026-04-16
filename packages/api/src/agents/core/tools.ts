@@ -234,7 +234,7 @@ export function createCoreTools(params: {
   );
   const MAX_SKETCH_FIX_FAILURES = 2;
   const MAX_CONSECUTIVE_SAME_LIMITATION_FAILURES = 2;
-  const MAX_PROPOSE_FIX_ATTEMPTS = 3;
+  const MAX_PROPOSE_FIX_ATTEMPTS = 5;
   let proposeFixAttempts = 0;
   let sketchFixValidationFailures = 0;
   let sketchRecoveryRequiredInBuild = false;
@@ -1425,6 +1425,24 @@ Example — LED blink:
             wiresByPin.get(wire.arduinoPin)!.push({ target: to, color });
           }
         }
+
+        // Auto-wire LED+resistor pairs: GND → resistor pin B.
+        // Feed these through the same per-pin fanout path so ground/power
+        // distribution stays normalized (single Arduino lead + rail branches).
+        for (const pair of input.ledResistorPairs ?? []) {
+          const res = placedComponents[pair.resistorIndex];
+          const resistorPinB = resolveComponentPinTarget(
+            { type: res.type, x: res.col, y: res.row },
+            "b",
+          );
+          if (!resistorPinB) {
+            errors.push(`Unable to resolve resistor pin B for component ${pair.resistorIndex}.`);
+            continue;
+          }
+          if (!wiresByPin.has(-3)) wiresByPin.set(-3, []);
+          wiresByPin.get(-3)!.push({ target: resistorPinB, color: "#42a5f5" });
+        }
+
         if (errors.length > 0) return { success: false, failureKind: "validation", errors };
 
         function railColForPin(pin: number): number {
@@ -1443,62 +1461,101 @@ Example — LED blink:
           return (aLeft && bLeft) || (aRight && bRight);
         }
 
+        function hasEquivalentWire(
+          fromRow: number,
+          fromCol: number,
+          toRow: number,
+          toCol: number,
+        ): boolean {
+          for (const existing of Object.values(workingBoard.wires)) {
+            if (
+              existing.fromRow === fromRow &&
+              existing.fromCol === fromCol &&
+              existing.toRow === toRow &&
+              existing.toCol === toCol
+            ) return true;
+          }
+          for (const op of generatedOps) {
+            if (op.kind !== "connect_wire") continue;
+            const w = op.payload.wire;
+            if (
+              w.fromRow === fromRow &&
+              w.fromCol === fromCol &&
+              w.toRow === toRow &&
+              w.toCol === toCol
+            ) return true;
+          }
+          return false;
+        }
+
+        function pushConnectWire(
+          fromRow: number,
+          fromCol: number,
+          toRow: number,
+          toCol: number,
+          color: string,
+        ) {
+          if (fromRow === toRow && fromCol === toCol) return;
+          if (hasEquivalentWire(fromRow, fromCol, toRow, toCol)) return;
+          generatedOps.push(makeBoardOp(opCtx, {
+            kind: "connect_wire",
+            payload: {
+              wire: {
+                id: crypto.randomUUID(),
+                fromRow,
+                fromCol,
+                toRow,
+                toCol,
+                color,
+              },
+            },
+          }));
+        }
+
+        function findExistingDirectSource(pin: number): { row: number; col: number } | null {
+          const existing = Object.values(workingBoard.wires).find(
+            (w) => w.fromRow === -999 && w.fromCol === pin,
+          );
+          if (!existing) return null;
+          return { row: existing.toRow, col: existing.toCol };
+        }
+
         for (const [pin, fanout] of wiresByPin.entries()) {
           if (fanout.length === 0) continue;
-          if (fanout.length === 1) {
-            const only = fanout[0]!;
-            const wireId = crypto.randomUUID();
-            generatedOps.push(makeBoardOp(opCtx, {
-              kind: "connect_wire",
-              payload: {
-                wire: {
-                  id: wireId,
-                  fromRow: -999,
-                  fromCol: pin,
-                  toRow: only.target.row,
-                  toCol: only.target.col,
-                  color: only.color,
-                },
-              },
-            }));
+          const isPowerOrGround = pin < 0;
+          const existingSource = findExistingDirectSource(pin);
+
+          if (existingSource) {
+            const anchor = existingSource;
+            if (isPowerOrGround && anchor.col === railColForPin(pin)) {
+              const railCol = anchor.col;
+              for (const branch of fanout) {
+                if (branch.target.col === railCol) continue;
+                pushConnectWire(branch.target.row, railCol, branch.target.row, branch.target.col, branch.color);
+              }
+              continue;
+            }
+            for (const branch of fanout) {
+              if (sameStrip(anchor, branch.target)) continue;
+              pushConnectWire(anchor.row, anchor.col, branch.target.row, branch.target.col, branch.color);
+            }
             continue;
           }
 
-          const isPowerOrGround = pin < 0;
           if (isPowerOrGround) {
             const railCol = railColForPin(pin);
-            const sourceId = crypto.randomUUID();
-            generatedOps.push(makeBoardOp(opCtx, {
-              kind: "connect_wire",
-              payload: {
-                wire: {
-                  id: sourceId,
-                  fromRow: -999,
-                  fromCol: pin,
-                  toRow: 0,
-                  toCol: railCol,
-                  color: fanout[0]!.color,
-                },
-              },
-            }));
+            pushConnectWire(-999, pin, 0, railCol, fanout[0]!.color);
 
             for (const branch of fanout) {
               if (branch.target.col === railCol) continue;
-              const branchId = crypto.randomUUID();
-              generatedOps.push(makeBoardOp(opCtx, {
-                kind: "connect_wire",
-                payload: {
-                  wire: {
-                    id: branchId,
-                    fromRow: branch.target.row,
-                    fromCol: railCol,
-                    toRow: branch.target.row,
-                    toCol: branch.target.col,
-                    color: branch.color,
-                  },
-                },
-              }));
+              pushConnectWire(branch.target.row, railCol, branch.target.row, branch.target.col, branch.color);
             }
+            continue;
+          }
+
+          if (fanout.length === 1) {
+            const only = fanout[0]!;
+            pushConnectWire(-999, pin, only.target.row, only.target.col, only.color);
             continue;
           }
 
@@ -1506,37 +1563,11 @@ Example — LED blink:
             row: fanout[0]!.target.row,
             col: fanout[0]!.target.col <= 4 ? 0 : 5,
           };
-          const sourceId = crypto.randomUUID();
-          generatedOps.push(makeBoardOp(opCtx, {
-            kind: "connect_wire",
-            payload: {
-              wire: {
-                id: sourceId,
-                fromRow: -999,
-                fromCol: pin,
-                toRow: anchor.row,
-                toCol: anchor.col,
-                color: fanout[0]!.color,
-              },
-            },
-          }));
+          pushConnectWire(-999, pin, anchor.row, anchor.col, fanout[0]!.color);
 
           for (const branch of fanout) {
             if (sameStrip(anchor, branch.target)) continue;
-            const branchId = crypto.randomUUID();
-            generatedOps.push(makeBoardOp(opCtx, {
-              kind: "connect_wire",
-              payload: {
-                wire: {
-                  id: branchId,
-                  fromRow: anchor.row,
-                  fromCol: anchor.col,
-                  toRow: branch.target.row,
-                  toCol: branch.target.col,
-                  color: branch.color,
-                },
-              },
-            }));
+            pushConnectWire(anchor.row, anchor.col, branch.target.row, branch.target.col, branch.color);
           }
         }
 
@@ -1545,32 +1576,6 @@ Example — LED blink:
           generatedOps.push(op);
         }
 
-        // Auto-wire LED+resistor pairs: GND → resistor pin B (col 7, right strip)
-        for (const pair of input.ledResistorPairs ?? []) {
-          const res = placedComponents[pair.resistorIndex];
-          const resistorPinB = resolveComponentPinTarget(
-            { type: res.type, x: res.col, y: res.row },
-            "b",
-          );
-          if (!resistorPinB) {
-            errors.push(`Unable to resolve resistor pin B for component ${pair.resistorIndex}.`);
-            continue;
-          }
-          const wireId = crypto.randomUUID();
-          generatedOps.push(makeBoardOp(opCtx, {
-            kind: "connect_wire",
-            payload: {
-              wire: {
-                id: wireId,
-                fromRow: -999,
-                fromCol: -3, // GND
-                toRow: resistorPinB.row,
-                toCol: resistorPinB.col,
-                color: "#42a5f5",
-              },
-            },
-          }));
-        }
         if (errors.length > 0) return { success: false, failureKind: "validation", errors };
 
         // Write sketch (already validated before placement)
@@ -1652,17 +1657,20 @@ Example — rewire an existing component:
   removeWires: ["old-wire-id"]
   addWires: [{arduinoPin:9, toExistingComponent:"component-uuid", toPin:"signal"}]`,
 
+      // Loose schema — we re-parse strictly inside execute() so Zod failures
+      // count toward the attempt budget AND surface detailed error messages
+      // to the agent (otherwise the AI SDK rejects silently before execute).
       inputSchema: z.object({
         removeWires: z.array(z.string()).optional()
           .describe("Wire IDs to remove"),
         removeComponents: z.array(z.string()).optional()
           .describe("Component IDs to remove (also removes connected wires)"),
         addComponents: z.array(z.object({
-          type: z.enum(ALL_COMPONENT_TYPES),
+          type: z.string(),
           name: z.string(),
           properties: z.record(z.string(), z.unknown()).optional(),
-          pinRoles: z.record(z.string(), z.enum(PIN_ROLE_VALUES))
-            .describe("Required: role for every logical pin on this component."),
+          pinRoles: z.record(z.string(), z.string())
+            .describe(`Required: role per logical pin. Allowed values (EXACT strings): ${PIN_ROLE_VALUES.join(", ")}.`),
         })).optional()
           .describe("New components to place. Referenced by array index in addWires.toNewComponent."),
         moveComponents: z.array(z.object({
@@ -1695,8 +1703,8 @@ Example — rewire an existing component:
         sketch: z.string().optional().describe("Full replacement Arduino sketch code"),
       }),
 
-      execute: async (input) => {
-        // ── Attempt budget ──
+      execute: async (inputRaw) => {
+        // ── Attempt budget (counts EVERY call, including schema failures) ──
         proposeFixAttempts += 1;
         if (proposeFixAttempts > MAX_PROPOSE_FIX_ATTEMPTS) {
           return {
@@ -1709,6 +1717,65 @@ Example — rewire an existing component:
             ],
           };
         }
+
+        // ── Strict schema re-parse ──
+        // Catch invalid enums (e.g. pinRoles: "analog_input") here so the
+        // agent sees the exact field + allowed values on the next turn.
+        const strictSchema = z.object({
+          removeWires: z.array(z.string()).optional(),
+          removeComponents: z.array(z.string()).optional(),
+          addComponents: z.array(z.object({
+            type: z.enum(ALL_COMPONENT_TYPES),
+            name: z.string(),
+            properties: z.record(z.string(), z.unknown()).optional(),
+            pinRoles: z.record(z.string(), z.enum(PIN_ROLE_VALUES)),
+          })).optional(),
+          moveComponents: z.array(z.object({
+            componentId: z.string(),
+            x: z.number().int().min(0).max(9),
+            y: z.number().int().min(0).max(29),
+          })).optional(),
+          addWires: z.array(z.object({
+            arduinoPin: z.number(),
+            toExistingComponent: z.string().optional(),
+            toNewComponent: z.number().int().min(0).optional(),
+            toPin: z.string(),
+            color: z.string().optional(),
+            throughExistingComponent: z.string().optional(),
+            throughNewComponent: z.number().int().min(0).optional(),
+            throughEntryPin: z.string().optional(),
+            throughExitPin: z.string().optional(),
+          })).optional(),
+          ledResistorPairs: z.array(z.object({
+            ledIndex: z.number().int().min(0),
+            resistorIndex: z.number().int().min(0),
+          })).optional(),
+          sketch: z.string().optional(),
+        });
+        const parsed = strictSchema.safeParse(inputRaw);
+        if (!parsed.success) {
+          const zodErrors = parsed.error.issues.slice(0, 5).map((issue) => {
+            const path = issue.path.join(".") || "(root)";
+            const gotValue = issue.path.reduce<unknown>((acc, seg) => {
+              if (acc && typeof acc === "object" && (typeof seg === "string" || typeof seg === "number")) {
+                return (acc as Record<string | number, unknown>)[seg];
+              }
+              return undefined;
+            }, inputRaw);
+            const got = gotValue === undefined ? "" : ` (got ${JSON.stringify(gotValue)})`;
+            return `${path}: ${issue.message}${got}`;
+          });
+          return {
+            success: false,
+            failureKind: "schema_validation",
+            errors: zodErrors,
+            hint:
+              `pinRoles must use one of: ${PIN_ROLE_VALUES.join(", ")}. ` +
+              `addWires wire shape: { arduinoPin, toExistingComponent or toNewComponent, toPin }.`,
+            attemptsRemaining: MAX_PROPOSE_FIX_ATTEMPTS - proposeFixAttempts,
+          };
+        }
+        const input = parsed.data;
 
         // ── Snapshot for rollback ──
         const snapshot = {
@@ -1734,12 +1801,13 @@ Example — rewire an existing component:
         }
 
         const errors: string[] = [];
+        const warnings: string[] = [];
         const generatedOps: BoardOp[] = [];
 
         // ── 1. Remove wires ──
         for (const wireId of input.removeWires ?? []) {
           if (!workingBoard.wires[wireId]) {
-            errors.push(`Wire ${wireId} not found.`);
+            warnings.push(`Wire ${wireId} not found (skipped).`);
             continue;
           }
           generatedOps.push(makeBoardOp(opCtx, { kind: "remove_wire", payload: { wireId } }));
@@ -1750,7 +1818,7 @@ Example — rewire an existing component:
         for (const componentId of input.removeComponents ?? []) {
           const comp = workingBoard.components[componentId];
           if (!comp) {
-            errors.push(`Component ${componentId} not found.`);
+            warnings.push(`Component ${componentId} not found (skipped).`);
             continue;
           }
           // Find and remove connected wires
@@ -2067,12 +2135,27 @@ Example — rewire an existing component:
           }
         }
 
+        // Auto-wire LED+resistor pairs through the same fanout path, so GND
+        // distribution is always normalized (single Arduino lead + branches).
+        for (const pair of input.ledResistorPairs ?? []) {
+          const res = placedNew[pair.resistorIndex];
+          if (!res) continue;
+          const resistorPinB = resolveComponentPinTarget({ type: res.type, x: res.col, y: res.row }, "b");
+          if (!resistorPinB) {
+            errors.push(`Cannot resolve resistor pin B for addComponents[${pair.resistorIndex}].`);
+            continue;
+          }
+          if (!wiresByPin.has(-3)) wiresByPin.set(-3, []);
+          wiresByPin.get(-3)!.push({ target: resistorPinB, color: "#42a5f5" });
+        }
+
         if (errors.length > 0) {
           rollback();
           return {
             success: false,
             failureKind: "validation",
             errors,
+            warnings: warnings.length > 0 ? warnings : undefined,
             attemptsRemaining: MAX_PROPOSE_FIX_ATTEMPTS - proposeFixAttempts,
           };
         }
@@ -2089,53 +2172,105 @@ Example — rewire an existing component:
           return (a.col <= 4 && b.col <= 4) || (a.col >= 5 && b.col >= 5);
         }
 
+        function hasEquivalentWire(
+          fromRow: number,
+          fromCol: number,
+          toRow: number,
+          toCol: number,
+        ): boolean {
+          for (const existing of Object.values(workingBoard.wires)) {
+            if (
+              existing.fromRow === fromRow &&
+              existing.fromCol === fromCol &&
+              existing.toRow === toRow &&
+              existing.toCol === toCol
+            ) return true;
+          }
+          for (const op of generatedOps) {
+            if (op.kind !== "connect_wire") continue;
+            const w = op.payload.wire;
+            if (
+              w.fromRow === fromRow &&
+              w.fromCol === fromCol &&
+              w.toRow === toRow &&
+              w.toCol === toCol
+            ) return true;
+          }
+          return false;
+        }
+
+        function pushConnectWire(
+          fromRow: number,
+          fromCol: number,
+          toRow: number,
+          toCol: number,
+          color: string,
+        ) {
+          if (fromRow === toRow && fromCol === toCol) return;
+          if (hasEquivalentWire(fromRow, fromCol, toRow, toCol)) return;
+          generatedOps.push(makeBoardOp(opCtx, {
+            kind: "connect_wire",
+            payload: {
+              wire: {
+                id: crypto.randomUUID(),
+                fromRow,
+                fromCol,
+                toRow,
+                toCol,
+                color,
+              },
+            },
+          }));
+        }
+
+        function findExistingDirectSource(pin: number): { row: number; col: number } | null {
+          const existing = Object.values(workingBoard.wires).find(
+            (w) => w.fromRow === -999 && w.fromCol === pin,
+          );
+          if (!existing) return null;
+          return { row: existing.toRow, col: existing.toCol };
+        }
+
         for (const [pin, fanout] of wiresByPin.entries()) {
           if (fanout.length === 0) continue;
-          if (fanout.length === 1) {
-            const only = fanout[0]!;
-            generatedOps.push(makeBoardOp(opCtx, {
-              kind: "connect_wire",
-              payload: {
-                wire: { id: crypto.randomUUID(), fromRow: -999, fromCol: pin, toRow: only.target.row, toCol: only.target.col, color: only.color },
-              },
-            }));
+          const isPowerOrGround = pin < 0;
+          const existingSource = findExistingDirectSource(pin);
+
+          if (existingSource) {
+            const anchor = existingSource;
+            if (isPowerOrGround && anchor.col === railColForPin(pin)) {
+              const railCol = anchor.col;
+              for (const branch of fanout) {
+                if (branch.target.col === railCol) continue;
+                pushConnectWire(branch.target.row, railCol, branch.target.row, branch.target.col, branch.color);
+              }
+              continue;
+            }
+            for (const branch of fanout) {
+              if (sameStrip(anchor, branch.target)) continue;
+              pushConnectWire(anchor.row, anchor.col, branch.target.row, branch.target.col, branch.color);
+            }
             continue;
           }
 
-          const isPowerOrGround = pin < 0;
           if (isPowerOrGround) {
             const railCol = railColForPin(pin);
-            generatedOps.push(makeBoardOp(opCtx, {
-              kind: "connect_wire",
-              payload: {
-                wire: { id: crypto.randomUUID(), fromRow: -999, fromCol: pin, toRow: 0, toCol: railCol, color: fanout[0]!.color },
-              },
-            }));
+            pushConnectWire(-999, pin, 0, railCol, fanout[0]!.color);
             for (const branch of fanout) {
               if (branch.target.col === railCol) continue;
-              generatedOps.push(makeBoardOp(opCtx, {
-                kind: "connect_wire",
-                payload: {
-                  wire: { id: crypto.randomUUID(), fromRow: branch.target.row, fromCol: railCol, toRow: branch.target.row, toCol: branch.target.col, color: branch.color },
-                },
-              }));
+              pushConnectWire(branch.target.row, railCol, branch.target.row, branch.target.col, branch.color);
             }
           } else {
+            if (fanout.length === 1) {
+              const only = fanout[0]!;
+              pushConnectWire(-999, pin, only.target.row, only.target.col, only.color);
+              continue;
+            }
             const anchor = { row: fanout[0]!.target.row, col: fanout[0]!.target.col <= 4 ? 0 : 5 };
-            generatedOps.push(makeBoardOp(opCtx, {
-              kind: "connect_wire",
-              payload: {
-                wire: { id: crypto.randomUUID(), fromRow: -999, fromCol: pin, toRow: anchor.row, toCol: anchor.col, color: fanout[0]!.color },
-              },
-            }));
+            pushConnectWire(-999, pin, anchor.row, anchor.col, fanout[0]!.color);
             for (const branch of fanout) {
               if (sameStrip(anchor, branch.target)) continue;
-              generatedOps.push(makeBoardOp(opCtx, {
-                kind: "connect_wire",
-                payload: {
-                  wire: { id: crypto.randomUUID(), fromRow: anchor.row, fromCol: anchor.col, toRow: branch.target.row, toCol: branch.target.col, color: branch.color },
-                },
-              }));
+              pushConnectWire(anchor.row, anchor.col, branch.target.row, branch.target.col, branch.color);
             }
           }
         }
@@ -2143,25 +2278,15 @@ Example — rewire an existing component:
         // Append series jumpers
         for (const op of seriesJumperOps) generatedOps.push(op);
 
-        // Auto-wire LED+resistor pairs
-        for (const pair of input.ledResistorPairs ?? []) {
-          const res = placedNew[pair.resistorIndex];
-          if (!res) continue;
-          const resistorPinB = resolveComponentPinTarget({ type: res.type, x: res.col, y: res.row }, "b");
-          if (!resistorPinB) {
-            errors.push(`Cannot resolve resistor pin B for addComponents[${pair.resistorIndex}].`);
-            continue;
-          }
-          generatedOps.push(makeBoardOp(opCtx, {
-            kind: "connect_wire",
-            payload: {
-              wire: { id: crypto.randomUUID(), fromRow: -999, fromCol: -3, toRow: resistorPinB.row, toCol: resistorPinB.col, color: "#42a5f5" },
-            },
-          }));
-        }
         if (errors.length > 0) {
           rollback();
-          return { success: false, failureKind: "validation", errors, attemptsRemaining: MAX_PROPOSE_FIX_ATTEMPTS - proposeFixAttempts };
+          return {
+            success: false,
+            failureKind: "validation",
+            errors,
+            warnings: warnings.length > 0 ? warnings : undefined,
+            attemptsRemaining: MAX_PROPOSE_FIX_ATTEMPTS - proposeFixAttempts,
+          };
         }
 
         // ── 6. Sketch ──
@@ -2222,6 +2347,7 @@ Example — rewire an existing component:
               failureKind: "electrical_validation",
               errors: powerErrors.slice(0, 8),
               warnings: routingWarnings.slice(0, 4),
+              nonBlockingWarnings: warnings.length > 0 ? warnings : undefined,
               attemptsRemaining: MAX_PROPOSE_FIX_ATTEMPTS - proposeFixAttempts,
             };
           }
@@ -2252,6 +2378,7 @@ Example — rewire an existing component:
           wiresRemoved: input.removeWires?.length ?? 0,
           sketchUpdated: !!input.sketch,
           layout,
+          warnings: warnings.length > 0 ? warnings : undefined,
         };
       },
     }),

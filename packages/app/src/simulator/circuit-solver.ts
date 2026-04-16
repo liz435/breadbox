@@ -10,6 +10,7 @@ import { buildNetlist } from "./netlist-builder"
 import { gridToPixel, getComponentFootprint } from "@/breadboard/breadboard-grid"
 import { getComponentDef } from "@/components/registry"
 import { stepCapVoltage } from "./capacitor-state"
+import { estimateDiodeCurrentMa, getLedDiodeModel, getRgbLedDiodeModel } from "./diode-model"
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -160,7 +161,18 @@ export function analyzeCircuit(
     const sanitizedId = comp.id.replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 20)
     const spicePrefix = def?.spicePrefix ?? "R"
     const elementName = `${spicePrefix}_${sanitizedId}`
-    const currentA = Math.abs(getElementCurrent(elementName)) * 1000 // Convert to mA
+    let currentA = Math.abs(getElementCurrent(elementName)) * 1000 // Convert to mA
+    if (comp.type === "led") {
+      currentA = estimateDiodeCurrentMa(
+        voltageDrop,
+        getLedDiodeModel(comp.properties.color as string | undefined),
+      )
+    } else if (comp.type === "rgb_led") {
+      currentA = estimateDiodeCurrentMa(
+        voltageDrop,
+        getRgbLedDiodeModel(),
+      )
+    }
     const elCtx = { voltageDrop, currentMa: currentA, elementName }
 
     const result = def?.computeElectricalState

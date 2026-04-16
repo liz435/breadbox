@@ -1,47 +1,45 @@
 import { describe, test, expect } from "bun:test";
+import { ALL_NODE_TYPES, filterNodeTypes, fuzzyMatch } from "@/graph/node-search";
 
-// Test the fuzzy matching logic directly
-function fuzzyMatch(query: string, text: string): boolean {
-  const q = query.toLowerCase();
-  const t = text.toLowerCase();
-  if (t.includes(q)) return true;
-  let qi = 0;
-  for (let ti = 0; ti < t.length && qi < q.length; ti++) {
-    if (t[ti] === q[qi]) qi++;
-  }
-  return qi === q.length;
-}
-
-describe("NodeSearch fuzzyMatch", () => {
-  test("exact match", () => {
+describe("node search fuzzy matching", () => {
+  test("matches exact and case-insensitive terms", () => {
     expect(fuzzyMatch("setup", "Setup")).toBe(true);
-  });
-
-  test("substring match", () => {
-    expect(fuzzyMatch("etu", "Setup")).toBe(true);
-  });
-
-  test("fuzzy character match", () => {
-    expect(fuzzyMatch("stp", "Setup")).toBe(true);
-  });
-
-  test("no match", () => {
-    expect(fuzzyMatch("xyz", "Setup")).toBe(false);
-  });
-
-  test("empty query matches anything", () => {
-    expect(fuzzyMatch("", "Setup")).toBe(true);
-  });
-
-  test("case insensitive", () => {
     expect(fuzzyMatch("SETUP", "setup")).toBe(true);
   });
 
-  test("keyword match", () => {
-    expect(fuzzyMatch("pwm", "pwm led fade output")).toBe(true);
+  test("matches substrings and fuzzy character sequences", () => {
+    expect(fuzzyMatch("etu", "Setup")).toBe(true);
+    expect(fuzzyMatch("stp", "Setup")).toBe(true);
   });
 
-  test("partial keyword match", () => {
-    expect(fuzzyMatch("buz", "buzzer sound frequency speaker")).toBe(true);
+  test("returns false when characters are missing or out of order", () => {
+    expect(fuzzyMatch("xyz", "Setup")).toBe(false);
+    expect(fuzzyMatch("spt", "Setup")).toBe(false);
+  });
+});
+
+describe("node search filtering", () => {
+  test("blank and whitespace queries return all node types", () => {
+    expect(filterNodeTypes("")).toHaveLength(ALL_NODE_TYPES.length);
+    expect(filterNodeTypes("   ")).toHaveLength(ALL_NODE_TYPES.length);
+  });
+
+  test("filters by human label", () => {
+    const results = filterNodeTypes("digital write");
+    expect(results.some((n) => n.type === "digital_write")).toBe(true);
+  });
+
+  test("filters by node type id", () => {
+    const results = filterNodeTypes("serial_print");
+    expect(results.some((n) => n.type === "serial_print")).toBe(true);
+  });
+
+  test("filters by keyword metadata", () => {
+    const results = filterNodeTypes("buzzer");
+    expect(results.some((n) => n.type === "tone")).toBe(true);
+  });
+
+  test("returns an empty list for unmatched queries", () => {
+    expect(filterNodeTypes("this-does-not-exist")).toEqual([]);
   });
 });

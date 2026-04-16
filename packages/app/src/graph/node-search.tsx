@@ -8,7 +8,7 @@ type NodeSearchProps = {
   onClose: () => void;
 };
 
-const ALL_NODE_TYPES: { type: GraphNodeType; label: string; keywords: string }[] = [
+export const ALL_NODE_TYPES: { type: GraphNodeType; label: string; keywords: string }[] = [
   { type: "setup", label: "Setup", keywords: "init begin start once" },
   { type: "loop", label: "Loop", keywords: "repeat tick update cycle" },
   { type: "digital_write", label: "Digital Write", keywords: "pin output high low led" },
@@ -36,7 +36,7 @@ const ALL_NODE_TYPES: { type: GraphNodeType; label: string; keywords: string }[]
   { type: "code_block", label: "Code Block", keywords: "custom cpp arduino sketch" },
 ];
 
-function fuzzyMatch(query: string, text: string): boolean {
+export function fuzzyMatch(query: string, text: string): boolean {
   const q = query.toLowerCase();
   const t = text.toLowerCase();
   if (t.includes(q)) return true;
@@ -48,20 +48,24 @@ function fuzzyMatch(query: string, text: string): boolean {
   return qi === q.length;
 }
 
+export function filterNodeTypes(query: string) {
+  const trimmed = query.trim();
+  if (!trimmed) return ALL_NODE_TYPES;
+  return ALL_NODE_TYPES.filter(
+    (n) =>
+      fuzzyMatch(trimmed, n.label) ||
+      fuzzyMatch(trimmed, n.type) ||
+      fuzzyMatch(trimmed, n.keywords)
+  );
+}
+
 export function NodeSearch({ onSelect, onClose }: NodeSearchProps) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const filtered = query.trim()
-    ? ALL_NODE_TYPES.filter(
-        (n) =>
-          fuzzyMatch(query, n.label) ||
-          fuzzyMatch(query, n.type) ||
-          fuzzyMatch(query, n.keywords)
-      )
-    : ALL_NODE_TYPES;
+  const filtered = filterNodeTypes(query);
 
   // Reset selection when filter changes
   useEffect(() => {

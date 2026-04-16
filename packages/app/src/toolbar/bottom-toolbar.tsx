@@ -73,7 +73,7 @@ export function BottomToolbar() {
               onSubmit={chat.handleSubmit}
               onStop={chat.stop}
               isStreaming={chat.status === "streaming" || chat.status === "submitted"}
-              placeholder="generate a traffic light circuit"
+              placeholder="e.g. 'what librarys should i use for this project?', 'help me build a temperature sensor circuit' , or 'what's wrong with my design?'"
               leading={<ModeToggle mode={mode} onModeChange={setMode} />}
             />
           )}

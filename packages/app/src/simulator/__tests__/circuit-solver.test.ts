@@ -302,7 +302,73 @@ describe("analyzeCircuit", () => {
     }
 
     const result = analyzeCircuit(components, {}, createDefaultPinStates())
-    expect(result.netlist).toContain(".model DLED D(Is=1e-14 N=1.8)")
+    expect(result.netlist).toContain(".model DLED_RED D(Is=1e-8 N=2)")
+  })
+
+  test("LED color maps to different diode models", () => {
+    const components: Record<string, BoardComponent> = {
+      ledBlue: makeLed("ledBlue", 5, 0, "#3b82f6"),
+    }
+
+    const result = analyzeCircuit(components, {}, createDefaultPinStates())
+    expect(result.netlist).toContain(".model DLED_BLUE D(Is=6e-9 N=2)")
+  })
+
+  test("output pin sources include realistic source resistance", () => {
+    const components: Record<string, BoardComponent> = {
+      led1: makeLed("led1", 5, 0),
+    }
+    const wires: Record<string, Wire> = {
+      w1: makeWire("w1", 5, -2, 5, 0),
+      w2: makeWire("w2", 6, 0, 6, -1),
+    }
+    const pinStates = makePinStates([{ pin: 13, mode: "OUTPUT", digitalValue: 1 }])
+    const arduinoWires: Record<string, Wire> = {
+      ...wires,
+      wPin: { id: "wPin", fromRow: -999, fromCol: 13, toRow: 5, toCol: 0, color: "red" },
+      wGnd: { id: "wGnd", fromRow: -999, fromCol: -3, toRow: 6, toCol: 0, color: "black" },
+    }
+
+    const result = analyzeCircuit(components, arduinoWires, pinStates)
+    expect(result.netlist).toContain("R_src_")
+  })
+
+  test("LED with series resistor does not get false no_resistor warning", () => {
+    const components: Record<string, BoardComponent> = {
+      r1: makeResistor("r1", 5, 0, 220),
+      led1: makeLed("led1", 5, 7),
+    }
+    const wires: Record<string, Wire> = {
+      wPin: { id: "wPin", fromRow: -999, fromCol: 13, toRow: 5, toCol: 3, color: "red" },
+      wGnd: { id: "wGnd", fromRow: -999, fromCol: -3, toRow: 6, toCol: 7, color: "black" },
+    }
+    const pinStates = makePinStates([{ pin: 13, mode: "OUTPUT", digitalValue: 1 }])
+
+    const result = analyzeCircuit(components, wires, pinStates)
+    const ledState = result.componentStates.get("led1")
+    expect(ledState).toBeDefined()
+    expect(ledState?.current).toBeLessThan(100)
+    const noResWarnings = result.warnings.filter(
+      (w) => w.componentId === "led1" && w.type === "no_resistor",
+    )
+    expect(noResWarnings.length).toBe(0)
+  })
+
+  test("bare LED still reports no_resistor warning", () => {
+    const components: Record<string, BoardComponent> = {
+      led1: makeLed("led1", 5, 0),
+    }
+    const wires: Record<string, Wire> = {
+      wPin: { id: "wPin", fromRow: -999, fromCol: 13, toRow: 5, toCol: 0, color: "red" },
+      wGnd: { id: "wGnd", fromRow: -999, fromCol: -3, toRow: 6, toCol: 0, color: "black" },
+    }
+    const pinStates = makePinStates([{ pin: 13, mode: "OUTPUT", digitalValue: 1 }])
+
+    const result = analyzeCircuit(components, wires, pinStates)
+    const noResWarnings = result.warnings.filter(
+      (w) => w.componentId === "led1" && w.type === "no_resistor",
+    )
+    expect(noResWarnings.length).toBeGreaterThan(0)
   })
 
   test("netlist contains .tran analysis command", () => {

@@ -93,12 +93,89 @@ describe("transpile", () => {
       expect(ok("const unsigned int MAX = 255;")).toContain("const MAX = 255;")
     })
 
-    test("expression in assignment", () => {
-      expect(ok("int val = (analogRead(A0) + 1) / 2;")).toContain("let val = (analogRead(A0) + 1) / 2;")
+    test("expression in assignment (int division truncates)", () => {
+      // Int-typed division must truncate to match C/C++ semantics — plain
+      // JS `/` would leave a fractional value (e.g. 1023/102 = 10.029…).
+      expect(ok("int val = (analogRead(A0) + 1) / 2;")).toContain(
+        "let val = Math.trunc((analogRead(A0) + 1) / 2);",
+      )
+    })
+
+    test("float division stays floating-point", () => {
+      expect(ok("float ratio = rawValue / 102.0;")).toContain("let ratio = rawValue / 102.0;")
+    })
+
+    test("int declaration without division passes through", () => {
+      expect(ok("int x = 5;")).toContain("let x = 5;")
+      expect(ok("int y = a + b;")).toContain("let y = a + b;")
     })
 
     test("negative number assignment", () => {
       expect(ok("int offset = -10;")).toContain("let offset = -10;")
+    })
+  })
+
+  // ═══════════════════════════════════════════════════════════════
+  // Integer Division Truncation (C/C++ semantics)
+  // ═══════════════════════════════════════════════════════════════
+
+  describe("int division truncation", () => {
+    test("declaration: int literal / int literal", () => {
+      expect(ok("int digit = 1023 / 102;")).toContain("let digit = Math.trunc(1023 / 102);")
+    })
+
+    test("declaration: int var / int literal", () => {
+      expect(ok("int rawValue = 0;\nint digit = rawValue / 102;"))
+        .toContain("let digit = Math.trunc(rawValue / 102);")
+    })
+
+    test("assignment to existing int var truncates", () => {
+      const out = ok("int rawValue = 0;\nint digit = 0;\nvoid loop() { digit = rawValue / 102; }")
+      expect(out).toContain("digit = Math.trunc(rawValue / 102)")
+    })
+
+    test("inline expression in function call truncates", () => {
+      const out = ok("int rawValue = 0;\nvoid loop() { Serial.print(rawValue / 102); }")
+      expect(out).toContain("Serial.print(Math.trunc(rawValue / 102))")
+    })
+
+    test("float-typed var does NOT truncate", () => {
+      const out = ok("float rawValue = 0.0;\nfloat ratio = rawValue / 102.0;")
+      expect(out).not.toContain("Math.trunc")
+    })
+
+    test("mixed int/float does not truncate", () => {
+      const out = ok("int raw = 0;\nfloat scale = 2.0;\nfloat out = raw / scale;")
+      expect(out).not.toContain("Math.trunc")
+    })
+
+    test("analogRead (int-returning) / int truncates", () => {
+      const out = ok("void loop() { Serial.print(analogRead(A0) / 10); }")
+      expect(out).toContain("Math.trunc(analogRead(A0) / 10)")
+    })
+
+    test("already-wrapped division is not double-wrapped", () => {
+      const out = ok("int x = 1023 / 10 / 2;")
+      const matches = (out.match(/Math\.trunc/g) ?? []).length
+      expect(matches).toBeGreaterThanOrEqual(1)
+      // No Math.trunc(Math.trunc(Math.trunc
+      expect(out).not.toMatch(/Math\.trunc\(Math\.trunc\(Math\.trunc/)
+    })
+
+    test("condition: int / int inside if truncates", () => {
+      const out = ok("int raw = 0;\nvoid loop() { if (raw / 2 > 5) { } }")
+      expect(out).toContain("if (Math.trunc(raw / 2) > 5)")
+    })
+
+    test("untyped variable leaves division alone", () => {
+      // Untyped `foo` — we don't know its type, so don't truncate
+      const out = ok("void loop() { Serial.print(foo / 2); }")
+      expect(out).not.toContain("Math.trunc")
+    })
+
+    test("for loop increment is not affected", () => {
+      const out = ok("void loop() { for (int i = 0; i < 10; i++) { } }")
+      expect(out).not.toContain("Math.trunc")
     })
   })
 

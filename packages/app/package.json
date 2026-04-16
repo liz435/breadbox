@@ -6,7 +6,8 @@
     "build": "bunx --bun vite build",
     "start": "bun run serve.ts",
     "preview": "bunx --bun vite preview",
-    "typecheck": "bunx tsc --noEmit"
+    "typecheck": "bunx tsc --noEmit",
+    "test": "bun test src"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.19",

@@ -30,7 +30,7 @@ const initialContext: GraphInteractionContext = {
   boxStart: null,
 };
 
-const graphInteractionMachine = setup({
+export const graphInteractionMachine = setup({
   types: {
     context: {} as GraphInteractionContext,
     events: {} as GraphInteractionEvent,
