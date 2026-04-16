@@ -8,7 +8,9 @@ import { compileRoutes } from "./routes/compile";
 import { flashRoutes } from "./routes/flash";
 import { boardRoutes } from "./routes/boards";
 import { evalRoutes } from "./routes/eval";
-import { APP_ORIGIN, API_PORT } from "@dreamer/config";
+import { APP_ORIGIN, API_PORT as _API_PORT } from "@dreamer/config";
+
+const API_PORT = Number(process.env.PORT ?? _API_PORT);
 
 const log = createLogger("server");
 
