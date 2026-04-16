@@ -1,6 +1,6 @@
 {
   "name": "@dreamer/app",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "scripts": {
     "dev": "bunx --bun vite",
     "build": "bunx --bun vite build",
