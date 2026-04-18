@@ -14,29 +14,44 @@ if (!(await Bun.file(`${distDir}/index.html`).exists())) {
   process.exit(1)
 }
 
+// Optional runtime override: if DREAMER_API_ORIGIN is set we inject
+// `window.__DREAMER__` into index.html so the frontend uses that origin
+// instead of the value baked into the bundle at build time. Lets the same
+// `dist/` ship to staging/prod without a rebuild per API URL.
+const runtimeApiOrigin = process.env.DREAMER_API_ORIGIN ?? ""
+const runtimeInject = runtimeApiOrigin
+  ? `<script>window.__DREAMER__=${JSON.stringify({ apiOrigin: runtimeApiOrigin })};</script>`
+  : ""
+
+async function serveIndex(): Promise<Response> {
+  const file = Bun.file(`${distDir}/index.html`)
+  if (!runtimeInject) return new Response(file)
+  const html = await file.text()
+  return new Response(html.replace("<head>", `<head>${runtimeInject}`), {
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  })
+}
+
 Bun.serve({
   port,
   hostname: "0.0.0.0",
   async fetch(req) {
     const url = new URL(req.url)
-    let filePath = `${distDir}${url.pathname}`
+    const filePath = `${distDir}${url.pathname}`
 
-    // Try exact file first
-    let file = Bun.file(filePath)
+    const file = Bun.file(filePath)
     if (await file.exists()) {
       return new Response(file)
     }
 
-    // Try with index.html for directory paths
     if (!url.pathname.includes(".")) {
-      file = Bun.file(`${distDir}/index.html`)
-      if (await file.exists()) {
-        return new Response(file)
-      }
+      return serveIndex()
     }
 
     return new Response("Not Found", { status: 404 })
   },
 })
 
-console.log(`Serving dist/ on http://0.0.0.0:${port}`)
+console.log(
+  `Serving dist/ on http://0.0.0.0:${port}${runtimeApiOrigin ? ` (api → ${runtimeApiOrigin})` : ""}`
+)
