@@ -34,8 +34,9 @@ export function arduinoLinter(
   const analogPins = ANALOG_PINS_BY_TARGET[boardTarget]
 
   // ── Transpile error from last compilation attempt ──
-  const transpileErr = transpileErrorRef.current
-  if (transpileErr) {
+  const transpileWrap = transpileErrorRef.current
+  if (transpileWrap) {
+    const transpileErr = transpileWrap.error
     // Convert 1-based line number to character positions
     const line = Math.max(1, Math.min(transpileErr.line, view.state.doc.lines))
     const lineObj = view.state.doc.line(line)

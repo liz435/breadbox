@@ -66,10 +66,27 @@ function applyOp(board: BoardState, op: BoardOp): void {
 }
 
 /**
- * Apply a batch of ops to the tracked board state.
- * If the project isn't tracked yet, initializes from the provided fallback.
+ * Per-project async mutex. Serializes concurrent applyOps calls for the
+ * same projectId so that CLI + web callers in --headed mode don't interleave
+ * mid-batch. Keyed by projectId; different projects run in parallel.
  */
-export function applyOps(
+const locks = new Map<string, Promise<void>>();
+
+function withLock<T>(projectId: string, fn: () => T | Promise<T>): Promise<T> {
+  const prev = locks.get(projectId) ?? Promise.resolve();
+  const next = prev.then(fn, fn);
+  // Track completion only — we don't care about the returned value here.
+  locks.set(
+    projectId,
+    next.then(
+      () => undefined,
+      () => undefined,
+    ),
+  );
+  return next;
+}
+
+function applyOpsInternal(
   projectId: string,
   ops: BoardOp[],
   fallbackBoard?: BoardState
@@ -88,6 +105,25 @@ export function applyOps(
     applyOp(board, op);
   }
   log.info(`applied ${ops.length} ops to project ${projectId}`);
+}
+
+/**
+ * Apply a batch of ops to the tracked board state.
+ * If the project isn't tracked yet, initializes from the provided fallback.
+ * Serialized per-project via an async mutex — concurrent callers wait.
+ *
+ * Returns a Promise for new callers that want to await ordering.
+ * Legacy sync callers may ignore the return value; ops are still applied
+ * in arrival order due to the mutex.
+ */
+export function applyOps(
+  projectId: string,
+  ops: BoardOp[],
+  fallbackBoard?: BoardState
+): Promise<void> {
+  return withLock(projectId, () => {
+    applyOpsInternal(projectId, ops, fallbackBoard);
+  });
 }
 
 /**

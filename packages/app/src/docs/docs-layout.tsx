@@ -1,6 +1,7 @@
 import { type ReactNode } from "react"
 import { useRouter } from "@/router"
 import { cn } from "@/utils/classnames"
+import { highlight } from "@/utils/syntax-highlight"
 import { BookOpen, ChevronLeft } from "lucide-react"
 
 // ── Shared primitives ──────────────────────────────────────────────────────
@@ -27,10 +28,9 @@ export function Badge({
 }
 
 export function CodeBlock({ code, lang = "cpp" }: { code: string; lang?: string }) {
-  void lang
   return (
     <pre className="rounded-md bg-[#111] border border-[#2a2a2a] p-3 text-xs font-mono text-gray-300 overflow-x-auto whitespace-pre-wrap leading-relaxed">
-      {code}
+      <code className={`language-${lang}`}>{highlight(code, lang)}</code>
     </pre>
   )
 }

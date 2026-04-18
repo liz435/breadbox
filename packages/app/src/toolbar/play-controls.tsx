@@ -3,6 +3,7 @@ import { Play, Pause, Square, Cpu, Upload, Zap, AlertCircle } from "lucide-react
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { BOARD_TARGETS, DEFAULT_BOARD_TARGET, type BoardTarget, type LibraryState } from "@dreamer/schemas"
+import { API_ORIGIN } from "@dreamer/config"
 import { useBoard } from "@/store/board-context"
 import { useDockviewApi } from "@/store/dockview-context"
 import { useSimulation } from "@/simulator/simulation-loop"
@@ -11,8 +12,6 @@ import { useElectricalReport } from "@/electrical/power-budget"
 import { cn } from "@/utils/classnames"
 import { markSerialUnread } from "./edit-toolbar"
 import { simulationRef } from "@/simulator/simulation-ref"
-
-const API = "http://localhost:4111"
 
 type UploadStatus = "idle" | "compiling" | "flashing" | "reconnecting" | "done" | "error"
 
@@ -93,7 +92,7 @@ export function PlayControls() {
     setUploadError(null)
     setUploadStatus("compiling")
     try {
-      const res = await fetch(`${API}/api/flash`, {
+      const res = await fetch(`${API_ORIGIN}/api/flash`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

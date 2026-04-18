@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["bun"],
+    "paths": {
+      "@dreamer/api/*": ["../api/src/*"],
+      "@dreamer/schemas": ["../schemas/src/index.ts"],
+      "@dreamer/config": ["../config/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}

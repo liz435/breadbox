@@ -82,6 +82,8 @@ function Root({ cols, rows, title, children }: SchematicRootProps) {
             height={h}
             viewBox={`${-pad} ${-pad} ${w} ${h}`}
             xmlns="http://www.w3.org/2000/svg"
+            role="img"
+            aria-label={title ?? "Circuit schematic diagram"}
           >
             {/* Faint grid dots so authors can verify positioning visually */}
             <GridDots cols={cols} rows={rows} />

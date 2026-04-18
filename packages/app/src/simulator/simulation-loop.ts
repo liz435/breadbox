@@ -14,6 +14,7 @@ import { getBoardPinLayout, getComponentFootprint, areConnected } from "@/breadb
 import { BoardContext } from "@/store/board-context"
 import { getGlobalSelectedPort } from "./use-board-connection"
 import { BOARD_TARGETS, DEFAULT_BOARD_TARGET, isBoardComponentType, type LibraryState, type ServoState } from "@dreamer/schemas"
+import { PREFER_AVR } from "@dreamer/config"
 
 export type SimulationStatus = "stopped" | "compiling" | "running" | "paused" | "error"
 
@@ -57,8 +58,14 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
   // C1: auto-switch to AVR mode when a real board is connected (cycle-accurate
   // simulation is the correct "expected" side for hardware diff). Fall back to
   // transpile when no board is plugged in.
-  const [autoMode, setAutoMode] = useState<VMMode>("transpile")
+  //
+  // Exception: when the host sets window.__DREAMER__.preferAvr (e.g. the CLI's
+  // embedded static server — arduino-cli is guaranteed available in that
+  // environment), pin mode to AVR regardless of board-connected state. The
+  // standalone web app (PREFER_AVR=false) keeps the existing auto-switch.
+  const [autoMode, setAutoMode] = useState<VMMode>(PREFER_AVR ? "avr" : "transpile")
   useEffect(() => {
+    if (PREFER_AVR) return // no polling needed; mode is locked to avr
     const check = () => {
       const connected = getGlobalSelectedPort() !== null
       const boardTarget = boardActor.getSnapshot().context.boardTarget ?? DEFAULT_BOARD_TARGET

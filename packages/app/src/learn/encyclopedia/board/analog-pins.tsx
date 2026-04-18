@@ -1,5 +1,6 @@
 // Arduino Uno Reference > Pins & I/O > Analog pins A0–A5
 
+import { useState, useId } from "react"
 import {
   LearnLayout,
   PageTitle,
@@ -52,6 +53,8 @@ export function AnalogPinsPage() {
           steps, each representing about 4.9 mV. Voltages between
           steps round to the nearest.
         </p>
+
+        <AdcVisualizer />
       </Section>
 
       <Section title="The typical use case">
@@ -65,7 +68,7 @@ export function AnalogPinsPage() {
         </p>
 
         <Figure caption="A potentiometer wired as a voltage divider — the classic analog input example.">
-          <Schematic cols={11} rows={6}>
+          <Schematic cols={11} rows={6} title="Potentiometer wired to Arduino A0: outer terminals to 5V and GND, wiper to A0">
             <Schematic.Vcc at={[2, 1]} label="+5V" />
             <Schematic.Wire points={[[2, 1], [2, 2]]} />
             <Schematic.Resistor from={[2, 2]} to={[2, 4]} label="R pot (top)" />
@@ -146,5 +149,83 @@ export function AnalogPinsPage() {
 
       <PrevNextFooter entry={entry} />
     </LearnLayout>
+  )
+}
+
+// ── ADC visualizer ─────────────────────────────────────────────────────────
+//
+// Drag the voltage slider and see the analogRead() value and the
+// corresponding 10-bit bin highlighted on a scale.
+
+function AdcVisualizer() {
+  const [voltage, setVoltage] = useState(2.5)
+  const sliderId = useId()
+
+  const adcValue = Math.min(1023, Math.round((voltage / 5) * 1023))
+  const pct = voltage / 5
+
+  return (
+    <div className="mt-4 rounded-md border border-neutral-800 bg-[#0d0d0d] p-4 space-y-4">
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <label htmlFor={sliderId} className="text-sm text-gray-300">Input voltage on A0</label>
+          <span className="font-mono text-sm text-gray-200 tabular-nums">{voltage.toFixed(2)} V</span>
+        </div>
+        <div className="relative h-2 rounded-full bg-neutral-800">
+          <div
+            className="absolute inset-y-0 left-0 rounded-full bg-blue-500/60"
+            style={{ width: `${pct * 100}%` }}
+            aria-hidden
+          />
+          <input
+            id={sliderId}
+            type="range"
+            min={0}
+            max={5}
+            step={0.01}
+            value={voltage}
+            onChange={(e) => setVoltage(parseFloat(e.target.value))}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            aria-valuetext={`${voltage.toFixed(2)} volts, analogRead returns ${adcValue}`}
+          />
+        </div>
+        <div className="flex justify-between text-[10px] text-neutral-500 font-mono">
+          <span>0 V</span>
+          <span>5 V</span>
+        </div>
+      </div>
+
+      {/* Result */}
+      <div className="flex gap-3">
+        <div className="flex-1 rounded border border-neutral-700 bg-neutral-900 p-3 text-center">
+          <p className="text-[10px] text-neutral-500 mb-1">analogRead() returns</p>
+          <p className="font-mono text-2xl font-bold text-blue-400">{adcValue}</p>
+        </div>
+        <div className="flex-1 rounded border border-neutral-700 bg-neutral-900 p-3 text-center">
+          <p className="text-[10px] text-neutral-500 mb-1">Resolution step</p>
+          <p className="font-mono text-sm text-neutral-300 pt-1.5">≈ {(5 / 1023 * 1000).toFixed(1)} mV / step</p>
+        </div>
+      </div>
+
+      {/* 10-bit scale bar */}
+      <div aria-hidden>
+        <p className="text-[10px] text-neutral-500 mb-1 uppercase tracking-wider">0–1023 scale</p>
+        <div className="relative h-4 rounded bg-neutral-800 overflow-hidden">
+          <div
+            className="absolute inset-y-0 left-0 bg-blue-500/40 transition-all duration-75"
+            style={{ width: `${(adcValue / 1023) * 100}%` }}
+          />
+          <div
+            className="absolute inset-y-0 w-px bg-blue-400 transition-all duration-75"
+            style={{ left: `${(adcValue / 1023) * 100}%` }}
+          />
+        </div>
+        <div className="flex justify-between text-[10px] text-neutral-600 font-mono mt-0.5">
+          <span>0</span>
+          <span>512</span>
+          <span>1023</span>
+        </div>
+      </div>
+    </div>
   )
 }

@@ -1,12 +1,17 @@
 // ── Arduino Library Index Browser ────────────────────────────────────────
 //
 // Fetches the official Arduino library index JSON and provides a searchable
-// list. Shows "Built-in" badges for libraries we have JS shims for, and
-// allows adding placeholder custom libraries for discovery.
+// list. Shows "Built-in" badges for libraries we have JS shims for and
+// installs third-party libraries through the backend via
+// POST /api/libraries/install (which wraps `arduino-cli lib install`).
+// Installed libraries appear with a checkmark; install runs in the
+// background with a spinner.
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import { useBoard } from "@/store/board-context"
-import { Search, Download, ExternalLink, Check } from "lucide-react"
+import { API_ORIGIN } from "@dreamer/config"
+import { useCapabilities } from "@/project/use-capabilities"
+import { Search, Download, ExternalLink, Check, Loader2, AlertCircle, Trash2, Lock } from "lucide-react"
 
 const LIBRARY_INDEX_URL = "https://downloads.arduino.cc/libraries/library_index.json"
 
@@ -68,13 +73,94 @@ function deduplicateLibraries(raw: IndexData["libraries"]): LibEntry[] {
 // Cache in module scope so refetching isn't needed on re-mount
 let cachedLibraries: LibEntry[] | null = null
 
+/** Per-library install state tracked in this component. */
+type InstallState = "idle" | "installing" | "uninstalling" | "error"
+
 function LibraryBrowserInner() {
   const [search, setSearch] = useState("")
   const [libraries, setLibraries] = useState<LibEntry[]>(cachedLibraries ?? [])
   const [loading, setLoading] = useState(!cachedLibraries)
   const [error, setError] = useState<string | null>(null)
-  const { state, send } = useBoard()
+  const { state } = useBoard()
   const abortRef = useRef<AbortController | null>(null)
+  const { capabilities } = useCapabilities()
+
+  // Map of installed library names (from `arduino-cli lib list` via API).
+  // Populated on mount + after every successful install. Empty set if the
+  // backend doesn't have arduino-cli available.
+  const [installed, setInstalled] = useState<Set<string>>(new Set())
+  const [installState, setInstallState] = useState<Record<string, InstallState>>({})
+  const [installErrors, setInstallErrors] = useState<Record<string, string>>({})
+
+  const refreshInstalled = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_ORIGIN}/api/libraries/installed`)
+      if (!res.ok) return
+      const data = (await res.json()) as { libraries?: Array<{ name: string }> }
+      setInstalled(new Set((data.libraries ?? []).map((l) => l.name)))
+    } catch {
+      // API not reachable — leave installed empty, install buttons still show.
+    }
+  }, [])
+
+  useEffect(() => { void refreshInstalled() }, [refreshInstalled])
+
+  /**
+   * Install or uninstall a library via the backend. `op` picks the route
+   * and status label. Success refreshes the installed list so the UI
+   * transitions Download ↔ Check without waiting for another poll.
+   */
+  const runLibOp = useCallback(
+    async (lib: LibEntry, op: "install" | "uninstall") => {
+      setInstallState((s) => ({
+        ...s,
+        [lib.name]: op === "install" ? "installing" : "uninstalling",
+      }))
+      setInstallErrors((e) => {
+        const next = { ...e }
+        delete next[lib.name]
+        return next
+      })
+      try {
+        const res = await fetch(`${API_ORIGIN}/api/libraries/${op}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: lib.name }),
+        })
+        const data = (await res.json()) as { success?: boolean; error?: string }
+        if (!res.ok || !data.success) {
+          setInstallState((s) => ({ ...s, [lib.name]: "error" }))
+          setInstallErrors((e) => ({
+            ...e,
+            [lib.name]: data.error ?? `HTTP ${res.status}`,
+          }))
+          return
+        }
+        setInstallState((s) => {
+          const next = { ...s }
+          delete next[lib.name]
+          return next
+        })
+        await refreshInstalled()
+      } catch (err) {
+        setInstallState((s) => ({ ...s, [lib.name]: "error" }))
+        setInstallErrors((e) => ({
+          ...e,
+          [lib.name]: err instanceof Error ? err.message : String(err),
+        }))
+      }
+    },
+    [refreshInstalled],
+  )
+
+  const handleInstall = useCallback(
+    (lib: LibEntry) => runLibOp(lib, "install"),
+    [runLibOp],
+  )
+  const handleUninstall = useCallback(
+    (lib: LibEntry) => runLibOp(lib, "uninstall"),
+    [runLibOp],
+  )
 
   useEffect(() => {
     if (cachedLibraries) return
@@ -102,18 +188,26 @@ function LibraryBrowserInner() {
   }, [])
 
   const filtered = useMemo(() => {
+    // Ordering priority: already-installed > built-in shim > everything else.
+    // Applies to both hosted and local modes — it's just a better UX for
+    // users to see what they can actually use first.
+    const rank = (lib: LibEntry): number => {
+      if (installed.has(lib.name)) return 0
+      if (BUILT_IN_LIBS.has(lib.name)) return 1
+      return 2
+    }
+    const sortByRank = (list: LibEntry[]) =>
+      [...list].sort((a, b) => rank(a) - rank(b))
+
     if (!search.trim()) {
-      // Show built-in first, then popular categories
-      return libraries
-        .filter((lib) => BUILT_IN_LIBS.has(lib.name))
-        .concat(
-          libraries
-            .filter((lib) => !BUILT_IN_LIBS.has(lib.name))
-            .slice(0, 50)
-        )
+      // Curated default view: installed + built-ins, then a preview of the
+      // rest (capped so the first render isn't a 7,000-row scroll).
+      const top = libraries.filter((lib) => rank(lib) < 2)
+      const rest = libraries.filter((lib) => rank(lib) === 2).slice(0, 50)
+      return sortByRank(top.concat(rest))
     }
     const q = search.toLowerCase()
-    return libraries
+    const hits = libraries
       .filter(
         (lib) =>
           lib.name.toLowerCase().includes(q) ||
@@ -122,25 +216,8 @@ function LibraryBrowserInner() {
           lib.category.toLowerCase().includes(q),
       )
       .slice(0, 100)
-  }, [search, libraries])
-
-  const handleAddAsCustom = useCallback(
-    (lib: LibEntry) => {
-      const includeName = LIB_INCLUDE_MAP[lib.name] ?? `${lib.name.replace(/\s+/g, "_")}.h`
-      if (includeName in state.customLibraries) return
-
-      send({
-        type: "ADD_CUSTOM_LIBRARY",
-        name: includeName,
-        library: {
-          name: includeName,
-          code: `// ${lib.name} v${lib.version}\n// Author: ${lib.author}\n// ${lib.sentence}\n//\n// This is a placeholder. Add your implementation or\n// use the built-in shim if available.\n//\n// Original: ${lib.url}\n`,
-          description: lib.sentence,
-        },
-      })
-    },
-    [state.customLibraries, send],
-  )
+    return sortByRank(hits)
+  }, [search, libraries, installed])
 
   if (loading) {
     return (
@@ -184,8 +261,9 @@ function LibraryBrowserInner() {
         )}
         {filtered.map((lib) => {
           const isBuiltIn = BUILT_IN_LIBS.has(lib.name)
-          const includeName = LIB_INCLUDE_MAP[lib.name]
-          const isCustomAdded = includeName ? includeName in state.customLibraries : false
+          const isInstalled = installed.has(lib.name)
+          const currentInstall = installState[lib.name] ?? "idle"
+          const installError = installErrors[lib.name]
 
           return (
             <div
@@ -202,27 +280,73 @@ function LibraryBrowserInner() {
                         Built-in
                       </span>
                     )}
+                    {isInstalled && !isBuiltIn && (
+                      <span className="rounded bg-sky-900/40 px-1.5 py-0.5 text-[9px] font-medium text-sky-400">
+                        Installed
+                      </span>
+                    )}
                   </div>
                   <p className="text-[10px] text-zinc-500 mt-0.5 line-clamp-2">{lib.sentence}</p>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-[9px] text-zinc-600">{lib.author}</span>
                     <span className="text-[9px] text-zinc-700">{lib.category}</span>
                   </div>
+                  {installError && (
+                    <p className="text-[10px] text-red-400 mt-1 flex items-start gap-1">
+                      <AlertCircle className="size-3 shrink-0 mt-0.5" />
+                      <span className="break-words">{installError}</span>
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-1 shrink-0 pt-0.5">
                   {isBuiltIn ? (
-                    <span className="flex items-center gap-0.5 text-[10px] text-emerald-500">
+                    // Transpiler shims — always present, can't uninstall.
+                    <span className="flex items-center gap-0.5 text-[10px] text-emerald-500" title="Built-in">
                       <Check className="size-3" />
                     </span>
-                  ) : isCustomAdded ? (
-                    <span className="text-[10px] text-zinc-500">Added</span>
+                  ) : currentInstall === "installing" ? (
+                    <span className="flex items-center gap-0.5 text-[10px] text-zinc-400" title="Installing…">
+                      <Loader2 className="size-3 animate-spin" />
+                    </span>
+                  ) : currentInstall === "uninstalling" ? (
+                    <span className="flex items-center gap-0.5 text-[10px] text-zinc-400" title="Uninstalling…">
+                      <Loader2 className="size-3 animate-spin" />
+                    </span>
+                  ) : isInstalled ? (
+                    capabilities.hosted ? (
+                      // Hosted: library set is fixed. Show a static checkmark
+                      // so users see it's available without the "click to
+                      // uninstall" affordance that would 403.
+                      <span className="flex items-center gap-0.5 text-[10px] text-emerald-500" title="Pre-installed">
+                        <Check className="size-3" />
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => void handleUninstall(lib)}
+                        className="group rounded p-1 text-emerald-500 hover:bg-red-900/30 hover:text-red-400"
+                        title={`Uninstall ${lib.name}`}
+                      >
+                        <Check className="size-3 group-hover:hidden" />
+                        <Trash2 className="size-3 hidden group-hover:block" />
+                      </button>
+                    )
+                  ) : capabilities.hosted ? (
+                    // Hosted + not in the pre-baked set → static "CLI only"
+                    // pill. Tooltip tells the user where to get it.
+                    <span
+                      className="flex items-center gap-1 rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] text-zinc-500"
+                      title="Not pre-installed on this hosted Dreamer. Download the Dreamer CLI to install arbitrary libraries."
+                    >
+                      <Lock className="size-2.5" /> CLI only
+                    </span>
                   ) : (
                     <button
                       type="button"
-                      onClick={() => handleAddAsCustom(lib)}
+                      onClick={() => void handleInstall(lib)}
                       className="rounded p-1 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300"
-                      title="Add as custom library"
+                      title={`Install ${lib.name} via arduino-cli`}
                     >
                       <Download className="size-3" />
                     </button>

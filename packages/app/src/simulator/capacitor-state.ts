@@ -76,7 +76,7 @@ export function stepCapVoltage(
 ): number {
   const prev = getCapVoltage(componentId)
 
-  if (Math.abs(currentAmps) < 1e-9) {
+  if (Math.abs(currentAmps) <= 1e-9) {
     return prev
   }
 
