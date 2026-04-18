@@ -4,3 +4,8 @@ dist
 bun.lock
 arduinoLLM
 .claude
+
+# Generated per-build — see scripts/generate-asset-manifest.ts
+packages/cli/src/web-ui-manifest.generated.ts
+packages/app/dist/
+packages/cli/dist/

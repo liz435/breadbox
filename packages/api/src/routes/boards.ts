@@ -11,15 +11,13 @@ import {
   unsubscribe,
   write,
 } from "../serial/board-manager"
-import { exec } from "node:child_process"
-import { promisify } from "node:util"
+import { resolveArduinoCli } from "../toolchain"
 
 const log = createLogger("boards")
-const execAsync = promisify(exec)
 
 async function checkCliAvailable(): Promise<boolean> {
   try {
-    await execAsync("which arduino-cli")
+    await resolveArduinoCli({ install: false })
     return true
   } catch {
     return false

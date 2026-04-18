@@ -6,6 +6,7 @@ import {
   saveProjectId,
 } from "./project-context";
 import { fetchProject, createProject, ApiError } from "./api-client";
+import { API_PORT } from "@dreamer/config";
 import type { ProjectFile } from "./schemas";
 
 type LoadState =
@@ -113,7 +114,7 @@ export function ProjectLoader({ children }: { children: ReactNode }) {
           </p>
           <p className="mt-1 text-sm text-neutral-500 max-w-sm">
             {isNetworkError
-              ? "Make sure the API server is running on port 4111. Run `bun run dev:api` in a terminal."
+              ? `Make sure the API server is running on port ${API_PORT}. Run \`bun run dev:api\` in a terminal.`
               : state.message}
           </p>
         </div>

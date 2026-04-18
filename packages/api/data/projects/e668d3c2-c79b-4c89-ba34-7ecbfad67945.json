@@ -1,0 +1,42 @@
+{
+  "project": {
+    "id": "e668d3c2-c79b-4c89-ba34-7ecbfad67945",
+    "name": "CLI Project",
+    "version": 0,
+    "createdAt": "2026-04-18T00:11:40.085Z",
+    "updatedAt": "2026-04-18T00:11:40.085Z",
+    "threadId": "4aedbd82-54e1-45c3-a7f0-9a8e093ce620",
+    "activeSceneId": "3c1ae329-790e-43ac-a3e6-b4eebb9e6c12"
+  },
+  "scenes": {
+    "3c1ae329-790e-43ac-a3e6-b4eebb9e6c12": {
+      "id": "3c1ae329-790e-43ac-a3e6-b4eebb9e6c12",
+      "name": "Main Scene",
+      "version": 0,
+      "settings": {
+        "background": "#252525",
+        "gravity": {
+          "x": 0,
+          "y": 9.8
+        }
+      }
+    }
+  },
+  "entities": {},
+  "sceneEntityIds": {
+    "3c1ae329-790e-43ac-a3e6-b4eebb9e6c12": []
+  },
+  "components": {
+    "transform": {},
+    "sprite": {},
+    "tilemap": {},
+    "physicsBody": {},
+    "script": {},
+    "camera": {}
+  },
+  "assets": {},
+  "graph": {
+    "nodes": {},
+    "edges": {}
+  }
+}

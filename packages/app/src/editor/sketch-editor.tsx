@@ -209,8 +209,13 @@ function persistOutputHeight(height: number): void {
 
 // ── Component ─────────────────────────────────────────────────────────────
 
-function ts() {
-  const d = new Date()
+/**
+ * Format an epoch millisecond timestamp as HH:MM:SS. Call sites pass the
+ * time the message was *produced* — never call this with `Date.now()` at
+ * render time, or the stamp will advance on every React re-render.
+ */
+function formatTs(ms: number): string {
+  const d = new Date(ms)
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`
 }
 
@@ -234,6 +239,20 @@ function SketchEditorInner() {
   const sim = simulationRef.current ?? { status: "stopped" as const, error: null, play: () => {}, pause: () => {}, resume: () => {}, stop: () => {}, sendSerialInput: () => {}, vm: null }
   const transpileErr = transpileErrorRef.current
   const sketchSize = sketchSizeRef.current
+
+  // First-seen timestamp map for output-panel messages that don't have
+  // their own capture point (sim.error, electrical issues). Without this,
+  // rendering `new Date()` each frame makes the stamp appear to "roll"
+  // across tick renders. Entries are never updated — first-seen wins —
+  // so the visible stamp is stable for the lifetime of the message.
+  const seenAtRef = useRef<Map<string, number>>(new Map())
+  function stampFor(key: string): number {
+    const existing = seenAtRef.current.get(key)
+    if (existing !== undefined) return existing
+    const now = Date.now()
+    seenAtRef.current.set(key, now)
+    return now
+  }
   const [outputHeight, setOutputHeight] = useState(loadStoredOutputHeight)
   const resizeStartYRef = useRef(0)
   const resizeStartHeightRef = useRef(OUTPUT_DEFAULT_HEIGHT)
@@ -531,37 +550,40 @@ function SketchEditorInner() {
 
           {transpileErr && (
             <div className="text-red-400">
-              <span className="text-neutral-600">{ts()}</span>{" "}
+              <span className="text-neutral-600">{formatTs(transpileErr.ts)}</span>{" "}
               <span className="text-red-300">[TRANSPILER]</span>{" "}
-              {`line ${transpileErr.line}: ${transpileErr.message}`}
+              {`line ${transpileErr.error.line}: ${transpileErr.error.message}`}
             </div>
           )}
 
           {sim.error && (
             <div className="text-red-400">
-              <span className="text-neutral-600">{ts()}</span>{" "}
+              <span className="text-neutral-600">{formatTs(stampFor(`sim:${sim.error}`))}</span>{" "}
               <span className="text-red-300">[SIMULATION]</span>{" "}
               {sim.error}
             </div>
           )}
 
-          {electricalErrors.map((issue) => (
-            <div key={`${issue.code}-${issue.componentId ?? ""}-${issue.pin ?? ""}`} className="text-red-400">
-              <span className="text-neutral-600">{ts()}</span>{" "}
-              <span className="text-red-300">[ELECTRICAL]</span>{" "}
-              {issue.message}
-            </div>
-          ))}
+          {electricalErrors.map((issue) => {
+            const key = `${issue.code}-${issue.componentId ?? ""}-${issue.pin ?? ""}`
+            return (
+              <div key={key} className="text-red-400">
+                <span className="text-neutral-600">{formatTs(stampFor(`electrical:${key}`))}</span>{" "}
+                <span className="text-red-300">[ELECTRICAL]</span>{" "}
+                {issue.message}
+              </div>
+            )
+          })}
 
           {sketchSize && !outputHasErrors && (
             <div className="mt-1 space-y-0.5 text-neutral-400">
               <div>
-                <span className="text-neutral-600">{ts()}</span>{" "}
+                <span className="text-neutral-600">{formatTs(sketchSize.ts)}</span>{" "}
                 <span className="text-neutral-500">{sketchSize.source === "actual" ? "[COMPILER]" : "[ESTIMATE]"}</span>{" "}
                 Sketch uses <span className="text-neutral-200">{sketchSize.flashUsed.toLocaleString()}</span> bytes ({sketchSize.flashPercent}%) of program storage space. Maximum is {sketchSize.flashMax.toLocaleString()} bytes.
               </div>
               <div>
-                <span className="text-neutral-600">{ts()}</span>{" "}
+                <span className="text-neutral-600">{formatTs(sketchSize.ts)}</span>{" "}
                 <span className="text-neutral-500">{sketchSize.source === "actual" ? "[COMPILER]" : "[ESTIMATE]"}</span>{" "}
                 Global variables use <span className="text-neutral-200">{sketchSize.ramUsed.toLocaleString()}</span> bytes ({sketchSize.ramPercent}%) of dynamic memory, leaving {(sketchSize.ramMax - sketchSize.ramUsed).toLocaleString()} bytes for local variables. Maximum is {sketchSize.ramMax.toLocaleString()} bytes.
               </div>

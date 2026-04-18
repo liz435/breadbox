@@ -27,12 +27,10 @@ import {
   type BoardState,
 } from "@dreamer/schemas";
 
-function dataDir(): string {
-  return process.env.DATA_DIR ?? join(import.meta.dir, "../../data");
-}
+import { projectsDir, dreamerHome } from "../paths";
 
-function projectsDir(): string {
-  return join(dataDir(), "projects");
+function dataDir(): string {
+  return dreamerHome();
 }
 
 function now(): string {

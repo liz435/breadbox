@@ -1,0 +1,62 @@
+{
+  "components": {
+    "photoresistor-1": {
+      "id": "photoresistor-1",
+      "type": "photoresistor",
+      "name": "Photoresistor",
+      "x": 7,
+      "y": 5,
+      "rotation": 0,
+      "pins": {
+        "a": null,
+        "b": null
+      },
+      "properties": {}
+    },
+    "resistor-1": {
+      "id": "resistor-1",
+      "type": "resistor",
+      "name": "R1 10k\u03a9",
+      "x": 3,
+      "y": 6,
+      "rotation": 0,
+      "pins": {
+        "a": null,
+        "b": null
+      },
+      "properties": {
+        "resistance": 10000
+      }
+    }
+  },
+  "wires": {
+    "wire-5v": {
+      "id": "wire-5v",
+      "fromRow": -999,
+      "fromCol": -1,
+      "toRow": 5,
+      "toCol": 7,
+      "color": "#ef4444"
+    },
+    "wire-a0": {
+      "id": "wire-a0",
+      "fromRow": -999,
+      "fromCol": 14,
+      "toRow": 6,
+      "toCol": 7,
+      "color": "#22c55e"
+    },
+    "wire-gnd": {
+      "id": "wire-gnd",
+      "fromRow": -999,
+      "fromCol": -3,
+      "toRow": 6,
+      "toCol": 6,
+      "color": "#1a1a1a"
+    }
+  },
+  "libraryState": { "servos": {}, "lcd": null, "serialBaud": 0 },
+  "serialOutput": [],
+  "sketchCode": "// Example: Photoresistor Light Sensor\n// Read light level on A0 and print to Serial.\n\nint sensorPin = A0;\n\nvoid setup() {\n  Serial.begin(9600);\n}\n\nvoid loop() {\n  int lightVal = analogRead(sensorPin);\n  Serial.print(\"Light: \");\n  Serial.println(lightVal);\n  delay(500);\n}\n",
+  "customLibraries": {}
+}

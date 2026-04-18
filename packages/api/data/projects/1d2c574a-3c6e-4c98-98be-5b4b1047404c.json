@@ -1,0 +1,128 @@
+{
+  "project": {
+    "id": "1d2c574a-3c6e-4c98-98be-5b4b1047404c",
+    "name": "opal-wren-dart",
+    "version": 0,
+    "createdAt": "2026-04-18T04:34:39.312Z",
+    "updatedAt": "2026-04-18T05:49:20.372Z",
+    "threadId": "e3c6b5c1-70cc-4861-9c38-83c470563982",
+    "activeSceneId": "d47ed6a1-b2b9-46b6-9730-0c123b63c0bc"
+  },
+  "scenes": {
+    "d47ed6a1-b2b9-46b6-9730-0c123b63c0bc": {
+      "id": "d47ed6a1-b2b9-46b6-9730-0c123b63c0bc",
+      "name": "Main Scene",
+      "version": 0,
+      "settings": {
+        "background": "#252525",
+        "gravity": {
+          "x": 0,
+          "y": 9.8
+        }
+      }
+    }
+  },
+  "entities": {},
+  "sceneEntityIds": {
+    "d47ed6a1-b2b9-46b6-9730-0c123b63c0bc": []
+  },
+  "components": {
+    "transform": {},
+    "sprite": {},
+    "tilemap": {},
+    "physicsBody": {},
+    "script": {},
+    "camera": {}
+  },
+  "assets": {},
+  "graph": {
+    "nodes": {
+      "node-1776487465953-kfzk8l": {
+        "id": "node-1776487465953-kfzk8l",
+        "type": "setup",
+        "name": "Setup",
+        "x": 60,
+        "y": 60,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      },
+      "node-1776487465953-wyafu5": {
+        "id": "node-1776487465953-wyafu5",
+        "type": "loop",
+        "name": "Loop",
+        "x": 60,
+        "y": 200,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      }
+    },
+    "edges": {}
+  },
+  "boardState": {
+    "components": {
+      "buzzer-1": {
+        "id": "buzzer-1",
+        "type": "buzzer",
+        "name": "Buzzer",
+        "x": 7,
+        "y": 5,
+        "rotation": 0,
+        "pins": {
+          "positive": null,
+          "negative": null
+        },
+        "properties": {}
+      }
+    },
+    "wires": {
+      "wire-d8": {
+        "id": "wire-d8",
+        "fromRow": -999,
+        "fromCol": 8,
+        "toRow": 5,
+        "toCol": 7,
+        "color": "#fbbf24"
+      },
+      "wire-gnd": {
+        "id": "wire-gnd",
+        "fromRow": -999,
+        "fromCol": -3,
+        "toRow": 6,
+        "toCol": 7,
+        "color": "#1a1a1a"
+      }
+    },
+    "libraryState": {
+      "servos": {},
+      "lcd": null,
+      "serialBaud": 0
+    },
+    "serialOutput": [],
+    "sketchCode": "// Example: Buzzer Melody\n// Play three notes using tone() on pin 8.\n\nint buzzerPin = 8;\n\nvoid setup() {\n  pinMode(buzzerPin, OUTPUT);\n}\n\nvoid loop() {\n  tone(buzzerPin, 262); // C4\n  delay(500);\n  tone(buzzerPin, 330); // E4\n  delay(500);\n  tone(buzzerPin, 392); // G4\n  delay(500);\n  noTone(buzzerPin);\n  delay(1000);\n}\n",
+    "customLibraries": {},
+    "boardTarget": "arduino_uno",
+    "environment": {
+      "obstacles": {},
+      "boundaryEnabled": true,
+      "boundaryMargin": 100
+    }
+  }
+}

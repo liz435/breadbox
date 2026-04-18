@@ -1,5 +1,6 @@
 // Arduino Uno Reference > Signals & timing > PWM on the Uno
 
+import { useState, useId } from "react"
 import {
   LearnLayout,
   PageTitle,
@@ -63,17 +64,14 @@ export function PwmPage() {
         </Note>
       </Section>
 
-      <Section title="Duty cycle timing">
+      <Section title="Duty cycle explorer">
         <p className="text-sm leading-relaxed">
-          The diagram below shows what happens on a PWM pin at three
-          different <Term k="analog-write">analogWrite()</Term> values.
-          The pin voltage alternates between 0 V and 5 V; only the
-          proportion of time spent HIGH changes.
+          Drag the slider to change the{" "}
+          <Term k="analog-write">analogWrite()</Term> value (0–255) and see
+          the resulting waveform, average voltage, and perceived LED
+          brightness in real time.
         </p>
-
-        <Figure caption="PWM duty cycles: 0% (always LOW), 50% (half on), 100% (always HIGH).">
-          <DutyCycleDiagram />
-        </Figure>
+        <DutyCycleExplorer />
       </Section>
 
       <Section title="Using analogWrite()">
@@ -112,71 +110,163 @@ void loop() {
   )
 }
 
-// ── Duty cycle timing diagram ──────────────────────────────────────────
+// ── Duty cycle explorer ────────────────────────────────────────────────────
 
-function DutyCycleDiagram() {
-  const w = 400
-  const rowH = 50
-  const labelW = 60
-  const waveW = w - labelW - 20
-  const rows = [
-    { label: "0%", value: 0 },
-    { label: "50%", value: 128 },
-    { label: "100%", value: 255 },
-  ]
+function DutyCycleExplorer() {
+  const [value, setValue] = useState(128)
+  const sliderId = useId()
+
+  const duty = value / 255
+  const vAvg = (duty * 5).toFixed(2)
+  const pct = Math.round(duty * 100)
 
   return (
-    <div className="flex justify-center">
-      <svg
-        viewBox={`0 0 ${w} ${rows.length * rowH + 10}`}
-        width={w}
-        height={rows.length * rowH + 10}
-        xmlns="http://www.w3.org/2000/svg"
-        className="max-w-full"
-      >
-        {rows.map((row, i) => {
-          const y = i * rowH + 10
-          const high = y + 4
-          const low = y + rowH - 14
-          const duty = row.value / 255
-          const cycles = 4
-          const cycleW = waveW / cycles
+    <div className="rounded-md border border-neutral-800 bg-[#0d0d0d] p-4 space-y-4">
+      {/* Slider */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <label htmlFor={sliderId} className="text-sm text-gray-300">
+            analogWrite value
+          </label>
+          <span className="font-mono text-sm text-gray-200 tabular-nums">{value} / 255</span>
+        </div>
+        <div className="relative h-2 rounded-full bg-neutral-800">
+          <div
+            className="absolute inset-y-0 left-0 rounded-full bg-blue-500/60"
+            style={{ width: `${(value / 255) * 100}%` }}
+            aria-hidden
+          />
+          <input
+            id={sliderId}
+            type="range"
+            min={0}
+            max={255}
+            step={1}
+            value={value}
+            onChange={(e) => setValue(parseInt(e.target.value))}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            aria-valuetext={`${value} — ${pct}% duty cycle, ${vAvg} V average`}
+          />
+        </div>
+        <div className="flex justify-between text-[10px] text-neutral-500 font-mono">
+          <span>0 (always LOW)</span>
+          <span>255 (always HIGH)</span>
+        </div>
+      </div>
 
-          return (
-            <g key={row.label}>
-              <text
-                x={labelW - 8}
-                y={y + rowH / 2}
-                textAnchor="end"
-                fontSize={11}
-                fill="#d1d5db"
-                fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
-              >
-                {row.label}
-              </text>
-              {Array.from({ length: cycles }, (_, c) => {
-                const cx = labelW + c * cycleW
-                const onW = cycleW * duty
-                const offW = cycleW - onW
-                const points =
-                  duty === 0
-                    ? `${cx},${low} ${cx + cycleW},${low}`
-                    : duty === 1
-                      ? `${cx},${high} ${cx + cycleW},${high}`
-                      : `${cx},${high} ${cx + onW},${high} ${cx + onW},${low} ${cx + cycleW},${low}`
-                return (
-                  <polyline
-                    key={c}
-                    points={points}
-                    fill="none"
-                    stroke="#60a5fa"
-                    strokeWidth={2}
-                  />
-                )
-              })}
-            </g>
-          )
-        })}
+      {/* Stats row */}
+      <div className="grid grid-cols-3 gap-3">
+        <StatBox label="Duty cycle" value={`${pct}%`} color="text-blue-400" />
+        <StatBox label="Avg voltage" value={`${vAvg} V`} color="text-emerald-400" />
+        <StatBox label="LED brightness" value={brightnessLabel(duty)} color="text-amber-400" />
+      </div>
+
+      {/* Waveform visualization */}
+      <div>
+        <p className="text-[11px] text-neutral-500 mb-2 uppercase tracking-wider font-semibold">
+          Waveform (4 cycles shown)
+        </p>
+        <PwmWaveform duty={duty} />
+      </div>
+    </div>
+  )
+}
+
+function StatBox({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div className="rounded border border-neutral-800 bg-neutral-900 px-3 py-2 text-center">
+      <p className="text-[10px] text-neutral-500 mb-1">{label}</p>
+      <p className={`font-mono text-base font-semibold ${color}`}>{value}</p>
+    </div>
+  )
+}
+
+function brightnessLabel(duty: number): string {
+  if (duty === 0) return "Off"
+  if (duty < 0.1) return "Barely"
+  if (duty < 0.33) return "Dim"
+  if (duty < 0.67) return "Medium"
+  if (duty < 0.9) return "Bright"
+  if (duty < 1) return "Very bright"
+  return "Full"
+}
+
+function PwmWaveform({ duty }: { duty: number }) {
+  const w = 480
+  const h = 60
+  const cycles = 4
+  const cycleW = w / cycles
+  const high = 8
+  const low = h - 8
+  const mono = "ui-monospace, SFMono-Regular, Menlo, monospace"
+
+  const segments: string[] = []
+  for (let c = 0; c < cycles; c++) {
+    const x0 = c * cycleW
+    const onW = cycleW * duty
+    const offW = cycleW - onW
+    if (duty === 0) {
+      segments.push(`${x0},${low} ${x0 + cycleW},${low}`)
+    } else if (duty >= 1) {
+      segments.push(`${x0},${high} ${x0 + cycleW},${high}`)
+    } else {
+      segments.push(
+        `${x0},${high} ${x0 + onW},${high} ${x0 + onW},${low} ${x0 + offW + x0},${low}`
+      )
+    }
+  }
+
+  // Build a single polyline path
+  const allPoints: [number, number][] = []
+  for (let c = 0; c < cycles; c++) {
+    const x0 = c * cycleW
+    const onW = cycleW * duty
+    if (duty === 0) {
+      allPoints.push([x0, low], [x0 + cycleW, low])
+    } else if (duty >= 1) {
+      allPoints.push([x0, high], [x0 + cycleW, high])
+    } else {
+      allPoints.push([x0, high], [x0 + onW, high], [x0 + onW, low], [x0 + cycleW, low])
+    }
+  }
+  const points = allPoints.map(([x, y]) => `${x.toFixed(1)},${y}`).join(" ")
+
+  return (
+    <div className="flex justify-center rounded border border-neutral-800 bg-neutral-900 py-2">
+      <svg
+        viewBox={`0 0 ${w} ${h + 16}`}
+        width={w}
+        height={h + 16}
+        className="max-w-full"
+        xmlns="http://www.w3.org/2000/svg"
+        role="img"
+        aria-label={`PWM waveform at ${Math.round(duty * 100)}% duty cycle`}
+      >
+        {/* Rails */}
+        <line x1={0} y1={high} x2={w} y2={high} stroke="#27272a" strokeWidth={1} strokeDasharray="3 3" />
+        <line x1={0} y1={low} x2={w} y2={low} stroke="#27272a" strokeWidth={1} strokeDasharray="3 3" />
+        <text x={2} y={high - 2} fontSize={9} fill="#52525b" fontFamily={mono}>5V</text>
+        <text x={2} y={low + 9} fontSize={9} fill="#52525b" fontFamily={mono}>0V</text>
+        {/* Waveform */}
+        <polyline
+          points={points}
+          fill="none"
+          stroke="#60a5fa"
+          strokeWidth={2}
+          strokeLinejoin="miter"
+        />
+        {/* Average line */}
+        {duty > 0 && duty < 1 && (
+          <line
+            x1={0}
+            y1={high + (low - high) * (1 - duty)}
+            x2={w}
+            y2={high + (low - high) * (1 - duty)}
+            stroke="#10b981"
+            strokeWidth={1}
+            strokeDasharray="4 3"
+          />
+        )}
       </svg>
     </div>
   )

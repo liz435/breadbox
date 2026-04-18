@@ -174,7 +174,7 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
           expectedVersion: input.expectedVersion,
           ops: templateOps,
         });
-        boardTracker.applyOps(input.projectId, templateOps, project.boardState);
+        await boardTracker.applyOps(input.projectId, templateOps, project.boardState);
       } catch (err) {
         reqLog.warn(`template op application failed: ${err}`);
       }
@@ -341,7 +341,7 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
           if (applyResult) {
             newVersion = applyResult.newVersion;
             appliedOps = applyResult.appliedOps;
-            boardTracker.applyOps(capturedProjectId, appliedOps, capturedProject.boardState);
+            await boardTracker.applyOps(capturedProjectId, appliedOps, capturedProject.boardState);
           }
         } catch (err) {
           if (err instanceof VersionConflictError) {
