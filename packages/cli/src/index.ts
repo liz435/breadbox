@@ -24,6 +24,8 @@ import { installCrashReporter, listCrashes, readCrash, clearCrashes } from "./cr
 import * as telemetry from "./telemetry"
 import * as selfUpdate from "./self-update"
 import { loadConfig, saveConfig, setApiKey, clearApiKey, ensureApiKey, ApiKeyMissingError } from "./config"
+import { followLogFile } from "./log-follow"
+import { recordCliErrorAndFlush } from "./telemetry-reporting"
 import { join } from "path"
 import { existsSync, readFileSync } from "fs"
 
@@ -132,9 +134,8 @@ async function handleLogs(cmd: Command & { kind: "logs" }): Promise<number> {
     process.stdout.write(readFileSync(logFile, "utf8"))
     return 0
   }
-  // --follow: tail the file
-  const proc = Bun.spawn(["tail", "-F", logFile], { stdout: "inherit", stderr: "inherit" })
-  await proc.exited
+  // --follow: in-process cross-platform log follower
+  await followLogFile(logFile)
   return 0
 }
 
@@ -400,13 +401,7 @@ async function main() {
       console.error(err.message)
       process.exit(2)
     }
-    // Record error for telemetry (name only — never the message)
-    void telemetry.record({
-      type: "cli.error",
-      subcommand: args.command.kind,
-      errorName: err instanceof Error ? err.name : "non-error-throw",
-    })
-    await telemetry.flush()
+    await recordCliErrorAndFlush(telemetry, args.command.kind, err)
     console.error(`Error: ${formatError(err)}`)
     process.exit(classifyExitCode(err))
   }

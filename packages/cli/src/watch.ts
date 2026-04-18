@@ -1,4 +1,5 @@
 import { projectRepo } from "@dreamer/api/db/project-repo"
+import type { ProjectFile } from "@dreamer/schemas"
 import { compileSketch, flashSketch } from "./compile-flash"
 import type { ProjectState } from "./project-manager"
 
@@ -10,6 +11,65 @@ const C = {
   red: "\x1b[31m",
   yellow: "\x1b[33m",
   cyan: "\x1b[36m",
+}
+
+type WatchPollerDeps = {
+  state: ProjectState
+  projectId: string
+  flashPort: string | null
+  readProject: (projectId: string) => Promise<ProjectFile | null>
+  compileSketch: typeof compileSketch
+  flashSketch: typeof flashSketch
+  log: (message: string) => void
+  error: (message: string) => void
+  now: () => string
+}
+
+export function createWatchPoller(deps: WatchPollerDeps): { poll: () => Promise<void> } {
+  let lastSketchHash: string | null = null
+
+  const poll = async () => {
+    try {
+      const project = await deps.readProject(deps.projectId)
+      if (!project) return
+
+      const currentHash = hashSketch(project.boardState?.sketchCode ?? "")
+      if (lastSketchHash !== null && currentHash === lastSketchHash) return
+
+      lastSketchHash = currentHash
+      deps.state.project = project
+
+      const timestamp = deps.now()
+      deps.log(`${C.dim}[${timestamp}]${C.reset} Sketch changed — compiling...`)
+
+      const result = await deps.compileSketch(project)
+      if (!result.success) {
+        deps.log(`${C.red}  Compilation failed:${C.reset} ${result.error}`)
+        return
+      }
+
+      deps.log(`${C.green}  Compiled OK${C.reset}`)
+      if (result.sizeInfo) {
+        deps.log(
+          `${C.dim}  Flash: ${result.sizeInfo.flashUsed}/${result.sizeInfo.flashMax} (${result.sizeInfo.flashPercent}%) | RAM: ${result.sizeInfo.ramUsed}/${result.sizeInfo.ramMax} (${result.sizeInfo.ramPercent}%)${C.reset}`,
+        )
+      }
+
+      if (deps.flashPort) {
+        deps.log(`${C.yellow}  Flashing to ${deps.flashPort}...${C.reset}`)
+        const flashResult = await deps.flashSketch(project, deps.flashPort)
+        if (flashResult.success) {
+          deps.log(`${C.green}  Flash OK${C.reset}`)
+        } else {
+          deps.log(`${C.red}  Flash failed:${C.reset} ${flashResult.error}`)
+        }
+      }
+    } catch (err) {
+      deps.error(`${C.red}  Watch error:${C.reset} ${err}`)
+    }
+  }
+
+  return { poll }
 }
 
 /**
@@ -25,7 +85,6 @@ export async function startWatchMode(
   flashPort: string | null,
 ): Promise<void> {
   const { projectId } = state
-  let lastSketchHash = hashSketch(state.project.boardState?.sketchCode ?? "")
   const pollMs = 2000
 
   console.log()
@@ -38,46 +97,17 @@ export async function startWatchMode(
   console.log(`${C.dim}Press Ctrl+C to stop${C.reset}`)
   console.log()
 
-  const poll = async () => {
-    try {
-      const project = await projectRepo.readProject(projectId)
-      if (!project) return
-
-      const currentHash = hashSketch(project.boardState?.sketchCode ?? "")
-      if (currentHash === lastSketchHash) return
-
-      lastSketchHash = currentHash
-      state.project = project
-
-      const timestamp = new Date().toLocaleTimeString()
-      console.log(`${C.dim}[${timestamp}]${C.reset} Sketch changed — compiling...`)
-
-      const result = await compileSketch(project)
-      if (!result.success) {
-        console.log(`${C.red}  Compilation failed:${C.reset} ${result.error}`)
-        return
-      }
-
-      console.log(`${C.green}  Compiled OK${C.reset}`)
-      if (result.sizeInfo) {
-        console.log(
-          `${C.dim}  Flash: ${result.sizeInfo.flashUsed}/${result.sizeInfo.flashMax} (${result.sizeInfo.flashPercent}%) | RAM: ${result.sizeInfo.ramUsed}/${result.sizeInfo.ramMax} (${result.sizeInfo.ramPercent}%)${C.reset}`,
-        )
-      }
-
-      if (flashPort) {
-        console.log(`${C.yellow}  Flashing to ${flashPort}...${C.reset}`)
-        const flashResult = await flashSketch(project, flashPort)
-        if (flashResult.success) {
-          console.log(`${C.green}  Flash OK${C.reset}`)
-        } else {
-          console.log(`${C.red}  Flash failed:${C.reset} ${flashResult.error}`)
-        }
-      }
-    } catch (err) {
-      console.error(`${C.red}  Watch error:${C.reset} ${err}`)
-    }
-  }
+  const { poll } = createWatchPoller({
+    state,
+    projectId,
+    flashPort,
+    readProject: (id) => projectRepo.readProject(id),
+    compileSketch,
+    flashSketch,
+    log: (message) => console.log(message),
+    error: (message) => console.error(message),
+    now: () => new Date().toLocaleTimeString(),
+  })
 
   // Run initial compile
   await poll()

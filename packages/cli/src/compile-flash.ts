@@ -76,6 +76,53 @@ export type CompileResult = {
   }
 }
 
+type BoardListEntry = {
+  port?: {
+    address?: string
+  }
+  address?: string
+}
+
+type BoardListPayload =
+  | BoardListEntry[]
+  | {
+      detected_ports?: BoardListEntry[]
+    }
+
+function extractBoardAddress(entry: BoardListEntry): string | null {
+  if (typeof entry.port?.address === "string" && entry.port.address.trim() !== "") {
+    return entry.port.address
+  }
+  if (typeof entry.address === "string" && entry.address.trim() !== "") {
+    return entry.address
+  }
+  return null
+}
+
+export function parseBoardListOutput(stdout: string): string[] {
+  try {
+    const data = JSON.parse(stdout) as BoardListPayload
+    const entries = Array.isArray(data)
+      ? data
+      : Array.isArray(data.detected_ports)
+        ? data.detected_ports
+        : []
+
+    const deduped: string[] = []
+    const seen = new Set<string>()
+    for (const entry of entries) {
+      if (!entry || typeof entry !== "object") continue
+      const address = extractBoardAddress(entry)
+      if (!address || seen.has(address)) continue
+      seen.add(address)
+      deduped.push(address)
+    }
+    return deduped
+  } catch {
+    return []
+  }
+}
+
 export async function compileSketch(project: ProjectFile): Promise<CompileResult> {
   const code = project.boardState?.sketchCode
   if (!code || code.trim() === "") {
@@ -253,12 +300,5 @@ export async function listPorts(): Promise<string[]> {
   }
   const result = await exec([arduinoCli, "board", "list", "--format", "json"])
   if (result.exitCode !== 0) return []
-  try {
-    const data = JSON.parse(result.stdout) as Array<{ port?: { address?: string } }>
-    return data
-      .map((b) => b.port?.address)
-      .filter((p): p is string => !!p)
-  } catch {
-    return []
-  }
+  return parseBoardListOutput(result.stdout)
 }
