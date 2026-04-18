@@ -758,63 +758,39 @@ function UltrasonicInspector({ component, onUpdate }: {
 }) {
   const { state: boardState, send: boardSend } = useBoard();
   const env = boardState.environment;
-  const hasObstacles = Object.keys(env.obstacles).length > 0 || env.boundaryEnabled;
-  const manualDistance = (component.properties.distance as number) ?? 50;
 
+  // Distance is computed exclusively from the canvas environment — place
+  // obstacles (or enable room walls) and the ray-cast determines what the
+  // HC-SR04 "sees". Out-of-range / no-hit renders as "—" and the sketch's
+  // pulseIn() returns 0 (timeout), matching a real sensor.
   const liveDistance = useMemo(() => {
-    if (!hasObstacles) return null;
     const segments = environmentToSegments(env, CANVAS_WIDTH, CANVAS_HEIGHT);
     if (segments.length === 0) return null;
     const ray = sensorRay(component);
     const px = raycastDistance(ray, segments);
     if (!isFinite(px)) return null;
     const cm = pixelsToCm(px);
+    if (cm > 400) return null;
     return Math.min(400, Math.max(2, Math.round(cm * 10) / 10));
-  }, [env, component, hasObstacles]);
+  }, [env, component]);
 
-  const displayDistance = liveDistance ?? manualDistance;
-  const distanceLabel =
-    hasObstacles && liveDistance != null
-      ? `${liveDistance} cm`
-      : hasObstacles
-        ? "out of range"
-        : `${manualDistance} cm`;
+  const obstacleCount = Object.keys(env.obstacles).length;
 
   return (
     <>
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
-          <SectionLabel>Distance</SectionLabel>
-          {hasObstacles && (
-            <span className="text-[10px] font-medium uppercase tracking-wider text-cyan-400">
-              Ray-cast
-            </span>
-          )}
+          <SectionLabel>Environment</SectionLabel>
+          <span
+            className={cn(
+              "font-mono text-[11px] tabular-nums",
+              liveDistance !== null ? "text-cyan-400" : "text-muted-foreground",
+            )}
+          >
+            {liveDistance !== null ? `${liveDistance} cm` : "— out of range"}
+          </span>
         </div>
-        <SliderField
-          value={displayDistance}
-          min={2}
-          max={400}
-          valueLabel={distanceLabel}
-          disabled={hasObstacles}
-          onChange={(v) => onUpdate({
-            properties: { ...component.properties, distance: v },
-          })}
-        />
-      </div>
 
-      <CollapsibleSection title="Pins" defaultOpen>
-        <PropertyRow label="Trigger">
-          <PinSelect value={component.pins.trigger ?? null}
-            onChange={(pin) => onUpdate({ pins: { ...component.pins, trigger: pin } })} />
-        </PropertyRow>
-        <PropertyRow label="Echo">
-          <PinSelect value={component.pins.echo ?? null}
-            onChange={(pin) => onUpdate({ pins: { ...component.pins, echo: pin } })} />
-        </PropertyRow>
-      </CollapsibleSection>
-
-      <CollapsibleSection title="Environment">
         <PropertyRow label="Boundary">
           <label className="flex cursor-pointer items-center gap-2">
             <input
@@ -829,10 +805,11 @@ function UltrasonicInspector({ component, onUpdate }: {
             <span className="text-xs text-foreground/80">Room walls</span>
           </label>
         </PropertyRow>
+
         <PropertyRow label="Obstacles">
           <div className="flex items-center gap-1.5">
             <span className="flex-1 text-xs text-muted-foreground">
-              {Object.keys(env.obstacles).length} placed
+              {obstacleCount} placed
             </span>
             <button
               type="button"
@@ -880,6 +857,24 @@ function UltrasonicInspector({ component, onUpdate }: {
             </div>
           </PropertyRow>
         ))}
+
+        {obstacleCount === 0 && !env.boundaryEnabled && (
+          <p className="text-[10px] text-muted-foreground">
+            Place an obstacle on the canvas (or enable Room walls) so the sensor
+            has something to see. Without an obstacle in range, pulseIn() reads 0.
+          </p>
+        )}
+      </div>
+
+      <CollapsibleSection title="Pins" defaultOpen>
+        <PropertyRow label="Trigger">
+          <PinSelect value={component.pins.trigger ?? null}
+            onChange={(pin) => onUpdate({ pins: { ...component.pins, trigger: pin } })} />
+        </PropertyRow>
+        <PropertyRow label="Echo">
+          <PinSelect value={component.pins.echo ?? null}
+            onChange={(pin) => onUpdate({ pins: { ...component.pins, echo: pin } })} />
+        </PropertyRow>
       </CollapsibleSection>
     </>
   );

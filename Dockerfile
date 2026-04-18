@@ -51,11 +51,26 @@ RUN mkdir -p ${DREAMER_MACHINE_HOME}/bin ${DREAMER_MACHINE_HOME}/cache \
   && curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh \
      | BINDIR=${DREAMER_MACHINE_HOME}/bin sh
 
-# Install the AVR core (required for compile). Creates ~/.arduino15/.
-# Write the stamp file so the API doesn't re-check on every compile.
-RUN ${DREAMER_MACHINE_HOME}/bin/arduino-cli core update-index \
+# Install arduino cores. Each stamp file matches the naming scheme that
+# packages/api/src/toolchain.ts checks (`arduino-cli-core-<family>.stamp`,
+# with ":" replaced by "-") so the API doesn't re-install on first compile.
+#
+# Register the Earle Philhower rp2040:rp2040 community core's board-manager
+# URL up front so `core install rp2040:rp2040` succeeds without the user
+# having to pass `--additional-urls` on every call.
+RUN ${DREAMER_MACHINE_HOME}/bin/arduino-cli config init --overwrite \
+  && ${DREAMER_MACHINE_HOME}/bin/arduino-cli config add \
+       board_manager.additional_urls \
+       https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json \
+  && ${DREAMER_MACHINE_HOME}/bin/arduino-cli core update-index \
   && ${DREAMER_MACHINE_HOME}/bin/arduino-cli core install arduino:avr \
-  && echo "pre-baked" > ${DREAMER_MACHINE_HOME}/cache/arduino-avr-core.stamp
+  && echo "pre-baked" > ${DREAMER_MACHINE_HOME}/cache/arduino-cli-core-arduino-avr.stamp
+
+# Install the Raspberry Pi Pico core (~500MB — toolchain + picotool + gcc-
+# arm-none-eabi). Separate RUN so the AVR install above stays a stable
+# cache layer when the Pico core is bumped.
+RUN ${DREAMER_MACHINE_HOME}/bin/arduino-cli core install rp2040:rp2040 \
+  && echo "pre-baked" > ${DREAMER_MACHINE_HOME}/cache/arduino-cli-core-rp2040-rp2040.stamp
 
 # ── Pre-bake the curated library set ──────────────────────────────────
 # Grouped into batches so Docker layer caching stays useful if we later
@@ -107,6 +122,19 @@ COPY --from=build /app/packages ./packages
 # mounts persistent volumes here if the user wants state to survive deploys.
 ENV DREAMER_HOME=/data
 RUN mkdir -p /data
+
+# Persist the machine-home so dreamerMachineHome() at runtime resolves to the
+# SAME path the build stage wrote the pre-baked arduino-cli stamp files to
+# (/root/.dreamer/cache/arduino-cli-core-*.stamp). Without this the runtime
+# falls back to `homedir()/.dreamer` — which coincidentally works for a
+# root container but silently re-downloads the ~500MB rp2040 core on any
+# image where the effective user changes.
+#
+# For cross-deploy cost containment, attach a persistent volume to
+# /root/.dreamer in the hosting platform (Railway, Fly, etc.). The volume
+# keeps the cores + stamps across deploys; without one, a cache-busted
+# image layer will trigger a full re-download on first compile.
+ENV DREAMER_MACHINE_HOME=/root/.dreamer
 
 # Hosted-mode flags read by the API + injected UI capabilities.
 ENV DREAMER_HOSTED=1

@@ -19,11 +19,27 @@
     }
   },
   "wires": {
+    "wire-vss": {
+      "id": "wire-vss",
+      "fromRow": -999,
+      "fromCol": -3,
+      "toRow": 5,
+      "toCol": 5,
+      "color": "#1a1a1a"
+    },
+    "wire-vdd": {
+      "id": "wire-vdd",
+      "fromRow": -999,
+      "fromCol": -1,
+      "toRow": 6,
+      "toCol": 5,
+      "color": "#ef4444"
+    },
     "wire-d12-rs": {
       "id": "wire-d12-rs",
       "fromRow": -999,
       "fromCol": 12,
-      "toRow": 5,
+      "toRow": 8,
       "toCol": 5,
       "color": "#fbbf24"
     },
@@ -31,7 +47,7 @@
       "id": "wire-d11-en",
       "fromRow": -999,
       "fromCol": 11,
-      "toRow": 6,
+      "toRow": 10,
       "toCol": 5,
       "color": "#fbbf24"
     },
@@ -39,7 +55,7 @@
       "id": "wire-d5-d4",
       "fromRow": -999,
       "fromCol": 5,
-      "toRow": 7,
+      "toRow": 11,
       "toCol": 5,
       "color": "#22c55e"
     },
@@ -47,7 +63,7 @@
       "id": "wire-d4-d5",
       "fromRow": -999,
       "fromCol": 4,
-      "toRow": 8,
+      "toRow": 12,
       "toCol": 5,
       "color": "#22c55e"
     },
@@ -55,7 +71,7 @@
       "id": "wire-d3-d6",
       "fromRow": -999,
       "fromCol": 3,
-      "toRow": 9,
+      "toRow": 13,
       "toCol": 5,
       "color": "#3b82f6"
     },
@@ -63,9 +79,25 @@
       "id": "wire-d2-d7",
       "fromRow": -999,
       "fromCol": 2,
-      "toRow": 10,
+      "toRow": 14,
       "toCol": 5,
       "color": "#3b82f6"
+    },
+    "wire-a": {
+      "id": "wire-a",
+      "fromRow": -999,
+      "fromCol": -1,
+      "toRow": 15,
+      "toCol": 5,
+      "color": "#ef4444"
+    },
+    "wire-k": {
+      "id": "wire-k",
+      "fromRow": -999,
+      "fromCol": -3,
+      "toRow": 16,
+      "toCol": 5,
+      "color": "#1a1a1a"
     }
   },
   "libraryState": { "servos": {}, "lcd": null, "serialBaud": 0 },

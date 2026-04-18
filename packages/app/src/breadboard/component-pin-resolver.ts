@@ -71,6 +71,25 @@ export function findArduinoPinsForComponent(
 }
 
 /**
+ * Inverse of `findArduinoPinsForComponent`: given an Arduino pin, return
+ * every component whose footprint is wired to that pin. Used by the
+ * peripheral bus and power-budget analyzer to answer "what is on pin N?".
+ */
+export function findPeripheralsOnPin(
+  pin: number,
+  components: Record<string, BoardComponent>,
+  wires: Record<string, Wire>,
+): BoardComponent[] {
+  if (pin < 0 || pin > MAX_ARDUINO_PIN) return []
+  const out: BoardComponent[] = []
+  for (const component of Object.values(components)) {
+    const pins = findArduinoPinsForComponent(component, wires)
+    if (pins.includes(pin)) out.push(component)
+  }
+  return out
+}
+
+/**
  * Convenience: find the first Arduino pin wired to a component.
  * Falls back to the component's explicit `pins.a` / `pins.input` / etc.
  * if no wire-based pin is found.

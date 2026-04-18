@@ -156,27 +156,149 @@ export async function resolveArduinoCli(
   return await installArduinoCliManaged();
 }
 
-// ── AVR core (first flash fetches ~200MB of toolchain) ──────────────────
+// ── Toolchain cores (each first-install fetches ~200–500 MB) ─────────────
 
-const AVR_CORE_STAMP = () => join(cacheDir(), "arduino-avr-core.stamp");
+type CoreFamily = "arduino:avr" | "rp2040:rp2040";
 
-export async function ensureArduinoCliCore(
-  family: "arduino:avr",
+const CORE_STAMP = (family: CoreFamily): string =>
+  join(cacheDir(), `arduino-cli-core-${family.replace(":", "-")}.stamp`);
+
+const CORE_SIZES: Record<CoreFamily, string> = {
+  "arduino:avr": "~200MB",
+  "rp2040:rp2040": "~500MB",
+};
+
+// Cores that aren't in arduino-cli's default index need an extra package
+// URL to be visible. `rp2040:rp2040` is the Earle Philhower community core
+// used throughout the Arduino-Pico ecosystem; the official Arduino-maintained
+// alternative is `arduino:mbed_rp2040` which lives in the default index but
+// boots onto Mbed OS (more setup, fewer Pico-specific niceties).
+const CORE_ADDITIONAL_URLS: Partial<Record<CoreFamily, string>> = {
+  "rp2040:rp2040":
+    "https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json",
+};
+
+/**
+ * Structural type of the NDJSON writer from `routes/_stream-lines.ts`.
+ * Imported structurally to avoid pulling route internals into this
+ * low-level module (toolchain has to stay importable from contexts that
+ * don't wire up streaming).
+ */
+type ToolchainProgressWriter = {
+  write(event: { kind: "log"; tag: "compiler" | "upload"; line: string; ts: number }): void
+}
+
+async function pumpChildOutput(
+  readable: ReadableStream<Uint8Array>,
+  writer: ToolchainProgressWriter,
 ): Promise<void> {
-  if (existsSync(AVR_CORE_STAMP())) return;
+  const reader = readable.getReader()
+  const decoder = new TextDecoder()
+  let carry = ""
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      carry += decoder.decode(value, { stream: true })
+      let idx: number
+      while ((idx = carry.indexOf("\n")) !== -1) {
+        const line = carry.slice(0, idx).replace(/\r$/, "")
+        carry = carry.slice(idx + 1)
+        if (line.length === 0) continue
+        writer.write({ kind: "log", tag: "compiler", line, ts: Date.now() })
+      }
+    }
+    const tail = carry.trim()
+    if (tail.length > 0) {
+      writer.write({ kind: "log", tag: "compiler", line: tail, ts: Date.now() })
+    }
+  } finally {
+    reader.releaseLock()
+  }
+}
+
+/**
+ * Ensure the given arduino-cli core is installed. No-op on the warm path
+ * (stamp file present). On the cold path, spawns `core install` and — if a
+ * `progress` writer is supplied — pipes every stdout/stderr line through
+ * so the caller's HTTP stream stays warm instead of going silent for the
+ * 5+ minutes a full download can take.
+ */
+export async function ensureArduinoCliCore(
+  family: CoreFamily,
+  progress?: ToolchainProgressWriter,
+): Promise<void> {
+  if (existsSync(CORE_STAMP(family))) return;
 
   const arduinoCli = await resolveArduinoCli();
   await mkdir(cacheDir(), { recursive: true });
 
-  log.info(`installing arduino-cli core ${family} (first run, ~200MB)`);
-  const proc = Bun.spawn([arduinoCli, "core", "install", family], {
-    stdout: "inherit",
-    stderr: "inherit",
-  });
-  const code = await proc.exited;
-  if (code !== 0) {
-    throw new Error(`arduino-cli core install ${family} failed with code ${code}`);
+  const additionalUrl = CORE_ADDITIONAL_URLS[family];
+  const commonArgs = additionalUrl
+    ? ["--additional-urls", additionalUrl]
+    : [];
+
+  const emit = (line: string): void => {
+    progress?.write({ kind: "log", tag: "compiler", line, ts: Date.now() });
+    log.info(line);
+  };
+
+  // When the core needs an extra URL, arduino-cli has to know about it
+  // before the install can find the package. `update-index` is cheap on
+  // repeat runs (HEAD request per URL) and we only ever invoke this path
+  // when the stamp is missing — so the cost lands exactly once per family.
+  if (additionalUrl) {
+    emit(`arduino-cli core update-index (preparing ${family})`);
+    const updateProc = Bun.spawn(
+      [arduinoCli, "core", "update-index", ...commonArgs],
+      {
+        stdout: progress ? "pipe" : "inherit",
+        stderr: progress ? "pipe" : "inherit",
+      },
+    );
+    if (progress && updateProc.stdout && updateProc.stderr) {
+      await Promise.all([
+        pumpChildOutput(updateProc.stdout, progress),
+        pumpChildOutput(updateProc.stderr, progress),
+      ]);
+    }
+    const updateCode = await updateProc.exited;
+    if (updateCode !== 0) {
+      throw new Error(
+        `arduino-cli core update-index failed with code ${updateCode} while preparing to install ${family}. ` +
+          `Check network access to ${additionalUrl}.`,
+      );
+    }
   }
 
-  await Bun.write(AVR_CORE_STAMP(), new Date().toISOString());
+  emit(`installing arduino-cli core ${family} (first run, ${CORE_SIZES[family]} — several minutes)`);
+  const proc = Bun.spawn(
+    [arduinoCli, "core", "install", family, ...commonArgs],
+    {
+      stdout: progress ? "pipe" : "inherit",
+      stderr: progress ? "pipe" : "inherit",
+    },
+  );
+  if (progress && proc.stdout && proc.stderr) {
+    await Promise.all([
+      pumpChildOutput(proc.stdout, progress),
+      pumpChildOutput(proc.stderr, progress),
+    ]);
+  }
+  const code = await proc.exited;
+  if (code !== 0) {
+    const hint = additionalUrl
+      ? ` (the "${family}" core requires --additional-urls ${additionalUrl}; check your network or install manually: arduino-cli core install ${family} --additional-urls ${additionalUrl})`
+      : "";
+    throw new Error(`arduino-cli core install ${family} failed with code ${code}${hint}`);
+  }
+
+  emit(`arduino-cli core ${family} installed`);
+  await Bun.write(CORE_STAMP(family), new Date().toISOString());
+}
+
+/** Map an fqbn like "rp2040:rp2040:rpipico" back to the core family it needs. */
+export function coreFamilyForFqbn(fqbn: string): CoreFamily {
+  if (fqbn.startsWith("rp2040:")) return "rp2040:rp2040";
+  return "arduino:avr";
 }

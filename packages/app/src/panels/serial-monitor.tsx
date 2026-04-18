@@ -81,6 +81,13 @@ export function SerialMonitor() {
   }, [state.serialOutput.length, autoscroll])
 
   const simBaudRate = state.libraryState.serialBaud
+  // Mode comes from the live VM only — before a sketch has been run, the
+  // VM doesn't exist and we intentionally render "not initialized"
+  // instead of guessing from the board target (which would always show
+  // "Simulated AVR" on Uno/Nano and hide whether anything is running).
+  // AVR mode never dispatches Serial.begin to JS state, so simBaudRate
+  // stays 0 in that mode — leaning on baud to detect mode doesn't work.
+  const simMode = simulationRef.current?.runner?.kind
 
   const handleConnect = useCallback(async () => {
     const board = boardRef.current
@@ -153,24 +160,28 @@ export function SerialMonitor() {
               <span className="size-1.5 rounded-full bg-emerald-400" />
               {selectedPort ?? "Connected"}
             </span>
-          ) : simBaudRate > 0 ? (
+          ) : simMode === "avr" ? (
             <span className="text-[10px] text-zinc-500">
-              Simulated {simBaudRate} baud
+              Simulated AVR{simBaudRate > 0 ? ` · ${simBaudRate} baud` : ""}
             </span>
           ) : (
             <span className="text-[10px] text-zinc-500">not initialized</span>
           )}
 
-          {/* Baud rate */}
-          <select
-            value={baudRate}
-            onChange={(e) => setBaudRate(Number(e.target.value))}
-            className="bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 text-[10px] text-zinc-300 outline-none"
-          >
-            {BAUD_RATES.map((r) => (
-              <option key={r} value={r}>{r} baud</option>
-            ))}
-          </select>
+          {/* Baud rate — only meaningful for real hardware. In simulation
+              the VM emits serial via a direct JS callback and bypasses
+              the UART, so the dropdown wouldn't change anything. */}
+          {selectedPort ? (
+            <select
+              value={baudRate}
+              onChange={(e) => setBaudRate(Number(e.target.value))}
+              className="bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 text-[10px] text-zinc-300 outline-none"
+            >
+              {BAUD_RATES.map((r) => (
+                <option key={r} value={r}>{r} baud</option>
+              ))}
+            </select>
+          ) : null}
 
           {/* Connect/disconnect — only shown when a port is selected */}
           {selectedPort && (
@@ -223,24 +234,8 @@ export function SerialMonitor() {
         </div>
       </div>
 
-      {/* Output */}
-      <pre
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto whitespace-pre-wrap px-3 py-2 text-green-400"
-      >
-        {state.serialOutput.length === 0 ? (
-          <span className="text-zinc-600 italic">
-            {selectedPort
-              ? "No output yet. Run a sketch or connect a board."
-              : "No output yet. Run a sketch to see output here, or select a board from the toolbar."}
-          </span>
-        ) : (
-          state.serialOutput.map((entry, i) => formatLine(entry, i))
-        )}
-      </pre>
-
-      {/* Input */}
-      <div className="flex border-t border-zinc-700">
+      {/* Input — sits directly under the header for quick access */}
+      <div className="flex border-b border-zinc-700">
         <input
           type="text"
           className="flex-1 bg-zinc-800 px-3 py-1.5 text-xs text-green-300 placeholder-zinc-600 outline-none"
@@ -266,6 +261,22 @@ export function SerialMonitor() {
           Send
         </button>
       </div>
+
+      {/* Output */}
+      <pre
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto whitespace-pre-wrap px-3 py-2 text-green-400"
+      >
+        {state.serialOutput.length === 0 ? (
+          <span className="text-zinc-600 italic">
+            {selectedPort
+              ? "No output yet. Run a sketch or connect a board."
+              : "No output yet. Run a sketch to see output here, or select a board from the toolbar."}
+          </span>
+        ) : (
+          state.serialOutput.map((entry, i) => formatLine(entry, i))
+        )}
+      </pre>
     </div>
   )
 }

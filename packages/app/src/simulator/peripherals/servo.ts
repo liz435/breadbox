@@ -1,0 +1,268 @@
+// ── ServoPeripheral ────────────────────────────────────────────────────────
+//
+// Handles both input paths in one place:
+//   - Explicit `write(angle)` from the transpile-mode stdlib `Servo` class.
+//   - 50Hz PWM pulse width measured from AVR pin edges.
+// Emits `{ kind: "servo", pin, angle, attached }` state consumed by
+// servo-renderer.tsx.
+
+import type { BoardComponent, ComponentType, Wire } from "@dreamer/schemas"
+import type {
+  Peripheral,
+  PeripheralCapability,
+  PeripheralContext,
+  PeripheralState,
+  PeripheralTrace,
+  PinEdge,
+} from "./types"
+
+/**
+ * Walk the wire map to find the Arduino pin driving the servo signal hole.
+ * Mirrors the logic in servo-renderer.tsx so AVR edges route correctly even
+ * when component.pins.signal is null in the board JSON (the common case —
+ * examples save the wire topology, not the resolved pin).
+ */
+function resolveSignalPinFromWires(
+  wires: Record<string, Wire>,
+  signalRow: number,
+  signalCol: number,
+): number | null {
+  for (const w of Object.values(wires)) {
+    if (w.fromRow !== -999) continue
+    if (w.toRow !== signalRow) continue
+    // Left terminal cluster: cols 0–4. Right cluster: cols 5–9. The servo's
+    // signal hole must share a cluster with the wire's landing column.
+    if (w.toCol >= 0 && w.toCol <= 4 && signalCol >= 0 && signalCol <= 4) {
+      return w.fromCol
+    }
+    if (w.toCol >= 5 && w.toCol <= 9 && signalCol >= 5 && signalCol <= 9) {
+      return w.fromCol
+    }
+  }
+  return null
+}
+
+const SERVO_MIN_ANGLE = 0
+const SERVO_MAX_ANGLE = 180
+
+// Arduino Servo library pulse-width extremes.
+const MIN_PULSE_US = 544
+const MAX_PULSE_US = 2400
+
+// Edge-pattern bounds for detecting "this is a servo frame" (vs audible tone
+// or bit-banged traffic). 50Hz ± some tolerance, 0.4–2.6 ms HIGH pulse.
+const FRAME_MIN_HZ = 30
+const FRAME_MAX_HZ = 80
+const PULSE_MIN_US = 400
+const PULSE_MAX_US = 2600
+
+// How long after the last edge we consider the PWM source silent. The AVR
+// servo library stops driving the pin entirely when detached, so a quiet
+// period of this duration flips the peripheral back to "no PWM signal".
+const SILENCE_TIMEOUT_MS = 150
+
+const TRACE_RING_SIZE = 32
+
+type ServoStateShape = Extract<PeripheralState, { kind: "servo" }>
+
+export class ServoPeripheral implements Peripheral<ServoStateShape> {
+  readonly id: string
+  readonly componentType: ComponentType = "servo"
+  readonly capabilities: ReadonlySet<PeripheralCapability> = new Set([
+    "positionActuator",
+  ])
+
+  private _watchedPins = new Set<number>()
+  private ctx: PeripheralContext | null = null
+  private readonly componentY: number
+  private readonly componentX: number
+  private angle = 0
+  private attached = false
+  private boundPin: number | null = null
+
+  // AVR-path pulse-width measurement state.
+  private lastRisingSimMs = 0
+  private lastFallingSimMs = 0
+  private lastPulseWidthUs = 0
+  private lastEdgeSimMs = 0
+  private edgeRing: number[] = []
+  private ringWriteIdx = 0
+  private ringCount = 0
+
+  // Bounded trace buffer.
+  private traces: PeripheralTrace[] = []
+
+  constructor(component: BoardComponent) {
+    this.id = component.id
+    this.componentY = component.y
+    this.componentX = component.x
+    const signal = component.pins?.signal
+    if (typeof signal === "number" && signal >= 0) {
+      this._watchedPins.add(signal)
+      this.boundPin = signal
+    }
+  }
+
+  get watchedPins(): ReadonlySet<number> {
+    return this._watchedPins
+  }
+
+  attach(ctx: PeripheralContext): void {
+    this.ctx = ctx
+    if (this.boundPin === null) {
+      const resolved = resolveSignalPinFromWires(
+        ctx.wires,
+        this.componentY,
+        this.componentX,
+      )
+      if (resolved !== null) {
+        this.boundPin = resolved
+        this._watchedPins.add(resolved)
+      }
+    }
+  }
+
+  /** Transpile-mode call from the stdlib Servo.attach(pin). */
+  onExplicitAttach(pin: number): void {
+    if (pin < 0) return
+    this.boundPin = pin
+    this._watchedPins.clear()
+    this._watchedPins.add(pin)
+    this.attached = true
+    this.trace({
+      simMs: 0,
+      kind: "write",
+      message: `attach pin=${pin}`,
+      detail: { pin },
+    })
+  }
+
+  /** Transpile-mode call from the stdlib Servo.write(angle). */
+  onExplicitWrite(angle: number): void {
+    const clamped = Math.max(SERVO_MIN_ANGLE, Math.min(SERVO_MAX_ANGLE, angle))
+    this.angle = clamped
+    if (this.boundPin !== null) this.attached = true
+    this.trace({
+      simMs: 0,
+      kind: "write",
+      message: `write angle=${clamped}`,
+      detail: { angle: clamped, pin: this.boundPin },
+    })
+  }
+
+  /** Transpile-mode call from the stdlib Servo.detach(). */
+  onExplicitDetach(): void {
+    this.attached = false
+    this.trace({
+      simMs: 0,
+      kind: "write",
+      message: "detach",
+      detail: { pin: this.boundPin },
+    })
+  }
+
+  isAttached(): boolean {
+    return this.attached
+  }
+
+  onPinEdge(edge: PinEdge): void {
+    if (edge.pin !== this.boundPin && !this._watchedPins.has(edge.pin)) return
+    if (this.boundPin === null) this.boundPin = edge.pin
+
+    this.lastEdgeSimMs = edge.simMs
+    if (edge.value === 1) {
+      this.lastRisingSimMs = edge.simMs
+    } else if (this.lastRisingSimMs > 0) {
+      this.lastFallingSimMs = edge.simMs
+      this.lastPulseWidthUs = (edge.simMs - this.lastRisingSimMs) * 1000
+    }
+
+    this.edgeRing[this.ringWriteIdx] = edge.simMs
+    this.ringWriteIdx = (this.ringWriteIdx + 1) % 8
+    if (this.ringCount < 8) this.ringCount++
+
+    if (this.ringCount < 3) return
+    const oldestIdx = this.ringCount < 8
+      ? (this.ringWriteIdx - this.ringCount + 8) % 8
+      : this.ringWriteIdx
+    const oldest = this.edgeRing[oldestIdx]
+    const elapsedMs = edge.simMs - oldest
+    if (elapsedMs <= 0) return
+    const periods = (this.ringCount - 1) / 2
+    const freqHz = (periods * 1000) / elapsedMs
+
+    if (
+      freqHz < FRAME_MIN_HZ ||
+      freqHz > FRAME_MAX_HZ ||
+      this.lastPulseWidthUs < PULSE_MIN_US ||
+      this.lastPulseWidthUs > PULSE_MAX_US
+    ) {
+      return
+    }
+
+    const span = MAX_PULSE_US - MIN_PULSE_US
+    const clampedPulse = Math.max(
+      MIN_PULSE_US,
+      Math.min(MAX_PULSE_US, this.lastPulseWidthUs),
+    )
+    const angle = Math.round(((clampedPulse - MIN_PULSE_US) / span) * SERVO_MAX_ANGLE)
+    if (this.angle !== angle) {
+      this.angle = angle
+      this.attached = true
+      this.trace({
+        simMs: edge.simMs,
+        kind: "derive",
+        message: `avr pulse → angle=${angle}`,
+        detail: { pulseUs: Math.round(this.lastPulseWidthUs), freqHz: Math.round(freqHz * 10) / 10 },
+      })
+    }
+  }
+
+  onTick(simMs: number): void {
+    // AVR-only: if the pin goes silent, treat the servo as still attached at
+    // its last commanded angle (real servos hold position). No state change.
+    if (this.lastEdgeSimMs === 0) return
+    if (simMs - this.lastEdgeSimMs <= SILENCE_TIMEOUT_MS) return
+    this.ringCount = 0
+    this.ringWriteIdx = 0
+  }
+
+  getState(): Readonly<ServoStateShape> | null {
+    if (this.boundPin === null) return null
+    return {
+      kind: "servo",
+      pin: this.boundPin,
+      angle: this.angle,
+      attached: this.attached,
+    }
+  }
+
+  reset(): void {
+    this.angle = 0
+    this.attached = false
+    this.lastRisingSimMs = 0
+    this.lastFallingSimMs = 0
+    this.lastPulseWidthUs = 0
+    this.lastEdgeSimMs = 0
+    this.edgeRing = []
+    this.ringWriteIdx = 0
+    this.ringCount = 0
+    this.traces = []
+  }
+
+  getTrace(): ReadonlyArray<PeripheralTrace> {
+    return this.traces
+  }
+
+  private trace(entry: Omit<PeripheralTrace, "ts">): void {
+    this.traces.push({ ...entry, ts: Date.now() })
+    if (this.traces.length > TRACE_RING_SIZE) {
+      this.traces = this.traces.slice(-TRACE_RING_SIZE)
+    }
+    this.ctx?.trace(entry)
+  }
+}
+
+export function createServoPeripheral(component: BoardComponent): ServoPeripheral {
+  return new ServoPeripheral(component)
+}

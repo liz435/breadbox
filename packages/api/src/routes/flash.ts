@@ -1,9 +1,12 @@
 // ── Flash Route ───────────────────────────────────────────────────────────
 //
-// POST /api/flash
+// POST /api/flash  →  application/x-ndjson stream
+//
 // Compiles an Arduino sketch to HEX and uploads it to a connected board via
-// arduino-cli. After a successful flash the board resets — we signal
-// board-manager to reconnect after the bootloader window (2.5s).
+// arduino-cli. Compile output is tagged `compiler`, avrdude upload output
+// is tagged `upload` — one chronological NDJSON stream covers both phases.
+// After a successful flash the board resets; we signal board-manager to
+// reconnect after the bootloader window (2.5s).
 //
 // Supports the same library conventions as /api/compile:
 //   - `customLibraries` written to `<sketchDir>/libs/<Name>/<Name>.h`
@@ -24,6 +27,7 @@ import {
 } from "../libraries"
 import { reconnectAfter } from "../serial/board-manager"
 import { BOARD_TARGETS, boardTargetSchema, DEFAULT_BOARD_TARGET } from "@dreamer/schemas"
+import { createNdjsonStream, pumpProcessStream, type LogTag, type StreamWriter } from "./_stream-lines"
 
 const log = createLogger("flash")
 
@@ -35,22 +39,28 @@ const flashRequestSchema = z.object({
   customLibraries: customLibrariesSchema,
 })
 
-async function exec(
+async function streamProc(
   cmd: string[],
+  tag: LogTag,
+  writer: StreamWriter,
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   const proc = Bun.spawn(cmd, { stdout: "pipe", stderr: "pipe" })
-  const [stdout, stderr] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
+  const stdoutSink = { buffer: "" }
+  const stderrSink = { buffer: "" }
+  await Promise.all([
+    pumpProcessStream(proc.stdout, tag, writer, stdoutSink),
+    pumpProcessStream(proc.stderr, tag, writer, stderrSink),
   ])
-  return { stdout, stderr, exitCode: await proc.exited }
+  const exitCode = await proc.exited
+  return { stdout: stdoutSink.buffer, stderr: stderrSink.buffer, exitCode }
 }
 
-async function runCompile(
+async function streamCompile(
   arduinoCli: string,
   sketchDir: string,
   fqbn: string,
   libsDir: string | null,
+  writer: StreamWriter,
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   const args = [
     arduinoCli,
@@ -60,10 +70,10 @@ async function runCompile(
   ]
   if (libsDir) args.push("--libraries", libsDir)
   args.push(join(sketchDir, "sketch"))
-  return exec(args)
+  return streamProc(args, "compiler", writer)
 }
 
-export const flashRoutes = new Elysia().post("/api/flash", async ({ body, set }) => {
+export const flashRoutes = new Elysia().post("/api/flash", ({ body, set }) => {
   const parsed = flashRequestSchema.safeParse(body)
   if (!parsed.success) {
     set.status = 400
@@ -78,90 +88,132 @@ export const flashRoutes = new Elysia().post("/api/flash", async ({ body, set })
   const sketchFile = join(sketchDir, "sketch", "sketch.ino")
   const outputDir = join(sketchDir, "output")
 
-  try {
-    let arduinoCli: string
+  const { stream, writer } = createNdjsonStream()
+
+  ;(async () => {
     try {
-      arduinoCli = await resolveArduinoCli({ install: process.env.DREAMER_AUTO_INSTALL === "1" })
-      await ensureArduinoCliCore("arduino:avr")
-    } catch (err) {
-      if (err instanceof ArduinoCliMissingError) {
-        set.status = 503
-        return { error: err.message }
+      let arduinoCli: string
+      try {
+        arduinoCli = await resolveArduinoCli({ install: process.env.DREAMER_AUTO_INSTALL === "1" })
+        await ensureArduinoCliCore("arduino:avr")
+      } catch (err) {
+        if (err instanceof ArduinoCliMissingError) {
+          writer.write({ kind: "error", stage: "compile", message: err.message })
+          return
+        }
+        throw err
       }
-      throw err
-    }
 
-    await Bun.write(sketchFile, code)
-    let libsDir: string | null = null
-    if (Object.keys(customLibraries).length > 0) {
-      libsDir = join(sketchDir, "libs")
-      await writeCustomLibraries(libsDir, customLibraries)
-    }
-
-    log.info(`Compiling for flash — sketch: ${sketchId}, port: ${port}${libsDir ? `, customLibs: ${Object.keys(customLibraries).length}` : ""}`)
-
-    // Auto-install retry for missing headers. Same pattern as /api/compile.
-    const MAX_RETRIES = 3
-    const autoInstalled: string[] = []
-    let compileResult = await runCompile(arduinoCli, sketchDir, fqbn, libsDir)
-
-    for (let attempt = 0; attempt < MAX_RETRIES && compileResult.exitCode !== 0; attempt++) {
-      const stderr = compileResult.stderr + compileResult.stdout
-      const missing = extractMissingHeader(stderr)
-      if (!missing) break
-      if (autoInstalled.includes(missing)) break
-
-      log.info(`flash ${sketchId}: missing header "${missing}.h" — attempting auto-install`)
-      const install = await attemptAutoInstall(missing)
-      if ("reason" in install) {
-        log.info(`flash ${sketchId}: auto-install skipped — ${install.reason}`)
-        break
+      await Bun.write(sketchFile, code)
+      let libsDir: string | null = null
+      if (Object.keys(customLibraries).length > 0) {
+        libsDir = join(sketchDir, "libs")
+        await writeCustomLibraries(libsDir, customLibraries)
       }
-      log.info(`flash ${sketchId}: installed "${install.installed}", retrying compile`)
-      autoInstalled.push(missing)
-      compileResult = await runCompile(arduinoCli, sketchDir, fqbn, libsDir)
-    }
 
-    if (compileResult.exitCode !== 0) {
-      return {
-        success: false,
-        stage: "compile",
-        error: compileResult.stderr || compileResult.stdout || "Compilation failed",
-        autoInstalled: autoInstalled.length > 0 ? autoInstalled : undefined,
+      log.info(`Compiling for flash — sketch: ${sketchId}, port: ${port}${libsDir ? `, customLibs: ${Object.keys(customLibraries).length}` : ""}`)
+      writer.write({
+        kind: "log",
+        tag: "compiler",
+        line: `arduino-cli compile --fqbn ${fqbn}`,
+        ts: Date.now(),
+      })
+
+      // Auto-install retry for missing headers. Same pattern as /api/compile.
+      const MAX_RETRIES = 3
+      const autoInstalled: string[] = []
+      let compileResult = await streamCompile(arduinoCli, sketchDir, fqbn, libsDir, writer)
+
+      for (let attempt = 0; attempt < MAX_RETRIES && compileResult.exitCode !== 0; attempt++) {
+        const stderr = compileResult.stderr + compileResult.stdout
+        const missing = extractMissingHeader(stderr)
+        if (!missing) break
+        if (autoInstalled.includes(missing)) break
+
+        writer.write({
+          kind: "log",
+          tag: "compiler",
+          line: `[auto-install] missing header "${missing}.h" — searching Arduino library index…`,
+          ts: Date.now(),
+        })
+        log.info(`flash ${sketchId}: missing header "${missing}.h" — attempting auto-install`)
+        const install = await attemptAutoInstall(missing)
+        if ("reason" in install) {
+          writer.write({
+            kind: "log",
+            tag: "compiler",
+            line: `[auto-install] skipped — ${install.reason}`,
+            ts: Date.now(),
+          })
+          log.info(`flash ${sketchId}: auto-install skipped — ${install.reason}`)
+          break
+        }
+        writer.write({
+          kind: "log",
+          tag: "compiler",
+          line: `[auto-install] installed "${install.installed}" — retrying compile`,
+          ts: Date.now(),
+        })
+        log.info(`flash ${sketchId}: installed "${install.installed}", retrying compile`)
+        autoInstalled.push(missing)
+        compileResult = await streamCompile(arduinoCli, sketchDir, fqbn, libsDir, writer)
       }
-    }
 
-    log.info(`Flashing to ${port}`)
+      if (compileResult.exitCode !== 0) {
+        writer.write({
+          kind: "error",
+          stage: "compile",
+          message: compileResult.stderr || compileResult.stdout || "Compilation failed",
+          autoInstalled: autoInstalled.length > 0 ? autoInstalled : undefined,
+        })
+        return
+      }
 
-    const hexFile = join(outputDir, "sketch.ino.hex")
-    const uploadResult = await exec([
-      arduinoCli, "upload",
-      "-p", port,
-      "--fqbn", fqbn,
-      "--input-file", hexFile,
-    ])
+      log.info(`Flashing to ${port}`)
+      writer.write({
+        kind: "log",
+        tag: "upload",
+        line: `arduino-cli upload -p ${port} --fqbn ${fqbn}`,
+        ts: Date.now(),
+      })
 
-    if (uploadResult.exitCode !== 0) {
-      return {
-        success: false,
+      const hexFile = join(outputDir, "sketch.ino.hex")
+      const uploadResult = await streamProc(
+        [arduinoCli, "upload", "-p", port, "--fqbn", fqbn, "--input-file", hexFile],
+        "upload",
+        writer,
+      )
+
+      if (uploadResult.exitCode !== 0) {
+        writer.write({
+          kind: "error",
+          stage: "flash",
+          message: uploadResult.stderr || uploadResult.stdout || "Upload failed",
+        })
+        return
+      }
+
+      log.info(`Flash succeeded — ${port}`)
+      reconnectAfter(port, 2_500)
+
+      writer.write({
+        kind: "done",
         stage: "flash",
-        error: uploadResult.stderr || uploadResult.stdout || "Upload failed",
-      }
+        autoInstalled: autoInstalled.length > 0 ? autoInstalled : undefined,
+      })
+    } catch (err) {
+      writer.write({
+        kind: "error",
+        message: err instanceof Error ? err.message : "Internal error",
+      })
+    } finally {
+      writer.close()
+      rm(sketchDir, { recursive: true, force: true }).catch(() => {})
     }
+  })()
 
-    log.info(`Flash succeeded — ${port}`)
-    reconnectAfter(port, 2_500)
-
-    return {
-      success: true,
-      stdout: uploadResult.stdout,
-      stderr: uploadResult.stderr,
-      autoInstalled: autoInstalled.length > 0 ? autoInstalled : undefined,
-    }
-  } catch (err) {
-    set.status = 500
-    return { error: err instanceof Error ? err.message : "Internal error" }
-  } finally {
-    rm(sketchDir, { recursive: true, force: true }).catch(() => {})
-  }
+  set.headers["content-type"] = "application/x-ndjson"
+  return new Response(stream, {
+    headers: { "content-type": "application/x-ndjson" },
+  })
 })

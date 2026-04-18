@@ -70,12 +70,18 @@ export const irReceiverBus = new Map<number, { code: number; expiresAt: number }
  */
 export const ultrasonicTriggerPinBus = new Map<number, number>()
 
+/** Tracks the most recent `pendingCodeAt` we've dispatched to each
+ *  IrReceiverPeripheral so back-to-back inspector-triggered sends
+ *  don't fire twice for the same user click. */
+const irLastPendingAt = new Map<string, number>()
+
 /** Clear all sensor busses — called on simulation reset/stop. */
 export function resetSensorBuses(): void {
   ultrasonicDistanceBus.clear()
   dhtSensorBus.clear()
   irReceiverBus.clear()
   ultrasonicTriggerPinBus.clear()
+  irLastPendingAt.clear()
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -137,34 +143,54 @@ function writeTemperatureSensor(
 
 /**
  * HC-SR04 ultrasonic sensor: compute distance via ray-casting against
- * the environment, or fall back to the inspector slider value.
+ * the environment, or fall back to the inspector slider value. When a
+ * peripheral bus is supplied the value is pushed into the component's
+ * `UltrasonicPeripheral` so the AVR-compiled `pulseIn()` sees the right
+ * echo pulse shape. The legacy `ultrasonicDistanceBus` is kept populated
+ * for any remaining non-peripheral readers but has no user impact now
+ * that the transpile-mode stdlib is gone.
  */
 function writeUltrasonic(
   comp: BoardComponent,
   wires: Record<string, Wire>,
   environment: Environment,
+  bus?: import("./peripherals/peripheral-bus").PeripheralBus,
 ): void {
   const echoPin = resolveNamedPin(comp, "echo", wires)
-  if (echoPin == null) return
-
-  // Track the trigger pin so pulseIn() can validate the sketch wrote to it
   const triggerPin = resolveNamedPin(comp, "trigger", wires)
-  if (triggerPin != null) ultrasonicTriggerPinBus.set(echoPin, triggerPin)
 
-  // Try ray-casting if environment has any obstacles or boundary enabled
+  // Distance comes exclusively from the canvas environment (ray-cast).
+  // No slider fallback — if nothing's in range, `distance` stays null so
+  // the peripheral skips the echo pulse and pulseIn() reads 0 (timeout).
+  let distance: number | null = null
   const segments = environmentToSegments(environment, CANVAS_WIDTH, CANVAS_HEIGHT)
   if (segments.length > 0) {
     const ray = sensorRay(comp)
     const pixelDist = raycastDistance(ray, segments)
-    const cm = pixelsToCm(pixelDist)
-    // > 400 cm → out of range, store Infinity so pulseIn returns 0 (timeout)
-    ultrasonicDistanceBus.set(echoPin, cm > 400 ? Infinity : Math.max(2, cm))
-    return
+    if (isFinite(pixelDist)) {
+      const cm = pixelsToCm(pixelDist)
+      if (cm <= 400) {
+        distance = Math.max(2, cm)
+      }
+    }
   }
 
-  // Fallback: inspector slider value
-  const distance = clamp((comp.properties.distance as number) ?? 50, 2, 400)
-  ultrasonicDistanceBus.set(echoPin, distance)
+  // Legacy side-channel (still populated in case anything reads from it).
+  if (echoPin != null) {
+    if (triggerPin != null) ultrasonicTriggerPinBus.set(echoPin, triggerPin)
+    ultrasonicDistanceBus.set(echoPin, distance ?? Infinity)
+  }
+
+  // Peripheral path (authoritative in AVR mode).
+  const peripheral = bus?.get(comp.id)
+  if (
+    peripheral &&
+    peripheral.componentType === "ultrasonic_sensor" &&
+    "setDistance" in peripheral &&
+    typeof (peripheral as { setDistance?: (cm: number | null) => void }).setDistance === "function"
+  ) {
+    ;(peripheral as { setDistance: (cm: number | null) => void }).setDistance(distance)
+  }
 }
 
 /**
@@ -183,38 +209,65 @@ function writePir(
 }
 
 /**
- * DHT11/22: publish temperature + humidity to the `dhtSensorBus` keyed by the
- * data pin. `DHTClass` in the stdlib reads from this bus per-instance.
+ * DHT11/22: route inspector temperature + humidity into the `DhtPeripheral`
+ * so the AVR-compiled DHT library sees a correctly-timed response frame.
+ * The legacy `dhtSensorBus` stays populated for any remaining reader.
  */
 function writeDht(
   comp: BoardComponent,
   wires: Record<string, Wire>,
+  bus?: import("./peripherals/peripheral-bus").PeripheralBus,
 ): void {
   const pin = resolveNamedPin(comp, "signal", wires)
-  if (pin == null) return
   const temperatureC = clamp((comp.properties.temperature as number) ?? 25, -40, 80)
   const humidity = clamp((comp.properties.humidity as number) ?? 50, 0, 100)
-  dhtSensorBus.set(pin, { temperatureC, humidity })
+
+  if (pin != null) dhtSensorBus.set(pin, { temperatureC, humidity })
+
+  const peripheral = bus?.get(comp.id)
+  if (
+    peripheral &&
+    peripheral.componentType === "dht_sensor" &&
+    "setReading" in peripheral &&
+    typeof (peripheral as { setReading?: (t: number, h: number) => void }).setReading === "function"
+  ) {
+    ;(peripheral as { setReading: (t: number, h: number) => void }).setReading(temperatureC, humidity)
+  }
 }
 
 /**
- * IR receiver: inspector writes `properties.pendingCode` (hex string) +
- * `pendingCodeAt` (ms timestamp). The bus exposes the code to `IRrecvClass.decode`
- * until it expires.
+ * IR receiver: detect a newly-stamped `pendingCode` (hex string) from the
+ * inspector and fire a NEC frame on the IrReceiverPeripheral. The legacy
+ * `irReceiverBus` stays populated as a safety net.
  */
 function writeIrReceiver(
   comp: BoardComponent,
   wires: Record<string, Wire>,
+  bus?: import("./peripherals/peripheral-bus").PeripheralBus,
 ): void {
   const pin = resolveNamedPin(comp, "signal", wires)
-  if (pin == null) return
-
   const pendingCode = comp.properties.pendingCode as string | undefined
   const pendingAt = comp.properties.pendingCodeAt as number | undefined
 
-  if (pendingCode && pendingAt != null) {
-    const expiresAt = pendingAt + 250 // 250 ms window — long enough for a loop() read
+  if (pendingCode && pendingAt != null && pin != null) {
+    const expiresAt = pendingAt + 250
     irReceiverBus.set(pin, { code: parseInt(pendingCode, 16) || 0, expiresAt })
+  }
+
+  // Peripheral path — edge-triggered on a new pendingAt timestamp.
+  const peripheral = bus?.get(comp.id)
+  if (
+    peripheral &&
+    peripheral.componentType === "ir_receiver" &&
+    "sendCode" in peripheral &&
+    typeof (peripheral as { sendCode?: (code: number) => void }).sendCode === "function"
+  ) {
+    const lastSeen = irLastPendingAt.get(comp.id) ?? 0
+    if (pendingAt != null && pendingAt > lastSeen && pendingCode) {
+      irLastPendingAt.set(comp.id, pendingAt)
+      const code = parseInt(pendingCode, 16) || 0
+      ;(peripheral as { sendCode: (code: number) => void }).sendCode(code)
+    }
   }
 }
 
@@ -229,6 +282,7 @@ export function applySensorInputs(
   wires: Record<string, Wire>,
   store: PinStateStore,
   environment: Environment,
+  bus?: import("./peripherals/peripheral-bus").PeripheralBus,
 ): void {
   for (const comp of Object.values(components)) {
     switch (comp.type) {
@@ -239,16 +293,16 @@ export function applySensorInputs(
         writeTemperatureSensor(comp, wires, store)
         break
       case "ultrasonic_sensor":
-        writeUltrasonic(comp, wires, environment)
+        writeUltrasonic(comp, wires, environment, bus)
         break
       case "pir_sensor":
         writePir(comp, wires, store)
         break
       case "dht_sensor":
-        writeDht(comp, wires)
+        writeDht(comp, wires, bus)
         break
       case "ir_receiver":
-        writeIrReceiver(comp, wires)
+        writeIrReceiver(comp, wires, bus)
         break
       default:
         break

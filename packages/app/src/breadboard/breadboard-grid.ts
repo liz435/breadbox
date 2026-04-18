@@ -386,6 +386,91 @@ function makeMegaPowerPins(): ArduinoPinInfo[] {
   ];
 }
 
+// ── Raspberry Pi Pico layout ────────────────────────────────────────────
+//
+// Minimal functional layout — pin positions approximate the physical Pico
+// (20 pins per side, DIP-40 form factor) so lessons can wire to the right
+// pin numbers. Replace with SVG-backed positions when a real Pico board
+// asset ships. Digital: GP0–GP28 as `D{n}`. Analog: GP26/27/28 as A0/A1/A2.
+// GP29 is reserved for VSYS monitoring on the stock Pico pinout and is not
+// exposed as a user-addressable pin.
+
+const PICO_LEFT_GP_ORDER: readonly number[] = [
+  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+];
+const PICO_RIGHT_GP_ORDER: readonly number[] = [
+  16, 17, 18, 19, 20, 21, 22, 26, 27, 28,
+];
+const PICO_ADC_PINS = new Set([26, 27, 28]);
+
+function makePicoDigitalPins(): ArduinoPinInfo[] {
+  const pins: ArduinoPinInfo[] = [];
+  const xLeft = ARDUINO_X + 99;
+  const xRight = ARDUINO_X + 241;
+  const startY = ARDUINO_Y + 24;
+  const spacing = 10;
+
+  PICO_LEFT_GP_ORDER.forEach((pin, slot) => {
+    if (PICO_ADC_PINS.has(pin)) return;
+    pins.push({
+      label: `D${pin}`,
+      pin,
+      x: xLeft,
+      y: startY + slot * spacing,
+      category: "digital",
+      labelSide: "left",
+    });
+  });
+  PICO_RIGHT_GP_ORDER.forEach((pin, slot) => {
+    if (PICO_ADC_PINS.has(pin)) return;
+    pins.push({
+      label: `D${pin}`,
+      pin,
+      x: xRight,
+      y: startY + slot * spacing,
+      category: "digital",
+      labelSide: "right",
+    });
+  });
+  return pins;
+}
+
+function makePicoAnalogPins(): ArduinoPinInfo[] {
+  const pins: ArduinoPinInfo[] = [];
+  const xRight = ARDUINO_X + 241;
+  const startY = ARDUINO_Y + 24;
+  const spacing = 10;
+
+  PICO_RIGHT_GP_ORDER.forEach((pin, slot) => {
+    if (!PICO_ADC_PINS.has(pin)) return;
+    const analogIndex = pin - 26; // GP26→A0, GP27→A1, GP28→A2
+    pins.push({
+      label: `A${analogIndex}`,
+      pin,
+      x: xRight,
+      y: startY + slot * spacing,
+      category: "analog",
+      labelSide: "right",
+    });
+  });
+  return pins;
+}
+
+function makePicoPowerPins(): ArduinoPinInfo[] {
+  const startX = ARDUINO_X + 52;
+  const step = 12;
+  const bottomY = ARDUINO_Y + ARDUINO_BOARD_HEIGHT - 10;
+  return [
+    { label: "VBUS", pin: -5, x: startX + step * 0, y: bottomY, category: "power", labelSide: "bottom" },
+    { label: "VSYS", pin: -5, x: startX + step * 1, y: bottomY, category: "power", labelSide: "bottom" },
+    { label: "3V3", pin: -2, x: startX + step * 2, y: bottomY, category: "power", labelSide: "bottom" },
+    { label: "GND", pin: -3, x: startX + step * 3, y: bottomY, category: "power", labelSide: "bottom" },
+    { label: "GND", pin: -4, x: startX + step * 4, y: bottomY, category: "power", labelSide: "bottom" },
+    { label: "RUN", pin: -9, x: startX + step * 5, y: bottomY, category: "power", labelSide: "bottom" },
+    { label: "AREF", pin: -7, x: startX + step * 6, y: bottomY, category: "power", labelSide: "bottom" },
+  ];
+}
+
 const BOARD_PIN_LAYOUTS: Record<BoardTarget, BoardPinLayout> = {
   arduino_uno: {
     digitalPins: ARDUINO_DIGITAL_PINS,
@@ -403,6 +488,12 @@ const BOARD_PIN_LAYOUTS: Record<BoardTarget, BoardPinLayout> = {
     const digitalPins = makeMegaDigitalPins();
     const analogPins = makeMegaAnalogPins();
     const powerPins = makeMegaPowerPins();
+    return { digitalPins, analogPins, powerPins, allPins: [...digitalPins, ...analogPins, ...powerPins] };
+  })(),
+  rpi_pico: (() => {
+    const digitalPins = makePicoDigitalPins();
+    const analogPins = makePicoAnalogPins();
+    const powerPins = makePicoPowerPins();
     return { digitalPins, analogPins, powerPins, allPins: [...digitalPins, ...analogPins, ...powerPins] };
   })(),
 };

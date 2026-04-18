@@ -3,18 +3,16 @@
 // Connects the Arduino VM to the simulation state machine and the board
 // state machine via a React hook. Drives the rAF loop.
 
-import React, { useCallback, useEffect, useRef, useState } from "react"
+import React, { useCallback, useEffect, useRef } from "react"
 import { useMachine } from "@xstate/react"
 import { simulationMachine } from "./simulation-machine"
-import { createArduinoVM, type ArduinoVM, type ArduinoVMCallbacks, type VMMode } from "./arduino-vm"
+import { createSketchRunner, type SketchRunner, type SketchRunnerCallbacks } from "./runners"
 import { analyzeCircuit, type CircuitAnalysis } from "./circuit-solver"
 import { snapshotAsPinStates } from "./pin-state-store"
 import { applySensorInputs, resetSensorBuses } from "./sensor-inputs"
 import { getBoardPinLayout, getComponentFootprint, areConnected } from "@/breadboard/breadboard-grid"
 import { BoardContext } from "@/store/board-context"
-import { getGlobalSelectedPort } from "./use-board-connection"
 import { BOARD_TARGETS, DEFAULT_BOARD_TARGET, isBoardComponentType, type LibraryState, type ServoState } from "@dreamer/schemas"
-import { PREFER_AVR } from "@dreamer/config"
 
 export type SimulationStatus = "stopped" | "compiling" | "running" | "paused" | "error"
 
@@ -33,60 +31,43 @@ export type SimulationActions = {
   resume: () => void
   stop: () => void
   sendSerialInput: (text: string) => void
-  vm: ArduinoVM | null
+  runner: SketchRunner | null
 }
 
 type SimulationHookOptions = {
-  mode?: VMMode
   onSerialPrint?: (text: string) => void
-  onTone?: (pin: number, frequency: number, duration?: number) => void
-  onNoTone?: (pin: number) => void
   onError?: (error: string) => void
   onLibraryStateChange?: (changes: Partial<LibraryState>) => void
-  /** Called each tick to feed analog values from circuit solver into the VM */
+  /**
+   * Called once per line streamed from the arduino-cli compile step.
+   * Mirrors the log into the Code Output panel.
+   */
+  onBuildLog?: (tag: "compiler" | "upload", line: string, ts: number) => void
+  /** Called each tick to feed analog values from circuit solver into the runner */
   getAnalogInputs?: () => Map<number, number> | null
 }
 
 export function useSimulation(options: SimulationHookOptions = {}): SimulationActions {
   const [state, send] = useMachine(simulationMachine)
-  const vmRef = useRef<ArduinoVM | null>(null)
-  const vmBoardTargetRef = useRef(DEFAULT_BOARD_TARGET)
+  const runnerRef = useRef<SketchRunner | null>(null)
+  const runnerBoardTargetRef = useRef(DEFAULT_BOARD_TARGET)
   const rafRef = useRef<number | null>(null)
   // Board actor for reading live state in the tick loop
   const boardActor = BoardContext.useActorRef()
 
-  // C1: auto-switch to AVR mode when a real board is connected (cycle-accurate
-  // simulation is the correct "expected" side for hardware diff). Fall back to
-  // transpile when no board is plugged in.
-  //
-  // Exception: when the host sets window.__DREAMER__.preferAvr (e.g. the CLI's
-  // embedded static server — arduino-cli is guaranteed available in that
-  // environment), pin mode to AVR regardless of board-connected state. The
-  // standalone web app (PREFER_AVR=false) keeps the existing auto-switch.
-  const [autoMode, setAutoMode] = useState<VMMode>(PREFER_AVR ? "avr" : "transpile")
-  useEffect(() => {
-    if (PREFER_AVR) return // no polling needed; mode is locked to avr
-    const check = () => {
-      const connected = getGlobalSelectedPort() !== null
-      const boardTarget = boardActor.getSnapshot().context.boardTarget ?? DEFAULT_BOARD_TARGET
-      const target = BOARD_TARGETS[boardTarget]
-      setAutoMode(connected && target.supportsAvr8js ? "avr" : "transpile")
-    }
-    check()
-    const id = setInterval(check, 2_000)
-    return () => clearInterval(id)
-  }, [boardActor])
-
-  const modeRef = useRef<VMMode>(options.mode ?? autoMode)
-  modeRef.current = options.mode ?? autoMode
-
-  // Keep latest callbacks in a ref to avoid re-creating the VM on every render
+  // Keep latest callbacks in a ref to avoid re-creating the runner on every render
   const callbacksRef = useRef<SimulationHookOptions>(options)
   callbacksRef.current = options
 
-  // ── Web Audio tone generation ────────────────────────────────────
+  // ── Web Audio (bus-driven) ───────────────────────────────────────
+  //
+  // The peripheral bus owns audio intent: a `BuzzerPeripheral` exposes
+  // `{ playing, frequencyHz }` per tick. We compare that against the set of
+  // currently-ringing oscillators and reconcile. This means the audio layer
+  // fires only when a buzzer is actually wired to the pin — arbitrary pin
+  // toggles (shiftOut, bit-banged SPI, servo PWM) produce no sound.
   const audioCtxRef = useRef<AudioContext | null>(null)
-  const oscillatorsRef = useRef<Map<number, { osc: OscillatorNode; gain: GainNode; timer?: ReturnType<typeof setTimeout> }>>(new Map())
+  const oscillatorsRef = useRef<Map<string, { osc: OscillatorNode; gain: GainNode; frequency: number }>>(new Map())
 
   function getAudioCtx(): AudioContext {
     if (!audioCtxRef.current) audioCtxRef.current = new AudioContext()
@@ -94,35 +75,28 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     return audioCtxRef.current
   }
 
-  function startTone(pin: number, frequency: number, duration?: number) {
-    stopTone(pin)
+  function startOsc(id: string, frequency: number) {
     const ctx = getAudioCtx()
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()
     osc.type = "square"
     osc.frequency.value = frequency
-    gain.gain.value = 0.05 // keep volume low
+    gain.gain.value = 0.05
     osc.connect(gain)
     gain.connect(ctx.destination)
     osc.start()
-    const entry: { osc: OscillatorNode; gain: GainNode; timer?: ReturnType<typeof setTimeout> } = { osc, gain }
-    if (duration && duration > 0) {
-      entry.timer = setTimeout(() => stopTone(pin), duration)
-    }
-    oscillatorsRef.current.set(pin, entry)
+    oscillatorsRef.current.set(id, { osc, gain, frequency })
   }
 
-  function stopTone(pin: number) {
-    const entry = oscillatorsRef.current.get(pin)
-    if (entry) {
-      if (entry.timer) clearTimeout(entry.timer)
-      try { entry.osc.stop() } catch { /* already stopped */ }
-      oscillatorsRef.current.delete(pin)
-    }
+  function stopOsc(id: string) {
+    const entry = oscillatorsRef.current.get(id)
+    if (!entry) return
+    try { entry.osc.stop() } catch { /* already stopped */ }
+    oscillatorsRef.current.delete(id)
   }
 
   function stopAllTones() {
-    for (const [pin] of oscillatorsRef.current) stopTone(pin)
+    for (const id of Array.from(oscillatorsRef.current.keys())) stopOsc(id)
   }
 
   function closeAudioContext() {
@@ -133,37 +107,57 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     }
   }
 
-  // Create stable VM callbacks that delegate to the latest options.
-  // Pin writes no longer flow through here — they go directly into the
-  // shared PinStateStore (see simulator/pin-state-store.ts).
-  const vmCallbacks: ArduinoVMCallbacks = {
+  /** Reconcile currently-ringing oscillators with the bus's buzzer state. */
+  function syncAudioFromBus() {
+    const runner = runnerRef.current
+    if (!runner) return
+    const snapshot = runner.getPeripheralBus().snapshot()
+    const alive = new Set<string>()
+    for (const [id, s] of Object.entries(snapshot)) {
+      if (s.kind !== "buzzer") continue
+      alive.add(id)
+      if (!s.playing || s.frequencyHz === null) {
+        stopOsc(id)
+        continue
+      }
+      const current = oscillatorsRef.current.get(id)
+      if (!current) {
+        startOsc(id, s.frequencyHz)
+      } else if (Math.abs(current.frequency - s.frequencyHz) > 1) {
+        current.osc.frequency.value = s.frequencyHz
+        current.frequency = s.frequencyHz
+      }
+    }
+    // Stop oscillators whose peripheral is gone (board edited, sketch reset).
+    for (const id of Array.from(oscillatorsRef.current.keys())) {
+      if (!alive.has(id)) stopOsc(id)
+    }
+  }
+
+  // Stable runner callbacks that delegate to the latest options. Pin writes
+  // no longer flow through here — they go directly into the shared
+  // PinStateStore (see simulator/pin-state-store.ts). Audio is driven from
+  // the peripheral bus (syncAudioFromBus), not callbacks.
+  const runnerCallbacks: SketchRunnerCallbacks = {
     onSerialPrint: (text) => callbacksRef.current.onSerialPrint?.(text),
-    onTone: (pin, freq, dur) => {
-      callbacksRef.current.onTone?.(pin, freq, dur)
-      startTone(pin, freq, dur)
-    },
-    onNoTone: (pin) => {
-      callbacksRef.current.onNoTone?.(pin)
-      stopTone(pin)
-    },
     onError: (error) => {
       callbacksRef.current.onError?.(error)
       send({ type: "RUNTIME_ERROR", message: error })
     },
   }
 
-  // Lazily create the VM
-  function getVM(): ArduinoVM {
+  // Lazily create the runner. Rebuild if the board target changed so the new
+  // target's fqbn / runner kind takes effect.
+  function getRunner(): SketchRunner {
     const currentBoardTarget = boardActor.getSnapshot().context.boardTarget ?? DEFAULT_BOARD_TARGET
     if (
-      !vmRef.current ||
-      vmRef.current.getMode() !== modeRef.current ||
-      vmBoardTargetRef.current !== currentBoardTarget
+      !runnerRef.current ||
+      runnerBoardTargetRef.current !== currentBoardTarget
     ) {
-      vmRef.current = createArduinoVM(vmCallbacks, modeRef.current, undefined, currentBoardTarget)
-      vmBoardTargetRef.current = currentBoardTarget
+      runnerRef.current = createSketchRunner(BOARD_TARGETS[currentBoardTarget], runnerCallbacks)
+      runnerBoardTargetRef.current = currentBoardTarget
     }
-    return vmRef.current
+    return runnerRef.current
   }
 
   const cancelLoop = useCallback(() => {
@@ -178,50 +172,43 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
   const prevLibStateRef = useRef<string>("")
 
   const syncLibraryState = useCallback(() => {
-    const vm = vmRef.current
-    if (!vm) return
+    const runner = runnerRef.current
+    if (!runner) return
     const onLibChange = callbacksRef.current.onLibraryStateChange
     if (!onLibChange) return
 
-    const stdlibState = vm.getStdlibState()
-
-    // Convert stdlib servos Map to a record
+    // Single source of truth: the peripheral bus. Servo angles and LCD
+    // text buffers flow out of bus peripherals; no stdlib shim in the
+    // loop anymore.
     const servos: Record<string, ServoState> = {}
-    for (const [id, entry] of stdlibState.servos) {
-      servos[id] = { pin: entry.pin, angle: entry.angle }
+    let lcd: LibraryState["lcd"] = null
+    const peripherals = runner.getPeripheralBus().snapshot()
+    for (const [id, s] of Object.entries(peripherals)) {
+      if (s.kind === "servo") {
+        servos[id] = { pin: s.pin, angle: s.angle }
+        continue
+      }
+      if (s.kind === "lcd") {
+        lcd = {
+          pins: [],
+          cols: s.cols,
+          rows: s.rows,
+          cursorCol: 0,
+          cursorRow: 0,
+          textBuffer: s.textBuffer,
+          backlight: true,
+          displayOn: true,
+          cursorVisible: false,
+          cursorBlink: false,
+          direction: 1,
+          autoscroll: false,
+          scrollOffset: 0,
+          cgram: [],
+        }
+      }
     }
 
-    // Convert stdlib lcd to schema format.
-    // The internal DDRAM is 40 chars wide; slice to visible cols for textBuffer.
-    const lcd = stdlibState.lcd
-      ? {
-          pins: [] as number[],
-          cols: stdlibState.lcd.cols,
-          rows: stdlibState.lcd.rows,
-          cursorCol: stdlibState.lcd.cursorCol,
-          cursorRow: stdlibState.lcd.cursorRow,
-          textBuffer: stdlibState.lcd.buffer.map(row => {
-            const offset = stdlibState.lcd!.scrollOffset
-            // Wrap around the 40-char DDRAM when slicing the visible window
-            let result = ""
-            for (let i = 0; i < stdlibState.lcd!.cols; i++) {
-              const idx = ((offset + i) % 40 + 40) % 40
-              result += row[idx] ?? " "
-            }
-            return result
-          }),
-          backlight: stdlibState.lcd.backlight,
-          displayOn: stdlibState.lcd.displayOn,
-          cursorVisible: stdlibState.lcd.cursorVisible,
-          cursorBlink: stdlibState.lcd.cursorBlink,
-          direction: stdlibState.lcd.direction,
-          autoscroll: stdlibState.lcd.autoscroll,
-          scrollOffset: stdlibState.lcd.scrollOffset,
-          cgram: stdlibState.lcd.cgram,
-        }
-      : null
-
-    // Simple serialization check to avoid unnecessary dispatches
+    // Simple serialization check to avoid unnecessary dispatches.
     const serialized = JSON.stringify({ servos, lcd })
     if (serialized === prevLibStateRef.current) return
     prevLibStateRef.current = serialized
@@ -245,9 +232,9 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
       return
     }
 
-    const vm = vmRef.current
-    if (!vm) return
-    const store = vm.getPinStore()
+    const runner = runnerRef.current
+    if (!runner) return
+    const store = runner.getPinStore()
     const boardTarget = ctx.boardTarget ?? DEFAULT_BOARD_TARGET
     const analogPinSet = new Set(
       getBoardPinLayout(boardTarget).analogPins.map((p) => p.pin),
@@ -257,47 +244,57 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
       const result = analyzeCircuit(ctx.components, ctx.wires, snapshotAsPinStates(store))
       analysisResultRef.current = result
 
-      if (!result.isValid) return
+      if (result.isValid) {
+        const voltsToAnalog = (v: number) =>
+          Math.round((Math.min(5, Math.abs(v)) / 5) * 1023)
 
-      const voltsToAnalog = (v: number) =>
-        Math.round((Math.min(5, Math.abs(v)) / 5) * 1023)
-
-      // Feed component voltages to analog pins.
-      // 1. Explicit pin assignments
-      for (const comp of Object.values(ctx.components)) {
-        const compState = result.componentStates.get(comp.id)
-        if (!compState) continue
-        for (const [, pin] of Object.entries(comp.pins)) {
-          if (pin !== null && analogPinSet.has(pin)) {
-            store.writeExternal(pin, { analogValue: voltsToAnalog(compState.voltage) })
-          }
-        }
-      }
-
-      // 2. Wire-based: Arduino analog pin wires landing on component footprints
-      for (const wire of Object.values(ctx.wires)) {
-        if (wire.fromRow !== -999) continue
-        const arduinoPin = wire.fromCol
-        if (!analogPinSet.has(arduinoPin)) continue
-        const wireTo = { row: wire.toRow, col: wire.toCol }
+        // Feed component voltages to analog pins.
+        // 1. Explicit pin assignments
         for (const comp of Object.values(ctx.components)) {
-          if (isBoardComponentType(comp.type) || comp.type === "wire") continue
           const compState = result.componentStates.get(comp.id)
           if (!compState) continue
-          const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties)
-          if (footprint.points.some(pt => areConnected(wireTo, pt))) {
-            store.writeExternal(arduinoPin, { analogValue: voltsToAnalog(compState.voltage) })
-            break
+          for (const [, pin] of Object.entries(comp.pins)) {
+            if (pin !== null && analogPinSet.has(pin)) {
+              store.writeExternal(pin, { analogValue: voltsToAnalog(compState.voltage) })
+            }
+          }
+        }
+
+        // 2. Wire-based: Arduino analog pin wires landing on component footprints
+        for (const wire of Object.values(ctx.wires)) {
+          if (wire.fromRow !== -999) continue
+          const arduinoPin = wire.fromCol
+          if (!analogPinSet.has(arduinoPin)) continue
+          const wireTo = { row: wire.toRow, col: wire.toCol }
+          for (const comp of Object.values(ctx.components)) {
+            if (isBoardComponentType(comp.type) || comp.type === "wire") continue
+            const compState = result.componentStates.get(comp.id)
+            if (!compState) continue
+            const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties)
+            if (footprint.points.some(pt => areConnected(wireTo, pt))) {
+              store.writeExternal(arduinoPin, { analogValue: voltsToAnalog(compState.voltage) })
+              break
+            }
           }
         }
       }
-
-      // 3. Apply sensor-driven inputs LAST so photoresistor/ultrasonic/PIR/etc.
-      // values override any stale SPICE-computed voltage on their signal pin.
-      applySensorInputs(ctx.components, ctx.wires, store, ctx.environment)
     } catch {
       analysisResultRef.current = null
     }
+
+    // 3. Apply sensor-driven inputs LAST. Runs unconditionally — even when
+    // circuit analysis fails or the board has no power rails — so active
+    // sensors (ultrasonic, DHT, IR, photoresistor, PIR) still push their
+    // inspector-driven values into the peripheral bus + pin store. Pass
+    // the bus so `UltrasonicPeripheral.setDistance` runs and the AVR's
+    // `pulseIn()` sees a real echo pulse.
+    applySensorInputs(
+      ctx.components,
+      ctx.wires,
+      store,
+      ctx.environment,
+      runner.getPeripheralBus(),
+    )
   }
 
   const startLoop = useCallback(() => {
@@ -306,8 +303,8 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     let frameCount = 0
 
     function tick() {
-      const vm = vmRef.current
-      if (!vm) return
+      const runner = runnerRef.current
+      if (!runner) return
 
       frameCount++
 
@@ -320,10 +317,13 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
       // Run loop iteration — it may return false if delaying.
       // External digital inputs (button press, etc.) go straight into the
       // PinStateStore via writeExternal() — no per-frame sync loop needed.
-      vm.runLoopIteration()
+      runner.runLoopIteration()
 
       // Sync library state (servos, LCD) to board machine
       syncLibraryState()
+
+      // Reconcile Web Audio with the buzzer peripheral state.
+      syncAudioFromBus()
 
       // Yield to React every 4th frame
       if (frameCount % 4 === 0) {
@@ -353,42 +353,39 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     (sketchCode: string) => {
       send({ type: "PLAY" })
 
-      const vm = getVM()
-      vm.reset()
+      const runner = getRunner()
+      runner.reset()
       resetSensorBuses()
+
+      const boardCtx = boardActor.getSnapshot().context
       const customLibs = getCustomLibraryMap()
-
-      const currentMode = modeRef.current
-
-      if (currentMode === "avr") {
-        // AVR mode: async compile then run
-        const boardTarget = boardActor.getSnapshot().context.boardTarget ?? DEFAULT_BOARD_TARGET
-        const fqbn = BOARD_TARGETS[boardTarget].fqbn
-        vm.loadSketchAsync(sketchCode, customLibs, { fqbn }).then((result) => {
-          if (!result.success) {
-            send({
-              type: "COMPILE_ERROR",
-              message: result.error ?? "Compilation failed",
-            })
-            return
-          }
-          send({ type: "COMPILE_SUCCESS" })
-          vm.runSetup()
-          startLoop()
-        })
-      } else {
-        // Transpile mode: synchronous
-        const result = vm.loadSketch(sketchCode, customLibs)
+      const boardTarget = boardCtx.boardTarget ?? DEFAULT_BOARD_TARGET
+      const fqbn = BOARD_TARGETS[boardTarget].fqbn
+      const onLog = callbacksRef.current.onBuildLog
+      runner.loadSketchAsync(sketchCode, customLibs, {
+        fqbn,
+        onLog: onLog ? (tag, line, ts) => onLog(tag, line, ts) : undefined,
+      }).then((result) => {
         if (!result.success) {
-          send({ type: "COMPILE_ERROR", message: result.error ?? "Compilation failed" })
+          send({
+            type: "COMPILE_ERROR",
+            message: result.error ?? "Compilation failed",
+          })
           return
         }
-
+        // Populate the peripheral bus AFTER loadSketchAsync — it internally
+        // calls reset() which wipes the bus, so anything attached earlier
+        // would be lost. Peripherals need to exist before runSetup runs
+        // because setup() can fire pin edges the bus must route.
+        runner.attachBoard({
+          components: boardCtx.components,
+          wires: boardCtx.wires,
+          pinStore: runner.getPinStore(),
+        })
         send({ type: "COMPILE_SUCCESS" })
-        vm.runSetup()
-        runInlineAnalysis()
+        runner.runSetup()
         startLoop()
-      }
+      })
     },
     [send, startLoop],
   )
@@ -406,7 +403,7 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
   const stop = useCallback(() => {
     cancelLoop()
     stopAllTones()
-    vmRef.current?.reset()
+    runnerRef.current?.reset()
     // Reset pin states so LEDs/components go back to off
     boardActor.send({ type: "RESET_PINS" })
     // Clear the simulation analysis so visuals reflect the stopped state
@@ -425,15 +422,11 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cancelLoop])
 
-  /** Feed text into the VM's Serial.read() buffer. */
+  /** Feed text into the runner's Serial.read() buffer. */
   const sendSerialInput = useCallback((text: string) => {
-    const vm = vmRef.current
-    if (!vm) return
-    const stdlibState = vm.getStdlibState()
-    // Push each character into the serial buffer
-    for (const ch of text) {
-      stdlibState.serialBuffer.push(ch)
-    }
+    const runner = runnerRef.current
+    if (!runner) return
+    runner.sendSerialInput(text)
   }, [])
 
   const status = state.value as SimulationStatus
@@ -446,6 +439,6 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     resume,
     stop,
     sendSerialInput,
-    vm: vmRef.current,
+    runner: runnerRef.current,
   }
 }

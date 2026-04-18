@@ -1,20 +1,25 @@
 // ── Arduino Sketch Compilation Route ──────────────────────────────────────
 //
-// POST /api/compile
-// Compiles an Arduino sketch to Intel HEX using arduino-cli.
+// POST /api/compile  →  application/x-ndjson stream
+//
+// Compiles an Arduino sketch to Intel HEX using arduino-cli, streaming
+// arduino-cli's stdout + stderr line-by-line as NDJSON events so the app
+// can render a live compile log (Arduino-IDE "Output" pane behavior).
+//
+// Event types on the wire:
+//   {"kind":"log","tag":"compiler","line":"…","ts":…}
+//   {"kind":"done","hex":"…","sizeInfo":{…},"autoInstalled"?:[…]}
+//   {"kind":"error","message":"…","autoInstalled"?:[…]}
 //
 // Supports two library mechanisms:
 //
 //   1. `customLibraries` in the request body — user-authored header-only
-//      libraries shipped inline with the sketch. Written to
-//      `<sketchDir>/libs/<Name>/<Name>.h` and surfaced to arduino-cli via
-//      `--libraries <sketchDir>/libs`.
+//      libraries shipped inline with the sketch.
 //
 //   2. Auto-install on missing-header errors. If the first compile fails
 //      with `fatal error: Foo.h: No such file`, we search the Arduino
 //      index for "Foo", install the match if unambiguous, and retry.
-//      Capped at 3 retries per request. Disabled with
-//      DREAMER_AUTO_INSTALL_LIBS=0.
+//      Capped at 3 retries per request.
 
 import { Elysia } from "elysia"
 import { z } from "zod"
@@ -22,7 +27,12 @@ import { tmpdir } from "os"
 import { join } from "path"
 import { rm } from "fs/promises"
 import { createLogger } from "../logger"
-import { resolveArduinoCli, ensureArduinoCliCore, ArduinoCliMissingError } from "../toolchain"
+import {
+  resolveArduinoCli,
+  ensureArduinoCliCore,
+  coreFamilyForFqbn,
+  ArduinoCliMissingError,
+} from "../toolchain"
 import {
   attemptAutoInstall,
   customLibrariesSchema,
@@ -31,6 +41,7 @@ import {
   type CustomLibrariesPayload,
 } from "../libraries"
 import { BOARD_TARGETS, boardTargetSchema, DEFAULT_BOARD_TARGET } from "@dreamer/schemas"
+import { createNdjsonStream, pumpProcessStream, type StreamWriter } from "./_stream-lines"
 
 const log = createLogger("compile")
 
@@ -50,15 +61,42 @@ async function readFile(path: string): Promise<string> {
   return file.text()
 }
 
-async function exec(
-  cmd: string[],
-): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  const proc = Bun.spawn(cmd, { stdout: "pipe", stderr: "pipe" })
-  const [stdout, stderr] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-  ])
-  return { stdout, stderr, exitCode: await proc.exited }
+type FirmwareArtifact =
+  | { format: "hex"; data: string }           // Intel HEX text
+  | { format: "uf2"; data: string }           // base64-encoded UF2 bytes
+
+/**
+ * Locate the firmware file arduino-cli wrote to the output directory.
+ * Path + format depend on the fqbn family — AVR boards produce `.hex`,
+ * RP2040 boards produce `.uf2`.
+ */
+async function readFirmwareArtifact(
+  outputDir: string,
+  fqbn: string,
+): Promise<FirmwareArtifact | null> {
+  if (fqbn.startsWith("rp2040:")) {
+    const uf2File = join(outputDir, "sketch.ino.uf2")
+    const bytes = Bun.file(uf2File)
+    if (!(await bytes.exists())) return null
+    const buf = new Uint8Array(await bytes.arrayBuffer())
+    return { format: "uf2", data: Buffer.from(buf).toString("base64") }
+  }
+
+  // AVR: Intel HEX. `sketch.ino.hex` is the primary artifact; boards that
+  // flash via bootloader produce a second `.with_bootloader.hex` — both are
+  // loadable by avr8js (entry vectors are identical), but prefer the plain
+  // one for predictable program-memory sizing.
+  const primary = join(outputDir, "sketch.ino.hex")
+  try {
+    return { format: "hex", data: await readFile(primary) }
+  } catch {
+    const withBootloader = join(outputDir, "sketch.ino.with_bootloader.hex")
+    try {
+      return { format: "hex", data: await readFile(withBootloader) }
+    } catch {
+      return null
+    }
+  }
 }
 
 // ── Internals ───────────────────────────────────────────────────────────────
@@ -122,13 +160,16 @@ async function prepareSketchDir(
 }
 
 /**
- * Run a single `arduino-cli compile` invocation.
+ * Spawn `arduino-cli compile` and stream its stdout+stderr line-by-line to
+ * the NDJSON writer. Returns the accumulated buffers + exit code so the
+ * route can still run post-hoc regex extraction (sizeInfo, missing header).
  */
-async function runCompile(
+async function streamCompile(
   arduinoCli: string,
   sketchDir: string,
   fqbn: string,
   libsDir: string | null,
+  writer: StreamWriter,
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   const args = [
     arduinoCli,
@@ -138,12 +179,21 @@ async function runCompile(
   ]
   if (libsDir) args.push("--libraries", libsDir)
   args.push(join(sketchDir, "sketch"))
-  return exec(args)
+
+  const proc = Bun.spawn(args, { stdout: "pipe", stderr: "pipe" })
+  const stdoutSink = { buffer: "" }
+  const stderrSink = { buffer: "" }
+  await Promise.all([
+    pumpProcessStream(proc.stdout, "compiler", writer, stdoutSink),
+    pumpProcessStream(proc.stderr, "compiler", writer, stderrSink),
+  ])
+  const exitCode = await proc.exited
+  return { stdout: stdoutSink.buffer, stderr: stderrSink.buffer, exitCode }
 }
 
 // ── Route ───────────────────────────────────────────────────────────────────
 
-export const compileRoutes = new Elysia().post("/api/compile", async ({ body, set }) => {
+export const compileRoutes = new Elysia().post("/api/compile", ({ body, set }) => {
   const parsed = compileRequestSchema.safeParse(body)
   if (!parsed.success) {
     set.status = 400
@@ -157,86 +207,124 @@ export const compileRoutes = new Elysia().post("/api/compile", async ({ body, se
   const sketchDir = join(tmpdir(), `arduino-sketch-${sketchId}`)
   const outputDir = join(sketchDir, "output")
 
-  try {
-    let arduinoCli: string
+  const { stream, writer } = createNdjsonStream()
+
+  // Run the whole compile flow in a detached async IIFE so we can return the
+  // ReadableStream synchronously and the browser starts seeing chunks as
+  // soon as the first arduino-cli line arrives.
+  ;(async () => {
     try {
-      arduinoCli = await resolveArduinoCli({ install: process.env.DREAMER_AUTO_INSTALL === "1" })
-      await ensureArduinoCliCore("arduino:avr")
-    } catch (err) {
-      if (err instanceof ArduinoCliMissingError) {
-        set.status = 503
-        return { error: err.message }
-      }
-      throw err
-    }
-
-    const libsDir = await prepareSketchDir(sketchDir, code, customLibraries)
-
-    log.info(`Compiling sketch ${sketchId}${libsDir ? ` with ${Object.keys(customLibraries).length} custom libs` : ""}`)
-
-    // Bounded auto-install retry loop: on a missing-header error, try to
-    // install the matching third-party library and retry.
-    const MAX_RETRIES = 3
-    const autoInstalled: string[] = []
-    let compileResult = await runCompile(arduinoCli, sketchDir, fqbn, libsDir)
-
-    for (let attempt = 0; attempt < MAX_RETRIES && compileResult.exitCode !== 0; attempt++) {
-      const stderr = compileResult.stderr + compileResult.stdout
-      const missing = extractMissingHeader(stderr)
-      if (!missing) break
-      if (autoInstalled.includes(missing)) break // prevent loop on same header
-
-      log.info(`sketch ${sketchId}: missing header "${missing}.h" — attempting auto-install`)
-      const install = await attemptAutoInstall(missing)
-      if ("reason" in install) {
-        log.info(`sketch ${sketchId}: auto-install skipped — ${install.reason}`)
-        break
-      }
-      log.info(`sketch ${sketchId}: installed "${install.installed}", retrying`)
-      autoInstalled.push(missing)
-      compileResult = await runCompile(arduinoCli, sketchDir, fqbn, libsDir)
-    }
-
-    if (compileResult.exitCode !== 0) {
-      log.info(`Compilation failed for ${sketchId}: ${compileResult.stderr}`)
-      const raw = compileResult.stderr || compileResult.stdout || "Compilation failed"
-      return {
-        error: normalizeCompileError(raw),
-        autoInstalled: autoInstalled.length > 0 ? autoInstalled : undefined,
-      }
-    }
-
-    const hexFile = join(outputDir, "sketch.ino.hex")
-    let hexContent: string
-    try {
-      hexContent = await readFile(hexFile)
-    } catch {
-      const altHexFile = join(outputDir, "sketch.ino.with_bootloader.hex")
+      let arduinoCli: string
       try {
-        hexContent = await readFile(altHexFile)
+        arduinoCli = await resolveArduinoCli({ install: process.env.DREAMER_AUTO_INSTALL === "1" })
+        await ensureArduinoCliCore(coreFamilyForFqbn(fqbn), writer)
+      } catch (err) {
+        if (err instanceof ArduinoCliMissingError) {
+          writer.write({ kind: "error", message: err.message })
+          return
+        }
+        throw err
+      }
+
+      const libsDir = await prepareSketchDir(sketchDir, code, customLibraries)
+
+      log.info(`Compiling sketch ${sketchId}${libsDir ? ` with ${Object.keys(customLibraries).length} custom libs` : ""}`)
+      writer.write({
+        kind: "log",
+        tag: "compiler",
+        line: `arduino-cli compile --fqbn ${fqbn}`,
+        ts: Date.now(),
+      })
+
+      // Bounded auto-install retry loop: on a missing-header error, try to
+      // install the matching third-party library and retry.
+      const MAX_RETRIES = 3
+      const autoInstalled: string[] = []
+      let compileResult = await streamCompile(arduinoCli, sketchDir, fqbn, libsDir, writer)
+
+      for (let attempt = 0; attempt < MAX_RETRIES && compileResult.exitCode !== 0; attempt++) {
+        const stderr = compileResult.stderr + compileResult.stdout
+        const missing = extractMissingHeader(stderr)
+        if (!missing) break
+        if (autoInstalled.includes(missing)) break
+
+        writer.write({
+          kind: "log",
+          tag: "compiler",
+          line: `[auto-install] missing header "${missing}.h" — searching Arduino library index…`,
+          ts: Date.now(),
+        })
+        log.info(`sketch ${sketchId}: missing header "${missing}.h" — attempting auto-install`)
+        const install = await attemptAutoInstall(missing)
+        if ("reason" in install) {
+          writer.write({
+            kind: "log",
+            tag: "compiler",
+            line: `[auto-install] skipped — ${install.reason}`,
+            ts: Date.now(),
+          })
+          log.info(`sketch ${sketchId}: auto-install skipped — ${install.reason}`)
+          break
+        }
+        writer.write({
+          kind: "log",
+          tag: "compiler",
+          line: `[auto-install] installed "${install.installed}" — retrying compile`,
+          ts: Date.now(),
+        })
+        log.info(`sketch ${sketchId}: installed "${install.installed}", retrying`)
+        autoInstalled.push(missing)
+        compileResult = await streamCompile(arduinoCli, sketchDir, fqbn, libsDir, writer)
+      }
+
+      if (compileResult.exitCode !== 0) {
+        log.info(`Compilation failed for ${sketchId}`)
+        const raw = compileResult.stderr || compileResult.stdout || "Compilation failed"
+        writer.write({
+          kind: "error",
+          message: normalizeCompileError(raw),
+          autoInstalled: autoInstalled.length > 0 ? autoInstalled : undefined,
+        })
+        return
+      }
+
+      // AVR fqbns produce Intel HEX; RP2040 fqbns produce UF2 (binary blob
+      // that we base64-encode to fit inside NDJSON). The frontend decodes
+      // based on `format`.
+      const firmware = await readFirmwareArtifact(outputDir, fqbn)
+      if (!firmware) {
+        writer.write({ kind: "error", message: "Compilation succeeded but firmware artifact not found" })
+        return
+      }
+
+      const sizeInfo = parseSizeInfo(compileResult.stderr + compileResult.stdout)
+
+      log.info(`Compilation succeeded for ${sketchId}${autoInstalled.length > 0 ? ` (auto-installed: ${autoInstalled.join(", ")})` : ""}`)
+      writer.write({
+        kind: "done",
+        format: firmware.format,
+        data: firmware.data,
+        sizeInfo,
+        autoInstalled: autoInstalled.length > 0 ? autoInstalled : undefined,
+      })
+    } catch (err) {
+      log.info(`Compilation error: ${err instanceof Error ? err.message : "unknown"}`)
+      writer.write({
+        kind: "error",
+        message: err instanceof Error ? err.message : "Internal compilation error",
+      })
+    } finally {
+      writer.close()
+      try {
+        await rm(sketchDir, { recursive: true, force: true })
       } catch {
-        set.status = 500
-        return { error: "Compilation succeeded but hex file not found" }
+        // Best effort cleanup
       }
     }
+  })()
 
-    const sizeInfo = parseSizeInfo(compileResult.stderr + compileResult.stdout)
-
-    log.info(`Compilation succeeded for ${sketchId}${autoInstalled.length > 0 ? ` (auto-installed: ${autoInstalled.join(", ")})` : ""}`)
-    return {
-      hex: hexContent,
-      sizeInfo,
-      autoInstalled: autoInstalled.length > 0 ? autoInstalled : undefined,
-    }
-  } catch (err) {
-    log.info(`Compilation error: ${err instanceof Error ? err.message : "unknown"}`)
-    set.status = 500
-    return { error: err instanceof Error ? err.message : "Internal compilation error" }
-  } finally {
-    try {
-      await rm(sketchDir, { recursive: true, force: true })
-    } catch {
-      // Best effort cleanup
-    }
-  }
+  set.headers["content-type"] = "application/x-ndjson"
+  return new Response(stream, {
+    headers: { "content-type": "application/x-ndjson" },
+  })
 })

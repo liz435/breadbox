@@ -12,7 +12,8 @@ function boardEqual(a: BoardMachineContext, b: BoardMachineContext) {
     a.sketchCode === b.sketchCode &&
     a.boardTarget === b.boardTarget &&
     a.environment === b.environment &&
-    a.selectedId === b.selectedId
+    a.selectedId === b.selectedId &&
+    a.buildLog === b.buildLog
   );
 }
 

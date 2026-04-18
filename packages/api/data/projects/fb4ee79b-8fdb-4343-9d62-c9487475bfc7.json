@@ -1,0 +1,135 @@
+{
+  "project": {
+    "id": "fb4ee79b-8fdb-4343-9d62-c9487475bfc7",
+    "name": "noble-lark-gear",
+    "version": 1,
+    "createdAt": "2026-04-18T11:20:01.405Z",
+    "updatedAt": "2026-04-18T18:42:25.967Z",
+    "threadId": "2b677cf7-75eb-4abf-987a-cf0802d0d26a",
+    "activeSceneId": "7baad0ec-8526-4803-a202-e9c32112aa39"
+  },
+  "scenes": {
+    "7baad0ec-8526-4803-a202-e9c32112aa39": {
+      "id": "7baad0ec-8526-4803-a202-e9c32112aa39",
+      "name": "Main Scene",
+      "version": 0,
+      "settings": {
+        "background": "#252525",
+        "gravity": {
+          "x": 0,
+          "y": 9.8
+        }
+      }
+    }
+  },
+  "entities": {},
+  "sceneEntityIds": {
+    "7baad0ec-8526-4803-a202-e9c32112aa39": []
+  },
+  "components": {
+    "transform": {},
+    "sprite": {},
+    "tilemap": {},
+    "physicsBody": {},
+    "script": {},
+    "camera": {}
+  },
+  "assets": {},
+  "graph": {
+    "nodes": {
+      "node-1776511201439-bow8jg": {
+        "id": "node-1776511201439-bow8jg",
+        "type": "setup",
+        "name": "Setup",
+        "x": 60,
+        "y": 60,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      },
+      "node-1776511201439-naojwj": {
+        "id": "node-1776511201439-naojwj",
+        "type": "loop",
+        "name": "Loop",
+        "x": 60,
+        "y": 200,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      }
+    },
+    "edges": {}
+  },
+  "boardState": {
+    "components": {
+      "dht-1": {
+        "id": "dht-1",
+        "type": "dht_sensor",
+        "name": "DHT11",
+        "x": 7,
+        "y": 5,
+        "rotation": 0,
+        "pins": {
+          "signal": null
+        },
+        "properties": {}
+      }
+    },
+    "wires": {
+      "wire-d2": {
+        "id": "wire-d2",
+        "fromRow": -999,
+        "fromCol": 2,
+        "toRow": 5,
+        "toCol": 7,
+        "color": "#22c55e"
+      },
+      "wire-5v": {
+        "id": "wire-5v",
+        "fromRow": -999,
+        "fromCol": -1,
+        "toRow": 6,
+        "toCol": 7,
+        "color": "#ef4444"
+      },
+      "wire-gnd": {
+        "id": "wire-gnd",
+        "fromRow": -999,
+        "fromCol": -3,
+        "toRow": 7,
+        "toCol": 7,
+        "color": "#1a1a1a"
+      }
+    },
+    "libraryState": {
+      "servos": {},
+      "lcd": null,
+      "serialBaud": 0
+    },
+    "serialOutput": [],
+    "sketchCode": "// Example: DHT Temperature & Humidity Sensor\n// Read temperature and humidity from a DHT11 on pin 2.\n\n#include <DHT.h>\n\n#define DHTPIN 2\n#define DHTTYPE DHT11\n\nDHT dht(DHTPIN, DHTTYPE);\n\nvoid setup() {\n  Serial.begin(9600);\n  dht.begin();\n}\n\nvoid loop() {\n  float temp = dht.readTemperature();\n  float hum = dht.readHumidity();\n  Serial.print(\"Temp: \");\n  Serial.print(temp);\n  Serial.print(\" C  Humidity: \");\n  Serial.print(hum);\n  Serial.println(\"%\");\n  delay(2000);\n}\n",
+    "customLibraries": {},
+    "boardTarget": "arduino_uno",
+    "environment": {
+      "obstacles": {},
+      "boundaryEnabled": true,
+      "boundaryMargin": 100
+    }
+  }
+}
