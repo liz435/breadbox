@@ -82,6 +82,12 @@ export class PinStateStore {
   // Previous digital values, for edge detection
   private prevDigital = new Array<number>(MAX_ARDUINO_PIN + 1).fill(0)
 
+  // Optional sink for external digital writes. The active runner registers
+  // this so button presses and circuit-solver outputs flow into the MCU's
+  // PIN register; without it, `digitalRead()` would keep reading stale
+  // values no matter how many times the UI updates the store.
+  private externalPinSink: ((pin: number, digitalValue: 0 | 1) => void) | null = null
+
   // ── Subscription ─────────────────────────────────────────────────
 
   subscribe = (listener: Listener): (() => void) => {
@@ -138,6 +144,19 @@ export class PinStateStore {
     // (A real button wired to an OUTPUT pin would short-circuit the MCU; we just no-op.)
     if (current.mode === "OUTPUT") return
     this.writeInternal(pin, changes, "external")
+    if (this.externalPinSink && changes.digitalValue !== undefined) {
+      this.externalPinSink(pin, changes.digitalValue === 1 ? 1 : 0)
+    }
+  }
+
+  /**
+   * Register a callback that fires whenever `writeExternal` changes a pin's
+   * digital value. The active runner uses this to forward UI-driven inputs
+   * into the MCU's PIN register so `digitalRead()` reflects the change.
+   * Pass `null` to clear.
+   */
+  setExternalPinSink(sink: ((pin: number, digitalValue: 0 | 1) => void) | null): void {
+    this.externalPinSink = sink
   }
 
   /** Set pin mode only (shortcut for pinMode). */

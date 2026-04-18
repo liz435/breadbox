@@ -71,6 +71,7 @@ export {
   boardTargetSchema,
   type BoardTarget,
   type BoardTargetInfo,
+  type RunnerKind,
   BOARD_TARGETS,
   DEFAULT_BOARD_TARGET,
 } from "./board-targets";

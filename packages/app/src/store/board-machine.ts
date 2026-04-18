@@ -75,6 +75,8 @@ export type BoardEvent =
   | { type: "UPDATE_SKETCH"; code: string }
   | { type: "APPEND_SERIAL"; text: string; ts?: number }
   | { type: "CLEAR_SERIAL" }
+  | { type: "APPEND_BUILD_LOG"; tag: "compiler" | "upload"; line: string; ts?: number }
+  | { type: "CLEAR_BUILD_LOG" }
   | { type: "RESET_PINS" }
   | { type: "ADD_CUSTOM_LIBRARY"; name: string; library: CustomLibrary }
   | { type: "UPDATE_CUSTOM_LIBRARY"; name: string; library: CustomLibrary }
@@ -95,11 +97,26 @@ export type BoardEvent =
 // (see simulator/pin-state-store.ts) and is not part of the machine context.
 // React components access pin state via usePinStates() / usePinState(n).
 
+export type BuildLogEntry = {
+  tag: "compiler" | "upload";
+  line: string;
+  ts: number;
+};
+
 export type BoardMachineContext = BoardState & {
   selectedId: string | null;
+  /**
+   * Live compile / upload log streamed from `/api/compile` + `/api/flash`.
+   * Ephemeral — excluded from persisted BoardState and from undo history.
+   * Cleared on each new Run or Upload. Capped to MAX_BUILD_LOG entries to
+   * bound memory on verbose builds.
+   */
+  buildLog: BuildLogEntry[];
   _past: BoardState[];
   _future: BoardState[];
 };
+
+const MAX_BUILD_LOG = 2000;
 
 const MAX_HISTORY = 100;
 
@@ -130,6 +147,7 @@ const defaultBoard = createDefaultBoardState();
 const initialContext: BoardMachineContext = {
   ...defaultBoard,
   selectedId: null,
+  buildLog: [],
   _past: [],
   _future: [],
 };
@@ -348,6 +366,25 @@ export const boardMachine = setup({
 
     CLEAR_SERIAL: {
       actions: assign({ serialOutput: [] }),
+    },
+
+    // ── Build log (compile / upload streaming) ──
+
+    APPEND_BUILD_LOG: {
+      actions: assign(({ context, event }) => {
+        const next = [
+          ...context.buildLog,
+          { tag: event.tag, line: event.line, ts: event.ts ?? Date.now() },
+        ];
+        if (next.length > MAX_BUILD_LOG) {
+          next.splice(0, next.length - MAX_BUILD_LOG);
+        }
+        return { buildLog: next };
+      }),
+    },
+
+    CLEAR_BUILD_LOG: {
+      actions: assign({ buildLog: [] }),
     },
 
     // ── Custom Libraries ──

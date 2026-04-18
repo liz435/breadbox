@@ -4,7 +4,7 @@
 // floating components, bus shorts, missing resistors, sketch/pin match.
 
 import type { RunFile, CircuitAnalysis, PlacedComponent, PlacedWire } from "../types"
-import { transpile } from "../../../../app/src/simulator/arduino-transpiler"
+import { validateSketch } from "../../utils/sketch-validator"
 import {
   DEFAULT_BOARD_TARGET,
   formatArduinoPin,
@@ -225,30 +225,16 @@ export function analyzeCircuit(run: RunFile): CircuitAnalysis {
     }
   }
 
-  // Validate sketch through transpiler
+  // Validate sketch structure (balanced braces, setup/loop present).
+  // Full syntax/semantic checks happen when arduino-cli compiles; this
+  // is a fast fail-check used during agent evals.
   let sketchCompiles = true
   if (sketchCode.trim()) {
-    const transpileResult = transpile(sketchCode)
-    if (!transpileResult.success) {
+    const check = validateSketch(sketchCode)
+    if (!check.valid) {
       sketchCompiles = false
-      const err = transpileResult.error
-      issues.push(`Sketch transpile error: ${err?.message ?? "unknown"} (line ${err?.line ?? "?"})`)
-    } else {
-      // Try JS compilation
-      try {
-        new Function(transpileResult.code)
-      } catch (e) {
-        sketchCompiles = false
-        issues.push(`Sketch JS error: ${e instanceof Error ? e.message : "unknown"}`)
-      }
-    }
-
-    // Check for missing setup/loop
-    if (!/\bvoid\s+setup\s*\(/.test(sketchCode)) {
-      issues.push("Sketch missing setup() function")
-    }
-    if (!/\bvoid\s+loop\s*\(/.test(sketchCode)) {
-      issues.push("Sketch missing loop() function")
+      const loc = check.line !== undefined ? ` (line ${check.line})` : ""
+      issues.push(`Sketch validation: ${check.error ?? "unknown"}${loc}`)
     }
   } else if (components.size > 0) {
     issues.push("No sketch code generated despite placing components")

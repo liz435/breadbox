@@ -12,6 +12,7 @@ import { useElectricalReport } from "@/electrical/power-budget"
 import { cn } from "@/utils/classnames"
 import { markSerialUnread } from "./edit-toolbar"
 import { simulationRef } from "@/simulator/simulation-ref"
+import { readNdjsonStream } from "@/simulator/avr-compiler"
 
 type UploadStatus = "idle" | "compiling" | "flashing" | "reconnecting" | "done" | "error"
 
@@ -38,9 +39,17 @@ export function PlayControls() {
     [boardSend],
   )
 
+  const onBuildLog = useCallback(
+    (tag: "compiler" | "upload", line: string, ts: number) => {
+      boardSend({ type: "APPEND_BUILD_LOG", tag, line, ts })
+    },
+    [boardSend],
+  )
+
   const sim = useSimulation({
     onSerialPrint,
     onLibraryStateChange,
+    onBuildLog,
   })
   const { status, error, play, pause, resume, stop } = sim
 
@@ -58,6 +67,9 @@ export function PlayControls() {
       resume()
       return
     }
+    // Drop the previous compile log so the panel shows only this run's
+    // output — matches the "keep until next compile" contract.
+    boardSend({ type: "CLEAR_BUILD_LOG" })
     play(sketchCodeRef.current)
 
     // Auto-open serial monitor panel
@@ -75,7 +87,7 @@ export function PlayControls() {
         })
       }
     }
-  }, [electrical.hasErrors, status, play, resume, dockviewApi])
+  }, [electrical.hasErrors, status, play, resume, dockviewApi, boardSend])
 
   const handlePause = useCallback(() => {
     pause()
@@ -91,6 +103,8 @@ export function PlayControls() {
     if (!selectedPort || !sketchCodeRef.current) return
     setUploadError(null)
     setUploadStatus("compiling")
+    // Fresh panel for this upload session — compile + upload logs stream in.
+    boardSend({ type: "CLEAR_BUILD_LOG" })
     try {
       const res = await fetch(`${API_ORIGIN}/api/flash`, {
         method: "POST",
@@ -102,12 +116,51 @@ export function PlayControls() {
           fqbn: boardTargetInfo.fqbn,
         }),
       })
-      const data = (await res.json()) as { success?: boolean; stage?: string; error?: string }
-      if (!data.success) {
-        setUploadError(data.error ?? "Upload failed")
+
+      // Schema-validation failures and other non-streaming errors still come
+      // back as plain JSON with a 4xx/5xx status — handle those up front.
+      const contentType = res.headers.get("content-type") ?? ""
+      if (!contentType.includes("ndjson")) {
+        const body = (await res.json()) as { error?: string }
+        setUploadError(body.error ?? `Upload server returned ${res.status}`)
         setUploadStatus("error")
         return
       }
+      if (!res.body) {
+        setUploadError("Upload server returned empty body")
+        setUploadStatus("error")
+        return
+      }
+
+      type FlashEvent =
+        | { kind: "log"; tag: "compiler" | "upload"; line: string; ts: number }
+        | { kind: "done"; stage?: string }
+        | { kind: "error"; stage?: string; message: string }
+
+      let errorMessage: string | undefined
+      let flashed = false
+      let sawUploadPhase = false
+
+      for await (const event of readNdjsonStream<FlashEvent>(res.body)) {
+        if (event.kind === "log") {
+          boardSend({ type: "APPEND_BUILD_LOG", tag: event.tag, line: event.line, ts: event.ts })
+          if (event.tag === "upload" && !sawUploadPhase) {
+            sawUploadPhase = true
+            setUploadStatus("flashing")
+          }
+        } else if (event.kind === "done") {
+          flashed = true
+        } else if (event.kind === "error") {
+          errorMessage = event.message
+        }
+      }
+
+      if (!flashed || errorMessage) {
+        setUploadError(errorMessage ?? "Upload failed")
+        setUploadStatus("error")
+        return
+      }
+
       setUploadStatus("reconnecting")
       // board-manager handles reconnect; status resets after 3s
       setTimeout(() => setUploadStatus("idle"), 3_500)
@@ -115,7 +168,7 @@ export function PlayControls() {
       setUploadError(err instanceof Error ? err.message : "Upload failed")
       setUploadStatus("error")
     }
-  }, [electrical.hasErrors, selectedPort, boardTarget, boardTargetInfo.fqbn])
+  }, [electrical.hasErrors, selectedPort, boardTarget, boardTargetInfo.fqbn, boardSend])
 
   const isRunning = status === "running"
   const isPaused = status === "paused"
@@ -197,9 +250,12 @@ export function PlayControls() {
           {status}
         </span>
       )}
-      {!boardTargetInfo.supportsAvr8js && (
-        <span className="ml-1 text-[10px] text-amber-400" title="This board target uses transpile mode in-browser; hardware upload still uses board-specific FQBN.">
-          compat mode
+      {boardTargetInfo.runner === "compile-only" && (
+        <span
+          className="ml-1 text-[10px] text-amber-400"
+          title="This board has no in-browser emulator. Compile + upload to hardware still works via board-specific FQBN."
+        >
+          not simulated
         </span>
       )}
 

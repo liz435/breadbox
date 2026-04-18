@@ -30,6 +30,7 @@ import {
 } from "./breadboard-grid";
 import { screenToBoard } from "./breadboard-camera";
 import { breadboardInteractionActor } from "./breadboard-interaction";
+import { simulationRef } from "@/simulator/simulation-ref";
 import { ComponentRenderer } from "./component-renderers/index";
 import { WireRenderer } from "./component-renderers/wire-renderer";
 import { ArduinoUnoBoard } from "./component-renderers/arduino-uno-renderer";
@@ -536,6 +537,20 @@ type BreadboardCanvasProps = {
 };
 
 function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: BreadboardCanvasProps) {
+  // Poll the shared simulation status at 10fps so the canvas locks
+  // structural edits while the sketch is running. Environment obstacles
+  // (walls/boxes) manage their own pointer handlers and remain draggable.
+  // Component-level interactions (button press, sliders) use
+  // stopPropagation and keep firing.
+  const [, tickSimRender] = React.useReducer((c: number) => c + 1, 0);
+  React.useEffect(() => {
+    const id = setInterval(tickSimRender, 100);
+    return () => clearInterval(id);
+  }, []);
+  const simStatus = simulationRef.current?.status;
+  const isRunning = simStatus === "running" || simStatus === "paused";
+  const effectiveReadOnly = Boolean(readOnly) || isRunning;
+
   const components = useBoardSelector((s) => s.components);
   const wires = useBoardSelector((s) => s.wires);
   const pinStates = usePinStates();
@@ -571,7 +586,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
 
   const handleWireEndpointDragStart = useCallback(
     (wireId: string, endpoint: "from" | "to", e: React.PointerEvent) => {
-      if (readOnly) return;
+      if (effectiveReadOnly) return;
       wireDragRef.current = { wireId, endpoint };
       const w = wires[wireId];
       if (!w) return;
@@ -582,7 +597,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
       }
       svgRef.current?.setPointerCapture(e.pointerId);
     },
-    [wires, readOnly],
+    [wires, effectiveReadOnly],
   );
 
   // ── Unified pointer handlers ──────────────────────────────────
@@ -594,10 +609,20 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
         return;
       }
 
-      // In read-only embed mode, only camera pan is allowed. Component
-      // button/slider interactions still fire via stopPropagation on child
-      // elements.
-      if (readOnly) return;
+      // In read-only embed mode (or while the sketch is running), block
+      // structural edits — wire/component placement, drag-to-move, and
+      // area selection. Non-destructive things still work: camera pan
+      // (handled above), component click-to-select (handleComponentClick
+      // has no gate), clicking empty space to deselect (handled below),
+      // environment obstacle drag (its own pointer handlers), and
+      // component button/slider interactions via stopPropagation.
+      if (effectiveReadOnly) {
+        if (e.button === 0 && e.target === svgRef.current) {
+          send({ type: "SELECT", id: null });
+          setMultiSelected(new Set());
+        }
+        return;
+      }
 
       if (e.button === 0 && wire.handlePlacementPointerDown(e)) return;
 
@@ -690,7 +715,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
         }
       }
     },
-    [send, camera, wire, readOnly],
+    [send, camera, wire, effectiveReadOnly],
   );
 
   const handlePointerMove = useCallback(
@@ -793,8 +818,9 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
 
       camera.onKeyDown(e);
 
-      // Read-only: skip all editing shortcuts (delete, select-all, rotate).
-      if (readOnly) return;
+      // Read-only (embed mode or running sketch): skip all editing
+      // shortcuts (delete, select-all, rotate).
+      if (effectiveReadOnly) return;
 
       if (e.code === "Escape") {
         drag.cancelDrag();
@@ -835,6 +861,34 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
         return;
       }
 
+      // Single-select delete. Obstacles (box/wall) live outside components +
+      // wires but still receive `SELECT` events from the environment overlay,
+      // so falling through to the component/wire paths would silently drop
+      // the keystroke.
+      if ((e.code === "Delete" || e.code === "Backspace") && selectedId) {
+        if (selectedId in environment.obstacles) {
+          e.preventDefault();
+          send({ type: "REMOVE_OBSTACLE", id: selectedId });
+          send({ type: "SELECT", id: null });
+          return;
+        }
+        if (selectedId in componentsRef) {
+          const comp = componentsRef[selectedId];
+          if (!isBoardComponentType(comp.type)) {
+            e.preventDefault();
+            send({ type: "REMOVE_COMPONENT", id: selectedId });
+            send({ type: "SELECT", id: null });
+            return;
+          }
+        }
+        if (selectedId in wires) {
+          e.preventDefault();
+          send({ type: "REMOVE_WIRE", id: selectedId });
+          send({ type: "SELECT", id: null });
+          return;
+        }
+      }
+
       if (e.code === "KeyR" && !e.metaKey && !e.ctrlKey) {
         if (wire.interactionMode === "placing") {
           wire.rotatePlacement();
@@ -855,14 +909,16 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [selectedId, components, wires, send, camera, drag, wire, multiSelected, readOnly]);
+  }, [selectedId, components, wires, send, camera, drag, wire, multiSelected, effectiveReadOnly]);
 
   const handleComponentClick = useCallback(
     (id: string) => {
-      if (readOnly) return;
+      // SELECT is non-destructive — keep it working while running so the
+      // user can inspect component state mid-simulation. Drag/move is
+      // still blocked by the noopDragStart wiring below.
       send({ type: "SELECT", id });
     },
-    [send, readOnly],
+    [send],
   );
 
   const noopDragStart = useCallback((_id: string, _e: React.PointerEvent) => {}, []);
@@ -925,7 +981,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
           libraryState={libraryState}
           pinStates={pinStates}
           onSelect={handleComponentClick}
-          onDragStart={readOnly ? noopDragStart : drag.handleDragStart}
+          onDragStart={effectiveReadOnly ? noopDragStart : drag.handleDragStart}
         />
 
         {analysis && analysis.isValid && (

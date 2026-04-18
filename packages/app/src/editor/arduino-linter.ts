@@ -12,12 +12,16 @@ const PWM_PINS_BY_TARGET: Record<BoardTarget, Set<number>> = {
   arduino_uno: new Set([3, 5, 6, 9, 10, 11]),
   arduino_nano: new Set([3, 5, 6, 9, 10, 11]),
   arduino_mega_2560: new Set([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 44, 45, 46]),
+  // Pico: every GPIO can drive PWM (8 PWM slices × 2 channels). Listing
+  // GP0–GP28 since GP29 is reserved for VSYS on the stock Pico pinout.
+  rpi_pico: new Set(Array.from({ length: 29 }, (_, i) => i)),
 }
 
 const ANALOG_PINS_BY_TARGET: Record<BoardTarget, Set<number>> = {
   arduino_uno: new Set(getBoardAnalogPins("arduino_uno")),
   arduino_nano: new Set(getBoardAnalogPins("arduino_nano")),
   arduino_mega_2560: new Set(getBoardAnalogPins("arduino_mega_2560")),
+  rpi_pico: new Set(getBoardAnalogPins("rpi_pico")),
 }
 
 function parsePin(raw: string, boardTarget: BoardTarget): number | null {

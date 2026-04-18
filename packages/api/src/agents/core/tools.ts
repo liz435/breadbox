@@ -7,24 +7,7 @@ import { boardTracker } from "../../db/board-state-tracker";
 import { makeBoardOp } from "../make-op";
 import { analyzePowerBudget } from "../../electrical/power-budget-analyzer";
 import { analyzeRoutingPolicy } from "../../electrical/routing-policy";
-// Cross-package import — transpiler is pure functions, no React deps
-import { transpile } from "../../../../app/src/simulator/arduino-transpiler";
-
-/** Validate sketch code through the transpiler. Returns errors or null if valid. */
-function validateSketch(code: string): { valid: boolean; error?: string; line?: number } {
-  if (!code.trim()) return { valid: true }
-  const result = transpile(code)
-  if (!result.success && result.error) {
-    return { valid: false, error: result.error.message, line: result.error.line }
-  }
-  // Also try JS compilation
-  try {
-    new Function(result.code)
-  } catch (e) {
-    return { valid: false, error: e instanceof Error ? e.message : "JS compilation failed" }
-  }
-  return { valid: true }
-}
+import { validateSketch } from "../../utils/sketch-validator";
 
 // ── All component types (kept in sync with schema) ──────────────────────
 

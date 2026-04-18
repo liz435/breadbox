@@ -4,7 +4,7 @@
     "name": "tidy-wolf-gear",
     "version": 0,
     "createdAt": "2026-04-18T07:21:25.065Z",
-    "updatedAt": "2026-04-18T08:40:12.056Z",
+    "updatedAt": "2026-04-18T11:16:41.971Z",
     "threadId": "ef3cba90-0732-46de-b042-c87f3105ee42",
     "activeSceneId": "ee003077-20a3-4dbe-b28c-d35a4128315b"
   },
@@ -123,7 +123,7 @@
       "serialBaud": 0
     },
     "serialOutput": [],
-    "sketchCode": "// Example: IR Receiver\n// Decode infrared remote signals on pin 11.\n\n#include <IRremote.h>\n\nint recvPin = 11;\nIRrecv irrecv(recvPin);\n\nvoid setup() {\n  Serial.begin(9600);\n  irrecv.enableIRIn();\n}\n\nvoid loop() {\n  if (irrecv.decode()) {\n    Serial.print(\"IR Code: 0x\");\n    Serial.println(irrecv.decodedIRData.decodedRawData, HEX);\n    irrecv.resume();\n  }\n  delay(100);\n}\n",
+    "sketchCode": "// Example: IR Receiver\n// Decode infrared remote signals on pin 11.\n\n#include <IRremote.h>\n\nint recvPin = 11;\nIRrecv irrecv(recvPin);\n\nvoid setup() {\n  Serial.begin(9600);\n  irrecv.enableIRIn();\n\n    Serial.println(\"hello from setup\");   // ← add this\n    irrecv.enableIRIn();\n}\n\nvoid loop() {\n  if (irrecv.decode()) {\n    Serial.print(\"IR Code: 0x\");\n    Serial.println(irrecv.decodedIRData.decodedRawData, HEX);\n    irrecv.resume();\n  }\n  delay(100);\n}\n",
     "customLibraries": {},
     "boardTarget": "arduino_uno",
     "environment": {

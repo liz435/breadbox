@@ -18,8 +18,7 @@
       "y": 5,
       "rotation": 0,
       "pins": {
-        "a": null,
-        "b": null
+        "signal": 9
       },
       "properties": {}
     }

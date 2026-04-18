@@ -219,6 +219,14 @@ function formatTs(ms: number): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`
 }
 
+function formatTsMs(ms: number): string {
+  const d = new Date(ms)
+  return (
+    `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}` +
+    `.${String(d.getMilliseconds()).padStart(3, "0")}`
+  )
+}
+
 function SketchEditorInner() {
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
@@ -236,7 +244,7 @@ function SketchEditorInner() {
     const id = setInterval(tickRender, 100)
     return () => clearInterval(id)
   }, [])
-  const sim = simulationRef.current ?? { status: "stopped" as const, error: null, play: () => {}, pause: () => {}, resume: () => {}, stop: () => {}, sendSerialInput: () => {}, vm: null }
+  const sim = simulationRef.current ?? { status: "stopped" as const, error: null, play: () => {}, pause: () => {}, resume: () => {}, stop: () => {}, sendSerialInput: () => {}, runner: null }
   const transpileErr = transpileErrorRef.current
   const sketchSize = sketchSizeRef.current
 
@@ -408,6 +416,18 @@ function SketchEditorInner() {
   const electricalErrors = electrical.issues.filter((i) => i.severity === "error")
   const outputHasErrors = Boolean(sim.error || transpileErr || electricalErrors.length > 0)
 
+  const buildLog = boardState.buildLog
+  // Autoscroll the output pane to the tail whenever a new build-log line
+  // arrives. Mirrors the serial-monitor pattern: ref on the scroll
+  // container, effect keyed on buildLog length so re-renders from
+  // unrelated state don't snap the scroll back to bottom.
+  const outputScrollRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = outputScrollRef.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+  }, [buildLog.length])
+
   const handleResizeStart = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault()
     resizeStartYRef.current = e.clientY
@@ -489,12 +509,6 @@ function SketchEditorInner() {
         </button>
 
         {/* Status */}
-        {isRunning && (
-          <span className="ml-1 flex items-center gap-1 text-[10px] text-emerald-400">
-            <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            running
-          </span>
-        )}
         {isPaused && (
           <span className="ml-1 text-[10px] text-yellow-400">paused</span>
         )}
@@ -516,8 +530,16 @@ function SketchEditorInner() {
         <ExampleButton />
       </div>
 
-      {/* Editor container */}
-      <div ref={containerRef} className="min-h-0 flex-1" />
+      {/* Editor container — soft blue tint overlay while the sketch is running */}
+      <div className="relative min-h-0 flex-1">
+        <div ref={containerRef} className="absolute inset-0" />
+        <div
+          aria-hidden
+          className={`pointer-events-none absolute inset-0 bg-blue-500/10 transition-opacity duration-200 ${
+            isRunning ? "opacity-100" : "opacity-0"
+          }`}
+        />
+      </div>
 
       {/* Code output window */}
       <div className="border-t border-neutral-700 bg-[#161616]" style={{ height: `${outputHeight}px` }}>
@@ -543,8 +565,11 @@ function SketchEditorInner() {
             </button>
           </div>
         </div>
-        <div className="h-[calc(100%-29px)] overflow-auto whitespace-pre-wrap break-words px-3 py-2 font-mono text-[11px] leading-5">
-          {!outputHasErrors && (
+        <div
+          ref={outputScrollRef}
+          className="h-[calc(100%-29px)] overflow-auto whitespace-pre-wrap break-words px-3 py-2 font-mono text-[11px] leading-5"
+        >
+          {!outputHasErrors && buildLog.length === 0 && (
             <div className="text-neutral-500">Build and runtime messages will appear here.</div>
           )}
 
@@ -575,18 +600,24 @@ function SketchEditorInner() {
             )
           })}
 
-          {sketchSize && !outputHasErrors && (
-            <div className="mt-1 space-y-0.5 text-neutral-400">
-              <div>
-                <span className="text-neutral-600">{formatTs(sketchSize.ts)}</span>{" "}
-                <span className="text-neutral-500">{sketchSize.source === "actual" ? "[COMPILER]" : "[ESTIMATE]"}</span>{" "}
-                Sketch uses <span className="text-neutral-200">{sketchSize.flashUsed.toLocaleString()}</span> bytes ({sketchSize.flashPercent}%) of program storage space. Maximum is {sketchSize.flashMax.toLocaleString()} bytes.
-              </div>
-              <div>
-                <span className="text-neutral-600">{formatTs(sketchSize.ts)}</span>{" "}
-                <span className="text-neutral-500">{sketchSize.source === "actual" ? "[COMPILER]" : "[ESTIMATE]"}</span>{" "}
-                Global variables use <span className="text-neutral-200">{sketchSize.ramUsed.toLocaleString()}</span> bytes ({sketchSize.ramPercent}%) of dynamic memory, leaving {(sketchSize.ramMax - sketchSize.ramUsed).toLocaleString()} bytes for local variables. Maximum is {sketchSize.ramMax.toLocaleString()} bytes.
-              </div>
+          {/* Size summary comes from the arduino-cli build log (see below). */}
+
+          {/* Live arduino-cli / avrdude log (Arduino IDE "Output" pane). */}
+          {buildLog.length > 0 && (
+            <div className="mt-1 space-y-0 text-neutral-300">
+              {buildLog.map((entry, i) => (
+                <div key={`${entry.ts}-${i}`}>
+                  <span className="text-neutral-600">{formatTsMs(entry.ts)}</span>{" "}
+                  <span
+                    className={
+                      entry.tag === "upload" ? "text-cyan-400" : "text-neutral-500"
+                    }
+                  >
+                    {entry.tag === "upload" ? "[UPLOAD]" : "[COMPILER]"}
+                  </span>{" "}
+                  {entry.line}
+                </div>
+              ))}
             </div>
           )}
         </div>

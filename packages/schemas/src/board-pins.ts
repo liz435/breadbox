@@ -5,6 +5,9 @@ const BOARD_ANALOG_PIN_NUMBERS: Record<BoardTarget, readonly number[]> = {
   arduino_uno: [14, 15, 16, 17, 18, 19],
   arduino_nano: [14, 15, 16, 17, 18, 19, 20, 21],
   arduino_mega_2560: Array.from({ length: 16 }, (_, i) => 54 + i),
+  // Pico exposes three ADCs on GP26/27/28 (ADC0/1/2). GP29 maps to the
+  // internal VSYS divider and is typically unavailable to user sketches.
+  rpi_pico: [26, 27, 28],
 };
 
 const POWER_PIN_LABELS: Record<number, string> = {

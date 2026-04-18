@@ -35,22 +35,30 @@
     "wire-vcc": {
       "id": "wire-vcc",
       "fromRow": 0,
-      "fromCol": 10,
+      "fromCol": 11,
       "toRow": 6,
       "toCol": 7,
       "color": "#ef4444"
     },
     "wire-gnd": {
       "id": "wire-gnd",
-      "fromRow": -999,
-      "fromCol": -3,
+      "fromRow": 0,
+      "fromCol": 10,
       "toRow": 7,
       "toCol": 7,
+      "color": "#1a1a1a"
+    },
+    "wire-common-gnd": {
+      "id": "wire-common-gnd",
+      "fromRow": -999,
+      "fromCol": -3,
+      "toRow": 1,
+      "toCol": 10,
       "color": "#1a1a1a"
     }
   },
   "libraryState": { "servos": {}, "lcd": null, "serialBaud": 0 },
   "serialOutput": [],
-  "sketchCode": "// Example: NeoPixel Rainbow Chase\n// Cycle rainbow colors on a WS2812 strip on pin 6.\n// Uses external 5V power supply for the LEDs.\n\n#include <Adafruit_NeoPixel.h>\n\n#define PIN 6\n#define NUM_LEDS 8\n\nAdafruit_NeoPixel strip(NUM_LEDS, PIN, NEO_GRB + NEO_KHZ800);\n\nvoid setup() {\n  strip.begin();\n  strip.setBrightness(50);\n  strip.show();\n}\n\nvoid loop() {\n  for (int i = 0; i < NUM_LEDS; i++) {\n    int hue = (i * 65536L / NUM_LEDS) + (millis() * 10);\n    strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(hue)));\n  }\n  strip.show();\n  delay(20);\n}\n",
+  "sketchCode": "// Example: NeoPixel Rainbow Chase\n// Cycle rainbow colors on a WS2812 strip on pin 6.\n// Uses external 5V power supply for the LEDs.\n\n#include <Adafruit_NeoPixel.h>\n\n#define PIN 6\n#define NUM_LEDS 8\n\nAdafruit_NeoPixel strip(NUM_LEDS, PIN, NEO_GRB + NEO_KHZ800);\n\nvoid setup() {\n  strip.begin();\n  strip.setBrightness(50);\n  strip.show();\n}\n\nvoid loop() {\n  for (int i = 0; i < NUM_LEDS; i++) {\n    int hue = (i * 65536 / NUM_LEDS) + (millis() * 10);\n    strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(hue)));\n  }\n  strip.show();\n  delay(20);\n}\n",
   "customLibraries": {}
 }
