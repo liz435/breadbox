@@ -21,7 +21,7 @@
 FROM oven/bun:1.3.11 AS build
 WORKDIR /app
 
-COPY package.json bun.lock tsconfig.base.json ./
+COPY package.json bun.lockb tsconfig.base.json ./
 COPY packages packages
 COPY scripts scripts
 
