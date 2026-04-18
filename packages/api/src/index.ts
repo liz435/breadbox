@@ -10,7 +10,7 @@ import { boardRoutes } from "./routes/boards";
 import { evalRoutes } from "./routes/eval";
 import { libraryRoutes } from "./routes/libraries";
 import { capabilitiesRoutes } from "./routes/capabilities";
-import { createWebUiStaticRoutes } from "./routes/web-ui-static";
+import { createWebUiStatic } from "./routes/web-ui-static";
 import { APP_ORIGIN, API_PORT as _API_PORT } from "@dreamer/config";
 
 const API_PORT = Number(process.env.PORT ?? _API_PORT);
@@ -18,10 +18,11 @@ const IS_HOSTED = process.env.DREAMER_HOSTED === "1";
 
 const log = createLogger("server");
 
-// Optional static-web-UI route — populated when `packages/app/dist/` is
-// present (hosted deployments); no-op plugin otherwise so dev keeps
-// serving via Vite on a separate port as before.
-const staticWebUi = createWebUiStaticRoutes();
+// Static web UI (hosted deployments). Plugin registers /, /index.html;
+// handleNotFound serves assets + SPA fallback for unmatched routes.
+// Dev mode keeps Vite on a separate port — `plugin` is a no-op and
+// `handleNotFound` returns undefined so the app behaves unchanged.
+const { plugin: staticWebUi, handleNotFound } = createWebUiStatic();
 
 const app = new Elysia()
   .use(
@@ -41,6 +42,14 @@ const app = new Elysia()
   .use(libraryRoutes)
   .use(capabilitiesRoutes)
   .use(staticWebUi)
+  .onError(({ code, request }) => {
+    // Elysia's default NOT_FOUND response body is literally "NOT_FOUND",
+    // which is what users see when an SPA client route falls through the
+    // router. Intercept it and serve index.html / a static file instead.
+    if (code !== "NOT_FOUND") return
+    const url = new URL(request.url)
+    return handleNotFound(url.pathname)
+  })
   .listen({ port: API_PORT, hostname: "0.0.0.0" });
 
 log.info(`listening on http://0.0.0.0:${app.server?.port}${IS_HOSTED ? " (hosted, serving web UI)" : ""}`);

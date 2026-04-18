@@ -72,12 +72,22 @@ function injectRuntimeConfig(html: string): string {
  * Returns an Elysia plugin that serves the static web UI if `dist/`
  * exists, or an empty no-op plugin otherwise. The caller always gets
  * something safe to `.use(...)` regardless of dev-vs-built state.
+ *
+ * SPA-route fallback (/learn, /documentation, etc.) is handled by the
+ * separate `onError` hook returned alongside — mount it with `.onError`
+ * on the root Elysia app, since plugin-level `.all("*")` doesn't reliably
+ * catch requests that missed every registered route.
  */
-export function createWebUiStaticRoutes() {
+export function createWebUiStatic() {
   const distDir = resolveDistDir()
-  if (!existsSync(distDir)) {
+  const enabled = existsSync(distDir)
+
+  if (!enabled) {
     log.info(`no ${distDir} — static web UI disabled (dev mode assumed)`)
-    return new Elysia({ name: "web-ui-static-noop" })
+    return {
+      plugin: new Elysia({ name: "web-ui-static-noop" }),
+      handleNotFound: () => undefined,
+    }
   }
   log.info(`serving static web UI from ${distDir}`)
 
@@ -96,49 +106,46 @@ export function createWebUiStaticRoutes() {
     })
   }
 
-  return new Elysia({ name: "web-ui-static" })
+  const plugin = new Elysia({ name: "web-ui-static" })
     .get("/", () => serveIndex())
     .get("/index.html", () => serveIndex())
-    .get("/assets/*", ({ request }) => {
-      const url = new URL(request.url)
-      // Strip leading slash and join with dist/. Path traversal is blocked
-      // because `distDir` pins the root and we only read files under it;
-      // extname lookup would fail on anything that escapes upward.
-      const rel = url.pathname.replace(/^\/+/, "")
-      const filePath = join(distDir, rel)
-      if (!filePath.startsWith(distDir) || !existsSync(filePath)) {
-        return new Response("not found", { status: 404 })
-      }
+
+  // Called from the root app's `.onError({ code: "NOT_FOUND" }, ...)` so
+  // SPA client routes and `/assets/*` / root-level static files land here
+  // after the regular router misses them.
+  function handleNotFound(pathname: string): Response | undefined {
+    if (pathname.startsWith("/api") || pathname.startsWith("/project")) {
+      return undefined
+    }
+    const rel = pathname.replace(/^\/+/, "")
+    const filePath = join(distDir, rel)
+    if (filePath.startsWith(distDir) && existsSync(filePath)) {
       const file = Bun.file(filePath)
       const ct = contentTypeFor(filePath)
-      // Vite content-hashes asset filenames, so immutable cache is safe.
+      const isHashed = /-[A-Za-z0-9_-]{8,}\./.test(pathname)
       return new Response(file, {
-        headers: { "content-type": ct, "cache-control": "public, max-age=31536000, immutable" },
+        headers: {
+          "content-type": ct,
+          "cache-control": isHashed
+            ? "public, max-age=31536000, immutable"
+            : "public, max-age=3600",
+        },
       })
-    })
-    // SPA fallback. Registered last in the app chain, so it only fires for
-    // paths that no API route (project/, api/*) matched. Client-side routes
-    // like /learn and /documentation come through here as full-page loads —
-    // we serve index.html and the client router takes over. Also picks up
-    // root-level static files (favicon.ico, robots.txt) that aren't under
-    // /assets/*. Genuine 404s: anything with an extension that isn't on disk.
-    .all("*", ({ request }) => {
-      const url = new URL(request.url)
-      if (url.pathname.startsWith("/api") || url.pathname.startsWith("/project")) {
-        return new Response("Not Found", { status: 404 })
-      }
-      const rel = url.pathname.replace(/^\/+/, "")
-      const filePath = join(distDir, rel)
-      if (filePath.startsWith(distDir) && existsSync(filePath)) {
-        const file = Bun.file(filePath)
-        const ct = contentTypeFor(filePath)
-        return new Response(file, {
-          headers: { "content-type": ct, "cache-control": "public, max-age=3600" },
-        })
-      }
-      if (!extname(url.pathname)) {
-        return serveIndex()
-      }
-      return new Response("not found", { status: 404 })
-    })
+    }
+    if (!extname(pathname)) {
+      return serveIndex()
+    }
+    return undefined
+  }
+
+  return { plugin, handleNotFound }
+}
+
+/**
+ * Back-compat thin wrapper so callers that only want the plugin half still
+ * work. New code should prefer `createWebUiStatic()` to also wire up the
+ * `handleNotFound` hook on the root app.
+ */
+export function createWebUiStaticRoutes() {
+  return createWebUiStatic().plugin
 }
