@@ -40,6 +40,17 @@ function formatError(err: unknown): string {
 }
 
 export async function startRepl(initialState: ProjectState): Promise<void> {
+  // Resolves when readline closes (Ctrl+D, stdin EOF, or explicit /quit).
+  // We return this promise so callers can `await startRepl(...)` and block
+  // until the user exits — otherwise `main()` runs straight to
+  // `process.exit(0)` the moment readline is wired up, and the REPL
+  // appears to flash-and-exit.
+  return new Promise<void>((resolve) => {
+    runRepl(initialState, resolve)
+  })
+}
+
+function runRepl(initialState: ProjectState, done: () => void): void {
   const state = initialState
   const sessionId = `cli-session-${Date.now()}`
   const render = createRenderer()
@@ -105,7 +116,10 @@ export async function startRepl(initialState: ProjectState): Promise<void> {
 
   rl.on("close", () => {
     console.log("\nBye!")
-    process.exit(sawError ? 1 : 0)
+    if (sawError) process.exit(1)
+    // Resolve so the awaiting main() returns and process.exit(0) runs
+    // with any pending telemetry flushed.
+    done()
   })
 }
 

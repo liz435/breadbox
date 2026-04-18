@@ -1,0 +1,42 @@
+{
+  "project": {
+    "id": "2dc602e0-3460-401b-b84d-2537f9950cfb",
+    "name": "soft-pug-star",
+    "version": 0,
+    "createdAt": "2026-04-18T04:02:26.360Z",
+    "updatedAt": "2026-04-18T04:02:26.360Z",
+    "threadId": "1ee8fad5-fb94-4f57-bd75-5b1e48c6bddd",
+    "activeSceneId": "6655e0e2-f18b-468d-a4e4-9dbb84250589"
+  },
+  "scenes": {
+    "6655e0e2-f18b-468d-a4e4-9dbb84250589": {
+      "id": "6655e0e2-f18b-468d-a4e4-9dbb84250589",
+      "name": "Main Scene",
+      "version": 0,
+      "settings": {
+        "background": "#252525",
+        "gravity": {
+          "x": 0,
+          "y": 9.8
+        }
+      }
+    }
+  },
+  "entities": {},
+  "sceneEntityIds": {
+    "6655e0e2-f18b-468d-a4e4-9dbb84250589": []
+  },
+  "components": {
+    "transform": {},
+    "sprite": {},
+    "tilemap": {},
+    "physicsBody": {},
+    "script": {},
+    "camera": {}
+  },
+  "assets": {},
+  "graph": {
+    "nodes": {},
+    "edges": {}
+  }
+}
