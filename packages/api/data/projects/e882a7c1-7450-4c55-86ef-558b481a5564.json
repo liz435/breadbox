@@ -1,16 +1,16 @@
 {
   "project": {
-    "id": "9b6a068a-958c-4973-88cf-3429cb46061f",
-    "name": "olive-swan-zinc",
+    "id": "e882a7c1-7450-4c55-86ef-558b481a5564",
+    "name": "tidy-wolf-gear",
     "version": 0,
-    "createdAt": "2026-04-18T05:53:53.809Z",
-    "updatedAt": "2026-04-18T08:39:01.595Z",
-    "threadId": "2d84d540-3236-4512-9e92-79ebc3255a03",
-    "activeSceneId": "7d16131a-9237-4870-9ecb-8fb08d28b002"
+    "createdAt": "2026-04-18T07:21:25.065Z",
+    "updatedAt": "2026-04-18T08:40:12.056Z",
+    "threadId": "ef3cba90-0732-46de-b042-c87f3105ee42",
+    "activeSceneId": "ee003077-20a3-4dbe-b28c-d35a4128315b"
   },
   "scenes": {
-    "7d16131a-9237-4870-9ecb-8fb08d28b002": {
-      "id": "7d16131a-9237-4870-9ecb-8fb08d28b002",
+    "ee003077-20a3-4dbe-b28c-d35a4128315b": {
+      "id": "ee003077-20a3-4dbe-b28c-d35a4128315b",
       "name": "Main Scene",
       "version": 0,
       "settings": {
@@ -24,7 +24,7 @@
   },
   "entities": {},
   "sceneEntityIds": {
-    "7d16131a-9237-4870-9ecb-8fb08d28b002": []
+    "ee003077-20a3-4dbe-b28c-d35a4128315b": []
   },
   "components": {
     "transform": {},
@@ -37,8 +37,8 @@
   "assets": {},
   "graph": {
     "nodes": {
-      "node-1776491633864-p9zzhl": {
-        "id": "node-1776491633864-p9zzhl",
+      "node-1776501593811-hj7t44": {
+        "id": "node-1776501593811-hj7t44",
         "type": "setup",
         "name": "Setup",
         "x": 60,
@@ -55,8 +55,8 @@
         ],
         "data": {}
       },
-      "node-1776491633864-gpkhqy": {
-        "id": "node-1776491633864-gpkhqy",
+      "node-1776501593811-03p0he": {
+        "id": "node-1776501593811-03p0he",
         "type": "loop",
         "name": "Loop",
         "x": 60,
@@ -123,7 +123,7 @@
       "serialBaud": 0
     },
     "serialOutput": [],
-    "sketchCode": "// Example: IR Receiver\n// Decode infrared remote signals on pin 11.\n\n#include <IRremote.h>\n\nint recvPin = 11;\nIRrecv irrecv(recvPin);\ndecode_results results;\n\nvoid setup() {\n  Serial.begin(9600);\n  irrecv.enableIRIn();\n}\n\nvoid loop() {\n  if (irrecv.decode(&results)) {\n    Serial.print(\"IR Code: 0x\");\n    Serial.println(results.value, HEX);\n    irrecv.resume();\n  }\n  delay(100);\n}\n",
+    "sketchCode": "// Example: IR Receiver\n// Decode infrared remote signals on pin 11.\n\n#include <IRremote.h>\n\nint recvPin = 11;\nIRrecv irrecv(recvPin);\n\nvoid setup() {\n  Serial.begin(9600);\n  irrecv.enableIRIn();\n}\n\nvoid loop() {\n  if (irrecv.decode()) {\n    Serial.print(\"IR Code: 0x\");\n    Serial.println(irrecv.decodedIRData.decodedRawData, HEX);\n    irrecv.resume();\n  }\n  delay(100);\n}\n",
     "customLibraries": {},
     "boardTarget": "arduino_uno",
     "environment": {
