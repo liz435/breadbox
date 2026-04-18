@@ -79,6 +79,18 @@ function injectRuntimeConfig(html: string): string {
  * catch requests that missed every registered route.
  */
 export function createWebUiStatic() {
+  // Explicit opt-out for API-only deployments that share the same Docker
+  // image. Set DREAMER_API_ONLY=1 on a Railway service (or similar) that
+  // should never serve the frontend even though packages/app/dist/ is
+  // baked into the image.
+  if (process.env.DREAMER_API_ONLY === "1") {
+    log.info("DREAMER_API_ONLY=1 — static web UI disabled")
+    return {
+      plugin: new Elysia({ name: "web-ui-static-api-only" }),
+      handleNotFound: () => undefined,
+    }
+  }
+
   const distDir = resolveDistDir()
   const enabled = existsSync(distDir)
 
