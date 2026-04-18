@@ -7,6 +7,8 @@ import { compileRoutes } from "@dreamer/api/routes/compile"
 import { flashRoutes } from "@dreamer/api/routes/flash"
 import { boardRoutes } from "@dreamer/api/routes/boards"
 import { evalRoutes } from "@dreamer/api/routes/eval"
+import { libraryRoutes } from "@dreamer/api/routes/libraries"
+import { capabilitiesRoutes } from "@dreamer/api/routes/capabilities"
 import { createLogger } from "@dreamer/api/logger"
 import { ASSET_COUNT } from "./web-ui-manifest.generated"
 import { startStaticWebUI, type StaticWebUI } from "./web-ui"
@@ -75,6 +77,8 @@ export async function startHeadedMode(): Promise<void> {
     .use(flashRoutes)
     .use(boardRoutes)
     .use(evalRoutes)
+    .use(libraryRoutes)
+    .use(capabilitiesRoutes)
     .listen(API_PORT)
 
   log.info(`API server listening on http://localhost:${app.server?.port}`)

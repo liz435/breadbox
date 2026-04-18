@@ -14,6 +14,25 @@ import { LearnLayout, PageTitle, LESSONS, Section, Note } from "@/learn/learn-la
 import { BlinkLedLesson } from "@/learn/lessons/blink-led"
 import { ButtonLedLesson } from "@/learn/lessons/button-led"
 import { FadeLedLesson } from "@/learn/lessons/fade-led"
+import { RgbLedLesson } from "@/learn/lessons/rgb-led"
+import { PotentiometerLesson } from "@/learn/lessons/potentiometer"
+import { ResistorLesson } from "@/learn/lessons/resistor"
+import { CapacitorLesson } from "@/learn/lessons/capacitor"
+import { PhotoresistorLesson } from "@/learn/lessons/photoresistor"
+import { BuzzerLesson } from "@/learn/lessons/buzzer"
+import { ServoLesson } from "@/learn/lessons/servo"
+import { TemperatureSensorLesson } from "@/learn/lessons/temperature-sensor"
+import { UltrasonicSensorLesson } from "@/learn/lessons/ultrasonic-sensor"
+import { PirSensorLesson } from "@/learn/lessons/pir-sensor"
+import { SevenSegmentLesson } from "@/learn/lessons/seven-segment"
+import { Lcd16x2Lesson } from "@/learn/lessons/lcd-16x2"
+import { DhtSensorLesson } from "@/learn/lessons/dht-sensor"
+import { IrReceiverLesson } from "@/learn/lessons/ir-receiver"
+import { RelayLesson } from "@/learn/lessons/relay"
+import { DcMotorLesson } from "@/learn/lessons/dc-motor"
+import { ShiftRegisterLesson } from "@/learn/lessons/shift-register"
+import { NeopixelLesson } from "@/learn/lessons/neopixel"
+import { OledDisplayLesson } from "@/learn/lessons/oled-display"
 import { findEntry } from "@/learn/encyclopedia-catalog"
 import { getEncyclopediaPage } from "@/learn/encyclopedia-page-registry"
 
@@ -21,6 +40,25 @@ const LESSON_ROUTES: Record<string, () => React.JSX.Element> = {
   "/learn/blink-led": BlinkLedLesson,
   "/learn/button-led": ButtonLedLesson,
   "/learn/fade-led": FadeLedLesson,
+  "/learn/rgb-led": RgbLedLesson,
+  "/learn/potentiometer": PotentiometerLesson,
+  "/learn/resistor": ResistorLesson,
+  "/learn/capacitor": CapacitorLesson,
+  "/learn/photoresistor": PhotoresistorLesson,
+  "/learn/buzzer": BuzzerLesson,
+  "/learn/servo": ServoLesson,
+  "/learn/temperature-sensor": TemperatureSensorLesson,
+  "/learn/ultrasonic-sensor": UltrasonicSensorLesson,
+  "/learn/pir-sensor": PirSensorLesson,
+  "/learn/seven-segment": SevenSegmentLesson,
+  "/learn/lcd-16x2": Lcd16x2Lesson,
+  "/learn/dht-sensor": DhtSensorLesson,
+  "/learn/ir-receiver": IrReceiverLesson,
+  "/learn/relay": RelayLesson,
+  "/learn/dc-motor": DcMotorLesson,
+  "/learn/shift-register": ShiftRegisterLesson,
+  "/learn/neopixel": NeopixelLesson,
+  "/learn/oled-display": OledDisplayLesson,
 }
 
 function LearnIndexPage() {

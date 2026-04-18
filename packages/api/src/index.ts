@@ -8,11 +8,19 @@ import { compileRoutes } from "./routes/compile";
 import { flashRoutes } from "./routes/flash";
 import { boardRoutes } from "./routes/boards";
 import { evalRoutes } from "./routes/eval";
+import { libraryRoutes } from "./routes/libraries";
+import { capabilitiesRoutes } from "./routes/capabilities";
+import { createWebUiStaticRoutes } from "./routes/web-ui-static";
 import { APP_ORIGIN, API_PORT as _API_PORT } from "@dreamer/config";
 
 const API_PORT = Number(process.env.PORT ?? _API_PORT);
 
 const log = createLogger("server");
+
+// Optional static-web-UI route — populated when `packages/app/dist/` is
+// present (hosted deployments); no-op plugin otherwise so dev keeps
+// serving via Vite on a separate port as before.
+const staticWebUi = createWebUiStaticRoutes();
 
 const app = new Elysia()
   .use(
@@ -29,6 +37,9 @@ const app = new Elysia()
   .use(flashRoutes)
   .use(boardRoutes)
   .use(evalRoutes)
+  .use(libraryRoutes)
+  .use(capabilitiesRoutes)
+  .use(staticWebUi)
   .listen(API_PORT);
 
 log.info(`listening on http://localhost:${app.server?.port}`);

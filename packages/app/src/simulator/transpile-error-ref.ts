@@ -6,4 +6,14 @@
 
 import type { TranspileError } from "./arduino-transpiler"
 
-export const transpileErrorRef: { current: TranspileError | null } = { current: null }
+/**
+ * Transpile error wrapped with a capture timestamp. The UI renders `ts`
+ * verbatim instead of computing the clock at render time, so the
+ * displayed stamp doesn't advance on every React re-render.
+ */
+export type TimestampedTranspileError = {
+  error: TranspileError
+  ts: number
+}
+
+export const transpileErrorRef: { current: TimestampedTranspileError | null } = { current: null }

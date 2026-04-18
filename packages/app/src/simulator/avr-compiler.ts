@@ -4,7 +4,8 @@
 // that wraps arduino-cli. Includes Intel HEX parsing and a fallback path
 // to the JS transpiler when the server is unavailable.
 
-import { API_ORIGIN } from "@dreamer/config"
+import { API_ORIGIN, PREFER_AVR } from "@dreamer/config"
+import type { CustomLibrary } from "@dreamer/schemas"
 
 const COMPILE_ENDPOINT = `${API_ORIGIN}/api/compile`
 
@@ -23,6 +24,12 @@ export type CompileResult =
 
 export type CompileOptions = {
   fqbn?: string
+  /**
+   * User-authored custom libraries keyed by library name. The backend writes
+   * each to `<sketchDir>/libs/<Name>/<Name>.h` and passes `--libraries` to
+   * arduino-cli so `#include "<Name>.h"` resolves.
+   */
+  customLibraries?: Record<string, CustomLibrary>
 }
 
 /**
@@ -120,7 +127,11 @@ export async function compileSketch(code: string, options: CompileOptions = {}):
     const response = await fetch(COMPILE_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code, fqbn }),
+      body: JSON.stringify({
+        code,
+        fqbn,
+        customLibraries: options.customLibraries ?? {},
+      }),
     })
 
     if (!response.ok) {
@@ -144,9 +155,16 @@ export async function compileSketch(code: string, options: CompileOptions = {}):
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Failed to reach compilation server"
+    // In the standalone web app (preferAvr=false), the sketch can still run
+    // via the JS transpiler if the user switches modes manually — hence the
+    // historical suffix. In CLI-served mode (preferAvr=true) the simulator
+    // is locked to AVR, so that suffix is a lie; surface the real arduino-cli
+    // / fetch error verbatim instead.
     return {
       success: false,
-      error: `Compilation server unavailable: ${message}. Falling back to transpile mode.`,
+      error: PREFER_AVR
+        ? `Compilation failed: ${message}`
+        : `Compilation server unavailable: ${message}. Falling back to transpile mode.`,
     }
   }
 }

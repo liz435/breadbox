@@ -98,6 +98,42 @@ export function createArduinoVM(
   const avrPinDigital = new Array(20).fill(0)
   const avrPinModes = new Array(20).fill(0) // 0=input, 1=output
 
+  // Serial output from avr8js arrives one byte at a time (`onSerialOutput`
+  // fires per char). If we forwarded each byte straight to
+  // `callbacks.onSerialPrint`, the Serial Monitor would create one
+  // timestamped entry per character — timestamps then appear to "roll"
+  // across every character of a line. Buffer bytes into lines and flush
+  // on newline (or after a short idle window for `Serial.print` without
+  // a trailing newline). This matches transpile mode's per-call semantics.
+  const SERIAL_IDLE_FLUSH_MS = 200
+  let avrSerialBuffer = ""
+  let avrSerialIdleTimer: ReturnType<typeof setTimeout> | null = null
+
+  function flushAvrSerial(): void {
+    if (avrSerialIdleTimer) {
+      clearTimeout(avrSerialIdleTimer)
+      avrSerialIdleTimer = null
+    }
+    if (avrSerialBuffer.length === 0) return
+    const out = avrSerialBuffer
+    avrSerialBuffer = ""
+    callbacks.onSerialPrint(out)
+  }
+
+  function handleAvrSerialByte(char: string): void {
+    avrSerialBuffer += char
+    // A newline completes a line; emit immediately so each `Serial.println`
+    // gets one Serial Monitor entry with one stable timestamp.
+    if (char === "\n") {
+      flushAvrSerial()
+      return
+    }
+    // For `Serial.print` (no newline), flush after a short idle so partial
+    // output still shows up, but only as a single entry per "burst".
+    if (avrSerialIdleTimer) clearTimeout(avrSerialIdleTimer)
+    avrSerialIdleTimer = setTimeout(flushAvrSerial, SERIAL_IDLE_FLUSH_MS)
+  }
+
   function createAVRRunnerInstance(): AVRRunner {
     return createAVRRunner({
       onPinChange: (port, pin, value) => {
@@ -113,7 +149,7 @@ export function createArduinoVM(
         })
       },
       onSerialOutput: (char) => {
-        callbacks.onSerialPrint(char)
+        handleAvrSerialByte(char)
       },
     })
   }
@@ -132,7 +168,7 @@ export function createArduinoVM(
     const result = transpile(code, customLibraries)
     if (!result.success) {
       // Store structured error for CodeMirror linter to display inline
-      transpileErrorRef.current = result.error ?? null
+      transpileErrorRef.current = result.error ? { error: result.error, ts: Date.now() } : null
       const errMsg = result.error
         ? `Line ${result.error.line}: ${result.error.message}`
         : "Unknown transpilation error"
@@ -141,9 +177,9 @@ export function createArduinoVM(
     // Clear any previous error on success
     transpileErrorRef.current = null
 
-    // Store size estimate
+    // Store size estimate — stamp once so the output panel shows a stable time.
     if (result.sizeEstimate) {
-      sketchSizeRef.current = { ...result.sizeEstimate, source: "estimate" }
+      sketchSizeRef.current = { ...result.sizeEstimate, source: "estimate", ts: Date.now() }
     }
 
     try {
@@ -257,17 +293,31 @@ return { setup: _setup, loop: _loop, genLoop: null };
       return loadSketch(code, customLibraries)
     }
 
-    // AVR mode: compile on the server, then load the hex
+    // AVR mode: compile on the server, then load the hex. Convert the
+    // transpiler-shaped CustomLibraryMap (filename → code) into the
+    // richer backend shape (filename → { name, code }) so arduino-cli can
+    // resolve `#include "<name>"` against per-compile library files.
     reset()
 
-    const result = await compileSketch(code, { fqbn: options?.fqbn })
+    const backendLibs: Record<string, { name: string; code: string; description: string }> = {}
+    if (customLibraries) {
+      for (const [name, codeBody] of Object.entries(customLibraries)) {
+        backendLibs[name] = { name, code: codeBody, description: "" }
+      }
+    }
+
+    const result = await compileSketch(code, {
+      fqbn: options?.fqbn,
+      customLibraries: backendLibs,
+    })
     if (!result.success) {
       return { success: false, error: result.error }
     }
 
-    // Store actual size info from compiler
+    // Store actual size info from compiler — timestamped once so the output
+    // panel displays a stable stamp (not "now" on every re-render).
     if (result.sizeInfo) {
-      sketchSizeRef.current = { ...result.sizeInfo, source: "actual" }
+      sketchSizeRef.current = { ...result.sizeInfo, source: "actual", ts: Date.now() }
     }
 
     avrRunner = createAVRRunnerInstance()
@@ -432,6 +482,11 @@ return { setup: _setup, loop: _loop, genLoop: null };
 
   // ── Lifecycle ───────────────────────────────────────────────────
   function reset(): void {
+    // Flush any buffered AVR serial bytes so partial output from the
+    // previous run doesn't leak into the next, and cancel the idle timer
+    // so it doesn't fire into a stale context.
+    flushAvrSerial()
+
     simulationStartTime = Date.now()
     virtualMs = 0
     state = createStdlibState(simulationStartTime)

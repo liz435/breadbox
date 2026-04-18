@@ -1,0 +1,97 @@
+{
+  "project": {
+    "id": "9b6a068a-958c-4973-88cf-3429cb46061f",
+    "name": "olive-swan-zinc",
+    "version": 0,
+    "createdAt": "2026-04-18T05:53:53.809Z",
+    "updatedAt": "2026-04-18T05:53:56.667Z",
+    "threadId": "2d84d540-3236-4512-9e92-79ebc3255a03",
+    "activeSceneId": "7d16131a-9237-4870-9ecb-8fb08d28b002"
+  },
+  "scenes": {
+    "7d16131a-9237-4870-9ecb-8fb08d28b002": {
+      "id": "7d16131a-9237-4870-9ecb-8fb08d28b002",
+      "name": "Main Scene",
+      "version": 0,
+      "settings": {
+        "background": "#252525",
+        "gravity": {
+          "x": 0,
+          "y": 9.8
+        }
+      }
+    }
+  },
+  "entities": {},
+  "sceneEntityIds": {
+    "7d16131a-9237-4870-9ecb-8fb08d28b002": []
+  },
+  "components": {
+    "transform": {},
+    "sprite": {},
+    "tilemap": {},
+    "physicsBody": {},
+    "script": {},
+    "camera": {}
+  },
+  "assets": {},
+  "graph": {
+    "nodes": {
+      "node-1776491633864-p9zzhl": {
+        "id": "node-1776491633864-p9zzhl",
+        "type": "setup",
+        "name": "Setup",
+        "x": 60,
+        "y": 60,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      },
+      "node-1776491633864-gpkhqy": {
+        "id": "node-1776491633864-gpkhqy",
+        "type": "loop",
+        "name": "Loop",
+        "x": 60,
+        "y": 200,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      }
+    },
+    "edges": {}
+  },
+  "boardState": {
+    "components": {},
+    "wires": {},
+    "libraryState": {
+      "servos": {},
+      "lcd": null,
+      "serialBaud": 0
+    },
+    "serialOutput": [],
+    "sketchCode": "void setup() {\n  // put your setup code here\n}\n\nvoid loop() {\n  // put your main code here\n}\n",
+    "customLibraries": {},
+    "boardTarget": "arduino_uno",
+    "environment": {
+      "obstacles": {},
+      "boundaryEnabled": true,
+      "boundaryMargin": 100
+    }
+  }
+}

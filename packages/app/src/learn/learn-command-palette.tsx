@@ -66,6 +66,8 @@ const ICONS = {
       width={14}
       height={14}
       className="text-neutral-400"
+      aria-hidden="true"
+      focusable="false"
     >
       <polygon
         points="8,1 15,6 12,15 4,15 1,6"
@@ -311,6 +313,8 @@ function LearnCommandPaletteInner({ open, onClose }: LearnCommandPaletteProps) {
             width={16}
             height={16}
             className="flex-shrink-0 text-neutral-500"
+            aria-hidden="true"
+            focusable="false"
           >
             <circle
               cx={7}

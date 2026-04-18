@@ -44,7 +44,44 @@ import { LearnCommandPalette } from "./learn-command-palette"
 // to import from "@/learn/learn-layout".
 export { Section, CodeBlock, Note, Warn, Badge, PageTitle, Table } from "@/docs/docs-layout"
 
+// ── Difficulty badge ─────────────────────────────────────────────────────
+//
+// A compact pill label rendered in two contexts:
+//   1. Sidebar — next to each lesson title, right-aligned.
+//   2. Lesson page — directly under <PageTitle>, before the first <Section>.
+//
+// Usage on a lesson page:
+//   import { DifficultyBadge } from "@/learn/learn-layout"
+//   <DifficultyBadge difficulty="beginner" />
+
+const DIFFICULTY_STYLES: Record<Difficulty, string> = {
+  beginner: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
+  intermediate: "bg-amber-500/15 text-amber-300 border-amber-500/30",
+  advanced: "bg-rose-500/15 text-rose-300 border-rose-500/30",
+}
+
+const DIFFICULTY_LABELS: Record<Difficulty, string> = {
+  beginner: "Beginner",
+  intermediate: "Intermediate",
+  advanced: "Advanced",
+}
+
+export function DifficultyBadge({ difficulty }: { difficulty: Difficulty }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+        DIFFICULTY_STYLES[difficulty],
+      )}
+    >
+      {DIFFICULTY_LABELS[difficulty]}
+    </span>
+  )
+}
+
 // ── Lesson catalog ──────────────────────────────────────────────────────
+
+export type Difficulty = "beginner" | "intermediate" | "advanced"
 
 export type LessonMeta = {
   /** URL path relative to /learn */
@@ -55,26 +92,181 @@ export type LessonMeta = {
   title: string
   /** One-line summary for the sidebar */
   summary: string
+  /** Difficulty tier shown as a badge in the sidebar and on the lesson page */
+  difficulty: Difficulty
 }
 
+// ── Lesson progression arc ────────────────────────────────────────────────
+//
+// Beginner (01–07): core digital I/O, passive components, PWM fundamentals.
+//   Readers come out able to wire an LED, read a button, dim with PWM, and
+//   understand resistors and capacitors.
+//
+// Intermediate (08–15): sensor-to-actuator patterns, analog I/O, serial
+//   output, actuators with libraries. Readers learn the full input → process
+//   → output loop and build intuition for datasheets.
+//
+// Advanced (16–22): multi-device protocols (I2C, 1-Wire, SPI, IR), power
+//   electronics (relay, motor), and serial data expansion (shift register,
+//   NeoPixel). Requires solid footing from the intermediate tier.
+
 export const LESSONS: readonly LessonMeta[] = [
+  // ── Beginner ─────────────────────────────────────────────────────────
   {
     slug: "blink-led",
     board: "01-blink-led",
     title: "Blink an LED",
     summary: "Your first circuit — turn an LED on and off.",
+    difficulty: "beginner",
   },
   {
     slug: "button-led",
     board: "02-button-led",
     title: "Read a Button",
     summary: "Light an LED when a button is pressed.",
+    difficulty: "beginner",
   },
   {
     slug: "fade-led",
     board: "03-fade-led",
     title: "Fade an LED (PWM)",
     summary: "Smoothly dim an LED using analogWrite().",
+    difficulty: "beginner",
+  },
+  {
+    slug: "rgb-led",
+    board: "04-rgb-led",
+    title: "RGB LED Color Cycle",
+    summary: "Control red, green, and blue channels with PWM.",
+    difficulty: "beginner",
+  },
+  {
+    slug: "potentiometer",
+    board: "05-potentiometer",
+    title: "Control Brightness with a Pot",
+    summary: "Map a potentiometer to LED brightness via analogRead.",
+    difficulty: "beginner",
+  },
+  {
+    slug: "resistor",
+    board: "06-resistor",
+    title: "Current Limiting with a Resistor",
+    summary: "Understand why every LED needs a series resistor.",
+    difficulty: "beginner",
+  },
+  {
+    slug: "capacitor",
+    board: "07-capacitor",
+    title: "Capacitor Charge and Discharge",
+    summary: "Watch an LED fade as a capacitor drains.",
+    difficulty: "beginner",
+  },
+  // ── Intermediate ─────────────────────────────────────────────────────
+  {
+    slug: "photoresistor",
+    board: "08-photoresistor",
+    title: "Read a Light Sensor",
+    summary: "Read ambient light with a photoresistor and Serial.",
+    difficulty: "intermediate",
+  },
+  {
+    slug: "buzzer",
+    board: "09-buzzer",
+    title: "Play a Melody with a Buzzer",
+    summary: "Generate tones on a piezo buzzer using tone().",
+    difficulty: "intermediate",
+  },
+  {
+    slug: "servo",
+    board: "10-servo",
+    title: "Sweep a Servo Motor",
+    summary: "Rotate a servo from 0 to 180 degrees with the Servo library.",
+    difficulty: "intermediate",
+  },
+  {
+    slug: "temperature-sensor",
+    board: "11-temperature-sensor",
+    title: "Read Temperature (TMP36)",
+    summary: "Convert an analog voltage into degrees Celsius.",
+    difficulty: "intermediate",
+  },
+  {
+    slug: "ultrasonic-sensor",
+    board: "12-ultrasonic-sensor",
+    title: "Measure Distance (HC-SR04)",
+    summary: "Calculate distance in cm from an ultrasonic pulse.",
+    difficulty: "intermediate",
+  },
+  {
+    slug: "pir-sensor",
+    board: "13-pir-sensor",
+    title: "Detect Motion with PIR",
+    summary: "Trigger an LED when a passive infrared sensor fires.",
+    difficulty: "intermediate",
+  },
+  {
+    slug: "seven-segment",
+    board: "14-seven-segment",
+    title: "7-Segment Counter",
+    summary: "Count 0–9 by driving individual segments from the sketch.",
+    difficulty: "intermediate",
+  },
+  {
+    slug: "lcd-16x2",
+    board: "15-lcd-16x2",
+    title: "LCD Hello World",
+    summary: "Print text and a running timer on a 16x2 character LCD.",
+    difficulty: "intermediate",
+  },
+  // ── Advanced ─────────────────────────────────────────────────────────
+  {
+    slug: "dht-sensor",
+    board: "16-dht-sensor",
+    title: "Temp and Humidity (DHT11)",
+    summary: "Read a 1-Wire DHT sensor for temperature and humidity.",
+    difficulty: "advanced",
+  },
+  {
+    slug: "ir-receiver",
+    board: "17-ir-receiver",
+    title: "Decode IR Remote Signals",
+    summary: "Capture and print hex codes from a TV remote.",
+    difficulty: "advanced",
+  },
+  {
+    slug: "relay",
+    board: "18-relay",
+    title: "Toggle a Relay",
+    summary: "Use a relay to switch a load that Arduino pins cannot drive.",
+    difficulty: "advanced",
+  },
+  {
+    slug: "dc-motor",
+    board: "19-dc-motor",
+    title: "Control Motor Speed with PWM",
+    summary: "Ramp a DC motor up and down using analogWrite.",
+    difficulty: "advanced",
+  },
+  {
+    slug: "shift-register",
+    board: "20-shift-register",
+    title: "LED Chaser with 74HC595",
+    summary: "Expand outputs by shifting bits through a serial register.",
+    difficulty: "advanced",
+  },
+  {
+    slug: "neopixel",
+    board: "21-neopixel",
+    title: "NeoPixel Rainbow",
+    summary: "Chase rainbow colors across a WS2812 LED strip.",
+    difficulty: "advanced",
+  },
+  {
+    slug: "oled-display",
+    board: "22-oled-display",
+    title: "OLED Hello World",
+    summary: "Draw text on a 128x64 OLED display over I2C.",
+    difficulty: "advanced",
   },
 ]
 
@@ -252,7 +444,22 @@ function LessonLink({
       >
         {index + 1}
       </span>
-      <span className="leading-tight">{lesson.title}</span>
+      <span className="flex-1 leading-tight">{lesson.title}</span>
+      <span
+        className={cn(
+          "flex-shrink-0 rounded border px-1 py-px text-[9px] font-semibold uppercase tracking-wider",
+          lesson.difficulty === "beginner" && "border-emerald-500/30 text-emerald-400/70",
+          lesson.difficulty === "intermediate" && "border-amber-500/30 text-amber-400/70",
+          lesson.difficulty === "advanced" && "border-rose-500/30 text-rose-400/70",
+          isActive && "opacity-80",
+        )}
+      >
+        {lesson.difficulty === "beginner"
+          ? "B"
+          : lesson.difficulty === "intermediate"
+            ? "I"
+            : "A"}
+      </span>
     </button>
   )
 }

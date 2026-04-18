@@ -1,0 +1,46 @@
+{
+  "components": {
+    "ir-1": {
+      "id": "ir-1",
+      "type": "ir_receiver",
+      "name": "IR Receiver",
+      "x": 7,
+      "y": 5,
+      "rotation": 0,
+      "pins": {
+        "signal": null
+      },
+      "properties": {}
+    }
+  },
+  "wires": {
+    "wire-d11": {
+      "id": "wire-d11",
+      "fromRow": -999,
+      "fromCol": 11,
+      "toRow": 5,
+      "toCol": 7,
+      "color": "#a855f7"
+    },
+    "wire-5v": {
+      "id": "wire-5v",
+      "fromRow": -999,
+      "fromCol": -1,
+      "toRow": 6,
+      "toCol": 7,
+      "color": "#ef4444"
+    },
+    "wire-gnd": {
+      "id": "wire-gnd",
+      "fromRow": -999,
+      "fromCol": -3,
+      "toRow": 7,
+      "toCol": 7,
+      "color": "#1a1a1a"
+    }
+  },
+  "libraryState": { "servos": {}, "lcd": null, "serialBaud": 0 },
+  "serialOutput": [],
+  "sketchCode": "// Example: IR Receiver\n// Decode infrared remote signals on pin 11.\n\n#include <IRremote.h>\n\nint recvPin = 11;\nIRrecv irrecv(recvPin);\ndecode_results results;\n\nvoid setup() {\n  Serial.begin(9600);\n  irrecv.enableIRIn();\n}\n\nvoid loop() {\n  if (irrecv.decode(&results)) {\n    Serial.print(\"IR Code: 0x\");\n    Serial.println(results.value, HEX);\n    irrecv.resume();\n  }\n  delay(100);\n}\n",
+  "customLibraries": {}
+}

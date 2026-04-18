@@ -2,7 +2,19 @@
 //
 // POST /api/compile
 // Compiles an Arduino sketch to Intel HEX using arduino-cli.
-// Requires arduino-cli and the selected board core to be installed.
+//
+// Supports two library mechanisms:
+//
+//   1. `customLibraries` in the request body — user-authored header-only
+//      libraries shipped inline with the sketch. Written to
+//      `<sketchDir>/libs/<Name>/<Name>.h` and surfaced to arduino-cli via
+//      `--libraries <sketchDir>/libs`.
+//
+//   2. Auto-install on missing-header errors. If the first compile fails
+//      with `fatal error: Foo.h: No such file`, we search the Arduino
+//      index for "Foo", install the match if unambiguous, and retry.
+//      Capped at 3 retries per request. Disabled with
+//      DREAMER_AUTO_INSTALL_LIBS=0.
 
 import { Elysia } from "elysia"
 import { z } from "zod"
@@ -11,6 +23,13 @@ import { join } from "path"
 import { rm } from "fs/promises"
 import { createLogger } from "../logger"
 import { resolveArduinoCli, ensureArduinoCliCore, ArduinoCliMissingError } from "../toolchain"
+import {
+  attemptAutoInstall,
+  customLibrariesSchema,
+  extractMissingHeader,
+  writeCustomLibraries,
+  type CustomLibrariesPayload,
+} from "../libraries"
 import { BOARD_TARGETS, boardTargetSchema, DEFAULT_BOARD_TARGET } from "@dreamer/schemas"
 
 const log = createLogger("compile")
@@ -19,58 +38,38 @@ const compileRequestSchema = z.object({
   code: z.string().min(1, "Sketch code is required"),
   fqbn: z.string().optional(),
   boardTarget: boardTargetSchema.optional(),
+  customLibraries: customLibrariesSchema,
 })
 
-/**
- * Write a file using Bun's native file API, creating parent dirs as needed.
- */
 async function writeFile(path: string, content: string): Promise<void> {
   await Bun.write(path, content)
 }
 
-/**
- * Read a file's text content.
- */
 async function readFile(path: string): Promise<string> {
   const file = Bun.file(path)
   return file.text()
 }
 
-/**
- * Run a shell command and return stdout/stderr.
- */
 async function exec(
   cmd: string[],
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  const proc = Bun.spawn(cmd, {
-    stdout: "pipe",
-    stderr: "pipe",
-  })
-
+  const proc = Bun.spawn(cmd, { stdout: "pipe", stderr: "pipe" })
   const [stdout, stderr] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
   ])
-
-  const exitCode = await proc.exited
-  return { stdout, stderr, exitCode }
+  return { stdout, stderr, exitCode: await proc.exited }
 }
 
 // ── Internals ───────────────────────────────────────────────────────────────
 
 /**
- * arduino-cli prepends a generated header to the sketch file, shifting all
- * line numbers. The header is typically 1-2 lines. We detect the offset by
- * counting how many lines are prepended before the user's first non-empty line,
- * and subtract it from reported line numbers so errors point to the right place.
- *
- * Pattern in stderr:  /path/to/sketch/sketch.ino:N:M: error: message
+ * arduino-cli prepends a `#line 1` directive to the sketch which shifts
+ * reported line numbers by one. Subtract to point errors at the user's code.
  */
 function normalizeCompileError(stderr: string): string {
-  // arduino-cli adds exactly one "#line 1" directive at the top of the sketch
-  // which shifts everything by 1 line. Subtract 1 from all reported line numbers.
   const LINE_RE = /sketch\.ino:(\d+):(\d+):/g
-  return stderr.replace(LINE_RE, (match, line, col) => {
+  return stderr.replace(LINE_RE, (_match, line, col) => {
     const corrected = Math.max(1, parseInt(line, 10) - 1)
     return `sketch.ino:${corrected}:${col}:`
   })
@@ -85,12 +84,6 @@ export type SketchSizeInfo = {
   ramPercent: number
 }
 
-/**
- * Parse the size summary lines that arduino-cli prints after a successful compile.
- * Example:
- *   Sketch uses 924 bytes (2%) of program storage space. Maximum is 32256 bytes.
- *   Global variables use 9 bytes (0%) of dynamic memory, leaving 2039 bytes for local variables. Maximum is 2048 bytes.
- */
 function parseSizeInfo(output: string): SketchSizeInfo | null {
   const flashMatch = output.match(
     /Sketch uses (\d+) bytes \((\d+)%\) of program storage space\. Maximum is (\d+) bytes/,
@@ -109,8 +102,48 @@ function parseSizeInfo(output: string): SketchSizeInfo | null {
   }
 }
 
+/**
+ * Prepare the sketch directory: write the .ino and any custom libraries.
+ * Returns the include-root to pass as `--libraries`, or null if no libs.
+ */
+async function prepareSketchDir(
+  sketchDir: string,
+  code: string,
+  customLibraries: CustomLibrariesPayload,
+): Promise<string | null> {
+  const sketchFile = join(sketchDir, "sketch", "sketch.ino")
+  await writeFile(sketchFile, code)
+
+  if (Object.keys(customLibraries).length === 0) return null
+
+  const libsDir = join(sketchDir, "libs")
+  await writeCustomLibraries(libsDir, customLibraries)
+  return libsDir
+}
+
+/**
+ * Run a single `arduino-cli compile` invocation.
+ */
+async function runCompile(
+  arduinoCli: string,
+  sketchDir: string,
+  fqbn: string,
+  libsDir: string | null,
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  const args = [
+    arduinoCli,
+    "compile",
+    "--fqbn", fqbn,
+    "--output-dir", join(sketchDir, "output"),
+  ]
+  if (libsDir) args.push("--libraries", libsDir)
+  args.push(join(sketchDir, "sketch"))
+  return exec(args)
+}
+
+// ── Route ───────────────────────────────────────────────────────────────────
+
 export const compileRoutes = new Elysia().post("/api/compile", async ({ body, set }) => {
-  // Validate request body
   const parsed = compileRequestSchema.safeParse(body)
   if (!parsed.success) {
     set.status = 400
@@ -119,17 +152,12 @@ export const compileRoutes = new Elysia().post("/api/compile", async ({ body, se
 
   const boardTarget = parsed.data.boardTarget ?? DEFAULT_BOARD_TARGET
   const fqbn = parsed.data.fqbn ?? BOARD_TARGETS[boardTarget].fqbn
-  const { code } = parsed.data
+  const { code, customLibraries } = parsed.data
   const sketchId = crypto.randomUUID()
   const sketchDir = join(tmpdir(), `arduino-sketch-${sketchId}`)
-  const sketchFile = join(sketchDir, "sketch", "sketch.ino")
   const outputDir = join(sketchDir, "output")
 
   try {
-    // Resolve arduino-cli via the toolchain resolver. For API (non-TTY)
-    // contexts, auto-install is gated on DREAMER_AUTO_INSTALL=1 — otherwise
-    // we surface the missing-binary error as a 503 so the client can prompt
-    // its user.
     let arduinoCli: string
     try {
       arduinoCli = await resolveArduinoCli({ install: process.env.DREAMER_AUTO_INSTALL === "1" })
@@ -142,37 +170,47 @@ export const compileRoutes = new Elysia().post("/api/compile", async ({ body, se
       throw err
     }
 
-    // Create the sketch directory structure (arduino-cli requires a directory
-    // containing a .ino file with the same name as the directory)
-    await Bun.write(sketchFile, "")  // ensure parent dirs
-    await writeFile(sketchFile, code)
+    const libsDir = await prepareSketchDir(sketchDir, code, customLibraries)
 
-    log.info(`Compiling sketch ${sketchId}`)
+    log.info(`Compiling sketch ${sketchId}${libsDir ? ` with ${Object.keys(customLibraries).length} custom libs` : ""}`)
 
-    // Compile using arduino-cli
-    const compileResult = await exec([
-      arduinoCli,
-      "compile",
-      "--fqbn",
-      fqbn,
-      "--output-dir",
-      outputDir,
-      join(sketchDir, "sketch"),
-    ])
+    // Bounded auto-install retry loop: on a missing-header error, try to
+    // install the matching third-party library and retry.
+    const MAX_RETRIES = 3
+    const autoInstalled: string[] = []
+    let compileResult = await runCompile(arduinoCli, sketchDir, fqbn, libsDir)
+
+    for (let attempt = 0; attempt < MAX_RETRIES && compileResult.exitCode !== 0; attempt++) {
+      const stderr = compileResult.stderr + compileResult.stdout
+      const missing = extractMissingHeader(stderr)
+      if (!missing) break
+      if (autoInstalled.includes(missing)) break // prevent loop on same header
+
+      log.info(`sketch ${sketchId}: missing header "${missing}.h" — attempting auto-install`)
+      const install = await attemptAutoInstall(missing)
+      if ("reason" in install) {
+        log.info(`sketch ${sketchId}: auto-install skipped — ${install.reason}`)
+        break
+      }
+      log.info(`sketch ${sketchId}: installed "${install.installed}", retrying`)
+      autoInstalled.push(missing)
+      compileResult = await runCompile(arduinoCli, sketchDir, fqbn, libsDir)
+    }
 
     if (compileResult.exitCode !== 0) {
       log.info(`Compilation failed for ${sketchId}: ${compileResult.stderr}`)
       const raw = compileResult.stderr || compileResult.stdout || "Compilation failed"
-      return { error: normalizeCompileError(raw) }
+      return {
+        error: normalizeCompileError(raw),
+        autoInstalled: autoInstalled.length > 0 ? autoInstalled : undefined,
+      }
     }
 
-    // Read the generated .hex file
     const hexFile = join(outputDir, "sketch.ino.hex")
     let hexContent: string
     try {
       hexContent = await readFile(hexFile)
     } catch {
-      // Try alternative name patterns
       const altHexFile = join(outputDir, "sketch.ino.with_bootloader.hex")
       try {
         hexContent = await readFile(altHexFile)
@@ -182,19 +220,19 @@ export const compileRoutes = new Elysia().post("/api/compile", async ({ body, se
       }
     }
 
-    // Extract size info from compiler output
     const sizeInfo = parseSizeInfo(compileResult.stderr + compileResult.stdout)
 
-    log.info(`Compilation succeeded for ${sketchId}`)
-    return { hex: hexContent, sizeInfo }
+    log.info(`Compilation succeeded for ${sketchId}${autoInstalled.length > 0 ? ` (auto-installed: ${autoInstalled.join(", ")})` : ""}`)
+    return {
+      hex: hexContent,
+      sizeInfo,
+      autoInstalled: autoInstalled.length > 0 ? autoInstalled : undefined,
+    }
   } catch (err) {
     log.info(`Compilation error: ${err instanceof Error ? err.message : "unknown"}`)
     set.status = 500
-    return {
-      error: err instanceof Error ? err.message : "Internal compilation error",
-    }
+    return { error: err instanceof Error ? err.message : "Internal compilation error" }
   } finally {
-    // Clean up temp files — platform-neutral.
     try {
       await rm(sketchDir, { recursive: true, force: true })
     } catch {

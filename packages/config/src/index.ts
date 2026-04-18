@@ -14,7 +14,17 @@ export const API_PORT = Number(process.env.API_PORT ?? process.env.PORT ?? 4111)
 
 declare global {
   interface Window {
-    __DREAMER__?: { apiOrigin?: string; appOrigin?: string }
+    __DREAMER__?: {
+      apiOrigin?: string
+      appOrigin?: string
+      /**
+       * When true, the host (typically the CLI's static web UI server)
+       * signals that arduino-cli is guaranteed available and the simulator
+       * should always use AVR mode — skipping the transpiler fallback.
+       * Unset (standalone web app, dev mode) leaves auto-mode untouched.
+       */
+      preferAvr?: boolean
+    }
   }
 }
 
@@ -25,3 +35,7 @@ const runtimeAppOrigin: string | undefined =
 
 export const APP_ORIGIN = runtimeAppOrigin ?? process.env.APP_ORIGIN ?? `http://localhost:${APP_PORT}`
 export const API_ORIGIN = runtimeApiOrigin ?? process.env.API_ORIGIN ?? `http://localhost:${API_PORT}`
+
+/** True when the CLI-embedded static server has explicitly requested AVR-only mode. */
+export const PREFER_AVR: boolean =
+  typeof window !== "undefined" ? window.__DREAMER__?.preferAvr === true : false

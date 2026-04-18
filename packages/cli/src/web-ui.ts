@@ -41,9 +41,14 @@ function contentTypeFor(urlPath: string): string {
 }
 
 function injectRuntimeConfig(html: string, apiOrigin: string, appOrigin: string): string {
-  const script =
-    `<script>window.__DREAMER__=${JSON.stringify({ apiOrigin, appOrigin })};</script>`
-  // Insert immediately after <head> — before any bundle loads.
+  // preferAvr: the CLI binary ships arduino-cli via the toolchain resolver,
+  // so real AVR compilation is always available. Force AVR-mode simulation
+  // instead of auto-picking transpile — produces cycle-accurate output
+  // identical to what `dreamer flash` would put on a physical Uno, and
+  // eliminates the transpile/avr divergence bug class. Only the CLI-served
+  // UI sets this; the standalone web app keeps its transpile fallback.
+  const config = { apiOrigin, appOrigin, preferAvr: true }
+  const script = `<script>window.__DREAMER__=${JSON.stringify(config)};</script>`
   if (html.includes("<head>")) return html.replace("<head>", `<head>${script}`)
   if (html.includes("<html>")) return html.replace("<html>", `<html><head>${script}</head>`)
   return script + html

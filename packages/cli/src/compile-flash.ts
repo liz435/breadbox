@@ -1,6 +1,7 @@
 import { BOARD_TARGETS, DEFAULT_BOARD_TARGET } from "@dreamer/schemas"
-import type { ProjectFile } from "@dreamer/schemas"
+import type { ProjectFile, CustomLibrary } from "@dreamer/schemas"
 import { resolveArduinoCli, ensureArduinoCliCore, ArduinoCliMissingError } from "@dreamer/api/toolchain"
+import { attemptAutoInstall, extractMissingHeader, writeCustomLibraries } from "@dreamer/api/libraries"
 import { tmpdir } from "os"
 import { join } from "path"
 import { rm } from "fs/promises"
@@ -105,12 +106,46 @@ export async function compileSketch(project: ProjectFile): Promise<CompileResult
   try {
     await Bun.write(sketchFile, code)
 
-    const result = await exec([
-      arduinoCli, "compile",
-      "--fqbn", fqbn,
-      "--output-dir", outputDir,
-      join(sketchDir, "sketch"),
-    ])
+    // Custom libraries live in the project file. Write each to
+    // `libs/<Name>/<Name>.h` so arduino-cli can resolve them via
+    // `--libraries <libsDir>`.
+    const customLibs = project.boardState?.customLibraries ?? {}
+    const customLibsEntries = Object.entries(customLibs)
+    let libsDir: string | null = null
+    if (customLibsEntries.length > 0) {
+      libsDir = join(sketchDir, "libs")
+      const payload: Record<string, { name: string; code: string; description?: string }> = {}
+      for (const [key, lib] of customLibsEntries) {
+        const typed = lib as CustomLibrary
+        payload[key] = { name: typed.name, code: typed.code, description: typed.description }
+      }
+      await writeCustomLibraries(libsDir, payload)
+    }
+
+    // Try compile, retry up to MAX_RETRIES times with auto-install of
+    // missing third-party libraries from the Arduino index.
+    const compileArgs = (): string[] => {
+      const args = [
+        arduinoCli, "compile",
+        "--fqbn", fqbn,
+        "--output-dir", outputDir,
+      ]
+      if (libsDir) args.push("--libraries", libsDir)
+      args.push(join(sketchDir, "sketch"))
+      return args
+    }
+
+    const MAX_RETRIES = 3
+    const autoInstalled: string[] = []
+    let result = await exec(compileArgs())
+    for (let attempt = 0; attempt < MAX_RETRIES && result.exitCode !== 0; attempt++) {
+      const missing = extractMissingHeader(result.stderr + result.stdout)
+      if (!missing || autoInstalled.includes(missing)) break
+      const install = await attemptAutoInstall(missing)
+      if ("reason" in install) break
+      autoInstalled.push(missing)
+      result = await exec(compileArgs())
+    }
 
     if (result.exitCode !== 0) {
       return {

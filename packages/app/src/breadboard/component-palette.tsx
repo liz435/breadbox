@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useMemo } from "react";
 import { BOARD_TARGETS, DEFAULT_BOARD_TARGET, type BoardTarget, type ComponentType } from "@dreamer/schemas";
 import { breadboardInteractionActor } from "./breadboard-interaction";
 import { COMPONENT_REGISTRY } from "@/components/registry";
@@ -58,6 +58,12 @@ function handleItemClick(item: PaletteItem) {
   }
 }
 
+function openCommandPalette() {
+  window.dispatchEvent(
+    new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }),
+  );
+}
+
 function PaletteItemButton({
   item,
 }: {
@@ -66,7 +72,7 @@ function PaletteItemButton({
   return (
     <button
       type="button"
-      className="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-neutral-300 hover:bg-neutral-700/60 active:bg-neutral-700"
+      className="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-foreground/90 transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none active:bg-accent/80"
       onClick={() => handleItemClick(item)}
       title={item.description ?? item.label}
     >
@@ -74,7 +80,7 @@ function PaletteItemButton({
       <span className="flex flex-col min-w-0">
         <span className="truncate">{item.label}</span>
         {item.description && (
-          <span className="truncate text-[9px] text-neutral-500 leading-tight hidden group-hover:block">
+          <span className="truncate text-[10px] text-muted-foreground leading-tight hidden group-hover:block">
             {item.description}
           </span>
         )}
@@ -91,25 +97,11 @@ function ComponentPaletteInner() {
   const setBoardTarget = (target: BoardTarget) => {
     send({ type: "SET_BOARD_TARGET", boardTarget: target });
   };
-  const [search, setSearch] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const filtered = useMemo(() => {
-    if (!search.trim()) return ALL_ITEMS;
-    const q = search.toLowerCase();
-    return ALL_ITEMS.filter(
-      (item) =>
-        item.label.toLowerCase().includes(q) ||
-        item.type.toLowerCase().includes(q) ||
-        item.description?.toLowerCase().includes(q) ||
-        item.category.toLowerCase().includes(q),
-    );
-  }, [search]);
 
   // Group by category
   const grouped = useMemo(() => {
     const groups = new Map<string, PaletteItem[]>();
-    for (const item of filtered) {
+    for (const item of ALL_ITEMS) {
       const cat = item.category;
       if (!groups.has(cat)) groups.set(cat, []);
       groups.get(cat)!.push(item);
@@ -119,19 +111,19 @@ function ComponentPaletteInner() {
     return [...groups.entries()].sort(
       (a, b) => order.indexOf(a[0]) - order.indexOf(b[0]),
     );
-  }, [filtered]);
+  }, []);
 
   return (
-    <div className="flex h-full flex-col bg-neutral-800">
+    <div className="flex h-full flex-col bg-card">
       {/* Board Target Selector */}
-      <div className="px-2 pt-2 pb-1">
-        <label className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+      <div className="px-3 py-2 border-b border-border">
+        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Board
         </label>
         <select
           value={activeBoardTarget}
           onChange={(e) => setBoardTarget(e.target.value as BoardTarget)}
-          className="w-full rounded-md border border-neutral-600 bg-neutral-900 px-2.5 py-1.5 text-xs text-neutral-200 outline-none focus:border-blue-500"
+          className="w-full rounded-md border border-border bg-popover px-2 py-1.5 text-xs text-foreground outline-none transition-colors hover:bg-accent focus-visible:border-accent-foreground/40"
           title={`${BOARD_TARGETS[activeBoardTarget].label} • ${BOARD_TARGETS[activeBoardTarget].mcu}`}
         >
           {Object.values(BOARD_TARGETS).map((target) => (
@@ -140,31 +132,33 @@ function ComponentPaletteInner() {
             </option>
           ))}
         </select>
-        <p className="mt-1 px-0.5 text-[9px] text-neutral-500">
+        <p className="mt-1 text-[10px] text-muted-foreground">
           The board is fixed on canvas; switch model here.
         </p>
       </div>
 
-      {/* Search */}
-      <div className="px-2 pb-1">
-        <input
-          ref={inputRef}
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search components..."
-          className="w-full rounded-md border border-neutral-600 bg-neutral-900 px-2.5 py-1.5 text-xs text-neutral-200 placeholder:text-neutral-500 outline-none focus:border-blue-500"
-        />
-      </div>
+      {/* Cmd+K hint */}
+      <button
+        type="button"
+        onClick={openCommandPalette}
+        className="flex items-center justify-between gap-2 border-b border-border px-3 py-1.5 text-[10px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:outline-none"
+      >
+        <span>Search components</span>
+        <span className="flex items-center gap-1">
+          <kbd className="inline-flex min-w-[18px] items-center justify-center rounded border border-border bg-muted px-1 py-0.5 text-[10px] font-medium text-muted-foreground">
+            ⌘
+          </kbd>
+          <kbd className="inline-flex min-w-[18px] items-center justify-center rounded border border-border bg-muted px-1 py-0.5 text-[10px] font-medium text-muted-foreground">
+            K
+          </kbd>
+        </span>
+      </button>
 
       {/* Grouped list */}
-      <div className="flex-1 overflow-y-auto px-2 pb-2">
-        {grouped.length === 0 && (
-          <p className="px-1 pt-2 text-[10px] text-neutral-500">No components match "{search}"</p>
-        )}
+      <div className="flex-1 overflow-y-auto px-2 py-2">
         {grouped.map(([category, items]) => (
-          <div key={category} className="mt-1.5 first:mt-0">
-            <h3 className="mb-0.5 px-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+          <div key={category} className="mt-2 first:mt-0">
+            <h3 className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               {CATEGORY_LABELS[category] ?? category}
             </h3>
             {items.map((item) => (

@@ -1,7 +1,10 @@
 # /learn — Topic Plan
 
-Planning doc for the full learning section. Nothing here is implemented yet.
-When a topic moves from 🟢 → actually written, check it off.
+Planning doc for the full learning section. The Lessons track now spans
+22 lessons covering all component types in the simulator, ranked by difficulty
+(Beginner 1–7, Intermediate 8–15, Advanced 16–22). Each lesson has a
+corresponding board JSON in `learn/boards/` and a TSX file in `learn/lessons/`.
+When a topic moves from planned → actually written, check it off.
 
 ## Structure at a glance
 
@@ -31,9 +34,17 @@ link to it.
 
 ### Already shipped
 
-- ✅ Blink an LED ([01-blink-led](./lessons/blink-led.tsx))
-- ✅ Read a Button ([02-button-led](./lessons/button-led.tsx))
-- ✅ Fade an LED with PWM ([03-fade-led](./lessons/fade-led.tsx))
+All 22 lessons are now live. See `LESSONS` in `learn-layout.tsx` for the full ordered list.
+
+**Beginner (01–07):** Blink an LED, Read a Button, Fade an LED (PWM), RGB LED Color Cycle,
+Control Brightness with a Pot, Current Limiting with a Resistor, Capacitor Charge and Discharge.
+
+**Intermediate (08–15):** Read a Light Sensor, Play a Melody with a Buzzer, Sweep a Servo Motor,
+Read Temperature (TMP36), Measure Distance (HC-SR04), Detect Motion with PIR,
+7-Segment Counter, LCD Hello World.
+
+**Advanced (16–22):** Temp and Humidity (DHT11), Decode IR Remote Signals, Toggle a Relay,
+Control Motor Speed with PWM, LED Chaser with 74HC595, NeoPixel Rainbow, OLED Hello World.
 
 ### 🟢 Phase 1 — next lessons to ship (depends on reference pages landing first)
 

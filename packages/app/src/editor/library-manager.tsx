@@ -4,13 +4,21 @@
 // libraries that are available via #include "name" in their sketches.
 // Includes a "Browse" tab that searches the official Arduino Library Index.
 
-import React, { useState, useCallback, useRef } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import { useBoard } from "@/store/board-context"
-import type { CustomLibrary } from "@dreamer/schemas"
-import { Plus, Trash2, ChevronDown, ChevronRight, Upload, FileCode } from "lucide-react"
+import { API_ORIGIN } from "@dreamer/config"
+import { useCapabilities } from "@/project/use-capabilities"
+import { Plus, Trash2, ChevronDown, ChevronRight, Upload, FileCode, Loader2, Package } from "lucide-react"
 import { LibraryBrowser } from "./library-browser"
 
 const BUILT_IN_LIBS = ["Servo.h", "LiquidCrystal.h", "EEPROM.h", "Wire.h", "SPI.h", "Stepper.h", "Adafruit_NeoPixel.h", "DHT.h", "IRremote.h", "Adafruit_SSD1306.h"]
+
+type InstalledLibrary = {
+  name: string
+  version: string
+  author?: string
+  sentence?: string
+}
 
 function MyLibrariesTab() {
   const { state, send } = useBoard()
@@ -21,6 +29,63 @@ function MyLibrariesTab() {
   const [newLibName, setNewLibName] = useState("")
   const [isAdding, setIsAdding] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { capabilities } = useCapabilities()
+
+  // Installed-via-arduino-cli libraries: fetched from the backend on mount
+  // (and refetched after uninstall). These are separate from `customLibraries`
+  // which are the per-project user-authored libs; installed libs live in
+  // arduino-cli's global cache and are shared across projects.
+  const [installed, setInstalled] = useState<InstalledLibrary[]>([])
+  const [installedLoaded, setInstalledLoaded] = useState(false)
+  const [uninstalling, setUninstalling] = useState<Set<string>>(new Set())
+  const [uninstallError, setUninstallError] = useState<Record<string, string>>({})
+
+  const refreshInstalled = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_ORIGIN}/api/libraries/installed`)
+      if (!res.ok) {
+        setInstalled([])
+        setInstalledLoaded(true)
+        return
+      }
+      const data = (await res.json()) as { libraries?: InstalledLibrary[] }
+      setInstalled(data.libraries ?? [])
+      setInstalledLoaded(true)
+    } catch {
+      setInstalled([])
+      setInstalledLoaded(true)
+    }
+  }, [])
+
+  useEffect(() => { void refreshInstalled() }, [refreshInstalled])
+
+  const handleUninstallInstalled = useCallback(
+    async (name: string) => {
+      setUninstalling((s) => { const next = new Set(s); next.add(name); return next })
+      setUninstallError((e) => { const n = { ...e }; delete n[name]; return n })
+      try {
+        const res = await fetch(`${API_ORIGIN}/api/libraries/uninstall`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name }),
+        })
+        const data = (await res.json()) as { success?: boolean; error?: string }
+        if (!res.ok || !data.success) {
+          setUninstallError((e) => ({ ...e, [name]: data.error ?? `HTTP ${res.status}` }))
+        } else {
+          await refreshInstalled()
+        }
+      } catch (err) {
+        setUninstallError((e) => ({
+          ...e,
+          [name]: err instanceof Error ? err.message : String(err),
+        }))
+      } finally {
+        setUninstalling((s) => { const next = new Set(s); next.delete(name); return next })
+      }
+    },
+    [refreshInstalled],
+  )
 
   const handleAdd = useCallback(() => {
     const name = newLibName.trim()
@@ -139,9 +204,63 @@ function MyLibrariesTab() {
         </div>
       )}
 
+      {/* Installed libraries (via Browse Index → arduino-cli).
+          Hidden in hosted mode: the pre-baked list is identical for every
+          user, doesn't change, and is already visible (greened out) in
+          Browse Index. No point showing it twice. */}
+      {!capabilities.hosted && (
+        <div className="px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-1">
+            Installed <span className="font-normal normal-case text-zinc-600">(from Browse Index)</span>
+          </p>
+          {!installedLoaded ? (
+            <p className="text-[10px] text-zinc-600 italic py-0.5">Loading…</p>
+          ) : installed.length === 0 ? (
+            <p className="text-[10px] text-zinc-600 italic py-0.5">
+              Nothing installed yet — open Browse Index and click the download icon on a library.
+            </p>
+          ) : (
+            installed.map((lib) => {
+              const isUninstalling = uninstalling.has(lib.name)
+              const err = uninstallError[lib.name]
+              return (
+                <div key={lib.name} className="group py-0.5">
+                  <div className="flex items-center gap-2 text-xs">
+                    <Package className="size-3 shrink-0 text-sky-400" />
+                    <span className="text-zinc-300 truncate">{lib.name}</span>
+                    <span className="text-[10px] text-zinc-600 shrink-0">v{lib.version}</span>
+                    <div className="ml-auto shrink-0">
+                      {isUninstalling ? (
+                        <span className="flex items-center text-[10px] text-zinc-500" title="Uninstalling…">
+                          <Loader2 className="size-3 animate-spin" />
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => void handleUninstallInstalled(lib.name)}
+                          className="rounded p-0.5 text-zinc-600 opacity-0 group-hover:opacity-100 hover:bg-red-600/20 hover:text-red-400 transition-opacity"
+                          title={`Uninstall ${lib.name}`}
+                        >
+                          <Trash2 className="size-3" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {err && (
+                    <p className="text-[10px] text-red-400 pl-5 mt-0.5 break-words">{err}</p>
+                  )}
+                </div>
+              )
+            })
+          )}
+        </div>
+      )}
+
       {/* Built-in libraries */}
-      <div className="px-3 py-2">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-1">Built-in</p>
+      <div className="px-3 py-2 border-t border-neutral-700">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-1">
+          Built-in <span className="font-normal normal-case text-zinc-600">(transpile-mode shims)</span>
+        </p>
         {BUILT_IN_LIBS.map((lib) => (
           <div key={lib} className="flex items-center gap-2 py-0.5 text-xs text-zinc-500">
             <FileCode className="size-3 shrink-0" />
@@ -212,23 +331,14 @@ function MyLibrariesTab() {
 }
 
 function LibraryManagerInner() {
-  const [tab, setTab] = useState<"mine" | "browse">("mine")
+  // Default to "browse" — discovery + install is the more common first-time
+  // action; curating your own per-project libraries is secondary.
+  const [tab, setTab] = useState<"browse" | "mine">("browse")
 
   return (
     <div className="flex h-full w-full flex-col bg-[#1e1e1e] text-zinc-300">
       {/* Tab header */}
       <div className="flex border-b border-neutral-700">
-        <button
-          type="button"
-          onClick={() => setTab("mine")}
-          className={`flex-1 px-3 py-1.5 text-xs font-medium ${
-            tab === "mine"
-              ? "text-zinc-200 border-b-2 border-blue-500"
-              : "text-zinc-500 hover:text-zinc-300"
-          }`}
-        >
-          My Libraries
-        </button>
         <button
           type="button"
           onClick={() => setTab("browse")}
@@ -240,10 +350,21 @@ function LibraryManagerInner() {
         >
           Browse Index
         </button>
+        <button
+          type="button"
+          onClick={() => setTab("mine")}
+          className={`flex-1 px-3 py-1.5 text-xs font-medium ${
+            tab === "mine"
+              ? "text-zinc-200 border-b-2 border-blue-500"
+              : "text-zinc-500 hover:text-zinc-300"
+          }`}
+        >
+          My Libraries
+        </button>
       </div>
 
       {/* Tab content */}
-      {tab === "mine" ? <MyLibrariesTab /> : <LibraryBrowser />}
+      {tab === "browse" ? <LibraryBrowser /> : <MyLibrariesTab />}
     </div>
   )
 }
