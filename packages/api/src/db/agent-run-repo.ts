@@ -1,5 +1,6 @@
 import { join } from "path";
 import { mkdir } from "fs/promises";
+import { runsDir as runsDirPath, threadsDir as threadsDirPath } from "../paths";
 import { AGENT_VERSION } from "../agents/version";
 import {
   agentRunFileSchema,
@@ -13,9 +14,8 @@ import {
 } from "./schemas";
 import type { BoardOp } from "@dreamer/schemas";
 
-const DATA_DIR = process.env.DATA_DIR ?? join(import.meta.dir, "../../data");
-const THREADS_DIR = join(DATA_DIR, "threads");
-const RUNS_DIR = join(DATA_DIR, "runs");
+// Path resolution lives in ../paths.ts; called on each access so tests
+// that set DATA_DIR / DREAMER_HOME after this module is imported still work.
 
 function now(): string {
   return new Date().toISOString();
@@ -26,16 +26,16 @@ function createId(): string {
 }
 
 function threadPath(threadId: string): string {
-  return join(THREADS_DIR, `${threadId}.json`);
+  return join(threadsDirPath(), `${threadId}.json`);
 }
 
 function runPath(runId: string): string {
-  return join(RUNS_DIR, `${runId}.json`);
+  return join(runsDirPath(), `${runId}.json`);
 }
 
 async function ensureDirs() {
-  await mkdir(THREADS_DIR, { recursive: true });
-  await mkdir(RUNS_DIR, { recursive: true });
+  await mkdir(threadsDirPath(), { recursive: true });
+  await mkdir(runsDirPath(), { recursive: true });
 }
 
 async function readThread(threadId: string): Promise<ProjectThreadFile | null> {

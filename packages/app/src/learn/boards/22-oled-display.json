@@ -1,0 +1,55 @@
+{
+  "components": {
+    "oled-1": {
+      "id": "oled-1",
+      "type": "oled_display",
+      "name": "OLED 128x64",
+      "x": 7,
+      "y": 5,
+      "rotation": 0,
+      "pins": {
+        "sda": null,
+        "scl": null
+      },
+      "properties": {}
+    }
+  },
+  "wires": {
+    "wire-a4-sda": {
+      "id": "wire-a4-sda",
+      "fromRow": -999,
+      "fromCol": 18,
+      "toRow": 5,
+      "toCol": 7,
+      "color": "#3b82f6"
+    },
+    "wire-a5-scl": {
+      "id": "wire-a5-scl",
+      "fromRow": -999,
+      "fromCol": 19,
+      "toRow": 6,
+      "toCol": 7,
+      "color": "#a855f7"
+    },
+    "wire-5v": {
+      "id": "wire-5v",
+      "fromRow": -999,
+      "fromCol": -1,
+      "toRow": 7,
+      "toCol": 7,
+      "color": "#ef4444"
+    },
+    "wire-gnd": {
+      "id": "wire-gnd",
+      "fromRow": -999,
+      "fromCol": -3,
+      "toRow": 8,
+      "toCol": 7,
+      "color": "#1a1a1a"
+    }
+  },
+  "libraryState": { "servos": {}, "lcd": null, "serialBaud": 0 },
+  "serialOutput": [],
+  "sketchCode": "// Example: OLED Display Hello World\n// Display text on a 128x64 I2C OLED (SSD1306).\n\n#include <Wire.h>\n#include <Adafruit_SSD1306.h>\n\n#define SCREEN_WIDTH 128\n#define SCREEN_HEIGHT 64\n#define OLED_RESET -1\n\nAdafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);\n\nvoid setup() {\n  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);\n  display.clearDisplay();\n  display.setTextSize(2);\n  display.setTextColor(SSD1306_WHITE);\n  display.setCursor(10, 20);\n  display.println(\"Hello!\");\n  display.display();\n}\n\nvoid loop() {\n}\n",
+  "customLibraries": {}
+}

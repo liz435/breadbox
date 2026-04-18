@@ -7,23 +7,20 @@ import { readdir, readFile, writeFile, mkdir } from "fs/promises"
 import { join } from "path"
 import type { RunFile, RunEval, EvalSummary, CategoryAggregate, RunCategory } from "./types"
 import { evaluateRun } from "./run-evaluator"
-
-const DATA_DIR = process.env.DATA_DIR ?? join(import.meta.dir, "../../data")
-const RUNS_DIR = join(DATA_DIR, "runs")
-const TESTS_DIR = join(DATA_DIR, "tests")
+import { runsDir, testsDir } from "../paths"
 
 export async function runBatchEval(): Promise<{ evals: RunEval[]; summary: EvalSummary }> {
-  await mkdir(TESTS_DIR, { recursive: true })
+  await mkdir(testsDir(), { recursive: true })
 
   // Read all run files
-  const files = await readdir(RUNS_DIR).catch(() => [] as string[])
+  const files = await readdir(runsDir()).catch(() => [] as string[])
   const runFiles = files.filter(f => f.endsWith(".json"))
 
   const evals: RunEval[] = []
 
   for (const file of runFiles) {
     try {
-      const raw = await readFile(join(RUNS_DIR, file), "utf-8")
+      const raw = await readFile(join(runsDir(), file), "utf-8")
       const run = JSON.parse(raw) as RunFile
       if (run.run.status !== "completed") continue
 
@@ -32,7 +29,7 @@ export async function runBatchEval(): Promise<{ evals: RunEval[]; summary: EvalS
 
       // Write per-run eval
       await writeFile(
-        join(TESTS_DIR, `${eval_.runId}.json`),
+        join(testsDir(), `${eval_.runId}.json`),
         JSON.stringify(eval_, null, 2),
       )
     } catch {
@@ -43,7 +40,7 @@ export async function runBatchEval(): Promise<{ evals: RunEval[]; summary: EvalS
   // Build summary
   const summary = buildSummary(evals)
   await writeFile(
-    join(TESTS_DIR, "summary.json"),
+    join(testsDir(), "summary.json"),
     JSON.stringify(summary, null, 2),
   )
 
@@ -51,15 +48,15 @@ export async function runBatchEval(): Promise<{ evals: RunEval[]; summary: EvalS
 }
 
 export async function evaluateSingleRun(runId: string): Promise<RunEval | null> {
-  await mkdir(TESTS_DIR, { recursive: true })
+  await mkdir(testsDir(), { recursive: true })
 
   try {
-    const raw = await readFile(join(RUNS_DIR, `${runId}.json`), "utf-8")
+    const raw = await readFile(join(runsDir(), `${runId}.json`), "utf-8")
     const run = JSON.parse(raw) as RunFile
     const eval_ = evaluateRun(run)
 
     await writeFile(
-      join(TESTS_DIR, `${eval_.runId}.json`),
+      join(testsDir(), `${eval_.runId}.json`),
       JSON.stringify(eval_, null, 2),
     )
 
@@ -71,7 +68,7 @@ export async function evaluateSingleRun(runId: string): Promise<RunEval | null> 
 
 export async function readEvalSummary(): Promise<EvalSummary | null> {
   try {
-    const raw = await readFile(join(TESTS_DIR, "summary.json"), "utf-8")
+    const raw = await readFile(join(testsDir(), "summary.json"), "utf-8")
     return JSON.parse(raw) as EvalSummary
   } catch {
     return null
@@ -80,7 +77,7 @@ export async function readEvalSummary(): Promise<EvalSummary | null> {
 
 export async function readRunEval(runId: string): Promise<RunEval | null> {
   try {
-    const raw = await readFile(join(TESTS_DIR, `${runId}.json`), "utf-8")
+    const raw = await readFile(join(testsDir(), `${runId}.json`), "utf-8")
     return JSON.parse(raw) as RunEval
   } catch {
     return null

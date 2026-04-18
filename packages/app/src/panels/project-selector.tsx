@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useProject } from "@/project/project-context"
 import {
   listProjects,
@@ -7,7 +7,7 @@ import {
   type ProjectSummary,
 } from "@/project/api-client"
 import { saveProjectId } from "@/project/project-context"
-import { Plus, ChevronDown, Loader2, Trash2 } from "lucide-react"
+import { Plus, ChevronDown, Loader2, Trash2, Check, Folder } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "@/components/ui/toast"
 
@@ -18,17 +18,8 @@ export function ProjectSelector() {
   const [isLoading, setIsLoading] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
-  const [showEmptyProjects, setShowEmptyProjects] = useState(false)
 
   const currentProject = projects.find((p) => p.id === projectId)
-  const visibleProjects = useMemo(
-    () =>
-      projects.filter((p) => {
-        if (p.id === projectId) return true
-        return showEmptyProjects || p.hasContent
-      }),
-    [projects, projectId, showEmptyProjects],
-  )
 
   const refresh = useCallback(() => {
     setIsLoading(true)
@@ -101,18 +92,19 @@ export function ProjectSelector() {
     <div className="relative">
       <button
         type="button"
-        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium hover:bg-accent transition-colors rounded w-full"
+        className="flex w-full items-center gap-2 rounded px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
         onClick={() => {
           if (!isOpen) refresh()
           setIsOpen((v) => !v)
         }}
       >
-        <span className="flex-1 text-left truncate">
+        <Folder className="size-3 shrink-0 text-muted-foreground" />
+        <span className="flex-1 truncate text-left">
           {currentProject?.name ?? "Loading..."}
         </span>
         <ChevronDown
           className={cn(
-            "size-3 text-muted-foreground transition-transform",
+            "size-3 shrink-0 text-muted-foreground transition-transform",
             isOpen && "rotate-180",
           )}
         />
@@ -127,95 +119,92 @@ export function ProjectSelector() {
               setConfirmDeleteId(null)
             }}
           />
-          <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-md border border-border bg-popover shadow-lg overflow-hidden">
+          <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-md border border-border bg-popover shadow-lg">
             {isLoading ? (
-              <div className="flex items-center justify-center py-4">
+              <div className="flex items-center justify-center py-6">
                 <Loader2 className="size-4 animate-spin text-muted-foreground" />
               </div>
+            ) : projects.length === 0 ? (
+              <div className="px-3 py-6 text-center text-[11px] text-muted-foreground">
+                No projects yet
+              </div>
             ) : (
-              <div className="max-h-48 overflow-auto">
-                {visibleProjects.map((p) => (
-                  <div
-                    key={p.id}
-                    className={cn(
-                      "flex items-center gap-1 w-full px-3 py-1.5 text-xs hover:bg-accent transition-colors group",
-                      p.id === projectId && "bg-accent text-accent-foreground",
-                    )}
-                  >
-                    {confirmDeleteId === p.id ? (
-                      <>
-                        <span className="flex-1 truncate text-destructive">
-                          Delete "{p.name}"?
-                        </span>
-                        <button
-                          type="button"
-                          className="px-1.5 py-0.5 text-[10px] rounded bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                          onClick={() => handleDelete(p.id)}
-                        >
-                          Yes
-                        </button>
-                        <button
-                          type="button"
-                          className="px-1.5 py-0.5 text-[10px] rounded hover:bg-accent-foreground/10"
-                          onClick={() => setConfirmDeleteId(null)}
-                        >
-                          No
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          className="flex-1 text-left truncate"
-                          onClick={() => handleSelect(p.id)}
-                        >
-                          {p.name}
-                        </button>
-                        {p.id === projectId && (
-                          <span className="text-muted-foreground">current</span>
-                        )}
-                        <button
-                          type="button"
-                          className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-destructive/20 hover:text-destructive transition-opacity"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setConfirmDeleteId(p.id)
-                          }}
-                        >
-                          <Trash2 className="size-3" />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                ))}
-                {projects.length > visibleProjects.length && (
-                  <div className="px-3 py-1 text-[10px] text-muted-foreground">
-                    {projects.length - visibleProjects.length} empty project(s) hidden
-                  </div>
-                )}
+              <div className="max-h-48 overflow-auto py-1">
+                {projects.map((p) => {
+                  const isCurrent = p.id === projectId
+                  const isConfirming = confirmDeleteId === p.id
+                  return (
+                    <div
+                      key={p.id}
+                      className={cn(
+                        "group flex h-8 w-full items-center gap-2 px-3 text-xs transition-colors",
+                        !isConfirming && "hover:bg-accent",
+                        isCurrent && !isConfirming && "bg-accent",
+                      )}
+                    >
+                      {isConfirming ? (
+                        <>
+                          <span className="flex-1 truncate text-[11px] text-destructive">
+                            Delete &ldquo;{p.name}&rdquo;?
+                          </span>
+                          <button
+                            type="button"
+                            className="rounded bg-destructive px-2 py-0.5 text-[11px] font-medium text-destructive-foreground transition-colors hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            onClick={() => handleDelete(p.id)}
+                          >
+                            Yes
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded border border-border px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            onClick={() => setConfirmDeleteId(null)}
+                          >
+                            No
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="flex size-3 shrink-0 items-center justify-center">
+                            {isCurrent && (
+                              <Check className="size-3 text-foreground" />
+                            )}
+                          </span>
+                          <button
+                            type="button"
+                            className="flex-1 truncate text-left focus-visible:outline-none"
+                            onClick={() => handleSelect(p.id)}
+                          >
+                            {p.name}
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Delete ${p.name}`}
+                            className="flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring group-hover:opacity-100"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setConfirmDeleteId(p.id)
+                            }}
+                          >
+                            <Trash2 className="size-3" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
-            <div className="border-t border-border px-3 py-1.5">
-              <label className="flex items-center gap-2 text-[10px] text-muted-foreground cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showEmptyProjects}
-                  onChange={(e) => setShowEmptyProjects(e.target.checked)}
-                />
-                Show empty projects
-              </label>
-            </div>
             <div className="border-t border-border">
               <button
                 type="button"
-                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs hover:bg-accent transition-colors disabled:opacity-50"
+                className="group flex w-full items-center gap-2 px-3 py-2 text-xs font-medium transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none disabled:opacity-50"
                 onClick={handleCreate}
                 disabled={isCreating}
               >
                 {isCreating ? (
-                  <Loader2 className="size-3 animate-spin" />
+                  <Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" />
                 ) : (
-                  <Plus className="size-3" />
+                  <Plus className="size-3 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
                 )}
                 <span>New Project</span>
               </button>

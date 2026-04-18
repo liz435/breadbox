@@ -12,7 +12,9 @@
 //   { type: "reconnecting" }            → onReconnecting (board reset after flash)
 //   { type: "error",        error }     → onError
 
-const API_BASE = "http://localhost:4111"
+import { API_ORIGIN } from "@dreamer/config"
+
+const API_BASE = API_ORIGIN
 
 export type TelemetryFrame = {
   ts: number

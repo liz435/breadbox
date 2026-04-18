@@ -40,6 +40,8 @@ export type CoreAgentStream = {
   getPlan: () => AgentPlan | undefined
   /** Planner token usage, for overhead attribution. */
   getPlannerUsage: () => PlannerUsage | undefined
+  /** Abort the in-flight streamText call. Used to wire Ctrl+C / user cancellation. */
+  abort: (reason?: string) => void
 }
 
 // ── Tool result compaction (used by prepareStep) ────────────────────────
@@ -705,6 +707,12 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
     collectResult,
     getPlan: () => plan,
     getPlannerUsage: () => plannerUsage,
+    abort: (reason?: string) => {
+      if (!abortController.signal.aborted) {
+        log.info(`aborting stream${reason ? ` (${reason})` : ""}`);
+        abortController.abort(reason);
+      }
+    },
   };
 }
 

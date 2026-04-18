@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Pencil, Sparkles } from "lucide-react"
+import { Pencil, Sparkles, Cloud } from "lucide-react"
 import { ToggleGroup } from "@/components/ui/toggle-group"
 import { Toggle } from "@/components/ui/toggle"
 import { Separator } from "@/components/ui/separator"
@@ -10,6 +10,26 @@ import { PlayControls } from "./play-controls"
 import { BoardStatus } from "./board-status"
 import { AiToolbarHistory } from "./ai-toolbar"
 import { useChatMessages } from "./use-chat-messages"
+import { useCapabilities } from "@/project/use-capabilities"
+
+/**
+ * Small indicator shown in hosted (Railway/etc) deployments. Same React
+ * bundle ships in the CLI binary — this component renders nothing there.
+ * The pill tells power users why the library Download button is missing
+ * and gives a subtle path toward the local CLI for full features.
+ */
+function HostedIndicator() {
+  const { capabilities } = useCapabilities()
+  if (!capabilities.hosted) return null
+  return (
+    <span
+      className="flex items-center gap-1 rounded-md bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400"
+      title="Running on a hosted server. Libraries are pre-installed and fixed. Download the Dreamer CLI for the full library index."
+    >
+      <Cloud className="size-3" /> Hosted
+    </span>
+  )
+}
 
 type ToolbarMode = "edit" | "ai"
 
@@ -65,6 +85,7 @@ export function BottomToolbar() {
               <PlayControls />
               <Separator orientation="vertical" className="h-6" />
               <BoardStatus />
+              <HostedIndicator />
             </div>
           ) : (
             <PromptBox

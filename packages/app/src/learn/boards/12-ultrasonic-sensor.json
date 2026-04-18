@@ -1,0 +1,57 @@
+{
+  "components": {
+    "ultrasonic-1": {
+      "id": "ultrasonic-1",
+      "type": "ultrasonic_sensor",
+      "name": "HC-SR04",
+      "x": 7,
+      "y": 5,
+      "rotation": 0,
+      "pins": {
+        "trigger": null,
+        "echo": null,
+        "vcc": null,
+        "gnd": null
+      },
+      "properties": {}
+    }
+  },
+  "wires": {
+    "wire-5v": {
+      "id": "wire-5v",
+      "fromRow": -999,
+      "fromCol": -1,
+      "toRow": 7,
+      "toCol": 7,
+      "color": "#ef4444"
+    },
+    "wire-d7-trig": {
+      "id": "wire-d7-trig",
+      "fromRow": -999,
+      "fromCol": 7,
+      "toRow": 5,
+      "toCol": 7,
+      "color": "#fbbf24"
+    },
+    "wire-d8-echo": {
+      "id": "wire-d8-echo",
+      "fromRow": -999,
+      "fromCol": 8,
+      "toRow": 6,
+      "toCol": 7,
+      "color": "#3b82f6"
+    },
+    "wire-gnd": {
+      "id": "wire-gnd",
+      "fromRow": -999,
+      "fromCol": -3,
+      "toRow": 8,
+      "toCol": 7,
+      "color": "#1a1a1a"
+    }
+  },
+  "libraryState": { "servos": {}, "lcd": null, "serialBaud": 0 },
+  "serialOutput": [],
+  "sketchCode": "// Example: Ultrasonic Distance Sensor\n// Measure distance with HC-SR04 on pins 7 (trig) and 8 (echo).\n\nint trigPin = 7;\nint echoPin = 8;\n\nvoid setup() {\n  Serial.begin(9600);\n  pinMode(trigPin, OUTPUT);\n  pinMode(echoPin, INPUT);\n}\n\nvoid loop() {\n  digitalWrite(trigPin, LOW);\n  delayMicroseconds(2);\n  digitalWrite(trigPin, HIGH);\n  delayMicroseconds(10);\n  digitalWrite(trigPin, LOW);\n  long duration = pulseIn(echoPin, HIGH);\n  float cm = duration * 0.034 / 2.0;\n  Serial.print(\"Distance: \");\n  Serial.print(cm);\n  Serial.println(\" cm\");\n  delay(500);\n}\n",
+  "customLibraries": {}
+}

@@ -28,6 +28,7 @@ import { BreadboardCanvas } from "@/breadboard/breadboard-canvas"
 import { BoardContext, useBoardSelector } from "@/store/board-context"
 import { useSimulation } from "@/simulator/simulation-loop"
 import { SchematicPanel } from "@/schematic/schematic-panel"
+import { highlight } from "@/utils/syntax-highlight"
 import { boardCatalog } from "./board-catalog"
 
 export type EmbedPanel = "code" | "schematic" | "serial"
@@ -274,14 +275,14 @@ function EmbedControls({ status, onPlay, onPause, onStop, openInIdeHref }: Contr
 
 function PlayIcon() {
   return (
-    <svg viewBox="0 0 16 16" width={12} height={12} fill="currentColor">
+    <svg viewBox="0 0 16 16" width={12} height={12} fill="currentColor" aria-hidden="true" focusable="false">
       <path d="M4 3l10 5-10 5z" />
     </svg>
   )
 }
 function PauseIcon() {
   return (
-    <svg viewBox="0 0 16 16" width={12} height={12} fill="currentColor">
+    <svg viewBox="0 0 16 16" width={12} height={12} fill="currentColor" aria-hidden="true" focusable="false">
       <rect x={4} y={3} width={3} height={10} />
       <rect x={9} y={3} width={3} height={10} />
     </svg>
@@ -289,7 +290,7 @@ function PauseIcon() {
 }
 function StopIcon() {
   return (
-    <svg viewBox="0 0 16 16" width={12} height={12} fill="currentColor">
+    <svg viewBox="0 0 16 16" width={12} height={12} fill="currentColor" aria-hidden="true" focusable="false">
       <rect x={3} y={3} width={10} height={10} />
     </svg>
   )
@@ -304,7 +305,7 @@ function CodeViewPanel({ sketchCode }: { sketchCode: string }) {
         Sketch
       </div>
       <pre className="flex-1 overflow-auto px-3 py-2 text-[11px] leading-[1.5] text-neutral-300 font-mono">
-        <code>{sketchCode}</code>
+        <code className="language-cpp">{highlight(sketchCode, "cpp")}</code>
       </pre>
     </div>
   )

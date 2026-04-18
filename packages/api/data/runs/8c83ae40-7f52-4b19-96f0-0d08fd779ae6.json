@@ -1,0 +1,49 @@
+{
+  "run": {
+    "id": "8c83ae40-7f52-4b19-96f0-0d08fd779ae6",
+    "threadId": "cli-thread-d01ccd74-6069-48eb-ae1c-c24a0dfa9246",
+    "projectId": "d01ccd74-6069-48eb-ae1c-c24a0dfa9246",
+    "sceneId": "f06f1a27-16a7-42df-ac98-b5dec3a2ba1c",
+    "sessionId": "cli-once-1776471274310",
+    "agent": "core",
+    "status": "running",
+    "createdAt": "2026-04-18T00:14:34.315Z",
+    "agentVersion": "1.2.1",
+    "agentSnapshotVersion": "1.2.1"
+  },
+  "prompt": "blink an LED",
+  "messages": [],
+  "proposedOps": [],
+  "appliedOps": [],
+  "routing": {
+    "model": "claude-haiku-4-5-20251001",
+    "toolMode": "build",
+    "domain": "breadboard",
+    "requestType": "additive",
+    "complexity": "complex",
+    "reasons": [
+      "experiment: all-Haiku override",
+      "empty board → build mode (propose_circuit)"
+    ],
+    "signals": {
+      "boardComponentCount": 0,
+      "graphNodeCount": 0,
+      "promptLength": 12,
+      "recentFailures": 0,
+      "componentsMentioned": 0
+    },
+    "availableTools": [
+      "analyze_power_budget",
+      "get_board_overview",
+      "get_board_state",
+      "get_component_details",
+      "get_sketch_code",
+      "get_wiring_guide",
+      "list_components",
+      "list_wires",
+      "patch_sketch",
+      "propose_circuit",
+      "update_sketch"
+    ]
+  }
+}

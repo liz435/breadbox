@@ -147,11 +147,17 @@ This is the full set of files you need to touch for a brand-new lesson.
        board: "04-my-lesson",
        title: "My Lesson Title",
        summary: "One-line summary shown in the sidebar.",
+       difficulty: "beginner", // "beginner" | "intermediate" | "advanced"
      },
    ] as const
    ```
    The order of this array is the order of the sidebar and of the
    "Next" link at the bottom of each lesson.
+
+   Place new lessons in the correct difficulty tier. Tiers currently:
+   - **Beginner** — core digital I/O, passive components, PWM basics (lessons 01–07)
+   - **Intermediate** — analog sensors, actuators, simple libraries (lessons 08–15)
+   - **Advanced** — multi-device protocols, power electronics, addressable LEDs (lessons 16–22)
 
 6. **Verify.** `bun run typecheck`, open `/learn/my-lesson` in the app,
    click Play, confirm the circuit runs as expected.
@@ -159,6 +165,28 @@ This is the full set of files you need to touch for a brand-new lesson.
 That's the entire checklist. No other files should need changes.
 
 ## Writing a lesson page
+
+### Difficulty field and badge
+
+Every lesson in `LESSONS` has a `difficulty` field (`"beginner"` | `"intermediate"` |
+`"advanced"`). This drives two UI treatments automatically:
+
+1. **Sidebar badge** — a compact single-letter pill (B / I / A) appears to the right
+   of the lesson title in emerald / amber / rose tones. It is rendered inside
+   `LessonLink` in `learn-layout.tsx` — no work needed from the author.
+
+2. **Lesson page badge** — pass `<DifficultyBadge>` to `PageTitle`'s `badge` prop:
+   ```tsx
+   import { DifficultyBadge } from "@/learn/learn-layout"
+
+   <PageTitle
+     title="My Lesson"
+     subtitle="One-line description."
+     badge={<DifficultyBadge difficulty="beginner" />}
+   />
+   ```
+   The badge renders inline next to the `<h1>` inside `PageTitle`'s existing
+   `badge` slot. Do not add it as a separate sibling element.
 
 ### Available primitives
 
@@ -168,7 +196,7 @@ vocabulary):
 
 | Primitive | Use for |
 |---|---|
-| `<PageTitle title subtitle>` | Page header. Always the first child. |
+| `<PageTitle title subtitle badge?>` | Page header. Always the first child. Pass `<DifficultyBadge>` to the `badge` prop. |
 | `<Section title>` | A titled prose block. Group every paragraph in one. |
 | `<Note>` | Friendly aside — tips, clarifications. Rendered with a neutral box. |
 | `<Warn>` | Things the reader should pay attention to (polarity, safety). |

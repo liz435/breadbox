@@ -284,7 +284,7 @@ async function completeTemplateTurn(params: {
     expectedVersion: currentExpectedVersion(project),
     ops: templateOps,
   });
-  deps.boardTracker.applyOps(projectId, templateOps, project.boardState);
+  await deps.boardTracker.applyOps(projectId, templateOps, project.boardState);
 
   await deps.agentRunRepo.completeRun({
     runId,
@@ -386,7 +386,7 @@ async function completeAgentTurn(params: {
     });
     if (applyResult) {
       appliedOps = applyResult.appliedOps;
-      deps.boardTracker.applyOps(projectId, appliedOps, project.boardState);
+      await deps.boardTracker.applyOps(projectId, appliedOps, project.boardState);
     }
   }
 
