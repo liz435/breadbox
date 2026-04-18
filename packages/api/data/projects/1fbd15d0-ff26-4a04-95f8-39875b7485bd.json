@@ -4,7 +4,7 @@
     "name": "silk-lion-cube",
     "version": 4,
     "createdAt": "2026-04-15T19:22:16.870Z",
-    "updatedAt": "2026-04-16T19:28:23.808Z",
+    "updatedAt": "2026-04-18T00:29:26.912Z",
     "threadId": "2df2e40d-2bf1-45f6-94c2-3d88eaa6e354",
     "activeSceneId": "cc0e6592-cc78-43da-8e68-d5cdd5181350"
   },
@@ -203,31 +203,21 @@
           "resistance": 220
         }
       },
-      "76c18aff-483c-4181-902a-13d7cb1da606": {
-        "id": "76c18aff-483c-4181-902a-13d7cb1da606",
-        "type": "button",
-        "name": "BTN_UP",
-        "x": 3,
+      "18e8e684-b38b-405b-9518-0736307df00d": {
+        "id": "18e8e684-b38b-405b-9518-0736307df00d",
+        "type": "potentiometer",
+        "name": "POT",
+        "x": 2,
         "y": 10,
         "rotation": 0,
         "pins": {
-          "a": null,
-          "b": null
+          "vcc": null,
+          "signal": null,
+          "gnd": null
         },
-        "properties": {}
-      },
-      "1c2ff9cf-7dc7-47ec-aec5-531a620dc241": {
-        "id": "1c2ff9cf-7dc7-47ec-aec5-531a620dc241",
-        "type": "button",
-        "name": "BTN_DOWN",
-        "x": 3,
-        "y": 14,
-        "rotation": 0,
-        "pins": {
-          "a": null,
-          "b": null
-        },
-        "properties": {}
+        "properties": {
+          "value": 26
+        }
       }
     },
     "wires": {
@@ -359,37 +349,29 @@
         "toCol": 5,
         "color": "#ec4899"
       },
-      "bbe390dc-ef45-43fe-b00d-21342cf07344": {
-        "id": "bbe390dc-ef45-43fe-b00d-21342cf07344",
+      "8c3cd3de-0c34-4c0f-9510-6d4c51a4b9e0": {
+        "id": "8c3cd3de-0c34-4c0f-9510-6d4c51a4b9e0",
         "fromRow": -999,
-        "fromCol": 9,
-        "toRow": 10,
-        "toCol": 3,
-        "color": "#22c55e"
+        "fromCol": 14,
+        "toRow": 11,
+        "toCol": 2,
+        "color": "#eab308"
       },
-      "c83970a2-d0fe-4532-9984-5d69b0a5e771": {
-        "id": "c83970a2-d0fe-4532-9984-5d69b0a5e771",
-        "fromRow": 10,
+      "5214b307-b3e3-41bf-a6ec-2c8ed1bc6f3d": {
+        "id": "5214b307-b3e3-41bf-a6ec-2c8ed1bc6f3d",
+        "fromRow": -999,
         "fromCol": -1,
         "toRow": 10,
-        "toCol": 6,
-        "color": "#1e293b"
+        "toCol": 2,
+        "color": "#ef4444"
       },
-      "bdf071b8-4391-469a-b61a-50617ffff96c": {
-        "id": "bdf071b8-4391-469a-b61a-50617ffff96c",
-        "fromRow": 14,
-        "fromCol": -1,
-        "toRow": 14,
-        "toCol": 6,
-        "color": "#1e293b"
-      },
-      "83be9a4b-3109-4f66-a62d-127ddb940522": {
-        "id": "83be9a4b-3109-4f66-a62d-127ddb940522",
+      "8d63bdb7-57bb-4d6a-84f3-7c9f0e9c6d55": {
+        "id": "8d63bdb7-57bb-4d6a-84f3-7c9f0e9c6d55",
         "fromRow": -999,
-        "fromCol": 10,
-        "toRow": 14,
-        "toCol": 3,
-        "color": "#3b82f6"
+        "fromCol": -3,
+        "toRow": 12,
+        "toCol": 2,
+        "color": "#1e293b"
       }
     },
     "libraryState": {
@@ -398,7 +380,7 @@
       "serialBaud": 0
     },
     "serialOutput": [],
-    "sketchCode": "// 7-Segment Counter with 2 Buttons (0-9)\n// Button UP (D9): increment counter\n// Button DOWN (D10): decrement counter\n// Range: 0-9 (clamps at limits)\n\nconst int segA = 2;\nconst int segB = 3;\nconst int segC = 4;\nconst int segD = 5;\nconst int segE = 6;\nconst int segF = 7;\nconst int segG = 8;\n\nconst int btnUp = 9;\nconst int btnDown = 10;\n\nint counter = 0;\nint lastBtnUpState = HIGH;\nint lastBtnDownState = HIGH;\n\nvoid setup() {\n  pinMode(segA, OUTPUT);\n  pinMode(segB, OUTPUT);\n  pinMode(segC, OUTPUT);\n  pinMode(segD, OUTPUT);\n  pinMode(segE, OUTPUT);\n  pinMode(segF, OUTPUT);\n  pinMode(segG, OUTPUT);\n  \n  pinMode(btnUp, INPUT_PULLUP);\n  pinMode(btnDown, INPUT_PULLUP);\n  \n  displayDigit(counter);\n}\n\nvoid loop() {\n  int btnUpState = digitalRead(btnUp);\n  int btnDownState = digitalRead(btnDown);\n  \n  // Detect LOW→HIGH transition (button release)\n  if (btnUpState == HIGH && lastBtnUpState == LOW) {\n    if (counter < 9) {\n      counter++;\n    }\n    displayDigit(counter);\n    delay(20);\n  }\n  \n  if (btnDownState == HIGH && lastBtnDownState == LOW) {\n    if (counter > 0) {\n      counter--;\n    }\n    displayDigit(counter);\n    delay(20);\n  }\n  \n  lastBtnUpState = btnUpState;\n  lastBtnDownState = btnDownState;\n}\n\nvoid displayDigit(int n) {\n  // Turn off all segments first\n  digitalWrite(segA, LOW);\n  digitalWrite(segB, LOW);\n  digitalWrite(segC, LOW);\n  digitalWrite(segD, LOW);\n  digitalWrite(segE, LOW);\n  digitalWrite(segF, LOW);\n  digitalWrite(segG, LOW);\n  \n  // Display digit 0-9\n  if (n == 0) {\n    digitalWrite(segA, HIGH);\n    digitalWrite(segB, HIGH);\n    digitalWrite(segC, HIGH);\n    digitalWrite(segD, HIGH);\n    digitalWrite(segE, HIGH);\n    digitalWrite(segF, HIGH);\n  } else if (n == 1) {\n    digitalWrite(segB, HIGH);\n    digitalWrite(segC, HIGH);\n  } else if (n == 2) {\n    digitalWrite(segA, HIGH);\n    digitalWrite(segB, HIGH);\n    digitalWrite(segD, HIGH);\n    digitalWrite(segE, HIGH);\n    digitalWrite(segG, HIGH);\n  } else if (n == 3) {\n    digitalWrite(segA, HIGH);\n    digitalWrite(segB, HIGH);\n    digitalWrite(segC, HIGH);\n    digitalWrite(segD, HIGH);\n    digitalWrite(segG, HIGH);\n  } else if (n == 4) {\n    digitalWrite(segB, HIGH);\n    digitalWrite(segC, HIGH);\n    digitalWrite(segF, HIGH);\n    digitalWrite(segG, HIGH);\n  } else if (n == 5) {\n    digitalWrite(segA, HIGH);\n    digitalWrite(segC, HIGH);\n    digitalWrite(segD, HIGH);\n    digitalWrite(segF, HIGH);\n    digitalWrite(segG, HIGH);\n  } else if (n == 6) {\n    digitalWrite(segA, HIGH);\n    digitalWrite(segC, HIGH);\n    digitalWrite(segD, HIGH);\n    digitalWrite(segE, HIGH);\n    digitalWrite(segF, HIGH);\n    digitalWrite(segG, HIGH);\n  } else if (n == 7) {\n    digitalWrite(segA, HIGH);\n    digitalWrite(segB, HIGH);\n    digitalWrite(segC, HIGH);\n  } else if (n == 8) {\n    digitalWrite(segA, HIGH);\n    digitalWrite(segB, HIGH);\n    digitalWrite(segC, HIGH);\n    digitalWrite(segD, HIGH);\n    digitalWrite(segE, HIGH);\n    digitalWrite(segF, HIGH);\n    digitalWrite(segG, HIGH);\n  } else if (n == 9) {\n    digitalWrite(segA, HIGH);\n    digitalWrite(segB, HIGH);\n    digitalWrite(segC, HIGH);\n    digitalWrite(segD, HIGH);\n    digitalWrite(segF, HIGH);\n    digitalWrite(segG, HIGH);\n  }\n}",
+    "sketchCode": "// 7-segment display controlled by potentiometer\n// Pot on A0: 0-1023 → displays 0-9\n\nint potPin = 14;        // A0\nint segA = 2;\nint segB = 3;\nint segC = 4;\nint segD = 5;\nint segE = 6;\nint segF = 7;\nint segG = 8;\n\nvoid setup() {\n  pinMode(potPin, INPUT);\n  pinMode(segA, OUTPUT);\n  pinMode(segB, OUTPUT);\n  pinMode(segC, OUTPUT);\n  pinMode(segD, OUTPUT);\n  pinMode(segE, OUTPUT);\n  pinMode(segF, OUTPUT);\n  pinMode(segG, OUTPUT);\n}\n\nvoid loop() {\n  int potValue = analogRead(potPin);   // 0-1023\n  int digit = potValue / 102;          // Map to 0-9\n  if (digit > 9) digit = 9;\n  displayDigit(digit);\n  delay(50);\n}\n\nvoid displayDigit(int n) {\n  int a, b, c, d, e, f, g;\n  \n  if (n == 0) {\n    a = 1; b = 1; c = 1; d = 1; e = 1; f = 1; g = 0;\n  } else if (n == 1) {\n    a = 0; b = 1; c = 1; d = 0; e = 0; f = 0; g = 0;\n  } else if (n == 2) {\n    a = 1; b = 1; c = 0; d = 1; e = 1; f = 0; g = 1;\n  } else if (n == 3) {\n    a = 1; b = 1; c = 1; d = 1; e = 0; f = 0; g = 1;\n  } else if (n == 4) {\n    a = 0; b = 1; c = 1; d = 0; e = 0; f = 1; g = 1;\n  } else if (n == 5) {\n    a = 1; b = 0; c = 1; d = 1; e = 0; f = 1; g = 1;\n  } else if (n == 6) {\n    a = 1; b = 0; c = 1; d = 1; e = 1; f = 1; g = 1;\n  } else if (n == 7) {\n    a = 1; b = 1; c = 1; d = 0; e = 0; f = 0; g = 0;\n  } else if (n == 8) {\n    a = 1; b = 1; c = 1; d = 1; e = 1; f = 1; g = 1;\n  } else if (n == 9) {\n    a = 1; b = 1; c = 1; d = 1; e = 0; f = 1; g = 1;\n  } else {\n    a = 0; b = 0; c = 0; d = 0; e = 0; f = 0; g = 0;\n  }\n  \n  digitalWrite(segA, a);\n  digitalWrite(segB, b);\n  digitalWrite(segC, c);\n  digitalWrite(segD, d);\n  digitalWrite(segE, e);\n  digitalWrite(segF, f);\n  digitalWrite(segG, g);\n}",
     "customLibraries": {},
     "boardTarget": "arduino_uno",
     "environment": {

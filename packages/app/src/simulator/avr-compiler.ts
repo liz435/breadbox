@@ -4,7 +4,9 @@
 // that wraps arduino-cli. Includes Intel HEX parsing and a fallback path
 // to the JS transpiler when the server is unavailable.
 
-const COMPILE_ENDPOINT = "http://localhost:4111/api/compile"
+import { API_ORIGIN } from "@dreamer/config"
+
+const COMPILE_ENDPOINT = `${API_ORIGIN}/api/compile`
 
 export type SketchSizeInfo = {
   flashUsed: number

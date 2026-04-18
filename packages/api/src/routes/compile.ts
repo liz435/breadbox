@@ -6,7 +6,11 @@
 
 import { Elysia } from "elysia"
 import { z } from "zod"
+import { tmpdir } from "os"
+import { join } from "path"
+import { rm } from "fs/promises"
 import { createLogger } from "../logger"
+import { resolveArduinoCli, ensureArduinoCliCore, ArduinoCliMissingError } from "../toolchain"
 import { BOARD_TARGETS, boardTargetSchema, DEFAULT_BOARD_TARGET } from "@dreamer/schemas"
 
 const log = createLogger("compile")
@@ -117,19 +121,25 @@ export const compileRoutes = new Elysia().post("/api/compile", async ({ body, se
   const fqbn = parsed.data.fqbn ?? BOARD_TARGETS[boardTarget].fqbn
   const { code } = parsed.data
   const sketchId = crypto.randomUUID()
-  const sketchDir = `/tmp/arduino-sketch-${sketchId}`
-  const sketchFile = `${sketchDir}/sketch/sketch.ino`
-  const outputDir = `${sketchDir}/output`
+  const sketchDir = join(tmpdir(), `arduino-sketch-${sketchId}`)
+  const sketchFile = join(sketchDir, "sketch", "sketch.ino")
+  const outputDir = join(sketchDir, "output")
 
   try {
-    // Check if arduino-cli is available
-    const checkResult = await exec(["which", "arduino-cli"])
-    if (checkResult.exitCode !== 0) {
-      set.status = 503
-      return {
-        error:
-          "arduino-cli is not installed. Install it from https://arduino.github.io/arduino-cli/ and ensure the Arduino AVR core is installed.",
+    // Resolve arduino-cli via the toolchain resolver. For API (non-TTY)
+    // contexts, auto-install is gated on DREAMER_AUTO_INSTALL=1 — otherwise
+    // we surface the missing-binary error as a 503 so the client can prompt
+    // its user.
+    let arduinoCli: string
+    try {
+      arduinoCli = await resolveArduinoCli({ install: process.env.DREAMER_AUTO_INSTALL === "1" })
+      await ensureArduinoCliCore("arduino:avr")
+    } catch (err) {
+      if (err instanceof ArduinoCliMissingError) {
+        set.status = 503
+        return { error: err.message }
       }
+      throw err
     }
 
     // Create the sketch directory structure (arduino-cli requires a directory
@@ -141,13 +151,13 @@ export const compileRoutes = new Elysia().post("/api/compile", async ({ body, se
 
     // Compile using arduino-cli
     const compileResult = await exec([
-      "arduino-cli",
+      arduinoCli,
       "compile",
       "--fqbn",
       fqbn,
       "--output-dir",
       outputDir,
-      `${sketchDir}/sketch`,
+      join(sketchDir, "sketch"),
     ])
 
     if (compileResult.exitCode !== 0) {
@@ -157,13 +167,13 @@ export const compileRoutes = new Elysia().post("/api/compile", async ({ body, se
     }
 
     // Read the generated .hex file
-    const hexFile = `${outputDir}/sketch.ino.hex`
+    const hexFile = join(outputDir, "sketch.ino.hex")
     let hexContent: string
     try {
       hexContent = await readFile(hexFile)
     } catch {
       // Try alternative name patterns
-      const altHexFile = `${outputDir}/sketch.ino.with_bootloader.hex`
+      const altHexFile = join(outputDir, "sketch.ino.with_bootloader.hex")
       try {
         hexContent = await readFile(altHexFile)
       } catch {
@@ -184,12 +194,9 @@ export const compileRoutes = new Elysia().post("/api/compile", async ({ body, se
       error: err instanceof Error ? err.message : "Internal compilation error",
     }
   } finally {
-    // Clean up temp files
+    // Clean up temp files — platform-neutral.
     try {
-      const rmResult = await exec(["rm", "-rf", sketchDir])
-      if (rmResult.exitCode !== 0) {
-        log.info(`Failed to clean up ${sketchDir}`)
-      }
+      await rm(sketchDir, { recursive: true, force: true })
     } catch {
       // Best effort cleanup
     }

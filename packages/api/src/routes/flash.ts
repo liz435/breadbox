@@ -7,7 +7,11 @@
 
 import { Elysia } from "elysia"
 import { z } from "zod"
+import { tmpdir } from "os"
+import { join } from "path"
+import { rm } from "fs/promises"
 import { createLogger } from "../logger"
+import { resolveArduinoCli, ensureArduinoCliCore, ArduinoCliMissingError } from "../toolchain"
 import { reconnectAfter } from "../serial/board-manager"
 import { BOARD_TARGETS, boardTargetSchema, DEFAULT_BOARD_TARGET } from "@dreamer/schemas"
 
@@ -42,18 +46,21 @@ export const flashRoutes = new Elysia().post("/api/flash", async ({ body, set })
   const fqbn = parsed.data.fqbn ?? BOARD_TARGETS[boardTarget].fqbn
   const { port, code } = parsed.data
   const sketchId = crypto.randomUUID()
-  const sketchDir = `/tmp/arduino-flash-${sketchId}`
-  const sketchFile = `${sketchDir}/sketch/sketch.ino`
-  const outputDir = `${sketchDir}/output`
+  const sketchDir = join(tmpdir(), `arduino-flash-${sketchId}`)
+  const sketchFile = join(sketchDir, "sketch", "sketch.ino")
+  const outputDir = join(sketchDir, "output")
 
   try {
-    // Check arduino-cli
-    const check = await exec(["which", "arduino-cli"])
-    if (check.exitCode !== 0) {
-      set.status = 503
-      return {
-        error: "arduino-cli is not installed. Install from https://arduino.github.io/arduino-cli/",
+    let arduinoCli: string
+    try {
+      arduinoCli = await resolveArduinoCli({ install: process.env.DREAMER_AUTO_INSTALL === "1" })
+      await ensureArduinoCliCore("arduino:avr")
+    } catch (err) {
+      if (err instanceof ArduinoCliMissingError) {
+        set.status = 503
+        return { error: err.message }
       }
+      throw err
     }
 
     // Write sketch
@@ -64,10 +71,10 @@ export const flashRoutes = new Elysia().post("/api/flash", async ({ body, set })
 
     // Compile
     const compileResult = await exec([
-      "arduino-cli", "compile",
+      arduinoCli, "compile",
       "--fqbn", fqbn,
       "--output-dir", outputDir,
-      `${sketchDir}/sketch`,
+      join(sketchDir, "sketch"),
     ])
 
     if (compileResult.exitCode !== 0) {
@@ -81,9 +88,9 @@ export const flashRoutes = new Elysia().post("/api/flash", async ({ body, set })
     log.info(`Flashing to ${port}`)
 
     // Upload
-    const hexFile = `${outputDir}/sketch.ino.hex`
+    const hexFile = join(outputDir, "sketch.ino.hex")
     const uploadResult = await exec([
-      "arduino-cli", "upload",
+      arduinoCli, "upload",
       "-p", port,
       "--fqbn", fqbn,
       "--input-file", hexFile,
@@ -111,6 +118,6 @@ export const flashRoutes = new Elysia().post("/api/flash", async ({ body, set })
     set.status = 500
     return { error: err instanceof Error ? err.message : "Internal error" }
   } finally {
-    exec(["rm", "-rf", sketchDir]).catch(() => {})
+    rm(sketchDir, { recursive: true, force: true }).catch(() => {})
   }
 })
