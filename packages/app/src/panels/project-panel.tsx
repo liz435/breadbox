@@ -7,7 +7,7 @@ export function ProjectPanel() {
       <div className="border-b border-border shrink-0">
         <ProjectSelector />
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="flex-1 min-h-0">
         <ComponentPalette />
       </div>
     </div>

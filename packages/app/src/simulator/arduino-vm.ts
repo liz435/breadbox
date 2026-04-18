@@ -134,7 +134,126 @@ export function createArduinoVM(
     avrSerialIdleTimer = setTimeout(flushAvrSerial, SERIAL_IDLE_FLUSH_MS)
   }
 
+  // ── AVR pin-tone detection ────────────────────────────────────────
+  //
+  // In transpile mode, `tone(pin, freq)` is a JS shim that calls
+  // `callbacks.onTone(pin, freq)` directly and the UI's Web Audio layer
+  // plays the tone. In AVR mode, `tone()` runs real compiled AVR code
+  // that toggles the pin via Timer2 — `onPinChange` fires per-edge but
+  // `onTone` is never called, so the Web Audio layer stays silent and
+  // buzzers on the breadboard produce no sound.
+  //
+  // Fix: watch pin-edge rate in the AVR callback. If a pin is toggling
+  // at an audible frequency (20–20000 Hz), synthesize `onTone(pin, freq)`.
+  // When the pin goes quiet, synthesize `onNoTone(pin)`. Also catches
+  // `analogWrite(piezoPin, ...)` — PWM at 490/980 Hz is physically a tone
+  // when played through a piezo, and users expect that to make noise.
+  const AUDIBLE_MIN_HZ = 20
+  const AUDIBLE_MAX_HZ = 20_000
+  const TONE_SILENCE_TIMEOUT_MS = 150
+  const TONE_FREQ_CHANGE_THRESHOLD = 0.1 // 10%
+  const TONE_HISTORY_SIZE = 8 // edges to keep per pin for frequency estimation
+
+  type PinToneState = {
+    timestamps: number[] // ring of recent transition times (ms)
+    writeIdx: number
+    count: number // number of valid entries (<= HISTORY_SIZE)
+    currentFreq: number | null // last frequency reported via onTone
+    lastEdgeAt: number
+  }
+  const toneStates = new Map<number, PinToneState>()
+
+  function getOrCreateToneState(pin: number): PinToneState {
+    let s = toneStates.get(pin)
+    if (!s) {
+      s = {
+        timestamps: new Array<number>(TONE_HISTORY_SIZE).fill(0),
+        writeIdx: 0,
+        count: 0,
+        currentFreq: null,
+        lastEdgeAt: 0,
+      }
+      toneStates.set(pin, s)
+    }
+    return s
+  }
+
+  function estimateFrequency(s: PinToneState, now: number): number | null {
+    // Need at least 3 edges (1.5 cycles) for a stable reading.
+    if (s.count < 3) return null
+    // Oldest entry in the ring is at writeIdx (wraps around if count equals size).
+    const oldestIdx = s.count < TONE_HISTORY_SIZE
+      ? (s.writeIdx - s.count + TONE_HISTORY_SIZE) % TONE_HISTORY_SIZE
+      : s.writeIdx
+    const oldest = s.timestamps[oldestIdx]
+    const elapsed = now - oldest
+    if (elapsed <= 0) return null
+    // One period = two edges. (count - 1) edges span (count - 1) / 2 periods.
+    const periods = (s.count - 1) / 2
+    const freq = (periods * 1000) / elapsed
+    return freq
+  }
+
+  function notePinEdge(arduinoPin: number): void {
+    const now = performance.now()
+    const s = getOrCreateToneState(arduinoPin)
+    s.timestamps[s.writeIdx] = now
+    s.writeIdx = (s.writeIdx + 1) % TONE_HISTORY_SIZE
+    if (s.count < TONE_HISTORY_SIZE) s.count++
+    s.lastEdgeAt = now
+
+    const freq = estimateFrequency(s, now)
+    if (freq === null) return
+    if (freq < AUDIBLE_MIN_HZ || freq > AUDIBLE_MAX_HZ) return
+
+    // Emit onTone only on first detection or meaningful frequency change,
+    // not on every edge (would spam Web Audio with thousands of calls/sec).
+    const prev = s.currentFreq
+    const changed = prev === null || Math.abs(freq - prev) / prev > TONE_FREQ_CHANGE_THRESHOLD
+    if (changed) {
+      s.currentFreq = freq
+      callbacks.onTone(arduinoPin, freq)
+    }
+  }
+
+  // Periodic check: pins that have stopped toggling emit onNoTone so the
+  // oscillator stops. Runs at 20Hz which is fast enough for "instant" feel
+  // without burning the main thread.
+  let toneWatchdog: ReturnType<typeof setInterval> | null = null
+
+  function startToneWatchdog(): void {
+    if (toneWatchdog) return
+    toneWatchdog = setInterval(() => {
+      const now = performance.now()
+      for (const [pin, s] of toneStates) {
+        if (s.currentFreq === null) continue
+        if (now - s.lastEdgeAt > TONE_SILENCE_TIMEOUT_MS) {
+          s.currentFreq = null
+          s.count = 0 // reset history so next burst starts cleanly
+          callbacks.onNoTone(pin)
+        }
+      }
+    }, 50)
+  }
+
+  function stopToneWatchdog(): void {
+    if (toneWatchdog) {
+      clearInterval(toneWatchdog)
+      toneWatchdog = null
+    }
+    // Fire onNoTone for any pin still believed to be tonin', so Web Audio
+    // doesn't hang an oscillator across reset.
+    for (const [pin, s] of toneStates) {
+      if (s.currentFreq !== null) {
+        s.currentFreq = null
+        callbacks.onNoTone(pin)
+      }
+    }
+    toneStates.clear()
+  }
+
   function createAVRRunnerInstance(): AVRRunner {
+    startToneWatchdog()
     return createAVRRunner({
       onPinChange: (port, pin, value) => {
         const arduinoPin = portToArduinoPin(port, pin)
@@ -147,6 +266,7 @@ export function createArduinoVM(
           digitalValue: value ? 1 : 0,
           mode: "OUTPUT",
         })
+        notePinEdge(arduinoPin)
       },
       onSerialOutput: (char) => {
         handleAvrSerialByte(char)
@@ -486,6 +606,10 @@ return { setup: _setup, loop: _loop, genLoop: null };
     // previous run doesn't leak into the next, and cancel the idle timer
     // so it doesn't fire into a stale context.
     flushAvrSerial()
+
+    // Stop any in-progress tone detection and fire final onNoTone so
+    // buzzers don't keep playing across a sketch reload.
+    stopToneWatchdog()
 
     simulationStartTime = Date.now()
     virtualMs = 0
