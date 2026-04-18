@@ -81,30 +81,24 @@ export function createWebUiStaticRoutes() {
   }
   log.info(`serving static web UI from ${distDir}`)
 
+  const indexPath = join(distDir, "index.html")
+
+  function serveIndex(): Response {
+    if (!existsSync(indexPath)) {
+      return new Response("index.html not found", { status: 500 })
+    }
+    const html = injectRuntimeConfig(readFileSync(indexPath, "utf8"))
+    return new Response(html, {
+      headers: {
+        "content-type": CONTENT_TYPES[".html"],
+        "cache-control": "no-cache",
+      },
+    })
+  }
+
   return new Elysia({ name: "web-ui-static" })
-    .get("/", () => {
-      const indexPath = join(distDir, "index.html")
-      if (!existsSync(indexPath)) {
-        return new Response("index.html not found", { status: 500 })
-      }
-      const html = injectRuntimeConfig(readFileSync(indexPath, "utf8"))
-      return new Response(html, {
-        headers: {
-          "content-type": CONTENT_TYPES[".html"],
-          "cache-control": "no-cache",
-        },
-      })
-    })
-    .get("/index.html", () => {
-      const indexPath = join(distDir, "index.html")
-      const html = injectRuntimeConfig(readFileSync(indexPath, "utf8"))
-      return new Response(html, {
-        headers: {
-          "content-type": CONTENT_TYPES[".html"],
-          "cache-control": "no-cache",
-        },
-      })
-    })
+    .get("/", () => serveIndex())
+    .get("/index.html", () => serveIndex())
     .get("/assets/*", ({ request }) => {
       const url = new URL(request.url)
       // Strip leading slash and join with dist/. Path traversal is blocked
@@ -121,5 +115,30 @@ export function createWebUiStaticRoutes() {
       return new Response(file, {
         headers: { "content-type": ct, "cache-control": "public, max-age=31536000, immutable" },
       })
+    })
+    // SPA fallback. Registered last in the app chain, so it only fires for
+    // paths that no API route (project/, api/*) matched. Client-side routes
+    // like /learn and /documentation come through here as full-page loads —
+    // we serve index.html and the client router takes over. Also picks up
+    // root-level static files (favicon.ico, robots.txt) that aren't under
+    // /assets/*. Genuine 404s: anything with an extension that isn't on disk.
+    .all("*", ({ request }) => {
+      const url = new URL(request.url)
+      if (url.pathname.startsWith("/api") || url.pathname.startsWith("/project")) {
+        return new Response("Not Found", { status: 404 })
+      }
+      const rel = url.pathname.replace(/^\/+/, "")
+      const filePath = join(distDir, rel)
+      if (filePath.startsWith(distDir) && existsSync(filePath)) {
+        const file = Bun.file(filePath)
+        const ct = contentTypeFor(filePath)
+        return new Response(file, {
+          headers: { "content-type": ct, "cache-control": "public, max-age=3600" },
+        })
+      }
+      if (!extname(url.pathname)) {
+        return serveIndex()
+      }
+      return new Response("not found", { status: 404 })
     })
 }
