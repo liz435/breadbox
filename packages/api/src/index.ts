@@ -40,6 +40,6 @@ const app = new Elysia()
   .use(libraryRoutes)
   .use(capabilitiesRoutes)
   .use(staticWebUi)
-  .listen(API_PORT);
+  .listen({ port: API_PORT, hostname: "0.0.0.0" });
 
-log.info(`listening on http://localhost:${app.server?.port}`);
+log.info(`listening on http://0.0.0.0:${app.server?.port}`);
