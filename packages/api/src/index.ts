@@ -14,6 +14,7 @@ import { createWebUiStaticRoutes } from "./routes/web-ui-static";
 import { APP_ORIGIN, API_PORT as _API_PORT } from "@dreamer/config";
 
 const API_PORT = Number(process.env.PORT ?? _API_PORT);
+const IS_HOSTED = process.env.DREAMER_HOSTED === "1";
 
 const log = createLogger("server");
 
@@ -25,7 +26,7 @@ const staticWebUi = createWebUiStaticRoutes();
 const app = new Elysia()
   .use(
     cors({
-      origin: APP_ORIGIN,
+      origin: IS_HOSTED ? true : APP_ORIGIN,
       methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: ["Content-Type"],
     })
@@ -42,4 +43,4 @@ const app = new Elysia()
   .use(staticWebUi)
   .listen({ port: API_PORT, hostname: "0.0.0.0" });
 
-log.info(`listening on http://0.0.0.0:${app.server?.port}`);
+log.info(`listening on http://0.0.0.0:${app.server?.port}${IS_HOSTED ? " (hosted, serving web UI)" : ""}`);
