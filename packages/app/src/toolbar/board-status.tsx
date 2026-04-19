@@ -1,9 +1,13 @@
-// ── Board Status Pill + Port Picker ───────────────────────────────────────
+// ── Board Status Icon Button + Port Picker ───────────────────────────────
 //
-// Small pill in the bottom toolbar showing whether a real Arduino is connected.
-// Clicking it opens a popover listing available ports.
+// Compact icon button in the bottom toolbar that opens a popover listing
+// available USB serial ports. Used to connect to a real Arduino for the
+// upload workflow. The icon tints green when a port is connected so the
+// state is glanceable without a permanent text pill.
 
 import { Popover } from "@base-ui/react/popover"
+import { Usb } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { useBoardConnection } from "@/simulator/use-board-connection"
 import { cn } from "@/utils/classnames"
 
@@ -16,36 +20,40 @@ export function BoardStatus() {
   return (
     <Popover.Root>
       <Popover.Trigger
-        className={cn(
-          "flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] transition-colors cursor-pointer select-none",
-          connected
-            ? "text-emerald-400 hover:bg-emerald-400/10"
-            : "text-zinc-500 hover:bg-zinc-700/50",
-        )}
-        onClick={refresh}
+        render={
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={refresh}
+            className="relative"
+            aria-label={connected ? `Connected to ${selectedPort}` : "Connect to Arduino"}
+          />
+        }
       >
-        <span
+        <Usb
           className={cn(
-            "size-1.5 rounded-full",
-            connected ? "bg-emerald-400" : "bg-zinc-600",
+            "size-3.5",
+            connected ? "text-emerald-400" : "text-muted-foreground",
           )}
         />
-        {connected ? selectedPort : "No board"}
+        {connected && (
+          <span className="absolute right-1 top-1 size-1.5 rounded-full bg-emerald-400" />
+        )}
       </Popover.Trigger>
 
       <Popover.Portal>
-        <Popover.Positioner side="top" align="start" sideOffset={8}>
-          <Popover.Popup className="z-50 min-w-[260px] rounded-xl border border-zinc-700 bg-zinc-900 p-3 shadow-xl text-xs text-zinc-300">
-            <p className="mb-2 font-semibold text-zinc-200">Arduino Boards</p>
+        <Popover.Positioner side="top" align="end" sideOffset={8}>
+          <Popover.Popup className="z-50 min-w-[280px] rounded-lg border border-border bg-popover p-3 text-xs text-popover-foreground shadow-lg">
+            <p className="mb-2 font-medium text-foreground">Arduino Boards</p>
 
             {!cliAvailable && (
-              <div className="mb-2 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-[10px] text-amber-400">
-                <span className="font-semibold">arduino-cli not found.</span>{" "}
+              <div className="mb-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-300">
+                <span className="font-medium">arduino-cli not found.</span>{" "}
                 <a
                   href="https://arduino.github.io/arduino-cli/installation/"
                   target="_blank"
                   rel="noreferrer"
-                  className="underline hover:text-amber-300"
+                  className="underline hover:text-amber-200"
                 >
                   Install it
                 </a>{" "}
@@ -54,11 +62,13 @@ export function BoardStatus() {
             )}
 
             {loading && ports.length === 0 && (
-              <p className="text-zinc-500 text-[10px]">Scanning ports…</p>
+              <p className="text-[11px] text-muted-foreground">Scanning ports…</p>
             )}
 
             {!loading && ports.length === 0 && (
-              <p className="text-zinc-500 text-[10px]">No boards detected. Plug in an Arduino.</p>
+              <p className="text-[11px] text-muted-foreground">
+                No boards detected. Plug in an Arduino.
+              </p>
             )}
 
             <div className="flex flex-col gap-1">
@@ -68,24 +78,30 @@ export function BoardStatus() {
                   <div
                     key={port.path}
                     className={cn(
-                      "flex items-center justify-between rounded-lg px-2 py-1.5 transition-colors",
-                      isSelected ? "bg-emerald-500/10 border border-emerald-500/30" : "hover:bg-zinc-800",
+                      "flex items-center justify-between gap-2 rounded-md px-2 py-1.5 transition-colors",
+                      isSelected
+                        ? "border border-emerald-500/30 bg-emerald-500/10"
+                        : "border border-transparent hover:bg-accent",
                     )}
                   >
-                    <div>
-                      <p className="font-mono text-[10px] text-zinc-200">{port.path}</p>
+                    <div className="min-w-0">
+                      <p className="truncate font-mono text-[11px] text-foreground">
+                        {port.path}
+                      </p>
                       {port.manufacturer && (
-                        <p className="text-[9px] text-zinc-500">{port.manufacturer}</p>
+                        <p className="truncate text-[10px] text-muted-foreground">
+                          {port.manufacturer}
+                        </p>
                       )}
                     </div>
                     <button
                       type="button"
                       onClick={() => setSelectedPort(isSelected ? null : port.path)}
                       className={cn(
-                        "rounded px-2 py-0.5 text-[10px] transition-colors",
+                        "shrink-0 cursor-pointer rounded px-2 py-0.5 text-[11px] transition-colors",
                         isSelected
-                          ? "bg-red-600/20 text-red-400 hover:bg-red-600/30"
-                          : "bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30",
+                          ? "bg-red-500/15 text-red-300 hover:bg-red-500/25"
+                          : "bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25",
                       )}
                     >
                       {isSelected ? "Disconnect" : "Connect"}

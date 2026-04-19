@@ -93,4 +93,9 @@ export const diagramSchema = z.object({
   /** Custom library files compiled alongside the sketch. */
   customLibraries: z.array(diagramCustomLibrarySchema).default([]),
 });
+
+/** Post-parse shape — all defaults applied. Use when reading from the adapter. */
 export type DreamerDiagram = z.infer<typeof diagramSchema>;
+
+/** Pre-parse shape — defaults optional. Use when authoring a diagram or in tests. */
+export type DreamerDiagramInput = z.input<typeof diagramSchema>;

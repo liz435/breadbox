@@ -6,15 +6,15 @@
 
 import asset__assets_arduino_uno_board_DBpS0kIP_svg from "../../app/dist/assets/arduino-uno-board-DBpS0kIP.svg" with { type: "file" }
 import asset__assets_index_CCUjAQjo_js from "../../app/dist/assets/index-CCUjAQjo.js" with { type: "file" }
-import asset__assets_index_CmQ_OLVm_css from "../../app/dist/assets/index-CmQ_OLVm.css" with { type: "file" }
-import asset__assets_index_k2klqaYZ_js from "../../app/dist/assets/index-k2klqaYZ.js" with { type: "file" }
+import asset__assets_index_ClMqH84B_js from "../../app/dist/assets/index-ClMqH84B.js" with { type: "file" }
+import asset__assets_index_DzrLtLgd_css from "../../app/dist/assets/index-DzrLtLgd.css" with { type: "file" }
 import asset__index_html from "../../app/dist/index.html" with { type: "file" }
 
 export const EMBEDDED_ASSETS: Record<string, string> = {
   "/assets/arduino-uno-board-DBpS0kIP.svg": asset__assets_arduino_uno_board_DBpS0kIP_svg as unknown as string,
   "/assets/index-CCUjAQjo.js": asset__assets_index_CCUjAQjo_js as unknown as string,
-  "/assets/index-CmQ_OLVm.css": asset__assets_index_CmQ_OLVm_css as unknown as string,
-  "/assets/index-k2klqaYZ.js": asset__assets_index_k2klqaYZ_js as unknown as string,
+  "/assets/index-ClMqH84B.js": asset__assets_index_ClMqH84B_js as unknown as string,
+  "/assets/index-DzrLtLgd.css": asset__assets_index_DzrLtLgd_css as unknown as string,
   "/index.html": asset__index_html as unknown as string,
   "/": asset__index_html as unknown as string,
 }

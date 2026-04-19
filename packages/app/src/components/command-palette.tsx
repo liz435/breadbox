@@ -88,8 +88,15 @@ function buildCommands(dockviewApi: ReturnType<typeof useDockviewApi>): Command[
     },
   })
 
-  // Panel toggles
-  const panels: Array<{ id: string; label: string; ref?: string; dir?: string }> = [
+  // Panel toggles. `component` is the dockview component key (defaults to id),
+  // and `defaultPosition` is used when the panel doesn't already exist in the
+  // current layout — addPanel creates it with that position.
+  const panels: Array<{
+    id: string
+    label: string
+    component?: string
+    defaultPosition?: { referencePanel?: string; direction?: "right" | "left" | "above" | "below" | "within" }
+  }> = [
     { id: "breadboard", label: "Breadboard" },
     { id: "sketchEditor", label: "Sketch Editor" },
     { id: "schematic", label: "Schematic" },
@@ -99,6 +106,7 @@ function buildCommands(dockviewApi: ReturnType<typeof useDockviewApi>): Command[
     { id: "pinInspector", label: "Pin Inspector" },
     { id: "projectFiles", label: "Project Files" },
     { id: "libraryManager", label: "Libraries" },
+    { id: "oledDisplay", label: "OLED Display", defaultPosition: { referencePanel: "breadboard", direction: "right" } },
   ]
   for (const p of panels) {
     commands.push({
@@ -113,7 +121,15 @@ function buildCommands(dockviewApi: ReturnType<typeof useDockviewApi>): Command[
         const existing = dockviewApi.getPanel(p.id)
         if (existing) {
           existing.api.setActive()
+          return
         }
+        // Panel not in the current layout — create it on the fly.
+        dockviewApi.addPanel({
+          id: p.id,
+          component: p.component ?? p.id,
+          title: p.label,
+          position: p.defaultPosition,
+        })
       },
     })
   }

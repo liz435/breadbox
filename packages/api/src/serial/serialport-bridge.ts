@@ -75,8 +75,23 @@ const monitors = new Map<string, MonitorSession>()
  * List available serial ports via `arduino-cli board list`. Returns []
  * if arduino-cli is missing rather than throwing — the UI then shows
  * no ports instead of erroring.
+ *
+ * In-flight coalescing: overlapping callers share a single arduino-cli
+ * invocation. `board list` does a full `LoadHardware` on every run
+ * (~30–40 OS threads while AVR + rp2040 cores load), and with multiple
+ * UI consumers polling at 3s the naive path stacks processes and can
+ * exhaust the pids cgroup on small replicas.
  */
-export async function listPorts(): Promise<SerialPortInfo[]> {
+let inflightListPorts: Promise<SerialPortInfo[]> | null = null
+export function listPorts(): Promise<SerialPortInfo[]> {
+  if (inflightListPorts) return inflightListPorts
+  inflightListPorts = doListPorts().finally(() => {
+    inflightListPorts = null
+  })
+  return inflightListPorts
+}
+
+async function doListPorts(): Promise<SerialPortInfo[]> {
   const cli = await arduinoCliPath()
   if (!cli) return []
   try {

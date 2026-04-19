@@ -554,9 +554,29 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
       height: HOLE_SPACING * 3,
     }),
     paletteIcon: (
+      // TO-92 package: flat face toward viewer, three leads below
       <svg viewBox="0 0 24 24" width={20} height={20}>
-        <path d="M12 3 C9.5 3 9.5 9 9.5 13 L9.5 13 C9.5 15.5 10.5 17 12 17 C13.5 17 14.5 15.5 14.5 13 L14.5 13 C14.5 9 14.5 3 12 3 Z" fill="#1a1a1a" stroke="#444" strokeWidth={1} />
-        <circle cx={12} cy={14} r={2.5} fill="#ef4444" opacity={0.8} />
+        <defs>
+          <radialGradient id="tmp-pal" cx="35%" cy="30%" r="75%">
+            <stop offset="0%" stopColor="#3d3d3d" />
+            <stop offset="60%" stopColor="#1a1a1a" />
+            <stop offset="100%" stopColor="#000" />
+          </radialGradient>
+        </defs>
+        {/* TO-92 body: flat bottom, rounded top */}
+        <path d="M6 18 L6 11 A6 6 0 0 1 18 11 L18 18 Z"
+          fill="url(#tmp-pal)" stroke="#555" strokeWidth={0.7} />
+        {/* Flat face — slight lighter tint */}
+        <rect x={6} y={11} width={12} height={7} fill="#2a2a2a" opacity={0.4} />
+        {/* Silkscreen TMP36 text on flat face */}
+        <text x={12} y={15.5} textAnchor="middle" fontSize={3.2}
+          fill="#b0b0b0" fontFamily="monospace" fontWeight="bold">TMP36</text>
+        {/* Three leads */}
+        <line x1={9}  y1={18} x2={9}  y2={23} stroke="#b0b0b0" strokeWidth={1} />
+        <line x1={12} y1={18} x2={12} y2={23} stroke="#b0b0b0" strokeWidth={1} />
+        <line x1={15} y1={18} x2={15} y2={23} stroke="#b0b0b0" strokeWidth={1} />
+        {/* Highlight bevel on top */}
+        <path d="M6 11 A6 6 0 0 1 18 11" fill="none" stroke="#505050" strokeWidth={0.5} />
       </svg>
     ),
     // TMP36: 3-pin analog sensor (VCC, Signal, GND).
@@ -1020,13 +1040,35 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
       height: HOLE_SPACING * 3,
     }),
     paletteIcon: (
+      // DHT11 blue rectangular housing with vent grille on top half
       <svg viewBox="0 0 24 24" width={20} height={20}>
-        <rect x={4} y={3} width={16} height={18} rx={2} fill="#0891b2" stroke="#0e7490" strokeWidth={0.8} />
-        <rect x={7} y={6} width={10} height={6} rx={1} fill="#06b6d4" opacity={0.3} />
-        <text x={12} y={10} textAnchor="middle" fontSize={4} fill="#a5f3fc" fontFamily="monospace">DHT</text>
-        <line x1={8} y1={21} x2={8} y2={24} stroke="#a0a0a0" strokeWidth={1} />
-        <line x1={12} y1={21} x2={12} y2={24} stroke="#a0a0a0" strokeWidth={1} />
-        <line x1={16} y1={21} x2={16} y2={24} stroke="#a0a0a0" strokeWidth={1} />
+        <defs>
+          <linearGradient id="dht-pal-body" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%"   stopColor="#0e5070" />
+            <stop offset="50%"  stopColor="#1a7ca8" />
+            <stop offset="100%" stopColor="#0a3d5a" />
+          </linearGradient>
+        </defs>
+        {/* Body */}
+        <rect x={4} y={2} width={16} height={19} rx={2} fill="url(#dht-pal-body)" stroke="#0a3d5a" strokeWidth={0.6} />
+        {/* Grille area background */}
+        <rect x={6} y={4} width={12} height={8} rx={1} fill="#0e6d93" />
+        {/* Vent holes — 3×2 grid */}
+        {[0,1,2].map(col => [0,1].map(row => (
+          <rect key={`${col}-${row}`}
+            x={7 + col * 3.8} y={5.2 + row * 3.5}
+            width={2.8} height={2.4} rx={0.8}
+            fill="#063a52" opacity={0.9} />
+        )))}
+        {/* Separator line */}
+        <line x1={6} y1={13} x2={18} y2={13} stroke="#0a3d5a" strokeWidth={0.5} />
+        {/* Label text */}
+        <text x={12} y={17.5} textAnchor="middle" fontSize={3.8}
+          fill="#a5e8f7" fontFamily="monospace" fontWeight="bold">DHT11</text>
+        {/* Three leads */}
+        <line x1={9}  y1={21} x2={9}  y2={24} stroke="#b0b0b0" strokeWidth={1} />
+        <line x1={12} y1={21} x2={12} y2={24} stroke="#b0b0b0" strokeWidth={1} />
+        <line x1={15} y1={21} x2={15} y2={24} stroke="#b0b0b0" strokeWidth={1} />
       </svg>
     ),
     buildNetlist: () => null,
@@ -1125,15 +1167,32 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
       return { points, width: 60 + HOLE_SPACING * 4, height: HOLE_SPACING * 4 }
     },
     paletteIcon: (
+      // DIP-16 IC: black body, 8 silver legs per side, notch at top, part number text
       <svg viewBox="0 0 24 24" width={20} height={20}>
-        <rect x={5} y={3} width={14} height={18} rx={1} fill="#1a1a1a" stroke="#333" strokeWidth={0.8} />
-        <path d="M10 3 A2 2 0 0 1 14 3" fill="#2a2a2a" stroke="#444" strokeWidth={0.5} />
-        {[6, 9, 12, 15].map(y => (
-          <g key={y}>
-            <line x1={1} y1={y} x2={5} y2={y} stroke="#8b5cf6" strokeWidth={1} />
-            <line x1={19} y1={y} x2={23} y2={y} stroke="#8b5cf6" strokeWidth={1} />
-          </g>
+        <defs>
+          <linearGradient id="sr-pal-body" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%"   stopColor="#111" />
+            <stop offset="40%"  stopColor="#2a2a2a" />
+            <stop offset="100%" stopColor="#0d0d0d" />
+          </linearGradient>
+        </defs>
+        {/* IC body */}
+        <rect x={6} y={2} width={12} height={20} rx={0.8} fill="url(#sr-pal-body)" stroke="#444" strokeWidth={0.6} />
+        {/* Pin-1 notch at top */}
+        <path d="M10 2 A2 2 0 0 0 14 2" fill="#0d0d0d" stroke="#555" strokeWidth={0.4} />
+        {/* Pin-1 dot */}
+        <circle cx={7.5} cy={4.5} r={0.9} fill="#4a7a4a" />
+        {/* Left legs: 8 pins */}
+        {[3.5,5.5,7.5,9.5,11.5,13.5,15.5,17.5].map(y => (
+          <rect key={y} x={2} y={y - 0.7} width={4} height={1.4} fill="#b8b8b8" rx={0.3} />
         ))}
+        {/* Right legs: 8 pins */}
+        {[3.5,5.5,7.5,9.5,11.5,13.5,15.5,17.5].map(y => (
+          <rect key={y} x={18} y={y - 0.7} width={4} height={1.4} fill="#b8b8b8" rx={0.3} />
+        ))}
+        {/* Label */}
+        <text x={12} y={11.5} textAnchor="middle" fontSize={2.8}
+          fill="#c8c8c8" fontFamily="monospace" fontWeight="bold">74HC595</text>
       </svg>
     ),
     buildNetlist: () => null,
@@ -1181,12 +1240,36 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
       height: HOLE_SPACING * 4,
     }),
     paletteIcon: (
+      // SSD1306 module: navy PCB, black OLED panel, 4-pin header, mounting holes
       <svg viewBox="0 0 24 24" width={20} height={20}>
-        <rect x={2} y={3} width={20} height={15} rx={2} fill="#1a1a1a" stroke="#333" strokeWidth={0.8} />
-        <rect x={4} y={5} width={16} height={11} rx={1} fill="#000" />
-        <text x={12} y={12} textAnchor="middle" fontSize={4} fill="#06b6d4" fontFamily="monospace">OLED</text>
-        {[7, 11, 15, 19].map(x => (
-          <line key={x} x1={x} y1={18} x2={x} y2={22} stroke="#a0a0a0" strokeWidth={0.8} />
+        <defs>
+          <linearGradient id="oled-pal-pcb" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor="#1c2d54" />
+            <stop offset="100%" stopColor="#0d1730" />
+          </linearGradient>
+        </defs>
+        {/* PCB */}
+        <rect x={1} y={2} width={22} height={17} rx={2} fill="url(#oled-pal-pcb)" stroke="#0d1a35" strokeWidth={0.6} />
+        {/* Corner mounting holes */}
+        <circle cx={3}  cy={4}  r={1} fill="#0d1730" stroke="#2a4a8a" strokeWidth={0.3} />
+        <circle cx={21} cy={4}  r={1} fill="#0d1730" stroke="#2a4a8a" strokeWidth={0.3} />
+        {/* Screen bezel */}
+        <rect x={3} y={3.5} width={18} height={11} rx={1.2} fill="#06080f" stroke="#0a1830" strokeWidth={0.5} />
+        {/* Active OLED area */}
+        <rect x={4} y={4.5} width={16} height={9} rx={0.6} fill="#020408" />
+        {/* Display content */}
+        <text x={12} y={8.5} textAnchor="middle" fontSize={3.2}
+          fill="#06b6d4" fontFamily="monospace" fontWeight="bold">0.96"</text>
+        <text x={12} y={11.8} textAnchor="middle" fontSize={2.4}
+          fill="#0891b2" fontFamily="monospace">SSD1306</text>
+        {/* Scan line hints */}
+        <line x1={5} y1={13.5} x2={19} y2={13.5} stroke="#06b6d4" strokeWidth={0.25} opacity={0.2} />
+        {/* 4-pin header at bottom */}
+        {[5, 9, 14, 18].map(x => (
+          <g key={x}>
+            <rect x={x - 1} y={15.5} width={2} height={3} rx={0.3} fill="#c8a84a" />
+            <line x1={x} y1={18.5} x2={x} y2={22} stroke="#b0b0b0" strokeWidth={0.9} />
+          </g>
         ))}
       </svg>
     ),

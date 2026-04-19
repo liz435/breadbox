@@ -14,7 +14,7 @@
  * Major bumps (X.0.0): structural rewrites — new agents, removed paths,
  *   fundamentally different routing logic.
  */
-export const AGENT_VERSION = "1.2.1";
+export const AGENT_VERSION = "1.2.2";
 
 /**
  * Snapshot version controls which frozen agent behavior profile is used at
@@ -28,7 +28,7 @@ export const DEFAULT_AGENT_SNAPSHOT_VERSION =
  * Explicitly listed snapshots that can be selected safely. Add a new entry
  * whenever introducing a new behavior profile.
  */
-export const SUPPORTED_AGENT_SNAPSHOTS = ["1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.0.4", "1.0.5", "1.0.6", "1.0.7", "1.0.8", "1.1.0", "1.1.1", "1.2.0", "1.2.1"] as const;
+export const SUPPORTED_AGENT_SNAPSHOTS = ["1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.0.4", "1.0.5", "1.0.6", "1.0.7", "1.0.8", "1.1.0", "1.1.1", "1.2.0", "1.2.1", "1.2.2"] as const;
 
 export type AgentSnapshotVersion = (typeof SUPPORTED_AGENT_SNAPSHOTS)[number];
 
@@ -62,6 +62,17 @@ export const AGENT_CHANGELOG: Array<{
   date: string;
   changes: string[];
 }> = [
+  {
+    version: "1.2.2",
+    date: "2026-04-18",
+    changes: [
+      "Read tools (get_board_state, list_components, list_wires) now return DreamerDiagram-shaped payloads (DSL v1) so read format equals write format across the agent surface.",
+      "get_board_state: returns the full DreamerDiagram ({$schema, board, sketch, components[], wires[], environment?, customLibraries?}).",
+      "list_components: returns diagram.components[] — { id, type, at: [x, y], rotation, properties, pins? }. Arduino board filtered out.",
+      "list_wires: returns diagram.wires[] with readable endpoint strings ('arduino.13', 'led1.anode', 'psu1.+', or 'grid.<row>,<col>' fallback) instead of raw fromRow/fromCol grid coords.",
+      "COMMON_PROMPT documents the symmetry between reads and apply_design / validate_design writes.",
+    ],
+  },
   {
     version: "1.2.1",
     date: "2026-04-16",

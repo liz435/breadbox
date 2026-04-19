@@ -4,6 +4,7 @@ import type { ComponentElectricalState } from "@/simulator/circuit-solver";
 import { areConnected, getComponentFootprint, gridToPixel } from "@/breadboard/breadboard-grid";
 import { KNOB_RADIUS, GENERIC_BODY_WIDTH, GENERIC_BODY_HEIGHT, LABEL_FONT_SIZE, HOLE_SPACING } from "@/breadboard/breadboard-constants";
 import { PinLabel } from "./pin-label";
+import { OledCanvas } from "@/components/oled-canvas";
 
 type GenericRendererProps = {
   component: BoardComponent;
@@ -1956,7 +1957,285 @@ function DcMotorRenderer({ component, pinStates, isSelected }: {
   );
 }
 
-function OledRenderer({ component, isSelected, libraryState: _libraryState }: { component: BoardComponent; isSelected: boolean; libraryState?: LibraryState }) {
+function DhtSensorRenderer({ component, isSelected }: { component: BoardComponent; isSelected: boolean }) {
+  // Vertical 3-pin layout: vcc / data / gnd (row..row+2, col)
+  const pinVcc  = gridToPixel({ row: component.y,     col: component.x });
+  const pinData = gridToPixel({ row: component.y + 1, col: component.x });
+  const pinGnd  = gridToPixel({ row: component.y + 2, col: component.x });
+
+  // DHT11 blue rectangular housing, body sits to the LEFT of the pin column.
+  // Real DHT11: ~15.5 mm wide × 12 mm tall. With HOLE_SPACING=14 (≈2.54mm),
+  // that's roughly 4 cells × 3 cells — matching the declared footprint.
+  const bW  = HOLE_SPACING * 3.7;   // ~52 px
+  const bH  = HOLE_SPACING * 2.8;   // ~39 px
+  const bodyCx = pinData.x - bW / 2 - 10;
+  const bodyCy = pinData.y;
+  const bL  = bodyCx - bW / 2;
+  const bT  = bodyCy - bH / 2;
+
+  // Sensing grille area (top 45% of front face)
+  const grilleT = bT + 4;
+  const grilleH = bH * 0.45;
+  const grilleL = bL + 4;
+  const grilleW = bW - 8;
+  // Label area (bottom portion)
+  const labelT = grilleT + grilleH + 3;
+
+  const bodyGradId  = `dht-body-${component.id}`;
+  const faceGradId  = `dht-face-${component.id}`;
+  const grilleMask  = `dht-grille-${component.id}`;
+
+  return (
+    <g>
+      <defs>
+        {/* Blue housing — darker at edges, lighter in centre */}
+        <linearGradient id={bodyGradId} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%"   stopColor="#0e4f72" />
+          <stop offset="40%"  stopColor="#1a7ca8" />
+          <stop offset="100%" stopColor="#0a3d5a" />
+        </linearGradient>
+        {/* Lighter sheen on the grille face */}
+        <linearGradient id={faceGradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stopColor="#2596be" />
+          <stop offset="100%" stopColor="#0e6d93" />
+        </linearGradient>
+        {/* Clip mask so vent holes don't bleed outside the grille rect */}
+        <clipPath id={grilleMask}>
+          <rect x={grilleL} y={grilleT} width={grilleW} height={grilleH} />
+        </clipPath>
+      </defs>
+
+      {/* Pin leads from body right edge to breadboard holes */}
+      {[pinVcc, pinData, pinGnd].map((pin, i) => (
+        <g key={i}>
+          <line
+            x1={bL + bW} y1={pin.y}
+            x2={pin.x}   y2={pin.y}
+            stroke="#c8c8c8" strokeWidth={1.3} strokeLinecap="round"
+          />
+          <circle cx={pin.x} cy={pin.y} r={2} fill="#b0b0b0" opacity={0.55} />
+        </g>
+      ))}
+
+      {/* Drop shadow */}
+      <rect x={bL + 1} y={bT + 2} width={bW} height={bH} rx={2} fill="#00000050" />
+
+      {/* Housing body */}
+      <rect x={bL} y={bT} width={bW} height={bH} rx={2}
+        fill={`url(#${bodyGradId})`}
+        stroke={isSelected ? "#3b82f6" : "#0a3a55"}
+        strokeWidth={isSelected ? 1.5 : 0.7} />
+
+      {/* Grille background (slightly lighter blue) */}
+      <rect x={grilleL} y={grilleT} width={grilleW} height={grilleH} rx={1}
+        fill={`url(#${faceGradId})`} />
+
+      {/* Vent hole grid — 6 columns × 4 rows of rounded rect perforations */}
+      <g clipPath={`url(#${grilleMask})`}>
+        {Array.from({ length: 4 }, (_, row) =>
+          Array.from({ length: 6 }, (_, col) => {
+            const hx = grilleL + 3 + col * ((grilleW - 6) / 5);
+            const hy = grilleT + 2.5 + row * ((grilleH - 5) / 3);
+            return (
+              <rect
+                key={`${row}-${col}`}
+                x={hx - 2.4} y={hy - 1.6}
+                width={4.8} height={3.2}
+                rx={1.2}
+                fill="#06374d"
+                opacity={0.88}
+              />
+            );
+          })
+        )}
+      </g>
+
+      {/* Thin separator line between grille and label area */}
+      <line
+        x1={bL + 2} y1={grilleT + grilleH + 1}
+        x2={bL + bW - 2} y2={grilleT + grilleH + 1}
+        stroke="#0a3a55" strokeWidth={0.5} opacity={0.7}
+      />
+
+      {/* Silkscreen text: part number + manufacturer */}
+      <text x={bodyCx} y={labelT + 5} textAnchor="middle"
+        fontSize={5} fill="#a5e8f7" fontFamily="monospace" fontWeight="bold">
+        DHT11
+      </text>
+      <text x={bodyCx} y={labelT + 11} textAnchor="middle"
+        fontSize={3.4} fill="#5bc8e2" fontFamily="monospace">
+        AOSONG
+      </text>
+
+      {/* Highlight specular on top-left of body */}
+      <path
+        d={`M ${bL + 2} ${bT + 5} Q ${bL + 3} ${bT + 2}, ${bL + 8} ${bT + 2}`}
+        fill="none" stroke="#60c8e8" strokeWidth={0.6} opacity={0.4} strokeLinecap="round"
+      />
+
+      {/* Pin labels */}
+      <PinLabel x={pinVcc.x}  y={pinVcc.y}  name="vcc"  side="right" />
+      <PinLabel x={pinData.x} y={pinData.y} name="data" side="right" />
+      <PinLabel x={pinGnd.x}  y={pinGnd.y}  name="gnd"  side="right" />
+
+      {/* Component name */}
+      <text x={bodyCx} y={bT + bH + 6} textAnchor="middle"
+        fontSize={LABEL_FONT_SIZE} fill="#888" fontFamily="monospace">
+        {component.name}
+      </text>
+    </g>
+  );
+}
+
+function ShiftRegisterRenderer({ component, isSelected }: { component: BoardComponent; isSelected: boolean }) {
+  // DIP-16 footprint: 8 pins left side (col 2), 8 pins right side (col 7)
+  // Pins ordered: left side rows 0-7 from top, right side rows 7-0 (mirrored)
+  const rowCount = 8; // pins per side
+  const leftPins  = Array.from({ length: rowCount }, (_, i) =>
+    gridToPixel({ row: component.y + i, col: 2 }),
+  );
+  const rightPins = Array.from({ length: rowCount }, (_, i) =>
+    gridToPixel({ row: component.y + (rowCount - 1 - i), col: 7 }),
+  );
+
+  const topLeft    = leftPins[0];
+  const bottomLeft = leftPins[rowCount - 1];
+  const topRight   = rightPins[0];  // highest row on right = row 7 (bottom)
+
+  // IC body spans between the two pin columns, with small margin
+  const legLen = 4; // length of the flat gull-wing leg stub
+  const bodyL = topLeft.x + legLen;
+  const bodyR = topRight.x - legLen;
+  const bodyW = bodyR - bodyL;
+  const bodyT = topLeft.y - HOLE_SPACING / 2;
+  const bodyH = (rowCount - 1) * HOLE_SPACING + HOLE_SPACING;
+
+  const bodyCx = bodyL + bodyW / 2;
+
+  const bodyGradId   = `sr-body-${component.id}`;
+  const legGradId    = `sr-leg-${component.id}`;
+  const notchId      = `sr-notch-${component.id}`;
+
+  return (
+    <g>
+      <defs>
+        {/* Black epoxy body — glossy highlight down the centre */}
+        <linearGradient id={bodyGradId} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%"   stopColor="#111111" />
+          <stop offset="30%"  stopColor="#2a2a2a" />
+          <stop offset="50%"  stopColor="#333333" />
+          <stop offset="70%"  stopColor="#1e1e1e" />
+          <stop offset="100%" stopColor="#0d0d0d" />
+        </linearGradient>
+        {/* Silver tin-plated legs */}
+        <linearGradient id={legGradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stopColor="#d4d4d4" />
+          <stop offset="50%"  stopColor="#a8a8a8" />
+          <stop offset="100%" stopColor="#888888" />
+        </linearGradient>
+        {/* Clip for notch cutout */}
+        <clipPath id={notchId}>
+          <rect x={bodyL - 1} y={bodyT - 1} width={bodyW + 2} height={bodyH + 2} />
+        </clipPath>
+      </defs>
+
+      {/* Left-side legs: horizontal stubs from body to pin holes */}
+      {leftPins.map((pin, i) => (
+        <g key={`ll-${i}`}>
+          {/* Flat leg extending from body left edge toward pin hole */}
+          <rect
+            x={pin.x - 0.5} y={pin.y - 1}
+            width={bodyL - pin.x + 0.5} height={2}
+            fill={`url(#${legGradId})`} rx={0.3}
+          />
+          {/* Pin hole marker */}
+          <circle cx={pin.x} cy={pin.y} r={1.8} fill="#a0a0a0" opacity={0.5} />
+        </g>
+      ))}
+
+      {/* Right-side legs */}
+      {rightPins.map((pin, i) => (
+        <g key={`rl-${i}`}>
+          <rect
+            x={bodyR - 0.5} y={pin.y - 1}
+            width={pin.x - bodyR + 0.5} height={2}
+            fill={`url(#${legGradId})`} rx={0.3}
+          />
+          <circle cx={pin.x} cy={pin.y} r={1.8} fill="#a0a0a0" opacity={0.5} />
+        </g>
+      ))}
+
+      {/* Drop shadow */}
+      <rect x={bodyL + 1} y={bodyT + 2} width={bodyW} height={bodyH} rx={1} fill="#00000060" />
+
+      {/* IC body */}
+      <rect x={bodyL} y={bodyT} width={bodyW} height={bodyH} rx={1}
+        fill={`url(#${bodyGradId})`}
+        stroke={isSelected ? "#3b82f6" : "#444"}
+        strokeWidth={isSelected ? 1.5 : 0.7} />
+
+      {/* Top edge bevel — thin lighter band */}
+      <rect x={bodyL + 0.5} y={bodyT + 0.5} width={bodyW - 1} height={1.5}
+        fill="#3a3a3a" rx={0.5} opacity={0.8} />
+      {/* Bottom edge bevel */}
+      <rect x={bodyL + 0.5} y={bodyT + bodyH - 2} width={bodyW - 1} height={1.5}
+        fill="#3a3a3a" rx={0.5} opacity={0.8} />
+
+      {/* Pin 1 notch — semicircular indentation at top centre */}
+      <path
+        d={`M ${bodyCx - 4} ${bodyT} A 4 4 0 0 0 ${bodyCx + 4} ${bodyT}`}
+        fill="#0d0d0d"
+        stroke="#555" strokeWidth={0.5}
+      />
+
+      {/* Pin 1 dot — top-left corner of body */}
+      <circle cx={bodyL + 4} cy={bodyT + 5} r={1.2} fill="#5a8a5a" opacity={0.9} />
+
+      {/* Silkscreen text — two lines centred on body */}
+      <text x={bodyCx} y={bodyT + bodyH / 2 - 3} textAnchor="middle"
+        fontSize={4} fill="#c8c8c8" fontFamily="monospace" fontWeight="bold">
+        74HC595
+      </text>
+      <text x={bodyCx} y={bodyT + bodyH / 2 + 3.5} textAnchor="middle"
+        fontSize={2.8} fill="#909090" fontFamily="monospace">
+        SN74HC595N
+      </text>
+      {/* Manufacturer dot / date code area */}
+      <text x={bodyCx} y={bodyT + bodyH / 2 + 9} textAnchor="middle"
+        fontSize={2.4} fill="#606060" fontFamily="monospace">
+        TI  2023
+      </text>
+
+      {/* Left-side pin index marks (1..8) */}
+      {leftPins.map((pin, i) => (
+        <text key={`ln-${i}`}
+          x={bodyL + 2.5} y={pin.y + 1.2}
+          textAnchor="start" fontSize={2.2}
+          fill="#666" fontFamily="monospace">
+          {i + 1}
+        </text>
+      ))}
+      {/* Right-side pin index marks (16..9) */}
+      {rightPins.map((pin, i) => (
+        <text key={`rn-${i}`}
+          x={bodyR - 2.5} y={pin.y + 1.2}
+          textAnchor="end" fontSize={2.2}
+          fill="#666" fontFamily="monospace">
+          {rowCount * 2 - i}
+        </text>
+      ))}
+
+      {/* Component name label below */}
+      <text x={bodyCx} y={bodyT + bodyH + 6} textAnchor="middle"
+        fontSize={LABEL_FONT_SIZE} fill="#888" fontFamily="monospace">
+        {component.name}
+      </text>
+    </g>
+  );
+}
+
+function OledRenderer({ component, isSelected, libraryState }: { component: BoardComponent; isSelected: boolean; libraryState?: LibraryState }) {
+  const oled = libraryState?.oled?.[component.id];
   // Vertical 4-pin header: gnd / vcc / scl / sda (row..row+3, col)
   const pins = [0, 1, 2, 3].map(i =>
     gridToPixel({ row: component.y + i, col: component.x }),
@@ -1964,71 +2243,150 @@ function OledRenderer({ component, isSelected, libraryState: _libraryState }: { 
   const pinTop = pins[0];
   const pinBot = pins[3];
 
-  // PCB body sits to the LEFT of the pin column.
-  const w = 56;
+  // PCB body (navy/dark-blue) sits to the LEFT of the pin column.
+  // Real SSD1306 0.96" module: ~27mm × 27mm PCB, ~21mm × 11mm display area.
+  const w = 60;
   const h = (pinBot.y - pinTop.y) + 16;
   const bodyCx = pinTop.x - w / 2 - 10;
   const bodyCy = (pinTop.y + pinBot.y) / 2;
   const bodyL = bodyCx - w / 2;
   const bodyT = bodyCy - h / 2;
-  const screenL = bodyL + 4;
-  const screenT = bodyT + 4;
-  const screenW = w - 8;
-  const screenH = h - 8;
 
-  const pinNames = ["gnd", "vcc", "scl", "sda"];
+  // 4-pin header row sits along the RIGHT edge of the PCB
+  const headerX = bodyL + w;   // right edge of PCB = pin header column
 
-  const bodyGradId = `oled-body-${component.id}`;
+  // Display glass occupies the top ~60% of the PCB, centred
+  const dispMarL = 4;
+  const dispMarT = 5;
+  const dispMarR = 4;
+  const dispMarB = Math.round(h * 0.38);  // leave ~38% at bottom for labels/traces
+  const screenL = bodyL + dispMarL;
+  const screenT = bodyT + dispMarT;
+  const screenW = w - dispMarL - dispMarR;
+  const screenH = h - dispMarT - dispMarB;
+
+  // Glass bezel (slightly larger than active area)
+  const bezelInset = 1;
+  const activeL = screenL + bezelInset;
+  const activeT = screenT + bezelInset;
+  const activeW = screenW - bezelInset * 2;
+  const activeH = screenH - bezelInset * 2;
+
+  const pinNames = ["GND", "VCC", "SCL", "SDA"];
+
+  const pcbGradId    = `oled-pcb-${component.id}`;
+  const screenGradId = `oled-screen-${component.id}`;
+  const glassGradId  = `oled-glass-${component.id}`;
 
   return (
     <g>
       <defs>
-        <linearGradient id={bodyGradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#2a2a2a" />
-          <stop offset="100%" stopColor="#0a0a0a" />
+        {/* Navy blue PCB */}
+        <linearGradient id={pcbGradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stopColor="#1c2d54" />
+          <stop offset="50%"  stopColor="#162245" />
+          <stop offset="100%" stopColor="#0d1730" />
+        </linearGradient>
+        {/* OLED panel — very deep black with a faint blue-teal glow */}
+        <linearGradient id={screenGradId} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%"   stopColor="#020408" />
+          <stop offset="100%" stopColor="#040c14" />
+        </linearGradient>
+        {/* Glass reflection highlight */}
+        <linearGradient id={glassGradId} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%"   stopColor="#ffffff" stopOpacity="0.07" />
+          <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
         </linearGradient>
       </defs>
 
-      {/* Pin hole indicators + leads into the body */}
+      {/* Pin leads from PCB right edge to breadboard holes */}
       {pins.map((pin, i) => (
         <g key={i}>
-          <circle cx={pin.x} cy={pin.y} r={2} fill="#c0c0c0" opacity={0.55} />
           <line
-            x1={bodyL + w}
-            y1={pin.y}
-            x2={pin.x}
-            y2={pin.y}
-            stroke="#c0c0c0"
-            strokeWidth={1.2}
-            strokeLinecap="round"
+            x1={headerX} y1={pin.y}
+            x2={pin.x}   y2={pin.y}
+            stroke="#c8c8c8" strokeWidth={1.3} strokeLinecap="round"
           />
+          {/* Solder pad on PCB edge */}
+          <rect x={headerX - 1} y={pin.y - 1.2} width={2} height={2.4}
+            fill="#c8a84a" rx={0.3} />
+          <circle cx={pin.x} cy={pin.y} r={2} fill="#b0b0b0" opacity={0.55} />
           <PinLabel x={pin.x} y={pin.y} name={pinNames[i]} side="right" />
         </g>
       ))}
 
       {/* Drop shadow */}
-      <rect x={bodyL + 1} y={bodyT + 1.5} width={w} height={h} rx={2} fill="#00000060" />
+      <rect x={bodyL + 1} y={bodyT + 2} width={w} height={h} rx={2} fill="#00000070" />
 
-      {/* PCB body */}
+      {/* PCB substrate */}
       <rect x={bodyL} y={bodyT} width={w} height={h} rx={2}
-        fill={`url(#${bodyGradId})`}
-        stroke={isSelected ? "#3b82f6" : "#333"}
-        strokeWidth={isSelected ? 1.5 : 0.8} />
+        fill={`url(#${pcbGradId})`}
+        stroke={isSelected ? "#3b82f6" : "#0d1a35"}
+        strokeWidth={isSelected ? 1.5 : 0.7} />
 
-      {/* OLED screen — deep black with thin border */}
-      <rect x={screenL} y={screenT} width={screenW} height={screenH} rx={1}
-        fill="#000" stroke="#06b6d4" strokeWidth={0.3} opacity={0.9} />
+      {/* Mounting-hole circles (corner pads, visual only) */}
+      {[[bodyL + 3, bodyT + 3], [bodyL + w - 3, bodyT + 3]].map(([hx, hy], i) => (
+        <g key={i}>
+          <circle cx={hx} cy={hy} r={2.2} fill="#0d1730" stroke="#2a4a8a" strokeWidth={0.4} />
+          <circle cx={hx} cy={hy} r={1.2} fill="#0a1220" />
+        </g>
+      ))}
 
-      {/* Default display text */}
-      <text x={screenL + screenW / 2} y={screenT + screenH / 2 + 1}
-        textAnchor="middle" fontSize={4}
-        fill="#06b6d4" fontFamily="monospace">
-        128×64 OLED
+      {/* PCB trace lines (decorative) */}
+      <line x1={bodyL + 8} y1={bodyT + h - 4} x2={bodyL + w - 8} y2={bodyT + h - 4}
+        stroke="#1e3a6a" strokeWidth={0.5} opacity={0.6} />
+      <line x1={headerX - 1} y1={pinTop.y} x2={headerX - 1} y2={pinBot.y}
+        stroke="#1e3a6a" strokeWidth={0.7} opacity={0.5} />
+
+      {/* Screen glass bezel — dark frame around the active OLED panel */}
+      <rect x={screenL} y={screenT} width={screenW} height={screenH} rx={1.5}
+        fill="#06080f" stroke="#0a1830" strokeWidth={0.6} />
+
+      {/* Active OLED area — live framebuffer from the SSD1306 peripheral.
+          Falls back to a dark glass with placeholder labels when the panel
+          hasn't been initialised (sketch hasn't called display.begin) so
+          unconfigured boards still look like a real powered-down OLED. */}
+      <rect x={activeL} y={activeT} width={activeW} height={activeH} rx={0.8}
+        fill={`url(#${screenGradId})`} />
+
+      {oled && oled.on ? (
+        <foreignObject x={activeL} y={activeT} width={activeW} height={activeH}>
+          <OledCanvas state={oled} cssWidth={activeW} cssHeight={activeH} />
+        </foreignObject>
+      ) : (
+        <>
+          <text x={activeL + activeW / 2} y={activeT + activeH * 0.38}
+            textAnchor="middle" fontSize={3.8}
+            fill="#06b6d4" fontFamily="monospace" opacity={0.9}>
+            128×64
+          </text>
+          <text x={activeL + activeW / 2} y={activeT + activeH * 0.65}
+            textAnchor="middle" fontSize={3}
+            fill="#0891b2" fontFamily="monospace" opacity={0.7}>
+            SSD1306
+          </text>
+          {[0.18, 0.52, 0.82].map((frac, i) => (
+            <line key={i}
+              x1={activeL + 2} y1={activeT + activeH * frac}
+              x2={activeL + activeW - 2} y2={activeT + activeH * frac}
+              stroke="#06b6d4" strokeWidth={0.3} opacity={0.15} />
+          ))}
+        </>
+      )}
+
+      {/* Glass highlight — diagonal sheen across top-left of screen */}
+      <rect x={activeL} y={activeT} width={activeW} height={activeH} rx={0.8}
+        fill={`url(#${glassGradId})`} />
+
+      {/* Silkscreen: I2C label + pin names along header edge */}
+      <text x={bodyL + 4} y={bodyT + h - 3} textAnchor="start"
+        fontSize={2.4} fill="#4a6aa0" fontFamily="monospace">
+        I2C 0x3C
       </text>
-
-      {/* Silkscreen SSD1306 label */}
-      <text x={bodyL + w - 2} y={bodyT + h - 2} textAnchor="end"
-        fontSize={2.4} fill="#6b7280" fontFamily="monospace">SSD1306</text>
+      <text x={bodyL + w - 4} y={bodyT + h - 3} textAnchor="end"
+        fontSize={2.4} fill="#3a5a80" fontFamily="monospace">
+        0.96"
+      </text>
 
       {/* Component name */}
       <text x={bodyCx} y={bodyT + h + 6} textAnchor="middle"
@@ -2069,6 +2427,10 @@ function GenericRendererInner({ component, components, pinStates, wires, isSelec
       return <g opacity={dimOpacity}><DcMotorRenderer component={component} pinStates={pinStates} isSelected={isSelected} /></g>;
     case "seven_segment":
       return <g opacity={dimOpacity}><SevenSegmentRenderer component={component} components={components} pinStates={pinStates} wires={wires} isSelected={isSelected} /></g>;
+    case "dht_sensor":
+      return <g opacity={dimOpacity}><DhtSensorRenderer component={component} isSelected={isSelected} /></g>;
+    case "shift_register":
+      return <g opacity={dimOpacity}><ShiftRegisterRenderer component={component} isSelected={isSelected} /></g>;
     case "oled_display":
       return <g opacity={dimOpacity}><OledRenderer component={component} isSelected={isSelected} libraryState={libraryState} /></g>;
     default:

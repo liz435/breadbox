@@ -15,6 +15,7 @@ import { Elysia } from "elysia"
 import { z } from "zod"
 import { installLibrary, listInstalledLibraries, searchLibraries, uninstallLibrary } from "../libraries"
 import { createLogger } from "../logger"
+import { IS_HOSTED } from "../env"
 
 const log = createLogger("libraries-route")
 
@@ -27,14 +28,40 @@ const uninstallRequestSchema = z.object({
   name: z.string().min(1),
 })
 
+// Hosted replicas ship an immutable pre-baked library set. The list can't
+// change at runtime, so we memoize the first successful result for the
+// lifetime of the process — saves an arduino-cli spawn on every poll.
+type InstalledLibraries = Awaited<ReturnType<typeof listInstalledLibraries>>
+let installedCache: Promise<InstalledLibraries> | null = null
+
+function getInstalledLibraries(): Promise<InstalledLibraries> {
+  if (!IS_HOSTED) return listInstalledLibraries()
+  if (!installedCache) {
+    installedCache = listInstalledLibraries().catch((err) => {
+      installedCache = null
+      throw err
+    })
+  }
+  return installedCache
+}
+
 export const libraryRoutes = new Elysia()
 
   .get("/api/libraries/installed", async () => {
-    const libs = await listInstalledLibraries()
+    const libs = await getInstalledLibraries()
     return { libraries: libs }
   })
 
   .get("/api/libraries/search", async ({ query, set }) => {
+    // Search is an arduino-cli subprocess against the live Arduino index.
+    // Hosted replicas can't install what they return, so 403 matches the
+    // install/uninstall gate below and avoids an unbounded per-request spawn.
+    if (IS_HOSTED) {
+      set.status = 403
+      return {
+        error: "Hosted mode — library search is disabled. Run the Dreamer CLI locally to browse the full library index.",
+      }
+    }
     const q = typeof query.q === "string" ? query.q : ""
     if (!q.trim()) {
       set.status = 400
@@ -49,7 +76,7 @@ export const libraryRoutes = new Elysia()
     // endpoints are 403 so multi-tenant state doesn't drift and users get
     // a clear error instead of a silent "install succeeded but won't
     // persist across deploys" surprise.
-    if (process.env.DREAMER_HOSTED === "1") {
+    if (IS_HOSTED) {
       set.status = 403
       return {
         success: false,
@@ -72,7 +99,7 @@ export const libraryRoutes = new Elysia()
   })
 
   .post("/api/libraries/uninstall", async ({ body, set }) => {
-    if (process.env.DREAMER_HOSTED === "1") {
+    if (IS_HOSTED) {
       set.status = 403
       return {
         success: false,

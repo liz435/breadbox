@@ -16,6 +16,14 @@ import { mkdir } from "fs/promises"
 import { join } from "path"
 import { resolveArduinoCli } from "./toolchain"
 import { createLogger } from "./logger"
+import { IS_HOSTED } from "./env"
+import { spawnCapture } from "./process-utils"
+
+/** Timeouts for arduino-cli lib subcommands (all bounded so no child can wedge). */
+const LIB_INSTALL_TIMEOUT_MS = 60_000
+const LIB_UNINSTALL_TIMEOUT_MS = 30_000
+const LIB_LIST_TIMEOUT_MS = 15_000
+const LIB_SEARCH_TIMEOUT_MS = 15_000
 
 const log = createLogger("libraries")
 
@@ -99,25 +107,17 @@ export async function installLibrary(
   const target = opts?.version ? `${name}@${opts.version}` : name
   log.info(`installing library ${target}`)
 
-  const proc = Bun.spawn([cli, "lib", "install", target], {
-    stdout: "pipe",
-    stderr: "pipe",
-  })
+  const { stdout, stderr, code, aborted } = await spawnCapture(
+    [cli, "lib", "install", target],
+    { timeoutMs: LIB_INSTALL_TIMEOUT_MS, signal: opts?.signal },
+  )
 
-  // Bounded timeout — default 60s.
-  const timeout = new Promise<number>((resolve) => {
-    const t = setTimeout(() => {
-      try { proc.kill() } catch { /* best-effort */ }
-      resolve(124) // coreutils timeout convention
-    }, 60_000)
-    // Cancel the timer if the caller aborts; we'll catch the abort separately.
-    opts?.signal?.addEventListener("abort", () => clearTimeout(t))
-  })
-
-  const code = await Promise.race([proc.exited, timeout])
-  const stderr = await new Response(proc.stderr).text()
-  const stdout = await new Response(proc.stdout).text()
-
+  if (aborted === "timeout") {
+    return { success: false, error: `arduino-cli lib install timed out after ${LIB_INSTALL_TIMEOUT_MS / 1000}s` }
+  }
+  if (aborted === "signal") {
+    return { success: false, error: "arduino-cli lib install cancelled" }
+  }
   if (code !== 0) {
     return {
       success: false,
@@ -145,15 +145,14 @@ export async function uninstallLibrary(
   }
 
   log.info(`uninstalling library ${name}`)
-  const proc = Bun.spawn([cli, "lib", "uninstall", name], {
-    stdout: "pipe", stderr: "pipe",
-  })
-  const [stdout, stderr, code] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ])
+  const { stdout, stderr, code, aborted } = await spawnCapture(
+    [cli, "lib", "uninstall", name],
+    { timeoutMs: LIB_UNINSTALL_TIMEOUT_MS },
+  )
 
+  if (aborted === "timeout") {
+    return { success: false, error: `arduino-cli lib uninstall timed out after ${LIB_UNINSTALL_TIMEOUT_MS / 1000}s` }
+  }
   if (code === 0) return { success: true }
 
   // "Library X is not installed" is a non-zero exit but a user-friendly
@@ -182,11 +181,11 @@ export async function listInstalledLibraries(): Promise<Array<{
   } catch {
     return []
   }
-  const proc = Bun.spawn([cli, "lib", "list", "--json"], {
-    stdout: "pipe", stderr: "pipe",
-  })
-  const [stdout, code] = await Promise.all([new Response(proc.stdout).text(), proc.exited])
-  if (code !== 0) return []
+  const { stdout, code, aborted } = await spawnCapture(
+    [cli, "lib", "list", "--json"],
+    { timeoutMs: LIB_LIST_TIMEOUT_MS },
+  )
+  if (aborted !== null || code !== 0) return []
   try {
     const json = JSON.parse(stdout) as {
       installed_libraries?: Array<{
@@ -225,11 +224,11 @@ export async function searchLibraries(query: string): Promise<Array<{
   } catch {
     return []
   }
-  const proc = Bun.spawn([cli, "lib", "search", query, "--json"], {
-    stdout: "pipe", stderr: "pipe",
-  })
-  const [stdout, code] = await Promise.all([new Response(proc.stdout).text(), proc.exited])
-  if (code !== 0) return []
+  const { stdout, code, aborted } = await spawnCapture(
+    [cli, "lib", "search", query, "--json"],
+    { timeoutMs: LIB_SEARCH_TIMEOUT_MS },
+  )
+  if (aborted !== null || code !== 0) return []
   try {
     const json = JSON.parse(stdout) as {
       libraries?: Array<{
@@ -278,7 +277,7 @@ export function extractMissingHeader(output: string): string | null {
 export async function attemptAutoInstall(
   headerBase: string,
 ): Promise<{ installed: string } | { reason: string }> {
-  if (process.env.DREAMER_HOSTED === "1") {
+  if (IS_HOSTED) {
     return { reason: `"${headerBase}" is not pre-installed on this hosted Dreamer. Run the Dreamer CLI locally to use additional libraries.` }
   }
   if (process.env.DREAMER_AUTO_INSTALL_LIBS === "0") {
@@ -290,8 +289,20 @@ export async function attemptAutoInstall(
     return { reason: `no library matches "${headerBase}" in the Arduino index` }
   }
 
-  const exact = candidates.find((c) => c.name.toLowerCase() === headerBase.toLowerCase())
-  const pick = exact ?? (candidates.length === 1 ? candidates[0] : null)
+  // Arduino library names typically use spaces where headers use underscores
+  // (e.g. header "Adafruit_SSD1306.h" is provided by library "Adafruit SSD1306").
+  // Normalize both sides by stripping separators before comparing.
+  const normalize = (s: string) => s.toLowerCase().replace(/[\s_\-]+/g, "")
+  const target = normalize(headerBase)
+  const exactMatches = candidates.filter((c) => normalize(c.name) === target)
+  const pick =
+    exactMatches.length === 1
+      ? exactMatches[0]
+      : exactMatches.length > 1
+        ? exactMatches.reduce((a, b) => (a.name.length <= b.name.length ? a : b))
+        : candidates.length === 1
+          ? candidates[0]
+          : null
 
   if (!pick) {
     const top = candidates.slice(0, 5).map((c) => c.name).join(", ")

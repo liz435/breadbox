@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { nonEmptyStringSchema, timestampSchema } from "./primitives";
-import { boardComponentSchema, wireSchema, pinModeSchema } from "./arduino";
+import { boardComponentSchema, boardStateSchema, wireSchema, pinModeSchema } from "./arduino";
 
 // ── Board Op Base ──────────────────────────────────────────────────────────
 
@@ -81,6 +81,13 @@ const updateBoardSettingsOpSchema = boardOpBaseSchema.extend({
   }),
 });
 
+const loadBoardOpSchema = boardOpBaseSchema.extend({
+  kind: z.literal("load_board"),
+  payload: z.object({
+    state: boardStateSchema,
+  }),
+});
+
 // ── BoardOp (discriminated union) ──────────────────────────────────────────
 
 export const boardOpSchema = z.discriminatedUnion("kind", [
@@ -93,6 +100,7 @@ export const boardOpSchema = z.discriminatedUnion("kind", [
   setPinModeOpSchema,
   updateSketchOpSchema,
   updateBoardSettingsOpSchema,
+  loadBoardOpSchema,
 ]);
 
 export type BoardOp = z.infer<typeof boardOpSchema>;

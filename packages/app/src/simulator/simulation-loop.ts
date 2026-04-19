@@ -10,6 +10,7 @@ import { createSketchRunner, type SketchRunner, type SketchRunnerCallbacks } fro
 import { analyzeCircuit, type CircuitAnalysis } from "./circuit-solver"
 import { snapshotAsPinStates } from "./pin-state-store"
 import { applySensorInputs, resetSensorBuses } from "./sensor-inputs"
+import { RunTokenGate } from "./run-token-gate"
 import { getBoardPinLayout, getComponentFootprint, areConnected } from "@/breadboard/breadboard-grid"
 import { BoardContext } from "@/store/board-context"
 import { BOARD_TARGETS, DEFAULT_BOARD_TARGET, isBoardComponentType, type LibraryState, type ServoState } from "@dreamer/schemas"
@@ -58,6 +59,10 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
   // Keep latest callbacks in a ref to avoid re-creating the runner on every render
   const callbacksRef = useRef<SimulationHookOptions>(options)
   callbacksRef.current = options
+
+  // Monotonic token guarding async compile callbacks. Any stop() or newer
+  // play() invalidates older in-flight loadSketchAsync completions.
+  const runTokenGateRef = useRef(new RunTokenGate())
 
   // ── Web Audio (bus-driven) ───────────────────────────────────────
   //
@@ -177,11 +182,11 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     const onLibChange = callbacksRef.current.onLibraryStateChange
     if (!onLibChange) return
 
-    // Single source of truth: the peripheral bus. Servo angles and LCD
-    // text buffers flow out of bus peripherals; no stdlib shim in the
-    // loop anymore.
+    // Single source of truth: the peripheral bus. Servo angles, LCD text
+    // buffers, and OLED framebuffers all flow out of bus peripherals.
     const servos: Record<string, ServoState> = {}
     let lcd: LibraryState["lcd"] = null
+    const oled: LibraryState["oled"] = {}
     const peripherals = runner.getPeripheralBus().snapshot()
     for (const [id, s] of Object.entries(peripherals)) {
       if (s.kind === "servo") {
@@ -205,15 +210,28 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
           scrollOffset: 0,
           cgram: [],
         }
+        continue
+      }
+      if (s.kind === "oled") {
+        oled[id] = {
+          width: s.width,
+          height: s.height,
+          on: s.on,
+          inverted: s.inverted,
+          framebuffer: s.framebuffer,
+        }
       }
     }
 
-    // Simple serialization check to avoid unnecessary dispatches.
-    const serialized = JSON.stringify({ servos, lcd })
+    // Simple serialization check to avoid unnecessary dispatches. The OLED
+    // framebuffer is a number[] (not Uint8Array) precisely so this comparison
+    // is meaningful — Uint8Array would JSON.stringify to `{}` and changes
+    // would be silently dropped.
+    const serialized = JSON.stringify({ servos, lcd, oled })
     if (serialized === prevLibStateRef.current) return
     prevLibStateRef.current = serialized
 
-    onLibChange({ servos, lcd })
+    onLibChange({ servos, lcd, oled })
   }, [])
 
   // Shared analysis result — updated inside the tick loop.
@@ -351,6 +369,7 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
 
   const play = useCallback(
     (sketchCode: string) => {
+      const runToken = runTokenGateRef.current.beginRun()
       send({ type: "PLAY" })
 
       const runner = getRunner()
@@ -364,8 +383,14 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
       const onLog = callbacksRef.current.onBuildLog
       runner.loadSketchAsync(sketchCode, customLibs, {
         fqbn,
-        onLog: onLog ? (tag, line, ts) => onLog(tag, line, ts) : undefined,
+        onLog: onLog
+          ? (tag, line, ts) => {
+              if (!runTokenGateRef.current.isCurrent(runToken)) return
+              onLog(tag, line, ts)
+            }
+          : undefined,
       }).then((result) => {
+        if (!runTokenGateRef.current.isCurrent(runToken)) return
         if (!result.success) {
           send({
             type: "COMPILE_ERROR",
@@ -401,6 +426,8 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
   }, [send, startLoop])
 
   const stop = useCallback(() => {
+    // Invalidate any in-flight compile callbacks for prior runs.
+    runTokenGateRef.current.invalidate()
     cancelLoop()
     stopAllTones()
     runnerRef.current?.reset()

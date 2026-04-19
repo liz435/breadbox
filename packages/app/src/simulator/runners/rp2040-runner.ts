@@ -56,6 +56,11 @@ const RP2040_CYCLES_PER_FRAME = Math.round(125_000_000 / 60)
 // Setup budget — longer than AVR's 50ms because a Pico sketch typically
 // spends more cycles in clock/GPIO init before the first loop().
 const RP2040_SETUP_CYCLES = 125_000_000 / 10 // ~100ms simulated
+// Keep execution chunked so stepping stays responsive on the browser thread.
+const RP2040_STEP_CHUNK_CYCLES = 4_096
+const RP2040_SETUP_BUDGET_MS = 8
+const RP2040_FRAME_BUDGET_MS = 6
+const RP2040_MAX_LOOP_BACKLOG_CYCLES = RP2040_CYCLES_PER_FRAME * 120 // ~2s backlog cap
 
 const FLASH_ORIGIN = 0x10000000
 const ARDUINO_PICO_VECTOR_TABLE_OFFSET = 0x100
@@ -74,6 +79,25 @@ type Rp2040Module = typeof import("rp2040js")
 type Rp2040Instance = InstanceType<Rp2040Module["RP2040"]>
 type UsbCdcInstance = InstanceType<Rp2040Module["USBCDC"]>
 
+type GpioPinLike = {
+  setInputValue?: (value: boolean) => void
+}
+
+/**
+ * Bridge UI-driven input writes (PinStateStore.writeExternal) into rp2040js
+ * GPIO input state so sketch digitalRead() sees the same value.
+ */
+export function bindRp2040ExternalPinSink(
+  store: PinStateStore,
+  chip: { gpio: GpioPinLike[] },
+): void {
+  store.setExternalPinSink((pin, digitalValue) => {
+    if (pin < 0 || pin >= chip.gpio.length) return
+    const gpioPin = chip.gpio[pin]
+    gpioPin?.setInputValue?.(digitalValue === 1)
+  })
+}
+
 export function createRp2040SketchRunner(
   target: BoardTargetInfo,
   callbacks: SketchRunnerCallbacks,
@@ -91,6 +115,10 @@ export function createRp2040SketchRunner(
   let mcu: Rp2040Instance | null = null
   let mod: Rp2040Module | null = null
   let cdc: UsbCdcInstance | null = null
+  let pendingSetupCycles = 0
+  let pendingLoopCycles = 0
+  let droppedLoopCycles = 0
+  let maxObservedBacklogCycles = 0
   // Decoder reused so multi-byte UTF-8 sequences flowing across callbacks
   // don't fragment mid-codepoint on the serial monitor.
   const cdcTextDecoder = new TextDecoder("utf-8", { fatal: false })
@@ -101,6 +129,40 @@ export function createRp2040SketchRunner(
     // rp2040js versions that might shape this differently.
     const micros = (mcu.clock as unknown as { micros?: number }).micros
     return typeof micros === "number" ? Math.floor(micros / 1000) : 0
+  }
+
+  function nowMs(): number {
+    if (typeof performance !== "undefined" && typeof performance.now === "function") {
+      return performance.now()
+    }
+    return Date.now()
+  }
+
+  function stepCycles(chip: Rp2040Instance, cycles: number): void {
+    for (let i = 0; i < cycles; i++) chip.step()
+  }
+
+  function updateBacklogMetrics(): void {
+    const backlog = pendingSetupCycles + pendingLoopCycles
+    if (backlog > maxObservedBacklogCycles) {
+      maxObservedBacklogCycles = backlog
+    }
+  }
+
+  function drainPendingCycles(chip: Rp2040Instance, budgetMs: number): void {
+    const deadline = nowMs() + budgetMs
+    while ((pendingSetupCycles > 0 || pendingLoopCycles > 0) && nowMs() < deadline) {
+      if (pendingSetupCycles > 0) {
+        const step = Math.min(RP2040_STEP_CHUNK_CYCLES, pendingSetupCycles)
+        stepCycles(chip, step)
+        pendingSetupCycles -= step
+        continue
+      }
+      const step = Math.min(RP2040_STEP_CHUNK_CYCLES, pendingLoopCycles)
+      stepCycles(chip, step)
+      pendingLoopCycles -= step
+    }
+    updateBacklogMetrics()
   }
 
   function wireGpioListeners(chip: Rp2040Instance, Enum: Rp2040Module["GPIOPinState"]): void {
@@ -141,6 +203,10 @@ export function createRp2040SketchRunner(
       callbacks.onSerialPrint(cdcTextDecoder.decode(buf, { stream: true }))
     }
     return instance
+  }
+
+  function wireExternalPinSink(chip: Rp2040Instance): void {
+    bindRp2040ExternalPinSink(store, chip as unknown as { gpio: GpioPinLike[] })
   }
 
   function bootArduinoPicoFirmware(chip: Rp2040Instance, flashOffset: number): void {
@@ -194,9 +260,14 @@ export function createRp2040SketchRunner(
     mod = await loadRp2040js()
     const chip = new mod.RP2040()
     mcu = chip
+    pendingSetupCycles = 0
+    pendingLoopCycles = 0
+    droppedLoopCycles = 0
+    maxObservedBacklogCycles = 0
     wireGpioListeners(chip, mod.GPIOPinState)
     wireUart0(chip)
     cdc = wireUsbCdc(chip, mod)
+    wireExternalPinSink(chip)
 
     // Write the UF2 image into flash and fake the bootrom handoff.
     if (result.flashOffset + result.flash.byteLength > chip.flash.byteLength) {
@@ -214,7 +285,8 @@ export function createRp2040SketchRunner(
   function runSetup(): void {
     if (!mcu) return
     try {
-      for (let i = 0; i < RP2040_SETUP_CYCLES; i++) mcu.step()
+      pendingSetupCycles += RP2040_SETUP_CYCLES
+      drainPendingCycles(mcu, RP2040_SETUP_BUDGET_MS)
     } catch (err) {
       callbacks.onError(
         err instanceof Error ? err.message : "Runtime error during RP2040 setup",
@@ -225,7 +297,16 @@ export function createRp2040SketchRunner(
   function runLoopIteration(): boolean {
     if (!mcu) return true
     try {
-      for (let i = 0; i < RP2040_CYCLES_PER_FRAME; i++) mcu.step()
+      // Preserve setup-first semantics: until setup backlog is drained, don't
+      // enqueue loop cycles yet.
+      if (pendingSetupCycles === 0) {
+        pendingLoopCycles += RP2040_CYCLES_PER_FRAME
+        if (pendingLoopCycles > RP2040_MAX_LOOP_BACKLOG_CYCLES) {
+          droppedLoopCycles += pendingLoopCycles - RP2040_MAX_LOOP_BACKLOG_CYCLES
+          pendingLoopCycles = RP2040_MAX_LOOP_BACKLOG_CYCLES
+        }
+      }
+      drainPendingCycles(mcu, RP2040_FRAME_BUDGET_MS)
     } catch (err) {
       callbacks.onError(
         err instanceof Error ? err.message : "Runtime error in RP2040 execution",
@@ -274,6 +355,10 @@ export function createRp2040SketchRunner(
     }
     mcu = null
     cdc = null
+    pendingSetupCycles = 0
+    pendingLoopCycles = 0
+    droppedLoopCycles = 0
+    maxObservedBacklogCycles = 0
     store.setExternalPinSink(null)
     store.reset()
     peripheralBus.detachBoard()
@@ -299,6 +384,15 @@ export function createRp2040SketchRunner(
     peripheralBus.attachBoard(input)
   }
 
+  function getExecutionBacklog() {
+    return {
+      pendingSetupCycles,
+      pendingLoopCycles,
+      droppedLoopCycles,
+      maxObservedBacklogCycles,
+    }
+  }
+
   return {
     kind,
     fqbn,
@@ -314,5 +408,6 @@ export function createRp2040SketchRunner(
     getPinStore,
     getPeripheralBus,
     attachBoard,
+    getExecutionBacklog,
   }
 }

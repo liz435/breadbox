@@ -42,8 +42,19 @@ import {
 } from "../libraries"
 import { BOARD_TARGETS, boardTargetSchema, DEFAULT_BOARD_TARGET } from "@dreamer/schemas"
 import { createNdjsonStream, pumpProcessStream, type StreamWriter } from "./_stream-lines"
+import { readFirmwareArtifact } from "./_firmware-artifact"
+import { spawnWithTimeout } from "../process-utils"
+import {
+  acquireCompileSlot,
+  CompileBusyError,
+  CompileCancelledError,
+  compileSlotStats,
+} from "./_compile-limiter"
 
 const log = createLogger("compile")
+
+/** Wall-clock ceiling for a single compile invocation. */
+const COMPILE_TIMEOUT_MS = 120_000
 
 const compileRequestSchema = z.object({
   code: z.string().min(1, "Sketch code is required"),
@@ -54,49 +65,6 @@ const compileRequestSchema = z.object({
 
 async function writeFile(path: string, content: string): Promise<void> {
   await Bun.write(path, content)
-}
-
-async function readFile(path: string): Promise<string> {
-  const file = Bun.file(path)
-  return file.text()
-}
-
-type FirmwareArtifact =
-  | { format: "hex"; data: string }           // Intel HEX text
-  | { format: "uf2"; data: string }           // base64-encoded UF2 bytes
-
-/**
- * Locate the firmware file arduino-cli wrote to the output directory.
- * Path + format depend on the fqbn family — AVR boards produce `.hex`,
- * RP2040 boards produce `.uf2`.
- */
-async function readFirmwareArtifact(
-  outputDir: string,
-  fqbn: string,
-): Promise<FirmwareArtifact | null> {
-  if (fqbn.startsWith("rp2040:")) {
-    const uf2File = join(outputDir, "sketch.ino.uf2")
-    const bytes = Bun.file(uf2File)
-    if (!(await bytes.exists())) return null
-    const buf = new Uint8Array(await bytes.arrayBuffer())
-    return { format: "uf2", data: Buffer.from(buf).toString("base64") }
-  }
-
-  // AVR: Intel HEX. `sketch.ino.hex` is the primary artifact; boards that
-  // flash via bootloader produce a second `.with_bootloader.hex` — both are
-  // loadable by avr8js (entry vectors are identical), but prefer the plain
-  // one for predictable program-memory sizing.
-  const primary = join(outputDir, "sketch.ino.hex")
-  try {
-    return { format: "hex", data: await readFile(primary) }
-  } catch {
-    const withBootloader = join(outputDir, "sketch.ino.with_bootloader.hex")
-    try {
-      return { format: "hex", data: await readFile(withBootloader) }
-    } catch {
-      return null
-    }
-  }
 }
 
 // ── Internals ───────────────────────────────────────────────────────────────
@@ -159,6 +127,13 @@ async function prepareSketchDir(
   return libsDir
 }
 
+type CompileOutcome = {
+  stdout: string
+  stderr: string
+  exitCode: number
+  aborted: "timeout" | "signal" | null
+}
+
 /**
  * Spawn `arduino-cli compile` and stream its stdout+stderr line-by-line to
  * the NDJSON writer. Returns the accumulated buffers + exit code so the
@@ -170,7 +145,8 @@ async function streamCompile(
   fqbn: string,
   libsDir: string | null,
   writer: StreamWriter,
-): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  signal: AbortSignal,
+): Promise<CompileOutcome> {
   const args = [
     arduinoCli,
     "compile",
@@ -180,24 +156,49 @@ async function streamCompile(
   if (libsDir) args.push("--libraries", libsDir)
   args.push(join(sketchDir, "sketch"))
 
-  const proc = Bun.spawn(args, { stdout: "pipe", stderr: "pipe" })
+  const handle = spawnWithTimeout(args, {
+    timeoutMs: COMPILE_TIMEOUT_MS,
+    signal,
+  })
   const stdoutSink = { buffer: "" }
   const stderrSink = { buffer: "" }
   await Promise.all([
-    pumpProcessStream(proc.stdout, "compiler", writer, stdoutSink),
-    pumpProcessStream(proc.stderr, "compiler", writer, stderrSink),
+    pumpProcessStream(handle.proc.stdout, "compiler", writer, stdoutSink),
+    pumpProcessStream(handle.proc.stderr, "compiler", writer, stderrSink),
   ])
-  const exitCode = await proc.exited
-  return { stdout: stdoutSink.buffer, stderr: stderrSink.buffer, exitCode }
+  const exitCode = await handle.exitPromise
+  return {
+    stdout: stdoutSink.buffer,
+    stderr: stderrSink.buffer,
+    exitCode,
+    aborted: handle.abortReason(),
+  }
 }
 
 // ── Route ───────────────────────────────────────────────────────────────────
 
-export const compileRoutes = new Elysia().post("/api/compile", ({ body, set }) => {
+export const compileRoutes = new Elysia().post("/api/compile", async ({ body, request, set }) => {
   const parsed = compileRequestSchema.safeParse(body)
   if (!parsed.success) {
     set.status = 400
     return { error: parsed.error.issues[0]?.message ?? "Invalid request" }
+  }
+
+  let release: () => void
+  try {
+    release = await acquireCompileSlot(request.signal)
+  } catch (err) {
+    if (err instanceof CompileBusyError) {
+      const stats = compileSlotStats()
+      log.info(`queue full — rejecting compile (active=${stats.active}, queued=${stats.queued})`)
+      set.status = 429
+      return { error: err.message }
+    }
+    if (err instanceof CompileCancelledError) {
+      set.status = 499
+      return { error: err.message }
+    }
+    throw err
   }
 
   const boardTarget = parsed.data.boardTarget ?? DEFAULT_BOARD_TARGET
@@ -208,6 +209,7 @@ export const compileRoutes = new Elysia().post("/api/compile", ({ body, set }) =
   const outputDir = join(sketchDir, "output")
 
   const { stream, writer } = createNdjsonStream()
+  const signal = request.signal
 
   // Run the whole compile flow in a detached async IIFE so we can return the
   // ReadableStream synchronously and the browser starts seeing chunks as
@@ -240,9 +242,9 @@ export const compileRoutes = new Elysia().post("/api/compile", ({ body, set }) =
       // install the matching third-party library and retry.
       const MAX_RETRIES = 3
       const autoInstalled: string[] = []
-      let compileResult = await streamCompile(arduinoCli, sketchDir, fqbn, libsDir, writer)
+      let compileResult = await streamCompile(arduinoCli, sketchDir, fqbn, libsDir, writer, signal)
 
-      for (let attempt = 0; attempt < MAX_RETRIES && compileResult.exitCode !== 0; attempt++) {
+      for (let attempt = 0; attempt < MAX_RETRIES && compileResult.exitCode !== 0 && compileResult.aborted === null; attempt++) {
         const stderr = compileResult.stderr + compileResult.stdout
         const missing = extractMissingHeader(stderr)
         if (!missing) break
@@ -274,7 +276,16 @@ export const compileRoutes = new Elysia().post("/api/compile", ({ body, set }) =
         })
         log.info(`sketch ${sketchId}: installed "${install.installed}", retrying`)
         autoInstalled.push(missing)
-        compileResult = await streamCompile(arduinoCli, sketchDir, fqbn, libsDir, writer)
+        compileResult = await streamCompile(arduinoCli, sketchDir, fqbn, libsDir, writer, signal)
+      }
+
+      if (compileResult.aborted !== null) {
+        const message = compileResult.aborted === "timeout"
+          ? `compile timed out after ${COMPILE_TIMEOUT_MS / 1000}s`
+          : "compile cancelled"
+        log.info(`Compilation aborted for ${sketchId}: ${compileResult.aborted}`)
+        writer.write({ kind: "error", message })
+        return
       }
 
       if (compileResult.exitCode !== 0) {
@@ -315,6 +326,7 @@ export const compileRoutes = new Elysia().post("/api/compile", ({ body, set }) =
       })
     } finally {
       writer.close()
+      release()
       try {
         await rm(sketchDir, { recursive: true, force: true })
       } catch {

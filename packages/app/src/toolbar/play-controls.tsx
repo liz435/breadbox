@@ -1,60 +1,31 @@
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useRef } from "react"
 import { Play, Pause, Square, Cpu, Upload, Zap, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
-import { BOARD_TARGETS, DEFAULT_BOARD_TARGET, type BoardTarget, type LibraryState } from "@dreamer/schemas"
+import { BOARD_TARGETS, DEFAULT_BOARD_TARGET, type BoardTarget } from "@dreamer/schemas"
 import { API_ORIGIN } from "@dreamer/config"
 import { useBoard } from "@/store/board-context"
 import { useDockviewApi } from "@/store/dockview-context"
-import { useSimulation } from "@/simulator/simulation-loop"
+import type { SimulationActions } from "@/simulator/simulation-loop"
 import { useBoardConnection } from "@/simulator/use-board-connection"
 import { useElectricalReport } from "@/electrical/power-budget"
 import { cn } from "@/utils/classnames"
-import { markSerialUnread } from "./edit-toolbar"
-import { simulationRef } from "@/simulator/simulation-ref"
 import { readNdjsonStream } from "@/simulator/avr-compiler"
+import { setUploadState, useUploadState } from "./upload-status-store"
+import { BoardStatus } from "./board-status"
 
-type UploadStatus = "idle" | "compiling" | "flashing" | "reconnecting" | "done" | "error"
+type PlayControlsProps = {
+  sim: SimulationActions
+}
 
-export function PlayControls() {
+export function PlayControls({ sim }: PlayControlsProps) {
   const { state, send: boardSend } = useBoard()
   const dockviewApi = useDockviewApi()
   const { selectedPort } = useBoardConnection()
   const electrical = useElectricalReport()
-  const [uploadStatus, setUploadStatus] = useState<UploadStatus>("idle")
-  const [uploadError, setUploadError] = useState<string | null>(null)
+  const upload = useUploadState()
 
-  const onSerialPrint = useCallback(
-    (text: string) => {
-      boardSend({ type: "APPEND_SERIAL", text })
-      markSerialUnread()
-    },
-    [boardSend],
-  )
-
-  const onLibraryStateChange = useCallback(
-    (changes: Partial<LibraryState>) => {
-      boardSend({ type: "SET_LIBRARY_STATE", changes })
-    },
-    [boardSend],
-  )
-
-  const onBuildLog = useCallback(
-    (tag: "compiler" | "upload", line: string, ts: number) => {
-      boardSend({ type: "APPEND_BUILD_LOG", tag, line, ts })
-    },
-    [boardSend],
-  )
-
-  const sim = useSimulation({
-    onSerialPrint,
-    onLibraryStateChange,
-    onBuildLog,
-  })
-  const { status, error, play, pause, resume, stop } = sim
-
-  // Expose the simulation globally so the sketch editor can use the same instance
-  simulationRef.current = sim
+  const { status, play, pause, resume, stop } = sim
 
   const sketchCodeRef = useRef(state.sketchCode)
   sketchCodeRef.current = state.sketchCode
@@ -101,8 +72,7 @@ export function PlayControls() {
   const handleUpload = useCallback(async () => {
     if (electrical.hasErrors) return
     if (!selectedPort || !sketchCodeRef.current) return
-    setUploadError(null)
-    setUploadStatus("compiling")
+    setUploadState({ status: "compiling", error: null })
     // Fresh panel for this upload session — compile + upload logs stream in.
     boardSend({ type: "CLEAR_BUILD_LOG" })
     try {
@@ -122,13 +92,14 @@ export function PlayControls() {
       const contentType = res.headers.get("content-type") ?? ""
       if (!contentType.includes("ndjson")) {
         const body = (await res.json()) as { error?: string }
-        setUploadError(body.error ?? `Upload server returned ${res.status}`)
-        setUploadStatus("error")
+        setUploadState({
+          status: "error",
+          error: body.error ?? `Upload server returned ${res.status}`,
+        })
         return
       }
       if (!res.body) {
-        setUploadError("Upload server returned empty body")
-        setUploadStatus("error")
+        setUploadState({ status: "error", error: "Upload server returned empty body" })
         return
       }
 
@@ -146,7 +117,7 @@ export function PlayControls() {
           boardSend({ type: "APPEND_BUILD_LOG", tag: event.tag, line: event.line, ts: event.ts })
           if (event.tag === "upload" && !sawUploadPhase) {
             sawUploadPhase = true
-            setUploadStatus("flashing")
+            setUploadState({ status: "flashing" })
           }
         } else if (event.kind === "done") {
           flashed = true
@@ -156,17 +127,18 @@ export function PlayControls() {
       }
 
       if (!flashed || errorMessage) {
-        setUploadError(errorMessage ?? "Upload failed")
-        setUploadStatus("error")
+        setUploadState({ status: "error", error: errorMessage ?? "Upload failed" })
         return
       }
 
-      setUploadStatus("reconnecting")
+      setUploadState({ status: "reconnecting", error: null })
       // board-manager handles reconnect; status resets after 3s
-      setTimeout(() => setUploadStatus("idle"), 3_500)
+      setTimeout(() => setUploadState({ status: "idle", error: null }), 3_500)
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Upload failed")
-      setUploadStatus("error")
+      setUploadState({
+        status: "error",
+        error: err instanceof Error ? err.message : "Upload failed",
+      })
     }
   }, [electrical.hasErrors, selectedPort, boardTarget, boardTargetInfo.fqbn, boardSend])
 
@@ -174,8 +146,12 @@ export function PlayControls() {
   const isPaused = status === "paused"
   const isCompiling = status === "compiling"
   const isStopped = status === "stopped"
-  const isError = status === "error"
   const electricalBlockReason = electrical.issues.find((issue) => issue.severity === "error")?.message
+
+  const uploadInProgress =
+    upload.status === "compiling" ||
+    upload.status === "flashing" ||
+    upload.status === "reconnecting"
 
   return (
     <div className="flex items-center gap-1">
@@ -244,98 +220,49 @@ export function PlayControls() {
         <TooltipContent>Stop</TooltipContent>
       </Tooltip>
 
-      {/* Status text */}
-      {!isStopped && (
-        <span className="ml-1 text-[10px] tabular-nums text-neutral-400">
-          {status}
-        </span>
-      )}
-      {boardTargetInfo.runner === "compile-only" && (
-        <span
-          className="ml-1 text-[10px] text-amber-400"
-          title="This board has no in-browser emulator. Compile + upload to hardware still works via board-specific FQBN."
-        >
-          not simulated
-        </span>
-      )}
+      {/* USB / port picker — opens a popover listing available Arduino
+          serial ports. Replaces the old "No board" text pill. */}
+      <BoardStatus />
 
-      {/* Error indicator */}
-      {isError && error && (
-        <span className="ml-1 text-[10px] text-red-400" title={error}>
-          error
-        </span>
-      )}
-      {electrical.hasErrors && electricalBlockReason && (
-        <span className="ml-1 text-[10px] text-red-400" title={electricalBlockReason}>
-          error
-        </span>
-      )}
-
-      <div className="mx-1 h-4 w-px bg-zinc-700" />
-      <select
-        value={boardTarget}
-        onChange={(e) => boardSend({ type: "SET_BOARD_TARGET", boardTarget: e.target.value as BoardTarget })}
-        className="h-6 rounded border border-zinc-700 bg-zinc-900 px-2 text-[10px] text-zinc-200"
-        title={`${boardTargetInfo.label} • ${boardTargetInfo.mcu}`}
-      >
-        {Object.values(BOARD_TARGETS).map((target) => (
-          <option key={target.id} value={target.id}>
-            {target.label}
-          </option>
-        ))}
-      </select>
-
-      {/* Upload to Arduino — only shown when a port is selected */}
+      {/* Upload to Arduino — only shown when a port is selected. Inline status
+          text used to live here; it now renders in <StatusDisplay/>. */}
       {selectedPort && (
-        <>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleUpload}
-                  disabled={
-                    electrical.hasErrors ||
-                    uploadStatus === "compiling" ||
-                    uploadStatus === "flashing" ||
-                    uploadStatus === "reconnecting"
-                  }
-                />
-              }
-            >
-              {uploadStatus === "compiling" && (
-                <Cpu className="size-3.5 animate-pulse text-blue-400" />
-              )}
-              {uploadStatus === "flashing" && (
-                <Zap className="size-3.5 animate-pulse text-teal-400" />
-              )}
-              {uploadStatus === "reconnecting" && (
-                <Upload className="size-3.5 animate-pulse text-teal-300" />
-              )}
-              {uploadStatus === "error" && (
-                <AlertCircle className="size-3.5 text-red-400" />
-              )}
-              {(uploadStatus === "idle" || uploadStatus === "done") && (
-                <Upload className="size-3.5 text-teal-400" />
-              )}
-            </TooltipTrigger>
-            <TooltipContent>
-              {uploadStatus === "compiling" ? "Compiling…"
-                : uploadStatus === "flashing" ? "Flashing…"
-                : uploadStatus === "reconnecting" ? "Reconnecting…"
-                : electrical.hasErrors ? (electricalBlockReason ?? "Electrical issue blocks upload")
-                : uploadStatus === "error" ? (uploadError ?? "Upload failed")
-                : `Compile & Upload (${boardTargetInfo.label})`}
-            </TooltipContent>
-          </Tooltip>
-
-          {uploadStatus === "error" && uploadError && (
-            <span className="ml-1 text-[10px] text-red-400" title={uploadError}>
-              error
-            </span>
-          )}
-        </>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleUpload}
+                disabled={electrical.hasErrors || uploadInProgress}
+              />
+            }
+          >
+            {upload.status === "compiling" && (
+              <Cpu className="size-3.5 animate-pulse text-blue-400" />
+            )}
+            {upload.status === "flashing" && (
+              <Zap className="size-3.5 animate-pulse text-teal-400" />
+            )}
+            {upload.status === "reconnecting" && (
+              <Upload className="size-3.5 animate-pulse text-teal-300" />
+            )}
+            {upload.status === "error" && (
+              <AlertCircle className="size-3.5 text-red-400" />
+            )}
+            {(upload.status === "idle" || upload.status === "done") && (
+              <Upload className="size-3.5 text-teal-400" />
+            )}
+          </TooltipTrigger>
+          <TooltipContent>
+            {upload.status === "compiling" ? "Compiling…"
+              : upload.status === "flashing" ? "Flashing…"
+              : upload.status === "reconnecting" ? "Reconnecting…"
+              : electrical.hasErrors ? (electricalBlockReason ?? "Electrical issue blocks upload")
+              : upload.status === "error" ? (upload.error ?? "Upload failed")
+              : `Compile & Upload (${boardTargetInfo.label})`}
+          </TooltipContent>
+        </Tooltip>
       )}
     </div>
   )

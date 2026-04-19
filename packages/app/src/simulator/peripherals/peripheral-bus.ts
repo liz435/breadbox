@@ -6,6 +6,7 @@
 // and the transpile stdlib (explicit API calls) route through the same
 // instance.
 
+import type { AVRTWI } from "avr8js"
 import type { BoardComponent, ComponentType, Wire } from "@dreamer/schemas"
 import type { PinStateStore } from "../pin-state-store"
 import type {
@@ -15,6 +16,7 @@ import type {
   PeripheralState,
   PeripheralTrace,
   PinEdge,
+  TwiSlaveHandler,
 } from "./types"
 import { createServoPeripheral } from "./servo"
 import { createBuzzerPeripheral } from "./buzzer"
@@ -22,6 +24,7 @@ import { createLcdPeripheral } from "./lcd"
 import { createUltrasonicPeripheral } from "./ultrasonic"
 import { createDhtPeripheral } from "./dht"
 import { createIrReceiverPeripheral } from "./ir-receiver"
+import { createOledPeripheral } from "./ssd1306-oled"
 
 const FACTORIES = new Map<ComponentType, PeripheralFactory>()
 
@@ -39,11 +42,22 @@ registerPeripheralFactory("lcd_16x2", createLcdPeripheral)
 registerPeripheralFactory("ultrasonic_sensor", createUltrasonicPeripheral)
 registerPeripheralFactory("dht_sensor", createDhtPeripheral)
 registerPeripheralFactory("ir_receiver", createIrReceiverPeripheral)
+registerPeripheralFactory("oled_display", createOledPeripheral)
 
 export type PeripheralBoardInput = {
   components: Record<string, BoardComponent>
   wires: Record<string, Wire>
   pinStore: PinStateStore
+  /**
+   * Optional TWI peripheral from the AVR runner. When present, the bus
+   * installs a single eventHandler that demuxes by slave address; when
+   * absent (transpile mode), `attachTwi` calls throw.
+   *
+   * NOTE: must be the CURRENT TWI instance — the AVR runner re-creates it
+   * on every reset(), so callers MUST refetch via runner.getTwi() and
+   * re-call attachBoard after each reset.
+   */
+  twi?: AVRTWI
 }
 
 type ScheduledEdge = {
@@ -62,10 +76,17 @@ export class PeripheralBus {
   private scheduledEdges: ScheduledEdge[] = []
   private boardPinStore: { writeExternal: (pin: number, changes: { digitalValue: 0 | 1 }) => void } | null = null
 
+  // ── TWI demux state ────────────────────────────────────────────────────
+  private twi: AVRTWI | null = null
+  private slavesByAddr = new Map<number, TwiSlaveHandler>()
+  private currentSlave: TwiSlaveHandler | null = null
+
   /** Re-create peripherals from the current board state. Call on sim start. */
   attachBoard(input: PeripheralBoardInput): void {
     this.detachBoard()
     this.boardPinStore = input.pinStore
+    this.twi = input.twi ?? null
+    if (this.twi) this.installTwiEventHandler(this.twi)
     for (const component of Object.values(input.components)) {
       const factory = FACTORIES.get(component.type as ComponentType)
       if (!factory) continue
@@ -77,6 +98,7 @@ export class PeripheralBus {
         pinStore: input.pinStore,
         trace: (entry) => this.recordTrace(component.id, entry),
         scheduleEdge: (pin, value, atSimMs) => this.scheduleEdge(pin, value, atSimMs),
+        attachTwi: (addr, handler) => this.attachTwi(addr, handler),
       })
       this.peripherals.set(component.id, peripheral)
       const typeBucket = this.byType.get(peripheral.componentType) ?? new Set()
@@ -99,6 +121,71 @@ export class PeripheralBus {
     this.traces = []
     this.scheduledEdges = []
     this.boardPinStore = null
+    this.slavesByAddr.clear()
+    this.currentSlave = null
+    this.twi = null
+  }
+
+  // ── I²C slave registration & demux ─────────────────────────────────────
+
+  /**
+   * Register an I²C slave at `slaveAddr` (7-bit). Returns a detach function.
+   * Throws if no TWI was passed to attachBoard — peripherals that opt in to
+   * I²C only work in AVR mode.
+   */
+  private attachTwi(slaveAddr: number, handler: TwiSlaveHandler): () => void {
+    if (!this.twi) {
+      throw new Error(
+        `attachTwi(0x${slaveAddr.toString(16)}): TWI not wired into PeripheralBus. ` +
+        `Pass runner.getTwi() into attachBoard (AVR mode only).`,
+      )
+    }
+    if (this.slavesByAddr.has(slaveAddr)) {
+      throw new Error(
+        `attachTwi(0x${slaveAddr.toString(16)}): another peripheral already owns this I²C address.`,
+      )
+    }
+    this.slavesByAddr.set(slaveAddr, handler)
+    return () => {
+      this.slavesByAddr.delete(slaveAddr)
+      if (this.currentSlave === handler) this.currentSlave = null
+    }
+  }
+
+  private installTwiEventHandler(twi: AVRTWI): void {
+    twi.eventHandler = {
+      start: (_repeated) => {
+        this.currentSlave = null
+        twi.completeStart()
+      },
+      stop: () => {
+        const slave = this.currentSlave
+        this.currentSlave = null
+        slave?.onStop()
+        twi.completeStop()
+      },
+      connectToSlave: (addr, _write) => {
+        const slave = this.slavesByAddr.get(addr) ?? null
+        this.currentSlave = slave
+        // ACK if we have a slave at that address, NACK otherwise. Adafruit
+        // ignores NACKs on its init burst so this mostly serves correctness
+        // for sketches that probe the bus.
+        twi.completeConnect(slave !== null)
+      },
+      writeByte: (value) => {
+        if (this.currentSlave) {
+          twi.completeWrite(this.currentSlave.onWrite(value))
+        } else {
+          // Silent ack so a missing slave at the wrong address doesn't stall
+          // the AVR's TWI state machine.
+          twi.completeWrite(true)
+        }
+      },
+      readByte: (_ack) => {
+        const value = this.currentSlave ? this.currentSlave.onRead() : 0xff
+        twi.completeRead(value)
+      },
+    }
   }
 
   /**

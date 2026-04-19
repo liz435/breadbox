@@ -2,7 +2,17 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { ProjectFile } from "../../db/schemas";
 import type { BoardOp, BoardState } from "@dreamer/schemas";
-import { createDefaultBoardState, resolveComponentPins, resolveComponentPin, getComponentPinNames as getSharedPinNames } from "@dreamer/schemas";
+import {
+  boardStateToDiagram,
+  createDefaultBoardState,
+  diagramSchema,
+  diagramToBoardState,
+  isBoardComponentType,
+  resolveComponentPins,
+  resolveComponentPin,
+  validateDiagram,
+  getComponentPinNames as getSharedPinNames,
+} from "@dreamer/schemas";
 import { boardTracker } from "../../db/board-state-tracker";
 import { makeBoardOp } from "../make-op";
 import { analyzePowerBudget } from "../../electrical/power-budget-analyzer";
@@ -103,42 +113,54 @@ export function summarizeBoardState(project: ProjectFile): string {
   const board = project.boardState ?? boardTracker.get(project.project.id);
   if (!board) return "Board is empty — no components or wires.";
 
-  const comps = Object.values(board.components);
-  const wires = Object.values(board.wires);
+  // Derive the summary from the DSL so the shape agrees with the full read
+  // tools (get_board_state / list_components / list_wires). Wire endpoints
+  // use the same readable notation (`arduino.13`, `led1.anode`, `psu1.+`,
+  // `grid.<r>,<c>`) agents see everywhere else.
+  const diagram = boardStateToDiagram(board);
+  const comps = diagram.components.filter((c) => !isBoardComponentType(c.type));
+  const wires = diagram.wires;
 
   if (comps.length === 0 && wires.length === 0) {
     return "Board is empty — no components or wires.";
   }
 
   const lines: string[] = [];
-  const nonArduino = comps.filter((c) => c.type !== "arduino_uno");
-  lines.push(`Components: ${nonArduino.length}. Wires: ${wires.length}.`);
-  if (nonArduino.length > 0) lines.push("Components:");
-  for (const c of nonArduino.slice(0, 8)) {
-    if (c.type === "arduino_uno") continue;
-    const pins = Object.entries(c.pins)
-      .filter((entry): entry is [string, number] => entry[1] != null)
-      .map(([k, v]) => `${k}=${formatArduinoPin(v)}`)
-      .join(", ");
-    lines.push(`  - ${c.name} (${c.type}, id=${c.id}) at row=${c.y} col=${c.x}${pins ? ` pins: ${pins}` : ""}`);
-  }
-  if (nonArduino.length > 8) {
-    lines.push(`  - ... ${nonArduino.length - 8} more component(s)`);
+  lines.push(`Components: ${comps.length}. Wires: ${wires.length}.`);
+
+  if (comps.length > 0) {
+    lines.push("Components:");
+    for (const c of comps.slice(0, 8)) {
+      const assignedPins = c.pins
+        ? Object.entries(c.pins).filter(
+            (entry): entry is [string, number] => typeof entry[1] === "number",
+          )
+        : [];
+      const pinStr =
+        assignedPins.length > 0
+          ? ` pins: ${assignedPins.map(([k, v]) => `${k}=${formatArduinoPin(v)}`).join(", ")}`
+          : "";
+      const label = c.name ?? c.type;
+      lines.push(
+        `  - ${label} (${c.type}, id=${c.id}) at [${c.at[0]}, ${c.at[1]}]${pinStr}`,
+      );
+    }
+    if (comps.length > 8) {
+      lines.push(`  - ... ${comps.length - 8} more component(s)`);
+    }
   }
 
   if (wires.length > 0) {
     lines.push("Wires:");
     for (const w of wires.slice(0, 6)) {
-      const from = w.fromRow === -999 ? formatArduinoPin(w.fromCol) : `row=${w.fromRow} col=${w.fromCol}`;
-      lines.push(`  - ${from} → row=${w.toRow} col=${w.toCol} (${w.color})`);
+      lines.push(`  - ${w.from} → ${w.to} (${w.color})`);
     }
     if (wires.length > 6) {
       lines.push(`  - ... ${wires.length - 6} more wire(s)`);
     }
   }
 
-  const sketch = board.sketchCode ?? "";
-  lines.push(`Sketch summary: ${summarizeSketchCode(sketch)}`);
+  lines.push(`Sketch summary: ${summarizeSketchCode(diagram.sketch)}`);
 
   return lines.join("\n");
 }
@@ -167,6 +189,7 @@ const BUILD_MODE_TOOLS = new Set([
   "analyze_power_budget",
   "get_wiring_guide",
   "propose_circuit",
+  "apply_design",
   "update_sketch",
   "patch_sketch",
 ])
@@ -180,6 +203,7 @@ const EDIT_MODE_TOOLS = new Set([
   "get_board_state",
   "analyze_power_budget",
   "get_wiring_guide",
+  "apply_design",
   "place_component",
   "update_component",
   "move_component",
@@ -280,35 +304,20 @@ export function createCoreTools(params: {
     }),
 
     list_components: tool({
-      description: "List components on the board with ids, types, positions, and assigned pins. Much cheaper than get_board_state.",
+      description: "List components as DiagramComponent[] (DSL shape): { id, type, at: [x,y], rotation, name?, pins?, properties }. Arduino board itself is filtered out. Much cheaper than get_board_state.",
       inputSchema: z.object({}),
       execute: async () => ({
-        components: Object.values(workingBoard.components)
-          .filter((component) => component.type !== "arduino_uno")
-          .map((component) => ({
-            id: component.id,
-            type: component.type,
-            name: component.name,
-            x: component.x,
-            y: component.y,
-            pins: component.pins,
-            properties: component.properties,
-          })),
+        components: boardStateToDiagram(workingBoard).components.filter(
+          (c) => !isBoardComponentType(c.type),
+        ),
       }),
     }),
 
     list_wires: tool({
-      description: "List wires only. Use this when you need wiring detail without the full board payload.",
+      description: "List wires as DiagramWire[] (DSL shape) with readable endpoint strings: `arduino.<pin>`, `<componentId>.<pinName>`, `<psuId>.+/-`, or `grid.<row>,<col>`. Use when you need wiring detail without the full board payload.",
       inputSchema: z.object({}),
       execute: async () => ({
-        wires: Object.values(workingBoard.wires).map((wire) => ({
-          id: wire.id,
-          fromRow: wire.fromRow,
-          fromCol: wire.fromCol,
-          toRow: wire.toRow,
-          toCol: wire.toCol,
-          color: wire.color,
-        })),
+        wires: boardStateToDiagram(workingBoard).wires,
       }),
     }),
 
@@ -335,14 +344,10 @@ export function createCoreTools(params: {
     }),
 
     get_board_state: tool({
-      description: "Read the full board payload (components, wires, full sketch). Expensive. Prefer get_board_overview, list_components, list_wires, get_component_details, or get_sketch_code first.",
+      description: "Full board as a DreamerDiagram (DSL v1) — same shape apply_design accepts. Returns { $schema, board, sketch, components[], wires[], environment?, customLibraries? }. Expensive. Prefer get_board_overview, list_components, list_wires, get_component_details, or get_sketch_code first.",
       inputSchema: z.object({}),
       execute: async () => {
-        return {
-          components: workingBoard.components,
-          wires: workingBoard.wires,
-          sketchCode: workingBoard.sketchCode,
-        };
+        return boardStateToDiagram(workingBoard);
       },
     }),
 
@@ -815,6 +820,114 @@ Special wire pin IDs: 5V=-1, 3V3=-2, GND=-3/-4/-6, VIN=-5, AREF=-7`,
           updated: true,
           linesReplaced: input.endLine - input.startLine + 1,
           newCodeLength: patched.length,
+        };
+      },
+    }),
+
+    // ── validate_design ─────────────────────────────────────────
+    //
+    // Dry-run checker — runs the same structural + semantic validator
+    // `apply_design` does, but commits no ops. Returns the full issue
+    // list so the LLM can correct a diagram before actually applying.
+    validate_design: tool({
+      description: `Validate a DreamerDiagram (DSL v1) WITHOUT applying it. Runs structural checks (pin names, component types, wire endpoints) AND semantic checks (dangling components, sketch pins not wired, missing GND, empty sketch). Returns an ok flag + issues[] with severity/category/code/path/message.
+
+Call this BEFORE apply_design when generating a new diagram — it tells you exactly what to fix without touching the board.`,
+      inputSchema: diagramSchema,
+      execute: async (input) => {
+        const result = validateDiagram(input);
+        return {
+          ok: result.ok,
+          errorCount: result.issues.filter((i) => i.severity === "error").length,
+          warningCount: result.issues.filter((i) => i.severity === "warning").length,
+          issues: result.issues.map((i) => ({
+            severity: i.severity,
+            category: i.category,
+            code: i.code,
+            path: i.path,
+            message: i.message,
+            suggestion: i.suggestion,
+          })),
+        };
+      },
+    }),
+
+    // ── apply_design ─────────────────────────────────────────────
+    //
+    // Accepts a full DreamerDiagram (DSL v1) and REPLACES the board with
+    // it in one call. Use for scratch generation or wholesale restructure.
+    // For small edits, use the granular tools (place_component, connect_wire,
+    // update_sketch). On validation failure returns structured errors so
+    // the agent can self-correct in a follow-up tool call.
+    apply_design: tool({
+      description: `Replace the entire board with a DreamerDiagram (DSL v1). Use for scratch generation or whole-project restructure.
+
+Diagram shape: { $schema: "dreamer-diagram-v1", board, sketch, components[], wires[], environment?, customLibraries? }
+
+Wire endpoints are strings — readable instead of grid coordinates:
+  - "arduino.13", "arduino.A0", "arduino.GND", "arduino.5V", "arduino.3V3"
+  - "<componentId>.<pinName>" — e.g. "led1.anode", "servo1.signal", "lcd1.rs"
+  - "<psuId>.+" / "<psuId>.-" for power-supply rails
+  - "grid.<row>,<col>" as escape hatch
+
+Components use { id, type, at: [x, y], rotation?, properties? }. Pin assignments are optional — wire topology resolves them.
+
+This REMOVES every existing component + wire and installs the new design. For incremental edits, prefer place_component / connect_wire / update_sketch.`,
+      inputSchema: diagramSchema,
+      execute: async (input) => {
+        const result = diagramToBoardState(input);
+        if (!result.ok) {
+          return {
+            error: "Diagram validation failed",
+            issues: result.errors.map((e) => ({
+              path: e.path,
+              message: e.message,
+              suggestion: e.suggestion,
+            })),
+          };
+        }
+
+        const target = result.boardState;
+
+        // Optional sketch pre-compile sanity check so we don't replace the
+        // board only to have arduino-cli reject the sketch afterward.
+        if (target.sketchCode) {
+          const check = validateSketch(target.sketchCode);
+          if (!check.valid) {
+            return {
+              error: `Sketch validation failed: ${check.error}${check.line ? ` (line ${check.line})` : ""}`,
+            };
+          }
+        }
+
+        // Atomic replace: one op carries the full board state, including
+        // boardTarget/customLibraries/environment so replay + persistence stay
+        // consistent across API, tracker, and app-side op application.
+        ops.push(
+          makeBoardOp(opCtx, {
+            kind: "load_board",
+            payload: { state: target },
+          }),
+        );
+
+        // Sync in-turn workingBoard so subsequent read tools see the replaced
+        // state in the same turn.
+        workingBoard.components = structuredClone(target.components);
+        workingBoard.wires = structuredClone(target.wires);
+        workingBoard.libraryState = structuredClone(target.libraryState);
+        workingBoard.serialOutput = structuredClone(target.serialOutput);
+        workingBoard.sketchCode = target.sketchCode;
+        workingBoard.customLibraries = structuredClone(target.customLibraries);
+        workingBoard.boardTarget = target.boardTarget;
+        workingBoard.environment = structuredClone(target.environment);
+
+        return {
+          ok: true,
+          componentCount: Object.keys(target.components).length,
+          wireCount: Object.keys(target.wires).length,
+          sketchBytes: target.sketchCode.length,
+          boardTarget: target.boardTarget,
+          customLibraries: Object.keys(target.customLibraries).length,
         };
       },
     }),

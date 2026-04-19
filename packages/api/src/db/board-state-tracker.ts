@@ -62,6 +62,18 @@ function applyOp(board: BoardState, op: BoardOp): void {
       break;
     case "update_board_settings":
       break;
+    case "load_board": {
+      const next = structuredClone(op.payload.state);
+      board.components = next.components;
+      board.wires = next.wires;
+      board.libraryState = next.libraryState;
+      board.serialOutput = next.serialOutput;
+      board.sketchCode = next.sketchCode;
+      board.customLibraries = next.customLibraries;
+      board.boardTarget = next.boardTarget;
+      board.environment = next.environment;
+      break;
+    }
   }
 }
 

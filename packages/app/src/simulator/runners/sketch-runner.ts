@@ -72,4 +72,12 @@ export interface SketchRunner {
   // Optional: real-compile runners expose the actual sizeInfo. Others
   // return null and leave `sketchSizeRef` untouched (or use estimates).
   getSketchSize?(): SketchSizeInfo | null
+
+  // Optional runner-specific execution backlog metrics for tuning.
+  getExecutionBacklog?(): {
+    pendingSetupCycles: number
+    pendingLoopCycles: number
+    droppedLoopCycles: number
+    maxObservedBacklogCycles: number
+  }
 }

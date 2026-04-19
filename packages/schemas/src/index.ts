@@ -101,8 +101,12 @@ export {
   type ServoState,
   lcdStateSchema,
   type LcdState,
+  oledStateSchema,
+  type OledState,
   libraryStateSchema,
   type LibraryState,
+  persistedLibraryStateSchema,
+  type PersistedLibraryState,
   boardComponentSchema,
   type BoardComponent,
   wireSchema,
@@ -164,3 +168,38 @@ export {
   resolveComponentPins,
   resolveComponentPin,
 } from "./component-pins";
+
+// ── Diagram DSL (interchange format) ───────────────────────────────────────
+
+export {
+  DIAGRAM_SCHEMA_V1,
+  diagramSchema,
+  diagramComponentSchema,
+  diagramWireSchema,
+  diagramObstacleSchema,
+  diagramEnvironmentSchema,
+  diagramCustomLibrarySchema,
+  type DreamerDiagram,
+  type DreamerDiagramInput,
+  type DiagramComponent,
+  type DiagramWire,
+  type DiagramObstacle,
+  type DiagramEnvironment,
+  type DiagramCustomLibrary,
+} from "./design";
+
+export {
+  diagramToBoardState,
+  boardStateToDiagram,
+  type DiagramParseResult,
+  type DiagramError,
+} from "./diagram-adapter";
+
+export {
+  validateDiagram,
+  type DiagramValidation,
+  type DiagramIssue,
+  type DiagramIssueSeverity,
+  type DiagramIssueCategory,
+  type DiagramIssueCode,
+} from "./diagram-validator";

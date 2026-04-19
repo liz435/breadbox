@@ -19,6 +19,26 @@ import { createLogger } from "../logger";
 const log = createLogger("chat");
 let requestId = 0;
 
+// Background summary tasks — tracked so shutdown can drain them before exit.
+// Without this, Railway's SIGTERM/redeploy aborts in-flight summary writes
+// and the next turn reads a stale cache.
+const pendingSummaries = new Set<Promise<void>>();
+
+function trackSummary(task: Promise<void>): void {
+  pendingSummaries.add(task);
+  task.finally(() => {
+    pendingSummaries.delete(task);
+  });
+}
+
+/** Await any in-flight background summaries, with a hard deadline. */
+export async function awaitPendingSummaries(timeoutMs: number): Promise<void> {
+  if (pendingSummaries.size === 0) return;
+  const drain = Promise.allSettled([...pendingSummaries]);
+  const deadline = new Promise<void>((resolve) => setTimeout(resolve, timeoutMs));
+  await Promise.race([drain, deadline]);
+}
+
 /**
  * Schema for the useChat DefaultChatTransport request body.
  * It sends `messages` (UIMessage[]) plus any custom `body` fields we configured.
@@ -63,7 +83,7 @@ const GRAPH_OP_KINDS = new Set([
 const BOARD_OP_KINDS = new Set([
   "place_component", "remove_component", "move_component",
   "update_component", "connect_wire", "remove_wire",
-  "set_pin_mode", "update_sketch", "update_board_settings",
+  "set_pin_mode", "update_sketch", "update_board_settings", "load_board",
 ]);
 
 export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) => {
@@ -543,10 +563,10 @@ async function finalizeRun(
     `completed — ${result.proposedOps.length} proposed, ${appliedOps.length} applied, v${newVersion}`
   );
 
-  // Fire-and-forget: pre-cache history summary for next turn with
-  // improved error handling (log + invalidate cache on failure).
+  // Background: pre-cache history summary for next turn. Tracked in
+  // pendingSummaries so shutdown can drain before exit (Railway SIGTERM).
   const runIdForBackground = runFile.run.id;
-  agentRunRepo.listRunsForThread(input.threadId).then(async (allThreadRuns) => {
+  const summaryTask = agentRunRepo.listRunsForThread(input.threadId).then(async (allThreadRuns) => {
     const allCompleted = allThreadRuns.filter((r) => r.run.status === "completed");
     const summaryResult = await generateThreadSummary(allCompleted);
     if (!summaryResult) return;
@@ -561,7 +581,6 @@ async function finalizeRun(
     });
   }).catch(async (err) => {
     reqLog.warn(`background summary cache failed: ${err}`);
-    // Invalidate the stale cache so next request doesn't use it
     try {
       await agentRunRepo.updateThreadSummary(input.threadId, { text: "", runCount: 0 });
       reqLog.info("invalidated stale summary cache after background failure");
@@ -569,6 +588,7 @@ async function finalizeRun(
       reqLog.warn(`failed to invalidate summary cache: ${invalidateErr}`);
     }
   });
+  trackSummary(summaryTask);
 
   // Gather child run token usage
   const allRuns = await agentRunRepo.listRunsForThread(input.threadId);

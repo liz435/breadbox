@@ -11,6 +11,7 @@ import {
   AVRTimer,
   AVRIOPort,
   AVRUSART,
+  AVRTWI,
   timer0Config,
   timer1Config,
   timer2Config,
@@ -18,6 +19,7 @@ import {
   portCConfig,
   portDConfig,
   usart0Config,
+  twiConfig,
   PinState,
 } from "avr8js"
 
@@ -45,6 +47,13 @@ export type AVRRunner = {
   reset: () => void
   getCycleCount: () => number
   getFrequencyHz: () => number
+  /**
+   * Returns the current AVRTWI instance. NOTE: this changes on every `reset()`
+   * — callers (sketch-runner / peripheral-bus) must re-fetch and reinstall
+   * any `eventHandler` after reset, otherwise I²C peripherals will be bound
+   * to a dead TWI instance ("works once, dead after Stop/Run" bug).
+   */
+  getTwi: () => AVRTWI
 }
 
 /**
@@ -100,6 +109,7 @@ export function createAVRRunner(callbacks: AVRRunnerCallbacks): AVRRunner {
   let timer2 = new AVRTimer(cpu, timer2Config)
 
   let usart = new AVRUSART(cpu, usart0Config, AVR_FREQ_HZ)
+  let twi = new AVRTWI(cpu, twiConfig, AVR_FREQ_HZ)
   // Bytes waiting to be delivered to the AVR USART RX line.
   const serialInputQueue: number[] = []
   let serialInputReadIdx = 0
@@ -251,6 +261,7 @@ export function createAVRRunner(callbacks: AVRRunnerCallbacks): AVRRunner {
     timer1 = new AVRTimer(cpu, timer1Config)
     timer2 = new AVRTimer(cpu, timer2Config)
     usart = new AVRUSART(cpu, usart0Config, AVR_FREQ_HZ)
+    twi = new AVRTWI(cpu, twiConfig, AVR_FREQ_HZ)
     for (const port of Object.keys(lastPinState)) {
       lastPinState[port].fill(PinState.Input)
     }
@@ -276,5 +287,6 @@ export function createAVRRunner(callbacks: AVRRunnerCallbacks): AVRRunner {
     reset,
     getCycleCount,
     getFrequencyHz,
+    getTwi: () => twi,
   }
 }

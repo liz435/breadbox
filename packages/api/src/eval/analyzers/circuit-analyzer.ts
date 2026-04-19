@@ -10,6 +10,7 @@ import {
   formatArduinoPin,
   isArduinoSignalPin,
   isBoardComponentType,
+  type BoardState,
   type BoardTarget,
 } from "@dreamer/schemas"
 
@@ -56,6 +57,7 @@ export function analyzeCircuit(run: RunFile): CircuitAnalysis {
   const components = new Map<string, SimpleComponent>()
   const wires = new Map<string, SimpleWire>()
   let sketchCode = ""
+  let boardTargetFromLoad: BoardTarget | null = null
 
   for (const op of ops) {
     switch (op.kind) {
@@ -81,6 +83,20 @@ export function analyzeCircuit(run: RunFile): CircuitAnalysis {
         sketchCode = (op.payload.code as string) ?? ""
         break
       }
+      case "load_board": {
+        const state = op.payload.state as BoardState
+        components.clear()
+        wires.clear()
+        for (const [id, c] of Object.entries(state.components ?? {})) {
+          components.set(id, c as unknown as SimpleComponent)
+        }
+        for (const [id, w] of Object.entries(state.wires ?? {})) {
+          wires.set(id, w as unknown as SimpleWire)
+        }
+        sketchCode = state.sketchCode ?? ""
+        boardTargetFromLoad = (state.boardTarget ?? DEFAULT_BOARD_TARGET) as BoardTarget
+        break
+      }
     }
   }
 
@@ -95,7 +111,7 @@ export function analyzeCircuit(run: RunFile): CircuitAnalysis {
   // Check floating components — no wire touches any of their footprint positions
   // or any position on the same breadboard bus (same row, same strip)
   const wireArray = [...wires.values()]
-  const boardTarget = detectBoardTarget(components.values())
+  const boardTarget = boardTargetFromLoad ?? detectBoardTarget(components.values())
 
   function isOnSameBus(wireRow: number, wireCol: number, compRow: number, compCol: number): boolean {
     if (wireRow !== compRow) return false
