@@ -21,6 +21,8 @@ import { ViewportPanel } from "./viewport/viewport-panel";
 import { BreadboardPanel } from "./breadboard/breadboard-panel";
 import { SerialMonitor } from "./panels/serial-monitor";
 import { PinInspector } from "./panels/pin-inspector";
+import { DiagramPanel } from "./panels/diagram-panel";
+import { OledDisplayPanel } from "./panels/oled-display-panel";
 
 import { BottomToolbar } from "./toolbar/bottom-toolbar";
 import { useScene } from "./store/scene-context";
@@ -84,6 +86,14 @@ function LibraryManagerPanel(_props: IDockviewPanelProps) {
   return <ErrorBoundary name="Libraries"><LibraryManager /></ErrorBoundary>;
 }
 
+function DiagramEditorPanel(_props: IDockviewPanelProps) {
+  return <ErrorBoundary name="Diagram"><DiagramPanel /></ErrorBoundary>;
+}
+
+function OledDockPanel(_props: IDockviewPanelProps) {
+  return <ErrorBoundary name="OLED Display"><OledDisplayPanel /></ErrorBoundary>;
+}
+
 const components = {
   projectFiles: ProjectFilesPanel,
   breadboard: BreadboardDockPanel,
@@ -96,6 +106,8 @@ const components = {
   sketchEditor: SketchEditorPanel,
   schematic: SchematicPanelWrapper,
   libraryManager: LibraryManagerPanel,
+  diagram: DiagramEditorPanel,
+  oledDisplay: OledDockPanel,
 };
 
 function AppInner() {
@@ -277,7 +289,7 @@ function AppInner() {
 
     // Clear stale layouts from before Arduino simulator conversion.
     // The old layout references "canvas" and missing panels — force a fresh default.
-    const LAYOUT_VERSION = "arduino-sim-v12";
+    const LAYOUT_VERSION = "arduino-sim-v13";
     const saved = localStorage.getItem(LAYOUT_STORAGE_KEY);
     const savedVersion = localStorage.getItem(LAYOUT_STORAGE_KEY + ":version");
     if (saved && savedVersion === LAYOUT_VERSION) {
@@ -329,6 +341,13 @@ function AppInner() {
       id: "libraryManager",
       component: "libraryManager",
       title: "Libraries",
+      position: { referencePanel: sketchPanel, direction: "within" },
+    });
+
+    api.addPanel({
+      id: "diagram",
+      component: "diagram",
+      title: "Diagram",
       position: { referencePanel: sketchPanel, direction: "within" },
     });
 
@@ -384,15 +403,22 @@ function AppInner() {
 
   return (
     <DockviewContext.Provider value={dockviewApiRef}>
+      {/* BottomToolbar sits in its own row at the bottom (not absolute) so
+          it reserves height and never overlays/blocks the dockview content
+          above. The toolbar itself owns its background + top border so it
+          reads as a chrome strip rather than a floating popover.
+          AI history, when open, lives inside the toolbar row and grows
+          upward — it still overflows on top of the dockview when needed,
+          but the always-visible bar no longer obscures content. */}
       <div className="flex flex-col w-full h-full">
-        <div className="relative flex-1 min-h-0 dockview-theme-abyss">
+        <div className="flex-1 min-h-0 dockview-theme-abyss">
           <DockviewReact
             onReady={onReady}
             components={components}
             className="h-full"
           />
-          <BottomToolbar />
         </div>
+        <BottomToolbar />
       </div>
       <CommandPalette open={cmdPaletteOpen} onClose={() => setCmdPaletteOpen(false)} />
       <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />

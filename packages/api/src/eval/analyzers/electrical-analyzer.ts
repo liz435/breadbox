@@ -45,6 +45,18 @@ function replayBoardFromOps(run: RunFile): BoardState {
       case "update_sketch":
         board.sketchCode = (op.payload.code as string) ?? "";
         break;
+      case "load_board": {
+        const next = structuredClone(op.payload.state as BoardState);
+        board.components = next.components;
+        board.wires = next.wires;
+        board.libraryState = next.libraryState;
+        board.serialOutput = next.serialOutput;
+        board.sketchCode = next.sketchCode;
+        board.customLibraries = next.customLibraries;
+        board.boardTarget = next.boardTarget;
+        board.environment = next.environment;
+        break;
+      }
     }
   }
 
@@ -62,6 +74,7 @@ export function analyzeElectrical(run: RunFile): ElectricalAnalysis {
       "remove_wire",
       "update_sketch",
       "update_board_settings",
+      "load_board",
     ].includes(op.kind)
   );
   if (!hasBoardOps) return null;

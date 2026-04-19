@@ -19,7 +19,7 @@ const BOARD_OP_KINDS = new Set([
   "place_component", "remove_component", "move_component",
   "update_component", "connect_wire", "remove_wire", "update_wire",
   "wire_component_to_pin", "set_pin_mode", "update_sketch",
-  "patch_sketch", "update_board_settings",
+  "patch_sketch", "update_board_settings", "load_board",
 ])
 
 const GRAPH_OP_KINDS = new Set([

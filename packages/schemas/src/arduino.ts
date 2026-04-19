@@ -122,12 +122,33 @@ export const lcdStateSchema = z.object({
 });
 export type LcdState = z.infer<typeof lcdStateSchema>;
 
+export const oledStateSchema = z.object({
+  width: z.number().default(128),
+  height: z.number().default(64),
+  on: z.boolean().default(false),
+  inverted: z.boolean().default(false),
+  // 1024 bytes = 8 pages × 128 columns. SSD1306 GDDRAM layout: each byte is a
+  // vertical 8-pixel column-strip with bit 0 on top (datasheet §8.7 / Fig 8-17).
+  // The simulator mutates a backing Uint8Array and exposes this number[] view;
+  // the same reference is reused frame-to-frame and only swapped when the
+  // framebuffer actually changes (downstream React reference-equality skip).
+  framebuffer: z.array(z.number()).length(1024).default(() => Array<number>(1024).fill(0)),
+});
+export type OledState = z.infer<typeof oledStateSchema>;
+
 export const libraryStateSchema = z.object({
   servos: z.record(z.string(), servoStateSchema),
   lcd: lcdStateSchema.nullable().default(null),
   serialBaud: z.number().default(0),
+  // Keyed by componentId (mirrors `servos`). I²C addresses aren't unique
+  // across multiple soft-buses and the renderer locates by component.
+  oled: z.record(z.string(), oledStateSchema).default({}),
 });
 export type LibraryState = z.infer<typeof libraryStateSchema>;
+
+// Save-path schema: framebuffers are runtime-only, never persisted to disk.
+export const persistedLibraryStateSchema = libraryStateSchema.omit({ oled: true });
+export type PersistedLibraryState = z.infer<typeof persistedLibraryStateSchema>;
 
 // ── Board Component ──────────────────────────────────────────────
 
@@ -204,7 +225,7 @@ export type Environment = z.infer<typeof environmentSchema>;
 const boardStateBaseSchema = z.object({
   components: z.record(z.string(), boardComponentSchema),
   wires: z.record(z.string(), wireSchema),
-  libraryState: libraryStateSchema.default({ servos: {}, lcd: null, serialBaud: 0 }),
+  libraryState: libraryStateSchema.default({ servos: {}, lcd: null, serialBaud: 0, oled: {} }),
   // Supports legacy string[] format from old saves, normalises to {text, ts}.
   serialOutput: z.array(
     z.union([
@@ -248,7 +269,7 @@ export function createDefaultBoardState(): BoardState {
   return {
     components: {},
     wires: {},
-    libraryState: { servos: {}, lcd: null, serialBaud: 0 },
+    libraryState: { servos: {}, lcd: null, serialBaud: 0, oled: {} },
     serialOutput: [],
     sketchCode: DEFAULT_SKETCH_CODE,
     customLibraries: {},

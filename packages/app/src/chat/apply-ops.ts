@@ -219,6 +219,7 @@ const BOARD_OP_KINDS = new Set([
   "set_pin_mode",
   "update_sketch",
   "update_board_settings",
+  "load_board",
 ]);
 
 export function isBoardOp(op: { kind: string }): boolean {
@@ -283,6 +284,10 @@ export function applyBoardOpsToBoard(
           type: "SET_LIBRARY_STATE",
           changes: op.payload.settings as Partial<LibraryState>,
         });
+        break;
+      }
+      case "load_board": {
+        send({ type: "LOAD_BOARD", state: op.payload.state });
         break;
       }
     }

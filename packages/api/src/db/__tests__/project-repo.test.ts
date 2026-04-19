@@ -243,6 +243,69 @@ describe("projectRepo — applyBoardOps", () => {
     const read = await projectRepo.readProject(p.project.id);
     expect(read?.boardState?.sketchCode).toBe("void setup() { pinMode(13, OUTPUT); }");
   });
+
+  test("load_board replaces board target and custom libraries", async () => {
+    const p = await make("Load Board");
+    const sceneId = Object.keys(p.scenes)[0]!;
+
+    await projectRepo.applyBoardOps(p.project.id, {
+      expectedVersion: p.project.version,
+      ops: [
+        {
+          opId: crypto.randomUUID(),
+          projectId: p.project.id,
+          sceneId,
+          expectedVersion: p.project.version,
+          timestamp: new Date().toISOString(),
+          kind: "load_board",
+          payload: {
+            state: {
+              components: {
+                led1: {
+                  id: "led1",
+                  type: "led",
+                  name: "LED 1",
+                  x: 7,
+                  y: 5,
+                  rotation: 0,
+                  pins: { anode: null, cathode: null },
+                  properties: { color: "#ef4444" },
+                },
+              },
+              wires: {
+                "wire-1": {
+                  id: "wire-1",
+                  fromRow: -999,
+                  fromCol: 13,
+                  toRow: 5,
+                  toCol: 7,
+                  color: "#eab308",
+                },
+              },
+              libraryState: { servos: {}, lcd: null, serialBaud: 0 },
+              serialOutput: [],
+              sketchCode: "void setup(){}\nvoid loop(){}\n",
+              customLibraries: {
+                "Foo.h": {
+                  name: "Foo.h",
+                  code: "#pragma once\n",
+                  description: "custom",
+                },
+              },
+              boardTarget: "arduino_mega_2560",
+              environment: { obstacles: {}, boundaryEnabled: true, boundaryMargin: 140 },
+            },
+          },
+        },
+      ],
+    });
+
+    const read = await projectRepo.readProject(p.project.id);
+    expect(read?.boardState?.boardTarget).toBe("arduino_mega_2560");
+    expect(read?.boardState?.customLibraries?.["Foo.h"]?.code).toContain("#pragma once");
+    expect(read?.boardState?.environment?.boundaryMargin).toBe(140);
+    expect(Object.keys(read?.boardState?.components ?? {})).toEqual(["led1"]);
+  });
 });
 
 // ── version conflict detection ────────────────────────────────────────────────

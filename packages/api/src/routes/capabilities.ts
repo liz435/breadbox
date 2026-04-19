@@ -11,6 +11,7 @@
 
 import { Elysia } from "elysia"
 import { resolveArduinoCli } from "../toolchain"
+import { IS_HOSTED } from "../env"
 
 export type Capabilities = {
   /**
@@ -45,7 +46,7 @@ export const capabilitiesRoutes = new Elysia().get("/api/capabilities", async ()
     arduinoCliAvailable = false
   }
   return {
-    hosted: process.env.DREAMER_HOSTED === "1",
+    hosted: IS_HOSTED,
     arduinoCliAvailable,
     version: 1,
   }

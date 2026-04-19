@@ -34,7 +34,26 @@ export type PeripheralState =
   | { kind: "ultrasonic"; trigPin: number | null; echoPin: number | null; distanceCm: number | null; lastPulseUs: number }
   | { kind: "dht"; signalPin: number | null; temperatureC: number; humidity: number }
   | { kind: "ir_receiver"; signalPin: number | null; lastCode: number | null; transmitting: boolean }
+  | { kind: "oled"; width: number; height: number; on: boolean; inverted: boolean; framebuffer: number[] }
   | { kind: "raw"; componentType: ComponentType }
+
+/**
+ * Transaction-scoped I²C slave handler. The bus owns the master-side state
+ * (currentSlave, etc) and forwards per-transaction events here. There is no
+ * `onStart` because avr8js fires START bus-wide before the slave address is
+ * known — the bus dispatches per-slave only after `connectToSlave`.
+ *
+ * The handler returns ack/data values; the bus is responsible for calling
+ * `twi.completeWrite(ack)` / `twi.completeRead(byte)` to close the loop.
+ */
+export type TwiSlaveHandler = {
+  /** Master sent a data byte. Return true to ACK, false to NACK. */
+  onWrite(byte: number): boolean
+  /** Master expects a byte from us. Return the byte to send. */
+  onRead(): number
+  /** STOP condition closed the transaction. Reset transaction-scoped state. */
+  onStop(): void
+}
 
 export type PeripheralTrace = {
   ts: number
@@ -56,6 +75,13 @@ export type PeripheralContext = {
    * timed responses (ultrasonic echo, DHT frame, IR NEC envelope).
    */
   scheduleEdge: (pin: number, value: 0 | 1, atSimMs: number) => void
+  /**
+   * Register an I²C slave handler at `slaveAddr` (7-bit). Throws if the AVR
+   * runner didn't wire TWI into the bus — peripherals that opt in to I²C
+   * must be running in AVR mode. Returns a detach function; called by the
+   * bus on `detachBoard`, but peripherals can also call it from `reset()`.
+   */
+  attachTwi: (slaveAddr: number, handler: TwiSlaveHandler) => () => void
 }
 
 export interface Peripheral<S extends PeripheralState = PeripheralState> {

@@ -74,9 +74,34 @@ async function readProject(projectId: string): Promise<ProjectFile | null> {
   return projectFileSchema.parse(await file.json());
 }
 
+/**
+ * Strip runtime-only fields from `boardState` before they hit disk.
+ *
+ * Today this is just `libraryState.oled` — SSD1306 framebuffers are 1024
+ * bytes per OLED that get rebuilt from scratch on every Run. Persisting
+ * them would bloat project files and force project reloads to spend a
+ * few hundred KB of RAM on stale pixels.
+ *
+ * Other runtime-only fields (servo angles, LCD text buffers) are short
+ * enough that we keep them around so a saved project can show its last
+ * visible state in the UI before re-running the sim. OLED is an order
+ * of magnitude larger; we hold a different line for it.
+ */
+function stripRuntimeOnly(project: ProjectFile): ProjectFile {
+  if (!project.boardState) return project;
+  return {
+    ...project,
+    boardState: {
+      ...project.boardState,
+      libraryState: { ...project.boardState.libraryState, oled: {} },
+    },
+  };
+}
+
 async function writeProject(projectId: string, data: ProjectFile): Promise<void> {
   await ensureProjectsDir();
-  await Bun.write(projectPath(projectId), JSON.stringify(data, null, 2));
+  const sanitised = stripRuntimeOnly(data);
+  await Bun.write(projectPath(projectId), JSON.stringify(sanitised, null, 2));
 }
 
 function buildInitialProject(params: { id: string; name: string }): ProjectFile {
@@ -498,6 +523,9 @@ function applyBoardOp(project: ProjectFile, op: BoardOp): void {
       break;
     case "update_board_settings":
       // Merge settings into board state at top level
+      break;
+    case "load_board":
+      project.boardState = structuredClone(op.payload.state);
       break;
   }
 }

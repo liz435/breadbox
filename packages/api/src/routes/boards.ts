@@ -12,22 +12,36 @@ import {
   write,
 } from "../serial/board-manager"
 import { resolveArduinoCli } from "../toolchain"
+import { IS_HOSTED } from "../env"
 
 const log = createLogger("boards")
 
+// Cached across the process lifetime: once arduino-cli is resolved (or
+// definitively absent) the answer doesn't change without a restart, so
+// every poll needn't re-probe the toolchain.
+let cliAvailableCache: boolean | null = null
 async function checkCliAvailable(): Promise<boolean> {
+  if (cliAvailableCache !== null) return cliAvailableCache
   try {
     await resolveArduinoCli({ install: false })
-    return true
+    cliAvailableCache = true
   } catch {
-    return false
+    cliAvailableCache = false
   }
+  return cliAvailableCache
 }
 
 export const boardRoutes = new Elysia()
 
   // ── List available ports ──────────────────────────────────────────────
   .get("/api/boards", async () => {
+    // Hosted replicas have no USB. Returning empty synchronously avoids
+    // spawning arduino-cli on every client poll — each spawn loads the
+    // full toolchain (~40 OS threads) and exhausts the pids cgroup under
+    // the 3s-per-tab poll cadence. See crashrailwaydreamer.json.
+    if (IS_HOSTED) {
+      return { ports: [], cliAvailable: false }
+    }
     const [ports, cliAvailable] = await Promise.all([
       getAvailablePorts().catch(() => []),
       checkCliAvailable(),
@@ -38,6 +52,16 @@ export const boardRoutes = new Elysia()
   // ── WebSocket stream ──────────────────────────────────────────────────
   .ws("/api/boards/:path", {
     open(ws) {
+      if (IS_HOSTED) {
+        try {
+          ws.send(JSON.stringify({
+            type: "error",
+            error: "Serial ports are unavailable in hosted mode. Run the Dreamer CLI locally to connect a board.",
+          }))
+          ws.close()
+        } catch { /* already closed */ }
+        return
+      }
       const portPath = decodeURIComponent(ws.data.params.path)
       const baudRate = Number(new URL(`ws://x${ws.data.request.url}`).searchParams.get("baud") ?? "9600")
 

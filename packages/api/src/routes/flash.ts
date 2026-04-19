@@ -18,7 +18,12 @@ import { tmpdir } from "os"
 import { join } from "path"
 import { rm } from "fs/promises"
 import { createLogger } from "../logger"
-import { resolveArduinoCli, ensureArduinoCliCore, ArduinoCliMissingError } from "../toolchain"
+import {
+  resolveArduinoCli,
+  ensureArduinoCliCore,
+  coreFamilyForFqbn,
+  ArduinoCliMissingError,
+} from "../toolchain"
 import {
   attemptAutoInstall,
   customLibrariesSchema,
@@ -28,8 +33,25 @@ import {
 import { reconnectAfter } from "../serial/board-manager"
 import { BOARD_TARGETS, boardTargetSchema, DEFAULT_BOARD_TARGET } from "@dreamer/schemas"
 import { createNdjsonStream, pumpProcessStream, type LogTag, type StreamWriter } from "./_stream-lines"
+import {
+  buildFlashUploadArgs,
+  expectedFirmwareArtifactNameForFqbn,
+  findFirmwareArtifactPath,
+} from "./_firmware-artifact"
+import { IS_HOSTED } from "../env"
+import { spawnWithTimeout } from "../process-utils"
+import {
+  acquireCompileSlot,
+  CompileBusyError,
+  CompileCancelledError,
+  compileSlotStats,
+} from "./_compile-limiter"
 
 const log = createLogger("flash")
+
+const COMPILE_TIMEOUT_MS = 120_000
+/** avrdude uploads are fast but erase+verify on large sketches can stretch. */
+const UPLOAD_TIMEOUT_MS = 90_000
 
 const flashRequestSchema = z.object({
   port: z.string().min(1, "port is required"),
@@ -39,20 +61,34 @@ const flashRequestSchema = z.object({
   customLibraries: customLibrariesSchema,
 })
 
+type ProcOutcome = {
+  stdout: string
+  stderr: string
+  exitCode: number
+  aborted: "timeout" | "signal" | null
+}
+
 async function streamProc(
   cmd: string[],
   tag: LogTag,
   writer: StreamWriter,
-): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  const proc = Bun.spawn(cmd, { stdout: "pipe", stderr: "pipe" })
+  signal: AbortSignal,
+  timeoutMs: number,
+): Promise<ProcOutcome> {
+  const handle = spawnWithTimeout(cmd, { timeoutMs, signal })
   const stdoutSink = { buffer: "" }
   const stderrSink = { buffer: "" }
   await Promise.all([
-    pumpProcessStream(proc.stdout, tag, writer, stdoutSink),
-    pumpProcessStream(proc.stderr, tag, writer, stderrSink),
+    pumpProcessStream(handle.proc.stdout, tag, writer, stdoutSink),
+    pumpProcessStream(handle.proc.stderr, tag, writer, stderrSink),
   ])
-  const exitCode = await proc.exited
-  return { stdout: stdoutSink.buffer, stderr: stderrSink.buffer, exitCode }
+  const exitCode = await handle.exitPromise
+  return {
+    stdout: stdoutSink.buffer,
+    stderr: stderrSink.buffer,
+    exitCode,
+    aborted: handle.abortReason(),
+  }
 }
 
 async function streamCompile(
@@ -61,7 +97,8 @@ async function streamCompile(
   fqbn: string,
   libsDir: string | null,
   writer: StreamWriter,
-): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  signal: AbortSignal,
+): Promise<ProcOutcome> {
   const args = [
     arduinoCli,
     "compile",
@@ -70,14 +107,43 @@ async function streamCompile(
   ]
   if (libsDir) args.push("--libraries", libsDir)
   args.push(join(sketchDir, "sketch"))
-  return streamProc(args, "compiler", writer)
+  return streamProc(args, "compiler", writer, signal, COMPILE_TIMEOUT_MS)
 }
 
-export const flashRoutes = new Elysia().post("/api/flash", ({ body, set }) => {
+function abortMessage(phase: "compile" | "flash", reason: "timeout" | "signal", timeoutMs: number): string {
+  if (reason === "timeout") return `${phase} timed out after ${timeoutMs / 1000}s`
+  return `${phase} cancelled`
+}
+
+export const flashRoutes = new Elysia().post("/api/flash", async ({ body, request, set }) => {
+  // Hosted replicas have no USB — reject uploads up front with a clear
+  // error so the UI can surface it. Without this, the compile step would
+  // succeed and avrdude would blow up on a non-existent port.
+  if (IS_HOSTED) {
+    set.status = 403
+    return { error: "Flashing is unavailable in hosted mode. Run the Dreamer CLI locally to upload to a board." }
+  }
   const parsed = flashRequestSchema.safeParse(body)
   if (!parsed.success) {
     set.status = 400
     return { error: parsed.error.issues[0]?.message ?? "Invalid request" }
+  }
+
+  let release: () => void
+  try {
+    release = await acquireCompileSlot(request.signal)
+  } catch (err) {
+    if (err instanceof CompileBusyError) {
+      const stats = compileSlotStats()
+      log.info(`queue full — rejecting flash (active=${stats.active}, queued=${stats.queued})`)
+      set.status = 429
+      return { error: err.message }
+    }
+    if (err instanceof CompileCancelledError) {
+      set.status = 499
+      return { error: err.message }
+    }
+    throw err
   }
 
   const boardTarget = parsed.data.boardTarget ?? DEFAULT_BOARD_TARGET
@@ -89,13 +155,14 @@ export const flashRoutes = new Elysia().post("/api/flash", ({ body, set }) => {
   const outputDir = join(sketchDir, "output")
 
   const { stream, writer } = createNdjsonStream()
+  const signal = request.signal
 
   ;(async () => {
     try {
       let arduinoCli: string
       try {
         arduinoCli = await resolveArduinoCli({ install: process.env.DREAMER_AUTO_INSTALL === "1" })
-        await ensureArduinoCliCore("arduino:avr")
+        await ensureArduinoCliCore(coreFamilyForFqbn(fqbn), writer)
       } catch (err) {
         if (err instanceof ArduinoCliMissingError) {
           writer.write({ kind: "error", stage: "compile", message: err.message })
@@ -122,9 +189,9 @@ export const flashRoutes = new Elysia().post("/api/flash", ({ body, set }) => {
       // Auto-install retry for missing headers. Same pattern as /api/compile.
       const MAX_RETRIES = 3
       const autoInstalled: string[] = []
-      let compileResult = await streamCompile(arduinoCli, sketchDir, fqbn, libsDir, writer)
+      let compileResult = await streamCompile(arduinoCli, sketchDir, fqbn, libsDir, writer, signal)
 
-      for (let attempt = 0; attempt < MAX_RETRIES && compileResult.exitCode !== 0; attempt++) {
+      for (let attempt = 0; attempt < MAX_RETRIES && compileResult.exitCode !== 0 && compileResult.aborted === null; attempt++) {
         const stderr = compileResult.stderr + compileResult.stdout
         const missing = extractMissingHeader(stderr)
         if (!missing) break
@@ -156,7 +223,16 @@ export const flashRoutes = new Elysia().post("/api/flash", ({ body, set }) => {
         })
         log.info(`flash ${sketchId}: installed "${install.installed}", retrying compile`)
         autoInstalled.push(missing)
-        compileResult = await streamCompile(arduinoCli, sketchDir, fqbn, libsDir, writer)
+        compileResult = await streamCompile(arduinoCli, sketchDir, fqbn, libsDir, writer, signal)
+      }
+
+      if (compileResult.aborted !== null) {
+        writer.write({
+          kind: "error",
+          stage: "compile",
+          message: abortMessage("compile", compileResult.aborted, COMPILE_TIMEOUT_MS),
+        })
+        return
       }
 
       if (compileResult.exitCode !== 0) {
@@ -177,12 +253,37 @@ export const flashRoutes = new Elysia().post("/api/flash", ({ body, set }) => {
         ts: Date.now(),
       })
 
-      const hexFile = join(outputDir, "sketch.ino.hex")
+      const artifact = await findFirmwareArtifactPath(outputDir, fqbn)
+      if (!artifact) {
+        writer.write({
+          kind: "error",
+          stage: "compile",
+          message:
+            `Compilation succeeded but firmware artifact not found (${expectedFirmwareArtifactNameForFqbn(fqbn)}).`,
+        })
+        return
+      }
       const uploadResult = await streamProc(
-        [arduinoCli, "upload", "-p", port, "--fqbn", fqbn, "--input-file", hexFile],
+        buildFlashUploadArgs({
+          arduinoCli,
+          port,
+          fqbn,
+          artifactPath: artifact.path,
+        }),
         "upload",
         writer,
+        signal,
+        UPLOAD_TIMEOUT_MS,
       )
+
+      if (uploadResult.aborted !== null) {
+        writer.write({
+          kind: "error",
+          stage: "flash",
+          message: abortMessage("flash", uploadResult.aborted, UPLOAD_TIMEOUT_MS),
+        })
+        return
+      }
 
       if (uploadResult.exitCode !== 0) {
         writer.write({
@@ -208,6 +309,7 @@ export const flashRoutes = new Elysia().post("/api/flash", ({ body, set }) => {
       })
     } finally {
       writer.close()
+      release()
       rm(sketchDir, { recursive: true, force: true }).catch(() => {})
     }
   })()

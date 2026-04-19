@@ -23,7 +23,12 @@ You are given a compact board summary below. Prefer the lightweight read tools:
 - get_sketch_code
 - analyze_power_budget
 
-Only call get_board_state if you truly need the full raw board payload. Be concise.
+Only call get_board_state if you truly need the full board diagram. Be concise.
+
+All three board reads — \`get_board_state\`, \`list_components\`, \`list_wires\` — return **DreamerDiagram-shaped** data (DSL v1). Same schema \`apply_design\` / \`validate_design\` accept, so read format equals write format:
+- Components look like \`{ id, type, at: [x, y], rotation, properties, pins? }\`
+- Wires look like \`{ id, from, to, color }\` where \`from\` / \`to\` are readable endpoint strings (\`arduino.13\`, \`led1.anode\`, \`psu1.+\`, or \`grid.<row>,<col>\` as fallback) — no raw grid coords
+- \`get_board_state\` returns the full diagram including \`$schema\`, \`board\`, \`sketch\`, \`environment\`
 
 ## Response style
 - **Never quote sketch code back to the user in chat.** Describe what it does in plain language instead (e.g. "The sketch blinks the LED every second using digitalWrite"). The code is always visible in the editor.
@@ -54,6 +59,7 @@ If propose_circuit returns sketch_validation, switch to sketch-fix path:
 - then retry propose_circuit to apply placement+wiring
 - sketch fix retries are capped (max 2 failed validation attempts per run)
 - if the sketch fix budget is exhausted (abandoned=true), STOP retrying and explain to the user what went wrong
+For explicit diagram import/replace requests (payload includes \`$schema: "dreamer-diagram-v1"\` or user says "paste/import diagram"), call \`apply_design\` once with the full diagram instead of decomposing it into granular calls.
 
 ## propose_circuit reference
 - Components: list type + name + optional properties. Auto-positioned on breadboard.
@@ -147,6 +153,7 @@ propose_fix({
 - place_component / remove_component / update_component / move_component
 - connect_wire / wire_component_to_pin / remove_wire / update_wire
 - update_sketch (full rewrite) or patch_sketch (small edits)
+- apply_design ONLY for explicit full-diagram import/replace requests (e.g. pasted DreamerDiagram JSON with \`$schema\`). Do not use apply_design for small edits.
 
 Do NOT replace the whole circuit. Make the smallest change that satisfies the user's request. Reuse existing component IDs from the board state below — never invent IDs.`;
 
@@ -420,6 +427,16 @@ const PROMPTS_1_2_1: CorePromptSnapshot = {
   editPrompt: EDIT_PROMPT,
 };
 
+// v1.2.2 — Read tools (get_board_state, list_components, list_wires) now
+// return DreamerDiagram-shaped payloads so read format equals write format
+// across the agent surface. COMMON_PROMPT updated to document the DSL
+// shape of reads and the symmetry with apply_design / validate_design.
+const PROMPTS_1_2_2: CorePromptSnapshot = {
+  commonPrompt: COMMON_PROMPT,
+  buildPrompt: BUILD_PROMPT,
+  editPrompt: EDIT_PROMPT,
+};
+
 export const CORE_PROMPT_SNAPSHOTS: Record<string, CorePromptSnapshot> = {
   "1.0.0": PROMPTS_1_0_0,
   "1.0.1": PROMPTS_1_0_0, // no prompt changes in 1.0.1–1.0.4
@@ -434,6 +451,7 @@ export const CORE_PROMPT_SNAPSHOTS: Record<string, CorePromptSnapshot> = {
   "1.1.1": PROMPTS_1_1_1, // edit prompt updated with propose_fix
   "1.2.0": PROMPTS_1_1_1, // no prompt changes in 1.2.0 (propose_fix attempt budget + schema error surfacing)
   "1.2.1": PROMPTS_1_2_1, // EDIT_PROMPT: list_components/list_wires before propose_fix edits + wiring-only retry guidance
+  "1.2.2": PROMPTS_1_2_2, // COMMON_PROMPT: documents DSL-shaped read tool returns (get_board_state / list_components / list_wires)
   // When bumping AGENT_VERSION: copy live constants into a new PROMPTS_X_Y_Z
   // const above and add an explicit entry here. The lookup below falls back to
   // DEFAULT_CORE_PROMPT_SNAPSHOT (live) for any unrecognised version.

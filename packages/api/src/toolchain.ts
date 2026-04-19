@@ -20,6 +20,20 @@ import { createLogger } from "./logger";
 
 const log = createLogger("toolchain");
 
+/** Caps on long-running toolchain spawns. Installer can legitimately
+ *  take several minutes on a cold path, so the ceiling is generous. */
+const WHICH_TIMEOUT_MS = 5_000
+const INSTALLER_TIMEOUT_MS = 10 * 60_000
+const CORE_UPDATE_INDEX_TIMEOUT_MS = 60_000
+const CORE_INSTALL_TIMEOUT_MS = 15 * 60_000
+
+function installKillTimer(proc: { kill: () => void }, timeoutMs: number): () => void {
+  const t = setTimeout(() => {
+    try { proc.kill() } catch { /* already dead */ }
+  }, timeoutMs)
+  return () => clearTimeout(t)
+}
+
 export class ArduinoCliMissingError extends Error {
   constructor(message: string) {
     super(message);
@@ -27,17 +41,20 @@ export class ArduinoCliMissingError extends Error {
   }
 }
 
-async function runCapture(cmd: string[]): Promise<{ stdout: string; stderr: string; code: number }> {
+async function runCapture(cmd: string[], timeoutMs: number): Promise<{ stdout: string; stderr: string; code: number }> {
   const proc = Bun.spawn(cmd, { stdout: "pipe", stderr: "pipe" });
+  const cancelTimer = installKillTimer(proc, timeoutMs)
   const [stdout, stderr] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
   ]);
-  return { stdout, stderr, code: await proc.exited };
+  const code = await proc.exited
+  cancelTimer()
+  return { stdout, stderr, code };
 }
 
 async function whichArduinoCli(): Promise<string | null> {
-  const result = await runCapture(["which", "arduino-cli"]);
+  const result = await runCapture(["which", "arduino-cli"], WHICH_TIMEOUT_MS);
   if (result.code === 0) {
     const path = result.stdout.trim();
     if (path) return path;
@@ -65,7 +82,9 @@ async function installArduinoCliManaged(): Promise<string> {
     stdout: "inherit",
     stderr: "inherit",
   });
+  const cancelTimer = installKillTimer(proc, INSTALLER_TIMEOUT_MS)
   const code = await proc.exited;
+  cancelTimer()
   if (code !== 0) {
     throw new ArduinoCliMissingError(
       `arduino-cli installer exited with code ${code}. Install manually from https://arduino.github.io/arduino-cli/`,
@@ -256,6 +275,7 @@ export async function ensureArduinoCliCore(
         stderr: progress ? "pipe" : "inherit",
       },
     );
+    const cancelUpdateTimer = installKillTimer(updateProc, CORE_UPDATE_INDEX_TIMEOUT_MS)
     if (progress && updateProc.stdout && updateProc.stderr) {
       await Promise.all([
         pumpChildOutput(updateProc.stdout, progress),
@@ -263,6 +283,7 @@ export async function ensureArduinoCliCore(
       ]);
     }
     const updateCode = await updateProc.exited;
+    cancelUpdateTimer()
     if (updateCode !== 0) {
       throw new Error(
         `arduino-cli core update-index failed with code ${updateCode} while preparing to install ${family}. ` +
@@ -279,6 +300,7 @@ export async function ensureArduinoCliCore(
       stderr: progress ? "pipe" : "inherit",
     },
   );
+  const cancelInstallTimer = installKillTimer(proc, CORE_INSTALL_TIMEOUT_MS)
   if (progress && proc.stdout && proc.stderr) {
     await Promise.all([
       pumpChildOutput(proc.stdout, progress),
@@ -286,6 +308,7 @@ export async function ensureArduinoCliCore(
     ]);
   }
   const code = await proc.exited;
+  cancelInstallTimer()
   if (code !== 0) {
     const hint = additionalUrl
       ? ` (the "${family}" core requires --additional-urls ${additionalUrl}; check your network or install manually: arduino-cli core install ${family} --additional-urls ${additionalUrl})`

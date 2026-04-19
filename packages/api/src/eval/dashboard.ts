@@ -658,8 +658,8 @@ function buildFlowchart(nc, agg, diagramVersion, fromVersion) {
 
 // ── Node classes from a single RunEval ────────────────────────────────────
 var READ_T  = ['get_board_overview','list_components','list_wires','get_component_details','get_sketch_code','get_board_state','analyze_power_budget','get_wiring_guide'];
-var WRITE_BB= ['place_component','update_component','move_component','remove_component','connect_wire','wire_component_to_pin','remove_wire','update_wire'];
-var ADD_BB  = ['place_component','connect_wire','wire_component_to_pin'];
+var WRITE_BB= ['place_component','update_component','move_component','remove_component','connect_wire','wire_component_to_pin','remove_wire','update_wire','apply_design'];
+var ADD_BB  = ['place_component','connect_wire','wire_component_to_pin','apply_design'];
 var WRITE_SK= ['update_sketch','patch_sketch'];
 
 function nodeClasses(e){

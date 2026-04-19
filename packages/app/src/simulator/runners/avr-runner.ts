@@ -291,7 +291,12 @@ export function createAvrSketchRunner(
   }
 
   function attachBoard(input: PeripheralBoardInput): void {
-    peripheralBus.attachBoard(input)
+    // Inject the CURRENT TWI instance from the AVR runner. The AVR runner
+    // re-creates AVRTWI on every reset(); attachBoard is called after every
+    // load (post-reset), so we always grab the live one — peripherals that
+    // register slave handlers (e.g. SSD1306 on 0x3C) see the right object.
+    const twi = avrRunner?.getTwi()
+    peripheralBus.attachBoard(twi ? { ...input, twi } : input)
   }
 
   return {

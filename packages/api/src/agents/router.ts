@@ -79,6 +79,8 @@ const DEBUG_TRIGGERS =
   /\b(?:debug|why|not\s+working|broken|wrong|doesn'?t\s+work|fails?|error|issue|problem|trace|diagnose)\b/i;
 const QUESTION_TRIGGERS =
   /^(?:what|how|why|when|where|can\s+you|is\s+there|should\s+i|do\s+i|would\s+(?:this|it))\b/i;
+const DIAGRAM_IMPORT_TRIGGERS =
+  /\$schema\s*:\s*["']dreamer-diagram-v\d+["']|\b(?:paste|import)\s+(?:a\s+)?diagram\b|\bdreamer-diagram\b/i;
 
 function detectRequestType(prompt: string): RequestType {
   const p = prompt.toLowerCase().trim();
@@ -136,11 +138,16 @@ export function routeRequest(params: {
   const promptLength = prompt.length;
   const recentFailures = countRecentFailures(priorRuns);
   const componentsMentioned = countComponentsMentioned(prompt);
+  const hasDiagramImportIntent = DIAGRAM_IMPORT_TRIGGERS.test(prompt);
 
   // Dimensions
   const domain = detectDomain(prompt, boardComponents, graphNodes);
   const requestType = detectRequestType(prompt);
   const complexity = classifyComplexity(prompt);
+
+  if (hasDiagramImportIntent) {
+    reasons.push("diagram import intent detected");
+  }
 
   // ── Model selection ──────────────────────────────────────────────────
   //
@@ -172,6 +179,9 @@ export function routeRequest(params: {
   if (requestType === "rebuild") {
     toolMode = "all";
     reasons.push("rebuild → all-tools mode");
+  } else if (hasDiagramImportIntent) {
+    toolMode = boardComponents === 0 ? "build" : "edit";
+    reasons.push("diagram import → board mode with apply_design");
   } else if (boardComponents === 0) {
     toolMode = "build";
     reasons.push("empty board → build mode (propose_circuit)");
