@@ -10,10 +10,14 @@ import { applyOpsToScene, isBoardOp, applyBoardOpsToBoard } from "@/chat/apply-o
 import { applyGraphOpsToGraph, isGraphOp } from "@/chat/apply-graph-ops"
 import type { GraphOp } from "@dreamer/schemas"
 import { API_ORIGIN } from "@dreamer/config"
+import { resolveFetchOptions } from "@/project/api-client"
 
 async function fetchThreadMessages(threadId: string): Promise<UIMessage[]> {
   try {
-    const res = await fetch(`${API_ORIGIN}/api/threads/${threadId}/messages`)
+    const res = await fetch(
+      `${API_ORIGIN}/api/threads/${threadId}/messages`,
+      resolveFetchOptions(),
+    )
     if (!res.ok) return []
     const data = await res.json()
     return (data.messages ?? []) as UIMessage[]
@@ -56,7 +60,13 @@ export type SessionTokenUsage = {
   haiku: { inputTokens: number; outputTokens: number }
 }
 
-export function useChatMessages(): UseChatMessagesReturn {
+export type UseChatMessagesOptions = {
+  /** Agent snapshot version pin sent to the API on every request. */
+  snapshotVersion?: string
+}
+
+export function useChatMessages(options: UseChatMessagesOptions = {}): UseChatMessagesReturn {
+  const { snapshotVersion } = options
   const project = useProject()
   const { send: sceneSend } = useScene()
   const { send: graphSend } = useGraph()
@@ -71,12 +81,14 @@ export function useChatMessages(): UseChatMessagesReturn {
   const chat = useChat({
     transport: new DefaultChatTransport({
       api: `${API_ORIGIN}/api/chat`,
+      credentials: "include",
       body: {
         projectId: project.projectId,
         sceneId: project.sceneId,
         threadId: project.threadId,
         sessionId: project.sessionId,
         expectedVersion: project.version,
+        ...(snapshotVersion ? { snapshotVersion } : {}),
       },
     }),
     onData(dataPart) {

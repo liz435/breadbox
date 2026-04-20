@@ -4,9 +4,10 @@
     "name": "noble-lark-gear",
     "version": 1,
     "createdAt": "2026-04-18T11:20:01.405Z",
-    "updatedAt": "2026-04-19T02:42:35.469Z",
+    "updatedAt": "2026-04-19T06:59:51.730Z",
     "threadId": "2b677cf7-75eb-4abf-987a-cf0802d0d26a",
-    "activeSceneId": "7baad0ec-8526-4803-a202-e9c32112aa39"
+    "activeSceneId": "7baad0ec-8526-4803-a202-e9c32112aa39",
+    "ownerId": "local"
   },
   "scenes": {
     "7baad0ec-8526-4803-a202-e9c32112aa39": {
@@ -78,51 +79,91 @@
   },
   "boardState": {
     "components": {
-      "oled-1": {
-        "id": "oled-1",
-        "type": "oled_display",
-        "name": "OLED 128x64",
-        "x": 7,
+      "resistor-1": {
+        "id": "resistor-1",
+        "type": "resistor",
+        "name": "R1 1kΩ",
+        "x": 3,
         "y": 5,
         "rotation": 0,
         "pins": {
-          "sda": null,
-          "scl": null
+          "a": null,
+          "b": null
         },
-        "properties": {}
+        "properties": {
+          "resistance": 1000
+        }
+      },
+      "capacitor-1": {
+        "id": "capacitor-1",
+        "type": "capacitor",
+        "name": "C1 100µF",
+        "x": 8,
+        "y": 5,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "capacitance": 100
+        }
+      },
+      "led-1": {
+        "id": "led-1",
+        "type": "led",
+        "name": "LED",
+        "x": 8,
+        "y": 9,
+        "rotation": 0,
+        "pins": {
+          "anode": null,
+          "cathode": null
+        },
+        "properties": {
+          "color": "#fbbf24"
+        }
       }
     },
     "wires": {
-      "wire-a4-sda": {
-        "id": "wire-a4-sda",
+      "wire-d7": {
+        "id": "wire-d7",
         "fromRow": -999,
-        "fromCol": 18,
+        "fromCol": 7,
         "toRow": 5,
-        "toCol": 7,
-        "color": "#3b82f6"
+        "toCol": 3,
+        "color": "#fbbf24"
       },
-      "wire-a5-scl": {
-        "id": "wire-a5-scl",
-        "fromRow": -999,
-        "fromCol": 19,
-        "toRow": 6,
-        "toCol": 7,
-        "color": "#a855f7"
+      "wire-res-to-junction": {
+        "id": "wire-res-to-junction",
+        "fromRow": 5,
+        "fromCol": 6,
+        "toRow": 5,
+        "toCol": 8,
+        "color": "#fbbf24"
       },
-      "wire-5v": {
-        "id": "wire-5v",
-        "fromRow": -999,
-        "fromCol": -1,
-        "toRow": 7,
-        "toCol": 7,
-        "color": "#ef4444"
+      "wire-junction-to-led": {
+        "id": "wire-junction-to-led",
+        "fromRow": 5,
+        "fromCol": 9,
+        "toRow": 9,
+        "toCol": 8,
+        "color": "#fbbf24"
       },
-      "wire-gnd": {
-        "id": "wire-gnd",
+      "wire-cap-gnd": {
+        "id": "wire-cap-gnd",
         "fromRow": -999,
         "fromCol": -3,
-        "toRow": 8,
-        "toCol": 7,
+        "toRow": 7,
+        "toCol": 8,
+        "color": "#1a1a1a"
+      },
+      "wire-led-gnd": {
+        "id": "wire-led-gnd",
+        "fromRow": -999,
+        "fromCol": -4,
+        "toRow": 10,
+        "toCol": 8,
         "color": "#1a1a1a"
       }
     },
@@ -133,7 +174,7 @@
       "oled": {}
     },
     "serialOutput": [],
-    "sketchCode": "// Example: OLED Display Hello World\n// Display text on a 128x64 I2C OLED (SSD1306).\n\n#include <Wire.h>\n#include <Adafruit_SSD1306.h>\n\n#define SCREEN_WIDTH 128\n#define SCREEN_HEIGHT 64\n#define OLED_RESET -1\n\nAdafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);\n\nvoid setup() {\n  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);\n  display.clearDisplay();\n  display.setTextSize(2);\n  display.setTextColor(SSD1306_WHITE);\n  display.setCursor(10, 20);\n  display.println(\"Hello!\");\n  display.display();\n}\n\nvoid loop() {\n}\n",
+    "sketchCode": "// Example: Capacitor Charge/Discharge\n// Pin 7 charges a capacitor through a 1kΩ resistor.\n// The LED is in parallel with the cap — it shows the\n// voltage across the cap. When pin 7 goes LOW, the cap\n// discharges through the LED, which fades out slowly.\n\nvoid setup() {\n  pinMode(7, OUTPUT);\n  Serial.begin(9600);\n}\n\nvoid loop() {\n  digitalWrite(7, HIGH);  // charge the cap\n  Serial.println(\"Charging...\");\n  delay(3000);\n  digitalWrite(7, LOW);   // cap discharges through LED\n  Serial.println(\"Discharging...\");\n  delay(3000);\n}\n",
     "customLibraries": {},
     "boardTarget": "arduino_uno",
     "environment": {

@@ -15,9 +15,17 @@ import { boardTracker } from "../db/board-state-tracker";
 import { createTrace, startSpan, closeTrace, serializeTrace } from "../agents/trace";
 import { resolveAgentSnapshotVersion } from "../agents/version";
 import { createLogger } from "../logger";
+import type { AuthContext } from "../auth/context";
+import { authPlugin } from "../auth/middleware";
+import { requireRateLimit, RateLimitError } from "../auth/rate-limit";
 
 const log = createLogger("chat");
 let requestId = 0;
+
+function requireOwnerId(auth: AuthContext | null | undefined): string {
+  if (!auth) throw new Error("missing auth context on authed route");
+  return auth.userId;
+}
 
 // Background summary tasks — tracked so shutdown can drain them before exit.
 // Without this, Railway's SIGTERM/redeploy aborts in-flight summary writes
@@ -86,7 +94,20 @@ const BOARD_OP_KINDS = new Set([
   "set_pin_mode", "update_sketch", "update_board_settings", "load_board",
 ]);
 
-export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) => {
+export const chatRoutes = new Elysia().use(authPlugin).post("/api/chat", async ({ auth, body, set }) => {
+  const ownerId = requireOwnerId(auth);
+
+  try {
+    await requireRateLimit("chat", ownerId, auth?.mode);
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      set.status = 429;
+      set.headers["Retry-After"] = String(err.retryAfterSec);
+      return { error: err.message, retryAfterSec: err.retryAfterSec };
+    }
+    throw err;
+  }
+
   const id = ++requestId;
   const reqLog = log.child(`req-${id}`);
 
@@ -113,10 +134,10 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
   const snapshotVersion = resolveAgentSnapshotVersion(input.snapshotVersion);
 
   // 1. Read or bootstrap project
-  let project = await projectRepo.readProject(input.projectId);
+  let project = await projectRepo.readProject(input.projectId, ownerId);
   if (!project) {
     reqLog.info(`project ${input.projectId} not found, creating`);
-    project = await projectRepo.getOrCreateProject({ id: input.projectId });
+    project = await projectRepo.getOrCreateProject({ ownerId, id: input.projectId });
   }
 
   if (!project.scenes[input.sceneId]) {
@@ -190,7 +211,7 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
 
       // Apply ops server-side
       try {
-        await projectRepo.applyBoardOps(input.projectId, {
+        await projectRepo.applyBoardOps(input.projectId, ownerId, {
           expectedVersion: input.expectedVersion,
           ops: templateOps,
         });
@@ -354,7 +375,7 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
 
       if (boardOps.length > 0) {
         try {
-          const applyResult = await projectRepo.applyBoardOps(capturedProjectId, {
+          const applyResult = await projectRepo.applyBoardOps(capturedProjectId, ownerId, {
             expectedVersion: capturedExpectedVersion,
             ops: boardOps,
           });
@@ -394,7 +415,7 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
       // Apply graph ops to the project file — skip if board ops were aborted
       if (graphOps.length > 0) {
         try {
-          const currentProject = await projectRepo.readProject(capturedProjectId);
+          const currentProject = await projectRepo.readProject(capturedProjectId, ownerId);
           if (currentProject) {
             const graph = currentProject.graph ?? { nodes: {}, edges: {} };
             for (const rawOp of graphOps) {
@@ -443,7 +464,7 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
                   break;
               }
             }
-            await projectRepo.saveGraph(capturedProjectId, graph);
+            await projectRepo.saveGraph(capturedProjectId, ownerId, graph);
             reqLog.info(`persisted ${graphOps.length} graph ops to project file`);
           }
         } catch (graphErr) {
@@ -479,14 +500,28 @@ export const chatRoutes = new Elysia().post("/api/chat", async ({ body, set }) =
   });
 
   return createUIMessageStreamResponse({ stream: uiStream });
-}).get("/api/threads/:threadId/messages", async ({ params, set }) => {
+}).get("/api/threads/:threadId/messages", async ({ auth, params, set }) => {
+  const ownerId = requireOwnerId(auth);
   const { threadId } = params;
   if (!threadId) {
     set.status = 400;
     return { error: "threadId is required" };
   }
 
+  // Thread ownership flows through the project. Fetch runs first, then
+  // confirm the thread's project belongs to the caller — otherwise a
+  // threadId guess would leak another user's prompts.
   const runs = await agentRunRepo.listRunsForThread(threadId);
+  if (runs.length > 0) {
+    const projectId = runs[0]?.run.projectId;
+    if (projectId) {
+      const project = await projectRepo.readProject(projectId, ownerId);
+      if (!project) {
+        set.status = 404;
+        return { error: "Thread not found" };
+      }
+    }
+  }
   const completedCoreRuns = runs.filter(
     (r) => r.run.status === "completed" && r.run.agent === "core"
   );

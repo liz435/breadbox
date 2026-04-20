@@ -174,6 +174,8 @@ export {
 export {
   DIAGRAM_SCHEMA_V1,
   diagramSchema,
+  diagramToolInputSchema,
+  withDiagramSchemaVersion,
   diagramComponentSchema,
   diagramWireSchema,
   diagramObstacleSchema,
@@ -181,6 +183,7 @@ export {
   diagramCustomLibrarySchema,
   type DreamerDiagram,
   type DreamerDiagramInput,
+  type DiagramToolInput,
   type DiagramComponent,
   type DiagramWire,
   type DiagramObstacle,
@@ -203,3 +206,9 @@ export {
   type DiagramIssueCategory,
   type DiagramIssueCode,
 } from "./diagram-validator";
+
+export {
+  encodeDiagramForUrl,
+  decodeDiagramFromUrl,
+  type DecodeResult,
+} from "./diagram-url";

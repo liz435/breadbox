@@ -5,6 +5,7 @@ import { areConnected, getComponentFootprint, gridToPixel } from "@/breadboard/b
 import { KNOB_RADIUS, GENERIC_BODY_WIDTH, GENERIC_BODY_HEIGHT, LABEL_FONT_SIZE, HOLE_SPACING } from "@/breadboard/breadboard-constants";
 import { PinLabel } from "./pin-label";
 import { OledCanvas } from "@/components/oled-canvas";
+import { lookupGlyph } from "./lcd-font";
 
 type GenericRendererProps = {
   component: BoardComponent;
@@ -137,9 +138,11 @@ function PotentiometerRenderer({ component, isSelected }: { component: BoardComp
   );
 }
 
-/** Render a single 5×8 CGRAM custom character as tiny SVG rects. */
-function CgramChar({ charData, x, y, cellW, cellH }: {
-  charData: number[]; x: number; y: number; cellW: number; cellH: number
+/** Render a 5×8 character (CGRAM or ROM) as a grid of dots — the authentic
+ *  HD44780 character-panel look. `charData[row]` is a 5-bit row where bit 4
+ *  is the leftmost column. */
+function DotChar({ charData, x, y, cellW, cellH, color }: {
+  charData: readonly number[]; x: number; y: number; cellW: number; cellH: number; color: string
 }) {
   const pixW = cellW / 5;
   const pixH = cellH / 8;
@@ -153,9 +156,9 @@ function CgramChar({ charData, x, y, cellW, cellH }: {
             key={`${row}-${col}`}
             x={x + col * pixW}
             y={y + row * pixH}
-            width={pixW - 0.1}
-            height={pixH - 0.1}
-            fill="#065f46"
+            width={pixW - 0.08}
+            height={pixH - 0.08}
+            fill={color}
           />,
         );
       }
@@ -165,16 +168,23 @@ function CgramChar({ charData, x, y, cellW, cellH }: {
 }
 
 function LcdRenderer({ component, isSelected, libraryState }: { component: BoardComponent; isSelected: boolean; libraryState?: LibraryState }) {
-  // Vertical 6-pin header: rs/en/d4/d5/d6/d7 each on its own row.
-  const pins = [0, 1, 2, 3, 4, 5].map(i =>
+  // Full HD44780 12-pin header — must match the canonical layout in
+  // @dreamer/schemas/component-pins so the simulator peripheral's wire
+  // resolver and the breadboard render agree on pin positions.
+  const pinNames = ["vss", "vdd", "vo", "rs", "rw", "en", "d4", "d5", "d6", "d7", "a", "k"] as const;
+  const pins = pinNames.map((_, i) =>
     gridToPixel({ row: component.y + i, col: component.x }),
   );
   const pinTop = pins[0];
-  const pinBot = pins[5];
+  const pinBot = pins[pins.length - 1];
 
-  // Display body sits to the LEFT of the pin column.
-  const bodyW = 60;
-  const bodyH = 34;
+  // PCB body is deliberately shorter than the 12-pin column — the pin
+  // header rail extends above and below so it reads like a real module
+  // whose PCB sits between rows 3-10 of the header rather than spanning
+  // the full 12-row span. Width is set for a HD44780-ish ~2:1 aspect.
+  const pinSpan = pinBot.y - pinTop.y;
+  const bodyH = Math.round(pinSpan * 0.55);
+  const bodyW = Math.round(bodyH * 2.0);
   const bodyCx = pinTop.x - bodyW / 2 - 10;
   const bodyCy = (pinTop.y + pinBot.y) / 2;
 
@@ -193,22 +203,24 @@ function LcdRenderer({ component, isSelected, libraryState }: { component: Board
   const cgram = lcdState?.cgram;
   const cols = lcdState?.cols ?? 16;
 
-  const displayAreaX = bodyCx - bodyW / 2 + 4;
-  const displayAreaY = bodyCy - bodyH / 2 + 4;
-  const displayWidth = bodyW - 8;
-  const displayHeight = bodyH - 8;
+  // Landscape display panel — fills most of the PCB width, leaves a strip
+  // below for silkscreen and the contrast pot like a real HD44780 module.
+  const displayWidth = bodyW - 22;
+  const displayHeight = bodyH * 0.46;
+  const displayAreaX = bodyCx - displayWidth / 2;
+  const displayAreaY = bodyCy - bodyH / 2 + (bodyH - displayHeight - bodyH * 0.2) / 2 + 3;
 
-  const bodyGradId = `lcd-body-${component.id}`;
+  const pcbGradId = `lcd-pcb-${component.id}`;
+  const screenGradId = `lcd-screen-${component.id}`;
+  const glassGradId = `lcd-glass-${component.id}`;
   const blinkAnimId = `lcd-blink-${component.id}`;
 
-  // Display background color depends on backlight state
-  const displayBg = backlightOn ? "#a7f3d0" : "#3d6b5a";
   const textColor = backlightOn ? "#065f46" : "#2a4a3d";
 
   const cellW = (displayWidth - 2) / cols;
   const cellH = (displayHeight - 4) / 2;
 
-  const pinNames = ["rs", "en", "d4", "d5", "d6", "d7"];
+  const headerX = bodyCx + bodyW / 2;
 
   // Determine visible cursor position relative to scroll offset
   const scrollOffset = lcdState?.scrollOffset ?? 0;
@@ -216,82 +228,125 @@ function LcdRenderer({ component, isSelected, libraryState }: { component: Board
   const cursorInView = visibleCursorCol >= 0 && visibleCursorCol < cols
     && cursorRow >= 0 && cursorRow < (lcdState?.rows ?? 2);
 
-  /** Render a single row of characters, handling CGRAM chars (code 0–7). */
+  // HD44780 dots are near-square (~1.1 tall:wide). The character cells on this
+  // renderer are ~3×11 px — much taller than wide — so if we let a 5×8 grid
+  // fill the cell, dots stretch vertically and glyphs look skinny. Instead,
+  // derive the glyph height from the glyph width × dot-aspect, then centre
+  // the block vertically within the cell. (Cursor underlines still use the
+  // full cell height so they span the character position like real hardware.)
+  const glyphW = cellW - 0.4;
+  const glyphH = Math.min(glyphW * (8 / 5) * 1.1, cellH - 0.4);
+  const glyphYOffset = (cellH - glyphH) / 2;
+
   function renderRow(text: string, rowIndex: number) {
     const nodes: React.ReactNode[] = [];
-    const rowY = displayAreaY + 2 + rowIndex * (cellH + 1);
+    const rowY = displayAreaY + 2 + rowIndex * (cellH + 1) + glyphYOffset;
     for (let i = 0; i < cols; i++) {
       const code = text.charCodeAt(i);
       const cellX = displayAreaX + 1 + i * cellW;
-      if (code >= 0 && code <= 7 && cgram && cgram[code]) {
-        // Custom CGRAM character — render as pixel grid
-        nodes.push(
-          <CgramChar
-            key={i}
-            charData={cgram[code]}
-            x={cellX}
-            y={rowY}
-            cellW={cellW - 0.4}
-            cellH={cellH}
-          />,
-        );
-      }
-      // Normal printable characters are handled by the <text> element below
+      const glyph = (code >= 0 && code <= 7 && cgram && cgram[code])
+        ? cgram[code]
+        : lookupGlyph(code);
+      if (!glyph) continue;
+      nodes.push(
+        <DotChar
+          key={i}
+          charData={glyph}
+          x={cellX}
+          y={rowY}
+          cellW={glyphW}
+          cellH={glyphH}
+          color={textColor}
+        />,
+      );
     }
     return nodes;
   }
 
-  /** Get printable text for a row (replace CGRAM codes 0–7 with spaces so they don't render as glyphs). */
-  function printableText(text: string): string {
-    let result = "";
-    for (let i = 0; i < Math.min(text.length, cols); i++) {
-      const code = text.charCodeAt(i);
-      result += (code >= 0 && code <= 7) ? " " : text[i];
-    }
-    return result;
-  }
+  const bodyL = bodyCx - bodyW / 2;
+  const bodyT = bodyCy - bodyH / 2;
+  const screenBezelL = displayAreaX - 1;
+  const screenBezelT = displayAreaY - 1;
+  const screenBezelW = displayWidth + 2;
+  const screenBezelH = displayHeight + 2;
 
   return (
     <g>
       <defs>
-        <linearGradient id={bodyGradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#0d7a5f" />
+        {/* Dark green PCB — multi-stop for subtle depth */}
+        <linearGradient id={pcbGradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stopColor="#0d5a3f" />
+          <stop offset="55%"  stopColor="#0a4430" />
           <stop offset="100%" stopColor="#042f22" />
+        </linearGradient>
+        {/* Reflective yellow-green character panel — brighter when backlit */}
+        <linearGradient id={screenGradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stopColor={backlightOn ? "#c9f7de" : "#4a7a68"} />
+          <stop offset="100%" stopColor={backlightOn ? "#8cdcb3" : "#2f5347"} />
+        </linearGradient>
+        {/* Glass sheen — diagonal highlight for glossy feel */}
+        <linearGradient id={glassGradId} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%"  stopColor="#ffffff" stopOpacity="0.22" />
+          <stop offset="45%" stopColor="#ffffff" stopOpacity="0" />
         </linearGradient>
       </defs>
 
-      {/* Pin hole indicators + header strip */}
+      {/* Header pin strip — extends above/below the PCB body since the
+          12-pin header is taller than the body itself. Pads sit on this
+          strip so pins outside the PCB edge still look anchored. */}
+      <rect x={headerX - 1.8} y={pinTop.y - 2} width={3.6} height={pinSpan + 4}
+        rx={0.6} fill="#2a2a2a" stroke="#111" strokeWidth={0.3} />
+
+      {/* Pin leads from header strip to breadboard holes, with gold solder pads */}
       {pins.map((pin, i) => (
         <g key={i}>
-          <circle cx={pin.x} cy={pin.y} r={2} fill="#9ca3af" opacity={0.55} />
           <line
-            x1={bodyCx + bodyW / 2}
-            y1={pin.y}
-            x2={pin.x}
-            y2={pin.y}
-            stroke="#c0c0c0"
-            strokeWidth={1.2}
-            strokeLinecap="round"
+            x1={headerX} y1={pin.y}
+            x2={pin.x}   y2={pin.y}
+            stroke="#c8c8c8" strokeWidth={1.3} strokeLinecap="round"
           />
+          <rect x={headerX - 1} y={pin.y - 1.2} width={2} height={2.4}
+            fill="#c8a84a" rx={0.3} />
+          <circle cx={pin.x} cy={pin.y} r={2} fill="#b0b0b0" opacity={0.55} />
           <PinLabel x={pin.x} y={pin.y} name={pinNames[i]} side="right" />
         </g>
       ))}
 
-      {/* PCB body shadow */}
-      <rect x={bodyCx - bodyW / 2 + 1} y={bodyCy - bodyH / 2 + 1.5}
-        width={bodyW} height={bodyH} rx={2} fill="#00000055" />
+      {/* Drop shadow */}
+      <rect x={bodyL + 1} y={bodyT + 2} width={bodyW} height={bodyH} rx={2} fill="#00000070" />
 
-      {/* PCB body */}
-      <rect
-        x={bodyCx - bodyW / 2}
-        y={bodyCy - bodyH / 2}
-        width={bodyW}
-        height={bodyH}
-        rx={2}
-        fill={`url(#${bodyGradId})`}
-        stroke={isSelected ? "#3b82f6" : "#022f22"}
-        strokeWidth={isSelected ? 1.5 : 0.8}
-      />
+      {/* PCB substrate */}
+      <rect x={bodyL} y={bodyT} width={bodyW} height={bodyH} rx={2}
+        fill={`url(#${pcbGradId})`}
+        stroke={isSelected ? "#3b82f6" : "#02241a"}
+        strokeWidth={isSelected ? 1.5 : 0.7} />
+
+      {/* Corner mounting holes (top corners) */}
+      {[[bodyL + 3, bodyT + 3], [bodyL + bodyW - 3, bodyT + 3]].map(([hx, hy], i) => (
+        <g key={i}>
+          <circle cx={hx} cy={hy} r={1.5} fill="#02241a" stroke="#3a7a5a" strokeWidth={0.35} />
+          <circle cx={hx} cy={hy} r={0.7} fill="#011a12" />
+        </g>
+      ))}
+
+      {/* Decorative PCB traces — horizontal rail + vertical bus near header */}
+      <line x1={bodyL + 8} y1={bodyT + bodyH - 2.2} x2={bodyL + bodyW - 12} y2={bodyT + bodyH - 2.2}
+        stroke="#1e6a46" strokeWidth={0.5} opacity={0.55} />
+      <line x1={headerX - 1} y1={pinTop.y} x2={headerX - 1} y2={pinBot.y}
+        stroke="#1e6a46" strokeWidth={0.7} opacity={0.5} />
+
+      {/* Contrast trim pot — classic small blue potentiometer near the edge */}
+      <rect x={bodyL + bodyW - 7} y={bodyT + bodyH - 6.5} width={5} height={4} rx={0.4}
+        fill="#1e40af" stroke="#0b2e80" strokeWidth={0.3} />
+      <circle cx={bodyL + bodyW - 4.5} cy={bodyT + bodyH - 4.5} r={1.1}
+        fill="#d4d4d8" stroke="#525252" strokeWidth={0.25} />
+      <line x1={bodyL + bodyW - 5.4} y1={bodyT + bodyH - 4.5}
+            x2={bodyL + bodyW - 3.6} y2={bodyT + bodyH - 4.5}
+            stroke="#27272a" strokeWidth={0.35} />
+
+      {/* Screen bezel — dark frame around the active display */}
+      <rect x={screenBezelL} y={screenBezelT} width={screenBezelW} height={screenBezelH} rx={1}
+        fill="#02241a" stroke="#011a12" strokeWidth={0.5} />
 
       {/* LCD display window */}
       <rect
@@ -299,67 +354,34 @@ function LcdRenderer({ component, isSelected, libraryState }: { component: Board
         y={displayAreaY}
         width={displayWidth}
         height={displayHeight}
-        rx={1}
-        fill={displayBg}
-        stroke="#065f46"
-        strokeWidth={0.4}
+        rx={0.6}
+        fill={`url(#${screenGradId})`}
       />
 
       {displayOn && hasText ? (
         <>
-          {/* Line 1 — printable text */}
-          <text
-            x={displayAreaX + 2}
-            y={displayAreaY + 6}
-            fontSize={4.5}
-            fill={textColor}
-            fontFamily="monospace"
-            dominantBaseline="middle"
-          >
-            {printableText(line1)}
-          </text>
-          {/* Line 1 — CGRAM custom chars */}
           {renderRow(line1, 0)}
-
-          {/* Line 2 — printable text */}
-          <text
-            x={displayAreaX + 2}
-            y={displayAreaY + displayHeight - 3}
-            fontSize={4.5}
-            fill={textColor}
-            fontFamily="monospace"
-            dominantBaseline="middle"
-          >
-            {printableText(line2)}
-          </text>
-          {/* Line 2 — CGRAM custom chars */}
           {renderRow(line2, 1)}
         </>
       ) : displayOn ? (
         <>
-          {/* Text grid placeholder */}
-          {Array.from({ length: cols }, (_, i) => (
-            <rect
-              key={i}
-              x={displayAreaX + 1 + i * cellW}
-              y={displayAreaY + 2}
-              width={cellW - 0.4}
-              height={cellH}
-              fill={textColor}
-              opacity={0.12}
-            />
-          ))}
-          {Array.from({ length: cols }, (_, i) => (
-            <rect
-              key={`b${i}`}
-              x={displayAreaX + 1 + i * cellW}
-              y={displayAreaY + 2 + cellH + 1}
-              width={cellW - 0.4}
-              height={cellH}
-              fill={textColor}
-              opacity={0.12}
-            />
-          ))}
+          {/* Unlit-cell grid — subtle dot placeholders so the panel reads as
+              an LCD even before the sketch prints anything. */}
+          {Array.from({ length: cols * 2 }, (_, i) => {
+            const col = i % cols;
+            const row = Math.floor(i / cols);
+            return (
+              <rect
+                key={`ph-${i}`}
+                x={displayAreaX + 1 + col * cellW + (cellW - 0.4) * 0.15}
+                y={displayAreaY + 2 + row * (cellH + 1) + cellH * 0.1}
+                width={(cellW - 0.4) * 0.7}
+                height={cellH * 0.8}
+                fill={textColor}
+                opacity={0.08}
+              />
+            );
+          })}
         </>
       ) : null}
 
@@ -395,8 +417,29 @@ function LcdRenderer({ component, isSelected, libraryState }: { component: Board
         </rect>
       )}
 
+      {/* Glass highlight sheen over the display */}
+      <rect
+        x={displayAreaX}
+        y={displayAreaY}
+        width={displayWidth}
+        height={displayHeight}
+        rx={0.6}
+        fill={`url(#${glassGradId})`}
+        pointerEvents="none"
+      />
+
+      {/* Silkscreen micro-text on the PCB below the screen */}
+      <text x={bodyL + 4} y={bodyT + bodyH - 3} textAnchor="start"
+        fontSize={2.3} fill="#4a9e78" fontFamily="monospace" opacity={0.75}>
+        HD44780
+      </text>
+      <text x={bodyL + bodyW / 2 + 2} y={bodyT + bodyH - 3} textAnchor="middle"
+        fontSize={2.1} fill="#3a8a68" fontFamily="monospace" opacity={0.7}>
+        16×2
+      </text>
+
       {/* Component name */}
-      <text x={bodyCx} y={bodyCy + bodyH / 2 + 6} textAnchor="middle"
+      <text x={bodyCx} y={bodyT + bodyH + 6} textAnchor="middle"
         fontSize={LABEL_FONT_SIZE} fill="#888" fontFamily="monospace">
         {component.name}
       </text>
@@ -2398,6 +2441,12 @@ function OledRenderer({ component, isSelected, libraryState }: { component: Boar
 }
 
 function GenericRendererInner({ component, components, pinStates, wires, isSelected, electricalState, libraryState }: GenericRendererProps) {
+  // Dimming signals "this part has no current flowing through it" — useful
+  // for analog parts like buzzers/motors/sensors whose visual has no other
+  // on/off cue. Digital peripherals (LCD, 7-seg, OLED, NeoPixel, shift
+  // register) already render their own display state, so dimming them based
+  // on voltage drop lies: the LCD's 10kΩ pull-downs never drop the 2V the
+  // isActive heuristic demands, even when the panel is working perfectly.
   const isDimmed = electricalState != null && !electricalState.isActive;
   const dimOpacity = isDimmed ? 0.5 : 1;
 
@@ -2408,7 +2457,7 @@ function GenericRendererInner({ component, components, pinStates, wires, isSelec
     case "potentiometer":
       return <g opacity={dimOpacity}><PotentiometerRenderer component={component} isSelected={isSelected} /></g>;
     case "lcd_16x2":
-      return <g opacity={dimOpacity}><LcdRenderer component={component} isSelected={isSelected} libraryState={libraryState} /></g>;
+      return <LcdRenderer component={component} isSelected={isSelected} libraryState={libraryState} />;
     case "temperature_sensor":
       return <TemperatureSensorRenderer component={component} isSelected={isSelected} />;
     case "photoresistor":
@@ -2418,7 +2467,7 @@ function GenericRendererInner({ component, components, pinStates, wires, isSelec
     case "ir_receiver":
       return <g opacity={dimOpacity}><IrReceiverRenderer component={component} isSelected={isSelected} /></g>;
     case "neopixel":
-      return <g opacity={dimOpacity}><NeoPixelRenderer component={component} isSelected={isSelected} /></g>;
+      return <NeoPixelRenderer component={component} isSelected={isSelected} />;
     case "pir_sensor":
       return <g opacity={dimOpacity}><PirRenderer component={component} isSelected={isSelected} /></g>;
     case "relay":
@@ -2426,13 +2475,13 @@ function GenericRendererInner({ component, components, pinStates, wires, isSelec
     case "dc_motor":
       return <g opacity={dimOpacity}><DcMotorRenderer component={component} pinStates={pinStates} isSelected={isSelected} /></g>;
     case "seven_segment":
-      return <g opacity={dimOpacity}><SevenSegmentRenderer component={component} components={components} pinStates={pinStates} wires={wires} isSelected={isSelected} /></g>;
+      return <SevenSegmentRenderer component={component} components={components} pinStates={pinStates} wires={wires} isSelected={isSelected} />;
     case "dht_sensor":
       return <g opacity={dimOpacity}><DhtSensorRenderer component={component} isSelected={isSelected} /></g>;
     case "shift_register":
-      return <g opacity={dimOpacity}><ShiftRegisterRenderer component={component} isSelected={isSelected} /></g>;
+      return <ShiftRegisterRenderer component={component} isSelected={isSelected} />;
     case "oled_display":
-      return <g opacity={dimOpacity}><OledRenderer component={component} isSelected={isSelected} libraryState={libraryState} /></g>;
+      return <OledRenderer component={component} isSelected={isSelected} libraryState={libraryState} />;
     default:
       break;
   }

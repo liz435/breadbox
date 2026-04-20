@@ -28,6 +28,9 @@ import {
 } from "@dreamer/schemas";
 
 import { projectsDir, dreamerHome } from "../paths";
+import { createLogger } from "../logger";
+
+const log = createLogger("project-repo");
 
 function dataDir(): string {
   return dreamerHome();
@@ -68,10 +71,33 @@ async function ensureProjectsDir() {
   await mkdir(projectsDir(), { recursive: true });
 }
 
-async function readProject(projectId: string): Promise<ProjectFile | null> {
+// ── Raw read (no ownership filter) ───────────────────────────────────────
+//
+// Internal helper for code paths that must see the project before any
+// ownership decision can be made (e.g. the ownership check itself, the
+// migration runner, and legacy-parse fallbacks). Never exported.
+async function readProjectRaw(projectId: string): Promise<ProjectFile | null> {
   const file = Bun.file(projectPath(projectId));
   if (!(await file.exists())) return null;
-  return projectFileSchema.parse(await file.json());
+  const parsed = projectFileSchema.safeParse(await file.json());
+  if (!parsed.success) {
+    // Legacy project predating the ownerId migration, or a genuinely
+    // corrupt file. Either way the public API surfaces this as "not
+    // found" — the caller cannot safely act on it. The migration runner
+    // that executes at boot will move these into `_legacy/` (hosted) or
+    // stamp `ownerId: "local"` onto them (local), so this branch should
+    // only fire for files written since boot.
+    return null;
+  }
+  return parsed.data;
+}
+
+/** Returns true iff the project is owned by `ownerId`. Logs on mismatch. */
+function ownsProject(project: ProjectFile, ownerId: string): boolean {
+  if (project.project.ownerId === ownerId) return true;
+  // Log the projectId only — never leak which other user owns it.
+  log.warn(`ownership mismatch on project ${project.project.id}`);
+  return false;
 }
 
 /**
@@ -98,13 +124,42 @@ function stripRuntimeOnly(project: ProjectFile): ProjectFile {
   };
 }
 
-async function writeProject(projectId: string, data: ProjectFile): Promise<void> {
+async function writeProjectRaw(projectId: string, data: ProjectFile): Promise<void> {
   await ensureProjectsDir();
   const sanitised = stripRuntimeOnly(data);
   await Bun.write(projectPath(projectId), JSON.stringify(sanitised, null, 2));
 }
 
-function buildInitialProject(params: { id: string; name: string }): ProjectFile {
+// ── Ownership-aware public API ───────────────────────────────────────────
+
+async function readProject(
+  projectId: string,
+  ownerId: string,
+): Promise<ProjectFile | null> {
+  const project = await readProjectRaw(projectId);
+  if (!project) return null;
+  if (!ownsProject(project, ownerId)) return null;
+  return project;
+}
+
+async function writeProject(
+  projectId: string,
+  ownerId: string,
+  data: ProjectFile,
+): Promise<void> {
+  // Guard against cross-owner writes. We trust the caller that
+  // `data.project.ownerId` is the right value — this helper preserves it.
+  if (data.project.ownerId !== ownerId) {
+    throw new OpValidationError("ownerId mismatch on write");
+  }
+  await writeProjectRaw(projectId, data);
+}
+
+function buildInitialProject(params: {
+  id: string;
+  name: string;
+  ownerId: string;
+}): ProjectFile {
   const createdAt = now();
   const sceneId = createId();
   const threadId = createId();
@@ -113,6 +168,7 @@ function buildInitialProject(params: { id: string; name: string }): ProjectFile 
     project: {
       id: params.id,
       name: params.name,
+      ownerId: params.ownerId,
       version: 0,
       createdAt,
       updatedAt: createdAt,
@@ -150,29 +206,44 @@ function buildInitialProject(params: { id: string; name: string }): ProjectFile 
   };
 }
 
-async function createProject(params?: { id?: string; name?: string }) {
-  const id = params?.id ?? createId();
-  const existing = await readProject(id);
-  if (existing) {
+async function createProject(params: {
+  ownerId: string;
+  id?: string;
+  name?: string;
+}) {
+  const id = params.id ?? createId();
+  const existingRaw = await readProjectRaw(id);
+  if (existingRaw) {
     throw new OpValidationError(`Project already exists: ${id}`);
   }
 
-  // Generate a unique memorable name if none provided
-  let name = params?.name;
+  // Generate a unique memorable name if none provided. Names are scoped
+  // per-owner so two users can both have "Bold Lynx" without collision.
+  let name = params.name;
   if (!name || name === "Untitled Project") {
-    const allProjects = await listProjects();
+    const allProjects = await listProjects(params.ownerId);
     const existingNames = new Set(allProjects.map((p) => p.name));
     name = generateUniqueProjectName(existingNames);
   }
 
-  const project = buildInitialProject({ id, name });
-  await writeProject(id, project);
+  const project = buildInitialProject({ id, name, ownerId: params.ownerId });
+  await writeProjectRaw(id, project);
   return project;
 }
 
-async function getOrCreateProject(params?: { id?: string; name?: string }) {
-  if (params?.id) {
-    const existing = await readProject(params.id);
+async function getOrCreateProject(params: {
+  ownerId: string;
+  id?: string;
+  name?: string;
+}) {
+  if (params.id) {
+    // If the project exists but belongs to a different owner, treat it as
+    // "not found" and surface a create attempt — the existing-id guard in
+    // createProject will then throw `already exists`, which the route
+    // turns into 409. That's the correct answer: caller cannot use this
+    // id, regardless of whether the cause is a name collision or a
+    // cross-owner takeover attempt.
+    const existing = await readProject(params.id, params.ownerId);
     if (existing) return existing;
   }
   return createProject(params);
@@ -445,9 +516,9 @@ function applyOne(project: ProjectFile, op: SceneOp) {
     .exhaustive();
 }
 
-async function applyOps(projectId: string, req: ApplyOpsRequest) {
+async function applyOps(projectId: string, ownerId: string, req: ApplyOpsRequest) {
   const input = applyOpsRequestSchema.parse(req);
-  const existing = await readProject(projectId);
+  const existing = await readProject(projectId, ownerId);
   if (!existing) return null;
 
   if (existing.project.version !== input.expectedVersion) {
@@ -474,7 +545,7 @@ async function applyOps(projectId: string, req: ApplyOpsRequest) {
     working.scenes[sceneId]!.version += 1;
   }
 
-  await writeProject(projectId, working);
+  await writeProjectRaw(projectId, working);
   return {
     project: working,
     newVersion: working.project.version,
@@ -530,9 +601,13 @@ function applyBoardOp(project: ProjectFile, op: BoardOp): void {
   }
 }
 
-async function applyBoardOps(projectId: string, req: ApplyBoardOpsRequest) {
+async function applyBoardOps(
+  projectId: string,
+  ownerId: string,
+  req: ApplyBoardOpsRequest,
+) {
   const input = applyBoardOpsRequestSchema.parse(req);
-  const existing = await readProject(projectId);
+  const existing = await readProject(projectId, ownerId);
   if (!existing) return null;
 
   const working = structuredClone(existing);
@@ -545,7 +620,7 @@ async function applyBoardOps(projectId: string, req: ApplyBoardOpsRequest) {
   working.project.version += 1;
   working.project.updatedAt = now();
 
-  await writeProject(projectId, working);
+  await writeProjectRaw(projectId, working);
   return {
     project: working,
     newVersion: working.project.version,
@@ -580,7 +655,7 @@ function projectHasContent(project: ProjectFile): boolean {
   return hasBoardComponents || hasBoardWires || hasSketch || hasGraph || hasAssets || hasEntities;
 }
 
-async function listProjects(): Promise<ProjectSummary[]> {
+async function listProjects(ownerId: string): Promise<ProjectSummary[]> {
   await ensureProjectsDir();
   const projectsRoot = projectsDir();
   const files = await readdir(projectsRoot);
@@ -590,16 +665,20 @@ async function listProjects(): Promise<ProjectSummary[]> {
     if (!file.endsWith(".json")) continue;
     try {
       const data = await Bun.file(join(projectsRoot, file)).json();
-      const parsed = projectFileSchema.parse(data);
+      const parsed = projectFileSchema.safeParse(data);
+      // Unparseable (legacy pre-ownerId, or corrupt) — skip. Boot-time
+      // migration handles the legacy case; nothing else we can do.
+      if (!parsed.success) continue;
+      if (parsed.data.project.ownerId !== ownerId) continue;
       summaries.push({
-        id: parsed.project.id,
-        name: parsed.project.name,
-        createdAt: parsed.project.createdAt,
-        updatedAt: parsed.project.updatedAt,
-        hasContent: projectHasContent(parsed),
+        id: parsed.data.project.id,
+        name: parsed.data.project.name,
+        createdAt: parsed.data.project.createdAt,
+        updatedAt: parsed.data.project.updatedAt,
+        hasContent: projectHasContent(parsed.data),
       });
     } catch {
-      // Skip corrupt files
+      // Skip files we can't even read as JSON
     }
   }
 
@@ -611,14 +690,15 @@ async function listProjects(): Promise<ProjectSummary[]> {
 
 async function saveGraph(
   projectId: string,
+  ownerId: string,
   graph: ProjectGraph,
 ): Promise<{ saved: true } | null> {
-  const existing = await readProject(projectId);
+  const existing = await readProject(projectId, ownerId);
   if (!existing) return null;
 
   existing.graph = graph;
   existing.project.updatedAt = now();
-  await writeProject(projectId, existing);
+  await writeProjectRaw(projectId, existing);
   return { saved: true };
 }
 
@@ -626,14 +706,15 @@ async function saveGraph(
 
 async function saveBoardState(
   projectId: string,
+  ownerId: string,
   boardState: BoardState,
 ): Promise<{ saved: true } | null> {
-  const existing = await readProject(projectId);
+  const existing = await readProject(projectId, ownerId);
   if (!existing) return null;
 
   existing.boardState = boardState;
   existing.project.updatedAt = now();
-  await writeProject(projectId, existing);
+  await writeProjectRaw(projectId, existing);
   return { saved: true };
 }
 
@@ -649,9 +730,10 @@ async function saveBoardState(
 //   on-disk file always reflects both fields atomically.
 async function saveBoardAndGraph(
   projectId: string,
+  ownerId: string,
   payload: { boardState?: BoardState; graph?: ProjectGraph },
 ): Promise<{ saved: true } | null> {
-  const existing = await readProject(projectId);
+  const existing = await readProject(projectId, ownerId);
   if (!existing) return null;
 
   if (payload.boardState !== undefined) {
@@ -661,7 +743,7 @@ async function saveBoardAndGraph(
     existing.graph = payload.graph;
   }
   existing.project.updatedAt = now();
-  await writeProject(projectId, existing);
+  await writeProjectRaw(projectId, existing);
   return { saved: true };
 }
 
@@ -669,13 +751,14 @@ async function saveBoardAndGraph(
 
 async function renameProject(
   projectId: string,
+  ownerId: string,
   name: string,
 ): Promise<{ id: string; name: string } | null> {
-  const existing = await readProject(projectId);
+  const existing = await readProject(projectId, ownerId);
   if (!existing) return null;
   existing.project.name = name;
   existing.project.updatedAt = now();
-  await writeProject(projectId, existing);
+  await writeProjectRaw(projectId, existing);
   return { id: projectId, name };
 }
 
@@ -683,16 +766,17 @@ async function renameProject(
 
 async function renameScene(
   projectId: string,
+  ownerId: string,
   sceneId: string,
   name: string,
 ): Promise<{ id: string; name: string } | null> {
-  const existing = await readProject(projectId);
+  const existing = await readProject(projectId, ownerId);
   if (!existing) return null;
   const scene = existing.scenes[sceneId];
   if (!scene) return null;
   scene.name = name;
   existing.project.updatedAt = now();
-  await writeProject(projectId, existing);
+  await writeProjectRaw(projectId, existing);
   return { id: sceneId, name };
 }
 
@@ -706,7 +790,15 @@ function projectAssetsDir(projectId: string): string {
   return join(assetsDir(), projectId);
 }
 
-async function ensureAssetsDir(projectId: string): Promise<string> {
+async function ensureAssetsDir(
+  projectId: string,
+  ownerId: string,
+): Promise<string | null> {
+  // Ownership check: callers that hand out a filesystem directory must
+  // prove the project belongs to them first, otherwise an attacker could
+  // use this to seed assets on someone else's project.
+  const project = await readProject(projectId, ownerId);
+  if (!project) return null;
   const dir = projectAssetsDir(projectId);
   await mkdir(dir, { recursive: true });
   return dir;
@@ -714,8 +806,11 @@ async function ensureAssetsDir(projectId: string): Promise<string> {
 
 // ── Delete project ──────────────────────────────────────────────────────────
 
-async function deleteProject(projectId: string): Promise<boolean> {
-  const existing = await readProject(projectId);
+async function deleteProject(
+  projectId: string,
+  ownerId: string,
+): Promise<boolean> {
+  const existing = await readProject(projectId, ownerId);
   if (!existing) return false;
 
   const { unlink, rm } = await import("fs/promises");
@@ -728,9 +823,9 @@ async function deleteProject(projectId: string): Promise<boolean> {
   }
 
   // Delete assets directory (best effort)
-  const assetsDir = projectAssetsDir(projectId);
+  const dir = projectAssetsDir(projectId);
   try {
-    await rm(assetsDir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true });
   } catch {
     // Directory may not exist
   }

@@ -324,12 +324,22 @@ function versionAtLeast(v, target){
 }
 function resolveDiagramVersion(rawVersion){
   var v = String(rawVersion || '').trim();
-  if (v === '1.0.0' || v === '1.0.1' || v === '1.0.2' || v === '1.0.3' || v === '1.0.4' || v === '1.0.5' || v === '1.0.6' || v === '1.0.7' || v === '1.0.8' || v === '1.1.0' || v === '1.1.1' || v === '1.2.0' || v === '1.2.1') return v;
+  if (v === '1.0.0' || v === '1.0.1' || v === '1.0.2' || v === '1.0.3' || v === '1.0.4' || v === '1.0.5' || v === '1.0.6' || v === '1.0.7' || v === '1.0.8' || v === '1.1.0' || v === '1.1.1' || v === '1.2.0' || v === '1.2.1' || v === '1.2.2' || v === '1.2.3' || v === '1.2.4' || v === '1.2.5' || v === '1.3.0' || v === '1.3.1' || v === '1.3.2' || v === '1.3.3' || v === '1.3.4' || v === '1.3.5') return v;
   // Default to the latest known diagram, but preserve 1.0.0 if current is old.
-  return versionAtLeast(CURRENT_VER, '1.2.1') ? '1.2.1' : versionAtLeast(CURRENT_VER, '1.2.0') ? '1.2.0' : versionAtLeast(CURRENT_VER, '1.1.1') ? '1.1.1' : versionAtLeast(CURRENT_VER, '1.1.0') ? '1.1.0' : versionAtLeast(CURRENT_VER, '1.0.8') ? '1.0.8' : versionAtLeast(CURRENT_VER, '1.0.7') ? '1.0.7' : versionAtLeast(CURRENT_VER, '1.0.6') ? '1.0.6' : versionAtLeast(CURRENT_VER, '1.0.5') ? '1.0.5' : versionAtLeast(CURRENT_VER, '1.0.4') ? '1.0.4' : versionAtLeast(CURRENT_VER, '1.0.3') ? '1.0.3' : versionAtLeast(CURRENT_VER, '1.0.2') ? '1.0.2' : versionAtLeast(CURRENT_VER, '1.0.1') ? '1.0.1' : '1.0.0';
+  return versionAtLeast(CURRENT_VER, '1.3.5') ? '1.3.5' : versionAtLeast(CURRENT_VER, '1.3.4') ? '1.3.4' : versionAtLeast(CURRENT_VER, '1.3.3') ? '1.3.3' : versionAtLeast(CURRENT_VER, '1.3.2') ? '1.3.2' : versionAtLeast(CURRENT_VER, '1.3.1') ? '1.3.1' : versionAtLeast(CURRENT_VER, '1.3.0') ? '1.3.0' : versionAtLeast(CURRENT_VER, '1.2.5') ? '1.2.5' : versionAtLeast(CURRENT_VER, '1.2.4') ? '1.2.4' : versionAtLeast(CURRENT_VER, '1.2.3') ? '1.2.3' : versionAtLeast(CURRENT_VER, '1.2.2') ? '1.2.2' : versionAtLeast(CURRENT_VER, '1.2.1') ? '1.2.1' : versionAtLeast(CURRENT_VER, '1.2.0') ? '1.2.0' : versionAtLeast(CURRENT_VER, '1.1.1') ? '1.1.1' : versionAtLeast(CURRENT_VER, '1.1.0') ? '1.1.0' : versionAtLeast(CURRENT_VER, '1.0.8') ? '1.0.8' : versionAtLeast(CURRENT_VER, '1.0.7') ? '1.0.7' : versionAtLeast(CURRENT_VER, '1.0.6') ? '1.0.6' : versionAtLeast(CURRENT_VER, '1.0.5') ? '1.0.5' : versionAtLeast(CURRENT_VER, '1.0.4') ? '1.0.4' : versionAtLeast(CURRENT_VER, '1.0.3') ? '1.0.3' : versionAtLeast(CURRENT_VER, '1.0.2') ? '1.0.2' : versionAtLeast(CURRENT_VER, '1.0.1') ? '1.0.1' : '1.0.0';
 }
 function previousDiagramVersion(v){
   var resolved = resolveDiagramVersion(v);
+  if (resolved === '1.3.5') return '1.3.4';
+  if (resolved === '1.3.4') return '1.3.3';
+  if (resolved === '1.3.3') return '1.3.2';
+  if (resolved === '1.3.2') return '1.3.1';
+  if (resolved === '1.3.1') return '1.3.0';
+  if (resolved === '1.3.0') return '1.2.5';
+  if (resolved === '1.2.5') return '1.2.4';
+  if (resolved === '1.2.4') return '1.2.3';
+  if (resolved === '1.2.3') return '1.2.2';
+  if (resolved === '1.2.2') return '1.2.1';
   if (resolved === '1.2.1') return '1.2.0';
   if (resolved === '1.2.0') return '1.1.1';
   if (resolved === '1.1.1') return '1.1.0';
@@ -357,7 +367,7 @@ function changedNodesBetween(fromV, toV){
   var from = resolveDiagramVersion(fromV || baselineDiagramVersion());
   var to = resolveDiagramVersion(toV || CURRENT_VER);
   if (!versionAtLeast(to, from)) return [];
-  var known = ['1.0.1','1.0.2','1.0.3','1.0.4','1.0.5','1.0.6','1.0.7','1.0.8','1.1.0','1.1.1','1.2.0','1.2.1'];
+  var known = ['1.0.1','1.0.2','1.0.3','1.0.4','1.0.5','1.0.6','1.0.7','1.0.8','1.1.0','1.1.1','1.2.0','1.2.1','1.2.2','1.2.3','1.2.4','1.2.5','1.3.0','1.3.1','1.3.2','1.3.3','1.3.4','1.3.5'];
   var out = [];
   known.forEach(function(v){
     if (versionAtLeast(v, from) && versionAtLeast(to, v) && v !== from) {
@@ -400,7 +410,7 @@ function latestVersionFromRuns(evals){
 }
 function allKnownVersions(evals){
   var versions=Object.keys(versionBuckets(evals||[]));
-  var known=['1.0.0','1.0.1','1.0.2','1.0.3','1.0.4','1.0.5','1.0.6','1.0.7','1.0.8','1.1.0','1.1.1','1.2.0','1.2.1'];
+  var known=['1.0.0','1.0.1','1.0.2','1.0.3','1.0.4','1.0.5','1.0.6','1.0.7','1.0.8','1.1.0','1.1.1','1.2.0','1.2.1','1.2.2','1.2.3','1.2.4','1.2.5','1.3.0','1.3.1','1.3.2','1.3.3','1.3.4','1.3.5'];
   known.forEach(function(v){ if(versions.indexOf(v)<0) versions.push(v); });
   var currentResolved=resolveDiagramVersion(CURRENT_VER);
   if(versions.indexOf(currentResolved)<0) versions.push(currentResolved);

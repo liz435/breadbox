@@ -16,15 +16,17 @@
 //   • Inline structured errors with JSON-paths and fuzzy suggestions.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Copy, Download, Check, RotateCw, Upload, ShieldCheck } from "lucide-react"
+import { Copy, Download, Check, RotateCw, Upload, ShieldCheck, Link2 } from "lucide-react"
 import {
   boardStateToDiagram,
+  encodeDiagramForUrl,
   validateDiagram,
   type DiagramIssue,
 } from "@dreamer/schemas"
 import { useBoard } from "@/store/board-context"
 import { simulationRef } from "@/simulator/simulation-ref"
 import { resetAllCapVoltages } from "@/simulator/capacitor-state"
+import { toast } from "@/components/ui/toast"
 import { cn } from "@/utils/classnames"
 
 type PanelStatus =
@@ -44,6 +46,7 @@ export function DiagramPanel() {
   const [dirty, setDirty] = useState(false)
   const [status, setStatus] = useState<PanelStatus>({ kind: "idle" })
   const [copied, setCopied] = useState(false)
+  const [shared, setShared] = useState(false)
 
   // Live-sync from the board whenever it changes — unless the user has
   // unsaved edits. Store a stable serialization as the diff anchor so we
@@ -107,6 +110,20 @@ export function DiagramPanel() {
     send({ type: "RESET_PINS" } as never)
     send({ type: "LOAD_BOARD", state: result.boardState! } as never)
 
+    const nextState = result.boardState!
+    const componentCount = Object.keys(nextState.components).length
+    const wireCount = Object.keys(nextState.wires).length
+    toast.success(
+      `Diagram applied — ${componentCount} component${componentCount === 1 ? "" : "s"}, ${wireCount} wire${wireCount === 1 ? "" : "s"}.`,
+      {
+        duration: 8000,
+        action: {
+          label: "Undo",
+          onClick: () => send({ type: "UNDO" } as never),
+        },
+      },
+    )
+
     setDirty(false)
     // Keep semantic warnings visible after apply so the user still sees them.
     if (result.issues.length > 0) {
@@ -135,6 +152,29 @@ export function DiagramPanel() {
       ta?.select()
     }
   }, [text])
+
+  const handleShareLink = useCallback(async () => {
+    // Encode the live board — not the textarea buffer — so a share link
+    // always reflects what the user sees on the canvas. A user can still
+    // copy-and-paste the JSON for unsaved edits; share links are for the
+    // applied circuit.
+    const encoded = encodeDiagramForUrl(boardStateToDiagram(boardState))
+    const url = new URL(window.location.href)
+    // Drop hash + any existing diagram param so we produce a clean link.
+    url.hash = ""
+    url.searchParams.delete("diagram")
+    url.searchParams.delete("learn")
+    url.searchParams.set("diagram", encoded)
+    const shareUrl = url.toString()
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      setShared(true)
+      setTimeout(() => setShared(false), 1500)
+      toast.success("Share link copied to clipboard.")
+    } catch {
+      toast.error("Could not copy to clipboard — select the address bar and copy manually.")
+    }
+  }, [boardState])
 
   const handleDownload = useCallback(() => {
     const blob = new Blob([text], { type: "application/json" })
@@ -221,6 +261,11 @@ export function DiagramPanel() {
           label="Download as .json"
           onClick={handleDownload}
           icon={<Download className="size-3" />}
+        />
+        <IconButton
+          label="Copy shareable link"
+          onClick={handleShareLink}
+          icon={shared ? <Check className="size-3" /> : <Link2 className="size-3" />}
         />
         <IconButton
           label="Reset to current board"

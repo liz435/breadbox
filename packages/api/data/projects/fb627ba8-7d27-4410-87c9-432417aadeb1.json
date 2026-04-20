@@ -1,0 +1,229 @@
+{
+  "project": {
+    "id": "fb627ba8-7d27-4410-87c9-432417aadeb1",
+    "name": "slate-pug-reed",
+    "version": 1,
+    "createdAt": "2026-04-19T17:15:03.212Z",
+    "updatedAt": "2026-04-19T18:14:04.949Z",
+    "threadId": "c24980da-8dcb-4c22-bfe1-f56fa740e4b5",
+    "activeSceneId": "7e85fb44-17a6-4be0-a9af-b154f0eda4c0",
+    "ownerId": "local"
+  },
+  "scenes": {
+    "7e85fb44-17a6-4be0-a9af-b154f0eda4c0": {
+      "id": "7e85fb44-17a6-4be0-a9af-b154f0eda4c0",
+      "name": "Main Scene",
+      "version": 0,
+      "settings": {
+        "background": "#252525",
+        "gravity": {
+          "x": 0,
+          "y": 9.8
+        }
+      }
+    }
+  },
+  "entities": {},
+  "sceneEntityIds": {
+    "7e85fb44-17a6-4be0-a9af-b154f0eda4c0": []
+  },
+  "components": {
+    "transform": {},
+    "sprite": {},
+    "tilemap": {},
+    "physicsBody": {},
+    "script": {},
+    "camera": {}
+  },
+  "assets": {},
+  "graph": {
+    "nodes": {
+      "node-1776618903241-6yq09i": {
+        "id": "node-1776618903241-6yq09i",
+        "type": "setup",
+        "name": "Setup",
+        "x": 60,
+        "y": 60,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      },
+      "node-1776618903241-vwafbh": {
+        "id": "node-1776618903241-vwafbh",
+        "type": "loop",
+        "name": "Loop",
+        "x": 60,
+        "y": 200,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      }
+    },
+    "edges": {}
+  },
+  "boardState": {
+    "components": {
+      "seg1": {
+        "id": "seg1",
+        "type": "seven_segment",
+        "name": "7-Segment",
+        "x": 0,
+        "y": 5,
+        "rotation": 0,
+        "pins": {},
+        "properties": {
+          "color": "#ef4444"
+        }
+      },
+      "btn_add": {
+        "id": "btn_add",
+        "type": "button",
+        "name": "Button",
+        "x": 12,
+        "y": 0,
+        "rotation": 0,
+        "pins": {},
+        "properties": {}
+      },
+      "btn_sub": {
+        "id": "btn_sub",
+        "type": "button",
+        "name": "Button",
+        "x": 15,
+        "y": 0,
+        "rotation": 0,
+        "pins": {},
+        "properties": {}
+      }
+    },
+    "wires": {
+      "wire-001": {
+        "id": "wire-001",
+        "fromRow": -999,
+        "fromCol": 2,
+        "toRow": 0,
+        "toCol": 3,
+        "color": "#eab308"
+      },
+      "wire-003": {
+        "id": "wire-003",
+        "fromRow": -999,
+        "fromCol": 4,
+        "toRow": 0,
+        "toCol": 3,
+        "color": "#f97316"
+      },
+      "wire-005": {
+        "id": "wire-005",
+        "fromRow": -999,
+        "fromCol": 5,
+        "toRow": 5,
+        "toCol": 0,
+        "color": "#06b6d4"
+      },
+      "wire-006": {
+        "id": "wire-006",
+        "fromRow": -999,
+        "fromCol": 6,
+        "toRow": 6,
+        "toCol": 0,
+        "color": "#06b6d4"
+      },
+      "wire-007": {
+        "id": "wire-007",
+        "fromRow": -999,
+        "fromCol": 7,
+        "toRow": 7,
+        "toCol": 0,
+        "color": "#06b6d4"
+      },
+      "wire-008": {
+        "id": "wire-008",
+        "fromRow": -999,
+        "fromCol": 8,
+        "toRow": 8,
+        "toCol": 0,
+        "color": "#a855f7"
+      },
+      "wire-009": {
+        "id": "wire-009",
+        "fromRow": -999,
+        "fromCol": 9,
+        "toRow": 9,
+        "toCol": 0,
+        "color": "#a855f7"
+      },
+      "wire-010": {
+        "id": "wire-010",
+        "fromRow": -999,
+        "fromCol": 10,
+        "toRow": 10,
+        "toCol": 0,
+        "color": "#a855f7"
+      },
+      "wire-011": {
+        "id": "wire-011",
+        "fromRow": -999,
+        "fromCol": 11,
+        "toRow": 11,
+        "toCol": 0,
+        "color": "#a855f7"
+      },
+      "87d9ccc2-abbd-4ccd-8ddc-92e5ca0b3a73": {
+        "id": "87d9ccc2-abbd-4ccd-8ddc-92e5ca0b3a73",
+        "fromRow": -999,
+        "fromCol": -3,
+        "toRow": 0,
+        "toCol": -1,
+        "color": "#1e293b"
+      },
+      "3895c1ff-880d-488a-b47c-27bfea855212": {
+        "id": "3895c1ff-880d-488a-b47c-27bfea855212",
+        "fromRow": 0,
+        "fromCol": -1,
+        "toRow": 0,
+        "toCol": 6,
+        "color": "#1e293b"
+      },
+      "697609d4-be93-4b0c-9338-4c1237607858": {
+        "id": "697609d4-be93-4b0c-9338-4c1237607858",
+        "fromRow": 13,
+        "fromCol": -1,
+        "toRow": 13,
+        "toCol": 0,
+        "color": "#1e293b"
+      }
+    },
+    "libraryState": {
+      "servos": {},
+      "lcd": null,
+      "serialBaud": 0,
+      "oled": {}
+    },
+    "serialOutput": [],
+    "sketchCode": "\nint segPins[7] = {5, 6, 7, 8, 9, 10, 11};\nint btnAddPin = 2;\nint btnSubPin = 4;\nint count = 0;\nint lastAddState = HIGH;\nint lastSubState = HIGH;\n\nvoid setDigit(int digit) {\n  if (digit == 0) { digitalWrite(5,HIGH); digitalWrite(6,HIGH); digitalWrite(7,HIGH); digitalWrite(8,HIGH); digitalWrite(9,HIGH); digitalWrite(10,HIGH); digitalWrite(11,LOW); }\n  else if (digit == 1) { digitalWrite(5,LOW); digitalWrite(6,HIGH); digitalWrite(7,HIGH); digitalWrite(8,LOW); digitalWrite(9,LOW); digitalWrite(10,LOW); digitalWrite(11,LOW); }\n  else if (digit == 2) { digitalWrite(5,HIGH); digitalWrite(6,HIGH); digitalWrite(7,LOW); digitalWrite(8,HIGH); digitalWrite(9,HIGH); digitalWrite(10,LOW); digitalWrite(11,HIGH); }\n  else if (digit == 3) { digitalWrite(5,HIGH); digitalWrite(6,HIGH); digitalWrite(7,HIGH); digitalWrite(8,HIGH); digitalWrite(9,LOW); digitalWrite(10,LOW); digitalWrite(11,HIGH); }\n  else if (digit == 4) { digitalWrite(5,LOW); digitalWrite(6,HIGH); digitalWrite(7,HIGH); digitalWrite(8,LOW); digitalWrite(9,LOW); digitalWrite(10,HIGH); digitalWrite(11,HIGH); }\n  else if (digit == 5) { digitalWrite(5,HIGH); digitalWrite(6,LOW); digitalWrite(7,HIGH); digitalWrite(8,HIGH); digitalWrite(9,LOW); digitalWrite(10,HIGH); digitalWrite(11,HIGH); }\n  else if (digit == 6) { digitalWrite(5,HIGH); digitalWrite(6,LOW); digitalWrite(7,HIGH); digitalWrite(8,HIGH); digitalWrite(9,HIGH); digitalWrite(10,HIGH); digitalWrite(11,HIGH); }\n  else if (digit == 7) { digitalWrite(5,HIGH); digitalWrite(6,HIGH); digitalWrite(7,HIGH); digitalWrite(8,LOW); digitalWrite(9,LOW); digitalWrite(10,LOW); digitalWrite(11,LOW); }\n  else if (digit == 8) { digitalWrite(5,HIGH); digitalWrite(6,HIGH); digitalWrite(7,HIGH); digitalWrite(8,HIGH); digitalWrite(9,HIGH); digitalWrite(10,HIGH); digitalWrite(11,HIGH); }\n  else if (digit == 9) { digitalWrite(5,HIGH); digitalWrite(6,HIGH); digitalWrite(7,HIGH); digitalWrite(8,HIGH); digitalWrite(9,LOW); digitalWrite(10,HIGH); digitalWrite(11,HIGH); }\n}\n\nvoid setup() {\n  for (int i = 0; i < 7; i++) {\n    pinMode(segPins[i], OUTPUT);\n  }\n  pinMode(btnAddPin, INPUT_PULLUP);\n  pinMode(btnSubPin, INPUT_PULLUP);\n  setDigit(0);\n}\n\nvoid loop() {\n  int addState = digitalRead(btnAddPin);\n  int subState = digitalRead(btnSubPin);\n  \n  if (addState == LOW && lastAddState == HIGH) {\n    count++;\n    if (count > 9) count = 0;\n    setDigit(count);\n  }\n  \n  if (subState == LOW && lastSubState == HIGH) {\n    count--;\n    if (count < 0) count = 9;\n    setDigit(count);\n  }\n  \n  lastAddState = addState;\n  lastSubState = subState;\n  \n  delay(20);\n}\n",
+    "customLibraries": {},
+    "boardTarget": "arduino_uno",
+    "environment": {
+      "obstacles": {},
+      "boundaryEnabled": true,
+      "boundaryMargin": 100
+    }
+  }
+}

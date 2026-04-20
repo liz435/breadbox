@@ -8,11 +8,23 @@ import { cn } from "@/utils/classnames"
 
 type ToastType = "success" | "error" | "warning" | "info"
 
+type ToastAction = {
+  label: string
+  /** Runs on click. Toast auto-dismisses after the handler returns. */
+  onClick: () => void
+}
+
+type ToastOptions = {
+  duration?: number
+  action?: ToastAction
+}
+
 type ToastItem = {
   id: number
   type: ToastType
   message: string
   duration: number
+  action?: ToastAction
 }
 
 // ── Store ────────────────────────────────────────────────────────────────
@@ -25,13 +37,24 @@ function notify() {
   for (const fn of listeners) fn()
 }
 
-function addToast(type: ToastType, message: string, duration = 4000) {
+function addToast(
+  type: ToastType,
+  message: string,
+  options: number | ToastOptions = {},
+) {
   const id = nextId++
-  items = [...items, { id, type, message, duration }]
+  // Back-compat: previous API accepted a numeric duration; we now prefer an
+  // options object but keep the number form working for existing call sites.
+  const resolved: Required<Pick<ToastOptions, "duration">> & { action?: ToastAction } =
+    typeof options === "number"
+      ? { duration: options }
+      : { duration: options.duration ?? 4000, action: options.action }
+  items = [...items, { id, type, message, duration: resolved.duration, action: resolved.action }]
   notify()
-  if (duration > 0) {
-    setTimeout(() => removeToast(id), duration)
+  if (resolved.duration > 0) {
+    setTimeout(() => removeToast(id), resolved.duration)
   }
+  return id
 }
 
 function removeToast(id: number) {
@@ -41,10 +64,14 @@ function removeToast(id: number) {
 
 /** Global toast API — call from anywhere, no hooks needed. */
 export const toast = {
-  success: (msg: string, duration?: number) => addToast("success", msg, duration),
-  error: (msg: string, duration?: number) => addToast("error", msg, duration ?? 6000),
-  warning: (msg: string, duration?: number) => addToast("warning", msg, duration ?? 5000),
-  info: (msg: string, duration?: number) => addToast("info", msg, duration),
+  success: (msg: string, options?: number | ToastOptions) =>
+    addToast("success", msg, options ?? {}),
+  error: (msg: string, options?: number | ToastOptions) =>
+    addToast("error", msg, options ?? { duration: 6000 }),
+  warning: (msg: string, options?: number | ToastOptions) =>
+    addToast("warning", msg, options ?? { duration: 5000 }),
+  info: (msg: string, options?: number | ToastOptions) =>
+    addToast("info", msg, options ?? {}),
 }
 
 // ── React Component ──────────────────────────────────────────────────────
@@ -80,6 +107,18 @@ function ToastItem({ item, onDismiss }: { item: ToastItem; onDismiss: () => void
     >
       <span className="text-sm font-bold shrink-0">{typeIcons[item.type]}</span>
       <span className="text-sm flex-1">{item.message}</span>
+      {item.action && (
+        <button
+          type="button"
+          onClick={() => {
+            item.action?.onClick()
+            onDismiss()
+          }}
+          className="shrink-0 rounded border border-white/40 bg-white/10 px-2 py-0.5 text-xs font-medium text-white transition-colors hover:bg-white/20"
+        >
+          {item.action.label}
+        </button>
+      )}
       <button
         type="button"
         onClick={onDismiss}

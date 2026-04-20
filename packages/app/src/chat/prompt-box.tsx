@@ -52,7 +52,11 @@ export function PromptBox({
   return (
     <div
       className={cn(
-        "w-full max-w-2xl mx-auto rounded-lg border border-border bg-card p-3 shadow-lg",
+        // shadow-md (was shadow-lg): matches the history card's weight so
+        // the stack reads as one coherent surface rather than a heavy
+        // floating slab, especially in the empty state where this is the
+        // only card on screen.
+        "w-full max-w-2xl mx-auto rounded-lg border border-border bg-card p-3 shadow-md",
         "transition-all duration-200",
         disabled && "opacity-50 pointer-events-none"
       )}

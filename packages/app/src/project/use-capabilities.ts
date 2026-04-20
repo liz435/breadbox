@@ -29,7 +29,13 @@ let inflight: Promise<Capabilities> | null = null
 
 async function fetchCapabilities(): Promise<Capabilities> {
   try {
-    const res = await fetch(`${API_ORIGIN}/api/capabilities`)
+    // `/api/capabilities` is public but we still set credentials so
+    // a logged-in session is visible when another request piggybacks
+    // on this fetch's connection pool (no downside — the server
+    // ignores the cookie on public routes).
+    const res = await fetch(`${API_ORIGIN}/api/capabilities`, {
+      credentials: "include",
+    })
     if (!res.ok) return DEFAULT
     const data = (await res.json()) as Partial<Capabilities>
     return {

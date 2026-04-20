@@ -1,0 +1,93 @@
+{
+  "runId": "5bcebd19-97f6-472f-adc3-d0b233541f64",
+  "evaluatedAt": "2026-04-19T07:38:56.784Z",
+  "runCreatedAt": "2026-04-19T07:38:54.969Z",
+  "runCompletedAt": "2026-04-19T07:38:56.782Z",
+  "runDurationMs": 1813,
+  "agent": "core",
+  "agentVersion": "1.2.3",
+  "prompt": "hi",
+  "status": "failed",
+  "evaluable": true,
+  "domain": "chat_only",
+  "category": "top_level",
+  "routing": {
+    "model": "claude-haiku-4-5-20251001",
+    "toolMode": "build",
+    "availableTools": [
+      "analyze_power_budget",
+      "apply_design",
+      "get_board_overview",
+      "get_board_state",
+      "get_component_details",
+      "get_sketch_code",
+      "get_wiring_guide",
+      "list_components",
+      "list_wires",
+      "patch_sketch",
+      "propose_circuit",
+      "update_sketch"
+    ],
+    "domain": "graph",
+    "requestType": "question",
+    "complexity": "simple",
+    "reasons": [
+      "experiment: all-Haiku override",
+      "empty board → build mode (propose_circuit)"
+    ],
+    "signals": {
+      "boardComponentCount": 0,
+      "graphNodeCount": 2,
+      "promptLength": 2,
+      "recentFailures": 0,
+      "componentsMentioned": 0
+    }
+  },
+  "path": {
+    "stepCount": 0,
+    "stepLimit": 10,
+    "retryCount": 0,
+    "hallucinations": [],
+    "usedProposeCircuit": false,
+    "delegations": [],
+    "trace": []
+  },
+  "tokens": {
+    "model": "unknown",
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "totalTokens": 0,
+    "childTokens": 0,
+    "overheadTokens": 0,
+    "estimatedCost": 0,
+    "wastedTokens": 0,
+    "wasteDetails": []
+  },
+  "tools": {
+    "totalCalls": 0,
+    "errors": 0,
+    "errorRate": 0,
+    "hallucinatedIds": 0,
+    "wrongPinNames": 0,
+    "invalidPositions": 0,
+    "invalidGraphConnections": 0,
+    "details": []
+  },
+  "circuit": null,
+  "graph": null,
+  "electrical": null,
+  "intent": {
+    "intentSatisfied": true,
+    "repeatedToolFailureLoops": 0,
+    "partialSuccessWithoutIntent": false
+  },
+  "score": {
+    "total": 65,
+    "breakdown": {
+      "accuracy": 25,
+      "efficiency": 25,
+      "quality": 15,
+      "completeness": 0
+    }
+  }
+}

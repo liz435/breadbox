@@ -5,7 +5,7 @@
 // into the tool loop with an adjusted plan.
 
 import { generateObject } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
+import { anthropicModel } from "./anthropic-provider";
 import { z } from "zod";
 import type { AgentPlan } from "./planner";
 import { createLogger } from "../logger";
@@ -54,7 +54,7 @@ export async function reflectOnOutput(params: {
     : "";
 
   const result = await generateObject({
-    model: anthropic(REFLECTION_MODEL),
+    model: anthropicModel(REFLECTION_MODEL),
     schema: reflectionResultSchema,
     prompt: `You are reviewing an Arduino simulator agent's output. Did it satisfy the user's request?
 

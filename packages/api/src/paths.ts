@@ -49,11 +49,13 @@ export function dreamerMachineHome(): string {
 
 // ── Data-home paths (per-project state) ──────────────────────────────────
 export function projectsDir(): string { return join(dreamerHome(), "projects"); }
+export function legacyProjectsDir(): string { return join(projectsDir(), "_legacy"); }
 export function runsDir(): string     { return join(dreamerHome(), "runs"); }
 export function threadsDir(): string  { return join(dreamerHome(), "threads"); }
 export function testsDir(): string    { return join(dreamerHome(), "tests"); }
 export function logsDir(): string     { return join(dreamerHome(), "logs"); }
 export function crashesDir(): string  { return join(dreamerHome(), "crashes"); }
+export function sessionsDir(): string { return join(dreamerHome(), "sessions"); }
 export function configPath(): string  { return join(dreamerHome(), "config.json"); }
 
 // ── Machine-home paths (shared caches/binaries) ──────────────────────────

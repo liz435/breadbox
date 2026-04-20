@@ -6,7 +6,7 @@
 // state is glanceable without a permanent text pill.
 
 import { Popover } from "@base-ui/react/popover"
-import { Usb } from "lucide-react"
+import { Usb, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useBoardConnection } from "@/simulator/use-board-connection"
 import { cn } from "@/utils/classnames"
@@ -23,9 +23,12 @@ export function BoardStatus() {
         render={
           <Button
             variant="ghost"
-            size="icon"
             onClick={refresh}
-            className="relative"
+            // Auto-width chip (not a bare icon) so users see it as a
+            // clickable popover trigger. The trailing ChevronDown is the
+            // affordance — inside a shared bordered shell a lone Usb
+            // icon reads as decorative.
+            className="relative flex h-6 items-center gap-0.5 rounded px-1 hover:bg-accent"
             aria-label={connected ? `Connected to ${selectedPort}` : "Connect to Arduino"}
           />
         }
@@ -36,8 +39,9 @@ export function BoardStatus() {
             connected ? "text-emerald-400" : "text-muted-foreground",
           )}
         />
+        <ChevronDown className="size-3 text-muted-foreground/70" />
         {connected && (
-          <span className="absolute right-1 top-1 size-1.5 rounded-full bg-emerald-400" />
+          <span className="absolute right-0.5 top-0.5 size-1.5 rounded-full bg-emerald-400" />
         )}
       </Popover.Trigger>
 

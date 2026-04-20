@@ -11,16 +11,44 @@ import {
   VersionConflictError,
 } from "../db/project-repo";
 import { createLogger } from "../logger";
+import type { AuthContext } from "../auth/context";
+import { authPlugin } from "../auth/middleware";
+import { requireRateLimit, RateLimitError } from "../auth/rate-limit";
+import { auditLog } from "../auth/audit-log";
 
 const log = createLogger("agent-run");
 
-export const agentRunRoutes = new Elysia({ prefix: "/agent" }).post(
+function requireOwnerId(auth: AuthContext | null | undefined): string {
+  if (!auth) throw new Error("missing auth context on authed route");
+  return auth.userId;
+}
+
+export const agentRunRoutes = new Elysia({ prefix: "/agent" }).use(authPlugin).post(
   "/run",
-  async ({ body, set }) => {
+  async ({ auth, body, set }) => {
+    const ownerId = requireOwnerId(auth);
+
+    try {
+      await requireRateLimit("chat", ownerId, auth?.mode);
+    } catch (err) {
+      if (err instanceof RateLimitError) {
+        set.status = 429;
+        set.headers["Retry-After"] = String(err.retryAfterSec);
+        return { error: err.message, retryAfterSec: err.retryAfterSec };
+      }
+      throw err;
+    }
+
     try {
       const input = agentRunRequestSchema.parse(body);
 
-      const project = await projectRepo.readProject(input.projectId);
+      void auditLog({
+        userId: ownerId,
+        action: "agent.run",
+        projectId: input.projectId,
+      });
+
+      const project = await projectRepo.readProject(input.projectId, ownerId);
       if (!project) {
         set.status = 404;
         return { error: "Project not found" };
@@ -73,10 +101,14 @@ export const agentRunRoutes = new Elysia({ prefix: "/agent" }).post(
       let appliedOps = [] as typeof result.proposedOps;
 
       if (result.proposedOps.length > 0) {
-        const applyResult = await projectRepo.applyBoardOps(input.projectId, {
-          expectedVersion: input.expectedVersion,
-          ops: result.proposedOps,
-        });
+        const applyResult = await projectRepo.applyBoardOps(
+          input.projectId,
+          ownerId,
+          {
+            expectedVersion: input.expectedVersion,
+            ops: result.proposedOps,
+          },
+        );
         if (!applyResult) {
           set.status = 404;
           return { error: "Project not found" };

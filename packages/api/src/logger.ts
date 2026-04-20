@@ -18,6 +18,7 @@
 import { existsSync, statSync, renameSync, mkdirSync, appendFileSync } from "fs";
 import { join } from "path";
 import { logsDir } from "./paths";
+import { redactHeaders } from "./logging-redact";
 
 const colors = {
   reset: "\x1b[0m",
@@ -111,6 +112,61 @@ function ensureFileReady(): string | null {
   }
 }
 
+/**
+ * Normalize `data` for log sinks. JSON.stringify treats Error's name/message/stack
+ * as non-enumerable, so a raw Error serializes to `{}` and the real failure is
+ * lost — which is exactly what was masking the AI SDK streamText error.
+ *
+ * For errors we pull out name/message/stack/cause explicitly, then merge any
+ * extra enumerable fields the SDK attaches (responseBody, statusCode, url, etc).
+ * For ordinary values we pass through to JSON.stringify. Nested errors (e.g.
+ * AggregateError.errors, or any object with an Error value) are walked too.
+ */
+function normalizeForSerialization(data: unknown, depth = 0): unknown {
+  if (data === undefined || data === null) return data;
+  if (depth > 4) return "[…max depth…]";
+  if (typeof Headers !== "undefined" && data instanceof Headers) {
+    return redactHeaders(data);
+  }
+  if (data instanceof Error) {
+    const errorLike = data as Error & { cause?: unknown; errors?: unknown[] };
+    const extras: Record<string, unknown> = {};
+    for (const key of Object.keys(data)) {
+      extras[key] = normalizeForSerialization(
+        (data as unknown as Record<string, unknown>)[key],
+        depth + 1,
+      );
+    }
+    return {
+      name: errorLike.name,
+      message: errorLike.message,
+      ...(errorLike.cause !== undefined
+        ? { cause: normalizeForSerialization(errorLike.cause, depth + 1) }
+        : {}),
+      ...(Array.isArray(errorLike.errors)
+        ? { errors: errorLike.errors.map((e) => normalizeForSerialization(e, depth + 1)) }
+        : {}),
+      ...extras,
+      stack: errorLike.stack,
+    };
+  }
+  if (Array.isArray(data)) {
+    return data.map((item) => normalizeForSerialization(item, depth + 1));
+  }
+  if (typeof data === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
+      if (key === "headers" && value && typeof value === "object") {
+        out[key] = redactHeaders(value as Record<string, unknown>);
+      } else {
+        out[key] = normalizeForSerialization(value, depth + 1);
+      }
+    }
+    return out;
+  }
+  return data;
+}
+
 function writeJsonl(file: string, level: LogLevel, tag: string, message: string, data?: unknown): void {
   try {
     const entry = JSON.stringify({
@@ -118,7 +174,7 @@ function writeJsonl(file: string, level: LogLevel, tag: string, message: string,
       level,
       tag,
       message,
-      ...(data !== undefined ? { data } : {}),
+      ...(data !== undefined ? { data: normalizeForSerialization(data) } : {}),
     });
     appendFileSync(file, entry + "\n");
   } catch {
@@ -138,8 +194,11 @@ function formatMessage(
   const t = `${colors.bold}[${tag}]${colors.reset}`;
   const base = `${ts} ${lvl} ${t} ${message}`;
   if (data === undefined) return base;
+  const normalized = normalizeForSerialization(data);
   const serialized =
-    typeof data === "string" ? data : JSON.stringify(data, null, 2);
+    typeof normalized === "string"
+      ? normalized
+      : JSON.stringify(normalized, null, 2);
   return `${base}\n${colors.dim}${serialized}${colors.reset}`;
 }
 

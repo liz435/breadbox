@@ -122,8 +122,12 @@ export function StatusDisplay({ sim }: StatusDisplayProps) {
           <div
             // Fixed width so transient messages don't reflow the toolbar.
             // Truncates with an ellipsis when the label overflows.
+            // Container chrome (border, bg, rounded corners) is now owned
+            // by the right-edge wrapper in bottom-toolbar.tsx so Status
+            // and BoardStatus read as a single status surface. This
+            // component just provides the dot + label + tone color.
             className={cn(
-              "flex h-7 w-44 items-center gap-2 rounded-md border border-border/60 bg-background/40 px-2.5 text-[11px] tabular-nums",
+              "flex w-40 items-center gap-2 pr-2 text-[11px] tabular-nums",
               TONE_TEXT[info.tone],
             )}
             role="status"

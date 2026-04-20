@@ -24,6 +24,18 @@ export type Command =
   | { kind: "crash"; subcommand: "list" | "view" | "clear"; arg?: string }
   | { kind: "telemetry"; subcommand: "enable" | "disable" | "status" | "preview" }
   | { kind: "upgrade"; check: boolean }
+  | {
+      kind: "diagram"
+      subcommand: "validate"
+      file: string
+    }
+  | {
+      kind: "diagram"
+      subcommand: "apply"
+      file: string
+      projectFile: string
+    }
+  | { kind: "mcp" }
   | { kind: "version" }
   | { kind: "help" }
 
@@ -43,7 +55,7 @@ export class CliParseError extends Error {
 const SUBCOMMANDS = [
   "repl", "run", "compile", "flash", "ports", "board", "sketch",
   "projects", "scenes", "headed", "watch", "config", "setup",
-  "logs", "crash", "telemetry", "upgrade", "version", "help",
+  "logs", "crash", "telemetry", "upgrade", "diagram", "mcp", "version", "help",
 ] as const
 
 function isSubcommand(s: string): s is (typeof SUBCOMMANDS)[number] {
@@ -118,6 +130,7 @@ export function parseArgs(argv: string[]): CliArgs {
     case "scenes":
     case "headed":
     case "setup":
+    case "mcp":
     case "version":
     case "help":
       return { command: { kind: subcommand }, projectId, sceneId }
@@ -181,6 +194,46 @@ export function parseArgs(argv: string[]): CliArgs {
       const check = rest.includes("--check")
       return { command: { kind: "upgrade", check }, projectId, sceneId }
     }
+
+    case "diagram": {
+      // Syntax:
+      //   dreamer diagram validate <file.json>
+      //   dreamer diagram apply <file.json> <project-file.json>
+      const sub = rest[0]
+      if (sub === "validate") {
+        const file = rest[1]
+        if (!file) {
+          throw new CliParseError(`Usage: dreamer diagram validate <file.json>`)
+        }
+        return {
+          command: { kind: "diagram", subcommand: "validate", file },
+          projectId,
+          sceneId,
+        }
+      }
+      if (sub === "apply") {
+        const file = rest[1]
+        const projectFile = rest[2]
+        if (!file || !projectFile) {
+          throw new CliParseError(
+            `Usage: dreamer diagram apply <diagram.json> <project-file.json>`,
+          )
+        }
+        return {
+          command: {
+            kind: "diagram",
+            subcommand: "apply",
+            file,
+            projectFile,
+          },
+          projectId,
+          sceneId,
+        }
+      }
+      throw new CliParseError(
+        `Usage: dreamer diagram [validate <file>|apply <diagram> <project-file>]`,
+      )
+    }
   }
 }
 
@@ -208,6 +261,9 @@ Subcommands:
   crash <op> [<file>]     List/view/clear crash reports
   telemetry <op>          Manage telemetry (enable|disable|status|preview)
   upgrade [--check]       Check for or apply updates
+  diagram validate <f>    Validate a DreamerDiagram JSON file (prints issues)
+  diagram apply <f> <p>   Apply a DreamerDiagram to a project file on disk
+  mcp                     Start an MCP server over stdio (for Claude Desktop / Cursor / etc.)
   version                 Print CLI version
   help                    Show this message
 

@@ -129,21 +129,53 @@ describe("diagram-adapter — minimal blink import", () => {
     expect(d13Wire).toBeDefined();
   });
 
-  test("resolves r1.a to resistor's left terminal (col=3)", () => {
+  test("resolves r1.a to resistor's left terminal (col=3) on DSL row 3", () => {
+    // Fixture places r1 at [3, 5] — DSL convention is [row, col], so
+    // r1 lives on row 3. Resistor pins are always at fixed cols 3/6 of
+    // their row. d13 wires to r1.a, so toRow=3 (the DSL row), toCol=3.
     const result = diagramToBoardState(MINIMAL_BLINK);
     if (!result.ok) throw new Error("parse failed");
     const wires = Object.values(result.boardState.wires);
     const d13Wire = wires.find((w) => w.fromRow === -999 && w.fromCol === 13);
-    expect(d13Wire?.toRow).toBe(5);
+    expect(d13Wire?.toRow).toBe(3);
     expect(d13Wire?.toCol).toBe(3);
   });
 
-  test("resolves led1.anode to (5, 7)", () => {
+  test("resolves led1.anode to (row=7, col=5)", () => {
+    // Fixture places led1 at [7, 5] — DSL [row, col], so anode lands at
+    // (row=7, col=5). Pre-fix the adapter was transposing to (5, 7).
     const result = diagramToBoardState(MINIMAL_BLINK);
     if (!result.ok) throw new Error("parse failed");
     const wires = Object.values(result.boardState.wires);
-    const anodeWire = wires.find((w) => w.toRow === 5 && w.toCol === 7);
+    const anodeWire = wires.find((w) => w.toRow === 7 && w.toCol === 5);
     expect(anodeWire).toBeDefined();
+  });
+
+  test("preserves DSL [row, col] axis semantics for asymmetric placements", () => {
+    // Regression for the coord-swap bug: a button at [20, 5] (row=20,
+    // col=5) used to land at bc.x=20, bc.y=5 — and the analyzer reads BC
+    // as (x=col, y=row), so the button silently transposed to row=5,
+    // colliding with anything else placed on that row. Verify the fix
+    // by checking BC fields directly.
+    const diagram: DreamerDiagramInput = {
+      $schema: DIAGRAM_SCHEMA_V1,
+      board: "arduino_uno",
+      sketch: "void setup(){} void loop(){}",
+      components: [
+        { id: "btn1", type: "button", at: [20, 5], rotation: 0, properties: {} },
+      ],
+      wires: [],
+      environment: { obstacles: [], boundaryEnabled: false, boundaryMargin: 100 },
+      customLibraries: [],
+    };
+    const result = diagramToBoardState(diagram);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const btn = result.boardState.components.btn1;
+    // DSL row=20 must land in BC.y (every analyzer reads BC as
+    // (x=col, y=row), e.g. resolveComponentPins(type, comp.y, comp.x)).
+    expect(btn.y).toBe(20);
+    expect(btn.x).toBe(5);
   });
 
   test("resolves arduino.GND → {-999, -3}", () => {
@@ -156,6 +188,37 @@ describe("diagram-adapter — minimal blink import", () => {
         (w.toRow === -999 && w.toCol === -3),
     );
     expect(gndWire).toBeDefined();
+  });
+
+  test("normalizes Arduino-on-`to` wires to Arduino-on-`from`", () => {
+    // Downstream consumers (power-budget-analyzer, board-state-tracker,
+    // breadboard-grid) only check `fromRow === -999` for the Arduino-pin
+    // sentinel. propose_circuit always emits Arduino on the from side, so
+    // the DSL adapter must do the same regardless of how the user wrote
+    // the endpoint pair. Without this, post-stream electrical checks see
+    // a phantom grid cell at row -999 and reject the diagram.
+    const diagram = {
+      $schema: "dreamer-diagram-v1" as const,
+      board: "arduino_uno" as const,
+      components: [
+        { id: "btn1", type: "button", at: [3, 5], rotation: 0, properties: {} },
+      ],
+      wires: [
+        { from: "arduino.9", to: "btn1.a", color: "#eab308" },
+        // Arduino written on the `to` side — adapter must swap.
+        { from: "btn1.b", to: "arduino.GND", color: "#1e293b" },
+      ],
+      sketch: "void setup(){} void loop(){}",
+    };
+    const result = diagramToBoardState(diagram);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const wires = Object.values(result.boardState.wires);
+    expect(wires).toHaveLength(2);
+    // Both wires must carry the Arduino sentinel on `from`, never on `to`.
+    expect(wires.every((w) => w.toRow !== -999)).toBe(true);
+    const gndWire = wires.find((w) => w.fromCol === -3);
+    expect(gndWire?.fromRow).toBe(-999);
   });
 
   test("auto-generates wire ids", () => {

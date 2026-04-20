@@ -95,7 +95,7 @@ function buildCommands(dockviewApi: ReturnType<typeof useDockviewApi>): Command[
     id: string
     label: string
     component?: string
-    defaultPosition?: { referencePanel?: string; direction?: "right" | "left" | "above" | "below" | "within" }
+    defaultPosition?: { referencePanel: string; direction: "right" | "left" | "above" | "below" | "within" }
   }> = [
     { id: "breadboard", label: "Breadboard" },
     { id: "sketchEditor", label: "Sketch Editor" },

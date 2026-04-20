@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-04-18T04:16:20.217Z",
-  "totalRuns": 40,
+  "generatedAt": "2026-04-20T04:31:23.437Z",
+  "totalRuns": 57,
   "notEvaluable": 0,
   "categories": {
     "template": {
@@ -14,19 +14,19 @@
       "byModel": {}
     },
     "topLevel": {
-      "runs": 38,
-      "scored": 38,
-      "avgScore": 76,
+      "runs": 55,
+      "scored": 55,
+      "avgScore": 80,
       "avgToolErrorRate": 0.02,
-      "avgTokensPerRun": 34265,
-      "hallucinationRate": 5,
-      "totalCost": 2.9462,
+      "avgTokensPerRun": 32729,
+      "hallucinationRate": 4,
+      "totalCost": 3.4942,
       "byModel": {
         "claude-haiku-4-5-20251001": {
-          "runs": 24,
-          "avgScore": 79,
-          "totalTokens": 832821,
-          "totalCost": 0.9267
+          "runs": 41,
+          "avgScore": 83,
+          "totalTokens": 1330843,
+          "totalCost": 1.4747
         },
         "claude-sonnet-4-6": {
           "runs": 14,
@@ -65,21 +65,25 @@
     }
   },
   "byDomain": {
-    "breadboard": 38,
-    "chat_only": 2
+    "breadboard": 53,
+    "chat_only": 4
   },
   "topIssues": [
     {
       "issue": "Floating components",
-      "count": 13
+      "count": 31
     },
     {
       "issue": "Tool errors",
-      "count": 7
+      "count": 8
     },
     {
       "issue": "Hallucination",
       "count": 4
+    },
+    {
+      "issue": "Missing resistors",
+      "count": 3
     },
     {
       "issue": "Bus shorts",
@@ -95,6 +99,12 @@
       "runId": "4a7f624f-4df3-44c6-a834-ef37268f154f",
       "score": 39,
       "issue": "wire_component_to_pin: Component Pot_Control not found.",
+      "category": "top_level"
+    },
+    {
+      "runId": "9928730f-1cfd-482e-b4e6-611773b9e75b",
+      "score": 48,
+      "issue": "Diagram validation failed",
       "category": "top_level"
     },
     {
@@ -114,25 +124,19 @@
       "score": 54,
       "issue": "R_D (resistor) at (8,2) has no wires connected",
       "category": "top_level"
-    },
-    {
-      "runId": "ff7dacf3-6b22-4c55-a2e4-1a0080bf9a9f",
-      "score": 59,
-      "issue": "Bus short on row 5 left strip: pins -1, 8 are on the same bus",
-      "category": "top_level"
     }
   ],
-  "avgScore": 76,
+  "avgScore": 80,
   "avgToolErrorRate": 0.02,
-  "avgTokensPerRun": 34265,
-  "hallucinationRate": 5,
-  "proposeCircuitAdoption": 66,
+  "avgTokensPerRun": 32729,
+  "hallucinationRate": 4,
+  "proposeCircuitAdoption": 58,
   "byModel": {
     "claude-haiku-4-5-20251001": {
-      "runs": 24,
-      "avgScore": 79,
-      "totalTokens": 832821,
-      "totalCost": 0.9267
+      "runs": 41,
+      "avgScore": 83,
+      "totalTokens": 1330843,
+      "totalCost": 1.4747
     },
     "claude-sonnet-4-6": {
       "runs": 14,

@@ -3,6 +3,8 @@ import type { ProjectFile } from "@dreamer/schemas"
 import { compileSketch, flashSketch } from "./compile-flash"
 import type { ProjectState } from "./project-manager"
 
+const LOCAL_OWNER_ID = "local"
+
 const C = {
   reset: "\x1b[0m",
   dim: "\x1b[2m",
@@ -101,7 +103,7 @@ export async function startWatchMode(
     state,
     projectId,
     flashPort,
-    readProject: (id) => projectRepo.readProject(id),
+    readProject: (id) => projectRepo.readProject(id, LOCAL_OWNER_ID),
     compileSketch,
     flashSketch,
     log: (message) => console.log(message),

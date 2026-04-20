@@ -1,5 +1,5 @@
 import { generateText } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
+import { anthropicModel } from "./anthropic-provider";
 import type { ModelMessage } from "ai";
 import type { AgentRunFile, CachedSummary } from "../db/schemas";
 import { buildModelMessagesFromRuns } from "../db/messages";
@@ -58,7 +58,7 @@ async function summarizeRuns(
     .join("\n\n");
 
   const result = await generateText({
-    model: anthropic(SUMMARIZER_MODEL),
+    model: anthropicModel(SUMMARIZER_MODEL),
     messages: [
       {
         role: "user",

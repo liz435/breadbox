@@ -9,6 +9,7 @@ function makeProject(boardState: BoardState): ProjectFile {
     project: {
       id: "project-1",
       name: "Test Project",
+      ownerId: "test",
       version: 1,
       createdAt: now,
       updatedAt: now,
@@ -89,6 +90,8 @@ describe("apply_design", () => {
 
     const result = await runApplyDesign(tools, diagram);
     expect(result.ok).toBe(true);
+    expect(result.obstacleCount).toBe(1);
+    expect(result.boundaryEnabled).toBe(true);
 
     expect(ops).toHaveLength(1);
     expect(ops[0].kind).toBe("load_board");
@@ -96,10 +99,14 @@ describe("apply_design", () => {
     expect(ops[0].payload.state.boardTarget).toBe("arduino_mega_2560");
     expect(Object.keys(ops[0].payload.state.customLibraries)).toContain("Foo.h");
     expect(ops[0].payload.state.environment.boundaryMargin).toBe(120);
+    // Environment obstacles must ride along on the load_board op so the
+    // server tracker + frontend LOAD_BOARD handler can install them.
+    expect(Object.keys(ops[0].payload.state.environment.obstacles)).toContain("obs-1");
 
     expect(board.boardTarget as string).toBe("arduino_mega_2560");
     expect(Object.keys(board.customLibraries)).toContain("Foo.h");
     expect(board.environment.boundaryMargin).toBe(120);
+    expect(board.environment.obstacles["obs-1"]?.shape).toBe("wall");
   });
 
   test("is available in build and edit modes", () => {

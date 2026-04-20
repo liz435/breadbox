@@ -7,6 +7,7 @@
 import { API_ORIGIN, PREFER_AVR } from "@dreamer/config"
 import type { CustomLibrary } from "@dreamer/schemas"
 import { parseRp2040Uf2 } from "./uf2-parser"
+import { resolveFetchOptions } from "@/project/api-client"
 
 const COMPILE_ENDPOINT = `${API_ORIGIN}/api/compile`
 
@@ -221,15 +222,18 @@ function decodeFirmware(
 export async function compileSketch(code: string, options: CompileOptions = {}): Promise<CompileResult> {
   try {
     const fqbn = options.fqbn ?? "arduino:avr:uno"
-    const response = await fetch(COMPILE_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        code,
-        fqbn,
-        customLibraries: options.customLibraries ?? {},
+    const response = await fetch(
+      COMPILE_ENDPOINT,
+      resolveFetchOptions({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          fqbn,
+          customLibraries: options.customLibraries ?? {},
+        }),
       }),
-    })
+    )
 
     // Non-streaming error responses (e.g. 400 from schema validation) still
     // come back as plain JSON; fall through to the legacy path for them.

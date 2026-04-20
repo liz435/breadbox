@@ -1,3 +1,6 @@
+// Side-effect import: must precede agent imports so ANTHROPIC_API_KEY is
+// captured before the provider wrapper reads an empty string.
+import "../bootstrap-secrets";
 import { mkdir, mkdtemp, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { dirname, join, resolve } from "path";
@@ -157,6 +160,8 @@ async function loadRuntimeDeps(): Promise<RuntimeDeps> {
   };
 }
 
+const BENCHMARK_OWNER_ID = "benchmark";
+
 async function persistGraphOps(
   projectId: string,
   graphOps: BoardOp[],
@@ -164,7 +169,7 @@ async function persistGraphOps(
 ): Promise<void> {
   if (graphOps.length === 0) return;
 
-  const currentProject = await deps.projectRepo.readProject(projectId);
+  const currentProject = await deps.projectRepo.readProject(projectId, BENCHMARK_OWNER_ID);
   if (!currentProject) return;
 
   const graph = currentProject.graph ?? { nodes: {}, edges: {} };
@@ -213,7 +218,7 @@ async function persistGraphOps(
     }
   }
 
-  await deps.projectRepo.saveGraph(projectId, graph);
+  await deps.projectRepo.saveGraph(projectId, BENCHMARK_OWNER_ID, graph);
 }
 
 async function seedProjectBoard(
@@ -221,7 +226,7 @@ async function seedProjectBoard(
   deps: RuntimeDeps,
 ): Promise<BoardState> {
   const boardState = createDefaultBoardState();
-  await deps.projectRepo.saveBoardState(projectId, boardState);
+  await deps.projectRepo.saveBoardState(projectId, BENCHMARK_OWNER_ID, boardState);
   deps.boardTracker.set(projectId, boardState);
   return boardState;
 }
@@ -239,7 +244,7 @@ async function completeTemplateTurn(params: {
 }): Promise<BenchmarkTurnResult> {
   const { prompt, runId, projectId, sceneId, deps } = params;
   const startedAt = performance.now();
-  const project = await deps.projectRepo.readProject(projectId);
+  const project = await deps.projectRepo.readProject(projectId, BENCHMARK_OWNER_ID);
   if (!project?.boardState) {
     throw new Error(`Project ${projectId} missing board state for template benchmark`);
   }
@@ -280,7 +285,7 @@ async function completeTemplateTurn(params: {
   const result = templateFn(opCtx, project.boardState, intent.params);
   const templateOps = [...clearOps, ...result.ops];
 
-  await deps.projectRepo.applyBoardOps(projectId, {
+  await deps.projectRepo.applyBoardOps(projectId, BENCHMARK_OWNER_ID, {
     expectedVersion: currentExpectedVersion(project),
     ops: templateOps,
   });
@@ -345,7 +350,7 @@ async function completeAgentTurn(params: {
   const startedAt = performance.now();
   const reqLog = deps.createLogger("benchmark").child(`turn-${turn}`);
 
-  const project = await deps.projectRepo.readProject(projectId);
+  const project = await deps.projectRepo.readProject(projectId, BENCHMARK_OWNER_ID);
   if (!project) throw new Error(`Project not found during benchmark turn: ${projectId}`);
   if (!project.boardState) {
     const boardState = await seedProjectBoard(projectId, deps);
@@ -380,7 +385,7 @@ async function completeAgentTurn(params: {
 
   let appliedOps: BoardOp[] = [];
   if (boardOps.length > 0) {
-    const applyResult = await deps.projectRepo.applyBoardOps(projectId, {
+    const applyResult = await deps.projectRepo.applyBoardOps(projectId, BENCHMARK_OWNER_ID, {
       expectedVersion: currentExpectedVersion(project),
       ops: boardOps,
     });
@@ -499,6 +504,7 @@ async function runScenario(
   deps: RuntimeDeps,
 ): Promise<BenchmarkScenarioResult> {
   const project = await deps.projectRepo.createProject({
+    ownerId: BENCHMARK_OWNER_ID,
     name: `Benchmark ${scenario.title}`,
   });
   const projectId = project.project.id;

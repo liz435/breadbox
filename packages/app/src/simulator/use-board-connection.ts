@@ -20,6 +20,7 @@
 import { useState, useEffect } from "react"
 import { API_ORIGIN } from "@dreamer/config"
 import { useCapabilities } from "@/project/use-capabilities"
+import { resolveFetchOptions } from "@/project/api-client"
 
 export type PortInfo = {
   path: string
@@ -67,7 +68,7 @@ async function fetchPortsOnce(): Promise<void> {
   _loading = true
   notifyListeners()
   try {
-    const res = await fetch(`${API_ORIGIN}/api/boards`)
+    const res = await fetch(`${API_ORIGIN}/api/boards`, resolveFetchOptions())
     if (!res.ok) return
     const data = (await res.json()) as { ports: PortInfo[]; cliAvailable: boolean }
     _ports = data.ports ?? []

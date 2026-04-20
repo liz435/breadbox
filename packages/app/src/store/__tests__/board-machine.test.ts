@@ -178,7 +178,7 @@ describe("boardMachine", () => {
       state: {
         components: { new1: createTestComponent({ id: "new1", name: "New LED" }) },
         wires: {},
-        libraryState: { servos: {}, lcd: null, serialBaud: 9600 },
+        libraryState: { servos: {}, lcd: null, serialBaud: 9600, oled: {} },
         serialOutput: [{ text: "loaded", ts: 0 }],
         sketchCode: "// loaded",
         customLibraries: {},
@@ -201,7 +201,7 @@ describe("boardMachine", () => {
       state: {
         components: {},
         wires: {},
-        libraryState: { servos: {}, lcd: null, serialBaud: 0 },
+        libraryState: { servos: {}, lcd: null, serialBaud: 0, oled: {} },
         serialOutput: [],
         sketchCode: "",
         customLibraries: {},
