@@ -66,10 +66,22 @@ function newNonce(): string {
 }
 
 function callbackUriFrom(request: Request): string {
-  // Use the request's own origin so same-host browser flow works on
-  // Railway preview URLs without extra env plumbing.
+  // Derive the browser-facing origin from the incoming request. Railway
+  // (and most PaaS proxies) terminate TLS upstream and forward to the
+  // app over plain HTTP, so `request.url` can read as
+  // `http://0.0.0.0:4111/...` while the user is actually at
+  // `https://dreamer.example.com/...`. GitHub's OAuth flow does an
+  // exact-match check against the `redirect_uri` we send, so we must
+  // honor the forwarded-for headers to reconstruct the public URL.
+  //
+  // Precedence: X-Forwarded-* (if present) wins over request.url, since
+  // those headers describe the edge that the browser actually hit.
   const url = new URL(request.url)
-  return `${url.origin}/api/auth/github/callback`
+  const forwardedProto = request.headers.get("x-forwarded-proto")
+  const forwardedHost = request.headers.get("x-forwarded-host")
+  const proto = (forwardedProto?.split(",")[0] ?? url.protocol.replace(/:$/, "")).trim()
+  const host = (forwardedHost?.split(",")[0] ?? url.host).trim()
+  return `${proto}://${host}/api/auth/github/callback`
 }
 
 const logoutBodySchema = z.object({}).partial()
