@@ -9,8 +9,16 @@
 import { Elysia } from "elysia"
 import { runBatchEval, readEvalSummary, readRunEval } from "../eval/batch-evaluator"
 import { generateDashboardHTML } from "../eval/dashboard"
+import type { AuthContext } from "../auth/context"
+import { authPlugin } from "../auth/middleware"
+import { requireRateLimit, RateLimitError } from "../auth/rate-limit"
 
-export const evalRoutes = new Elysia()
+function requireOwnerId(auth: AuthContext | null | undefined): string {
+  if (!auth) throw new Error("missing auth context on authed route")
+  return auth.userId
+}
+
+export const evalRoutes = new Elysia().use(authPlugin)
   .get("/api/eval/dashboard", ({ set }) => {
     set.headers["content-type"] = "text/html; charset=utf-8"
     return generateDashboardHTML()
@@ -43,7 +51,18 @@ export const evalRoutes = new Elysia()
     })
   })
 
-  .post("/api/eval/refresh", async () => {
+  .post("/api/eval/refresh", async ({ auth, set }) => {
+    const ownerId = requireOwnerId(auth)
+    try {
+      await requireRateLimit("eval", ownerId, auth?.mode)
+    } catch (err) {
+      if (err instanceof RateLimitError) {
+        set.status = 429
+        set.headers["Retry-After"] = String(err.retryAfterSec)
+        return { error: err.message, retryAfterSec: err.retryAfterSec }
+      }
+      throw err
+    }
     const result = await runBatchEval()
     return {
       evaluated: result.evals.length,

@@ -22,6 +22,10 @@ export const sceneSettingsSchema = z.object({
 export const projectSchema = z.object({
   id: nonEmptyStringSchema,
   name: nonEmptyStringSchema,
+  // Owner is required so any project file missing this field fails parse and
+  // gets picked up by the ownership migration (hosted mode) or stamped with
+  // `ownerId: "local"` (local/dev mode) on boot.
+  ownerId: nonEmptyStringSchema,
   version: z.number().int().nonnegative(),
   createdAt: timestampSchema,
   updatedAt: timestampSchema,

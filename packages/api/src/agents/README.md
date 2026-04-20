@@ -100,7 +100,6 @@ agents/
   planner.ts              ← async background plan (isDestructive, estimatedToolCalls)
   reflection.ts           ← post-stream confidence check, shouldReplan logic
   policy-engine.ts        ← power budget + routing violation guardrails
-  skills.ts               ← domain-specific wiring guidance injected per run
   history-summarizer.ts   ← thread compaction for long conversations
   trace.ts                ← lightweight span-based observability
   types.ts                ← shared agent types

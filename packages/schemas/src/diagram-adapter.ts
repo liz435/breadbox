@@ -279,13 +279,24 @@ export function diagramToBoardState(input: unknown): DiagramParseResult {
     }
     seenIds.add(c.id);
 
-    const [x, y] = c.at;
+    // The DSL is documented and prompted as `at: [row, col]` (row first
+    // — the natural reading order on a vertical breadboard). BoardState's
+    // convention is the opposite: `BoardComponent.x` holds the column and
+    // `.y` holds the row. Every downstream consumer (analyzer, policy
+    // engine, renderer, pin resolver) reads BC as (x=col, y=row), e.g.
+    // `resolveComponentPins(type, component.y, component.x)`. So we
+    // translate here. Without this swap, an asymmetric placement like
+    // `at: [20, 5]` lands as bc.x=20 (off-grid horizontally) and the
+    // analyzer reads the row as 5 — every component placed via DSL
+    // collapses to whatever row its DSL col accidentally is, and pins
+    // collide across components on shared breadboard rows.
+    const [row, col] = c.at;
     const bc: BoardComponent = {
       id: c.id,
       type: c.type,
       name: c.name ?? defaultComponentName(c),
-      x,
-      y,
+      x: col,
+      y: row,
       rotation: c.rotation,
       pins: c.pins ?? {},
       properties: c.properties,
@@ -341,12 +352,25 @@ export function diagramToBoardState(input: unknown): DiagramParseResult {
     }
     usedWireIds.add(id);
 
+    // Invariant downstream consumers depend on: Arduino-pin endpoints
+    // (sentinel row === -999) always live on the `from` side of a wire.
+    // propose_circuit's wire generator enforces this via its
+    // {arduinoPin, toComponent, toPin} shape, so power-budget-analyzer,
+    // board-state-tracker, breadboard-grid, etc. only ever check
+    // fromRow === -999. The DSL lets a user write either direction
+    // (`arduino.GND -> btn.b` or `btn.b -> arduino.GND`); normalize here
+    // so analyzers don't see a phantom grid cell at row -999.
+    const fromIsArduino = fromRes.row === -999;
+    const toIsArduino = toRes.row === -999;
+    const [from, to] =
+      !fromIsArduino && toIsArduino ? [toRes, fromRes] : [fromRes, toRes];
+
     wires[id] = {
       id,
-      fromRow: fromRes.row,
-      fromCol: fromRes.col,
-      toRow: toRes.row,
-      toCol: toRes.col,
+      fromRow: from.row,
+      fromCol: from.col,
+      toRow: to.row,
+      toCol: to.col,
       color: w.color,
     };
   }
@@ -375,7 +399,7 @@ export function diagramToBoardState(input: unknown): DiagramParseResult {
   const boardState: BoardState = {
     components,
     wires,
-    libraryState: { servos: {}, lcd: null, serialBaud: 0 },
+    libraryState: { servos: {}, lcd: null, serialBaud: 0, oled: {} },
     serialOutput: [],
     sketchCode: diagram.sketch || DEFAULT_SKETCH_CODE,
     customLibraries,
@@ -407,7 +431,11 @@ export function boardStateToDiagram(state: BoardState): DreamerDiagram {
       const out: DiagramComponent = {
         id: c.id,
         type: c.type,
-        at: [c.x, c.y],
+        // DSL convention is `at: [row, col]`, BoardState is (x=col, y=row).
+        // Mirror the swap done in diagramToBoardState so a round-trip
+        // (read board → diagram → re-apply) lands the component back in
+        // the same physical spot.
+        at: [c.y, c.x],
         rotation: c.rotation,
         properties: c.properties,
       };

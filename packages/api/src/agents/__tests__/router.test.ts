@@ -9,6 +9,7 @@ function makeProject(boardState: BoardState): ProjectFile {
     project: {
       id: "project-1",
       name: "Router Test",
+      ownerId: "test",
       version: 1,
       createdAt: now,
       updatedAt: now,

@@ -12,6 +12,8 @@ import { ensureApiKey } from "./config"
 
 const log = createLogger("cli")
 
+const LOCAL_OWNER_ID = "local"
+
 export type RunResult = {
   text: string
   ops: BoardOp[]
@@ -61,7 +63,7 @@ export async function runAgent(
   const snapshotVersion = resolveAgentSnapshotVersion()
 
   // Refresh project from disk
-  const freshProject = await projectRepo.readProject(projectId)
+  const freshProject = await projectRepo.readProject(projectId, LOCAL_OWNER_ID)
   if (freshProject) {
     state.project = freshProject
   }
@@ -202,7 +204,7 @@ export async function runAgent(
     const boardOps = result.proposedOps
     if (boardOps.length > 0) {
       try {
-        const applyResult = await projectRepo.applyBoardOps(projectId, {
+        const applyResult = await projectRepo.applyBoardOps(projectId, LOCAL_OWNER_ID, {
           expectedVersion: currentProject.project.version,
           ops: boardOps,
         })
@@ -216,7 +218,7 @@ export async function runAgent(
     }
 
     // Refresh project state after applying ops
-    const updatedProject = await projectRepo.readProject(projectId)
+    const updatedProject = await projectRepo.readProject(projectId, LOCAL_OWNER_ID)
     if (updatedProject) {
       state.project = updatedProject
     }

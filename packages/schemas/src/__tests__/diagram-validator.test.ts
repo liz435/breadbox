@@ -196,6 +196,96 @@ describe("validateDiagram — semantic: missing ground", () => {
   });
 });
 
+describe("validateDiagram — semantic: missing I²C wiring", () => {
+  // OLED footprint (vertical, 4 pins): gnd at [col, row], vcc at [col, row+1],
+  // scl at [col, row+2], sda at [col, row+3]. On Uno, SDA=A4=18, SCL=A5=19.
+  test("OLED with sda→A4 and scl→A5 produces no I²C warning", () => {
+    const result = validateDiagram(
+      makeDiagram({
+        sketch: "#include <Wire.h>\nvoid setup(){Wire.begin();} void loop(){}",
+        components: [
+          { id: "oled1", type: "oled_display", at: [7, 5], rotation: 0, properties: {} },
+        ],
+        wires: [
+          { from: "oled1.gnd", to: "arduino.GND" },
+          { from: "oled1.vcc", to: "arduino.5V" },
+          { from: "oled1.scl", to: "arduino.A5" },
+          { from: "oled1.sda", to: "arduino.A4" },
+        ],
+      }),
+    );
+    expect(result.ok).toBe(true);
+    expect(result.issues.filter((i) => i.code === "MISSING_I2C_WIRING")).toHaveLength(0);
+  });
+
+  test("OLED with sda→A4 but scl dangling produces exactly one SCL warning", () => {
+    const result = validateDiagram(
+      makeDiagram({
+        sketch: "#include <Wire.h>\nvoid setup(){Wire.begin();} void loop(){}",
+        components: [
+          { id: "oled1", type: "oled_display", at: [7, 5], rotation: 0, properties: {} },
+        ],
+        wires: [
+          { from: "oled1.gnd", to: "arduino.GND" },
+          { from: "oled1.vcc", to: "arduino.5V" },
+          { from: "oled1.sda", to: "arduino.A4" },
+          // scl intentionally left unwired
+        ],
+      }),
+    );
+    const i2c = result.issues.filter((i) => i.code === "MISSING_I2C_WIRING");
+    expect(i2c).toHaveLength(1);
+    expect(i2c[0].message).toContain("SCL");
+    expect(i2c[0].severity).toBe("warning");
+    expect(i2c[0].path).toBe("components[oled1]");
+  });
+
+  test("OLED with neither sda nor scl wired produces two warnings", () => {
+    const result = validateDiagram(
+      makeDiagram({
+        sketch: "#include <Wire.h>\nvoid setup(){Wire.begin();} void loop(){}",
+        components: [
+          { id: "oled1", type: "oled_display", at: [7, 5], rotation: 0, properties: {} },
+        ],
+        wires: [
+          { from: "oled1.gnd", to: "arduino.GND" },
+          { from: "oled1.vcc", to: "arduino.5V" },
+        ],
+      }),
+    );
+    const i2c = result.issues.filter((i) => i.code === "MISSING_I2C_WIRING");
+    expect(i2c).toHaveLength(2);
+    const messages = i2c.map((i) => i.message).join(" | ");
+    expect(messages).toContain("SDA");
+    expect(messages).toContain("SCL");
+  });
+
+  test("OLED with sda wired to wrong Arduino pin (A3) flags SDA as missing", () => {
+    const result = validateDiagram(
+      makeDiagram({
+        sketch: "#include <Wire.h>\nvoid setup(){Wire.begin();} void loop(){}",
+        components: [
+          { id: "oled1", type: "oled_display", at: [7, 5], rotation: 0, properties: {} },
+        ],
+        wires: [
+          { from: "oled1.gnd", to: "arduino.GND" },
+          { from: "oled1.vcc", to: "arduino.5V" },
+          { from: "oled1.scl", to: "arduino.A5" },
+          { from: "oled1.sda", to: "arduino.A3" }, // wrong pin
+        ],
+      }),
+    );
+    const i2c = result.issues.filter((i) => i.code === "MISSING_I2C_WIRING");
+    expect(i2c).toHaveLength(1);
+    expect(i2c[0].message).toContain("SDA");
+  });
+
+  test("non-I²C components are not affected by the I²C check", () => {
+    const result = validateDiagram(makeDiagram({}));
+    expect(result.issues.filter((i) => i.code === "MISSING_I2C_WIRING")).toHaveLength(0);
+  });
+});
+
 describe("validateDiagram — semantic: empty sketch", () => {
   test("components placed but empty sketch warns", () => {
     const result = validateDiagram(

@@ -16,13 +16,30 @@ process.env.DATA_DIR = TEST_DATA_DIR;
 const { projectRoutes } = await import("../projects");
 const { projectRepo } = await import("../../db/project-repo");
 
-const app = new Elysia().use(projectRoutes);
+const TEST_OWNER = "test-owner";
+
+// Stand-in for the real `authPlugin` that the server mounts in index.ts.
+// Every request in these tests runs as the same synthetic owner so we
+// exercise the ownership-aware routes end-to-end without spinning up
+// cookies/sessions.
+const testAuthPlugin = new Elysia({ name: "test-auth" }).derive(
+  { as: "global" },
+  () => ({
+    auth: {
+      userId: TEST_OWNER,
+      sessionId: null,
+      mode: "dev" as const,
+    },
+  }),
+);
+
+const app = new Elysia().use(testAuthPlugin).use(projectRoutes);
 
 // Track IDs for cleanup
 const created: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(created.map((id) => projectRepo.deleteProject(id)));
+  await Promise.all(created.map((id) => projectRepo.deleteProject(id, "test-owner")));
   created.length = 0;
 });
 

@@ -11,8 +11,8 @@ import { useBoardConnection } from "@/simulator/use-board-connection"
 import { useElectricalReport } from "@/electrical/power-budget"
 import { cn } from "@/utils/classnames"
 import { readNdjsonStream } from "@/simulator/avr-compiler"
+import { resolveFetchOptions } from "@/project/api-client"
 import { setUploadState, useUploadState } from "./upload-status-store"
-import { BoardStatus } from "./board-status"
 
 type PlayControlsProps = {
   sim: SimulationActions
@@ -76,16 +76,19 @@ export function PlayControls({ sim }: PlayControlsProps) {
     // Fresh panel for this upload session — compile + upload logs stream in.
     boardSend({ type: "CLEAR_BUILD_LOG" })
     try {
-      const res = await fetch(`${API_ORIGIN}/api/flash`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          port: selectedPort,
-          code: sketchCodeRef.current,
-          boardTarget,
-          fqbn: boardTargetInfo.fqbn,
+      const res = await fetch(
+        `${API_ORIGIN}/api/flash`,
+        resolveFetchOptions({
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            port: selectedPort,
+            code: sketchCodeRef.current,
+            boardTarget,
+            fqbn: boardTargetInfo.fqbn,
+          }),
         }),
-      })
+      )
 
       // Schema-validation failures and other non-streaming errors still come
       // back as plain JSON with a 4xx/5xx status — handle those up front.
@@ -220,9 +223,9 @@ export function PlayControls({ sim }: PlayControlsProps) {
         <TooltipContent>Stop</TooltipContent>
       </Tooltip>
 
-      {/* USB / port picker — opens a popover listing available Arduino
-          serial ports. Replaces the old "No board" text pill. */}
-      <BoardStatus />
+      {/* USB / port picker was rendered here historically; moved to the
+          right-edge status cluster (next to StatusDisplay) in
+          bottom-toolbar.tsx so the board + status read as one unit. */}
 
       {/* Upload to Arduino — only shown when a port is selected. Inline status
           text used to live here; it now renders in <StatusDisplay/>. */}

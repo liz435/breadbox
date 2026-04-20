@@ -2,6 +2,12 @@ import { projectRepo } from "@dreamer/api/db/project-repo"
 import { boardTracker } from "@dreamer/api/db/board-state-tracker"
 import type { ProjectFile } from "@dreamer/schemas"
 
+// CLI is single-tenant; every project it reads or writes is owned by the
+// same synthetic "local" user that the auth middleware hands out in
+// local/dev mode. Kept in one place so a future multi-user CLI can
+// replace it without grepping the whole package.
+const LOCAL_OWNER_ID = "local"
+
 export type ProjectState = {
   projectId: string
   project: ProjectFile
@@ -38,7 +44,10 @@ function resolveSceneId(project: ProjectFile, requestedSceneId: string | null | 
 }
 
 export async function createProject(name?: string): Promise<ProjectState> {
-  const project = await projectRepo.createProject({ name: name ?? "CLI Project" })
+  const project = await projectRepo.createProject({
+    ownerId: LOCAL_OWNER_ID,
+    name: name ?? "CLI Project",
+  })
   const sceneId = resolveSceneId(project, null)
   if (project.boardState) {
     boardTracker.set(project.project.id, project.boardState)
@@ -50,7 +59,7 @@ export async function loadProject(
   id: string,
   sceneId?: string | null,
 ): Promise<ProjectState | null> {
-  const project = await projectRepo.readProject(id)
+  const project = await projectRepo.readProject(id, LOCAL_OWNER_ID)
   if (!project) return null
   const resolvedSceneId = resolveSceneId(project, sceneId)
   if (project.boardState) {
@@ -76,7 +85,7 @@ export function listScenes(project: ProjectFile): void {
 }
 
 export async function listProjects(): Promise<void> {
-  const summaries = await projectRepo.listProjects()
+  const summaries = await projectRepo.listProjects(LOCAL_OWNER_ID)
   if (summaries.length === 0) {
     console.log("  No projects found.")
     return

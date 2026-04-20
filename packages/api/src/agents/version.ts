@@ -14,7 +14,7 @@
  * Major bumps (X.0.0): structural rewrites — new agents, removed paths,
  *   fundamentally different routing logic.
  */
-export const AGENT_VERSION = "1.2.2";
+export const AGENT_VERSION = "1.3.5";
 
 /**
  * Snapshot version controls which frozen agent behavior profile is used at
@@ -28,7 +28,7 @@ export const DEFAULT_AGENT_SNAPSHOT_VERSION =
  * Explicitly listed snapshots that can be selected safely. Add a new entry
  * whenever introducing a new behavior profile.
  */
-export const SUPPORTED_AGENT_SNAPSHOTS = ["1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.0.4", "1.0.5", "1.0.6", "1.0.7", "1.0.8", "1.1.0", "1.1.1", "1.2.0", "1.2.1", "1.2.2"] as const;
+export const SUPPORTED_AGENT_SNAPSHOTS = ["1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.0.4", "1.0.5", "1.0.6", "1.0.7", "1.0.8", "1.1.0", "1.1.1", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5"] as const;
 
 export type AgentSnapshotVersion = (typeof SUPPORTED_AGENT_SNAPSHOTS)[number];
 
@@ -62,6 +62,94 @@ export const AGENT_CHANGELOG: Array<{
   date: string;
   changes: string[];
 }> = [
+  {
+    version: "1.3.5",
+    date: "2026-04-19",
+    changes: [
+      "BUILD_PROMPT: GND/5V rail distribution is now mandatory when ≥2 components share a supply. Previous strict-DSL prompt let the model fan N direct wires out of `arduino.GND`, which fails electrical validation and doesn't match real-breadboard topology.",
+      "BUILD_PROMPT: documents the `grid.<row>,<col>` endpoint syntax for addressing the breadboard's power rails: col -1 / 10 = GND rails, col -2 / 11 = 5V rails. The DSL adapter already supports this syntax (`packages/schemas/src/diagram-adapter.ts:155`); the prompt now exposes it.",
+      "BUILD_PROMPT: 7-seg counter example rewritten to demonstrate rail distribution — one `arduino.GND → grid.0,-1` lead, then per-row `grid.<componentRow>,-1 → comp.gnd` branches. Single-consumer circuits (LED+resistor, single button) keep direct wires.",
+    ],
+  },
+  {
+    version: "1.3.4",
+    date: "2026-04-19",
+    changes: [
+      "BUILD_PROMPT: strict DSL mode — removed all references to `propose_circuit` from the prompt. The DSL toggle now genuinely tests DSL end-to-end. v1.3.3's 7-seg/LCD-with-per-segment-resistors exception was making the toggle a no-op for that pattern (the model would always route to propose_circuit). User wants to evaluate DSL capability honestly even when the layout is dense.",
+      "Workflow tightened: up to 3 `apply_design` attempts per turn. On exhaustion the model STOPS and reports the blocking issues to the user instead of silently switching to propose_circuit (the user can switch to AUTO mode if they want auto-positioning).",
+      "Added a worked DSL example for 7-seg counter with per-segment resistors and INPUT_PULLUP button (each resistor on the same row as its target segment pin). Calls out the visual-stacking caveat so the model doesn't try to 'improve' the layout by routing away.",
+      "Companion fix in `tools.ts:1469-1542` (no agent version impact per README): propose_circuit's throughComponent codegen now detects when the entry pin's bus already shares the target's bus (the resistor would be shorted via the breadboard bus rather than current actually flowing through the body) and auto-swaps entry/exit. Surfaced when v1.3.3 routed a 7-seg counter through propose_circuit and the simulator showed current bypassing every resistor.",
+    ],
+  },
+  {
+    version: "1.3.3",
+    date: "2026-04-19",
+    changes: [
+      "BUILD_PROMPT: resistor and button placements now MUST be `at: [row, 3]`. The renderer (resistor-renderer.tsx:52-53) and simulator footprint (registry.tsx:210, breadboard-grid.ts:692) hardcode pin positions to cols 3/6 regardless of `at[col]` — so writing `at: [row, 1]` electrically works (the body straddles the gap as always) but renders with the resistor body bridging cols 3-6 while the diagram says col=1, causing wires to visually 'miss' the resistor. The only sane DSL coord is the col where the body actually draws: 3.",
+      "BUILD_PROMPT: added a targeted fallback exception — for 7-seg or LCD displays driven by per-segment series resistors, the agent now routes to `propose_circuit` with `throughComponent` instead of DSL. DSL would require N resistors on N consecutive breadboard rows (one per segment pin), causing dense visual stacking. The auto-router handles this case more cleanly. This is the one structurally-bad-in-DSL pattern; everything else (LED+resistor, single button, OLED, sensors) stays on DSL.",
+      "BUILD_PROMPT: added a 7-seg counter example using propose_circuit + throughComponent so the model has a worked reference for the new exception path.",
+    ],
+  },
+  {
+    version: "1.3.2",
+    date: "2026-04-19",
+    changes: [
+      "BUILD_PROMPT: removed the `>8 components` propose_circuit fallback trigger. v1.3.1's rule routed any 7-seg + per-segment resistors circuit (≥9 components) away from DSL even when the user toggled DSL — making the toggle effectively no-op for a common class of build. Fallback now fires only on two consecutive `apply_design` failures.",
+      "BUILD_PROMPT: added a `Pin-name reference` section enumerating the canonical pin names per component type (`seven_segment.gnd` not `com`, `lcd_16x2.vss` not `gnd`, button = `a`/`b` not `+`/`-`, etc.). The single biggest cost in the previous run was an ~11k-token retry caused by `pinRoles: { com: ... }` instead of `gnd`.",
+      "Companion fix in `packages/schemas/src/diagram-adapter.ts` (no agent version impact per README): wires written as `<componentId>.<pin> → arduino.<pin>` are now normalized to keep the Arduino sentinel on the `from` side, matching the invariant every downstream electrical analyzer assumes. Without this, post-stream `BUTTON_REFERENCE_MISSING` was throwing away successful apply_design results.",
+    ],
+  },
+  {
+    version: "1.3.1",
+    date: "2026-04-19",
+    changes: [
+      "BUILD_PROMPT (DSL-first path): drop the mandatory `validate_design` step. `apply_design` already validates and returns structured `issues[]` on failure with no board mutation, so the pre-validation pass was sending the diagram twice for the same diagnostic. New default is `apply_design` directly, with at most one retry on validation failure. `validate_design` is now opt-in for cases where the model is uncertain about pin names or wire endpoints.",
+      "BUILD_PROMPT: gate `analyze_power_budget` explicitly. v1.3.0 was auto-calling it (~13k tok/run) on every passive circuit because it was listed as a default read tool. Now restricted to circuits with servo/motor/relay/buzzer/external supply, ≥5 simultaneously-driven LEDs, or explicit user questions about power.",
+      "prompt-normalizer.ts: the brief no longer includes 'short power budget summary' as a default deliverable — same gating signals as the BUILD_PROMPT rule above.",
+      "Frozen v1.3.0 snapshot path: `BUILD_PROMPT_V1_3_0` captures the original DSL-first prompt verbatim so AGENT_SNAPSHOT_VERSION=1.3.0 still reproduces the heavier behavior for comparison runs.",
+      "Together these recover roughly 50% of the per-run token cost vs v1.3.0 on passive circuits while keeping DSL-first as the default path — based on the v1.3.0 vs v1.2.1 cost decomposition (validate+apply two-step ≈28% of overhead, power-budget auto-call ≈27%).",
+    ],
+  },
+  {
+    version: "1.3.0",
+    date: "2026-04-19",
+    changes: [
+      "BUILD_PROMPT flipped to DSL-first: `validate_design` → `apply_design` is now the default tool path for empty-board generation. propose_circuit is documented as the FALLBACK, used only for layout-heavy circuits (>8 components, dense series resistor banks) or when DSL repeatedly fails validation.",
+      "Added DSL layout reference (breadboard grid, component footprints, ID conventions) so the agent can compute `at: [row, col]` placements without auto-positioning help.",
+      "Added DSL-form examples for LED blink and INPUT_PULLUP button as the primary patterns; propose_circuit examples retained but tagged as fallback.",
+      "Rollback path: AGENT_SNAPSHOT_VERSION=1.2.5 — pinned to the propose_circuit-first BUILD_PROMPT_V1_2_5 frozen snapshot.",
+      "Toolset unchanged — both apply_design/validate_design and propose_circuit remain in BUILD_MODE_TOOLS so the agent can fall back without a snapshot switch.",
+    ],
+  },
+  {
+    version: "1.2.5",
+    date: "2026-04-19",
+    changes: [
+      "COMMON_PROMPT: removed the post-generation `dreamer-diagram` chat-block instruction. Agent must no longer echo diagram JSON in chat replies — describe results in plain language. Board UI is the source of truth; diagram payloads belong in tool calls only.",
+      "BUILD_PROMPT: dropped the `$schema` chat-block reference from the validate_design/apply_design guidance and points at the new COMMON_PROMPT rule.",
+    ],
+  },
+  {
+    version: "1.2.4",
+    date: "2026-04-19",
+    changes: [
+      "validate_design / apply_design: tool-input schema now omits the DSL's `$schema` field. Anthropic rejects tool JSON Schemas whose property keys start with `$` (pattern `^[a-zA-Z0-9_.-]{1,64}$`), so every chat request was failing with a 400 before hitting the model. Handlers re-attach `$schema: 'dreamer-diagram-v1'` internally before validation.",
+      "Added regression test (`tool-input-schema-keys.test.ts`) that JSON-schema-converts every core tool's inputSchema and asserts every property key is Anthropic-compatible.",
+      "BUILD/EDIT prompts: tool-args example + guidance updated to drop `$schema` when calling validate_design/apply_design. Chat-displayed `dreamer-diagram` blocks still carry `$schema` (user-facing DSL contract unchanged).",
+    ],
+  },
+  {
+    version: "1.2.3",
+    date: "2026-04-19",
+    changes: [
+      "BUILD_PROMPT: added apply_design example (LED blink in DSL form) alongside the existing propose_circuit example so the model can contrast the two whole-circuit paths.",
+      "BUILD_PROMPT: added validate_design → apply_design workflow — call validate_design first, fix issues, then commit with apply_design.",
+      "COMMON_PROMPT: after any successful whole-circuit generation (propose_circuit OR apply_design), agent must emit a fenced `dreamer-diagram` code block with the resulting diagram so users can save/share/re-apply.",
+      "apply_design: now returns obstacleCount in its response so the model can acknowledge environment payload made it through.",
+      "validator: added MISSING_I2C_WIRING semantic check — flags OLED displays whose sda/scl pins aren't wired to the board's SDA/SCL pins (Uno A4/A5).",
+      "CLI: added `dreamer diagram validate <file>` and `dreamer diagram apply <file> --project <project-file>` subcommands for headless diagram workflows.",
+    ],
+  },
   {
     version: "1.2.2",
     date: "2026-04-18",

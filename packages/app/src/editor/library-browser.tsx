@@ -11,6 +11,7 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import { useBoard } from "@/store/board-context"
 import { API_ORIGIN } from "@dreamer/config"
 import { useCapabilities } from "@/project/use-capabilities"
+import { resolveFetchOptions } from "@/project/api-client"
 import { Search, Download, ExternalLink, Check, Loader2, AlertCircle, Trash2, Lock } from "lucide-react"
 
 const LIBRARY_INDEX_URL = "https://downloads.arduino.cc/libraries/library_index.json"
@@ -94,7 +95,10 @@ function LibraryBrowserInner() {
 
   const refreshInstalled = useCallback(async () => {
     try {
-      const res = await fetch(`${API_ORIGIN}/api/libraries/installed`)
+      const res = await fetch(
+        `${API_ORIGIN}/api/libraries/installed`,
+        resolveFetchOptions(),
+      )
       if (!res.ok) return
       const data = (await res.json()) as { libraries?: Array<{ name: string }> }
       setInstalled(new Set((data.libraries ?? []).map((l) => l.name)))
@@ -122,11 +126,14 @@ function LibraryBrowserInner() {
         return next
       })
       try {
-        const res = await fetch(`${API_ORIGIN}/api/libraries/${op}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: lib.name }),
-        })
+        const res = await fetch(
+          `${API_ORIGIN}/api/libraries/${op}`,
+          resolveFetchOptions({
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: lib.name }),
+          }),
+        )
         const data = (await res.json()) as { success?: boolean; error?: string }
         if (!res.ok || !data.success) {
           setInstallState((s) => ({ ...s, [lib.name]: "error" }))

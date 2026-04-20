@@ -1,0 +1,43 @@
+{
+  "project": {
+    "id": "9e5bf095-02ac-4ee9-b05a-14aeeae377c1",
+    "name": "swift-bird-hook",
+    "ownerId": "local",
+    "version": 0,
+    "createdAt": "2026-04-20T05:44:15.625Z",
+    "updatedAt": "2026-04-20T05:44:15.625Z",
+    "threadId": "2f561678-3aab-44d3-a2cf-b18ef9e82b39",
+    "activeSceneId": "dd4f5247-4b20-4d95-b025-7835a9d9a572"
+  },
+  "scenes": {
+    "dd4f5247-4b20-4d95-b025-7835a9d9a572": {
+      "id": "dd4f5247-4b20-4d95-b025-7835a9d9a572",
+      "name": "Main Scene",
+      "version": 0,
+      "settings": {
+        "background": "#252525",
+        "gravity": {
+          "x": 0,
+          "y": 9.8
+        }
+      }
+    }
+  },
+  "entities": {},
+  "sceneEntityIds": {
+    "dd4f5247-4b20-4d95-b025-7835a9d9a572": []
+  },
+  "components": {
+    "transform": {},
+    "sprite": {},
+    "tilemap": {},
+    "physicsBody": {},
+    "script": {},
+    "camera": {}
+  },
+  "assets": {},
+  "graph": {
+    "nodes": {},
+    "edges": {}
+  }
+}

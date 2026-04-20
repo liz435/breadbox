@@ -6,7 +6,7 @@
 // approval before execution.
 
 import { generateObject } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
+import { anthropicModel } from "./anthropic-provider";
 import { z } from "zod";
 import type { RoutingDecision } from "./router";
 import { createLogger } from "../logger";
@@ -17,6 +17,30 @@ const log = createLogger("planner");
 const PLANNER_MODEL = "claude-haiku-4-5-20251001";
 
 // ── Schema ───────────────────────────────────────────────────────────────
+//
+// IMPORTANT: this schema is fed to `generateObject`, which forwards it as
+// `output_config.format.schema` to Anthropic's structured-outputs API
+// (beta `structured-outputs-2025-11-13`). That API rejects schemas that
+// combine `type: "integer"` with `minimum`/`maximum` keywords with:
+//
+//   AI_APICallError: output_config.format.schema:
+//     For 'integer' type, properties maximum, minimum are not supported
+//
+// Zod 4's `z.toJSONSchema()` emits `minimum`/`maximum` for `.int()`
+// automatically (set to ±Number.MAX_SAFE_INTEGER), even without an explicit
+// `.min()/.max()` chain — so the offender is `.int()` itself, not just the
+// bounds we used to put on it. We use plain `z.number()` here (emits a
+// bare `type: "number"`) and round/clamp post-parse to recover the
+// integer-with-bounds semantic.
+//
+// If you ever need to emit an integer field for the planner, do not switch
+// to `.int()`/`z.int()`/`z.int32()` — they all hit this restriction. Either
+// keep the field as `z.number()` and cast, or switch the planner over to
+// `structuredOutputMode: 'jsonTool'` provider option (which routes through
+// the tool-use path that doesn't apply this validation).
+
+const ESTIMATED_TOOL_CALLS_MIN = 1;
+const ESTIMATED_TOOL_CALLS_MAX = 10;
 
 export const planStepSchema = z.object({
   action: z.string().describe("What this step does, e.g. 'Place LED at row 5'"),
@@ -27,13 +51,33 @@ export const planStepSchema = z.object({
 export const agentPlanSchema = z.object({
   summary: z.string().describe("One-line summary of the full plan"),
   steps: z.array(planStepSchema).describe("Ordered steps the agent will take"),
-  estimatedToolCalls: z.number().int().min(1).max(10).describe("Expected number of tool calls"),
+  estimatedToolCalls: z
+    .number()
+    .describe(
+      `Expected whole number of tool calls (target ${ESTIMATED_TOOL_CALLS_MIN}-${ESTIMATED_TOOL_CALLS_MAX}; rounded and clamped server-side, so an integer in range is the safe choice)`,
+    ),
   isDestructive: z.boolean().describe("True if the plan involves removing components or wires"),
   destructiveDetails: z.string().optional().describe("What will be removed/replaced, if destructive"),
 });
 
 export type AgentPlan = z.infer<typeof agentPlanSchema>;
 export type PlanStep = z.infer<typeof planStepSchema>;
+
+/**
+ * Round + clamp the model's estimated tool-call count into the documented
+ * range. The bound is a sanity hint (purely surfaced for reporting, not a
+ * correctness invariant), so we normalize rather than reject when the model
+ * overshoots or returns a non-integer.
+ *
+ * Exported for tests; not part of the planner's public contract.
+ */
+export function clampEstimatedToolCalls(value: number): number {
+  if (!Number.isFinite(value)) return ESTIMATED_TOOL_CALLS_MIN;
+  return Math.min(
+    ESTIMATED_TOOL_CALLS_MAX,
+    Math.max(ESTIMATED_TOOL_CALLS_MIN, Math.round(value)),
+  );
+}
 
 // ── Plan Feasibility ─────────────────────────────────────────────────────
 
@@ -107,7 +151,7 @@ export async function generatePlan(params: {
   const start = performance.now();
 
   const result = await generateObject({
-    model: anthropic(PLANNER_MODEL),
+    model: anthropicModel(PLANNER_MODEL),
     schema: agentPlanSchema,
     prompt: `You are planning actions for an Arduino simulator assistant. Given the user's request, current board state, and routing decision, create a concise plan.
 
@@ -125,12 +169,19 @@ Create a plan with concrete steps. Mark steps as destructive if they remove/repl
   const outputTokens = result.usage?.outputTokens ?? 0;
   const elapsed = (performance.now() - start).toFixed(0);
 
+  // Normalize the estimated tool-call count post-parse since we no longer
+  // express the bound in the JSON Schema (see schema comment above).
+  const plan: AgentPlan = {
+    ...result.object,
+    estimatedToolCalls: clampEstimatedToolCalls(result.object.estimatedToolCalls),
+  };
+
   log.info(
-    `plan generated in ${elapsed}ms — ${result.object.steps.length} steps, destructive: ${result.object.isDestructive}`,
+    `plan generated in ${elapsed}ms — ${plan.steps.length} steps, destructive: ${plan.isDestructive}`,
   );
 
   return {
-    plan: result.object,
+    plan,
     usage: {
       inputTokens,
       outputTokens,

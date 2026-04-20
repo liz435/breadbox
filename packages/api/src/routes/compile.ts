@@ -50,8 +50,17 @@ import {
   CompileCancelledError,
   compileSlotStats,
 } from "./_compile-limiter"
+import type { AuthContext } from "../auth/context"
+import { authPlugin } from "../auth/middleware"
+import { requireRateLimit, RateLimitError } from "../auth/rate-limit"
+import { auditLog } from "../auth/audit-log"
 
 const log = createLogger("compile")
+
+function requireOwnerId(auth: AuthContext | null | undefined): string {
+  if (!auth) throw new Error("missing auth context on authed route")
+  return auth.userId
+}
 
 /** Wall-clock ceiling for a single compile invocation. */
 const COMPILE_TIMEOUT_MS = 120_000
@@ -177,11 +186,23 @@ async function streamCompile(
 
 // ── Route ───────────────────────────────────────────────────────────────────
 
-export const compileRoutes = new Elysia().post("/api/compile", async ({ body, request, set }) => {
+export const compileRoutes = new Elysia().use(authPlugin).post("/api/compile", async ({ auth, body, request, set }) => {
+  const ownerId = requireOwnerId(auth)
   const parsed = compileRequestSchema.safeParse(body)
   if (!parsed.success) {
     set.status = 400
     return { error: parsed.error.issues[0]?.message ?? "Invalid request" }
+  }
+
+  try {
+    await requireRateLimit("compile", ownerId, auth?.mode)
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      set.status = 429
+      set.headers["Retry-After"] = String(err.retryAfterSec)
+      return { error: err.message, retryAfterSec: err.retryAfterSec }
+    }
+    throw err
   }
 
   let release: () => void
@@ -207,6 +228,12 @@ export const compileRoutes = new Elysia().post("/api/compile", async ({ body, re
   const sketchId = crypto.randomUUID()
   const sketchDir = join(tmpdir(), `arduino-sketch-${sketchId}`)
   const outputDir = join(sketchDir, "output")
+
+  void auditLog({
+    userId: ownerId,
+    action: "compile.start",
+    extra: { sketchId, fqbn },
+  })
 
   const { stream, writer } = createNdjsonStream()
   const signal = request.signal

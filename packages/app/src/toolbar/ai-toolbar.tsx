@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react"
+import { ChevronDown, ChevronUp } from "lucide-react"
 import Markdown from "react-markdown"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
@@ -30,13 +31,20 @@ export function AiToolbarHistory({ chat }: AiToolbarProps) {
   if (!hasMessages) return null
 
   if (!historyOpen) {
+    // Collapsed pill — previously left-aligned against the 2xl parent
+    // and rendered in muted-xs, so it was easy to miss. Now centered in
+    // its own flex row with foreground text, an up-chevron affordance,
+    // and a visible hover state.
     return (
-      <button
-        onClick={() => setHistoryOpen(true)}
-        className="mb-2 text-xs text-muted-foreground hover:text-foreground bg-card border border-border rounded-full px-3 py-1 shadow cursor-pointer"
-      >
-        Show messages ({messages.length})
-      </button>
+      <div className="mb-2 flex justify-center">
+        <button
+          onClick={() => setHistoryOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-foreground shadow-md transition-colors hover:bg-muted cursor-pointer"
+        >
+          <ChevronUp className="size-3.5 text-muted-foreground" />
+          Show messages ({messages.length})
+        </button>
+      </div>
     )
   }
 
@@ -44,20 +52,22 @@ export function AiToolbarHistory({ chat }: AiToolbarProps) {
 
   return (
     <div className="w-full max-w-2xl mb-2">
-      <div className="bg-card border border-border rounded-lg shadow-lg overflow-hidden">
-        <div className="flex items-center justify-between px-3 py-1.5 border-b border-border">
-          <span className="text-xs font-medium text-muted-foreground">
-            Dreamer Agent
-          </span>
-          <button
-            onClick={() => setHistoryOpen(false)}
-            className="text-muted-foreground hover:text-foreground text-xs px-1 cursor-pointer"
-          >
-            Hide
-          </button>
-        </div>
+      {/* Chat-card chrome: lighter shadow than the PromptBox below so
+          the pair stacks as anchor + follower rather than two loud
+          marketing panels. Header dropped — the ModeToggle already
+          tells the user they're in chat. Hide is a floating chevron
+          over the scroll area. Token counter is a sticky footer so it
+          stays in view when the scroll area is full. */}
+      <div className="relative bg-card border border-border rounded-lg shadow-md overflow-hidden">
+        <button
+          onClick={() => setHistoryOpen(false)}
+          aria-label="Hide messages"
+          className="absolute right-1.5 top-1.5 z-10 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+        >
+          <ChevronDown className="size-3.5" />
+        </button>
         <ScrollArea className="max-h-96">
-          <div className="px-3 py-2">
+          <div className="px-3 py-2 pr-8">
             {messages.map((msg) => {
               const text = getMessageText(msg)
               if (!text) return null
@@ -81,13 +91,12 @@ export function AiToolbarHistory({ chat }: AiToolbarProps) {
                 Thinking...
               </div>
             )}
-            <TokenTracker
-              sessionTokenUsage={chat.sessionTokenUsage}
-              className="pt-1 border-t border-border mt-2"
-            />
             <div ref={bottomRef} />
           </div>
         </ScrollArea>
+        <div className="border-t border-border px-3 py-1.5">
+          <TokenTracker sessionTokenUsage={chat.sessionTokenUsage} />
+        </div>
       </div>
     </div>
   )

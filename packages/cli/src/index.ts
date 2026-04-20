@@ -25,6 +25,7 @@ import * as telemetry from "./telemetry"
 import * as selfUpdate from "./self-update"
 import { loadConfig, saveConfig, setApiKey, clearApiKey, ensureApiKey, ApiKeyMissingError } from "./config"
 import { followLogFile } from "./log-follow"
+import { handleDiagramApply, handleDiagramValidate, DiagramCliError } from "./diagram-cli"
 import { recordCliErrorAndFlush } from "./telemetry-reporting"
 import { join } from "path"
 import { existsSync, readFileSync } from "fs"
@@ -37,6 +38,7 @@ function classifyExitCode(err: unknown): number {
   if (err instanceof CliParseError) return 2
   if (err instanceof ApiKeyMissingError) return 2
   if (err instanceof ArduinoCliMissingError) return 2
+  if (err instanceof DiagramCliError) return err.exitCode
   if (err instanceof ZodError || err instanceof OpValidationError || err instanceof AmbiguousSceneError) return 2
   if (err instanceof VersionConflictError) return 1
   if (err instanceof Error) return 1
@@ -376,6 +378,19 @@ async function dispatch(command: Command, projectId: string | null, sceneId: str
     case "crash":     return handleCrash(command)
     case "telemetry": return handleTelemetry(command)
     case "upgrade":   return handleUpgrade(command)
+    case "diagram": {
+      if (command.subcommand === "validate") {
+        return handleDiagramValidate(command.file)
+      }
+      return handleDiagramApply(command.file, command.projectFile)
+    }
+
+    case "mcp": {
+      // Lazy-import so non-mcp subcommands don't pay the SDK parse cost.
+      const { runMcpServer } = await import("./mcp/server")
+      await runMcpServer({ projectId })
+      return 0
+    }
   }
 }
 
@@ -400,6 +415,10 @@ async function main() {
     if (err instanceof AmbiguousSceneError) {
       console.error(err.message)
       process.exit(2)
+    }
+    if (err instanceof DiagramCliError) {
+      console.error(err.message)
+      process.exit(err.exitCode)
     }
     await recordCliErrorAndFlush(telemetry, args.command.kind, err)
     console.error(`Error: ${formatError(err)}`)

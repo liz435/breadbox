@@ -12,6 +12,8 @@
 //        - PIN_NOT_WIRED          sketch mentions pin N but no wire connects it
 //        - MISSING_GROUND         component has a `gnd` pin but no wire from
 //                                that pin reaches any Arduino GND or PSU (-)
+//        - MISSING_I2C_WIRING    component exposes sda/scl but neither is
+//                                wired to the board's SDA/SCL pins
 //        - EMPTY_SKETCH           components placed but sketch is empty
 //
 // Power-budget / current-limit / SPICE checks live in
@@ -43,6 +45,7 @@ export type DiagramIssueCode =
   | "DANGLING_COMPONENT"
   | "PIN_NOT_WIRED"
   | "MISSING_GROUND"
+  | "MISSING_I2C_WIRING"
   | "EMPTY_SKETCH";
 
 export type DiagramIssue = {
@@ -195,6 +198,50 @@ function semanticIssues(state: BoardState): DiagramIssue[] {
     }
   }
 
+  // Missing I²C wiring for components with `sda` / `scl` pins (currently
+  // just `oled_display`). We check each pin independently so a half-wired
+  // OLED (e.g. SDA landed but SCL forgotten) reports the precise gap.
+  //
+  // The board's SDA/SCL pin numbers come from the analog-pin table:
+  // on Uno/Nano, A4 = SDA, A5 = SCL. We pick the last two entries (SDA is
+  // one-before-last, SCL is last) so Mega + Pico still behave sensibly —
+  // the exact pin mapping for those boards lives in the sim, not here,
+  // but for Uno the rule is well-defined and that's the only board shipping
+  // an OLED today.
+  const i2cPinNumbers = getI2cPinNumbers(boardTarget);
+  if (i2cPinNumbers) {
+    for (const comp of simComponents) {
+      const pins = resolveComponentPins(comp.type, comp.y, comp.x, comp.properties);
+      const sda = pins.sda;
+      const scl = pins.scl;
+      if (!sda || !scl) continue; // not an I²C component
+
+      const sdaConnected = isPinWiredToArduinoPin(sda, i2cPinNumbers.sda, wires);
+      const sclConnected = isPinWiredToArduinoPin(scl, i2cPinNumbers.scl, wires);
+
+      if (!sdaConnected) {
+        issues.push({
+          severity: "warning",
+          category: "semantic",
+          code: "MISSING_I2C_WIRING",
+          path: `components[${comp.id}]`,
+          message: `Component "${comp.id}" (${comp.type}) has an SDA pin that isn't wired to the board's SDA pin (A${i2cPinNumbers.sdaAnalogIndex}).`,
+          suggestion: `Add a wire from "arduino.A${i2cPinNumbers.sdaAnalogIndex}" to "${comp.id}.sda".`,
+        });
+      }
+      if (!sclConnected) {
+        issues.push({
+          severity: "warning",
+          category: "semantic",
+          code: "MISSING_I2C_WIRING",
+          path: `components[${comp.id}]`,
+          message: `Component "${comp.id}" (${comp.type}) has an SCL pin that isn't wired to the board's SCL pin (A${i2cPinNumbers.sclAnalogIndex}).`,
+          suggestion: `Add a wire from "arduino.A${i2cPinNumbers.sclAnalogIndex}" to "${comp.id}.scl".`,
+        });
+      }
+    }
+  }
+
   // Sketch references a pin that has no wire. Catches "pinMode(13, OUTPUT)
   // with no LED wired to pin 13" — a classic head-scratcher.
   const pinsUsedBySketch = extractSketchPins(state.sketchCode, boardTarget);
@@ -221,6 +268,48 @@ function semanticIssues(state: BoardState): DiagramIssue[] {
   }
 
   return issues;
+}
+
+// ── I²C helpers ──────────────────────────────────────────────────────────
+//
+// Convention: on classic Arduino boards (Uno/Nano), SDA sits on A4 and SCL
+// on A5. Mega routes I²C to dedicated pins (20/21) that aren't in the
+// analog-pin table, so we return null and skip the check there until the
+// sim teaches us otherwise — false positives are worse than no check at all.
+type I2cPinNumbers = {
+  sda: number;
+  scl: number;
+  sdaAnalogIndex: number;
+  sclAnalogIndex: number;
+};
+
+function getI2cPinNumbers(boardTarget: BoardTarget): I2cPinNumbers | null {
+  // Only enforce for boards where the I²C → analog-pin mapping is
+  // well-defined in this codebase. Uno + Nano: SDA/SCL = A4/A5.
+  if (boardTarget !== "arduino_uno" && boardTarget !== "arduino_nano") {
+    return null;
+  }
+  const analogPins = getBoardAnalogPins(boardTarget);
+  const sda = analogPins[4];
+  const scl = analogPins[5];
+  if (sda === undefined || scl === undefined) return null;
+  return { sda, scl, sdaAnalogIndex: 4, sclAnalogIndex: 5 };
+}
+
+function isPinWiredToArduinoPin(
+  componentPin: { row: number; col: number },
+  arduinoPinNumber: number,
+  wires: Wire[],
+): boolean {
+  return wires.some((w) => {
+    const fromIsPin = w.fromRow === componentPin.row && w.fromCol === componentPin.col;
+    const toIsPin = w.toRow === componentPin.row && w.toCol === componentPin.col;
+    if (!fromIsPin && !toIsPin) return false;
+    const other = fromIsPin
+      ? { row: w.toRow, col: w.toCol }
+      : { row: w.fromRow, col: w.fromCol };
+    return other.row === -999 && other.col === arduinoPinNumber;
+  });
 }
 
 // ── Sketch pin extraction (shallow regex) ────────────────────────────────

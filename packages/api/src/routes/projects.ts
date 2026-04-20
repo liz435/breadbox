@@ -12,6 +12,9 @@ import {
   VersionConflictError,
 } from "../db/project-repo";
 import type { Asset } from "../db/schemas";
+import type { AuthContext } from "../auth/context";
+import { authPlugin } from "../auth/middleware";
+import { auditLog } from "../auth/audit-log";
 
 // Combined save payload — both fields optional so the client can omit one
 // when nothing changed in that half. At least one must be present.
@@ -45,22 +48,42 @@ function mimeToAssetType(mimeType: string, ext: string): Asset["type"] {
   return "text";
 }
 
+// Resolve ownerId from the auth context stashed by `authPlugin`. Routes
+// under this plugin are not in the public allowlist, so a missing auth
+// context here means the middleware didn't run — which should be
+// impossible in prod, but we fail closed rather than mutate someone
+// else's data on a misconfigured server.
+function requireOwnerId(auth: AuthContext | null | undefined): string {
+  if (!auth) throw new Error("missing auth context on authed route");
+  return auth.userId;
+}
+
 export const projectRoutes = new Elysia({ prefix: "/project" })
-  .get("/", async () => {
-    return projectRepo.listProjects();
+  .use(authPlugin)
+  .get("/", async ({ auth }) => {
+    const ownerId = requireOwnerId(auth);
+    return projectRepo.listProjects(ownerId);
   })
-  .post("/", async ({ body, set }) => {
+  .post("/", async ({ auth, body, set }) => {
+    const ownerId = requireOwnerId(auth);
     try {
       const payload = (body ?? {}) as { id?: string; name?: string; ensure?: boolean };
       const project = payload.ensure
         ? await projectRepo.getOrCreateProject({
+            ownerId,
             id: payload.id,
             name: payload.name,
           })
         : await projectRepo.createProject({
+            ownerId,
             id: payload.id,
             name: payload.name,
           });
+      void auditLog({
+        userId: ownerId,
+        action: "project.create",
+        projectId: project.project.id,
+      });
       return project;
     } catch (error) {
       if (error instanceof OpValidationError) {
@@ -70,58 +93,91 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
       throw error;
     }
   })
-  .get("/:id", async ({ params, set }) => {
-    const project = await projectRepo.readProject(params.id);
+  .get("/:id", async ({ auth, params, set }) => {
+    const ownerId = requireOwnerId(auth);
+    const project = await projectRepo.readProject(params.id, ownerId);
     if (!project) {
       set.status = 404;
       return { error: "Project not found" };
     }
     return project;
   })
-  .delete("/:id", async ({ params, set }) => {
-    const deleted = await projectRepo.deleteProject(params.id);
+  .delete("/:id", async ({ auth, params, set }) => {
+    const ownerId = requireOwnerId(auth);
+    const deleted = await projectRepo.deleteProject(params.id, ownerId);
     if (!deleted) {
       set.status = 404;
       return { error: "Project not found" };
     }
+    void auditLog({
+      userId: ownerId,
+      action: "project.delete",
+      projectId: params.id,
+    });
     return { deleted: true };
   })
-  .patch("/:id", async ({ params, body, set }) => {
+  .patch("/:id", async ({ auth, params, body, set }) => {
+    const ownerId = requireOwnerId(auth);
     const payload = body as { name?: string } | null;
     const name = payload?.name?.trim();
     if (!name) {
       set.status = 400;
       return { error: "Name is required" };
     }
-    const result = await projectRepo.renameProject(params.id, name);
+    const result = await projectRepo.renameProject(params.id, ownerId, name);
     if (!result) {
       set.status = 404;
       return { error: "Project not found" };
     }
+    void auditLog({
+      userId: ownerId,
+      action: "project.rename",
+      projectId: params.id,
+      extra: { name },
+    });
     return result;
   })
-  .patch("/:id/scenes/:sceneId", async ({ params, body, set }) => {
+  .patch("/:id/scenes/:sceneId", async ({ auth, params, body, set }) => {
+    const ownerId = requireOwnerId(auth);
     const payload = body as { name?: string } | null;
     const name = payload?.name?.trim();
     if (!name) {
       set.status = 400;
       return { error: "Name is required" };
     }
-    const result = await projectRepo.renameScene(params.id, params.sceneId, name);
+    const result = await projectRepo.renameScene(
+      params.id,
+      ownerId,
+      params.sceneId,
+      name,
+    );
     if (!result) {
       set.status = 404;
       return { error: "Project or scene not found" };
     }
+    void auditLog({
+      userId: ownerId,
+      action: "project.rename",
+      projectId: params.id,
+      extra: { sceneId: params.sceneId, name },
+    });
     return result;
   })
-  .post("/:id/ops", async ({ params, body, set }) => {
+  .post("/:id/ops", async ({ auth, params, body, set }) => {
+    const ownerId = requireOwnerId(auth);
     try {
       const input = applyOpsRequestSchema.parse(body);
-      const result = await projectRepo.applyOps(params.id, input);
+      const result = await projectRepo.applyOps(params.id, ownerId, input);
       if (!result) {
         set.status = 404;
         return { error: "Project not found" };
       }
+      void auditLog({
+        userId: ownerId,
+        action: "project.update",
+        projectId: params.id,
+        extra: { opsCount: result.appliedOps.length },
+      });
       return {
         newVersion: result.newVersion,
         appliedOps: result.appliedOps,
@@ -151,10 +207,11 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
   // Prefer POST /:id/state for new clients — it persists board and graph
   // atomically in one read-modify-write cycle. This endpoint stays for
   // sendBeacon flushes and any clients that only need to update one field.
-  .post("/:id/graph", async ({ params, body, set }) => {
+  .post("/:id/graph", async ({ auth, params, body, set }) => {
+    const ownerId = requireOwnerId(auth);
     try {
       const graph = projectGraphSchema.parse(body);
-      const result = await projectRepo.saveGraph(params.id, graph);
+      const result = await projectRepo.saveGraph(params.id, ownerId, graph);
       if (!result) {
         set.status = 404;
         return { error: "Project not found" };
@@ -166,10 +223,15 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
     }
   })
   // ── Board state save (legacy single-field endpoint) ─────────────────────
-  .post("/:id/board", async ({ params, body, set }) => {
+  .post("/:id/board", async ({ auth, params, body, set }) => {
+    const ownerId = requireOwnerId(auth);
     try {
       const boardState = boardStateSchema.parse(body);
-      const result = await projectRepo.saveBoardState(params.id, boardState);
+      const result = await projectRepo.saveBoardState(
+        params.id,
+        ownerId,
+        boardState,
+      );
       if (!result) {
         set.status = 404;
         return { error: "Project not found" };
@@ -185,10 +247,15 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
   // Single read-modify-write that updates both `boardState` and `graph` in
   // one pass. Use this for the normal autosave / Cmd+S flow so two
   // concurrent saves can't clobber each other's field.
-  .post("/:id/state", async ({ params, body, set }) => {
+  .post("/:id/state", async ({ auth, params, body, set }) => {
+    const ownerId = requireOwnerId(auth);
     try {
       const payload = saveStateRequestSchema.parse(body);
-      const result = await projectRepo.saveBoardAndGraph(params.id, payload);
+      const result = await projectRepo.saveBoardAndGraph(
+        params.id,
+        ownerId,
+        payload,
+      );
       if (!result) {
         set.status = 404;
         return { error: "Project not found" };
@@ -200,8 +267,9 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
     }
   })
   // ── Asset upload ────────────────────────────────────────────────────────
-  .post("/:id/assets", async ({ params, request, set }) => {
-    const project = await projectRepo.readProject(params.id);
+  .post("/:id/assets", async ({ auth, params, request, set }) => {
+    const ownerId = requireOwnerId(auth);
+    const project = await projectRepo.readProject(params.id, ownerId);
     if (!project) {
       set.status = 404;
       return { error: "Project not found" };
@@ -214,7 +282,11 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
       return { error: "Missing file in form data" };
     }
 
-    const dir = await projectRepo.ensureAssetsDir(params.id);
+    const dir = await projectRepo.ensureAssetsDir(params.id, ownerId);
+    if (!dir) {
+      set.status = 404;
+      return { error: "Project not found" };
+    }
     const ext = file.name.split(".").pop() ?? "bin";
     const assetId = crypto.randomUUID();
     const filename = `${assetId}.${ext}`;
@@ -241,7 +313,14 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
       },
     };
     project.project.updatedAt = new Date().toISOString();
-    await projectRepo.writeProject(params.id, project);
+    await projectRepo.writeProject(params.id, ownerId, project);
+
+    void auditLog({
+      userId: ownerId,
+      action: "asset.upload",
+      projectId: params.id,
+      extra: { assetId, assetType, size: buffer.byteLength },
+    });
 
     return {
       assetId,
@@ -252,8 +331,9 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
     };
   })
   // ── Asset list ─────────────────────────────────────────────────────────
-  .get("/:id/assets", async ({ params, set }) => {
-    const project = await projectRepo.readProject(params.id);
+  .get("/:id/assets", async ({ auth, params, set }) => {
+    const ownerId = requireOwnerId(auth);
+    const project = await projectRepo.readProject(params.id, ownerId);
     if (!project) {
       set.status = 404;
       return { error: "Project not found" };
@@ -261,8 +341,9 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
     return Object.values(project.assets);
   })
   // ── Asset rename ────────────────────────────────────────────────────────
-  .patch("/:id/assets/:assetId", async ({ params, body, set }) => {
-    const project = await projectRepo.readProject(params.id);
+  .patch("/:id/assets/:assetId", async ({ auth, params, body, set }) => {
+    const ownerId = requireOwnerId(auth);
+    const project = await projectRepo.readProject(params.id, ownerId);
     if (!project) {
       set.status = 404;
       return { error: "Project not found" };
@@ -280,12 +361,13 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
     }
     asset.meta.name = name;
     project.project.updatedAt = new Date().toISOString();
-    await projectRepo.writeProject(params.id, project);
+    await projectRepo.writeProject(params.id, ownerId, project);
     return { id: asset.id, name };
   })
   // ── Asset delete ───────────────────────────────────────────────────────
-  .delete("/:id/assets/:assetId", async ({ params, set }) => {
-    const project = await projectRepo.readProject(params.id);
+  .delete("/:id/assets/:assetId", async ({ auth, params, set }) => {
+    const ownerId = requireOwnerId(auth);
+    const project = await projectRepo.readProject(params.id, ownerId);
     if (!project) {
       set.status = 404;
       return { error: "Project not found" };
@@ -299,7 +381,7 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
     // Remove from project JSON
     delete project.assets[params.assetId];
     project.project.updatedAt = new Date().toISOString();
-    await projectRepo.writeProject(params.id, project);
+    await projectRepo.writeProject(params.id, ownerId, project);
 
     // Try to delete the file (best effort)
     const filename = asset.uri.split("/").pop();
@@ -313,10 +395,27 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
       }
     }
 
+    void auditLog({
+      userId: ownerId,
+      action: "asset.delete",
+      projectId: params.id,
+      extra: { assetId: params.assetId },
+    });
+
     return { deleted: true };
   })
   // ── Asset serve ─────────────────────────────────────────────────────────
-  .get("/:id/assets/:filename", async ({ params, set }) => {
+  .get("/:id/assets/:filename", async ({ auth, params, set }) => {
+    const ownerId = requireOwnerId(auth);
+    // Ownership check first: even though asset filenames are UUIDs, we
+    // don't want to leak existence of another user's asset by filename
+    // probing. Reading through `readProject` gates the whole endpoint.
+    const project = await projectRepo.readProject(params.id, ownerId);
+    if (!project) {
+      set.status = 404;
+      return { error: "Project not found" };
+    }
+
     // Containment check: reject anything that isn't a bare basename, then
     // verify the resolved path stays inside the project's asset directory.
     // Without this, ".." segments or absolute paths in `:filename` could

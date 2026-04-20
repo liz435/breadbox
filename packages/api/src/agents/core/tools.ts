@@ -5,12 +5,13 @@ import type { BoardOp, BoardState } from "@dreamer/schemas";
 import {
   boardStateToDiagram,
   createDefaultBoardState,
-  diagramSchema,
+  diagramToolInputSchema,
   diagramToBoardState,
   isBoardComponentType,
   resolveComponentPins,
   resolveComponentPin,
   validateDiagram,
+  withDiagramSchemaVersion,
   getComponentPinNames as getSharedPinNames,
 } from "@dreamer/schemas";
 import { boardTracker } from "../../db/board-state-tracker";
@@ -18,6 +19,7 @@ import { makeBoardOp } from "../make-op";
 import { analyzePowerBudget } from "../../electrical/power-budget-analyzer";
 import { analyzeRoutingPolicy } from "../../electrical/routing-policy";
 import { validateSketch } from "../../utils/sketch-validator";
+import { WIRING_GUIDE_TEXT } from "./wiring-guide-text";
 
 // ── All component types (kept in sync with schema) ──────────────────────
 
@@ -189,6 +191,11 @@ const BUILD_MODE_TOOLS = new Set([
   "analyze_power_budget",
   "get_wiring_guide",
   "propose_circuit",
+  // validate_design is the prompt-documented dry-run gate for apply_design
+  // ("validate-first workflow"). Must be in both mode sets so the agent
+  // doesn't hallucinate an unknown-tool error when the prompt tells it to
+  // validate before committing.
+  "validate_design",
   "apply_design",
   "update_sketch",
   "patch_sketch",
@@ -203,6 +210,7 @@ const EDIT_MODE_TOOLS = new Set([
   "get_board_state",
   "analyze_power_budget",
   "get_wiring_guide",
+  "validate_design",
   "apply_design",
   "place_component",
   "update_component",
@@ -366,38 +374,7 @@ export function createCoreTools(params: {
     get_wiring_guide: tool({
       description: "Reference: wiring rules, component footprints, pin names. Call once before placing/wiring if unsure.",
       inputSchema: z.object({}),
-      execute: async () => ({
-        guide: `## Wire Colors (always follow this convention)
-- Power (5V): red — "#ef4444"
-- Ground (GND): black — "#1e293b"
-- Signal / data: any other color (e.g. yellow "#eab308", blue "#3b82f6", green "#22c55e")
-- Use a distinct color per signal line when multiple signals are present.
-
-## Wiring Rules
-- ALL connections come from WIRES, not pin assignments. Set all component pins to null.
-- Same-row cols 0-4 are connected (left bus). Same-row cols 5-9 are connected (right bus). No wire needed within a bus.
-- Use ONE direct wire per Arduino pin. If a net fans out (multiple loads), land one wire on a breadboard row/rail and branch from there.
-- LED: always add 220Ω resistor. Use ledResistorPairs in propose_circuit — auto-wires cathode→resistor→GND.
-- **Series resistors** (7-segment, etc.): Use throughComponent in propose_circuit wires. Example: {arduinoPin:2, toComponent:0, toPin:"a", throughComponent:1, throughEntryPin:"b", throughExitPin:"a"}. The tool auto-places the resistor on the same row as the target pin.
-- 3-pin components (servo/pot/sensor): each pin on a SEPARATE ROW or they short via bus. Wire signal→(row,x), 5V→(row+1,x), GND→(row+2,x).
-- Button: straddles center gap. Pin "a" at col 3, pin "b" at col 6. Wire signal to one side, GND/5V to the other.
-- High-current loads (servo, motor, relay) should use external power_supply with common ground.
-- For shared GND or shared power, prefer rail distribution: Arduino GND/5V → rail once, then rail → each component.
-- Resistor: always at cols 3 (pin a) and 6 (pin b), bridging the center gap. Placement col is ignored.
-
-## Footprints
-LED: 2 rows vertical (anode y, cathode y+1) | Resistor: horizontal at cols 3,6 (a=col3, b=col6) | Button: cols 3,6 rows y,y+1 (a=col3, b=col6) | Servo/Pot: 3 rows | 7-seg: 9 rows (a-g,dp,gnd) | Capacitor: 2 rows
-
-## Pin Names
-LED: anode,cathode | RGB: red,green,blue,common | Button: a,b | Resistor: a,b | Capacitor: positive,negative | Pot: vcc,signal,gnd | Buzzer: positive,negative | Servo: signal,vcc,gnd | NeoPixel: din,vcc,gnd | PIR/DHT/IR: signal | Relay/Motor: signal | ShiftReg: data,clock,latch | OLED: gnd,vcc,scl,sda | LCD: vss,vdd,vo,rs,rw,en,d4,d5,d6,d7,a,k | 7seg: a,b,c,d,e,f,g,dp,gnd
-
-## Arduino Pins
-Board target: arduino_uno
-Signal pin IDs: 0-69 (board-dependent)
-Analog pins: A0=14, A1=15, A2=16, A3=17, A4=18, A5=19
-PWM pins: D3,D5,D6,D9,D10,D11
-Special wire pin IDs: 5V=-1, 3V3=-2, GND=-3/-4/-6, VIN=-5, AREF=-7`,
-      }),
+      execute: async () => ({ guide: WIRING_GUIDE_TEXT }),
     }),
 
     // ── Component CRUD ──────────────────────────────────────────────
@@ -832,10 +809,12 @@ Special wire pin IDs: 5V=-1, 3V3=-2, GND=-3/-4/-6, VIN=-5, AREF=-7`,
     validate_design: tool({
       description: `Validate a DreamerDiagram (DSL v1) WITHOUT applying it. Runs structural checks (pin names, component types, wire endpoints) AND semantic checks (dangling components, sketch pins not wired, missing GND, empty sketch). Returns an ok flag + issues[] with severity/category/code/path/message.
 
-Call this BEFORE apply_design when generating a new diagram — it tells you exactly what to fix without touching the board.`,
-      inputSchema: diagramSchema,
+Call this BEFORE apply_design when generating a new diagram — it tells you exactly what to fix without touching the board.
+
+Note: pass the diagram body directly ({ board, sketch, components, wires, ... }). Do NOT include a "$schema" field in the tool args — it's injected automatically.`,
+      inputSchema: diagramToolInputSchema,
       execute: async (input) => {
-        const result = validateDiagram(input);
+        const result = validateDiagram(withDiagramSchemaVersion(input));
         return {
           ok: result.ok,
           errorCount: result.issues.filter((i) => i.severity === "error").length,
@@ -862,7 +841,8 @@ Call this BEFORE apply_design when generating a new diagram — it tells you exa
     apply_design: tool({
       description: `Replace the entire board with a DreamerDiagram (DSL v1). Use for scratch generation or whole-project restructure.
 
-Diagram shape: { $schema: "dreamer-diagram-v1", board, sketch, components[], wires[], environment?, customLibraries? }
+Tool-arg shape: { board?, sketch, components[], wires[], environment?, customLibraries? }
+  Do NOT include a "$schema" field in the tool args — it's injected automatically. (The canonical DSL seen in chat-displayed \`dreamer-diagram\` blocks and pasted payloads still carries "$schema": "dreamer-diagram-v1"; only the tool-input layer omits it.)
 
 Wire endpoints are strings — readable instead of grid coordinates:
   - "arduino.13", "arduino.A0", "arduino.GND", "arduino.5V", "arduino.3V3"
@@ -873,9 +853,9 @@ Wire endpoints are strings — readable instead of grid coordinates:
 Components use { id, type, at: [x, y], rotation?, properties? }. Pin assignments are optional — wire topology resolves them.
 
 This REMOVES every existing component + wire and installs the new design. For incremental edits, prefer place_component / connect_wire / update_sketch.`,
-      inputSchema: diagramSchema,
+      inputSchema: diagramToolInputSchema,
       execute: async (input) => {
-        const result = diagramToBoardState(input);
+        const result = diagramToBoardState(withDiagramSchemaVersion(input));
         if (!result.ok) {
           return {
             error: "Diagram validation failed",
@@ -928,6 +908,12 @@ This REMOVES every existing component + wire and installs the new design. For in
           sketchBytes: target.sketchCode.length,
           boardTarget: target.boardTarget,
           customLibraries: Object.keys(target.customLibraries).length,
+          // Environment (obstacles + boundary) ships atomically inside
+          // load_board → server tracker → frontend LOAD_BOARD handler.
+          // Surfacing counts here gives the model feedback that a pasted
+          // diagram's ultrasonic-ray-casting obstacles survived the apply.
+          obstacleCount: Object.keys(target.environment.obstacles).length,
+          boundaryEnabled: target.environment.boundaryEnabled,
         };
       },
     }),
@@ -1453,45 +1439,78 @@ Example — LED blink:
           if (wire.throughComponent !== undefined && wire.throughEntryPin && wire.throughExitPin) {
             // Series routing: Arduino → throughComponent.entryPin
             const through = placedComponents[wire.throughComponent];
-            const entryPoint = resolveComponentPinTarget(
-              { type: through.type, x: through.col, y: through.row },
+
+            const resolveBoth = (entryPin: string, exitPin: string) => {
+              const ep = resolveComponentPinTarget(
+                { type: through.type, x: through.col, y: through.row },
+                entryPin,
+              );
+              const xp = resolveComponentPinTarget(
+                { type: through.type, x: through.col, y: through.row },
+                exitPin,
+              );
+              return { ep, xp };
+            };
+
+            let { ep: entryPoint, xp: exitPoint } = resolveBoth(
               wire.throughEntryPin,
+              wire.throughExitPin,
             );
-            if (!entryPoint) {
+            if (!entryPoint || !exitPoint) {
               errors.push(`Unable to resolve throughComponent ${wire.throughComponent}.${wire.throughEntryPin}`);
               continue;
             }
 
-            // Wire Arduino pin to the intermediate's entry pin
-            if (!wiresByPin.has(wire.arduinoPin)) wiresByPin.set(wire.arduinoPin, []);
-            wiresByPin.get(wire.arduinoPin)!.push({ target: entryPoint, color });
-
-            // Now check if the exit pin needs a jumper to the final target
-            const exitPoint = resolveComponentPinTarget(
-              { type: through.type, x: through.col, y: through.row },
-              wire.throughExitPin,
-            );
             const finalTarget = placedComponents[wire.toComponent];
             const finalPoint = resolveComponentPinTarget(
               { type: finalTarget.type, x: finalTarget.col, y: finalTarget.row },
               wire.toPin,
             );
-            if (!exitPoint || !finalPoint) {
+            if (!finalPoint) {
               errors.push(`Unable to resolve series endpoints for through=${wire.throughComponent}.${wire.throughExitPin} → ${wire.toComponent}.${wire.toPin}`);
               continue;
             }
 
-            // If exit and target are on the same breadboard bus, no jumper needed
-            const exitLeft = exitPoint.col >= 0 && exitPoint.col <= 4;
-            const exitRight = exitPoint.col >= 5 && exitPoint.col <= 9;
-            const targetLeft = finalPoint.col >= 0 && finalPoint.col <= 4;
-            const targetRight = finalPoint.col >= 5 && finalPoint.col <= 9;
-            const sameBus =
-              exitPoint.row === finalPoint.row &&
-              ((exitLeft && targetLeft) || (exitRight && targetRight));
+            // Strip-membership helpers — used twice below.
+            const onSameBus = (
+              a: { row: number; col: number },
+              b: { row: number; col: number },
+            ) => {
+              if (a.row !== b.row) return false;
+              const aLeft = a.col >= 0 && a.col <= 4;
+              const aRight = a.col >= 5 && a.col <= 9;
+              const bLeft = b.col >= 0 && b.col <= 4;
+              const bRight = b.col >= 5 && b.col <= 9;
+              return (aLeft && bLeft) || (aRight && bRight);
+            };
 
-            if (!sameBus) {
-              // Generate a jumper wire from exit to target
+            // **Resistor-short guard.** If the entry pin's bus already
+            // includes the final target (e.g. resistor at row 0 with pin
+            // b at col 6 RIGHT strip, target seg.a at col 5 RIGHT strip),
+            // wiring Arduino → entry would put the supply on the same
+            // net as the load, with the resistor body in parallel to a
+            // zero-resistance bus path. The model picked the wrong pin
+            // as "entry"; the resistor body is supposed to be the only
+            // crossing between the two strips. Swap entry and exit so
+            // Arduino enters via the gap-opposite pin and the body
+            // becomes the only conductive path. Symptom we're fixing:
+            // current bypasses the resistor entirely on 7-seg + per-
+            // segment-resistor circuits with throughComponent.
+            if (onSameBus(entryPoint, finalPoint)) {
+              const swapped = resolveBoth(wire.throughExitPin, wire.throughEntryPin);
+              if (swapped.ep && swapped.xp) {
+                entryPoint = swapped.ep;
+                exitPoint = swapped.xp;
+              }
+            }
+
+            // Wire Arduino pin to the intermediate's entry pin (post-swap).
+            if (!wiresByPin.has(wire.arduinoPin)) wiresByPin.set(wire.arduinoPin, []);
+            wiresByPin.get(wire.arduinoPin)!.push({ target: entryPoint, color });
+
+            // If exit and target share a bus, the breadboard does the
+            // jumper for us. Otherwise emit an explicit wire.
+            if (!onSameBus(exitPoint, finalPoint)) {
               seriesJumperOps.push(makeBoardOp(opCtx, {
                 kind: "connect_wire",
                 payload: {

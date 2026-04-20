@@ -6,7 +6,8 @@
     "createdAt": "2026-04-15T03:49:12.255Z",
     "updatedAt": "2026-04-15T04:58:37.256Z",
     "threadId": "1c8b1501-6f35-4588-a19b-dacde48299a1",
-    "activeSceneId": "bf5e736d-a444-4179-96f3-adbec2c110b7"
+    "activeSceneId": "bf5e736d-a444-4179-96f3-adbec2c110b7",
+    "ownerId": "local"
   },
   "scenes": {
     "bf5e736d-a444-4179-96f3-adbec2c110b7": {

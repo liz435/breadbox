@@ -1,6 +1,14 @@
+// ── Secret lockdown (must be first) ─────────────────────────────────────
+// Side-effect import: captures ANTHROPIC_API_KEY into a module-local and
+// deletes it from process.env before any agent/tool module loads.
+import "./bootstrap-secrets";
+
 import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { createLogger } from "./logger";
+import { authPlugin } from "./auth/middleware";
+import { startSessionGc } from "./auth/session-gc";
+import { migrateOwnership } from "./db/migrate-ownership";
 import { projectRoutes } from "./routes/projects";
 import { agentRunRoutes } from "./routes/agent-run";
 import { chatRoutes, awaitPendingSummaries } from "./routes/chat";
@@ -10,10 +18,12 @@ import { boardRoutes } from "./routes/boards";
 import { evalRoutes } from "./routes/eval";
 import { libraryRoutes } from "./routes/libraries";
 import { capabilitiesRoutes } from "./routes/capabilities";
+import { authRoutes } from "./routes/auth";
+import { adminRoutes } from "./routes/admin";
 import { createWebUiStatic } from "./routes/web-ui-static";
 import { stopWorker } from "./serial/serialport-bridge";
 import { APP_ORIGIN, API_PORT as _API_PORT } from "@dreamer/config";
-import { IS_HOSTED } from "./env";
+import { DREAMER_BIND, IS_HOSTED } from "./env";
 
 const API_PORT = Number(process.env.PORT ?? _API_PORT);
 
@@ -25,14 +35,53 @@ const log = createLogger("server");
 // `handleNotFound` returns undefined so the app behaves unchanged.
 const { plugin: staticWebUi, handleNotFound } = createWebUiStatic();
 
+// ── CORS origin list ────────────────────────────────────────────────────
+//
+// Hosted: same-origin by construction (API serves the web UI from the
+// same Railway container), so we reflect the request's Host when it
+// matches an explicit APP_ORIGIN env, otherwise deny. Dropping the
+// previous `origin: true` closes an open CORS hole on the shared
+// deployment.
+//
+// Local: keep APP_ORIGIN (the Vite dev server) — same as before — plus
+// loopback aliases so `localhost` and `127.0.0.1` both work.
+const HOSTED_APP_ORIGIN = process.env.APP_ORIGIN ?? "";
+const corsOrigin: string[] = IS_HOSTED
+  ? HOSTED_APP_ORIGIN
+    ? [HOSTED_APP_ORIGIN]
+    : [] // same-origin only: no APP_ORIGIN set ⇒ no cross-origin browsers allowed
+  : [
+      APP_ORIGIN,
+      "http://localhost:3002",
+      "http://127.0.0.1:3002",
+      "http://localhost:3004",
+      "http://127.0.0.1:3004",
+    ];
+
+// ── Ownership migration ─────────────────────────────────────────────────
+// Scan project JSONs that predate the ownerId schema field. Hosted mode
+// quarantines them under `_legacy/`; local mode stamps them with
+// `ownerId: "local"` in place. Failures are logged and swallowed — a
+// migration error must not wedge a restart, since we can always re-run
+// on the next boot.
+try {
+  await migrateOwnership();
+} catch (err) {
+  log.warn(`ownership migration failed: ${err instanceof Error ? err.message : err}`);
+}
+
 const app = new Elysia()
   .use(
     cors({
-      origin: IS_HOSTED ? true : APP_ORIGIN,
+      origin: corsOrigin,
+      credentials: true,
       methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: ["Content-Type"],
     })
   )
+  .use(authPlugin)
+  .use(authRoutes)
+  .use(adminRoutes)
   .use(projectRoutes)
   .use(agentRunRoutes)
   .use(chatRoutes)
@@ -51,9 +100,15 @@ const app = new Elysia()
     const url = new URL(request.url)
     return handleNotFound(url.pathname)
   })
-  .listen({ port: API_PORT, hostname: "0.0.0.0" });
+  .listen({ port: API_PORT, hostname: DREAMER_BIND });
 
-log.info(`listening on http://0.0.0.0:${app.server?.port}${IS_HOSTED ? " (hosted, serving web UI)" : ""}`);
+log.info(`listening on http://${DREAMER_BIND}:${app.server?.port}${IS_HOSTED ? " (hosted, serving web UI)" : ""}`);
+
+// ── Session GC ──────────────────────────────────────────────────────────────
+// Sweeps expired session files every 6h so `$DREAMER_HOME/sessions/`
+// doesn't grow unbounded. Interval is unref'd — a tick in flight won't
+// hold the process open during shutdown.
+startSessionGc();
 
 // ── Graceful shutdown ───────────────────────────────────────────────────────
 // Railway sends SIGTERM on redeploy with ~10s before SIGKILL. We stop

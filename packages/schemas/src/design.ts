@@ -99,3 +99,28 @@ export type DreamerDiagram = z.infer<typeof diagramSchema>;
 
 /** Pre-parse shape — defaults optional. Use when authoring a diagram or in tests. */
 export type DreamerDiagramInput = z.input<typeof diagramSchema>;
+
+// ── Tool-facing schema ───────────────────────────────────────────────────
+//
+// Anthropic's tool-input JSON Schema validator rejects property keys that
+// don't match `^[a-zA-Z0-9_.-]{1,64}$`, and `$schema` starts with `$`. So
+// when we hand a zod schema to the AI SDK `tool({ inputSchema })`, the DSL's
+// `$schema` field would blow up the request before the model is even asked.
+//
+// Solution: the tool-facing schema omits `$schema`. The canonical DSL still
+// carries it for persistence / chat display / URL import. Tool handlers
+// re-attach `$schema: DIAGRAM_SCHEMA_V1` before running the canonical
+// `diagramSchema`-based validators / adapters.
+export const diagramToolInputSchema = diagramSchema.omit({ $schema: true });
+
+/** Input shape accepted by `validate_design` / `apply_design` tool handlers. */
+export type DiagramToolInput = z.input<typeof diagramToolInputSchema>;
+
+/**
+ * Re-attach the schema-version discriminator the canonical `diagramSchema`
+ * requires. The tool handler runs this on its input before handing it to
+ * `validateDiagram` / `diagramToBoardState`.
+ */
+export function withDiagramSchemaVersion(input: DiagramToolInput): DreamerDiagramInput {
+  return { ...input, $schema: DIAGRAM_SCHEMA_V1 };
+}

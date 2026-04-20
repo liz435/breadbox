@@ -8,6 +8,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react"
 import { useBoard } from "@/store/board-context"
 import { API_ORIGIN } from "@dreamer/config"
 import { useCapabilities } from "@/project/use-capabilities"
+import { resolveFetchOptions } from "@/project/api-client"
 import { Plus, Trash2, ChevronDown, ChevronRight, Upload, FileCode, Loader2, Package } from "lucide-react"
 import { LibraryBrowser } from "./library-browser"
 
@@ -42,7 +43,10 @@ function MyLibrariesTab() {
 
   const refreshInstalled = useCallback(async () => {
     try {
-      const res = await fetch(`${API_ORIGIN}/api/libraries/installed`)
+      const res = await fetch(
+        `${API_ORIGIN}/api/libraries/installed`,
+        resolveFetchOptions(),
+      )
       if (!res.ok) {
         setInstalled([])
         setInstalledLoaded(true)
@@ -64,11 +68,14 @@ function MyLibrariesTab() {
       setUninstalling((s) => { const next = new Set(s); next.add(name); return next })
       setUninstallError((e) => { const n = { ...e }; delete n[name]; return n })
       try {
-        const res = await fetch(`${API_ORIGIN}/api/libraries/uninstall`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name }),
-        })
+        const res = await fetch(
+          `${API_ORIGIN}/api/libraries/uninstall`,
+          resolveFetchOptions({
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name }),
+          }),
+        )
         const data = (await res.json()) as { success?: boolean; error?: string }
         if (!res.ok || !data.success) {
           setUninstallError((e) => ({ ...e, [name]: data.error ?? `HTTP ${res.status}` }))

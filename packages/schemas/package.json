@@ -9,9 +9,11 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "lz-string": "^1.5.0",
     "zod": "^4"
   },
   "devDependencies": {
+    "@types/lz-string": "^1.5.0",
     "typescript": "^5.7.0"
   }
 }

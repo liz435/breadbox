@@ -46,8 +46,27 @@ import {
   CompileCancelledError,
   compileSlotStats,
 } from "./_compile-limiter"
+import type { AuthContext } from "../auth/context"
+import { authPlugin } from "../auth/middleware"
+import { requireRateLimit, RateLimitError } from "../auth/rate-limit"
+import { auditLog } from "../auth/audit-log"
 
 const log = createLogger("flash")
+
+function requireOwnerId(auth: AuthContext | null | undefined): string {
+  if (!auth) throw new Error("missing auth context on authed route")
+  return auth.userId
+}
+
+// Allowlist serial port paths: macOS tty/cu devices, Linux ttyUSB/ttyACM/ttyS, Windows COM.
+// Defense-in-depth against a buggy client that might send `/dev/sda`
+// (flash is already hosted-gated upstream).
+export const ALLOWED_PORT_PATTERN =
+  /^(\/dev\/tty\.[\w\-.]+|\/dev\/cu\.[\w\-.]+|\/dev\/ttyUSB\d+|\/dev\/ttyACM\d+|\/dev\/ttyS\d+|COM\d+)$/
+
+export function isAllowedFlashPort(port: string): boolean {
+  return ALLOWED_PORT_PATTERN.test(port)
+}
 
 const COMPILE_TIMEOUT_MS = 120_000
 /** avrdude uploads are fast but erase+verify on large sketches can stretch. */
@@ -115,7 +134,8 @@ function abortMessage(phase: "compile" | "flash", reason: "timeout" | "signal", 
   return `${phase} cancelled`
 }
 
-export const flashRoutes = new Elysia().post("/api/flash", async ({ body, request, set }) => {
+export const flashRoutes = new Elysia().use(authPlugin).post("/api/flash", async ({ auth, body, request, set }) => {
+  const ownerId = requireOwnerId(auth)
   // Hosted replicas have no USB — reject uploads up front with a clear
   // error so the UI can surface it. Without this, the compile step would
   // succeed and avrdude would blow up on a non-existent port.
@@ -127,6 +147,24 @@ export const flashRoutes = new Elysia().post("/api/flash", async ({ body, reques
   if (!parsed.success) {
     set.status = 400
     return { error: parsed.error.issues[0]?.message ?? "Invalid request" }
+  }
+
+  // Allowlist the port path before we touch anything expensive. Reject
+  // `/dev/sda`, `/dev/zero`, arbitrary paths, etc.
+  if (!ALLOWED_PORT_PATTERN.test(parsed.data.port)) {
+    set.status = 400
+    return { error: `Invalid port: ${parsed.data.port}` }
+  }
+
+  try {
+    await requireRateLimit("compile", ownerId, auth?.mode)
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      set.status = 429
+      set.headers["Retry-After"] = String(err.retryAfterSec)
+      return { error: err.message, retryAfterSec: err.retryAfterSec }
+    }
+    throw err
   }
 
   let release: () => void
@@ -153,6 +191,12 @@ export const flashRoutes = new Elysia().post("/api/flash", async ({ body, reques
   const sketchDir = join(tmpdir(), `arduino-flash-${sketchId}`)
   const sketchFile = join(sketchDir, "sketch", "sketch.ino")
   const outputDir = join(sketchDir, "output")
+
+  void auditLog({
+    userId: ownerId,
+    action: "flash.start",
+    extra: { sketchId, fqbn, port },
+  })
 
   const { stream, writer } = createNdjsonStream()
   const signal = request.signal

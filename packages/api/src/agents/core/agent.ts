@@ -1,5 +1,5 @@
 import { streamText, stepCountIs } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
+import { anthropicModel } from "../anthropic-provider";
 import type { ModelMessage } from "ai";
 import { createCoreTools, summarizeBoardState } from "./tools";
 import type { AgentContext, AgentResult } from "../types";
@@ -11,7 +11,6 @@ import { agentRunRepo } from "../../db/agent-run-repo";
 import { runPolicies } from "../policy-engine";
 import { generatePlan, type AgentPlan, type PlannerUsage } from "../planner";
 import { reflectOnOutput, shouldReplan } from "../reflection";
-import { normalizeAgentPrompt } from "../prompt-normalizer";
 import { AGENT_VERSION } from "../version";
 import {
   CORE_PROMPT_SNAPSHOTS,
@@ -209,10 +208,13 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
   const log = ctx.parentLog.child("core-agent");
   const start = performance.now();
   const ops: BoardOp[] = [];
-  const normalization = normalizeAgentPrompt(ctx.prompt);
-  const agentPrompt = normalization.shouldUseNormalizedPrompt
-    ? normalization.normalizedPrompt
-    : ctx.prompt;
+  // Prompt normalizer retired. Earlier it wrapped the user message in an
+  // Execution-brief / Safety-constraints / Expected-output scaffold, but
+  // those concerns are now fully covered by the system prompt (COMMON_PROMPT
+  // + BUILD_PROMPT v1.3.5). Passing the raw user prompt through saves
+  // ~100-200 tokens/turn and avoids duplicating guidance the system prompt
+  // already enforces.
+  const agentPrompt = ctx.prompt;
 
   // Use the boardTracker's live state if it's ahead of the project snapshot
   // passed in, so the router sees the most recent tentative state.
@@ -243,15 +245,6 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
   log.info(
     `starting — prompt: ${ctx.prompt.slice(0, 100)}`
   );
-  if (normalization.shouldUseNormalizedPrompt) {
-    log.info(
-      `prompt normalized for execution — components: ${
-        normalization.detectedComponents.length > 0
-          ? normalization.detectedComponents.join(", ")
-          : "none"
-      }`
-    );
-  }
 
   // Shared working board between core tools and delegated specialists.
   const trackedBoard = boardTracker.get(ctx.projectId);
@@ -325,9 +318,23 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
   let plan: AgentPlan | undefined;
   let plannerUsage: PlannerUsage | undefined;
 
+  // Capture the first streamText error so we can rethrow it from collectResult
+  // with its real identity preserved. Without this, any provider-side
+  // rejection (AI_APICallError, schema validation, auth) is swallowed by
+  // onError and the pipeline continues until it naturally ends in
+  // AI_NoOutputGeneratedError 5+ seconds later — losing the actual cause.
+  let capturedStreamError: unknown;
+
   // Generate plan in parallel with stream setup (fire-and-forget into the
-  // plan variable — the stream doesn't block on it, but collectResult uses it)
-  const planPromise = generatePlan({
+  // plan variable — the stream doesn't block on it, but collectResult uses it).
+  //
+  // The .catch() here MUST resolve to undefined (not re-throw) so that
+  // `await planPromise` in collectResult never propagates a planner failure
+  // up the chat request: the chat is allowed to succeed without a plan.
+  // If you need to short-circuit the chat on planner failure, do it
+  // explicitly here and from collectResult — do not couple it via the
+  // promise chain.
+  const planPromise: Promise<void> = generatePlan({
     prompt: ctx.prompt,
     boardSummary,
     routing: decision,
@@ -336,11 +343,17 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
     plannerUsage = result.usage;
     log.info(`plan: ${plan.summary} (${plan.steps.length} steps, destructive: ${plan.isDestructive})`);
   }).catch((err) => {
-    log.warn(`plan generation failed (non-blocking): ${err}`);
+    // Surface enough detail to distinguish provider rejections (e.g. schema
+    // shape rejections from `output_config.format.schema`) from transient
+    // network errors when triaging.
+    const detail = err instanceof Error
+      ? `${err.name}: ${err.message}`
+      : String(err);
+    log.warn(`plan generation failed (non-blocking): ${detail}`);
   });
 
   const stream = streamText({
-    model: anthropic(CORE_MODEL),
+    model: anthropicModel(CORE_MODEL),
     tools,
     messages,
     stopWhen: stepCountIs(10),
@@ -422,6 +435,12 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
     },
 
     onError({ error }) {
+      // Preserve the first (root-cause) error. Subsequent errors during
+      // the same stream are almost always downstream of the first, so
+      // replacing it would hide the real failure.
+      if (capturedStreamError === undefined) {
+        capturedStreamError = error;
+      }
       log.error("streamText error", error);
     },
     onStepFinish({ toolCalls, usage, finishReason }) {
@@ -575,10 +594,17 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
       text = await stream.text;
       allMessages = (await stream.response).messages as ModelMessage[];
     } catch (err) {
-      if (!isSketchRecoveryAbandoned()) {
+      // Sketch recovery is the only "expected" abort — everything else
+      // should surface. If onError captured a root-cause error earlier in
+      // the stream, prefer that over the generic tail error (which is
+      // usually AI_NoOutputGeneratedError — a symptom, not the cause).
+      if (isSketchRecoveryAbandoned()) {
+        log.warn(`stream aborted after sketch recovery abandonment: ${String(err)}`);
+      } else if (capturedStreamError !== undefined) {
+        throw capturedStreamError;
+      } else {
         throw err;
       }
-      log.warn(`stream aborted after sketch recovery abandonment: ${String(err)}`);
     }
     const elapsed = (performance.now() - start).toFixed(1);
 
