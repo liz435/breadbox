@@ -8,6 +8,8 @@ import {
 import { fetchProject, createProject, ApiError } from "./api-client";
 import { API_PORT } from "@dreamer/config";
 import type { ProjectFile } from "./schemas";
+import { isAnonymousPreview } from "@/auth/use-current-user";
+import { createPreviewProjectFile } from "./preview-project";
 
 type LoadState =
   | { status: "loading" }
@@ -17,6 +19,13 @@ type LoadState =
 const SESSION_ID = crypto.randomUUID();
 
 async function loadProject(): Promise<ProjectFile> {
+  // Anonymous visitors on hosted deploys: skip the API entirely and boot
+  // from a bundled example. Saves / mutations are gated separately in
+  // api-client and surface a sign-in prompt.
+  if (isAnonymousPreview()) {
+    return createPreviewProjectFile();
+  }
+
   const savedId = getSavedProjectId();
 
   if (savedId) {

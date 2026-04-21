@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-04-20T04:31:23.437Z",
-  "totalRuns": 57,
+  "generatedAt": "2026-04-21T00:34:56.793Z",
+  "totalRuns": 63,
   "notEvaluable": 0,
   "categories": {
     "template": {
@@ -14,19 +14,19 @@
       "byModel": {}
     },
     "topLevel": {
-      "runs": 55,
-      "scored": 55,
+      "runs": 61,
+      "scored": 61,
       "avgScore": 80,
       "avgToolErrorRate": 0.02,
-      "avgTokensPerRun": 32729,
-      "hallucinationRate": 4,
-      "totalCost": 3.4942,
+      "avgTokensPerRun": 31493,
+      "hallucinationRate": 3,
+      "totalCost": 3.6253,
       "byModel": {
         "claude-haiku-4-5-20251001": {
-          "runs": 41,
+          "runs": 47,
           "avgScore": 83,
-          "totalTokens": 1330843,
-          "totalCost": 1.4747
+          "totalTokens": 1451828,
+          "totalCost": 1.6058
         },
         "claude-sonnet-4-6": {
           "runs": 14,
@@ -65,8 +65,8 @@
     }
   },
   "byDomain": {
-    "breadboard": 53,
-    "chat_only": 4
+    "breadboard": 57,
+    "chat_only": 6
   },
   "topIssues": [
     {
@@ -78,12 +78,12 @@
       "count": 8
     },
     {
-      "issue": "Hallucination",
-      "count": 4
+      "issue": "Missing resistors",
+      "count": 7
     },
     {
-      "issue": "Missing resistors",
-      "count": 3
+      "issue": "Hallucination",
+      "count": 4
     },
     {
       "issue": "Bus shorts",
@@ -128,15 +128,15 @@
   ],
   "avgScore": 80,
   "avgToolErrorRate": 0.02,
-  "avgTokensPerRun": 32729,
-  "hallucinationRate": 4,
-  "proposeCircuitAdoption": 58,
+  "avgTokensPerRun": 31493,
+  "hallucinationRate": 3,
+  "proposeCircuitAdoption": 52,
   "byModel": {
     "claude-haiku-4-5-20251001": {
-      "runs": 41,
+      "runs": 47,
       "avgScore": 83,
-      "totalTokens": 1330843,
-      "totalCost": 1.4747
+      "totalTokens": 1451828,
+      "totalCost": 1.6058
     },
     "claude-sonnet-4-6": {
       "runs": 14,

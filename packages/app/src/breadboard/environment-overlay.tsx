@@ -43,6 +43,16 @@ export function EnvironmentOverlay({ environment, components }: EnvironmentOverl
   // writing to the board store on every pointer move.
   const [dragOffset, setDragOffset] = useState<{ id: string; dx: number; dy: number } | null>(null)
 
+  // Obstacles belong to the environment, not the component graph, so
+  // selecting an obstacle id leaves the inspector empty. Route the click
+  // to the first ultrasonic sensor on the board instead — its inspector
+  // panel *is* the environment editor (live distance, obstacle list,
+  // room-walls toggle), so the user sees the info they expect.
+  const ultrasonicSensorId = useMemo(
+    () => components.find((c) => c.type === "ultrasonic_sensor")?.id ?? null,
+    [components],
+  )
+
   // Apply the live drag offset to the obstacle map so we render — and
   // ray-cast against — the previewed position.
   const displayObstacles = useMemo(() => {
@@ -133,9 +143,13 @@ export function EnvironmentOverlay({ environment, components }: EnvironmentOverl
       }
       setDragOffset({ id: obs.id, dx: 0, dy: 0 })
       e.currentTarget.setPointerCapture(e.pointerId)
-      send({ type: "SELECT", id: obs.id })
+      // Prefer selecting the ultrasonic sensor so the inspector renders
+      // UltrasonicInspector (live distance, obstacle list, room walls). Fall
+      // back to selecting the obstacle id if no sensor is on the board —
+      // inspector then shows the empty placeholder, same as today.
+      send({ type: "SELECT", id: ultrasonicSensorId ?? obs.id })
     },
-    [send],
+    [send, ultrasonicSensorId],
   )
 
   const handlePointerMove = useCallback((e: React.PointerEvent<SVGElement>) => {

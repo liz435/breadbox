@@ -30,6 +30,19 @@ const PUBLIC_PATHS = new Set<string>([
   "/__bootstrap",
 ])
 
+// The API's guarded surface. Anything outside these prefixes — static
+// assets, the SPA shell, favicon, SPA client-side routes that fall through
+// to index.html — is served without auth; the API calls the SPA makes from
+// inside are what carry session cookies and get gated.
+const AUTHED_PREFIXES = ["/api", "/project", "/agent"] as const
+
+function isAuthedApiPath(pathname: string): boolean {
+  for (const prefix of AUTHED_PREFIXES) {
+    if (pathname === prefix || pathname.startsWith(prefix + "/")) return true
+  }
+  return false
+}
+
 // Allowed Host headers in local mode. CLI binds either 4111 (dev) or
 // 4112 (headed CLI); we accept loopback on both so `dreamer headed` and
 // `bun run dev` share the same gate.
@@ -107,7 +120,12 @@ export const authPlugin = new Elysia({ name: "auth" }).derive(
 
     const { request, set } = ctx
     const url = new URL(request.url)
+    // Public API endpoints (discovery + OAuth dance) bypass the gate.
     if (PUBLIC_PATHS.has(url.pathname)) return { auth: null }
+    // Non-API paths — static assets, SPA shell, client-side route fallback —
+    // are always public. The SPA's own fetch calls carry cookies and hit
+    // the guarded API surface from inside.
+    if (!isAuthedApiPath(url.pathname)) return { auth: null }
 
     // ── Local mode ──────────────────────────────────────────────────
     if (!IS_HOSTED) {

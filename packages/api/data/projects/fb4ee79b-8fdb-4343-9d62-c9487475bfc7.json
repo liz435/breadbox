@@ -2,12 +2,12 @@
   "project": {
     "id": "fb4ee79b-8fdb-4343-9d62-c9487475bfc7",
     "name": "noble-lark-gear",
+    "ownerId": "local",
     "version": 1,
     "createdAt": "2026-04-18T11:20:01.405Z",
-    "updatedAt": "2026-04-19T06:59:51.730Z",
+    "updatedAt": "2026-04-21T02:54:11.626Z",
     "threadId": "2b677cf7-75eb-4abf-987a-cf0802d0d26a",
-    "activeSceneId": "7baad0ec-8526-4803-a202-e9c32112aa39",
-    "ownerId": "local"
+    "activeSceneId": "7baad0ec-8526-4803-a202-e9c32112aa39"
   },
   "scenes": {
     "7baad0ec-8526-4803-a202-e9c32112aa39": {
@@ -79,91 +79,42 @@
   },
   "boardState": {
     "components": {
-      "resistor-1": {
-        "id": "resistor-1",
-        "type": "resistor",
-        "name": "R1 1kΩ",
-        "x": 3,
+      "dht-1": {
+        "id": "dht-1",
+        "type": "dht_sensor",
+        "name": "DHT11",
+        "x": 7,
         "y": 5,
         "rotation": 0,
         "pins": {
-          "a": null,
-          "b": null
+          "signal": null
         },
-        "properties": {
-          "resistance": 1000
-        }
-      },
-      "capacitor-1": {
-        "id": "capacitor-1",
-        "type": "capacitor",
-        "name": "C1 100µF",
-        "x": 8,
-        "y": 5,
-        "rotation": 0,
-        "pins": {
-          "a": null,
-          "b": null
-        },
-        "properties": {
-          "capacitance": 100
-        }
-      },
-      "led-1": {
-        "id": "led-1",
-        "type": "led",
-        "name": "LED",
-        "x": 8,
-        "y": 9,
-        "rotation": 0,
-        "pins": {
-          "anode": null,
-          "cathode": null
-        },
-        "properties": {
-          "color": "#fbbf24"
-        }
+        "properties": {}
       }
     },
     "wires": {
-      "wire-d7": {
-        "id": "wire-d7",
+      "wire-d2": {
+        "id": "wire-d2",
         "fromRow": -999,
-        "fromCol": 7,
+        "fromCol": 2,
         "toRow": 5,
-        "toCol": 3,
-        "color": "#fbbf24"
+        "toCol": 7,
+        "color": "#22c55e"
       },
-      "wire-res-to-junction": {
-        "id": "wire-res-to-junction",
-        "fromRow": 5,
-        "fromCol": 6,
-        "toRow": 5,
-        "toCol": 8,
-        "color": "#fbbf24"
+      "wire-5v": {
+        "id": "wire-5v",
+        "fromRow": -999,
+        "fromCol": -1,
+        "toRow": 6,
+        "toCol": 7,
+        "color": "#ef4444"
       },
-      "wire-junction-to-led": {
-        "id": "wire-junction-to-led",
-        "fromRow": 5,
-        "fromCol": 9,
-        "toRow": 9,
-        "toCol": 8,
-        "color": "#fbbf24"
-      },
-      "wire-cap-gnd": {
-        "id": "wire-cap-gnd",
+      "wire-gnd": {
+        "id": "wire-gnd",
         "fromRow": -999,
         "fromCol": -3,
         "toRow": 7,
-        "toCol": 8,
-        "color": "#1a1a1a"
-      },
-      "wire-led-gnd": {
-        "id": "wire-led-gnd",
-        "fromRow": -999,
-        "fromCol": -4,
-        "toRow": 10,
-        "toCol": 8,
+        "toCol": 7,
         "color": "#1a1a1a"
       }
     },
@@ -174,7 +125,7 @@
       "oled": {}
     },
     "serialOutput": [],
-    "sketchCode": "// Example: Capacitor Charge/Discharge\n// Pin 7 charges a capacitor through a 1kΩ resistor.\n// The LED is in parallel with the cap — it shows the\n// voltage across the cap. When pin 7 goes LOW, the cap\n// discharges through the LED, which fades out slowly.\n\nvoid setup() {\n  pinMode(7, OUTPUT);\n  Serial.begin(9600);\n}\n\nvoid loop() {\n  digitalWrite(7, HIGH);  // charge the cap\n  Serial.println(\"Charging...\");\n  delay(3000);\n  digitalWrite(7, LOW);   // cap discharges through LED\n  Serial.println(\"Discharging...\");\n  delay(3000);\n}\n",
+    "sketchCode": "// Example: DHT Temperature & Humidity Sensor\n// Read temperature and humidity from a DHT11 on pin 2.\n\n#include <DHT.h>\n\n#define DHTPIN 2\n#define DHTTYPE DHT11\n\nDHT dht(DHTPIN, DHTTYPE);\n\nvoid setup() {\n  Serial.begin(9600);\n  dht.begin();\n}\n\nvoid loop() {\n  float temp = dht.readTemperature();\n  float hum = dht.readHumidity();\n  Serial.print(\"Temp: \");\n  Serial.print(temp);\n  Serial.print(\" C  Humidity: \");\n  Serial.print(hum);\n  Serial.println(\"%\");\n  delay(2000);\n}\n",
     "customLibraries": {},
     "boardTarget": "arduino_uno",
     "environment": {

@@ -4,14 +4,14 @@
       "id": "rgb-led-1",
       "type": "rgb_led",
       "name": "RGB LED",
-      "x": 10,
+      "x": 7,
       "y": 5,
       "rotation": 0,
       "pins": {
         "red": null,
         "green": null,
         "blue": null,
-        "cathode": null
+        "common": null
       },
       "properties": {}
     },
@@ -91,7 +91,7 @@
       "fromRow": -999,
       "fromCol": -3,
       "toRow": 8,
-      "toCol": 12,
+      "toCol": 9,
       "color": "#1a1a1a"
     }
   },

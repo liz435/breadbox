@@ -917,6 +917,10 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
       // user can inspect component state mid-simulation. Drag/move is
       // still blocked by the noopDragStart wiring below.
       send({ type: "SELECT", id });
+      // Clear any prior marquee selection — otherwise a subsequent Delete
+      // would fall into the multi-select branch and remove the old group
+      // instead of the just-clicked component.
+      setMultiSelected(new Set());
     },
     [send],
   );
