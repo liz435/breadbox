@@ -8,6 +8,7 @@ import { GraphContext } from "@/store/graph-context"
 import { saveRef, editorContentRef, notifySaveFlash } from "./save-ref"
 import { toast } from "@/components/ui/toast"
 import { API_ORIGIN } from "@dreamer/config"
+import { isAnonymousPreview } from "@/auth/use-current-user"
 import type {
   BoardComponent,
   Wire,
@@ -96,6 +97,10 @@ export function useBoardPersistence(): { saveNow: () => void } {
     // Always flash to confirm Cmd+S was received, even if nothing changed.
     notifySaveFlash()
 
+    // Anonymous preview: nothing to persist, don't fire a request whose
+    // only purpose would be to 401 and surface a "Failed to save" toast.
+    if (isAnonymousPreview()) return
+
     if (savingRef.current) return
 
     const { board, graph } = buildPayload()
@@ -129,6 +134,7 @@ export function useBoardPersistence(): { saveNow: () => void } {
 
   // Debounced auto-save — re-runs on board OR graph change.
   useEffect(() => {
+    if (isAnonymousPreview()) return
     if (Date.now() - mountTimeRef.current < HYDRATION_GRACE_MS) return
 
     const board = boardSlice(boardState)
@@ -177,6 +183,9 @@ export function useBoardPersistence(): { saveNow: () => void } {
   // endpoint accepts the same JSON shape, so one beacon covers both halves.
   useEffect(() => {
     function handleBeforeUnload() {
+      // Preview-mode visitors have nothing to persist; a beacon would just
+      // 401 silently at the server and waste a cross-tab request.
+      if (isAnonymousPreview()) return
       const { board, graph } = buildPayload()
       const boardHash = JSON.stringify(board)
       const graphHash = JSON.stringify(graph)
