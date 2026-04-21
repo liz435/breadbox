@@ -45,8 +45,8 @@ import {
 import { boardCatalog } from "./learn/board-catalog";
 import { decodeDiagramFromUrl, diagramToBoardState } from "@dreamer/schemas";
 import { useCurrentUser } from "./auth/use-current-user";
-import { LoginScreen } from "./auth/login-screen";
 import { LocalNoSessionScreen } from "./auth/local-no-session-screen";
+import { PreviewBanner } from "./auth/preview-banner";
 
 // Dockview panel wrappers — each wrapped in an ErrorBoundary
 function ProjectFilesPanel(_props: IDockviewPanelProps) {
@@ -492,6 +492,7 @@ function AppOrDocs() {
       <AppProviders>
         <AppInner />
       </AppProviders>
+      <PreviewBanner />
     </ProjectLoader>
   );
 }
@@ -505,10 +506,11 @@ function AppOrDocs() {
 //
 // Mode semantics:
 //   - "dev":    bun run dev with DREAMER_DEV_SKIP_AUTH=1. Skip the gate
-//               entirely — no login, no redirect. Useful so frontend
-//               iteration doesn't require wiring OAuth locally.
-//   - "hosted": Railway deploy. Anonymous users see the GitHub sign-in
-//               screen; signed-in users see the app.
+//               entirely — no login, no redirect.
+//   - "hosted": Railway deploy. Anonymous visitors see the full editor
+//               as a live-preview, with mutations blocked behind a
+//               "Sign in with GitHub" banner. Logged-in users get the
+//               normal experience.
 //   - "local":  `dreamer headed` CLI. Without a cookie, show the
 //               "restart your CLI" screen. OAuth isn't a thing here.
 function AuthGate({ children }: { children: ReactNode }) {
@@ -517,7 +519,7 @@ function AuthGate({ children }: { children: ReactNode }) {
   if (loading) return null;
   if (mode === "dev") return <>{children}</>;
   if (user) return <>{children}</>;
-  if (mode === "hosted") return <LoginScreen />;
+  if (mode === "hosted") return <>{children}</>;
   return <LocalNoSessionScreen />;
 }
 

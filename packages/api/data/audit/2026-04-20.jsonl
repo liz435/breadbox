@@ -11,3 +11,5 @@
 {"ts":1776663404829,"userId":"local","action":"project.create","projectId":"4736e961-e1e0-4f1b-bfbc-0d194f402bd7"}
 {"ts":1776663855626,"userId":"local","action":"project.create","projectId":"9e5bf095-02ac-4ee9-b05a-14aeeae377c1"}
 {"ts":1776663973875,"userId":"local","action":"project.create","projectId":"c2c4ed3f-0c72-473d-993e-f064d9420a71"}
+{"ts":1776668125001,"userId":"local","action":"project.create","projectId":"68e74582-1db7-4907-9c74-d9155b2d3903"}
+{"ts":1776668445043,"userId":"local","action":"compile.start","extra":{"sketchId":"8b429204-a81f-434a-a514-4b836ae2c5af","fqbn":"arduino:avr:uno"}}

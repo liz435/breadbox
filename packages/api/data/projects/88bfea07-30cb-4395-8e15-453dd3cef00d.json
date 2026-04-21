@@ -1,0 +1,162 @@
+{
+  "project": {
+    "id": "88bfea07-30cb-4395-8e15-453dd3cef00d",
+    "name": "hot-cat-loom",
+    "ownerId": "local",
+    "version": 1,
+    "createdAt": "2026-04-21T00:38:01.534Z",
+    "updatedAt": "2026-04-21T20:29:02.662Z",
+    "threadId": "ddc7ce94-a9ec-41a3-aef6-45123f12fd25",
+    "activeSceneId": "728a26d2-7e83-4d2d-a5b2-823ae62d8129"
+  },
+  "scenes": {
+    "728a26d2-7e83-4d2d-a5b2-823ae62d8129": {
+      "id": "728a26d2-7e83-4d2d-a5b2-823ae62d8129",
+      "name": "Main Scene",
+      "version": 0,
+      "settings": {
+        "background": "#252525",
+        "gravity": {
+          "x": 0,
+          "y": 9.8
+        }
+      }
+    }
+  },
+  "entities": {},
+  "sceneEntityIds": {
+    "728a26d2-7e83-4d2d-a5b2-823ae62d8129": []
+  },
+  "components": {
+    "transform": {},
+    "sprite": {},
+    "tilemap": {},
+    "physicsBody": {},
+    "script": {},
+    "camera": {}
+  },
+  "assets": {},
+  "graph": {
+    "nodes": {
+      "node-1776731881567-cu3e2w": {
+        "id": "node-1776731881567-cu3e2w",
+        "type": "setup",
+        "name": "Setup",
+        "x": 60,
+        "y": 60,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      },
+      "node-1776731881567-mfzazl": {
+        "id": "node-1776731881567-mfzazl",
+        "type": "loop",
+        "name": "Loop",
+        "x": 60,
+        "y": 200,
+        "width": 160,
+        "height": 70,
+        "ports": [
+          {
+            "id": "flow_out",
+            "name": "Flow",
+            "direction": "out",
+            "dataType": "flow"
+          }
+        ],
+        "data": {}
+      }
+    },
+    "edges": {}
+  },
+  "boardState": {
+    "components": {
+      "led-1": {
+        "id": "led-1",
+        "type": "led",
+        "name": "LED",
+        "x": 7,
+        "y": 5,
+        "rotation": 0,
+        "pins": {
+          "anode": null,
+          "cathode": null
+        },
+        "properties": {
+          "color": "#ef4444"
+        }
+      },
+      "resistor-1": {
+        "id": "resistor-1",
+        "type": "resistor",
+        "name": "R1 220Ω",
+        "x": 3,
+        "y": 5,
+        "rotation": 0,
+        "pins": {
+          "a": null,
+          "b": null
+        },
+        "properties": {
+          "resistance": 220
+        }
+      },
+      "7d16a053-e07e-4d4f-9bd5-54c34413616d": {
+        "id": "7d16a053-e07e-4d4f-9bd5-54c34413616d",
+        "type": "led",
+        "name": "Led",
+        "x": 9,
+        "y": 5,
+        "rotation": 0,
+        "pins": {
+          "anode": null,
+          "cathode": null
+        },
+        "properties": {
+          "color": "#ef4444"
+        }
+      }
+    },
+    "wires": {
+      "wire-d13": {
+        "id": "wire-d13",
+        "fromRow": -999,
+        "fromCol": 13,
+        "toRow": 5,
+        "toCol": 3,
+        "color": "#fbbf24"
+      },
+      "wire-gnd": {
+        "id": "wire-gnd",
+        "fromRow": -999,
+        "fromCol": -3,
+        "toRow": 6,
+        "toCol": 9,
+        "color": "#1a1a1a"
+      }
+    },
+    "libraryState": {
+      "servos": {},
+      "lcd": null,
+      "serialBaud": 0,
+      "oled": {}
+    },
+    "serialOutput": [],
+    "sketchCode": "// Example: Blink LED\n// Toggle an LED on pin 13 every 500ms.\n\nvoid setup() {\n  pinMode(13, OUTPUT);\n  Serial.begin(9600);\n}\n\nvoid loop() {\n  digitalWrite(13, HIGH);\n  delay(500);\n  digitalWrite(13, LOW);\n  delay(500);\n}\n",
+    "customLibraries": {},
+    "boardTarget": "arduino_uno",
+    "environment": {
+      "obstacles": {},
+      "boundaryEnabled": true,
+      "boundaryMargin": 100
+    }
+  }
+}

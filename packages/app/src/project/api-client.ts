@@ -1,7 +1,7 @@
 import { API_ORIGIN } from "@dreamer/config";
 import { projectFileSchema, type ProjectFile } from "./schemas";
 import type { z } from "zod";
-import { refreshCurrentUser } from "@/auth/use-current-user";
+import { refreshCurrentUser, isAnonymousPreview } from "@/auth/use-current-user";
 import { getCapabilities } from "./use-capabilities";
 import { toast } from "@/components/ui/toast";
 
@@ -46,6 +46,44 @@ export function resolveFetchOptions(init?: RequestInit): RequestInit {
 }
 
 let unauthorizedHandled = false;
+let previewPromptShown = false;
+
+/**
+ * Returns true when the current page is viewing the app without a
+ * session on a hosted deploy. Mutating endpoints short-circuit in this
+ * state and surface a "Sign in to save" prompt instead of hitting the
+ * server just to receive a 401.
+ */
+export function isInAnonymousPreview(): boolean {
+  return isAnonymousPreview();
+}
+
+/**
+ * Start the GitHub OAuth flow, preserving the user's current location
+ * so they land back on the same page after sign-in. Safe to call from
+ * event handlers in anonymous preview.
+ */
+export function redirectToSignIn(): void {
+  if (typeof window === "undefined") return;
+  const redirect = window.location.pathname + window.location.search;
+  window.location.assign(
+    `/api/auth/github/start?redirect=${encodeURIComponent(redirect)}`,
+  );
+}
+
+/**
+ * Surfaces the "sign in to save" prompt at most once per page load so
+ * repeated save attempts don't spam the toast stack.
+ */
+function promptSignInOnce(action: string): void {
+  if (previewPromptShown) return;
+  previewPromptShown = true;
+  toast.info(`Sign in with GitHub to ${action}.`);
+  // Allow the banner/button click handlers to re-prompt after dismissal.
+  setTimeout(() => {
+    previewPromptShown = false;
+  }, 8000);
+}
 
 async function handleUnauthorized(): Promise<void> {
   // Guard against a stampede of 401s from a page's initial in-flight
@@ -57,12 +95,15 @@ async function handleUnauthorized(): Promise<void> {
   await refreshCurrentUser();
 
   try {
+    // Anonymous-preview mode: the page is intentionally unauthenticated;
+    // mutating calls that leak through to the server and 401 should NOT
+    // redirect, or the preview experience breaks. The mutation itself
+    // already surfaced the sign-in prompt.
+    if (isAnonymousPreview()) return;
+
     const caps = await getCapabilities();
     if (caps.hosted && typeof window !== "undefined") {
-      const redirect = window.location.pathname + window.location.search;
-      window.location.assign(
-        `/api/auth/github/start?redirect=${encodeURIComponent(redirect)}`,
-      );
+      redirectToSignIn();
       return;
     }
     // Local mode: no OAuth to kick off. Surface the state so the user
@@ -78,6 +119,18 @@ async function handleUnauthorized(): Promise<void> {
       unauthorizedHandled = false;
     }, 2000);
   }
+}
+
+/**
+ * Used by mutating functions to bail out of API calls when the visitor
+ * is browsing as an anonymous preview. Shows a single toast per sliding
+ * window telling them which action required auth, then throws so the
+ * caller's save/compile/etc handler can stop cleanly.
+ */
+function blockMutationIfPreview(action: string): void {
+  if (!isAnonymousPreview()) return;
+  promptSignInOnce(action);
+  throw new ApiError(401, `preview: sign in to ${action}`);
 }
 
 /**
@@ -137,6 +190,7 @@ export async function renameProject(
   projectId: string,
   name: string,
 ): Promise<{ id: string; name: string }> {
+  blockMutationIfPreview("rename projects");
   const url = `${API_ORIGIN}/project/${encodeURIComponent(projectId)}`;
   const res = await authedFetch(url, {
     method: "PATCH",
@@ -155,6 +209,7 @@ export async function renameScene(
   sceneId: string,
   name: string,
 ): Promise<{ id: string; name: string }> {
+  blockMutationIfPreview("rename scenes");
   const url = `${API_ORIGIN}/project/${encodeURIComponent(projectId)}/scenes/${encodeURIComponent(sceneId)}`;
   const res = await authedFetch(url, {
     method: "PATCH",
@@ -176,6 +231,7 @@ export function createProject(params?: {
   id?: string;
   name?: string;
 }): Promise<ProjectFile> {
+  blockMutationIfPreview("create a project");
   return request(`/project`, projectFileSchema, {
     method: "POST",
     body: JSON.stringify(params ?? {}),
@@ -186,6 +242,7 @@ export async function saveProjectGraph(
   projectId: string,
   graph: { nodes: Record<string, unknown>; edges: Record<string, unknown> }
 ): Promise<void> {
+  blockMutationIfPreview("save your project");
   const url = `${API_ORIGIN}/project/${encodeURIComponent(projectId)}/graph`;
   const res = await authedFetch(url, {
     method: "POST",
@@ -202,6 +259,7 @@ export async function saveBoardState(
   projectId: string,
   boardState: Record<string, unknown>,
 ): Promise<void> {
+  blockMutationIfPreview("save your project");
   const url = `${API_ORIGIN}/project/${encodeURIComponent(projectId)}/board`;
   const res = await authedFetch(url, {
     method: "POST",
@@ -229,6 +287,7 @@ export async function saveProjectState(
     graph?: { nodes: Record<string, unknown>; edges: Record<string, unknown> };
   },
 ): Promise<void> {
+  blockMutationIfPreview("save your project");
   const url = `${API_ORIGIN}/project/${encodeURIComponent(projectId)}/state`;
   const res = await authedFetch(url, {
     method: "POST",
@@ -245,6 +304,7 @@ export async function uploadProjectAsset(
   projectId: string,
   file: File
 ): Promise<{ assetId: string; filename: string; uri: string; size: number; assetType: string }> {
+  blockMutationIfPreview("upload assets");
   const url = `${API_ORIGIN}/project/${encodeURIComponent(projectId)}/assets`;
   const formData = new FormData();
   formData.append("file", file);
@@ -273,6 +333,7 @@ export async function renameProjectAsset(
   assetId: string,
   name: string,
 ): Promise<{ id: string; name: string }> {
+  blockMutationIfPreview("rename assets");
   const url = `${API_ORIGIN}/project/${encodeURIComponent(projectId)}/assets/${encodeURIComponent(assetId)}`;
   const res = await authedFetch(url, {
     method: "PATCH",
@@ -287,6 +348,7 @@ export async function renameProjectAsset(
 }
 
 export async function deleteProject(projectId: string): Promise<void> {
+  blockMutationIfPreview("delete projects");
   const url = `${API_ORIGIN}/project/${encodeURIComponent(projectId)}`;
   const res = await authedFetch(url, { method: "DELETE" });
   if (!res.ok) {
@@ -299,6 +361,7 @@ export async function deleteProjectAsset(
   projectId: string,
   assetId: string,
 ): Promise<void> {
+  blockMutationIfPreview("delete assets");
   const url = `${API_ORIGIN}/project/${encodeURIComponent(projectId)}/assets/${encodeURIComponent(assetId)}`;
   const res = await authedFetch(url, { method: "DELETE" });
   if (!res.ok) {

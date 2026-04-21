@@ -124,6 +124,24 @@ function writePhotoresistor(
 }
 
 /**
+ * Potentiometer: map the inspector dial position (properties.value ∈ 0..100)
+ * onto the signal pin as a linear 0..1023 analog reading. Bypasses SPICE so
+ * analogRead() works even before the user wires VCC/GND — the dial owns
+ * the voltage, not the solver.
+ */
+function writePotentiometer(
+  comp: BoardComponent,
+  wires: Record<string, Wire>,
+  store: PinStateStore,
+): void {
+  const pin = resolveNamedPin(comp, "signal", wires)
+  if (pin == null || pin < 0) return
+  const value = clamp((comp.properties.value as number) ?? 50, 0, 100)
+  const analogValue = Math.round((value / 100) * 1023)
+  store.writeExternal(pin, { analogValue })
+}
+
+/**
  * TMP36 temperature sensor: push the inspector temperature onto the signal pin
  * using the TMP36 formula (Vout = 0.5 + temp × 0.01). Bypasses SPICE so it
  * works even without VCC/GND wires.
@@ -291,6 +309,9 @@ export function applySensorInputs(
         break
       case "temperature_sensor":
         writeTemperatureSensor(comp, wires, store)
+        break
+      case "potentiometer":
+        writePotentiometer(comp, wires, store)
         break
       case "ultrasonic_sensor":
         writeUltrasonic(comp, wires, environment, bus)

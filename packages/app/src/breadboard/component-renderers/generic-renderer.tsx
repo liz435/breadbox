@@ -101,39 +101,121 @@ function PotentiometerRenderer({ component, isSelected }: { component: BoardComp
   const knobAngle = ((component.properties.value as number) ?? 50) / 100 * 270 - 135;
   const rad = (knobAngle * Math.PI) / 180;
 
+  const bx = centerX - radius - 6; // body center X
+  const by = centerY;              // body center Y
+
+  // Gradient / filter IDs scoped to this component instance
+  const gradId = `pot-body-${component.id}`;
+  const glowId = `pot-glow-${component.id}`;
+
+  // Slot-head indicator: a small rectangle centred on the dial, rotated with knobAngle
+  const slotHalfLen = radius - 3;
+  const slotHalfW = 1;
+  const sx1 = bx + Math.cos(rad) * slotHalfLen;
+  const sy1 = by + Math.sin(rad) * slotHalfLen;
+  const sx2 = bx - Math.cos(rad) * slotHalfLen;
+  const sy2 = by - Math.sin(rad) * slotHalfLen;
+
+  // Position markers at −135°, 0°, +135° around the bezel
+  const markerAngles = [-135, 0, 135];
+  const markerR = radius + 1.5; // just outside the dial edge
+
+  // Knurl ticks: 10 short marks around the perimeter, co-rotating with the dial
+  const knurlCount = 10;
+  const knurlInner = radius - 2;
+  const knurlOuter = radius;
+
   return (
     <g>
-      {/* 3 vertical pins */}
-      <circle cx={pinVcc.x} cy={pinVcc.y} r={2} fill="#ef4444" opacity={0.5} />
-      <circle cx={pinSignal.x} cy={pinSignal.y} r={2} fill="#fbbf24" opacity={0.5} />
-      <circle cx={pinGnd.x} cy={pinGnd.y} r={2} fill="#42a5f5" opacity={0.5} />
+      <defs>
+        {/* Radial gradient: muted navy trim-pot body, matte/dusty finish */}
+        <radialGradient id={gradId} cx="38%" cy="35%" r="60%">
+          <stop offset="0%"   stopColor="#2a3f5f" />
+          <stop offset="55%"  stopColor="#1e2d45" />
+          <stop offset="100%" stopColor="#131d2e" />
+        </radialGradient>
+        {/* Soft outer glow for selection */}
+        <filter id={glowId} x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="2" result="blur" />
+          <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+      </defs>
 
-      {/* Body — offset to the left of pins */}
+      {/* 3 breadboard pins */}
+      <circle cx={pinVcc.x}    cy={pinVcc.y}    r={2} fill="#ef4444" opacity={0.5} />
+      <circle cx={pinSignal.x} cy={pinSignal.y} r={2} fill="#fbbf24" opacity={0.5} />
+      <circle cx={pinGnd.x}    cy={pinGnd.y}    r={2} fill="#42a5f5" opacity={0.5} />
+
+      {/* Bezel ring — neutral warm-black, avoids blue tint pulling whole thing cool */}
       <circle
-        cx={centerX - radius - 6}
-        cy={centerY}
-        r={radius}
-        fill="#78716c"
+        cx={bx} cy={by}
+        r={radius + 2}
+        fill="#1a1a1a"
         stroke={isSelected ? "#3b82f6" : "#57534e"}
         strokeWidth={isSelected ? 1.5 : 0.8}
       />
-      {/* Knob indicator */}
+
+      {/* Position markers at min / mid / max — nearly flush with bezel, very faint */}
+      {markerAngles.map((deg) => {
+        const a = (deg * Math.PI) / 180;
+        return (
+          <circle
+            key={deg}
+            cx={bx + Math.cos(a) * markerR}
+            cy={by + Math.sin(a) * markerR}
+            r={0.8}
+            fill="#4a5568"
+            opacity={0.6}
+          />
+        );
+      })}
+
+      {/* Dial body — blue radial gradient */}
+      <circle cx={bx} cy={by} r={radius} fill={`url(#${gradId})`} />
+
+      {/* Knurl ticks rotating with the dial */}
+      {Array.from({ length: knurlCount }, (_, i) => {
+        const a = rad + (i / knurlCount) * 2 * Math.PI;
+        return (
+          <line
+            key={i}
+            x1={bx + Math.cos(a) * knurlInner}
+            y1={by + Math.sin(a) * knurlInner}
+            x2={bx + Math.cos(a) * knurlOuter}
+            y2={by + Math.sin(a) * knurlOuter}
+            stroke="#64748b"
+            strokeWidth={0.75}
+            strokeLinecap="round"
+            opacity={0.4}
+          />
+        );
+      })}
+
+      {/* Slot-head screwdriver indicator — shadow stroke for carved-slot depth */}
       <line
-        x1={centerX - radius - 6}
-        y1={centerY}
-        x2={centerX - radius - 6 + Math.cos(rad) * (radius - 2)}
-        y2={centerY + Math.sin(rad) * (radius - 2)}
-        stroke="#fbbf24"
-        strokeWidth={2}
+        x1={sx1} y1={sy1}
+        x2={sx2} y2={sy2}
+        stroke="#0d1117"
+        strokeWidth={3}
+        strokeLinecap="round"
+        opacity={0.7}
+      />
+      {/* Slot top highlight — dull brushed-metal, not white-hot */}
+      <line
+        x1={sx1} y1={sy1}
+        x2={sx2} y2={sy2}
+        stroke="#9ca3af"
+        strokeWidth={1.5}
         strokeLinecap="round"
       />
-      {/* Center dot */}
-      <circle cx={centerX - radius - 6} cy={centerY} r={2} fill="#fbbf24" />
+
+      {/* Centre pip — muted steel, not bright blue */}
+      <circle cx={bx} cy={by} r={1.5} fill="#6b7280" />
 
       {/* Pin labels */}
-      <PinLabel x={pinVcc.x} y={pinVcc.y} name="vcc" side="right" />
+      <PinLabel x={pinVcc.x}    y={pinVcc.y}    name="vcc"    side="right" />
       <PinLabel x={pinSignal.x} y={pinSignal.y} name="signal" side="right" />
-      <PinLabel x={pinGnd.x} y={pinGnd.y} name="gnd" side="right" />
+      <PinLabel x={pinGnd.x}    y={pinGnd.y}    name="gnd"    side="right" />
     </g>
   );
 }
