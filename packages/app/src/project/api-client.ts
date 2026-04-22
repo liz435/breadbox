@@ -177,6 +177,10 @@ export type ProjectSummary = {
 };
 
 export async function listProjects(): Promise<ProjectSummary[]> {
+  // Anonymous preview has one ephemeral in-memory project and no server
+  // state to enumerate. Return empty so the selector collapses cleanly
+  // and no "Failed to load project list" toast fires from the 401.
+  if (isAnonymousPreview()) return [];
   const url = `${API_ORIGIN}/project`;
   const res = await authedFetch(url);
   if (!res.ok) {
@@ -319,6 +323,8 @@ export async function uploadProjectAsset(
 export async function listProjectAssets(
   projectId: string,
 ): Promise<Array<{ id: string; projectId: string; type: string; uri: string; meta: Record<string, unknown> }>> {
+  // Preview project has no server-side assets; skip the 401 round-trip.
+  if (isAnonymousPreview()) return [];
   const url = `${API_ORIGIN}/project/${encodeURIComponent(projectId)}/assets`;
   const res = await authedFetch(url);
   if (!res.ok) {

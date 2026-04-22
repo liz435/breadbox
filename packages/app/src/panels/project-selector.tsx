@@ -12,14 +12,21 @@ import { cn } from "@/lib/utils"
 import { toast } from "@/components/ui/toast"
 
 export function ProjectSelector() {
-  const { projectId, switchProject } = useProject()
+  const { projectId, projectFile, switchProject } = useProject()
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [isOpen, setIsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
-  const currentProject = projects.find((p) => p.id === projectId)
+  // Fall back to the loaded project's name when the server-side list
+  // doesn't contain it (preview mode returns `[]`, or the project was
+  // just created and the list hasn't refreshed yet).
+  const currentProject =
+    projects.find((p) => p.id === projectId) ??
+    (projectFile
+      ? { id: projectId, name: projectFile.project.name }
+      : null)
 
   const refresh = useCallback(() => {
     setIsLoading(true)
