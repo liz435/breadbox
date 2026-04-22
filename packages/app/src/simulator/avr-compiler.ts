@@ -8,6 +8,8 @@ import { API_ORIGIN, PREFER_AVR } from "@dreamer/config"
 import type { CustomLibrary } from "@dreamer/schemas"
 import { parseRp2040Uf2 } from "./uf2-parser"
 import { resolveFetchOptions } from "@/project/api-client"
+import { isAnonymousPreview } from "@/auth/use-current-user"
+import { toast } from "@/components/ui/toast"
 
 const COMPILE_ENDPOINT = `${API_ORIGIN}/api/compile`
 
@@ -220,6 +222,14 @@ function decodeFirmware(
  * with an error message on `error`.
  */
 export async function compileSketch(code: string, options: CompileOptions = {}): Promise<CompileResult> {
+  // Anonymous preview: compile runs arduino-cli on the server, which is
+  // auth-gated. Short-circuit with a sign-in prompt rather than posting
+  // and unwrapping a 401 the user can't meaningfully resolve inline.
+  if (isAnonymousPreview()) {
+    toast.info("Sign in with GitHub to compile sketches.")
+    return { success: false, error: "Sign in with GitHub to compile sketches." }
+  }
+
   try {
     const fqbn = options.fqbn ?? "arduino:avr:uno"
     const response = await fetch(
@@ -240,11 +250,25 @@ export async function compileSketch(code: string, options: CompileOptions = {}):
     const contentType = response.headers.get("content-type") ?? ""
     if (!contentType.includes("ndjson")) {
       if (!response.ok) {
-        const body = (await response.json()) as { error?: string }
-        return {
-          success: false,
-          error: body.error ?? `Compilation server returned ${response.status}`,
+        // Error bodies aren't always JSON — e.g. Elysia's auth plugin
+        // serializes thrown errors as plain text. Fall back to statusText
+        // before .json() can throw "did not match the expected pattern".
+        let message = `Compilation server returned ${response.status}`
+        try {
+          const text = await response.clone().text()
+          if (text) {
+            try {
+              const parsed = JSON.parse(text) as { error?: string }
+              if (parsed.error) message = parsed.error
+              else message = text.slice(0, 200)
+            } catch {
+              message = text.slice(0, 200)
+            }
+          }
+        } catch {
+          /* fall through with the default message */
         }
+        return { success: false, error: message }
       }
       const body = (await response.json()) as {
         format?: "hex" | "uf2"
