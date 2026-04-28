@@ -19,7 +19,8 @@ export function ExtendingPage() {
         </p>
         <Note>
           Before this system, adding a component required edits to 14 separate files.
-          Now it requires editing 2: the schema enum and the registry.
+          Now the required path is the schema enum, the shared pin map, and the registry;
+          custom renderers, inspectors, peripherals, and docs are optional depending on behavior.
         </Note>
       </Section>
 
@@ -37,7 +38,32 @@ export function ExtendingPage() {
         </p>
       </Section>
 
-      <Section title="Step 2 — Add a definition to the registry">
+      <Section title="Step 2 — Add the pin map">
+        <p className="text-sm text-gray-400 mb-2">
+          File: <code>packages/schemas/src/component-pins.ts</code>
+        </p>
+        <CodeBlock code={`const PIN_NAMES: Record<string, string[]> = {
+  // ... existing pins ...
+  my_sensor: ["vcc", "signal", "gnd"],
+}
+
+export function resolveComponentPins(type: string, row: number, col: number) {
+  switch (type) {
+    case "my_sensor":
+      return {
+        vcc: { row, col },
+        signal: { row: row + 1, col },
+        gnd: { row: row + 2, col },
+      }
+  }
+}`} lang="ts" />
+        <p className="text-sm text-gray-400 mt-2">
+          This map is shared by the breadboard, diagram adapter, validators, schematics,
+          and runtime pin resolution, so it should match the footprint used by the registry.
+        </p>
+      </Section>
+
+      <Section title="Step 3 — Add a definition to the registry">
         <p className="text-sm text-gray-400 mb-2">
           File: <code>packages/app/src/components/registry.tsx</code> — add one object to{" "}
           <code>COMPONENT_REGISTRY</code>.
@@ -111,7 +137,7 @@ export function ExtendingPage() {
 },`} lang="ts" />
       </Section>
 
-      <Section title="Step 3 — Optional: custom renderer">
+      <Section title="Step 4 — Optional: custom renderer">
         <p className="text-sm text-gray-300 leading-relaxed">
           If the generic grey rectangle isn't enough visually, create a renderer in{" "}
           <code>packages/app/src/breadboard/component-renderers/</code> and register it in{" "}
@@ -134,7 +160,7 @@ export function MySensorRenderer({ component, isSelected }: RendererProps) {
 my_sensor: MySensorRenderer,`} lang="tsx" />
       </Section>
 
-      <Section title="Step 4 — Optional: custom inspector">
+      <Section title="Step 5 — Optional: custom inspector">
         <p className="text-sm text-gray-300 leading-relaxed">
           For type-specific property editors, add a small component and a conditional render in{" "}
           <code>packages/app/src/panels/inspector.tsx</code>. If you skip this, all pins are
@@ -163,7 +189,7 @@ function MySensorInspector({ component, onUpdate }) {
 )}`} lang="tsx" />
       </Section>
 
-      <Section title="Step 5 — Add a docs page (recommended)">
+      <Section title="Step 6 — Add a docs page (recommended)">
         <p className="text-sm text-gray-300 leading-relaxed">
           Copy an existing page from{" "}
           <code>packages/app/src/docs/pages/components/</code>, fill in the fields, then

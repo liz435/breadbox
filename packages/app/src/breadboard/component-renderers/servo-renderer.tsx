@@ -64,9 +64,27 @@ function ServoRendererInner({ component, isSelected, libraryState }: ServoRender
   const rad = ((angle - 90) * Math.PI) / 180;
   const hornX = cx + Math.cos(rad) * hornLen;
   const hornY = (cy - 3) + Math.sin(rad) * hornLen;
+  const shaftY = cy - 3;
+  const sweepStart = `${cx - 10} ${shaftY}`;
+  const sweepEnd = `${cx + 10} ${shaftY}`;
+  const hornShadowX = cx + Math.cos(rad) * (hornLen - 1.5);
+  const hornShadowY = shaftY + Math.sin(rad) * (hornLen - 1.5);
+  const isDriven = libraryState != null && connectedPin != null;
+  const glowId = `servo-glow-${component.id}`;
 
   return (
     <g>
+      <defs>
+        {isDriven && (
+          <filter id={glowId} x="-120%" y="-120%" width="340%" height="340%">
+            <feGaussianBlur stdDeviation={0.9} result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        )}
+      </defs>
       {/* Cables from body to pin holes — horizontal lines */}
       <line x1={bodyR} y1={p0.y} x2={p0.x} y2={p0.y} stroke="#ff9800" strokeWidth={1.5} />
       <line x1={bodyR} y1={p1.y} x2={p1.x} y2={p1.y} stroke="#f44336" strokeWidth={1.5} />
@@ -94,20 +112,39 @@ function ServoRendererInner({ component, isSelected, libraryState }: ServoRender
       <line x1={bodyL + 2} y1={bodyT + 2} x2={bodyR - 2} y2={bodyT + 2}
         stroke="#42a5f5" strokeWidth={0.5} opacity={0.5} />
 
-      {/* Shaft circle */}
-      <circle cx={cx} cy={cy - 3} r={5} fill="#e0e0e0" stroke="#bdbdbd" strokeWidth={0.6} />
-      <circle cx={cx} cy={cy - 3} r={1.8} fill="#9e9e9e" />
-
-      {/* Horn */}
-      <line x1={cx} y1={cy - 3} x2={hornX} y2={hornY}
-        stroke="#f5f5f5" strokeWidth={3} strokeLinecap="round" />
-      <circle cx={hornX} cy={hornY} r={1.5} fill="#ddd" />
-
-      {/* Angle arc indicator */}
+      {/* Servo travel window */}
       <path
-        d={`M ${cx - 8} ${cy - 3} A 8 8 0 0 1 ${cx + 8} ${cy - 3}`}
-        fill="none" stroke="#42a5f5" strokeWidth={0.5} opacity={0.4}
+        d={`M ${sweepStart} A 10 10 0 0 1 ${sweepEnd}`}
+        fill="none"
+        stroke={isDriven ? "#93c5fd" : "#42a5f5"}
+        strokeWidth={isDriven ? 0.9 : 0.5}
+        opacity={isDriven ? 0.58 : 0.35}
+        strokeLinecap="round"
       />
+      {isDriven && (
+        <path
+          d={`M ${sweepStart} A 10 10 0 0 1 ${sweepEnd}`}
+          fill="none"
+          stroke="#60a5fa"
+          strokeWidth={2.4}
+          opacity={0.16}
+          strokeLinecap="round"
+          filter={`url(#${glowId})`}
+        />
+      )}
+
+      {/* Shaft circle */}
+      <circle cx={cx} cy={shaftY} r={5} fill="#e0e0e0" stroke={isDriven ? "#93c5fd" : "#bdbdbd"} strokeWidth={isDriven ? 0.9 : 0.6} />
+      <circle cx={cx} cy={shaftY} r={1.8} fill={isDriven ? "#60a5fa" : "#9e9e9e"} />
+
+      {/* Horn, with a soft trailing shadow when driven */}
+      {isDriven && (
+        <line x1={cx} y1={shaftY} x2={hornShadowX} y2={hornShadowY}
+          stroke="#60a5fa" strokeWidth={5} strokeLinecap="round" opacity={0.2} filter={`url(#${glowId})`} />
+      )}
+      <line x1={cx} y1={shaftY} x2={hornX} y2={hornY}
+        stroke={isDriven ? "#ffffff" : "#f5f5f5"} strokeWidth={3} strokeLinecap="round" />
+      <circle cx={hornX} cy={hornY} r={1.5} fill="#ddd" />
 
       {/* SERVO label */}
       <text x={cx} y={cy + 7} textAnchor="middle" fontSize={4} fill="#bbdefb" fontFamily="monospace" fontWeight="bold">

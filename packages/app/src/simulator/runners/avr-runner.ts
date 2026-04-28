@@ -149,6 +149,7 @@ export function createAvrSketchRunner(
       onSerialOutput: (char) => {
         handleAvrSerialByte(char)
       },
+      readAnalogInput: (pin) => store.readAnalog(pin),
     })
     // Forward external input-pin writes (button press, sensor sim) into the
     // emulator so digitalRead() actually sees them. Without this, writes

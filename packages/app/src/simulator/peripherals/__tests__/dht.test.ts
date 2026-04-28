@@ -75,7 +75,7 @@ describe("DhtPeripheral — AVR start signal detection", () => {
     bus.attachBoard({
       components: { "dht-1": makeDht() },
       wires: {
-        "w-sig": wireFrom(4, 5, 5), // D4 → row y+0 (signal)
+        "w-sig": wireFrom(4, 6, 5), // D4 → row y+1 (data)
       },
       pinStore: new PinStateStore(),
     })

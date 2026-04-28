@@ -34,7 +34,7 @@
 
 import type { BoardComponent, Wire, Environment } from "@dreamer/schemas"
 import type { PinStateStore } from "./pin-state-store"
-import { findInputPinForComponent, findArduinoPinsForComponent } from "@/breadboard/component-pin-resolver"
+import { findInputPinForComponent, findArduinoPinForComponentPin } from "@/breadboard/component-pin-resolver"
 import {
   sensorRay,
   raycastDistance,
@@ -92,14 +92,10 @@ export function resetSensorBuses(): void {
  */
 function resolveNamedPin(
   comp: BoardComponent,
-  pinName: string,
+  pinName: string | readonly string[],
   wires: Record<string, Wire>,
 ): number | null {
-  const explicit = comp.pins[pinName]
-  if (explicit != null) return explicit
-  // Fallback: any Arduino pin wired to this component.
-  const wired = findArduinoPinsForComponent(comp, wires)
-  return wired[0] ?? null
+  return findArduinoPinForComponentPin(comp, pinName, wires)
 }
 
 // ── Per-component readers ────────────────────────────────────────────────
@@ -134,7 +130,7 @@ function writePotentiometer(
   wires: Record<string, Wire>,
   store: PinStateStore,
 ): void {
-  const pin = resolveNamedPin(comp, "signal", wires)
+  const pin = resolveNamedPin(comp, ["signal", "data"], wires)
   if (pin == null || pin < 0) return
   const value = clamp((comp.properties.value as number) ?? 50, 0, 100)
   const analogValue = Math.round((value / 100) * 1023)
@@ -151,7 +147,7 @@ function writeTemperatureSensor(
   wires: Record<string, Wire>,
   store: PinStateStore,
 ): void {
-  const pin = resolveNamedPin(comp, "signal", wires)
+  const pin = resolveNamedPin(comp, ["signal", "out"], wires)
   if (pin == null || pin < 0) return
   const temp = clamp((comp.properties.temperature as number) ?? 25, -40, 125)
   const voltage = 0.5 + temp * 0.01

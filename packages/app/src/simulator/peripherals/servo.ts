@@ -15,32 +15,7 @@ import type {
   PeripheralTrace,
   PinEdge,
 } from "./types"
-
-/**
- * Walk the wire map to find the Arduino pin driving the servo signal hole.
- * Mirrors the logic in servo-renderer.tsx so AVR edges route correctly even
- * when component.pins.signal is null in the board JSON (the common case —
- * examples save the wire topology, not the resolved pin).
- */
-function resolveSignalPinFromWires(
-  wires: Record<string, Wire>,
-  signalRow: number,
-  signalCol: number,
-): number | null {
-  for (const w of Object.values(wires)) {
-    if (w.fromRow !== -999) continue
-    if (w.toRow !== signalRow) continue
-    // Left terminal cluster: cols 0–4. Right cluster: cols 5–9. The servo's
-    // signal hole must share a cluster with the wire's landing column.
-    if (w.toCol >= 0 && w.toCol <= 4 && signalCol >= 0 && signalCol <= 4) {
-      return w.fromCol
-    }
-    if (w.toCol >= 5 && w.toCol <= 9 && signalCol >= 5 && signalCol <= 9) {
-      return w.fromCol
-    }
-  }
-  return null
-}
+import { findArduinoPinForComponentPin } from "@/breadboard/component-pin-resolver"
 
 const SERVO_MIN_ANGLE = 0
 const SERVO_MAX_ANGLE = 180
@@ -74,8 +49,7 @@ export class ServoPeripheral implements Peripheral<ServoStateShape> {
 
   private _watchedPins = new Set<number>()
   private ctx: PeripheralContext | null = null
-  private readonly componentY: number
-  private readonly componentX: number
+  private readonly component: BoardComponent
   private angle = 0
   private attached = false
   private boundPin: number | null = null
@@ -94,8 +68,7 @@ export class ServoPeripheral implements Peripheral<ServoStateShape> {
 
   constructor(component: BoardComponent) {
     this.id = component.id
-    this.componentY = component.y
-    this.componentX = component.x
+    this.component = component
     const signal = component.pins?.signal
     if (typeof signal === "number" && signal >= 0) {
       this._watchedPins.add(signal)
@@ -110,11 +83,7 @@ export class ServoPeripheral implements Peripheral<ServoStateShape> {
   attach(ctx: PeripheralContext): void {
     this.ctx = ctx
     if (this.boundPin === null) {
-      const resolved = resolveSignalPinFromWires(
-        ctx.wires,
-        this.componentY,
-        this.componentX,
-      )
+      const resolved = findArduinoPinForComponentPin(this.component, "signal", ctx.wires)
       if (resolved !== null) {
         this.boundPin = resolved
         this._watchedPins.add(resolved)

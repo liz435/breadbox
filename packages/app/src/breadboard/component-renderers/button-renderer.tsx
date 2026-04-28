@@ -73,6 +73,7 @@ function ButtonRendererInner({ component, isSelected }: ButtonRendererProps) {
 
   const housingGradId = `btn-body-${component.id}`;
   const capGradId = `btn-cap-${component.id}`;
+  const pressGlowId = `btn-press-${component.id}`;
 
   // Attach pointer handlers to the whole group so any click on the button
   // triggers press — not just the small cap circle.
@@ -96,6 +97,15 @@ function ButtonRendererInner({ component, isSelected }: ButtonRendererProps) {
           <stop offset="60%" stopColor={isPressed ? "#555" : "#777"} />
           <stop offset="100%" stopColor={isPressed ? "#444" : "#555"} />
         </radialGradient>
+        {isPressed && (
+          <filter id={pressGlowId} x="-80%" y="-80%" width="260%" height="260%">
+            <feGaussianBlur stdDeviation={1.2} result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        )}
       </defs>
 
       {/* Pin legs — L-shaped leads from holes to body */}
@@ -154,14 +164,30 @@ function ButtonRendererInner({ component, isSelected }: ButtonRendererProps) {
       {/* Recessed well for the cap */}
       <rect
         x={centerX - capR - 2}
-        y={centerY - capR - 2}
+        y={centerY - capR - 2 + (isPressed ? 0.5 : 0)}
         width={(capR + 2) * 2}
-        height={(capR + 2) * 2}
+        height={(capR + 2) * 2 - (isPressed ? 0.8 : 0)}
         rx={2}
-        fill="#1a1a1a"
+        fill={isPressed ? "#111827" : "#1a1a1a"}
         stroke="#333"
         strokeWidth={0.5}
       />
+
+      {isPressed && (
+        <circle
+          cx={centerX}
+          cy={centerY}
+          r={capR + 4}
+          fill="none"
+          stroke="#60a5fa"
+          strokeWidth={0.7}
+          opacity={0.55}
+          pointerEvents="none"
+        >
+          <animate attributeName="r" values={`${capR + 1};${capR + 7};${capR + 1}`} dur="0.55s" repeatCount="indefinite" />
+          <animate attributeName="opacity" values="0.55;0;0.55" dur="0.55s" repeatCount="indefinite" />
+        </circle>
+      )}
 
       {/* Corner pin markings (small triangles in corners of housing) */}
       {[
@@ -177,10 +203,11 @@ function ButtonRendererInner({ component, isSelected }: ButtonRendererProps) {
       <circle
         cx={centerX}
         cy={centerY + (isPressed ? 0.8 : 0)}
-        r={capR}
+        r={capR - (isPressed ? 0.7 : 0)}
         fill={`url(#${capGradId})`}
-        stroke="#444"
-        strokeWidth={0.8}
+        stroke={isPressed ? "#60a5fa" : "#444"}
+        strokeWidth={isPressed ? 1 : 0.8}
+        filter={isPressed ? `url(#${pressGlowId})` : undefined}
       />
 
       {/* Cap highlight — specular reflection */}
@@ -200,9 +227,9 @@ function ButtonRendererInner({ component, isSelected }: ButtonRendererProps) {
       <circle
         cx={centerX}
         cy={centerY + (isPressed ? 0.8 : 0)}
-        r={capR - 1.5}
+        r={capR - 1.5 - (isPressed ? 0.7 : 0)}
         fill="none"
-        stroke={isPressed ? "#444" : "#555"}
+        stroke={isPressed ? "#93c5fd" : "#555"}
         strokeWidth={0.4}
         pointerEvents="none"
       />

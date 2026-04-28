@@ -8,23 +8,31 @@ import { renderToStaticMarkup } from "react-dom/server"
 
 // Import the renderer to get access to SchematicRenderer for integration tests
 import { SchematicRenderer } from "../schematic-renderer"
-import type { SchematicLayout, SchematicEdge, SchematicNode } from "../schematic-layout"
+import type {
+  SchematicLayout,
+  SchematicEdge,
+  SchematicNode,
+  SchematicTerminalSide,
+} from "../schematic-layout"
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
 // Mirror of getTerminalPos from schematic-renderer for unit testing the spec
-const TERMINAL_OFFSET: Record<string, { dx: number; dy: number }> = {
+const TERMINAL_OFFSET: Record<SchematicTerminalSide, { dx: number; dy: number }> = {
   left: { dx: 0, dy: 0 },
   right: { dx: 60, dy: 0 },
   top: { dx: 30, dy: -20 },
   bottom: { dx: 30, dy: 20 },
+  "bottom-left": { dx: 18, dy: 25 },
+  "bottom-center": { dx: 30, dy: 25 },
+  "bottom-right": { dx: 42, dy: 25 },
 }
 
 function getTerminalPos(
   nodeX: number,
   nodeY: number,
   nodeType: string,
-  side: "left" | "right" | "top" | "bottom",
+  side: SchematicTerminalSide,
 ): { x: number; y: number } {
   const offset = TERMINAL_OFFSET[side]
   if (nodeType === "arduino_pin" && side === "right") {
@@ -35,6 +43,11 @@ function getTerminalPos(
   }
   if (nodeType === "ground" && side === "left") {
     return { x: nodeX, y: nodeY }
+  }
+  if (nodeType === "temperature_sensor") {
+    if (side === "bottom-left") return { x: nodeX + 18, y: nodeY + 28 }
+    if (side === "bottom-center") return { x: nodeX + 26, y: nodeY + 28 }
+    if (side === "bottom-right") return { x: nodeX + 34, y: nodeY + 28 }
   }
   return { x: nodeX + offset.dx, y: nodeY + offset.dy }
 }
@@ -169,6 +182,18 @@ describe("getTerminalPos — default (generic component)", () => {
     const pos = getTerminalPos(200, 150, "led", "bottom")
     expect(pos.x).toBe(230)
     expect(pos.y).toBe(170)
+  })
+
+  test("servo bottom-left returns signal terminal position", () => {
+    const pos = getTerminalPos(200, 150, "servo", "bottom-left")
+    expect(pos.x).toBe(218)
+    expect(pos.y).toBe(175)
+  })
+
+  test("temperature sensor bottom-center matches its middle pin", () => {
+    const pos = getTerminalPos(200, 150, "temperature_sensor", "bottom-center")
+    expect(pos.x).toBe(226)
+    expect(pos.y).toBe(178)
   })
 
   test("unknown component type falls through to default offsets", () => {

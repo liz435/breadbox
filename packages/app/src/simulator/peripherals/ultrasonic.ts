@@ -20,10 +20,7 @@ import type {
   PeripheralTrace,
   PinEdge,
 } from "./types"
-
-// Footprint offsets: (y+0)=trig, (y+1)=echo, (y+2)=vcc, (y+3)=gnd.
-const TRIG_ROW_OFFSET = 0
-const ECHO_ROW_OFFSET = 1
+import { findArduinoPinForComponentPin } from "@/breadboard/component-pin-resolver"
 
 // HC-SR04 electrical characteristics.
 const MIN_TRIG_PULSE_US = 8          // anything shorter is ignored
@@ -33,21 +30,6 @@ const MIN_DISTANCE_CM = 2            // below this the sensor bottoms out
 const MAX_DISTANCE_CM = 400          // above this the sensor times out
 
 const TRACE_RING_SIZE = 32
-
-/** Walk wires to find the Arduino pin wired to a footprint hole. */
-function resolveWiredPin(
-  wires: Record<string, Wire>,
-  targetRow: number,
-  targetCol: number,
-): number | null {
-  for (const w of Object.values(wires)) {
-    if (w.fromRow !== -999) continue
-    if (w.toRow !== targetRow) continue
-    if (w.toCol >= 0 && w.toCol <= 4 && targetCol >= 0 && targetCol <= 4) return w.fromCol
-    if (w.toCol >= 5 && w.toCol <= 9 && targetCol >= 5 && targetCol <= 9) return w.fromCol
-  }
-  return null
-}
 
 type UltrasonicStateShape = Extract<PeripheralState, { kind: "ultrasonic" }>
 
@@ -60,8 +42,7 @@ export class UltrasonicPeripheral implements Peripheral<UltrasonicStateShape> {
 
   private _watchedPins = new Set<number>()
   private ctx: PeripheralContext | null = null
-  private readonly componentY: number
-  private readonly componentX: number
+  private readonly component: BoardComponent
   private readonly explicitTrig: number | null
   private readonly explicitEcho: number | null
 
@@ -77,8 +58,7 @@ export class UltrasonicPeripheral implements Peripheral<UltrasonicStateShape> {
 
   constructor(component: BoardComponent) {
     this.id = component.id
-    this.componentY = component.y
-    this.componentX = component.x
+    this.component = component
     const trigPin = component.pins?.trigger
     const echoPin = component.pins?.echo
     this.explicitTrig = typeof trigPin === "number" && trigPin >= 0 ? trigPin : null
@@ -104,18 +84,10 @@ export class UltrasonicPeripheral implements Peripheral<UltrasonicStateShape> {
     this.ctx = ctx
 
     if (this.trigPin === null) {
-      this.trigPin = resolveWiredPin(
-        ctx.wires,
-        this.componentY + TRIG_ROW_OFFSET,
-        this.componentX,
-      )
+      this.trigPin = findArduinoPinForComponentPin(this.component, "trigger", ctx.wires)
     }
     if (this.echoPin === null) {
-      this.echoPin = resolveWiredPin(
-        ctx.wires,
-        this.componentY + ECHO_ROW_OFFSET,
-        this.componentX,
-      )
+      this.echoPin = findArduinoPinForComponentPin(this.component, "echo", ctx.wires)
     }
 
     if (this.trigPin !== null) this._watchedPins.add(this.trigPin)

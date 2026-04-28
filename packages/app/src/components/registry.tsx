@@ -126,7 +126,7 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     category: "output",
     description: "Red/green/blue LED — mix colors with PWM",
     label: "RGB LED",
-    defaultPins: { red: null, green: null, blue: null, cathode: null },
+    defaultPins: { red: null, green: null, blue: null, common: null },
     accentColor: "#a855f7",
     footprint: (row, col) => ({
       points: [
@@ -853,7 +853,7 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     category: "output",
     description: "WS2812 addressable RGB LED strip",
     label: "NeoPixel Strip",
-    defaultPins: { din: null },
+    defaultPins: { din: null, vcc: null, gnd: null },
     defaultProperties: { numLeds: 8 },
     accentColor: "#a855f7",
     // Vertical header: din / 5v / gnd each on their own row.
@@ -913,7 +913,7 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     category: "input",
     description: "HC-SR501 passive infrared motion detector",
     label: "PIR Sensor",
-    defaultPins: { signal: null },
+    defaultPins: { data: null },
     defaultProperties: {},
     accentColor: "#f59e0b",
     // Vertical header: vcc / signal / gnd each on their own row so no two
@@ -936,7 +936,7 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     ),
     buildNetlist: () => null,
     generateSketch: (comp) => {
-      const pin = comp.pins.signal
+      const pin = comp.pins.data ?? comp.pins.signal
       if (pin == null) return null
       return {
         setupLines: [
@@ -961,7 +961,7 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     category: "output",
     description: "Single-channel relay module for switching high-power loads",
     label: "Relay",
-    defaultPins: { signal: null },
+    defaultPins: { out: null },
     defaultProperties: {},
     accentColor: "#3b82f6",
     footprint: (row, col) => ({
@@ -985,7 +985,7 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     ),
     buildNetlist: () => null,
     generateSketch: (comp) => {
-      const pin = comp.pins.signal
+      const pin = comp.pins.out ?? comp.pins.signal
       if (pin == null) return null
       return {
         setupLines: [`  pinMode(${pin}, OUTPUT); // ${comp.name}`],

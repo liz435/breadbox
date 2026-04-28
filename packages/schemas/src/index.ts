@@ -103,6 +103,8 @@ export {
   type LcdState,
   oledStateSchema,
   type OledState,
+  neoPixelStateSchema,
+  type NeoPixelState,
   libraryStateSchema,
   type LibraryState,
   persistedLibraryStateSchema,

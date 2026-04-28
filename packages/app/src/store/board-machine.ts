@@ -486,9 +486,16 @@ export const boardMachine = setup({
           isEmptyBoard && s.sketchCode.trim() === ""
             ? createDefaultBoardState().sketchCode
             : s.sketchCode;
+        const libraryState = Object.assign({} as LibraryState, {
+          servos: {},
+          lcd: null,
+          serialBaud: 0,
+          oled: {},
+          neopixels: {},
+        }, s.libraryState ?? {});
         return {
           ...s,
-          libraryState: s.libraryState ?? { servos: {}, lcd: null, serialBaud: 0 },
+          libraryState,
           serialOutput: s.serialOutput ?? [],
           sketchCode: normalizedSketch,
           boardTarget: s.boardTarget ?? DEFAULT_BOARD_TARGET,

@@ -399,7 +399,7 @@ export function diagramToBoardState(input: unknown): DiagramParseResult {
   const boardState: BoardState = {
     components,
     wires,
-    libraryState: { servos: {}, lcd: null, serialBaud: 0, oled: {} },
+    libraryState: { servos: {}, lcd: null, serialBaud: 0, oled: {}, neopixels: {} },
     serialOutput: [],
     sketchCode: diagram.sketch || DEFAULT_SKETCH_CODE,
     customLibraries,

@@ -1,7 +1,8 @@
 import React from "react";
-import type { BoardComponent, PinState } from "@dreamer/schemas";
+import type { BoardComponent, PinState, Wire } from "@dreamer/schemas";
 import { gridToPixel } from "@/breadboard/breadboard-grid";
 import { LED_DOME_RADIUS, LEG_WIDTH, LABEL_FONT_SIZE } from "@/breadboard/breadboard-constants";
+import { findArduinoPinForComponentPin } from "@/breadboard/component-pin-resolver";
 import { PinLabel } from "./pin-label";
 
 // ── RGB LED renderer ──────────────────────────────────────────────────────
@@ -14,6 +15,7 @@ import { PinLabel } from "./pin-label";
 type RgbLedProps = {
   component: BoardComponent;
   pinStates: PinState[];
+  wires?: Record<string, Wire>;
   isSelected: boolean;
 };
 
@@ -25,10 +27,15 @@ function channelBrightness(pin: number | null | undefined, pinStates: PinState[]
   return state.digitalValue;
 }
 
-function RgbLedRendererInner({ component, pinStates, isSelected }: RgbLedProps) {
-  const rBright = channelBrightness(component.pins.red, pinStates);
-  const gBright = channelBrightness(component.pins.green, pinStates);
-  const bBright = channelBrightness(component.pins.blue, pinStates);
+function RgbLedRendererInner({ component, pinStates, wires, isSelected }: RgbLedProps) {
+  const boardWires = wires ?? {};
+  const redPin = findArduinoPinForComponentPin(component, "red", boardWires);
+  const greenPin = findArduinoPinForComponentPin(component, "green", boardWires);
+  const bluePin = findArduinoPinForComponentPin(component, "blue", boardWires);
+
+  const rBright = channelBrightness(redPin, pinStates);
+  const gBright = channelBrightness(greenPin, pinStates);
+  const bBright = channelBrightness(bluePin, pinStates);
 
   const isOn = rBright > 0.02 || gBright > 0.02 || bBright > 0.02;
   const maxChannel = Math.max(rBright, gBright, bBright);

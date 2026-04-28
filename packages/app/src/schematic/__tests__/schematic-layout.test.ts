@@ -43,6 +43,19 @@ function makeRelay(id: string, row: number, col: number): BoardComponent {
   }
 }
 
+function makeServo(id: string, row: number, col: number): BoardComponent {
+  return {
+    id,
+    type: "servo",
+    name: `Servo ${id}`,
+    x: col,
+    y: row,
+    rotation: 0,
+    pins: { signal: null, vcc: null, gnd: null },
+    properties: {},
+  }
+}
+
 function makeArduino(id = "arduino"): BoardComponent {
   return {
     id,
@@ -526,7 +539,15 @@ describe("generateSchematicLayout — edge generation", () => {
   })
 
   test("edge fromSide and toSide are valid directions", () => {
-    const validSides = new Set(["left", "right", "top", "bottom"])
+    const validSides = new Set([
+      "left",
+      "right",
+      "top",
+      "bottom",
+      "bottom-left",
+      "bottom-center",
+      "bottom-right",
+    ])
     const components: Record<string, BoardComponent> = {
       arduino: makeArduino(),
       led1: makeLed("led1", 5, 0),
@@ -578,6 +599,44 @@ describe("generateSchematicLayout — edge generation", () => {
         expect(edge.toSide).toBe("left")
       }
     }
+  })
+
+  test("LED cathode uses the right terminal, preserving polarity", () => {
+    const components: Record<string, BoardComponent> = {
+      arduino: makeArduino(),
+      led1: makeLed("led1", 5, 0),
+    }
+    const wires: Record<string, Wire> = {
+      wgnd: makeArduinoWire("wgnd", -3, 6, 0),
+    }
+    const layout = generateSchematicLayout(components, wires)
+    const cathodeEdge = layout.edges.find(
+      (e) => e.fromNodeId === "comp-led1" || e.toNodeId === "comp-led1",
+    )
+    expect(cathodeEdge).toBeDefined()
+    const ledSide =
+      cathodeEdge!.fromNodeId === "comp-led1"
+        ? cathodeEdge!.fromSide
+        : cathodeEdge!.toSide
+    expect(ledSide).toBe("right")
+  })
+
+  test("servo signal/vcc/gnd wires use distinct bottom terminals", () => {
+    const components: Record<string, BoardComponent> = {
+      arduino: makeArduino(),
+      servo1: makeServo("servo1", 5, 0),
+    }
+    const wires: Record<string, Wire> = {
+      wsig: makeArduinoWire("wsig", 9, 5, 0),
+      wvcc: makeArduinoWire("wvcc", -1, 6, 0),
+      wgnd: makeArduinoWire("wgnd", -3, 7, 0),
+    }
+    const layout = generateSchematicLayout(components, wires)
+    const sides = layout.edges
+      .filter((e) => e.fromNodeId === "comp-servo1" || e.toNodeId === "comp-servo1")
+      .map((e) => (e.fromNodeId === "comp-servo1" ? e.fromSide : e.toSide))
+      .sort()
+    expect(sides).toEqual(["bottom-center", "bottom-left", "bottom-right"])
   })
 })
 

@@ -4,7 +4,7 @@
 // edges as orthogonal wires, with optional circuit analysis annotations.
 
 import type { CircuitAnalysis } from "@/simulator/circuit-solver"
-import type { SchematicLayout, SchematicEdge } from "./schematic-layout"
+import type { SchematicLayout, SchematicEdge, SchematicTerminalSide } from "./schematic-layout"
 import { renderSymbol, WireJunction, type SymbolProps } from "./schematic-symbols"
 
 type SchematicRendererProps = {
@@ -18,11 +18,14 @@ type SchematicRendererProps = {
 // ── Wire Routing ───────────────────────────────────────────────────────
 
 /** Terminal offset: how far from the node center to the wire connection point */
-const TERMINAL_OFFSET: Record<string, { dx: number; dy: number }> = {
+const TERMINAL_OFFSET: Record<SchematicTerminalSide, { dx: number; dy: number }> = {
   left: { dx: 0, dy: 0 },
   right: { dx: 60, dy: 0 },
   top: { dx: 30, dy: -20 },
   bottom: { dx: 30, dy: 20 },
+  "bottom-left": { dx: 18, dy: 25 },
+  "bottom-center": { dx: 30, dy: 25 },
+  "bottom-right": { dx: 42, dy: 25 },
 }
 
 /** Special terminal offsets per node type */
@@ -30,7 +33,7 @@ function getTerminalPos(
   nodeX: number,
   nodeY: number,
   nodeType: string,
-  side: "left" | "right" | "top" | "bottom",
+  side: SchematicTerminalSide,
 ): { x: number; y: number } {
   const offset = TERMINAL_OFFSET[side]
 
@@ -47,6 +50,12 @@ function getTerminalPos(
   // Ground has terminal at left (x)
   if (nodeType === "ground" && side === "left") {
     return { x: nodeX, y: nodeY }
+  }
+
+  if (nodeType === "temperature_sensor") {
+    if (side === "bottom-left") return { x: nodeX + 18, y: nodeY + 28 }
+    if (side === "bottom-center") return { x: nodeX + 26, y: nodeY + 28 }
+    if (side === "bottom-right") return { x: nodeX + 34, y: nodeY + 28 }
   }
 
   return { x: nodeX + offset.dx, y: nodeY + offset.dy }

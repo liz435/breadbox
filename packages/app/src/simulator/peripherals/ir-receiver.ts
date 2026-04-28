@@ -26,8 +26,7 @@ import type {
   PeripheralTrace,
   PinEdge,
 } from "./types"
-
-const SIGNAL_ROW_OFFSET = 0
+import { findArduinoPinForComponentPin } from "@/breadboard/component-pin-resolver"
 
 // NEC timings (all in ms).
 const LEADER_LOW_MS = 9.0
@@ -40,20 +39,6 @@ const TRAILER_LOW_MS = 0.56
 // Idle line is HIGH (active-low receiver output). Frame ends HIGH.
 const TRACE_RING_SIZE = 32
 
-function resolveWiredPin(
-  wires: Record<string, Wire>,
-  targetRow: number,
-  targetCol: number,
-): number | null {
-  for (const w of Object.values(wires)) {
-    if (w.fromRow !== -999) continue
-    if (w.toRow !== targetRow) continue
-    if (w.toCol >= 0 && w.toCol <= 4 && targetCol >= 0 && targetCol <= 4) return w.fromCol
-    if (w.toCol >= 5 && w.toCol <= 9 && targetCol >= 5 && targetCol <= 9) return w.fromCol
-  }
-  return null
-}
-
 type IrStateShape = Extract<PeripheralState, { kind: "ir_receiver" }>
 
 export class IrReceiverPeripheral implements Peripheral<IrStateShape> {
@@ -65,8 +50,7 @@ export class IrReceiverPeripheral implements Peripheral<IrStateShape> {
 
   private _watchedPins = new Set<number>()
   private ctx: PeripheralContext | null = null
-  private readonly componentY: number
-  private readonly componentX: number
+  private readonly component: BoardComponent
   private readonly explicitSignal: number | null
 
   private signalPin: number | null = null
@@ -78,9 +62,8 @@ export class IrReceiverPeripheral implements Peripheral<IrStateShape> {
 
   constructor(component: BoardComponent) {
     this.id = component.id
-    this.componentY = component.y
-    this.componentX = component.x
-    const explicit = component.pins?.signal ?? component.pins?.data
+    this.component = component
+    const explicit = component.pins?.signal ?? component.pins?.data ?? component.pins?.out
     this.explicitSignal = typeof explicit === "number" && explicit >= 0 ? explicit : null
     if (this.explicitSignal !== null) {
       this.signalPin = this.explicitSignal
@@ -95,11 +78,7 @@ export class IrReceiverPeripheral implements Peripheral<IrStateShape> {
   attach(ctx: PeripheralContext): void {
     this.ctx = ctx
     if (this.signalPin === null) {
-      const resolved = resolveWiredPin(
-        ctx.wires,
-        this.componentY + SIGNAL_ROW_OFFSET,
-        this.componentX,
-      )
+      const resolved = findArduinoPinForComponentPin(this.component, ["out", "signal", "data"], ctx.wires)
       if (resolved !== null) this.signalPin = resolved
     }
     // Seed the line HIGH (idle state for an active-low IR receiver).

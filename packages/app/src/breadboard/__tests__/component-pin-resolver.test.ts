@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test"
-import type { BoardComponent, Wire } from "@dreamer/schemas"
-import { analyzeButtonWiring } from "../component-pin-resolver"
+import type { BoardComponent, ComponentType, Wire } from "@dreamer/schemas"
+import {
+  analyzeButtonWiring,
+  findArduinoPinForComponentPin,
+  findArduinoPinsForComponent,
+} from "../component-pin-resolver"
 
 function makeButton(): BoardComponent {
   return {
@@ -11,6 +15,19 @@ function makeButton(): BoardComponent {
     y: 10,
     rotation: 0,
     pins: { a: null, b: null },
+    properties: {},
+  }
+}
+
+function makeComponent(type: ComponentType, pins: Record<string, number | null>): BoardComponent {
+  return {
+    id: `${type}-1`,
+    type,
+    name: type,
+    x: 3,
+    y: 10,
+    rotation: 0,
+    pins,
     properties: {},
   }
 }
@@ -62,5 +79,61 @@ describe("analyzeButtonWiring", () => {
     const result = analyzeButtonWiring(button, wires)
     expect(result.inputPin).toBeNull()
     expect(result.hasSignalOnBothSides).toBe(true)
+  })
+})
+
+describe("findArduinoPinForComponentPin", () => {
+  test("resolves DHT data from the canonical data row, not VCC", () => {
+    const dht = makeComponent("dht_sensor", { vcc: null, data: null, gnd: null })
+    const wires: Record<string, Wire> = {
+      vcc: signalWire("vcc", 5, 10, 3),
+      data: signalWire("data", 2, 11, 3),
+    }
+
+    expect(findArduinoPinsForComponent(dht, wires).sort((a, b) => a - b)).toEqual([2, 5])
+    expect(findArduinoPinForComponentPin(dht, "data", wires)).toBe(2)
+  })
+
+  test("resolves ultrasonic trigger and echo from their named rows", () => {
+    const sonic = makeComponent("ultrasonic_sensor", {
+      vcc: null,
+      trigger: null,
+      echo: null,
+      gnd: null,
+    })
+    const wires: Record<string, Wire> = {
+      trigger: signalWire("trigger", 7, 11, 3),
+      echo: signalWire("echo", 8, 12, 3),
+    }
+
+    expect(findArduinoPinForComponentPin(sonic, "trigger", wires)).toBe(7)
+    expect(findArduinoPinForComponentPin(sonic, "echo", wires)).toBe(8)
+  })
+
+  test("uses explicit alias pins before tracing wires", () => {
+    const ir = makeComponent("ir_receiver", { out: 4, gnd: null, vcc: null })
+    const wires: Record<string, Wire> = {
+      out: signalWire("out", 9, 10, 3),
+    }
+
+    expect(findArduinoPinForComponentPin(ir, ["signal", "out"], wires)).toBe(4)
+  })
+
+  test("resolves RGB LED channels from the canonical red/green/blue rows", () => {
+    const rgb = makeComponent("rgb_led", {
+      red: null,
+      green: null,
+      blue: null,
+      common: null,
+    })
+    const wires: Record<string, Wire> = {
+      red: signalWire("red", 9, 10, 3),
+      green: signalWire("green", 10, 11, 3),
+      blue: signalWire("blue", 11, 12, 3),
+    }
+
+    expect(findArduinoPinForComponentPin(rgb, "red", wires)).toBe(9)
+    expect(findArduinoPinForComponentPin(rgb, "green", wires)).toBe(10)
+    expect(findArduinoPinForComponentPin(rgb, "blue", wires)).toBe(11)
   })
 })

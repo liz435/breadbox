@@ -18,7 +18,9 @@
       "y": 5,
       "rotation": 0,
       "pins": {
-        "din": null
+        "din": null,
+        "vcc": null,
+        "gnd": null
       },
       "properties": {}
     }

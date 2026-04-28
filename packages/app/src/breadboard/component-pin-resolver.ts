@@ -10,7 +10,12 @@
 // to find Arduino pins connected to a given component, optionally
 // filtered by direction (input pins only, excluding 5V/GND).
 
-import { MAX_ARDUINO_PIN, type BoardComponent, type Wire } from "@dreamer/schemas"
+import {
+  MAX_ARDUINO_PIN,
+  resolveComponentPins,
+  type BoardComponent,
+  type Wire,
+} from "@dreamer/schemas"
 import { getComponentFootprint, areConnected, resolveNets } from "./breadboard-grid"
 
 const GROUND_PINS = new Set([-3, -4, -6])
@@ -71,6 +76,62 @@ export function findArduinoPinsForComponent(
 }
 
 /**
+ * Find Arduino pins connected to one or more named component pins.
+ *
+ * This is stricter than `findArduinoPinsForComponent`: it only considers the
+ * canonical pin position(s), so power/VCC wires on a nearby row cannot be
+ * mistaken for a signal pin.
+ */
+export function findArduinoPinsForComponentPin(
+  component: BoardComponent,
+  pinNames: string | readonly string[],
+  wires: Record<string, Wire>,
+): number[] {
+  const names = Array.isArray(pinNames) ? pinNames : [pinNames]
+  const pins = new Set<number>()
+
+  for (const name of names) {
+    const explicit = component.pins?.[name]
+    if (typeof explicit === "number" && explicit >= 0 && explicit <= MAX_ARDUINO_PIN) {
+      pins.add(explicit)
+    }
+  }
+  if (pins.size > 0) return [...pins].sort((a, b) => a - b)
+
+  const pinMap = resolveComponentPins(
+    component.type,
+    component.y,
+    component.x,
+    component.properties,
+  )
+  const targetPoints = names
+    .map((name) => pinMap[name])
+    .filter(Boolean) as Array<{ row: number; col: number }>
+  if (targetPoints.length === 0) return []
+
+  for (const wire of Object.values(wires)) {
+    if (wire.fromRow !== -999) continue
+    const arduinoPin = wire.fromCol
+    if (arduinoPin < 0 || arduinoPin > MAX_ARDUINO_PIN) continue
+
+    const wireTo = { row: wire.toRow, col: wire.toCol }
+    if (targetPoints.some((point) => areConnected(wireTo, point))) {
+      pins.add(arduinoPin)
+    }
+  }
+
+  return [...pins].sort((a, b) => a - b)
+}
+
+export function findArduinoPinForComponentPin(
+  component: BoardComponent,
+  pinNames: string | readonly string[],
+  wires: Record<string, Wire>,
+): number | null {
+  return findArduinoPinsForComponentPin(component, pinNames, wires)[0] ?? null
+}
+
+/**
  * Inverse of `findArduinoPinsForComponent`: given an Arduino pin, return
  * every component whose footprint is wired to that pin. Used by the
  * peripheral bus and power-budget analyzer to answer "what is on pin N?".
@@ -105,7 +166,11 @@ export function findInputPinForComponent(
   const explicit =
     component.pins.a ??
     component.pins.input ??
-    component.pins.signal
+    component.pins.signal ??
+    component.pins.data ??
+    component.pins.out ??
+    component.pins.positive ??
+    component.pins.anode
   return explicit ?? null
 }
 

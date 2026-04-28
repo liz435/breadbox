@@ -25,6 +25,7 @@ import { createUltrasonicPeripheral } from "./ultrasonic"
 import { createDhtPeripheral } from "./dht"
 import { createIrReceiverPeripheral } from "./ir-receiver"
 import { createOledPeripheral } from "./ssd1306-oled"
+import { createNeoPixelPeripheral } from "./neopixel"
 
 const FACTORIES = new Map<ComponentType, PeripheralFactory>()
 
@@ -43,6 +44,7 @@ registerPeripheralFactory("ultrasonic_sensor", createUltrasonicPeripheral)
 registerPeripheralFactory("dht_sensor", createDhtPeripheral)
 registerPeripheralFactory("ir_receiver", createIrReceiverPeripheral)
 registerPeripheralFactory("oled_display", createOledPeripheral)
+registerPeripheralFactory("neopixel", createNeoPixelPeripheral)
 
 export type PeripheralBoardInput = {
   components: Record<string, BoardComponent>
