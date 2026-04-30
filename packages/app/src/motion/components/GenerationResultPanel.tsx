@@ -1,5 +1,5 @@
-import type { GenerationJob } from "@dreamer/schemas";
-import { Loader2, X } from "lucide-react";
+import type { ComfyPipeline, ComfyPipelineStep, GenerationJob } from "@dreamer/schemas";
+import { AlertTriangle, CheckCircle2, CircleDashed, Loader2, WandSparkles, X } from "lucide-react";
 import { resolveMotionUrl } from "../api-client";
 
 type GenerationResultPanelProps = {
@@ -7,8 +7,13 @@ type GenerationResultPanelProps = {
   resultVideoUrl?: string | null;
   originalVideoUrl?: string;
   retimedSegmentUrl?: string;
+  rifeSegmentUrl?: string;
+  motionPreviewUrl?: string;
   stitchedVideoUrl?: string;
+  comfyPipeline?: ComfyPipeline;
   stitching?: boolean;
+  preparingComfy?: boolean;
+  onPrepareComfy?: () => void;
   onLoadStitched?: () => void;
   onCancelJob?: () => void;
 };
@@ -18,8 +23,13 @@ export function GenerationResultPanel({
   resultVideoUrl,
   originalVideoUrl,
   retimedSegmentUrl,
+  rifeSegmentUrl,
+  motionPreviewUrl,
   stitchedVideoUrl,
+  comfyPipeline,
   stitching,
+  preparingComfy,
+  onPrepareComfy,
   onLoadStitched,
   onCancelJob,
 }: GenerationResultPanelProps) {
@@ -64,6 +74,12 @@ export function GenerationResultPanel({
           <span>Stitching generated clip into the original video</span>
         </div>
       )}
+      <ComfyPipelineStatus
+        pipeline={comfyPipeline}
+        preparing={preparingComfy}
+        previewUrl={motionPreviewUrl}
+        onPrepare={onPrepareComfy}
+      />
       {stitchedVideoUrl && (
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center">
@@ -88,6 +104,16 @@ export function GenerationResultPanel({
           <p className={labelClass}>Retimed insert</p>
           <video
             src={resolveMotionUrl(retimedSegmentUrl)}
+            controls
+            className="aspect-video w-full overflow-hidden rounded-lg bg-black/60"
+          />
+        </div>
+      )}
+      {rifeSegmentUrl && (
+        <div className="flex flex-col gap-1.5">
+          <p className={labelClass}>Comfy transition insert</p>
+          <video
+            src={resolveMotionUrl(rifeSegmentUrl)}
             controls
             className="aspect-video w-full overflow-hidden rounded-lg bg-black/60"
           />
@@ -125,6 +151,103 @@ export function GenerationResultPanel({
           {job.error ?? "Generation failed"}
         </p>
       )}
+    </div>
+  );
+}
+
+const COMFY_STEPS: Array<{ key: keyof ComfyPipeline; label: string }> = [
+  { key: "targetFrame", label: "Target frame" },
+  { key: "subjectMask", label: "Mask" },
+  { key: "motionPreview", label: "Preview" },
+  { key: "controlGuidance", label: "Controls" },
+  { key: "provider", label: "Provider" },
+  { key: "transition", label: "Transition" },
+  { key: "stitchBridge", label: "Bridge" },
+];
+
+function ComfyPipelineStatus({
+  pipeline,
+  preparing,
+  previewUrl,
+  onPrepare,
+}: {
+  pipeline?: ComfyPipeline;
+  preparing?: boolean;
+  previewUrl?: string;
+  onPrepare?: () => void;
+}) {
+  return (
+    <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
+      <div className="mb-2 flex items-center gap-2">
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground/60">
+          ComfyUI motion pipeline
+        </p>
+        <button
+          type="button"
+          disabled={preparing || !onPrepare}
+          onClick={onPrepare}
+          className="ml-auto inline-flex h-6 items-center gap-1 rounded border border-white/10 px-2 text-[10px] text-muted-foreground hover:bg-white/10 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {preparing ? (
+            <Loader2 className="size-3 animate-spin" />
+          ) : (
+            <WandSparkles className="size-3" />
+          )}
+          Prep
+        </button>
+      </div>
+      <div className="grid grid-cols-2 gap-1.5">
+        {COMFY_STEPS.map((item) => (
+          <ComfyStepBadge
+            key={item.key}
+            label={item.label}
+            step={pipeline?.[item.key]}
+          />
+        ))}
+      </div>
+      {previewUrl ? (
+        <div className="mt-2 flex flex-col gap-1.5">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50">
+            Cheap preview
+          </p>
+          <video
+            src={resolveMotionUrl(previewUrl)}
+            controls
+            className="aspect-video w-full overflow-hidden rounded-md bg-black/60"
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ComfyStepBadge({ label, step }: { label: string; step?: ComfyPipelineStep }) {
+  const status = step?.status ?? "idle";
+  const icon =
+    status === "running" ? (
+      <Loader2 className="size-3 animate-spin text-muted-foreground" />
+    ) : status === "succeeded" ? (
+      <CheckCircle2 className="size-3 text-emerald-400" />
+    ) : status === "failed" ? (
+      <AlertTriangle className="size-3 text-destructive" />
+    ) : (
+      <CircleDashed className="size-3 text-muted-foreground/50" />
+    );
+
+  const tone =
+    status === "succeeded"
+      ? "text-emerald-300"
+      : status === "failed"
+        ? "text-destructive"
+        : "text-muted-foreground";
+
+  return (
+    <div
+      className="flex min-w-0 items-center gap-1 rounded border border-white/10 bg-black/20 px-1.5 py-1"
+      title={step?.message ?? `${label}: ${status}`}
+    >
+      {icon}
+      <span className={`truncate text-[10px] ${tone}`}>{label}</span>
     </div>
   );
 }

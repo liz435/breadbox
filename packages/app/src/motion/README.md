@@ -19,7 +19,8 @@ The editor has pivoted away from skeleton/keypoint editing as the primary workfl
 5. Drag a blue source box around the subject/body region in the selected source frame.
 6. Drag the orange endpoint box in the selected target frame, with optional scale/rotation.
 7. Render an edited target frame locally with `ffmpeg`.
-8. Generate a new motion segment with Veo or the mock provider.
+8. Optionally prep ComfyUI guidance: target-frame status, subject mask, cheap RIFE preview, and downstream transition readiness.
+9. Generate a new motion segment with Veo, ComfyUI, or the mock provider.
 
 This gives Veo a clearer start/end-frame story than raw coordinate keypoints. The old 17-point body keypoint editor code still exists as groundwork, but it is not the main UI path.
 
@@ -65,8 +66,10 @@ packages/api/src/motion/
   providers/
     types.ts
     mock-provider.ts
+    comfyui-provider.ts
     veo-provider.ts
     index.ts
+  comfyui-client.ts
 ```
 
 Shared motion schemas live in:
@@ -86,8 +89,11 @@ POST  /api/motion/segments/:segmentId/keyframes
 PATCH /api/motion/segments/:segmentId/keyframes/:keyframeId
 PATCH /api/motion/frame-edits/:editId
 POST  /api/motion/frame-edits/:editId/render-target-frame
+POST  /api/motion/segments/:segmentId/comfy/prepare
 POST  /api/motion/segments/:segmentId/generate
 GET   /api/motion/jobs/:jobId
+GET   /api/motion/providers/veo/health
+GET   /api/motion/providers/comfyui/health
 GET   /api/motion/artifacts/:projectId/:filename
 ```
 
@@ -116,6 +122,8 @@ type FrameTransformEdit = {
     rotateDeg: number;
   };
   renderedFrameUrl?: string;
+  maskUrl?: string;
+  comfyTargetFrameUrl?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -146,16 +154,80 @@ upload video
   -> ffmpeg extracts start/middle/end frames
   -> optional exact source/target frame extraction
   -> user edits source region and endpoint transform
-  -> ffmpeg renders edited target frame
+  -> ffmpeg renders edited target frame and box mask
+  -> optional ComfyUI prep renders a cheap RIFE preview
   -> prompt compiler describes the requested motion
   -> provider starts generation job
   -> UI polls job
   -> generated mp4 is stored as a local artifact
   -> generated mp4 is retimed to the selected S/T interval
+  -> optional ComfyUI RIFE bookend repair aligns generated clip to S/T frames
   -> retimed insert is stitched back into the original source video
 ```
 
 The local target-frame render duplicates/transforms the selected source region over the target frame. It does not remove or inpaint the original subject position yet, so the rendered image is guidance, not a polished final composite.
+
+## ComfyUI Motion Pipeline
+
+ComfyUI is now integrated as a progressive motion backend, not a replacement for the Dreamer editor. Dreamer still owns upload, S/T selection, prompt compilation, storage, polling, retiming, stitching, and error states.
+
+The sidebar exposes a seven-step ComfyUI pipeline status:
+
+```text
+Target frame   local rendered endpoint image
+Mask           local subject-box mask artifact
+Preview        cheap RIFE source-to-target preview
+Controls       placeholder for future pose/depth/control workflow
+Provider       ComfyUI selectable generation provider readiness
+Transition     RIFE transition repair after provider generation
+Bridge         bookend stitch repair before final stitch
+```
+
+The `Prep` button runs:
+
+```text
+POST /api/motion/segments/:segmentId/comfy/prepare
+```
+
+That endpoint renders the local target frame, renders a subject-box mask, records control-workflow availability, checks whether `COMFYUI_URL` exists, and, when available, creates a cheap RIFE preview clip between the selected source and target frames.
+
+Generation provider options are now:
+
+```text
+veo      paid/cloud final generation
+comfyui  local RIFE source-to-target interpolation provider
+mock     fast local smoke test
+```
+
+The ComfyUI provider is intentionally conservative: it uses RIFE frame interpolation between the selected source and target frames. It is useful for cheap previews and fallback testing, but it is not equivalent to Veo semantic video generation.
+
+After Veo or ComfyUI generation succeeds, the stitch step optionally uses ComfyUI RIFE to repair both bookends of the retimed insert:
+
+```text
+source S frame -> first generated frames
+last generated frames -> target T frame
+```
+
+The result is stored as `rifeSegmentUrl` and shown as `Comfy transition insert`. The final stitched full video still appears as `stitchedVideoUrl`.
+
+### ComfyUI Environment
+
+Set these on the API server to enable the local ComfyUI path:
+
+```text
+COMFYUI_URL=http://your-comfyui-host:8188
+COMFYUI_RIFE_FRAMES=8
+```
+
+Optional workflow hooks:
+
+```text
+COMFYUI_TARGET_FRAME_WORKFLOW_PATH=/data/comfy-workflows/target-frame.json
+COMFYUI_MASK_WORKFLOW_PATH=/data/comfy-workflows/mask.json
+COMFYUI_CONTROL_WORKFLOW_PATH=/data/comfy-workflows/control.json
+```
+
+Those workflow hooks are status-aware placeholders right now. The current Docker sidecar only assumes RIFE frame interpolation is present. Inpainting, automatic segmentation, pose/depth/control generation, and richer local video generation require the matching ComfyUI custom nodes and models before the hooks should run.
 
 ## Veo Configuration
 
@@ -225,6 +297,9 @@ The Dockerfile installs `ffmpeg` because `/motion` needs it for segment clipping
 ## Known Limitations
 
 - The edited target frame is a fast `ffmpeg` composite, not a semantic inpaint.
+- ComfyUI target-frame inpainting, automatic segmentation, and control-image generation are pluggable workflow hooks, but not enabled by the default sidecar.
+- The ComfyUI provider is RIFE interpolation, not full semantic generation.
+- ComfyUI RIFE quality depends on the installed Frame Interpolation custom node, checkpoint path, and available CPU/GPU.
 - True first+last-frame guidance requires a Veo 3.1 model.
 - Exact guidance frames must be inside the selected segment.
 - No automatic subject detection yet; the user manually places the source box.
@@ -254,8 +329,9 @@ project creation -> segment clipping -> keyframe extraction -> exact 4.20s/4.50s
 
 ## Good Next Steps
 
-1. Add a mask/inpaint path so the source subject is removed before the transformed endpoint overlay.
-2. Add automatic subject box detection for the first selected frame.
-3. Add generated segment stitching with `ffmpeg`.
-4. Store artifacts in R2 or S3 for durable hosted storage.
-5. Add focused route tests for upload, segment creation, frame-edit rendering, mock generation, and Veo job polling.
+1. Pin ComfyUI and `ComfyUI-Frame-Interpolation` commits in the sidecar image.
+2. Add a real ComfyUI target-frame inpaint workflow and wire it into `COMFYUI_TARGET_FRAME_WORKFLOW_PATH`.
+3. Add automatic subject box/mask detection with SAM or another segmentation node.
+4. Add pose/depth/control-image workflow support behind `COMFYUI_CONTROL_WORKFLOW_PATH`.
+5. Store artifacts in R2 or S3 for durable hosted storage.
+6. Add focused route tests for upload, segment creation, Comfy prep, mock generation, Veo job polling, and stitch status updates.

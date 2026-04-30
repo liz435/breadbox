@@ -13,6 +13,7 @@ import {
 import type { AuthContext } from "../auth/context";
 import { authPlugin } from "../auth/middleware";
 import { motionArtifactsDir } from "../paths";
+import { checkComfyUiHealth } from "../motion/comfyui-client";
 import { MotionValidationError, motionRepo } from "../motion/motion-repo";
 import { compileMotionPrompt } from "../motion/prompt-compiler";
 import { getVideoGenerationProvider } from "../motion/providers";
@@ -67,7 +68,12 @@ function providerInputFromSegment(input: {
     id: string;
     sourceSegmentUrl?: string;
     keyframes: KeyframePose[];
-    frameEdit?: { sourceFrameId: string; targetFrameId: string; renderedFrameUrl?: string };
+    frameEdit?: {
+      sourceFrameId: string;
+      targetFrameId: string;
+      renderedFrameUrl?: string;
+      comfyTargetFrameUrl?: string;
+    };
     startTimeSeconds: number;
     endTimeSeconds: number;
   };
@@ -81,6 +87,7 @@ function providerInputFromSegment(input: {
     : null;
   const firstFrameUrl = sourceFrame?.imageUrl ?? input.segment.keyframes.find((frame) => frame.label === "start")?.imageUrl;
   const lastFrameUrl =
+    input.segment.frameEdit?.comfyTargetFrameUrl ??
     input.segment.frameEdit?.renderedFrameUrl ??
     targetFrame?.imageUrl ??
     input.segment.keyframes.find((frame) => frame.label === "end")?.imageUrl;
@@ -120,6 +127,36 @@ export const motionRoutes = new Elysia({ prefix: "/api/motion" })
         baseUrl: process.env.GEMINI_API_BASE_URL ?? "https://generativelanguage.googleapis.com/v1beta",
         checkedAt: new Date().toISOString(),
         message: err instanceof Error ? err.message : "Veo health check failed",
+      };
+    }
+  })
+  .get("/providers/comfyui/health", async ({ query, set }) => {
+    try {
+      const rawLive = (query as { live?: string | boolean | number } | undefined)?.live;
+      const live =
+        rawLive === undefined
+          ? true
+          : rawLive === true || rawLive === 1 || rawLive === "1" || rawLive === "true";
+      return checkComfyUiHealth({ performNetworkCheck: live });
+    } catch (err) {
+      set.status = 500;
+      return {
+        provider: "comfyui",
+        configured: false,
+        ok: false,
+        mode: "live" as const,
+        baseUrl: process.env.COMFYUI_URL ?? null,
+        checkedAt: new Date().toISOString(),
+        message: err instanceof Error ? err.message : "ComfyUI health check failed",
+        features: {
+          rife: false,
+          preview: false,
+          transition: false,
+          provider: false,
+          targetFrameWorkflow: false,
+          maskWorkflow: false,
+          controlWorkflow: false,
+        },
       };
     }
   })
@@ -246,6 +283,23 @@ export const motionRoutes = new Elysia({ prefix: "/api/motion" })
       return result;
     } catch (err) {
       if (err instanceof ZodError) return badRequest(set, err);
+      if (err instanceof MotionValidationError) return badRequest(set, err.message);
+      throw err;
+    }
+  })
+  .post("/segments/:segmentId/comfy/prepare", async ({ auth, params, set }) => {
+    const ownerId = requireOwnerId(auth);
+    try {
+      const result = await motionRepo.prepareComfyGuidance({
+        ownerId,
+        segmentId: params.segmentId,
+      });
+      if (!result) {
+        set.status = 404;
+        return { error: "Segment not found" };
+      }
+      return result;
+    } catch (err) {
       if (err instanceof MotionValidationError) return badRequest(set, err.message);
       throw err;
     }

@@ -18,6 +18,7 @@ import {
   createMotionSegment,
   generateMotionSegment,
   getMotionJob,
+  prepareComfyMotionSegment,
   renderMotionFrameEdit,
   updateMotionKeyframe,
 } from "./api-client";
@@ -32,7 +33,7 @@ type MotionEditorState = {
   compiledPrompt: string;
   generationJob: GenerationJob | null;
   resultVideoUrl: string | null;
-  busy: "idle" | "uploading" | "creating-segment" | "extracting-frame" | "saving-keypoints" | "rendering-frame" | "generating";
+  busy: "idle" | "uploading" | "creating-segment" | "extracting-frame" | "saving-keypoints" | "rendering-frame" | "preparing-comfy" | "generating";
   error: string | null;
 };
 
@@ -288,7 +289,7 @@ export function useMotionEditorState() {
     dispatch({ type: "FRAME_EDIT_LOCAL", segmentId: selectedSegment.id, edit });
   }, [selectedSegment]);
 
-	  const renderFrameEdit = useCallback(async (input: {
+  const renderFrameEdit = useCallback(async (input: {
 	    edit: FrameTransformEdit;
 	    subjectBox?: FrameBox;
 	    transform?: FrameTransform;
@@ -314,6 +315,17 @@ export function useMotionEditorState() {
       dispatch({ type: "ERROR", error: errorMessage(err) });
     }
   }, []);
+
+  const prepareComfyGuidance = useCallback(async () => {
+    if (!selectedSegment) return;
+    dispatch({ type: "START", busy: "preparing-comfy" });
+    try {
+      const result = await prepareComfyMotionSegment({ segmentId: selectedSegment.id });
+      dispatch({ type: "SEGMENT_READY", project: result.project, segment: result.segment });
+    } catch (err) {
+      dispatch({ type: "ERROR", error: errorMessage(err) });
+    }
+  }, [selectedSegment]);
 
   const generate = useCallback(async (
     extraContext?: string,
@@ -405,6 +417,7 @@ export function useMotionEditorState() {
     saveKeypoints,
     updateFrameEditLocal,
     renderFrameEdit,
+    prepareComfyGuidance,
     setMotionPrompt,
     setProvider: (provider: GenerationProvider) => dispatch({ type: "SET_PROVIDER", provider }),
     generate,

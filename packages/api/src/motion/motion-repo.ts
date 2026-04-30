@@ -5,6 +5,8 @@ import {
   motionProjectSchema,
   type AnimationCurve,
   type BodyKeypoint,
+  type ComfyPipeline,
+  type ComfyPipelineStep,
   type FrameTransformEdit,
   type GenerationJob,
   type GenerationProvider,
@@ -14,8 +16,9 @@ import {
 } from "@dreamer/schemas";
 import { motionJobsDir, motionProjectsDir } from "../paths";
 import { createDefaultBodyKeypoints } from "./body-keypoints";
+import { comfyUiUrl } from "./comfyui-client";
 import {
-  applyRifeTailTransition,
+  applyRifeBookendTransitions,
   artifactPathFromUrl,
   artifactUrl,
   cutVideoSegment,
@@ -23,6 +26,8 @@ import {
   extensionFromName,
   extractVideoFrame,
   getVideoInfo,
+  renderRifeInterpolationClip,
+  renderSubjectBoxMask,
   renderTransformedFrame,
   retimeGeneratedSegment,
   stitchVideoSegment,
@@ -41,6 +46,36 @@ function now(): string {
 
 function createId(): string {
   return crypto.randomUUID();
+}
+
+type ComfyPipelineStepName = keyof ComfyPipeline;
+const stitchLocks = new Map<
+  string,
+  Promise<{ project: MotionProject; segment: MotionSegment; stitchedVideoUrl: string } | null>
+>();
+
+function withComfyStep(
+  segment: MotionSegment,
+  stepName: ComfyPipelineStepName,
+  step: Omit<ComfyPipelineStep, "updatedAt">,
+): MotionSegment {
+  return {
+    ...segment,
+    comfyPipeline: {
+      ...segment.comfyPipeline,
+      [stepName]: {
+        ...step,
+        updatedAt: now(),
+      },
+    },
+    updatedAt: now(),
+  };
+}
+
+async function saveSegment(project: MotionProject, segment: MotionSegment): Promise<void> {
+  project.segments[segment.id] = segment;
+  project.updatedAt = now();
+  await writeProjectRaw(project);
 }
 
 function projectPath(projectId: string): string {
@@ -285,6 +320,8 @@ async function createKeyframe(input: {
       const frameEdit: FrameTransformEdit = {
         ...found.segment.frameEdit,
         renderedFrameUrl: undefined,
+        maskUrl: undefined,
+        comfyTargetFrameUrl: undefined,
         updatedAt: nowIso,
       };
       const segment: MotionSegment = {
@@ -311,6 +348,8 @@ async function createKeyframe(input: {
         sourceFrameId: input.role === "source" ? existingKeyframe.id : found.segment.frameEdit.sourceFrameId,
         targetFrameId: input.role === "target" ? existingKeyframe.id : found.segment.frameEdit.targetFrameId,
         renderedFrameUrl: undefined,
+        maskUrl: undefined,
+        comfyTargetFrameUrl: undefined,
         updatedAt: nowIso,
       }
       : found.segment.frameEdit;
@@ -358,6 +397,8 @@ async function createKeyframe(input: {
       sourceFrameId: input.role === "source" ? keyframe.id : found.segment.frameEdit.sourceFrameId,
       targetFrameId: input.role === "target" ? keyframe.id : found.segment.frameEdit.targetFrameId,
       renderedFrameUrl: undefined,
+      maskUrl: undefined,
+      comfyTargetFrameUrl: undefined,
       updatedAt: nowIso,
     }
     : found.segment.frameEdit;
@@ -419,6 +460,8 @@ async function updateFrameEdit(input: {
     subjectBox: input.subjectBox ?? found.edit.subjectBox,
     transform: input.transform ?? found.edit.transform,
     renderedFrameUrl: undefined,
+    maskUrl: undefined,
+    comfyTargetFrameUrl: undefined,
     updatedAt: now(),
   };
   const segment: MotionSegment = {
@@ -455,6 +498,7 @@ async function renderFrameEdit(input: {
 
   const artifactDir = await ensureMotionArtifactDir(updated.project.id);
   const filename = `${updated.edit.id}-target-frame.jpg`;
+  const maskFilename = `${updated.edit.id}-subject-mask.jpg`;
   await renderTransformedFrame({
     sourceFramePath,
     targetFramePath,
@@ -462,21 +506,152 @@ async function renderFrameEdit(input: {
     subjectBox: updated.edit.subjectBox,
     transform: updated.edit.transform,
   });
+  await renderSubjectBoxMask({
+    framePath: sourceFramePath,
+    outputPath: join(artifactDir, maskFilename),
+    subjectBox: updated.edit.subjectBox,
+  });
 
   const edit: FrameTransformEdit = {
     ...updated.edit,
     renderedFrameUrl: artifactUrl(updated.project.id, filename),
+    maskUrl: artifactUrl(updated.project.id, maskFilename),
     updatedAt: now(),
   };
-  const segment: MotionSegment = {
+  let segment: MotionSegment = {
     ...updated.segment,
     frameEdit: edit,
     updatedAt: now(),
   };
+  segment = withComfyStep(segment, "targetFrame", {
+    status: "succeeded",
+    artifactUrl: edit.renderedFrameUrl,
+    message: process.env.COMFYUI_TARGET_FRAME_WORKFLOW_PATH?.trim()
+      ? "Local target frame rendered; Comfy target workflow hook is configured"
+      : "Local transformed target frame rendered; no Comfy target workflow configured",
+  });
+  segment = withComfyStep(segment, "subjectMask", {
+    status: "succeeded",
+    artifactUrl: edit.maskUrl,
+    message: process.env.COMFYUI_MASK_WORKFLOW_PATH?.trim()
+      ? "Box mask rendered; Comfy mask workflow hook is configured"
+      : "Box mask rendered from the selected source region",
+  });
+  segment = withComfyStep(segment, "controlGuidance", {
+    status: process.env.COMFYUI_CONTROL_WORKFLOW_PATH?.trim() ? "idle" : "skipped",
+    message: process.env.COMFYUI_CONTROL_WORKFLOW_PATH?.trim()
+      ? "Control guidance workflow is configured but not run automatically"
+      : "No Comfy control/depth/pose workflow configured",
+  });
   updated.project.segments[segment.id] = segment;
   updated.project.updatedAt = now();
   await writeProjectRaw(updated.project);
   return { project: updated.project, segment, edit };
+}
+
+async function prepareComfyGuidance(input: {
+  ownerId: string;
+  segmentId: string;
+}): Promise<{ project: MotionProject; segment: MotionSegment } | null> {
+  const found = await findProjectBySegment(input.ownerId, input.segmentId);
+  if (!found) return null;
+  if (!found.segment.frameEdit) {
+    throw new MotionValidationError("Create source and target guidance frames first");
+  }
+
+  const rendered = await renderFrameEdit({
+    ownerId: input.ownerId,
+    editId: found.segment.frameEdit.id,
+  });
+  if (!rendered) return null;
+
+  let { project, segment, edit } = rendered;
+  const sourceFrame = segment.keyframes.find((frame) => frame.id === edit.sourceFrameId);
+  const targetFrame = segment.keyframes.find((frame) => frame.id === edit.targetFrameId);
+  const sourceFramePath = sourceFrame ? artifactPathFromUrl(project.id, sourceFrame.imageUrl) : null;
+  const targetFrameUrl = edit.comfyTargetFrameUrl ?? edit.renderedFrameUrl ?? targetFrame?.imageUrl;
+  const targetFramePath = targetFrameUrl ? artifactPathFromUrl(project.id, targetFrameUrl) : null;
+
+  segment = withComfyStep(segment, "provider", {
+    status: comfyUiUrl() ? "succeeded" : "skipped",
+    message: comfyUiUrl()
+      ? "ComfyUI is configured as a local RIFE preview/provider backend"
+      : "COMFYUI_URL is not configured",
+  });
+  project.segments[segment.id] = segment;
+  await writeProjectRaw(project);
+
+  if (!sourceFramePath || !targetFramePath || !sourceFrame || !targetFrame) {
+    segment = withComfyStep(segment, "motionPreview", {
+      status: "failed",
+      message: "Source or target frame artifact is missing",
+    });
+    await saveSegment(project, segment);
+    return { project, segment };
+  }
+
+  if (!comfyUiUrl()) {
+    segment = withComfyStep(segment, "motionPreview", {
+      status: "skipped",
+      message: "COMFYUI_URL is not configured, so the cheap RIFE preview was skipped",
+    });
+    segment = withComfyStep(segment, "transition", {
+      status: "skipped",
+      message: "ComfyUI transitions will be skipped until COMFYUI_URL is configured",
+    });
+    segment = withComfyStep(segment, "stitchBridge", {
+      status: "skipped",
+      message: "Bookend stitch repair requires ComfyUI RIFE",
+    });
+    await saveSegment(project, segment);
+    return { project, segment };
+  }
+
+  const artifactDir = await ensureMotionArtifactDir(project.id);
+  const previewFilename = `${segment.id}-comfy-preview.mp4`;
+  const previewPath = join(artifactDir, previewFilename);
+  segment = withComfyStep(segment, "motionPreview", {
+    status: "running",
+    message: "Rendering cheap RIFE source-to-target preview",
+  });
+  await saveSegment(project, segment);
+
+  try {
+    await renderRifeInterpolationClip({
+      frameAPath: sourceFramePath,
+      frameBPath: targetFramePath,
+      outputPath: previewPath,
+      tempDir: artifactDir,
+      durationSeconds: Math.max(0.25, targetFrame.timeSeconds - sourceFrame.timeSeconds),
+      fps: 12,
+    });
+    const previewUrl = artifactUrl(project.id, previewFilename);
+    segment = {
+      ...segment,
+      motionPreviewUrl: previewUrl,
+    };
+    segment = withComfyStep(segment, "motionPreview", {
+      status: "succeeded",
+      artifactUrl: previewUrl,
+      message: "Cheap RIFE source-to-target preview is ready",
+    });
+    segment = withComfyStep(segment, "stitchBridge", {
+      status: "idle",
+      message: "Bookend stitch repair will run after provider generation succeeds",
+    });
+    segment = withComfyStep(segment, "transition", {
+      status: "idle",
+      message: "RIFE transition repair will run after provider generation succeeds",
+    });
+  } catch (err) {
+    segment = withComfyStep(segment, "motionPreview", {
+      status: "failed",
+      message: err instanceof Error ? err.message : "ComfyUI preview failed",
+    });
+  }
+
+  await saveSegment(project, segment);
+  return { project, segment };
 }
 
 async function updateKeyframe(input: {
@@ -621,14 +796,15 @@ async function markSegmentFailed(input: {
   await writeProjectRaw(project);
 }
 
-async function stitchAndSaveSegment(input: {
+async function stitchAndSaveSegmentInner(input: {
   ownerId: string;
   job: GenerationJob;
   resultVideoUrl: string;
 }): Promise<{ project: MotionProject; segment: MotionSegment; stitchedVideoUrl: string } | null> {
   const project = await readProject(input.job.projectId, input.ownerId);
-  const segment = project?.segments[input.job.segmentId];
-  if (!project || !segment) return null;
+  const existingSegment = project?.segments[input.job.segmentId];
+  if (!project || !existingSegment) return null;
+  let segment: MotionSegment = existingSegment;
 
   const sourcePath = artifactPathFromUrl(project.id, project.sourceVideoUrl);
   const generatedPath = artifactPathFromUrl(project.id, input.resultVideoUrl);
@@ -657,30 +833,84 @@ async function stitchAndSaveSegment(input: {
     animationCurve: segment.animationCurve,
   });
 
-  // RIFE tail transition: morph the last ~N frames of the retimed clip to exactly T,
-  // hiding Veo's end-frame drift. Opt-in via COMFYUI_URL env var; non-fatal on failure.
-  const comfyUrl = process.env.COMFYUI_URL?.trim();
-  const targetFramePath = targetKf ? artifactPathFromUrl(project.id, targetKf.imageUrl) : null;
+  // RIFE bookend transition: morph the first frames from S and the last frames
+  // into T, hiding provider drift at both stitch boundaries. Opt-in via
+  // COMFYUI_URL env var; non-fatal on failure.
+  const comfyUrl = comfyUiUrl();
+  const sourceFramePath = sourceKf ? artifactPathFromUrl(project.id, sourceKf.imageUrl) : null;
+  const targetFrameUrl = segment.frameEdit?.comfyTargetFrameUrl ?? segment.frameEdit?.renderedFrameUrl ?? targetKf?.imageUrl;
+  const targetFramePath = targetFrameUrl ? artifactPathFromUrl(project.id, targetFrameUrl) : null;
   let stitchInputPath = retimedPath;
+  let rifeUrl: string | undefined;
 
-  if (comfyUrl && targetFramePath) {
+  if (comfyUrl && (sourceFramePath || targetFramePath)) {
     const rifeOutputPath = join(artifactDir, `${input.job.id}-retimed-rife.mp4`);
+    segment = withComfyStep(segment, "transition", {
+      status: "running",
+      message: "ComfyUI RIFE is repairing the generated clip bookends",
+    });
+    segment = withComfyStep(segment, "stitchBridge", {
+      status: "running",
+      message: "Preparing smoother source/generated and generated/original seams",
+    });
+    await saveSegment(project, segment);
     try {
       const rifeInfo = await getVideoInfo(retimedPath);
-      await applyRifeTailTransition({
+      await applyRifeBookendTransitions({
         videoPath: retimedPath,
-        targetFramePath,
+        sourceFramePath: sourceFramePath ?? undefined,
+        targetFramePath: targetFramePath ?? undefined,
         fps: Math.round(rifeInfo.fps) || 30,
         outputPath: rifeOutputPath,
         tempDir: artifactDir,
       });
       stitchInputPath = rifeOutputPath;
+      rifeUrl = artifactUrl(project.id, `${input.job.id}-retimed-rife.mp4`);
+      segment = {
+        ...segment,
+        rifeSegmentUrl: rifeUrl,
+      };
+      segment = withComfyStep(segment, "transition", {
+        status: "succeeded",
+        artifactUrl: rifeUrl,
+        message: "ComfyUI RIFE bookend transition applied",
+      });
+      segment = withComfyStep(segment, "stitchBridge", {
+        status: "succeeded",
+        artifactUrl: rifeUrl,
+        message: "Generated insert was bridged to the selected S/T frames before stitching",
+      });
+      await saveSegment(project, segment);
     } catch (err) {
       console.warn(
-        "[rife] tail transition failed, using unmodified retimed clip:",
+        "[rife] bookend transition failed, using unmodified retimed clip:",
         err instanceof Error ? err.message : String(err),
       );
+      const message = err instanceof Error ? err.message : "ComfyUI RIFE transition failed";
+      segment = withComfyStep(segment, "transition", {
+        status: "failed",
+        message,
+      });
+      segment = withComfyStep(segment, "stitchBridge", {
+        status: "failed",
+        message: `Used the unmodified retimed clip. ${message}`,
+      });
+      await saveSegment(project, segment);
     }
+  } else {
+    segment = withComfyStep(segment, "transition", {
+      status: "skipped",
+      message: comfyUrl
+        ? "No source or target frame artifact was available for ComfyUI RIFE"
+        : "COMFYUI_URL is not configured",
+    });
+    segment = withComfyStep(segment, "stitchBridge", {
+      status: "skipped",
+      message: comfyUrl
+        ? "Bookend stitch repair needs source or target frame artifacts"
+        : "Bookend stitch repair requires COMFYUI_URL",
+    });
+    await saveSegment(project, segment);
   }
 
   await stitchVideoSegment({
@@ -698,6 +928,7 @@ async function stitchAndSaveSegment(input: {
   const updatedSegment: MotionSegment = {
     ...segment,
     retimedSegmentUrl: retimedUrl,
+    rifeSegmentUrl: rifeUrl ?? segment.rifeSegmentUrl,
     stitchedVideoUrl: stitchedUrl,
     updatedAt: now(),
   };
@@ -705,6 +936,22 @@ async function stitchAndSaveSegment(input: {
   project.updatedAt = now();
   await writeProjectRaw(project);
   return { project, segment: updatedSegment, stitchedVideoUrl: stitchedUrl };
+}
+
+async function stitchAndSaveSegment(input: {
+  ownerId: string;
+  job: GenerationJob;
+  resultVideoUrl: string;
+}): Promise<{ project: MotionProject; segment: MotionSegment; stitchedVideoUrl: string } | null> {
+  const lockKey = `${input.ownerId}:${input.job.id}`;
+  const existing = stitchLocks.get(lockKey);
+  if (existing) return existing;
+
+  const task = stitchAndSaveSegmentInner(input).finally(() => {
+    stitchLocks.delete(lockKey);
+  });
+  stitchLocks.set(lockKey, task);
+  return task;
 }
 
 export const motionRepo = {
@@ -716,6 +963,7 @@ export const motionRepo = {
   updateKeyframe,
   updateFrameEdit,
   renderFrameEdit,
+  prepareComfyGuidance,
   createGenerationJob,
   readProject,
   readJob,

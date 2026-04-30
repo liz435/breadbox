@@ -68,7 +68,7 @@ export function FrameTransformEditor({
       x: clamp(point.x - activeEdit.subjectBox.width / 2, 0, 1 - activeEdit.subjectBox.width),
       y: clamp(point.y - activeEdit.subjectBox.height / 2, 0, 1 - activeEdit.subjectBox.height),
     };
-    onChange({ ...activeEdit, subjectBox: nextBox, renderedFrameUrl: undefined });
+    onChange({ ...activeEdit, subjectBox: nextBox, renderedFrameUrl: undefined, maskUrl: undefined, comfyTargetFrameUrl: undefined });
   }
 
   function updateTargetFromPointer(event: PointerEvent<SVGElement>) {
@@ -80,7 +80,7 @@ export function FrameTransformEditor({
       translateX: clamp(point.x - activeEdit.subjectBox.x - activeDestination.width / 2, -1, 1),
       translateY: clamp(point.y - activeEdit.subjectBox.y - activeDestination.height / 2, -1, 1),
     };
-    onChange({ ...activeEdit, transform: nextTransform, renderedFrameUrl: undefined });
+    onChange({ ...activeEdit, transform: nextTransform, renderedFrameUrl: undefined, maskUrl: undefined, comfyTargetFrameUrl: undefined });
   }
 
   function updateScale(scale: number) {
@@ -89,6 +89,8 @@ export function FrameTransformEditor({
       ...activeEdit,
       transform: { ...activeEdit.transform, scale: clamp(scale, 0.2, 3) },
       renderedFrameUrl: undefined,
+      maskUrl: undefined,
+      comfyTargetFrameUrl: undefined,
     });
   }
 
@@ -98,6 +100,8 @@ export function FrameTransformEditor({
       ...activeEdit,
       transform: { ...activeEdit.transform, rotateDeg: clamp(rotateDeg, -180, 180) },
       renderedFrameUrl: undefined,
+      maskUrl: undefined,
+      comfyTargetFrameUrl: undefined,
     });
   }
 
@@ -106,6 +110,8 @@ export function FrameTransformEditor({
       ...activeEdit,
       transform: { translateX: 0, translateY: -0.12, scale: 1, rotateDeg: 0 },
       renderedFrameUrl: undefined,
+      maskUrl: undefined,
+      comfyTargetFrameUrl: undefined,
     });
   }
 

@@ -2,6 +2,7 @@ import { API_ORIGIN } from "@dreamer/config";
 import {
   generationJobSchema,
   frameTransformEditSchema,
+  comfyPipelineSchema,
   motionProjectSchema,
   motionSegmentSchema,
   keyframePoseSchema,
@@ -70,6 +71,28 @@ const veoProviderHealthSchema = z.object({
 });
 
 export type VeoProviderHealth = z.infer<typeof veoProviderHealthSchema>;
+
+const comfyProviderHealthSchema = z.object({
+  provider: z.literal("comfyui"),
+  configured: z.boolean(),
+  ok: z.boolean(),
+  mode: z.union([z.literal("config"), z.literal("live")]),
+  baseUrl: z.string().nullable(),
+  checkedAt: z.string(),
+  message: z.string(),
+  features: z.object({
+    rife: z.boolean(),
+    preview: z.boolean(),
+    transition: z.boolean(),
+    provider: z.boolean(),
+    targetFrameWorkflow: z.boolean(),
+    maskWorkflow: z.boolean(),
+    controlWorkflow: z.boolean(),
+  }),
+  statusCode: z.number().optional(),
+});
+
+export type ComfyProviderHealth = z.infer<typeof comfyProviderHealthSchema>;
 
 async function parseJson<T>(res: Response, schema: z.ZodType<T>): Promise<T> {
   if (!res.ok) {
@@ -239,3 +262,31 @@ export async function getVeoProviderHealth(input?: {
   );
   return parseJson(res, veoProviderHealthSchema);
 }
+
+const prepareComfyResponseSchema = z.object({
+  project: motionProjectSchema,
+  segment: motionSegmentSchema,
+});
+
+export async function prepareComfyMotionSegment(input: {
+  segmentId: string;
+}): Promise<{ project: MotionProject; segment: MotionSegment }> {
+  const res = await fetch(
+    `${API_ORIGIN}/api/motion/segments/${encodeURIComponent(input.segmentId)}/comfy/prepare`,
+    resolveFetchOptions({ method: "POST" }),
+  );
+  return parseJson(res, prepareComfyResponseSchema);
+}
+
+export async function getComfyProviderHealth(input?: {
+  live?: boolean;
+}): Promise<ComfyProviderHealth> {
+  const live = input?.live ?? true;
+  const res = await fetch(
+    `${API_ORIGIN}/api/motion/providers/comfyui/health?live=${live ? "1" : "0"}`,
+    resolveFetchOptions(),
+  );
+  return parseJson(res, comfyProviderHealthSchema);
+}
+
+export type MotionComfyPipeline = z.infer<typeof comfyPipelineSchema>;
