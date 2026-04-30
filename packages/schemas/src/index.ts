@@ -70,6 +70,8 @@ export {
   type BodyKeypointName,
   animationCurveSchema,
   type AnimationCurve,
+  springCurveSchema,
+  type SpringCurve,
   bodyKeypointSchema,
   type BodyKeypoint,
   keyframePoseSchema,

@@ -7,6 +7,7 @@ import {
   frameBoxSchema,
   frameTransformSchema,
   generationProviderSchema,
+  springCurveSchema,
   type KeyframePose,
   type GenerationProvider,
 } from "@dreamer/schemas";
@@ -41,6 +42,8 @@ const generateSegmentSchema = z.object({
   provider: generationProviderSchema.default("mock"),
   durationSeconds: z.union([z.literal(4), z.literal(6), z.literal(8)]).optional(),
   animationCurve: animationCurveSchema.optional(),
+  springCurve: springCurveSchema.optional(),
+  subjectDescription: z.string().max(500).optional(),
 });
 
 const frameEditUpdateSchema = z.object({
@@ -327,6 +330,8 @@ export const motionRoutes = new Elysia({ prefix: "/api/motion" })
           ? found.segment.keyframes.find((frame) => frame.id === found.segment.frameEdit?.targetFrameId)
           : undefined,
         animationCurve: input.animationCurve,
+        springCurve: input.springCurve,
+        subjectDescription: input.subjectDescription,
       });
       const created = await motionRepo.createGenerationJob({
         ownerId,

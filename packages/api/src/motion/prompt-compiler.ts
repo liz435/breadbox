@@ -1,4 +1,9 @@
-import type { AnimationCurve, FrameTransformEdit, KeyframePose } from "@dreamer/schemas";
+import type {
+  AnimationCurve,
+  FrameTransformEdit,
+  KeyframePose,
+  SpringCurve,
+} from "@dreamer/schemas";
 
 const CURVE_DESCRIPTIONS: Record<AnimationCurve, string> = {
   linear: "",
@@ -7,6 +12,16 @@ const CURVE_DESCRIPTIONS: Record<AnimationCurve, string> = {
   easeInOut: "Motion pacing: ease in gently, reach peak speed in the middle, ease out smoothly.",
   sharp: "Motion pacing: brief setup, then an explosive snap of maximum speed, then settle.",
 };
+
+function describeSpringCurve(tension: number, bounce: number): string {
+  if (tension < 0.3 && bounce < 0.2) return "Motion pacing: ease in gently, reach peak speed in the middle, ease out smoothly.";
+  if (tension > 0.7 && bounce < 0.2) return "Motion pacing: move at a steady, even pace throughout.";
+  if (tension < 0.3 && bounce > 0.6) return "Motion pacing: ease in, overshoot the endpoint with a bouncy spring, then settle.";
+  if (tension > 0.7 && bounce > 0.6) return "Motion pacing: snap quickly to the target then spring back with a sharp oscillation before settling.";
+  if (bounce > 0.4) return "Motion pacing: move toward the endpoint with a spring that slightly overshoots then settles.";
+  if (tension > 0.5) return "Motion pacing: start slow and controlled, then accelerate sharply toward the endpoint.";
+  return "Motion pacing: smooth, fluid movement from start to endpoint.";
+}
 
 export function compileMotionPrompt(input: {
   userPrompt: string;
@@ -17,16 +32,24 @@ export function compileMotionPrompt(input: {
   sourceFrame?: KeyframePose;
   targetFrame?: KeyframePose;
   animationCurve?: AnimationCurve;
+  springCurve?: SpringCurve;
+  subjectDescription?: string;
 }): string {
   const editSummary = input.frameEdit
     ? compileFrameEditSummary(input.frameEdit, input.sourceFrame, input.targetFrame)
     : "No target-frame transform was provided.";
   const sourceTime = input.sourceFrame?.timeSeconds ?? input.startTimeSeconds;
   const targetTime = input.targetFrame?.timeSeconds ?? input.endTimeSeconds;
-  const baseInstruction =
+  const promptText =
     input.userPrompt.trim() ||
     "Create a smooth, physically grounded movement from the original start frame to the edited target frame.";
-  const curveDescription = input.animationCurve ? CURVE_DESCRIPTIONS[input.animationCurve] : "";
+  const subject = input.subjectDescription?.trim();
+  const baseInstruction = subject ? `Subject: ${subject}\n${promptText}` : promptText;
+  const curveDescription = input.springCurve
+    ? describeSpringCurve(input.springCurve.tension, input.springCurve.bounce)
+    : input.animationCurve
+      ? CURVE_DESCRIPTIONS[input.animationCurve]
+      : "";
   const temporalGuidance = compileTemporalGuidance({
     sourceTime,
     targetTime,

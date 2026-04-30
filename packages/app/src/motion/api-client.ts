@@ -6,7 +6,6 @@ import {
   motionProjectSchema,
   motionSegmentSchema,
   keyframePoseSchema,
-  type AnimationCurve,
   type BodyKeypoint,
   type FrameBox,
   type FrameTransform,
@@ -16,6 +15,7 @@ import {
   type KeyframePose,
   type MotionProject,
   type MotionSegment,
+  type SpringCurve,
 } from "@dreamer/schemas";
 import { z } from "zod";
 import { ApiError, resolveFetchOptions } from "@/project/api-client";
@@ -204,7 +204,8 @@ export async function generateMotionSegment(input: {
   motionPrompt: string;
   provider?: GenerationProvider;
   durationSeconds?: 4 | 6 | 8;
-  animationCurve?: AnimationCurve;
+  springCurve?: SpringCurve;
+  subjectDescription?: string;
 }): Promise<{
   jobId: string;
   status: GenerationJob["status"];
@@ -221,7 +222,8 @@ export async function generateMotionSegment(input: {
         motionPrompt: input.motionPrompt,
         provider: input.provider ?? "mock",
         durationSeconds: input.durationSeconds,
-        animationCurve: input.animationCurve,
+        springCurve: input.springCurve,
+        subjectDescription: input.subjectDescription,
       }),
     }),
   );

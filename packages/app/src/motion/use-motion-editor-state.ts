@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer } from "react";
 import type {
-  AnimationCurve,
   BodyKeypoint,
   FrameBox,
   FrameTransform,
@@ -10,6 +9,7 @@ import type {
   KeyframePose,
   MotionProject,
   MotionSegment,
+  SpringCurve,
 } from "@dreamer/schemas";
 import {
   cancelMotionJob,
@@ -333,7 +333,10 @@ export function useMotionEditorState() {
   const generate = useCallback(async (
     extraContext?: string,
     durationSeconds?: 4 | 6 | 8,
-    animationCurve?: AnimationCurve,
+    options?: {
+      springCurve?: SpringCurve;
+      subjectDescription?: string;
+    },
   ) => {
     if (!selectedSegment) return;
     dispatch({ type: "START", busy: "generating" });
@@ -346,7 +349,8 @@ export function useMotionEditorState() {
         motionPrompt: prompt,
         provider: state.provider,
         durationSeconds,
-        animationCurve,
+        springCurve: options?.springCurve,
+        subjectDescription: options?.subjectDescription,
       });
       dispatch({
         type: "GENERATION_STARTED",

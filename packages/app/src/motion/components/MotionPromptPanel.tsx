@@ -1,8 +1,8 @@
 import { AlertTriangle, CheckCircle2, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { AnimationCurve, GenerationProvider } from "@dreamer/schemas";
+import type { GenerationProvider } from "@dreamer/schemas";
 import { cn } from "@/lib/utils";
-import { AnimationCurveControl } from "./AnimationCurveControl";
+import { SpringCurveControl } from "./SpringCurveControl";
 
 type VeoHealthIndicator = {
   status: "idle" | "checking" | "ok" | "error";
@@ -17,9 +17,11 @@ type ComfyHealthIndicator = {
 
 type MotionPromptPanelProps = {
   value: string;
+  subjectDescription: string;
   provider: GenerationProvider;
   durationSeconds: 4 | 6 | 8;
-  animationCurve: AnimationCurve;
+  springTension: number;
+  springBounce: number;
   disabled?: boolean;
   generateDisabled?: boolean;
   generating?: boolean;
@@ -28,9 +30,10 @@ type MotionPromptPanelProps = {
   onCheckVeoHealth?: () => void;
   onCheckComfyHealth?: () => void;
   onChange: (value: string) => void;
+  onSubjectChange: (value: string) => void;
   onProviderChange: (provider: GenerationProvider) => void;
   onDurationChange: (duration: 4 | 6 | 8) => void;
-  onCurveChange: (curve: AnimationCurve) => void;
+  onSpringChange: (tension: number, bounce: number) => void;
   onGenerate: () => void;
 };
 
@@ -38,9 +41,11 @@ const DURATION_OPTIONS: ReadonlyArray<4 | 6 | 8> = [4, 6, 8];
 
 export function MotionPromptPanel({
   value,
+  subjectDescription,
   provider,
   durationSeconds,
-  animationCurve,
+  springTension,
+  springBounce,
   disabled,
   generateDisabled,
   generating,
@@ -49,15 +54,30 @@ export function MotionPromptPanel({
   onCheckVeoHealth,
   onCheckComfyHealth,
   onChange,
+  onSubjectChange,
   onProviderChange,
   onDurationChange,
-  onCurveChange,
+  onSpringChange,
   onGenerate,
 }: MotionPromptPanelProps) {
   const controlsDisabled = disabled || generating;
 
   return (
     <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1.5">
+        <span className="text-[10px] uppercase tracking-widest text-muted-foreground/50">
+          Subject
+        </span>
+        <input
+          type="text"
+          value={subjectDescription}
+          disabled={controlsDisabled}
+          onChange={(event) => onSubjectChange(event.target.value)}
+          placeholder="e.g. the left climber climbing"
+          aria-label="Subject description"
+          className="h-8 w-full rounded-lg bg-white/5 px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground/50 focus:ring-1 focus:ring-ring disabled:opacity-40"
+        />
+      </div>
       <textarea
         value={value}
         disabled={controlsDisabled}
@@ -96,13 +116,14 @@ export function MotionPromptPanel({
 
       <div className="flex w-full min-w-0 flex-col gap-1.5">
         <span className="text-[10px] uppercase tracking-widest text-muted-foreground/50">
-          Curve
+          Motion curve
         </span>
         <div className="w-full min-w-0">
-          <AnimationCurveControl
-            value={animationCurve}
+          <SpringCurveControl
+            tension={springTension}
+            bounce={springBounce}
             disabled={controlsDisabled}
-            onChange={onCurveChange}
+            onChange={onSpringChange}
           />
         </div>
       </div>
