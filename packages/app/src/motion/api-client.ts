@@ -280,6 +280,16 @@ export async function prepareComfyMotionSegment(input: {
   return parseJson(res, prepareComfyResponseSchema);
 }
 
+export async function getMotionSegment(input: {
+  segmentId: string;
+}): Promise<{ project: MotionProject; segment: MotionSegment }> {
+  const res = await fetch(
+    `${API_ORIGIN}/api/motion/segments/${encodeURIComponent(input.segmentId)}`,
+    resolveFetchOptions(),
+  );
+  return parseJson(res, prepareComfyResponseSchema);
+}
+
 export async function getComfyProviderHealth(input?: {
   live?: boolean;
 }): Promise<ComfyProviderHealth> {

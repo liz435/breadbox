@@ -290,6 +290,12 @@ export const motionRoutes = new Elysia({ prefix: "/api/motion" })
       throw err;
     }
   })
+  .get("/segments/:segmentId", async ({ auth, params, set }) => {
+    const ownerId = requireOwnerId(auth);
+    const found = await motionRepo.findProjectBySegment(ownerId, params.segmentId);
+    if (!found) { set.status = 404; return { error: "Segment not found" }; }
+    return { project: found.project, segment: found.segment };
+  })
   .post("/segments/:segmentId/comfy/prepare", async ({ auth, params, set }) => {
     const ownerId = requireOwnerId(auth);
     try {

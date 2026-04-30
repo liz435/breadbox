@@ -632,49 +632,61 @@ async function prepareComfyGuidance(input: {
   const artifactDir = await ensureMotionArtifactDir(project.id);
   const previewFilename = `${segment.id}-comfy-preview.mp4`;
   const previewPath = join(artifactDir, previewFilename);
+
+  // Mark preview as running and return immediately — RIFE on CPU takes 30-90s
+  // which exceeds Railway's 30s HTTP proxy timeout. The actual inference runs
+  // in the background and updates the segment on disk when it completes.
   segment = withComfyStep(segment, "motionPreview", {
     status: "running",
-    message: "Rendering cheap RIFE source-to-target preview",
+    message: "Rendering cheap RIFE source-to-target preview (poll for completion)",
   });
   await saveSegment(project, segment);
+  const returnSegment = segment;
 
-  try {
-    await renderRifeInterpolationClip({
-      frameAPath: sourceFramePath,
-      frameBPath: targetFramePath,
-      outputPath: previewPath,
-      tempDir: artifactDir,
-      durationSeconds: Math.max(0.25, targetFrame.timeSeconds - sourceFrame.timeSeconds),
-      fps: 12,
-      timeoutMs: comfyPrepTimeoutMs(),
-    });
-    const previewUrl = artifactUrl(project.id, previewFilename);
-    segment = {
-      ...segment,
-      motionPreviewUrl: previewUrl,
-    };
-    segment = withComfyStep(segment, "motionPreview", {
-      status: "succeeded",
-      artifactUrl: previewUrl,
-      message: "Cheap RIFE source-to-target preview is ready",
-    });
-    segment = withComfyStep(segment, "stitchBridge", {
-      status: "idle",
-      message: "Bookend stitch repair will run after provider generation succeeds",
-    });
-    segment = withComfyStep(segment, "transition", {
-      status: "idle",
-      message: "RIFE transition repair will run after provider generation succeeds",
-    });
-  } catch (err) {
-    segment = withComfyStep(segment, "motionPreview", {
-      status: "failed",
-      message: err instanceof Error ? err.message : "ComfyUI preview failed",
-    });
-  }
+  // Capture locals for the background closure.
+  const bgProject = project;
+  const bgSourceFramePath = sourceFramePath;
+  const bgTargetFramePath = targetFramePath;
+  const bgSourceFrame = sourceFrame;
+  const bgTargetFrame = targetFrame;
 
-  await saveSegment(project, segment);
-  return { project, segment };
+  void (async () => {
+    let bg = returnSegment;
+    try {
+      await renderRifeInterpolationClip({
+        frameAPath: bgSourceFramePath,
+        frameBPath: bgTargetFramePath,
+        outputPath: previewPath,
+        tempDir: artifactDir,
+        durationSeconds: Math.max(0.25, bgTargetFrame.timeSeconds - bgSourceFrame.timeSeconds),
+        fps: 12,
+        timeoutMs: comfyPrepTimeoutMs(),
+      });
+      const previewUrl = artifactUrl(bgProject.id, previewFilename);
+      bg = { ...bg, motionPreviewUrl: previewUrl };
+      bg = withComfyStep(bg, "motionPreview", {
+        status: "succeeded",
+        artifactUrl: previewUrl,
+        message: "Cheap RIFE source-to-target preview is ready",
+      });
+      bg = withComfyStep(bg, "stitchBridge", {
+        status: "idle",
+        message: "Bookend stitch repair will run after provider generation succeeds",
+      });
+      bg = withComfyStep(bg, "transition", {
+        status: "idle",
+        message: "RIFE transition repair will run after provider generation succeeds",
+      });
+    } catch (err) {
+      bg = withComfyStep(bg, "motionPreview", {
+        status: "failed",
+        message: err instanceof Error ? err.message : "ComfyUI preview failed",
+      });
+    }
+    await saveSegment(bgProject, bg);
+  })();
+
+  return { project, segment: returnSegment };
 }
 
 async function updateKeyframe(input: {
