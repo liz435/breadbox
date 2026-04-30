@@ -3,6 +3,7 @@ import { mkdir, unlink } from "fs/promises";
 import { motionArtifactsDir } from "../paths";
 import {
   comfyRifeFrameCount,
+  type ComfyImageRef,
   uploadImageToComfyUI,
   queueRifeWorkflow,
   pollRifeResult,
@@ -159,6 +160,32 @@ export async function renderTransformedFrame(input: {
     input.outputPath,
   );
   await runMediaCommand("ffmpeg", args);
+}
+
+export async function renderSubjectBoxMask(input: {
+  framePath: string;
+  outputPath: string;
+  subjectBox: { x: number; y: number; width: number; height: number };
+}): Promise<void> {
+  const { subjectBox } = input;
+  const filter =
+    "format=gray,lut=y=0," +
+    `drawbox=x=iw*${subjectBox.x}:y=ih*${subjectBox.y}:` +
+    `w=iw*${subjectBox.width}:h=ih*${subjectBox.height}:color=white:t=fill,` +
+    "format=yuvj420p";
+
+  await runMediaCommand("ffmpeg", [
+    "-y",
+    "-i",
+    input.framePath,
+    "-vf",
+    filter,
+    "-frames:v",
+    "1",
+    "-q:v",
+    "2",
+    input.outputPath,
+  ]);
 }
 
 export async function getVideoInfo(
@@ -556,6 +583,118 @@ export function createPlaceholderKeyframeSvg(input: {
 </svg>`;
 }
 
+export async function writeComfyFramesToVideo(input: {
+  frameRefs: ComfyImageRef[];
+  outputPath: string;
+  tempDir: string;
+  fps: number;
+  startIndex?: number;
+  maxFrames?: number;
+}): Promise<number> {
+  const startIndex = Math.max(0, input.startIndex ?? 0);
+  const maxFrames = input.maxFrames ?? input.frameRefs.length;
+  const selectedRefs = input.frameRefs.slice(startIndex, startIndex + maxFrames);
+  if (selectedRefs.length === 0) {
+    throw new Error("No ComfyUI frames were available to encode");
+  }
+
+  const uniquePrefix = `comfy-frames-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const tempFiles: string[] = [];
+  try {
+    for (let i = 0; i < selectedRefs.length; i += 1) {
+      const framePath = join(
+        input.tempDir,
+        `${uniquePrefix}-${String(i).padStart(4, "0")}.jpg`,
+      );
+      tempFiles.push(framePath);
+      const bytes = await downloadComfyFrame(selectedRefs[i]);
+      await Bun.write(framePath, bytes);
+    }
+
+    const sequencePattern = join(input.tempDir, `${uniquePrefix}-%04d.jpg`);
+    const videoFilter =
+      "scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1," +
+      `fps=${Math.max(1, Math.round(input.fps))},format=yuv420p`;
+    await runMediaCommand("ffmpeg", [
+      "-y",
+      "-framerate",
+      String(Math.max(1, Math.round(input.fps))),
+      "-start_number",
+      "0",
+      "-i",
+      sequencePattern,
+      "-frames:v",
+      String(selectedRefs.length),
+      "-f",
+      "lavfi",
+      "-i",
+      "anullsrc=r=44100:cl=stereo",
+      "-map",
+      "0:v",
+      "-map",
+      "1:a",
+      "-shortest",
+      "-vf",
+      videoFilter,
+      "-c:v",
+      "libx264",
+      "-preset",
+      "veryfast",
+      "-crf",
+      "23",
+      "-c:a",
+      "aac",
+      "-ar",
+      "44100",
+      "-ac",
+      "2",
+      "-movflags",
+      "+faststart",
+      input.outputPath,
+    ]);
+    return selectedRefs.length;
+  } finally {
+    for (const tempPath of tempFiles) {
+      try {
+        if (await Bun.file(tempPath).exists()) {
+          await unlink(tempPath);
+        }
+      } catch {
+        // best-effort cleanup; ignore deletion errors
+      }
+    }
+  }
+}
+
+export async function renderRifeInterpolationClip(input: {
+  frameAPath: string;
+  frameBPath: string;
+  outputPath: string;
+  tempDir: string;
+  durationSeconds: number;
+  fps?: number;
+  frameCount?: number;
+}): Promise<void> {
+  const fps = Math.max(1, Math.round(input.fps ?? 12));
+  const frameCount = Math.max(
+    2,
+    input.frameCount ?? Math.ceil(Math.max(0.25, input.durationSeconds) * fps),
+  );
+  const uniquePrefix = `rife-preview-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const frameARef = await uploadImageToComfyUI(input.frameAPath, `${uniquePrefix}-a.jpg`);
+  const frameBRef = await uploadImageToComfyUI(input.frameBPath, `${uniquePrefix}-b.jpg`);
+  const promptId = await queueRifeWorkflow(frameARef, frameBRef, frameCount);
+  const outputRefs = await pollRifeResult(promptId, 120_000);
+  await writeComfyFramesToVideo({
+    frameRefs: outputRefs,
+    outputPath: input.outputPath,
+    tempDir: input.tempDir,
+    fps,
+    startIndex: 0,
+    maxFrames: Math.min(outputRefs.length, frameCount),
+  });
+}
+
 export async function applyRifeTailTransition(input: {
   videoPath: string;
   targetFramePath: string;
@@ -569,7 +708,6 @@ export async function applyRifeTailTransition(input: {
 
   const info = await getVideoInfo(input.videoPath);
   const totalDuration = info.duration;
-  const { width, height } = info;
   const trimmedDuration = totalDuration - transitionDuration;
 
   if (trimmedDuration < 0.05) {
@@ -611,63 +749,19 @@ export async function applyRifeTailTransition(input: {
       throw new Error("ComfyUI returned no RIFE frames");
     }
 
-    // Write all frames to disk numbered 0000, 0001, ... ; ffmpeg will skip 0
-    // (a near-duplicate of frame A) via -start_number 1.
-    for (let i = 0; i < outputRefs.length; i += 1) {
-      const framePath = join(
-        input.tempDir,
-        `${uniquePrefix}-rife-${String(i).padStart(4, "0")}.jpg`,
-      );
-      tempFiles.push(framePath);
-      const bytes = await downloadComfyFrame(outputRefs[i]);
-      await Bun.write(framePath, bytes);
-    }
-
-    // Build the RIFE tail segment from the image sequence.
+    // Build the RIFE tail segment. Skip frame 0 when possible because it is
+    // usually a near-duplicate of frame A, but keep frameCount frames after
+    // that so the transition can still land on frame B.
     const tailPath = join(input.tempDir, `${uniquePrefix}-rife-tail.mp4`);
     tempFiles.push(tailPath);
-    const sequencePattern = join(input.tempDir, `${uniquePrefix}-rife-%04d.jpg`);
-    const tailVideoFilter =
-      `scale=${width}:${height}:force_original_aspect_ratio=decrease,` +
-      `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,` +
-      `fps=${input.fps},format=yuv420p`;
-    await runMediaCommand("ffmpeg", [
-      "-y",
-      "-framerate",
-      String(input.fps),
-      "-start_number",
-      "1",
-      "-i",
-      sequencePattern,
-      "-frames:v",
-      String(frameCount - 1),
-      "-f",
-      "lavfi",
-      "-i",
-      "anullsrc=r=44100:cl=stereo",
-      "-map",
-      "0:v",
-      "-map",
-      "1:a",
-      "-shortest",
-      "-vf",
-      tailVideoFilter,
-      "-c:v",
-      "libx264",
-      "-preset",
-      "veryfast",
-      "-crf",
-      "23",
-      "-c:a",
-      "aac",
-      "-ar",
-      "44100",
-      "-ac",
-      "2",
-      "-movflags",
-      "+faststart",
-      tailPath,
-    ]);
+    await writeComfyFramesToVideo({
+      frameRefs: outputRefs,
+      outputPath: tailPath,
+      tempDir: input.tempDir,
+      fps: input.fps,
+      startIndex: outputRefs.length > 1 ? 1 : 0,
+      maxFrames: frameCount,
+    });
 
     // Trim the original retimed clip to trimmedDuration. Re-encode rather than
     // -c copy so we land on a clean I-frame boundary for the concat seam.
@@ -719,6 +813,188 @@ export async function applyRifeTailTransition(input: {
       "copy",
       input.outputPath,
     ]);
+  } finally {
+    for (const tempPath of tempFiles) {
+      try {
+        if (await Bun.file(tempPath).exists()) {
+          await unlink(tempPath);
+        }
+      } catch {
+        // best-effort cleanup; ignore deletion errors
+      }
+    }
+  }
+}
+
+export async function applyRifeHeadTransition(input: {
+  videoPath: string;
+  sourceFramePath: string;
+  fps: number;
+  outputPath: string;
+  tempDir: string;
+  transitionFrameCount?: number;
+}): Promise<void> {
+  const frameCount = Math.max(2, input.transitionFrameCount ?? comfyRifeFrameCount());
+  const transitionDuration = frameCount / input.fps;
+  const info = await getVideoInfo(input.videoPath);
+  const totalDuration = info.duration;
+
+  if (totalDuration - transitionDuration < 0.05) {
+    await runMediaCommand("ffmpeg", [
+      "-y",
+      "-i",
+      input.videoPath,
+      "-c",
+      "copy",
+      input.outputPath,
+    ]);
+    return;
+  }
+
+  const uniquePrefix = `rife-head-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const tempFiles: string[] = [];
+
+  try {
+    const frameBPath = join(input.tempDir, `${uniquePrefix}-rife-b.jpg`);
+    tempFiles.push(frameBPath);
+    await extractVideoFrame({
+      sourcePath: input.videoPath,
+      outputPath: frameBPath,
+      timeSeconds: Math.min(totalDuration, transitionDuration),
+    });
+
+    const frameARef = await uploadImageToComfyUI(input.sourceFramePath, `${uniquePrefix}-a.jpg`);
+    const frameBRef = await uploadImageToComfyUI(frameBPath, `${uniquePrefix}-b.jpg`);
+    const promptId = await queueRifeWorkflow(frameARef, frameBRef, frameCount);
+    const outputRefs = await pollRifeResult(promptId, 120_000);
+
+    if (outputRefs.length === 0) {
+      throw new Error("ComfyUI returned no RIFE frames");
+    }
+
+    const headPath = join(input.tempDir, `${uniquePrefix}-rife-head.mp4`);
+    tempFiles.push(headPath);
+    await writeComfyFramesToVideo({
+      frameRefs: outputRefs,
+      outputPath: headPath,
+      tempDir: input.tempDir,
+      fps: input.fps,
+      startIndex: 0,
+      maxFrames: frameCount,
+    });
+
+    const trimmedPath = join(input.tempDir, `${uniquePrefix}-trimmed.mp4`);
+    tempFiles.push(trimmedPath);
+    await runMediaCommand("ffmpeg", [
+      "-y",
+      "-ss",
+      String(transitionDuration),
+      "-i",
+      input.videoPath,
+      "-map",
+      "0:v",
+      "-map",
+      "0:a?",
+      "-c:v",
+      "libx264",
+      "-preset",
+      "veryfast",
+      "-crf",
+      "23",
+      "-c:a",
+      "aac",
+      "-ar",
+      "44100",
+      "-ac",
+      "2",
+      "-movflags",
+      "+faststart",
+      trimmedPath,
+    ]);
+
+    const concatListPath = join(input.tempDir, `${uniquePrefix}-concat.txt`);
+    tempFiles.push(concatListPath);
+    const listContents = [headPath, trimmedPath]
+      .map((piecePath) => `file '${piecePath.replaceAll("'", "'\\''")}'`)
+      .join("\n");
+    await Bun.write(concatListPath, listContents);
+    await runMediaCommand("ffmpeg", [
+      "-y",
+      "-f",
+      "concat",
+      "-safe",
+      "0",
+      "-i",
+      concatListPath,
+      "-c",
+      "copy",
+      input.outputPath,
+    ]);
+  } finally {
+    for (const tempPath of tempFiles) {
+      try {
+        if (await Bun.file(tempPath).exists()) {
+          await unlink(tempPath);
+        }
+      } catch {
+        // best-effort cleanup; ignore deletion errors
+      }
+    }
+  }
+}
+
+export async function applyRifeBookendTransitions(input: {
+  videoPath: string;
+  sourceFramePath?: string;
+  targetFramePath?: string;
+  fps: number;
+  outputPath: string;
+  tempDir: string;
+  transitionFrameCount?: number;
+}): Promise<void> {
+  if (!input.sourceFramePath && !input.targetFramePath) {
+    await runMediaCommand("ffmpeg", [
+      "-y",
+      "-i",
+      input.videoPath,
+      "-c",
+      "copy",
+      input.outputPath,
+    ]);
+    return;
+  }
+
+  const uniquePrefix = `rife-bookend-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const tempFiles: string[] = [];
+  let workingPath = input.videoPath;
+
+  try {
+    if (input.sourceFramePath) {
+      const headOutputPath = input.targetFramePath
+        ? join(input.tempDir, `${uniquePrefix}-head.mp4`)
+        : input.outputPath;
+      if (input.targetFramePath) tempFiles.push(headOutputPath);
+      await applyRifeHeadTransition({
+        videoPath: workingPath,
+        sourceFramePath: input.sourceFramePath,
+        fps: input.fps,
+        outputPath: headOutputPath,
+        tempDir: input.tempDir,
+        transitionFrameCount: input.transitionFrameCount,
+      });
+      workingPath = headOutputPath;
+    }
+
+    if (input.targetFramePath) {
+      await applyRifeTailTransition({
+        videoPath: workingPath,
+        targetFramePath: input.targetFramePath,
+        fps: input.fps,
+        outputPath: input.outputPath,
+        tempDir: input.tempDir,
+        transitionFrameCount: input.transitionFrameCount,
+      });
+    }
   } finally {
     for (const tempPath of tempFiles) {
       try {

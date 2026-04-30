@@ -8,12 +8,17 @@ import { TimelineStrip } from "./components/TimelineStrip";
 import { MotionPromptPanel } from "./components/MotionPromptPanel";
 import { GenerationResultPanel } from "./components/GenerationResultPanel";
 import { useMotionEditorState } from "./use-motion-editor-state";
-import { getVeoProviderHealth } from "./api-client";
+import { getComfyProviderHealth, getVeoProviderHealth } from "./api-client";
 
 type VeoStatusState = {
   status: "idle" | "checking" | "ok" | "error";
   message: string;
   model?: string;
+};
+
+type ComfyStatusState = {
+  status: "idle" | "checking" | "ok" | "error";
+  message: string;
 };
 
 export function MotionEditorPage() {
@@ -24,6 +29,10 @@ export function MotionEditorPage() {
   const [veoStatus, setVeoStatus] = useState<VeoStatusState>({
     status: "idle",
     message: "Waiting to check Veo API",
+  });
+  const [comfyStatus, setComfyStatus] = useState<ComfyStatusState>({
+    status: "idle",
+    message: "Waiting to check ComfyUI",
   });
   const videoRef = useRef<HTMLVideoElement>(null);
   const pendingSeekRef = useRef<number | null>(null);
@@ -80,6 +89,7 @@ export function MotionEditorPage() {
     updateFrameEditLocal,
     setMotionPrompt,
     setProvider,
+    prepareComfyGuidance,
     generate,
     cancelJob,
     clearError,
@@ -139,13 +149,37 @@ export function MotionEditorPage() {
     }
   }, []);
 
+  const checkComfyHealth = useCallback(async () => {
+    setComfyStatus((prev) => ({ ...prev, status: "checking", message: "Checking ComfyUI…" }));
+    try {
+      const health = await getComfyProviderHealth({ live: true });
+      setComfyStatus({
+        status: health.ok ? "ok" : "error",
+        message: health.message,
+      });
+    } catch (err) {
+      setComfyStatus({
+        status: "error",
+        message: err instanceof Error ? err.message : "ComfyUI check failed",
+      });
+    }
+  }, []);
+
   useEffect(() => {
-    if (state.provider !== "veo") {
-      setVeoStatus({ status: "idle", message: "Veo API check is only shown for Veo provider" });
+    if (state.provider === "veo") {
+      void checkVeoHealth();
       return;
     }
-    void checkVeoHealth();
+    setVeoStatus({ status: "idle", message: "Veo API check is only shown for Veo provider" });
   }, [state.provider, checkVeoHealth]);
+
+  useEffect(() => {
+    if (state.provider === "comfyui") {
+      void checkComfyHealth();
+      return;
+    }
+    setComfyStatus({ status: "idle", message: "ComfyUI check is only shown for ComfyUI provider" });
+  }, [state.provider, checkComfyHealth]);
 
   return (
     <MotionEditorShell
@@ -196,6 +230,8 @@ export function MotionEditorPage() {
                   ...frameEdit,
                   targetFrameId: keyframeId,
                   renderedFrameUrl: undefined,
+                  maskUrl: undefined,
+                  comfyTargetFrameUrl: undefined,
                 });
               }
             }}
@@ -213,7 +249,9 @@ export function MotionEditorPage() {
             generateDisabled={!selectedSegment || !selectedSegment.frameEdit?.sourceFrameId}
             generating={state.busy === "generating" || generationActive}
             veoHealth={veoStatus}
+            comfyHealth={comfyStatus}
             onCheckVeoHealth={checkVeoHealth}
+            onCheckComfyHealth={checkComfyHealth}
             onChange={setMotionPrompt}
             onProviderChange={setProvider}
             onDurationChange={setGenerationDuration}
@@ -225,12 +263,17 @@ export function MotionEditorPage() {
             resultVideoUrl={state.resultVideoUrl}
             originalVideoUrl={selectedSegment?.sourceSegmentUrl}
             retimedSegmentUrl={selectedSegment?.retimedSegmentUrl}
+            rifeSegmentUrl={selectedSegment?.rifeSegmentUrl}
+            motionPreviewUrl={selectedSegment?.motionPreviewUrl}
             stitchedVideoUrl={selectedSegment?.stitchedVideoUrl}
+            comfyPipeline={selectedSegment?.comfyPipeline}
             stitching={
               state.generationJob?.status === "succeeded" &&
               Boolean(state.resultVideoUrl) &&
               (!selectedSegment?.stitchedVideoUrl || !selectedSegment?.retimedSegmentUrl)
             }
+            preparingComfy={state.busy === "preparing-comfy"}
+            onPrepareComfy={selectedSegment ? prepareComfyGuidance : undefined}
             onLoadStitched={() => setPreviewVideoUrl(selectedSegment?.stitchedVideoUrl)}
             onCancelJob={cancelJob}
           />

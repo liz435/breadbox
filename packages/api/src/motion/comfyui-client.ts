@@ -2,6 +2,26 @@
 
 export type ComfyImageRef = { name: string; subfolder: string; type: string };
 
+export type ComfyProviderHealth = {
+  provider: "comfyui";
+  configured: boolean;
+  ok: boolean;
+  mode: "config" | "live";
+  baseUrl: string | null;
+  checkedAt: string;
+  message: string;
+  features: {
+    rife: boolean;
+    preview: boolean;
+    transition: boolean;
+    provider: boolean;
+    targetFrameWorkflow: boolean;
+    maskWorkflow: boolean;
+    controlWorkflow: boolean;
+  };
+  statusCode?: number;
+};
+
 export function comfyUiUrl(): string | null {
   const url = process.env.COMFYUI_URL?.trim();
   return url && url.length > 0 ? url : null;
@@ -77,10 +97,14 @@ export function buildRifeWorkflowJson(
       class_type: "RIFE VFI",
       inputs: {
         frames: ["3", 0],
+        clear_cache_after_n_frames: 10,
         multiplier,
         fast_mode: true,
         ensemble: true,
         scale_factor: 1.0,
+        dtype: "fp32",
+        torch_compile: false,
+        batch_size: 1,
         ckpt_name: "rife47.pth",
       },
     },
@@ -117,6 +141,24 @@ export async function queueRifeWorkflow(
     );
   }
   return json.prompt_id;
+}
+
+export async function getRifeResult(promptId: string): Promise<ComfyImageRef[] | null> {
+  const baseUrl = requireComfyUiUrl();
+  const res = await fetch(`${baseUrl}/history/${encodeURIComponent(promptId)}`);
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(
+      `ComfyUI history failed (${res.status} ${res.statusText}): ${detail.slice(0, 500)}`,
+    );
+  }
+  const json = (await res.json()) as Record<
+    string,
+    { outputs?: Record<string, { images?: ComfyImageRef[] }> }
+  >;
+  const images = json[promptId]?.outputs?.["5"]?.images;
+  if (!Array.isArray(images) || images.length === 0) return null;
+  return [...images].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function pollRifeResult(
@@ -159,14 +201,8 @@ export async function pollRifeResult(
           // Transient errors are retried until timeout.
           return;
         }
-        const json = (await res.json()) as Record<
-          string,
-          { outputs?: Record<string, { images?: ComfyImageRef[] }> }
-        >;
-        const entry = json[promptId];
-        const images = entry?.outputs?.["5"]?.images;
-        if (Array.isArray(images) && images.length > 0) {
-          const sorted = [...images].sort((a, b) => a.name.localeCompare(b.name));
+        const sorted = await getRifeResult(promptId);
+        if (sorted && sorted.length > 0) {
           cleanup();
           resolve(sorted);
         }
@@ -198,4 +234,106 @@ export async function downloadComfyFrame(ref: ComfyImageRef): Promise<ArrayBuffe
     );
   }
   return res.arrayBuffer();
+}
+
+export async function checkComfyUiHealth(input?: {
+  performNetworkCheck?: boolean;
+}): Promise<ComfyProviderHealth> {
+  const baseUrl = comfyUiUrl();
+  const checkedAt = new Date().toISOString();
+  const hasTargetFrameWorkflow = Boolean(process.env.COMFYUI_TARGET_FRAME_WORKFLOW_PATH?.trim());
+  const hasMaskWorkflow = Boolean(process.env.COMFYUI_MASK_WORKFLOW_PATH?.trim());
+  const hasControlWorkflow = Boolean(process.env.COMFYUI_CONTROL_WORKFLOW_PATH?.trim());
+  const features = {
+    rife: false,
+    preview: false,
+    transition: false,
+    provider: false,
+    targetFrameWorkflow: hasTargetFrameWorkflow,
+    maskWorkflow: hasMaskWorkflow,
+    controlWorkflow: hasControlWorkflow,
+  };
+
+  if (!baseUrl) {
+    return {
+      provider: "comfyui",
+      configured: false,
+      ok: false,
+      mode: input?.performNetworkCheck === false ? "config" : "live",
+      baseUrl: null,
+      checkedAt,
+      message: "COMFYUI_URL is not configured",
+      features,
+    };
+  }
+
+  if (input?.performNetworkCheck === false) {
+    return {
+      provider: "comfyui",
+      configured: true,
+      ok: true,
+      mode: "config",
+      baseUrl,
+      checkedAt,
+      message: "COMFYUI_URL is configured",
+      features: {
+        ...features,
+        rife: true,
+        preview: true,
+        transition: true,
+        provider: true,
+      },
+    };
+  }
+
+  try {
+    const normalized = baseUrl.replace(/\/+$/, "");
+    const [statsRes, objectInfoRes] = await Promise.all([
+      fetch(`${normalized}/system_stats`),
+      fetch(`${normalized}/object_info/RIFE%20VFI`),
+    ]);
+    if (!statsRes.ok) {
+      return {
+        provider: "comfyui",
+        configured: true,
+        ok: false,
+        mode: "live",
+        baseUrl,
+        checkedAt,
+        message: `ComfyUI did not respond (${statsRes.status} ${statsRes.statusText})`,
+        features,
+        statusCode: statsRes.status,
+      };
+    }
+
+    const rifeReady = objectInfoRes.ok;
+    return {
+      provider: "comfyui",
+      configured: true,
+      ok: rifeReady,
+      mode: "live",
+      baseUrl,
+      checkedAt,
+      message: rifeReady ? "ComfyUI connected with RIFE VFI available" : "ComfyUI connected but RIFE VFI is unavailable",
+      features: {
+        ...features,
+        rife: rifeReady,
+        preview: rifeReady,
+        transition: rifeReady,
+        provider: rifeReady,
+      },
+      statusCode: rifeReady ? undefined : objectInfoRes.status,
+    };
+  } catch (err) {
+    return {
+      provider: "comfyui",
+      configured: true,
+      ok: false,
+      mode: "live",
+      baseUrl,
+      checkedAt,
+      message: err instanceof Error ? err.message : "ComfyUI health check failed",
+      features,
+    };
+  }
 }

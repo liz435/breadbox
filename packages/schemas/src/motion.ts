@@ -74,6 +74,8 @@ export const frameTransformEditSchema = z.object({
   subjectBox: frameBoxSchema,
   transform: frameTransformSchema,
   renderedFrameUrl: nonEmptyStringSchema.optional(),
+  maskUrl: nonEmptyStringSchema.optional(),
+  comfyTargetFrameUrl: nonEmptyStringSchema.optional(),
   createdAt: timestampSchema,
   updatedAt: timestampSchema,
 });
@@ -88,6 +90,37 @@ export const motionSegmentStatusSchema = z.enum([
   "failed",
 ]);
 
+export const comfyPipelineStepStatusSchema = z.enum([
+  "idle",
+  "skipped",
+  "running",
+  "succeeded",
+  "failed",
+]);
+
+export type ComfyPipelineStepStatus = z.infer<typeof comfyPipelineStepStatusSchema>;
+
+export const comfyPipelineStepSchema = z.object({
+  status: comfyPipelineStepStatusSchema,
+  message: z.string().optional(),
+  artifactUrl: nonEmptyStringSchema.optional(),
+  updatedAt: timestampSchema.optional(),
+});
+
+export type ComfyPipelineStep = z.infer<typeof comfyPipelineStepSchema>;
+
+export const comfyPipelineSchema = z.object({
+  targetFrame: comfyPipelineStepSchema.optional(),
+  subjectMask: comfyPipelineStepSchema.optional(),
+  motionPreview: comfyPipelineStepSchema.optional(),
+  controlGuidance: comfyPipelineStepSchema.optional(),
+  transition: comfyPipelineStepSchema.optional(),
+  provider: comfyPipelineStepSchema.optional(),
+  stitchBridge: comfyPipelineStepSchema.optional(),
+});
+
+export type ComfyPipeline = z.infer<typeof comfyPipelineSchema>;
+
 export const motionSegmentSchema = z.object({
   id: nonEmptyStringSchema,
   projectId: nonEmptyStringSchema,
@@ -96,12 +129,15 @@ export const motionSegmentSchema = z.object({
   sourceSegmentUrl: nonEmptyStringSchema.optional(),
   regeneratedSegmentUrl: nonEmptyStringSchema.optional(),
   retimedSegmentUrl: nonEmptyStringSchema.optional(),
+  rifeSegmentUrl: nonEmptyStringSchema.optional(),
   stitchedVideoUrl: nonEmptyStringSchema.optional(),
+  motionPreviewUrl: nonEmptyStringSchema.optional(),
   keyframes: z.array(keyframePoseSchema),
   frameEdit: frameTransformEditSchema.optional(),
   motionPrompt: z.string(),
   compiledPrompt: z.string().optional(),
   animationCurve: animationCurveSchema.optional(),
+  comfyPipeline: comfyPipelineSchema.optional(),
   status: motionSegmentStatusSchema,
   error: z.string().optional(),
   createdAt: timestampSchema,
@@ -126,6 +162,7 @@ export type MotionProject = z.infer<typeof motionProjectSchema>;
 export const generationProviderSchema = z.enum([
   "mock",
   "veo",
+  "comfyui",
   "runway",
   "luma",
   "replicate",

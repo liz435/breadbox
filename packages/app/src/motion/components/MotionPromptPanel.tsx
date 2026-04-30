@@ -10,6 +10,11 @@ type VeoHealthIndicator = {
   model?: string;
 };
 
+type ComfyHealthIndicator = {
+  status: "idle" | "checking" | "ok" | "error";
+  message: string;
+};
+
 type MotionPromptPanelProps = {
   value: string;
   provider: GenerationProvider;
@@ -19,7 +24,9 @@ type MotionPromptPanelProps = {
   generateDisabled?: boolean;
   generating?: boolean;
   veoHealth?: VeoHealthIndicator;
+  comfyHealth?: ComfyHealthIndicator;
   onCheckVeoHealth?: () => void;
+  onCheckComfyHealth?: () => void;
   onChange: (value: string) => void;
   onProviderChange: (provider: GenerationProvider) => void;
   onDurationChange: (duration: 4 | 6 | 8) => void;
@@ -38,7 +45,9 @@ export function MotionPromptPanel({
   generateDisabled,
   generating,
   veoHealth,
+  comfyHealth,
   onCheckVeoHealth,
+  onCheckComfyHealth,
   onChange,
   onProviderChange,
   onDurationChange,
@@ -107,6 +116,7 @@ export function MotionPromptPanel({
           className="h-8 flex-1 rounded-md bg-white/5 px-2 text-xs text-muted-foreground outline-none focus:ring-1 focus:ring-ring disabled:opacity-40"
         >
           <option value="veo">Veo</option>
+          <option value="comfyui">ComfyUI</option>
           <option value="mock">Mock</option>
         </select>
         <Button
@@ -120,12 +130,12 @@ export function MotionPromptPanel({
         </Button>
       </div>
 
-      {provider === "veo" ? (
+      {provider === "veo" || provider === "comfyui" ? (
         <div className="flex items-center justify-between rounded-md border border-white/10 bg-white/5 px-2 py-1.5">
           <div className="flex min-w-0 items-center gap-1.5 text-[11px]">
-            {veoHealth?.status === "checking" ? (
+            {(provider === "veo" ? veoHealth?.status : comfyHealth?.status) === "checking" ? (
               <Loader2 className="size-3 animate-spin text-muted-foreground" />
-            ) : veoHealth?.status === "ok" ? (
+            ) : (provider === "veo" ? veoHealth?.status : comfyHealth?.status) === "ok" ? (
               <CheckCircle2 className="size-3 text-emerald-400" />
             ) : (
               <AlertTriangle className="size-3 text-amber-400" />
@@ -133,17 +143,25 @@ export function MotionPromptPanel({
             <span
               className={cn(
                 "truncate",
-                veoHealth?.status === "ok" ? "text-emerald-300" : "text-muted-foreground",
+                (provider === "veo" ? veoHealth?.status : comfyHealth?.status) === "ok"
+                  ? "text-emerald-300"
+                  : "text-muted-foreground",
               )}
-              title={veoHealth?.message ?? "Veo status unknown"}
+              title={
+                provider === "veo"
+                  ? veoHealth?.message ?? "Veo status unknown"
+                  : comfyHealth?.message ?? "ComfyUI status unknown"
+              }
             >
-              {veoHealth?.status === "checking"
-                ? "Checking Veo API…"
-                : veoHealth?.status === "ok"
-                  ? "Veo API connected"
-                  : veoHealth?.message ?? "Veo API status unknown"}
+              {(provider === "veo" ? veoHealth?.status : comfyHealth?.status) === "checking"
+                ? provider === "veo" ? "Checking Veo API…" : "Checking ComfyUI…"
+                : (provider === "veo" ? veoHealth?.status : comfyHealth?.status) === "ok"
+                  ? provider === "veo" ? "Veo API connected" : "ComfyUI connected"
+                  : provider === "veo"
+                    ? veoHealth?.message ?? "Veo API status unknown"
+                    : comfyHealth?.message ?? "ComfyUI status unknown"}
             </span>
-            {veoHealth?.model ? (
+            {provider === "veo" && veoHealth?.model ? (
               <span className="truncate text-muted-foreground/70" title={veoHealth.model}>
                 {veoHealth.model}
               </span>
@@ -151,8 +169,11 @@ export function MotionPromptPanel({
           </div>
           <button
             type="button"
-            disabled={controlsDisabled || !onCheckVeoHealth || veoHealth?.status === "checking"}
-            onClick={() => onCheckVeoHealth?.()}
+            disabled={
+              controlsDisabled ||
+              (provider === "veo" ? !onCheckVeoHealth || veoHealth?.status === "checking" : !onCheckComfyHealth || comfyHealth?.status === "checking")
+            }
+            onClick={() => provider === "veo" ? onCheckVeoHealth?.() : onCheckComfyHealth?.()}
             className="shrink-0 text-[11px] text-muted-foreground/80 transition hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
           >
             Check
