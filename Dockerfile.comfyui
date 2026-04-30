@@ -44,8 +44,9 @@ RUN git clone --depth 1 \
        pip install --no-cache-dir einops kornia; \
      fi
 
-# Model directory — mount a persistent volume here to survive redeployments
-RUN mkdir -p /ComfyUI/models/VFI/rife
+# Model directory — ComfyUI-Frame-Interpolation resolves ckpt_name directly
+# under models/VFI/, so the file must live at models/VFI/rife47.pth.
+RUN mkdir -p /ComfyUI/models/VFI
 
 # Entrypoint downloads rife47.pth if absent, then starts ComfyUI
 COPY comfyui-entrypoint.sh /entrypoint.sh
