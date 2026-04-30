@@ -1,15 +1,20 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { ProjectFile } from "../../db/schemas";
-import type { BoardOp, BoardState } from "@dreamer/schemas";
+import type { BoardOp, BoardState, DreamerDiagramInput } from "@dreamer/schemas";
 import {
   boardStateToDiagram,
+  circuitProgramSchema,
+  circuitProgramTemplateSchema,
+  compileCircuitProgram,
   createDefaultBoardState,
   diagramToolInputSchema,
   diagramToBoardState,
+  generateCircuitProgram,
   isBoardComponentType,
   resolveComponentPins,
   resolveComponentPin,
+  validateCircuitProgram,
   validateDiagram,
   withDiagramSchemaVersion,
   getComponentPinNames as getSharedPinNames,
@@ -190,6 +195,10 @@ const BUILD_MODE_TOOLS = new Set([
   "get_board_state",
   "analyze_power_budget",
   "get_wiring_guide",
+  "generate_circuit_program",
+  "validate_circuit_program",
+  "compile_circuit_program",
+  "apply_circuit_program",
   "propose_circuit",
   // validate_design is the prompt-documented dry-run gate for apply_design
   // ("validate-first workflow"). Must be in both mode sets so the agent
@@ -300,6 +309,70 @@ export function createCoreTools(params: {
     consecutiveSameSketchFailureClass = 0;
   }
 
+  function syncWorkingBoard(target: BoardState): void {
+    workingBoard.components = structuredClone(target.components);
+    workingBoard.wires = structuredClone(target.wires);
+    workingBoard.libraryState = structuredClone(target.libraryState);
+    workingBoard.serialOutput = structuredClone(target.serialOutput);
+    workingBoard.sketchCode = target.sketchCode;
+    workingBoard.customLibraries = structuredClone(target.customLibraries);
+    workingBoard.boardTarget = target.boardTarget;
+    workingBoard.environment = structuredClone(target.environment);
+  }
+
+  function commitBoardState(target: BoardState): Record<string, unknown> {
+    ops.push(
+      makeBoardOp(opCtx, {
+        kind: "load_board",
+        payload: { state: target },
+      }),
+    );
+    syncWorkingBoard(target);
+    return {
+      ok: true,
+      componentCount: Object.keys(target.components).length,
+      wireCount: Object.keys(target.wires).length,
+      sketchBytes: target.sketchCode.length,
+      boardTarget: target.boardTarget,
+      customLibraries: Object.keys(target.customLibraries).length,
+      obstacleCount: Object.keys(target.environment.obstacles).length,
+      boundaryEnabled: target.environment.boundaryEnabled,
+    };
+  }
+
+  function buildBoardStateFromDiagram(input: DreamerDiagramInput | Omit<DreamerDiagramInput, "$schema">):
+    | { ok: true; boardState: BoardState }
+    | { ok: false; error: Record<string, unknown> } {
+    const result = diagramToBoardState(withDiagramSchemaVersion(input));
+    if (!result.ok) {
+      return {
+        ok: false,
+        error: {
+          error: "Diagram validation failed",
+          issues: result.errors.map((entry) => ({
+            path: entry.path,
+            message: entry.message,
+            suggestion: entry.suggestion,
+          })),
+        },
+      };
+    }
+
+    if (result.boardState.sketchCode) {
+      const check = validateSketch(result.boardState.sketchCode);
+      if (!check.valid) {
+        return {
+          ok: false,
+          error: {
+            error: `Sketch validation failed: ${check.error}${check.line ? ` (line ${check.line})` : ""}`,
+          },
+        };
+      }
+    }
+
+    return { ok: true, boardState: result.boardState };
+  }
+
   const allTools = {
     // ── Read ────────────────────────────────────────────────────────
 
@@ -375,6 +448,93 @@ export function createCoreTools(params: {
       description: "Reference: wiring rules, component footprints, pin names. Call once before placing/wiring if unsure.",
       inputSchema: z.object({}),
       execute: async () => ({ guide: WIRING_GUIDE_TEXT }),
+    }),
+
+    generate_circuit_program: tool({
+      description: `Generate a canonical CircuitProgram v1 from a higher-level circuit plan. Use this when you know the modules, pin roles, and sketch intent, but want the tool to fill in nets, semantic labels, edit handles, default component profiles, example references, and runtime behavior contracts.
+
+Pass the plan body directly. If program.nets is omitted, the tool derives nets by grouping module pins that share the same pinIntent.net string.
+
+This does NOT mutate the board. It returns { program } for the next validate/compile/apply step.`,
+      inputSchema: circuitProgramTemplateSchema,
+      execute: async (input) => {
+        const program = generateCircuitProgram(input);
+        return {
+          ok: true,
+          program,
+          moduleCount: program.program.modules.length,
+          netCount: program.program.nets.length,
+          behaviorCount: program.profiles.behaviors.length,
+        };
+      },
+    }),
+
+    validate_circuit_program: tool({
+      description: `Validate a CircuitProgram v1 without mutating the board. Checks module references, pin names, Arduino pin tokens, net membership, and behavior/runtime constraints such as analog-capable pins, PWM-capable pins, Servo.h guidance, and WS2812 library guidance.
+
+Pass the full CircuitProgram body directly. Returns { ok, errors[], warnings[], normalizedProgram }.`,
+      inputSchema: circuitProgramSchema,
+      execute: async (input) => {
+        const result = validateCircuitProgram(input);
+        return {
+          ok: result.ok,
+          errorCount: result.errors.length,
+          warningCount: result.warnings.length,
+          errors: result.errors,
+          warnings: result.warnings,
+          normalizedProgram: result.program,
+        };
+      },
+    }),
+
+    compile_circuit_program: tool({
+      description: `Compile a CircuitProgram v1 into a DreamerDiagram plus runtime behavior contracts, without mutating the board. Use this to inspect the exact compiled board layout and wiring before applying.
+
+Returns { ok, diagram, runtimeContracts, errors[], warnings[] }.`,
+      inputSchema: circuitProgramSchema,
+      execute: async (input) => {
+        const result = compileCircuitProgram(input);
+        return {
+          ok: result.ok,
+          diagram: result.diagram,
+          runtimeContracts: result.runtimeContracts ?? [],
+          errors: result.errors,
+          warnings: result.warnings,
+        };
+      },
+    }),
+
+    apply_circuit_program: tool({
+      description: `Build a circuit from a CircuitProgram v1. This is the CircuitProgram-first whole-board path.
+
+Workflow inside the tool:
+1. validate the CircuitProgram
+2. compile it to a DreamerDiagram
+3. run the same diagram import + sketch validation gate used by apply_design
+4. replace the board atomically with one load_board op
+
+Use this for new builds or full rebuilds. For explicit pasted DreamerDiagram payloads, use apply_design instead. For small edits on an existing board, prefer propose_fix or the granular CRUD tools.`,
+      inputSchema: circuitProgramSchema,
+      execute: async (input) => {
+        const compiled = compileCircuitProgram(input);
+        if (!compiled.ok || !compiled.diagram) {
+          return {
+            ok: false,
+            error: "CircuitProgram compilation failed",
+            errors: compiled.errors,
+            warnings: compiled.warnings,
+          };
+        }
+
+        const prepared = buildBoardStateFromDiagram(compiled.diagram);
+        if (!prepared.ok) return prepared.error;
+
+        return {
+          ...commitBoardState(prepared.boardState),
+          runtimeContracts: compiled.runtimeContracts ?? [],
+          compileWarnings: compiled.warnings,
+        };
+      },
     }),
 
     // ── Component CRUD ──────────────────────────────────────────────
@@ -855,66 +1015,9 @@ Components use { id, type, at: [x, y], rotation?, properties? }. Pin assignments
 This REMOVES every existing component + wire and installs the new design. For incremental edits, prefer place_component / connect_wire / update_sketch.`,
       inputSchema: diagramToolInputSchema,
       execute: async (input) => {
-        const result = diagramToBoardState(withDiagramSchemaVersion(input));
-        if (!result.ok) {
-          return {
-            error: "Diagram validation failed",
-            issues: result.errors.map((e) => ({
-              path: e.path,
-              message: e.message,
-              suggestion: e.suggestion,
-            })),
-          };
-        }
-
-        const target = result.boardState;
-
-        // Optional sketch pre-compile sanity check so we don't replace the
-        // board only to have arduino-cli reject the sketch afterward.
-        if (target.sketchCode) {
-          const check = validateSketch(target.sketchCode);
-          if (!check.valid) {
-            return {
-              error: `Sketch validation failed: ${check.error}${check.line ? ` (line ${check.line})` : ""}`,
-            };
-          }
-        }
-
-        // Atomic replace: one op carries the full board state, including
-        // boardTarget/customLibraries/environment so replay + persistence stay
-        // consistent across API, tracker, and app-side op application.
-        ops.push(
-          makeBoardOp(opCtx, {
-            kind: "load_board",
-            payload: { state: target },
-          }),
-        );
-
-        // Sync in-turn workingBoard so subsequent read tools see the replaced
-        // state in the same turn.
-        workingBoard.components = structuredClone(target.components);
-        workingBoard.wires = structuredClone(target.wires);
-        workingBoard.libraryState = structuredClone(target.libraryState);
-        workingBoard.serialOutput = structuredClone(target.serialOutput);
-        workingBoard.sketchCode = target.sketchCode;
-        workingBoard.customLibraries = structuredClone(target.customLibraries);
-        workingBoard.boardTarget = target.boardTarget;
-        workingBoard.environment = structuredClone(target.environment);
-
-        return {
-          ok: true,
-          componentCount: Object.keys(target.components).length,
-          wireCount: Object.keys(target.wires).length,
-          sketchBytes: target.sketchCode.length,
-          boardTarget: target.boardTarget,
-          customLibraries: Object.keys(target.customLibraries).length,
-          // Environment (obstacles + boundary) ships atomically inside
-          // load_board → server tracker → frontend LOAD_BOARD handler.
-          // Surfacing counts here gives the model feedback that a pasted
-          // diagram's ultrasonic-ray-casting obstacles survived the apply.
-          obstacleCount: Object.keys(target.environment.obstacles).length,
-          boundaryEnabled: target.environment.boundaryEnabled,
-        };
+        const prepared = buildBoardStateFromDiagram(input);
+        if (!prepared.ok) return prepared.error;
+        return commitBoardState(prepared.boardState);
       },
     }),
 

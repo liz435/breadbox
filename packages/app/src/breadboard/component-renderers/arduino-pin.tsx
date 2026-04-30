@@ -62,6 +62,7 @@ function ArduinoPinInner({ pin, isWiring, onStartWire }: ArduinoPinProps) {
   const isOutput = pinState?.mode === "OUTPUT";
   const isHigh = pinState?.digitalValue === 1;
   const isPwmActive = pinState?.isPwm && (pinState?.pwmValue ?? 0) > 0;
+  const pwmStrength = Math.max(0, Math.min(1, (pinState?.pwmValue ?? 0) / 255));
 
   const labelPos = (() => {
     switch (pin.labelSide) {
@@ -97,16 +98,28 @@ function ArduinoPinInner({ pin, isWiring, onStartWire }: ArduinoPinProps) {
       {/* Invisible hit area for easier hovering */}
       <circle cx={pin.x} cy={pin.y} r={8} fill="transparent" />
 
-      {/* PWM pulsing glow */}
+      {/* PWM indicator — stable intensity so duty-cycle changes don't read as jitter */}
       {isPwmActive && (
-        <circle cx={pin.x} cy={pin.y} r={7.5} fill="none" stroke="#ff9800" strokeWidth={1.5}>
-          <animate
-            attributeName="opacity"
-            values="0.2;0.8;0.2"
-            dur={`${Math.max(0.2, 1 - (pinState?.pwmValue ?? 0) / 255)}s`}
-            repeatCount="indefinite"
+        <>
+          <circle
+            cx={pin.x}
+            cy={pin.y}
+            r={7.5}
+            fill="#ff9800"
+            fillOpacity={0.08 + pwmStrength * 0.12}
+            pointerEvents="none"
           />
-        </circle>
+          <circle
+            cx={pin.x}
+            cy={pin.y}
+            r={7.5}
+            fill="none"
+            stroke="#ff9800"
+            strokeWidth={1.5}
+            opacity={0.22 + pwmStrength * 0.38}
+            pointerEvents="none"
+          />
+        </>
       )}
 
       {/* Output HIGH glow */}

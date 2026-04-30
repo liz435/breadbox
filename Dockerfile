@@ -37,9 +37,10 @@ RUN bun run --cwd packages/app build
 FROM oven/bun:1.3.11 AS runtime
 
 # Minimal system deps: curl for arduino-cli's installer, ca-certificates
-# for HTTPS library index fetches.
+# for HTTPS library index fetches, ffmpeg for /motion segment clipping and
+# keyframe extraction.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends curl ca-certificates \
+  && apt-get install -y --no-install-recommends curl ca-certificates ffmpeg \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

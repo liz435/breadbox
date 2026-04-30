@@ -20,6 +20,7 @@ import { libraryRoutes } from "./routes/libraries";
 import { capabilitiesRoutes } from "./routes/capabilities";
 import { authRoutes } from "./routes/auth";
 import { adminRoutes } from "./routes/admin";
+import { motionRoutes } from "./routes/motion";
 import { createWebUiStatic } from "./routes/web-ui-static";
 import { stopWorker } from "./serial/serialport-bridge";
 import { APP_ORIGIN, API_PORT as _API_PORT } from "@dreamer/config";
@@ -91,6 +92,7 @@ const app = new Elysia()
   .use(evalRoutes)
   .use(libraryRoutes)
   .use(capabilitiesRoutes)
+  .use(motionRoutes)
   .use(staticWebUi)
   .onError(({ code, request }) => {
     // Elysia's default NOT_FOUND response body is literally "NOT_FOUND",

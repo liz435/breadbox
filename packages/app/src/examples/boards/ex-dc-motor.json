@@ -28,7 +28,7 @@
       "id": "wire-d9",
       "fromRow": -999,
       "fromCol": 9,
-      "toRow": 5,
+      "toRow": 6,
       "toCol": 7,
       "color": "#fbbf24"
     },
@@ -36,17 +36,9 @@
       "id": "wire-vcc",
       "fromRow": 0,
       "fromCol": 11,
-      "toRow": 6,
+      "toRow": 5,
       "toCol": 7,
       "color": "#ef4444"
-    },
-    "wire-gnd": {
-      "id": "wire-gnd",
-      "fromRow": 0,
-      "fromCol": 10,
-      "toRow": 7,
-      "toCol": 7,
-      "color": "#1a1a1a"
     },
     "wire-common-gnd": {
       "id": "wire-common-gnd",

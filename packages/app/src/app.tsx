@@ -47,6 +47,7 @@ import { decodeDiagramFromUrl, diagramToBoardState } from "@dreamer/schemas";
 import { useCurrentUser } from "./auth/use-current-user";
 import { LocalNoSessionScreen } from "./auth/local-no-session-screen";
 import { PreviewBanner } from "./auth/preview-banner";
+import { MotionEditorPage } from "./motion/motion-editor-page";
 
 // Dockview panel wrappers — each wrapped in an ErrorBoundary
 function ProjectFilesPanel(_props: IDockviewPanelProps) {
@@ -485,6 +486,14 @@ function AppOrDocs() {
   }
   if (path.startsWith("/learn")) {
     return <LearnRouter />;
+  }
+  if (path.startsWith("/motion")) {
+    return (
+      <>
+        <MotionEditorPage />
+        <PreviewBanner />
+      </>
+    );
   }
   // /editor (and /, briefly, until the redirect fires) render the main app.
   return (

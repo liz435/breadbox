@@ -7,6 +7,8 @@ import {
   ButtonSymbol,
   CapacitorSymbol,
   BuzzerSymbol,
+  DcMotorSymbol,
+  RelaySymbol,
   ServoSymbol,
   PotentiometerSymbol,
   VoltageSourceSymbol,
@@ -19,6 +21,7 @@ import {
   LcdSymbol,
   NeopixelSymbol,
   PirSensorSymbol,
+  GenericModuleSymbol,
   WireJunction,
   type SchematicSymbolType,
 } from "../schematic-symbols"
@@ -38,13 +41,15 @@ function render(node: React.ReactNode): string {
 
 // ── renderSymbol dispatch ──────────────────────────────────────────────
 
-describe("renderSymbol — dispatch to all 18 symbol types", () => {
+describe("renderSymbol — dispatch to all 21 symbol types", () => {
   const ALL_TYPES: SchematicSymbolType[] = [
     "resistor",
     "led",
     "button",
     "capacitor",
     "buzzer",
+    "dc_motor",
+    "relay",
     "servo",
     "potentiometer",
     "seven_segment",
@@ -58,6 +63,7 @@ describe("renderSymbol — dispatch to all 18 symbol types", () => {
     "ground",
     "arduino_pin",
     "junction",
+    "generic_module",
   ]
 
   for (const type of ALL_TYPES) {
@@ -73,8 +79,8 @@ describe("renderSymbol — dispatch to all 18 symbol types", () => {
     })
   }
 
-  test("all 18 types are covered (exhaustive count check)", () => {
-    expect(ALL_TYPES.length).toBe(18)
+  test("all 21 types are covered (exhaustive count check)", () => {
+    expect(ALL_TYPES.length).toBe(21)
   })
 })
 
@@ -89,6 +95,21 @@ describe("symbol label rendering", () => {
   test("LedSymbol renders its label in output", () => {
     const html = render(<LedSymbol {...BASE_PROPS} label="LED1" />)
     expect(html).toContain("LED1")
+  })
+
+  test("DcMotorSymbol renders its label in output", () => {
+    const html = render(<DcMotorSymbol {...BASE_PROPS} label="M1" />)
+    expect(html).toContain("M1")
+  })
+
+  test("RelaySymbol renders its label in output", () => {
+    const html = render(<RelaySymbol {...BASE_PROPS} label="K1" />)
+    expect(html).toContain("K1")
+  })
+
+  test("GenericModuleSymbol renders its label in output", () => {
+    const html = render(<GenericModuleSymbol {...BASE_PROPS} label="U1" />)
+    expect(html).toContain("U1")
   })
 
   test("ButtonSymbol renders label with SW prefix", () => {

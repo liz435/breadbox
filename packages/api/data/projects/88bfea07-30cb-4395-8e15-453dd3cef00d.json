@@ -5,7 +5,7 @@
     "ownerId": "local",
     "version": 1,
     "createdAt": "2026-04-21T00:38:01.534Z",
-    "updatedAt": "2026-04-28T22:19:35.025Z",
+    "updatedAt": "2026-04-28T23:18:34.468Z",
     "threadId": "ddc7ce94-a9ec-41a3-aef6-45123f12fd25",
     "activeSceneId": "728a26d2-7e83-4d2d-a5b2-823ae62d8129"
   },
@@ -79,98 +79,63 @@
   },
   "boardState": {
     "components": {
-      "rgb-led-1": {
-        "id": "rgb-led-1",
-        "type": "rgb_led",
-        "name": "RGB LED",
+      "psu-1": {
+        "id": "psu-1",
+        "type": "power_supply",
+        "name": "External 5V",
+        "x": 0,
+        "y": 0,
+        "rotation": 0,
+        "pins": {},
+        "properties": {
+          "leftVoltage": 5,
+          "rightVoltage": 5
+        }
+      },
+      "relay-1": {
+        "id": "relay-1",
+        "type": "relay",
+        "name": "Relay",
         "x": 7,
         "y": 5,
         "rotation": 0,
         "pins": {
-          "red": null,
-          "green": null,
-          "blue": null,
-          "common": null
+          "signal": null
         },
         "properties": {}
-      },
-      "resistor-r": {
-        "id": "resistor-r",
-        "type": "resistor",
-        "name": "R-Red 220Ω",
-        "x": 3,
-        "y": 5,
-        "rotation": 0,
-        "pins": {
-          "a": null,
-          "b": null
-        },
-        "properties": {
-          "resistance": 220
-        }
-      },
-      "resistor-g": {
-        "id": "resistor-g",
-        "type": "resistor",
-        "name": "R-Green 220Ω",
-        "x": 3,
-        "y": 6,
-        "rotation": 0,
-        "pins": {
-          "a": null,
-          "b": null
-        },
-        "properties": {
-          "resistance": 220
-        }
-      },
-      "resistor-b": {
-        "id": "resistor-b",
-        "type": "resistor",
-        "name": "R-Blue 220Ω",
-        "x": 3,
-        "y": 7,
-        "rotation": 0,
-        "pins": {
-          "a": null,
-          "b": null
-        },
-        "properties": {
-          "resistance": 220
-        }
       }
     },
     "wires": {
-      "wire-d9": {
-        "id": "wire-d9",
+      "wire-d7": {
+        "id": "wire-d7",
         "fromRow": -999,
-        "fromCol": 9,
+        "fromCol": 7,
         "toRow": 5,
-        "toCol": 3,
-        "color": "#ef4444"
+        "toCol": 7,
+        "color": "#fbbf24"
       },
-      "wire-d10": {
-        "id": "wire-d10",
-        "fromRow": -999,
-        "fromCol": 10,
-        "toRow": 6,
-        "toCol": 3,
-        "color": "#22c55e"
-      },
-      "wire-d11": {
-        "id": "wire-d11",
-        "fromRow": -999,
+      "wire-vcc": {
+        "id": "wire-vcc",
+        "fromRow": 0,
         "fromCol": 11,
-        "toRow": 7,
-        "toCol": 3,
-        "color": "#3b82f6"
+        "toRow": 6,
+        "toCol": 7,
+        "color": "#ef4444"
       },
       "wire-gnd": {
         "id": "wire-gnd",
+        "fromRow": 0,
+        "fromCol": 10,
+        "toRow": 7,
+        "toCol": 7,
+        "color": "#1a1a1a"
+      },
+      "wire-common-gnd": {
+        "id": "wire-common-gnd",
         "fromRow": -999,
         "fromCol": -3,
-        "toRow": 8,
-        "toCol": 9,
+        "toRow": 1,
+        "toCol": 10,
         "color": "#1a1a1a"
       }
     },
@@ -182,7 +147,7 @@
       "neopixels": {}
     },
     "serialOutput": [],
-    "sketchCode": "// Example: RGB LED Color Cycle\n// Cycle through red, green, and blue using PWM.\n\nint redPin = 9;\nint greenPin = 10;\nint bluePin = 11;\n\nvoid setup() {\n  pinMode(redPin, OUTPUT);\n  pinMode(greenPin, OUTPUT);\n  pinMode(bluePin, OUTPUT);\n}\n\nvoid loop() {\n  // Red\n  analogWrite(redPin, 255);\n  analogWrite(greenPin, 0);\n  analogWrite(bluePin, 0);\n  delay(1000);\n  // Green\n  analogWrite(redPin, 0);\n  analogWrite(greenPin, 255);\n  analogWrite(bluePin, 0);\n  delay(1000);\n  // Blue\n  analogWrite(redPin, 0);\n  analogWrite(greenPin, 0);\n  analogWrite(bluePin, 255);\n  delay(1000);\n}\n",
+    "sketchCode": "// Example: Relay Toggle\n// Switch a relay on and off every 2 seconds.\n// Uses external 5V power supply for the relay coil.\n\nint relayPin = 7;\n\nvoid setup() {\n  pinMode(relayPin, OUTPUT);\n}\n\nvoid loop() {\n  digitalWrite(relayPin, HIGH);\n  delay(2000);\n  digitalWrite(relayPin, LOW);\n  delay(2000);\n}\n",
     "customLibraries": {},
     "boardTarget": "arduino_uno",
     "environment": {

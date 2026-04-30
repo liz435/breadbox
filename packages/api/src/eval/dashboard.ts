@@ -324,12 +324,13 @@ function versionAtLeast(v, target){
 }
 function resolveDiagramVersion(rawVersion){
   var v = String(rawVersion || '').trim();
-  if (v === '1.0.0' || v === '1.0.1' || v === '1.0.2' || v === '1.0.3' || v === '1.0.4' || v === '1.0.5' || v === '1.0.6' || v === '1.0.7' || v === '1.0.8' || v === '1.1.0' || v === '1.1.1' || v === '1.2.0' || v === '1.2.1' || v === '1.2.2' || v === '1.2.3' || v === '1.2.4' || v === '1.2.5' || v === '1.3.0' || v === '1.3.1' || v === '1.3.2' || v === '1.3.3' || v === '1.3.4' || v === '1.3.5') return v;
+  if (v === '1.0.0' || v === '1.0.1' || v === '1.0.2' || v === '1.0.3' || v === '1.0.4' || v === '1.0.5' || v === '1.0.6' || v === '1.0.7' || v === '1.0.8' || v === '1.1.0' || v === '1.1.1' || v === '1.2.0' || v === '1.2.1' || v === '1.2.2' || v === '1.2.3' || v === '1.2.4' || v === '1.2.5' || v === '1.3.0' || v === '1.3.1' || v === '1.3.2' || v === '1.3.3' || v === '1.3.4' || v === '1.3.5' || v === '1.4.0') return v;
   // Default to the latest known diagram, but preserve 1.0.0 if current is old.
-  return versionAtLeast(CURRENT_VER, '1.3.5') ? '1.3.5' : versionAtLeast(CURRENT_VER, '1.3.4') ? '1.3.4' : versionAtLeast(CURRENT_VER, '1.3.3') ? '1.3.3' : versionAtLeast(CURRENT_VER, '1.3.2') ? '1.3.2' : versionAtLeast(CURRENT_VER, '1.3.1') ? '1.3.1' : versionAtLeast(CURRENT_VER, '1.3.0') ? '1.3.0' : versionAtLeast(CURRENT_VER, '1.2.5') ? '1.2.5' : versionAtLeast(CURRENT_VER, '1.2.4') ? '1.2.4' : versionAtLeast(CURRENT_VER, '1.2.3') ? '1.2.3' : versionAtLeast(CURRENT_VER, '1.2.2') ? '1.2.2' : versionAtLeast(CURRENT_VER, '1.2.1') ? '1.2.1' : versionAtLeast(CURRENT_VER, '1.2.0') ? '1.2.0' : versionAtLeast(CURRENT_VER, '1.1.1') ? '1.1.1' : versionAtLeast(CURRENT_VER, '1.1.0') ? '1.1.0' : versionAtLeast(CURRENT_VER, '1.0.8') ? '1.0.8' : versionAtLeast(CURRENT_VER, '1.0.7') ? '1.0.7' : versionAtLeast(CURRENT_VER, '1.0.6') ? '1.0.6' : versionAtLeast(CURRENT_VER, '1.0.5') ? '1.0.5' : versionAtLeast(CURRENT_VER, '1.0.4') ? '1.0.4' : versionAtLeast(CURRENT_VER, '1.0.3') ? '1.0.3' : versionAtLeast(CURRENT_VER, '1.0.2') ? '1.0.2' : versionAtLeast(CURRENT_VER, '1.0.1') ? '1.0.1' : '1.0.0';
+  return versionAtLeast(CURRENT_VER, '1.4.0') ? '1.4.0' : versionAtLeast(CURRENT_VER, '1.3.5') ? '1.3.5' : versionAtLeast(CURRENT_VER, '1.3.4') ? '1.3.4' : versionAtLeast(CURRENT_VER, '1.3.3') ? '1.3.3' : versionAtLeast(CURRENT_VER, '1.3.2') ? '1.3.2' : versionAtLeast(CURRENT_VER, '1.3.1') ? '1.3.1' : versionAtLeast(CURRENT_VER, '1.3.0') ? '1.3.0' : versionAtLeast(CURRENT_VER, '1.2.5') ? '1.2.5' : versionAtLeast(CURRENT_VER, '1.2.4') ? '1.2.4' : versionAtLeast(CURRENT_VER, '1.2.3') ? '1.2.3' : versionAtLeast(CURRENT_VER, '1.2.2') ? '1.2.2' : versionAtLeast(CURRENT_VER, '1.2.1') ? '1.2.1' : versionAtLeast(CURRENT_VER, '1.2.0') ? '1.2.0' : versionAtLeast(CURRENT_VER, '1.1.1') ? '1.1.1' : versionAtLeast(CURRENT_VER, '1.1.0') ? '1.1.0' : versionAtLeast(CURRENT_VER, '1.0.8') ? '1.0.8' : versionAtLeast(CURRENT_VER, '1.0.7') ? '1.0.7' : versionAtLeast(CURRENT_VER, '1.0.6') ? '1.0.6' : versionAtLeast(CURRENT_VER, '1.0.5') ? '1.0.5' : versionAtLeast(CURRENT_VER, '1.0.4') ? '1.0.4' : versionAtLeast(CURRENT_VER, '1.0.3') ? '1.0.3' : versionAtLeast(CURRENT_VER, '1.0.2') ? '1.0.2' : versionAtLeast(CURRENT_VER, '1.0.1') ? '1.0.1' : '1.0.0';
 }
 function previousDiagramVersion(v){
   var resolved = resolveDiagramVersion(v);
+  if (resolved === '1.4.0') return '1.3.5';
   if (resolved === '1.3.5') return '1.3.4';
   if (resolved === '1.3.4') return '1.3.3';
   if (resolved === '1.3.3') return '1.3.2';
@@ -356,6 +357,7 @@ function previousDiagramVersion(v){
 }
 function introducedNodesForVersion(v){
   var resolved = resolveDiagramVersion(v);
+  if (resolved === '1.4.0') return ['TCP', 'ACP', 'TMB'];
   if (resolved === '1.0.1') return ['SNAP'];
   if (resolved === '1.0.2') return ['PCV'];
   if (resolved === '1.1.0') return ['TMB', 'TMA', 'TME'];
@@ -367,7 +369,7 @@ function changedNodesBetween(fromV, toV){
   var from = resolveDiagramVersion(fromV || baselineDiagramVersion());
   var to = resolveDiagramVersion(toV || CURRENT_VER);
   if (!versionAtLeast(to, from)) return [];
-  var known = ['1.0.1','1.0.2','1.0.3','1.0.4','1.0.5','1.0.6','1.0.7','1.0.8','1.1.0','1.1.1','1.2.0','1.2.1','1.2.2','1.2.3','1.2.4','1.2.5','1.3.0','1.3.1','1.3.2','1.3.3','1.3.4','1.3.5'];
+  var known = ['1.0.1','1.0.2','1.0.3','1.0.4','1.0.5','1.0.6','1.0.7','1.0.8','1.1.0','1.1.1','1.2.0','1.2.1','1.2.2','1.2.3','1.2.4','1.2.5','1.3.0','1.3.1','1.3.2','1.3.3','1.3.4','1.3.5','1.4.0'];
   var out = [];
   known.forEach(function(v){
     if (versionAtLeast(v, from) && versionAtLeast(to, v) && v !== from) {
@@ -410,7 +412,7 @@ function latestVersionFromRuns(evals){
 }
 function allKnownVersions(evals){
   var versions=Object.keys(versionBuckets(evals||[]));
-  var known=['1.0.0','1.0.1','1.0.2','1.0.3','1.0.4','1.0.5','1.0.6','1.0.7','1.0.8','1.1.0','1.1.1','1.2.0','1.2.1','1.2.2','1.2.3','1.2.4','1.2.5','1.3.0','1.3.1','1.3.2','1.3.3','1.3.4','1.3.5'];
+  var known=['1.0.0','1.0.1','1.0.2','1.0.3','1.0.4','1.0.5','1.0.6','1.0.7','1.0.8','1.1.0','1.1.1','1.2.0','1.2.1','1.2.2','1.2.3','1.2.4','1.2.5','1.3.0','1.3.1','1.3.2','1.3.3','1.3.4','1.3.5','1.4.0'];
   known.forEach(function(v){ if(versions.indexOf(v)<0) versions.push(v); });
   var currentResolved=resolveDiagramVersion(CURRENT_VER);
   if(versions.indexOf(currentResolved)<0) versions.push(currentResolved);
@@ -472,6 +474,7 @@ function buildFlowchart(nc, agg, diagramVersion, fromVersion) {
   var isV101 = versionAtLeast(resolvedDiagramVersion, '1.0.1');
   var isV102 = versionAtLeast(resolvedDiagramVersion, '1.0.2');
   var isV110 = versionAtLeast(resolvedDiagramVersion, '1.1.0');
+  var isV140 = versionAtLeast(resolvedDiagramVersion, '1.4.0');
   var changedNodes = changedNodesBetween(fromVersion || previousDiagramVersion(resolvedDiagramVersion), resolvedDiagramVersion);
   function c(id){ return nc[id] ? ':::'+nc[id] : ':::ghost'; }
   var L = [
@@ -640,6 +643,24 @@ function buildFlowchart(nc, agg, diagramVersion, fromVersion) {
       return line;
     });
   }
+  if (isV140) {
+    L = L.map(function(line) {
+      if (line.indexOf('TMB[') >= 0) return '  TMC -- "empty board" --> TMB["build · CircuitProgram + fallback tools"]'+c('TMB');
+      if (line.indexOf('WPC[') >= 0) return '  SL -- "build fallback only" --> WPC["propose_circuit · fallback auto-place + auto-wire"]'+c('WPC');
+      return line;
+    });
+    var wpcIdx = L.findIndex(function(line){ return line.indexOf('SL -- "build fallback only" --> WPC[') >= 0; });
+    if (wpcIdx >= 0) {
+      L.splice(
+        wpcIdx,
+        0,
+        '  SL -- "CircuitProgram planning" --> TCP["generate_circuit_program · validate_circuit_program\\ncompile_circuit_program"]'+c('TCP'),
+        '  TCP --> SL',
+        '  SL -- "CircuitProgram apply" --> ACP["apply_circuit_program · compile -> validate_design\\n-> load_board"]'+c('ACP'),
+        '  ACP --> SL',
+      );
+    }
+  }
   if(!agg){
     L=L.concat([
       '  classDef actual fill:#1e3a8a,stroke:#3b82f6,color:#bfdbfe,font-weight:600',
@@ -667,8 +688,8 @@ function buildFlowchart(nc, agg, diagramVersion, fromVersion) {
 }
 
 // ── Node classes from a single RunEval ────────────────────────────────────
-var READ_T  = ['get_board_overview','list_components','list_wires','get_component_details','get_sketch_code','get_board_state','analyze_power_budget','get_wiring_guide'];
-var WRITE_BB= ['place_component','update_component','move_component','remove_component','connect_wire','wire_component_to_pin','remove_wire','update_wire','apply_design'];
+var READ_T  = ['get_board_overview','list_components','list_wires','get_component_details','get_sketch_code','get_board_state','analyze_power_budget','get_wiring_guide','generate_circuit_program','validate_circuit_program','compile_circuit_program'];
+var WRITE_BB= ['place_component','update_component','move_component','remove_component','connect_wire','wire_component_to_pin','remove_wire','update_wire','apply_design','apply_circuit_program'];
 var ADD_BB  = ['place_component','connect_wire','wire_component_to_pin','apply_design'];
 var WRITE_SK= ['update_sketch','patch_sketch'];
 
@@ -684,6 +705,8 @@ function nodeClasses(e){
   var hasAddBB = calls.some(function(t){return ADD_BB.indexOf(t)>=0;});
   var hasWSK   = calls.some(function(t){return WRITE_SK.indexOf(t)>=0;});
   var hasProp  = calls.indexOf('propose_circuit')>=0;
+  var hasCircuitProgramPlan = calls.some(function(t){ return t === 'generate_circuit_program' || t === 'validate_circuit_program' || t === 'compile_circuit_program'; });
+  var hasCircuitProgramApply = calls.indexOf('apply_circuit_program') >= 0;
   var delegs   = (p.delegations)||[];
   var hasCirc  = delegs.some(function(d){return d==='circuit'||d.indexOf('circuit')>=0;});
   var hasGraph = delegs.some(function(d){return d==='graph'||d.indexOf('graph')>=0;});
@@ -726,6 +749,8 @@ function nodeClasses(e){
   if(hasRead)  nc['RD']='actual';
   if(hasWBB)   nc['WBB']=onlyRem?'warn':'actual';
   if(hasWSK)   {nc['WSK']='actual'; nc['SVX']='actual';}
+  if(hasCircuitProgramPlan) nc['TCP']='actual';
+  if(hasCircuitProgramApply) nc['ACP']='actual';
   if(hasProp)  {
     nc['WPC']='actual';
     if (versionAtLeast(diagramVersion, '1.0.2')) {

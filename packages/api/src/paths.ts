@@ -57,6 +57,9 @@ export function logsDir(): string     { return join(dreamerHome(), "logs"); }
 export function crashesDir(): string  { return join(dreamerHome(), "crashes"); }
 export function sessionsDir(): string { return join(dreamerHome(), "sessions"); }
 export function configPath(): string  { return join(dreamerHome(), "config.json"); }
+export function motionProjectsDir(): string { return join(dreamerHome(), "motion-projects"); }
+export function motionArtifactsDir(): string { return join(dreamerHome(), "motion-artifacts"); }
+export function motionJobsDir(): string { return join(dreamerHome(), "motion-jobs"); }
 
 // ── Machine-home paths (shared caches/binaries) ──────────────────────────
 export function binDir(): string   { return join(dreamerMachineHome(), "bin"); }

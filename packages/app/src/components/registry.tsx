@@ -998,6 +998,8 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
         hasPin: true,
       }
     },
+    schematicSymbol: "relay",
+    schematicValue: () => "Relay",
   },
 
   // ── DC Motor ────────────────────────────────────────────────────────
@@ -1025,7 +1027,19 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
         <text x={12} y={13} textAnchor="middle" fontSize={5} fill="#9ca3af" fontFamily="monospace">M</text>
       </svg>
     ),
-    buildNetlist: () => null,
+    buildNetlist: (comp, { footprint, resolveNode }) => {
+      const nodeVcc = resolveNode(footprint.points[0])
+      const nodeSignal = resolveNode(footprint.points[1] ?? footprint.points[0])
+      // Simple winding model: ~20Ω gives 250mA at 5V nominal.
+      return { lines: [`R_${sanitize(comp.id)} ${nodeVcc} ${nodeSignal} 20`], nodeA: nodeVcc, nodeB: nodeSignal }
+    },
+    computeElectricalState: (_comp, { voltageDrop, currentMa }) => ({
+      isActive: Math.abs(currentMa) > 0.5,
+      voltage: Math.abs(voltageDrop),
+      current: Math.abs(currentMa),
+      isReversed: false,
+      brightness: Math.min(1, Math.abs(currentMa) / 250),
+    }),
     generateSketch: (comp) => {
       const pin = comp.pins.signal
       if (pin == null) return null
@@ -1040,6 +1054,8 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
         hasPin: true,
       }
     },
+    schematicSymbol: "dc_motor",
+    schematicValue: () => "DC",
   },
 
   // ── DHT Temperature + Humidity Sensor ───────────────────────────────

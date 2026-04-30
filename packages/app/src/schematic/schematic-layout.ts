@@ -57,7 +57,7 @@ export type SchematicLayout = {
 // ── Helpers ────────────────────────────────────────────────────────────
 
 function componentTypeToSymbol(type: string): SchematicSymbolType | null {
-  return getComponentDef(type)?.schematicSymbol ?? null
+  return getComponentDef(type)?.schematicSymbol ?? "generic_module"
 }
 
 function getComponentValue(comp: BoardComponent): string | undefined {
@@ -116,6 +116,8 @@ function terminalSideForPin(
     case "pir_sensor":
     case "ir_receiver":
       return pinName === "signal" || pinName === "out" ? "left" : "right"
+    case "relay":
+      return pinName === "signal" ? "left" : "right"
     case "oled_display":
       return pinName === "sda" || pinName === "scl" ? "left" : "right"
     case "lcd_16x2":

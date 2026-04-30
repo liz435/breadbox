@@ -127,10 +127,10 @@ describe("generateSchematicLayout — empty board", () => {
   })
 })
 
-// ── Components without schematic symbols ──────────────────────────────
+// ── Components with explicit/fallback schematic symbols ───────────────
 
-describe("generateSchematicLayout — components without schematic symbols", () => {
-  test("relay component is skipped — no node created", () => {
+describe("generateSchematicLayout — component symbol resolution", () => {
+  test("relay component is rendered as a schematic node", () => {
     const components: Record<string, BoardComponent> = {
       arduino: makeArduino(),
       relay1: makeRelay("relay1", 5, 0),
@@ -140,15 +140,16 @@ describe("generateSchematicLayout — components without schematic symbols", () 
     }
     const layout = generateSchematicLayout(components, wires)
     const relayNode = layout.nodes.find((n) => n.id === "comp-relay1")
-    expect(relayNode).toBeUndefined()
+    expect(relayNode).toBeDefined()
+    expect(relayNode?.type).toBe("relay")
   })
 
-  test("board with only unsupported components produces empty layout", () => {
+  test("board with only relay still produces schematic nodes", () => {
     const components: Record<string, BoardComponent> = {
       relay1: makeRelay("relay1", 5, 0),
     }
     const layout = generateSchematicLayout(components, {})
-    expect(layout.nodes).toHaveLength(0)
+    expect(layout.nodes).toHaveLength(1)
     expect(layout.edges).toHaveLength(0)
   })
 })

@@ -65,6 +65,33 @@ export {
   type GraphOp,
 } from "./graph-ops";
 
+export {
+  bodyKeypointNameSchema,
+  type BodyKeypointName,
+  animationCurveSchema,
+  type AnimationCurve,
+  bodyKeypointSchema,
+  type BodyKeypoint,
+  keyframePoseSchema,
+  type KeyframePose,
+  frameBoxSchema,
+  type FrameBox,
+  frameTransformSchema,
+  type FrameTransform,
+  frameTransformEditSchema,
+  type FrameTransformEdit,
+  motionSegmentStatusSchema,
+  motionSegmentSchema,
+  type MotionSegment,
+  motionProjectSchema,
+  type MotionProject,
+  generationProviderSchema,
+  type GenerationProvider,
+  generationJobStatusSchema,
+  generationJobSchema,
+  type GenerationJob,
+} from "./motion";
+
 // ── Arduino schemas ────────────────────────────────────────────────────────
 
 export {
@@ -214,3 +241,46 @@ export {
   decodeDiagramFromUrl,
   type DecodeResult,
 } from "./diagram-url";
+
+// ── Circuit Program IR ─────────────────────────────────────────────────────
+
+export {
+  circuitModuleTypeSchema,
+  type CircuitModuleType,
+  circuitProgramModeSchema,
+  type CircuitProgramMode,
+  pinIntentRoleSchema,
+  type PinIntentRole,
+  pinIntentSchema,
+  type PinIntent,
+  circuitModuleSchema,
+  type CircuitModule,
+  netMemberSchema,
+  type NetMember,
+  netConstraintSchema,
+  type NetConstraint,
+  netSpecSchema,
+  type NetSpec,
+  layoutIntentSchema,
+  type LayoutIntent,
+  sketchIntentSchema,
+  type SketchIntent,
+  labelSpecSchema,
+  type LabelSpec,
+  componentProfileRefSchema,
+  type ComponentProfileRef,
+  exampleProfileRefSchema,
+  type ExampleProfileRef,
+  behaviorContractSchema,
+  type BehaviorContract,
+  circuitProgramSchema,
+  type CircuitProgram,
+  circuitProgramTemplateSchema,
+  type CircuitProgramTemplate,
+  type CircuitProgramIssue,
+  type CircuitProgramValidation,
+  type CircuitProgramCompileResult,
+  generateCircuitProgram,
+  validateCircuitProgram,
+  compileCircuitProgram,
+} from "./circuit-program";

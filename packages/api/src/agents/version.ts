@@ -14,7 +14,7 @@
  * Major bumps (X.0.0): structural rewrites — new agents, removed paths,
  *   fundamentally different routing logic.
  */
-export const AGENT_VERSION = "1.3.5";
+export const AGENT_VERSION = "1.4.0";
 
 /**
  * Snapshot version controls which frozen agent behavior profile is used at
@@ -28,7 +28,7 @@ export const DEFAULT_AGENT_SNAPSHOT_VERSION =
  * Explicitly listed snapshots that can be selected safely. Add a new entry
  * whenever introducing a new behavior profile.
  */
-export const SUPPORTED_AGENT_SNAPSHOTS = ["1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.0.4", "1.0.5", "1.0.6", "1.0.7", "1.0.8", "1.1.0", "1.1.1", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5"] as const;
+export const SUPPORTED_AGENT_SNAPSHOTS = ["1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.0.4", "1.0.5", "1.0.6", "1.0.7", "1.0.8", "1.1.0", "1.1.1", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", "1.4.0"] as const;
 
 export type AgentSnapshotVersion = (typeof SUPPORTED_AGENT_SNAPSHOTS)[number];
 
@@ -62,6 +62,16 @@ export const AGENT_CHANGELOG: Array<{
   date: string;
   changes: string[];
 }> = [
+  {
+    version: "1.4.0",
+    date: "2026-04-28",
+    changes: [
+      "BUILD_MODE_TOOLS: added CircuitProgram-first whole-board tools — generate_circuit_program, validate_circuit_program, compile_circuit_program, and apply_circuit_program.",
+      "BUILD_PROMPT: default build path is now CircuitProgram-first instead of hand-authored DreamerDiagram-first. The agent now plans modules, nets, sketch contracts, and runtime behavior contracts before compiling to DreamerDiagram under the hood.",
+      "apply_design remains available for explicit pasted DreamerDiagram imports; propose_circuit remains as the fallback auto-placement path when CircuitProgram attempts fail or the user explicitly asks for it.",
+      "Introduced CircuitProgram v1 as a breadboard IR that separates circuit structure (program), semantic handles (words), and component/runtime identity (profiles), so the agent can reason about servo pulse, analog input, WS2812 timing, and similar component-specific behavior earlier in the flow.",
+    ],
+  },
   {
     version: "1.3.5",
     date: "2026-04-19",

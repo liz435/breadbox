@@ -9,7 +9,7 @@ import type {
   Obstacle,
   Environment,
 } from "@dreamer/schemas";
-import { createDefaultBoardState, DEFAULT_BOARD_TARGET } from "@dreamer/schemas";
+import { createDefaultBoardState, DEFAULT_BOARD_TARGET, resolveComponentPins } from "@dreamer/schemas";
 import { pinStateStore } from "@/simulator/pin-state-store";
 import { getComponentFootprint, areConnected } from "@/breadboard/breadboard-grid";
 
@@ -140,6 +140,112 @@ function pushHistory(ctx: BoardMachineContext): {
   const past = [...ctx._past, boardData(ctx)];
   if (past.length > MAX_HISTORY) past.shift();
   return { _past: past, _future: [] };
+}
+
+const POSITIVE_RAIL_COLS = new Set([-2, 11]);
+const NEGATIVE_RAIL_COLS = new Set([-1, 10]);
+
+function wireTouchesPoint(wire: Wire, point: { row: number; col: number }): boolean {
+  const toPoint = { row: wire.toRow, col: wire.toCol };
+  if (areConnected(toPoint, point)) return true;
+  if (wire.fromRow === -999) return false;
+  const fromPoint = { row: wire.fromRow, col: wire.fromCol };
+  return areConnected(fromPoint, point);
+}
+
+function wireHasPositiveRailEndpoint(wire: Wire): boolean {
+  if (POSITIVE_RAIL_COLS.has(wire.toCol)) return true;
+  if (wire.fromRow !== -999 && POSITIVE_RAIL_COLS.has(wire.fromCol)) return true;
+  return false;
+}
+
+function wireHasNegativeRailEndpoint(wire: Wire): boolean {
+  if (NEGATIVE_RAIL_COLS.has(wire.toCol)) return true;
+  if (wire.fromRow !== -999 && NEGATIVE_RAIL_COLS.has(wire.fromCol)) return true;
+  return false;
+}
+
+/**
+ * Migration: older motor example boards swapped the motor's logical pins
+ * (`D9 -> vcc`, `PSU+ -> signal`). Normalize to:
+ * `D9 -> signal`, `PSU+ -> vcc`.
+ */
+function normalizeLegacyDcMotorWiring(state: BoardState): BoardState {
+  let nextWires = state.wires;
+  let changed = false;
+
+  for (const component of Object.values(state.components)) {
+    if (component.type !== "dc_motor") continue;
+    const signalPin = component.pins?.signal;
+    if (typeof signalPin !== "number") continue;
+
+    const pinMap = resolveComponentPins("dc_motor", component.y, component.x, component.properties);
+    const vccPoint = pinMap.vcc;
+    const signalPoint = pinMap.signal;
+    if (!vccPoint || !signalPoint) continue;
+
+    const arduinoWireEntry = Object.entries(nextWires).find(([, wire]) =>
+      wire.fromRow === -999 &&
+      wire.fromCol === signalPin &&
+      wireTouchesPoint(wire, vccPoint) &&
+      !wireTouchesPoint(wire, signalPoint),
+    );
+    if (!arduinoWireEntry) continue;
+
+    const [arduinoWireId] = arduinoWireEntry;
+    const supplyWireEntry = Object.entries(nextWires).find(([id, wire]) =>
+      id !== arduinoWireId &&
+      wireHasPositiveRailEndpoint(wire) &&
+      wireTouchesPoint(wire, signalPoint) &&
+      !wireTouchesPoint(wire, vccPoint),
+    );
+    if (!supplyWireEntry) continue;
+
+    const [supplyWireId, supplyWire] = supplyWireEntry;
+
+    if (!changed) {
+      nextWires = { ...nextWires };
+      changed = true;
+    }
+
+    nextWires[arduinoWireId] = {
+      ...nextWires[arduinoWireId]!,
+      toRow: signalPoint.row,
+      toCol: signalPoint.col,
+    };
+
+    const supplyToPoint = { row: supplyWire.toRow, col: supplyWire.toCol };
+    if (areConnected(supplyToPoint, signalPoint)) {
+      nextWires[supplyWireId] = {
+        ...supplyWire,
+        toRow: vccPoint.row,
+        toCol: vccPoint.col,
+      };
+    } else if (supplyWire.fromRow !== -999) {
+      const supplyFromPoint = { row: supplyWire.fromRow, col: supplyWire.fromCol };
+      if (areConnected(supplyFromPoint, signalPoint)) {
+        nextWires[supplyWireId] = {
+          ...supplyWire,
+          fromRow: vccPoint.row,
+          fromCol: vccPoint.col,
+        };
+      }
+    }
+
+    // Legacy dataset also added a PSU- stub one row below the motor pins.
+    // It is not connected to any motor terminal and only adds confusion.
+    const legacyStubPoint = { row: component.y + 2, col: component.x };
+    for (const [wireId, wire] of Object.entries(nextWires)) {
+      if (wireId === arduinoWireId || wireId === supplyWireId) continue;
+      if (wire.fromRow === -999) continue;
+      if (!wireHasNegativeRailEndpoint(wire)) continue;
+      if (!wireTouchesPoint(wire, legacyStubPoint)) continue;
+      if (wireTouchesPoint(wire, vccPoint) || wireTouchesPoint(wire, signalPoint)) continue;
+      delete nextWires[wireId];
+    }
+  }
+
+  return changed ? { ...state, wires: nextWires } : state;
 }
 
 const defaultBoard = createDefaultBoardState();
@@ -478,7 +584,7 @@ export const boardMachine = setup({
 
     LOAD_BOARD: {
       actions: assign(({ event }) => {
-        const s = event.state;
+        const s = normalizeLegacyDcMotorWiring(event.state);
         const isEmptyBoard =
           Object.keys(s.components ?? {}).length === 0 &&
           Object.keys(s.wires ?? {}).length === 0;

@@ -784,7 +784,7 @@ Note: each resistor sits on the same row as its target segment pin so the right-
   sketch: "/* 7-seg counter — INPUT_PULLUP, active-LOW button, segment lookup table */"
 }`;
 
-// ── BUILD_PROMPT (v1.3.5, live, strict DSL + GND/5V rail distribution) ──
+// ── BUILD_PROMPT (v1.3.5, frozen, strict DSL + GND/5V rail distribution) ─
 // v1.3.4 left ground/power fan-out unspecified, so the model wired N
 // components directly to arduino.GND from a single Arduino pin. The
 // post-stream electrical analyzer (and real breadboards) require a
@@ -793,7 +793,7 @@ Note: each resistor sits on the same row as its target segment pin so the right-
 // `grid.<row>,<col>` endpoint syntax to address the rails (col -1 / 10
 // for GND, col -2 / 11 for 5V). The 7-seg counter example is rewritten
 // to demonstrate.
-const BUILD_PROMPT = `${COMMON_PROMPT}
+const BUILD_PROMPT_V1_3_5 = `${COMMON_PROMPT}
 
 ## Mode: BUILD (board is empty)
 **You are in DSL-only mode. Use \`apply_design\` for everything. Do not call \`propose_circuit\`.**
@@ -936,6 +936,113 @@ The display's \`gnd\` pin AND the button's \`b\` pin both need GND. So we wire \
   ],
   sketch: "/* 7-seg counter — INPUT_PULLUP, active-LOW button, segment lookup table */"
 }`;
+
+// ── BUILD_PROMPT (v1.4.0, live, CircuitProgram-first) ────────────────────
+//
+// The agent now has a higher-level breadboard IR: CircuitProgram v1.
+// Default path:
+//   generate_circuit_program -> validate_circuit_program -> apply_circuit_program
+// The compiler owns net wiring, layout, rail distribution, and runtime
+// behavior contracts, then emits a DreamerDiagram under the hood.
+const BUILD_PROMPT = `${COMMON_PROMPT}
+
+## Mode: BUILD (board is empty)
+**Default path: author a CircuitProgram and apply it with \`apply_circuit_program\`.**
+
+Use the CircuitProgram tools for new builds:
+- \`generate_circuit_program\` — turn a higher-level module/net plan into canonical CircuitProgram v1
+- \`validate_circuit_program\` — catch bad pin tokens, bad net refs, and behavior/runtime mismatches
+- \`compile_circuit_program\` — inspect the compiled DreamerDiagram + runtime contracts without mutating the board
+- \`apply_circuit_program\` — validate + compile + import atomically
+
+For explicit pasted DreamerDiagram JSON, use \`apply_design\`. Do not use \`apply_design\` as the default authoring path anymore.
+
+### Recommended workflow
+1. Build a CircuitProgram plan around:
+   - \`program.modules\` — components, roles, pin intents
+   - \`program.nets\` — named signal/power/ground/protocol nets
+   - \`program.sketch\` — full Arduino code plus libraries / behaviors / pinClaims
+2. If you already know the full canonical shape, call \`validate_circuit_program\` directly.
+3. If you have a higher-level plan, call \`generate_circuit_program\` first, then \`validate_circuit_program\`.
+4. If validation is clean, call \`apply_circuit_program\`.
+5. Call \`compile_circuit_program\` only when you need to inspect the compiled DreamerDiagram before applying.
+
+### CircuitProgram guidance
+- Prefer stable module IDs like \`servo1\`, \`pot1\`, \`led_status\`, \`neo1\`.
+- Use semantic roles like \`main_servo\`, \`brightness_input\`, \`status_light\`.
+- Every module pin must declare a role:
+  - \`signal_input\`
+  - \`signal_output\`
+  - \`reference_power\`
+  - \`reference_ground\`
+  - \`passive_series\`
+- Use Arduino pin tokens like \`D9\`, \`A0\`, \`5V\`, \`GND\`, \`3V3\`.
+- Use net constraints when they matter:
+  - \`analog_capable_pin\`
+  - \`pwm_capable_pin\`
+  - \`servo_pulse\`
+  - \`ws2812_timing\`
+  - \`single_source\`
+
+### Component-specific expectations
+- **servo**: runtime is \`servo_pulse\`, not generic PWM. Usually include \`Servo.h\`.
+- **potentiometer / analog sensors**: signal should land on an analog pin (\`A0\`..).
+- **NeoPixel**: use a dedicated signal net with \`ws2812_timing\`; include a NeoPixel library.
+- **RGB LED**: keep the \`common\` pin explicit and model each color channel separately.
+- **Power / ground**: when multiple modules share 5V or GND, let the compiler distribute rails. Do not hand-write N direct fanout wires unless you are explicitly using \`apply_design\`.
+
+### When to call \`analyze_power_budget\`
+**Do NOT call it by default.** Only call it when:
+- The circuit includes a servo, motor, relay, buzzer, or external power supply, OR
+- More than 4 LEDs are driven simultaneously from Arduino pins, OR
+- The user explicitly asks about power, current, or rail loading.
+
+### When to fall back to \`propose_circuit\`
+Use \`propose_circuit\` only if:
+- the user explicitly wants the older auto-placement path, OR
+- two CircuitProgram attempts fail because the compiler cannot express the requested layout cleanly.
+
+## Example: servo + potentiometer as CircuitProgram
+generate_circuit_program({
+  board: "arduino_uno",
+  mode: "build",
+  program: {
+    modules: [
+      {
+        id: "servo1",
+        type: "servo",
+        role: "main_servo",
+        pins: {
+          signal: { role: "signal_output", arduinoPin: "D9", net: "servo_signal" },
+          vcc: { role: "reference_power", arduinoPin: "5V", net: "vcc_bus" },
+          gnd: { role: "reference_ground", arduinoPin: "GND", net: "gnd_bus" }
+        }
+      },
+      {
+        id: "pot1",
+        type: "potentiometer",
+        role: "angle_input",
+        pins: {
+          signal: { role: "signal_input", arduinoPin: "A0", net: "pot_signal" },
+          vcc: { role: "reference_power", arduinoPin: "5V", net: "vcc_bus" },
+          gnd: { role: "reference_ground", arduinoPin: "GND", net: "gnd_bus" }
+        }
+      }
+    ],
+    sketch: {
+      code: "#include <Servo.h>\\n...",
+      libraries: ["Servo.h"],
+      behaviors: ["read_pot", "drive_servo"],
+      pinClaims: ["D9", "A0"]
+    }
+  }
+})
+
+Then:
+1. \`validate_circuit_program\`
+2. \`apply_circuit_program\`
+
+Do not echo CircuitProgram JSON back in chat. Describe the result in plain language.`;
 
 const EDIT_PROMPT = `${COMMON_PROMPT}
 
@@ -1392,6 +1499,16 @@ const PROMPTS_1_3_4: CorePromptSnapshot = {
 // wires. The 7-seg counter example is rewritten to demonstrate.
 const PROMPTS_1_3_5: CorePromptSnapshot = {
   commonPrompt: COMMON_PROMPT,
+  buildPrompt: BUILD_PROMPT_V1_3_5,
+  editPrompt: EDIT_PROMPT,
+};
+
+// v1.4.0 — CircuitProgram-first build path. New build-mode tools:
+// generate_circuit_program, validate_circuit_program, compile_circuit_program,
+// and apply_circuit_program. apply_design remains for explicit pasted
+// DreamerDiagram import, while propose_circuit becomes the fallback path.
+const PROMPTS_1_4_0: CorePromptSnapshot = {
+  commonPrompt: COMMON_PROMPT,
   buildPrompt: BUILD_PROMPT,
   editPrompt: EDIT_PROMPT,
 };
@@ -1420,6 +1537,7 @@ export const CORE_PROMPT_SNAPSHOTS: Record<string, CorePromptSnapshot> = {
   "1.3.3": PROMPTS_1_3_3, // BUILD_PROMPT: mandate at:[row,3] for resistor/button; route 7-seg+per-segment-resistors to propose_circuit
   "1.3.4": PROMPTS_1_3_4, // BUILD_PROMPT: strict DSL — no propose_circuit fallback; stop after 3 apply_design failures
   "1.3.5": PROMPTS_1_3_5, // BUILD_PROMPT: rail distribution required for ≥2 GND/5V consumers; grid.<row>,-1 / -2 / 10 / 11 endpoint syntax
+  "1.4.0": PROMPTS_1_4_0, // BUILD_PROMPT: CircuitProgram-first whole-board path via generate/validate/compile/apply_circuit_program
   // When bumping AGENT_VERSION: copy live constants into a new PROMPTS_X_Y_Z
   // const above and add an explicit entry here. The lookup below falls back to
   // DEFAULT_CORE_PROMPT_SNAPSHOT (live) for any unrecognised version.

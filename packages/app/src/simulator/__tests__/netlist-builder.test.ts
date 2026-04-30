@@ -55,6 +55,19 @@ function makeResistor(id: string, row: number, col: number, resistance = 220): B
   }
 }
 
+function makeMotor(id: string, row: number, col: number): BoardComponent {
+  return {
+    id,
+    type: "dc_motor",
+    name: `Motor ${id}`,
+    x: col,
+    y: row,
+    rotation: 0,
+    pins: { signal: null },
+    properties: {},
+  }
+}
+
 function makeWire(
   id: string,
   fromRow: number,
@@ -516,5 +529,24 @@ describe("netlist-builder — edge case inputs", () => {
     expect(result.nodeMap).toBeInstanceOf(Map)
     expect(result.componentNodePairs).toBeInstanceOf(Map)
     expect(typeof result.netlist).toBe("string")
+  })
+})
+
+describe("netlist-builder — dc motor model", () => {
+  test("dc_motor emits a resistor element and node pair", () => {
+    const components: Record<string, BoardComponent> = {
+      m1: makeMotor("m1", 5, 0),
+    }
+    const wires: Record<string, Wire> = {
+      wVcc: { id: "wVcc", fromRow: -999, fromCol: -1, toRow: 5, toCol: 0, color: "red" },
+      wSig: { id: "wSig", fromRow: -999, fromCol: 9, toRow: 6, toCol: 0, color: "yellow" },
+    }
+    const pinStates = makePinStates([{ pin: 9, mode: "OUTPUT", isPwm: true, pwmValue: 128 }])
+
+    const { netlist, componentNodePairs } = buildNetlist(components, wires, pinStates)
+
+    expect(componentNodePairs.get("m1")).toBeDefined()
+    expect(netlist).toContain("R_m1")
+    expect(netlist).toContain(" 20")
   })
 })

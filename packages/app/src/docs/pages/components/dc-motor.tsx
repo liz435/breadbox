@@ -13,8 +13,8 @@ export function DcMotorPage() {
         <Table
           headers={["Pin", "Label", "Description"]}
           rows={[
-            ["Signal", "+", "Connect to a PWM pin for speed control, or digital pin for on/off"],
-            ["GND", "−", "Connect to GND (through a transistor in real circuits)"],
+            ["VCC", "+", "Motor supply rail (typically external +5V through a driver stage)"],
+            ["Signal", "PWM", "Connect to a PWM pin for speed control, or digital pin for on/off"],
           ]}
         />
         <Warn>Never connect a motor directly to an Arduino pin — it draws too much current. Use a transistor or motor driver (L298N, L293D).</Warn>

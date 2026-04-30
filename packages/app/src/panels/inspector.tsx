@@ -1,4 +1,4 @@
-import { useMemo, useCallback, type ReactNode } from "react";
+import { useMemo, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Slider } from "@base-ui/react/slider";
 import { Collapsible } from "@base-ui/react/collapsible";
 import { Input } from "@/components/ui/input";
@@ -112,6 +112,7 @@ function SliderField({
   step = 1,
   valueLabel,
   onChange,
+  onCommit,
   disabled,
 }: {
   value: number;
@@ -120,6 +121,7 @@ function SliderField({
   step?: number;
   valueLabel: string;
   onChange: (v: number) => void;
+  onCommit?: (v: number) => void;
   disabled?: boolean;
 }) {
   return (
@@ -132,6 +134,9 @@ function SliderField({
         disabled={disabled}
         onValueChange={(v) => {
           if (typeof v === "number") onChange(v);
+        }}
+        onValueCommitted={(v) => {
+          if (typeof v === "number") onCommit?.(v);
         }}
         className="flex h-7 min-w-0 flex-1 items-center"
       >
@@ -679,17 +684,64 @@ function PotentiometerInspector({ component, onUpdate }: {
   onUpdate: (changes: Partial<BoardComponent>) => void;
 }) {
   const value = (component.properties.value as number) ?? 50;
+  const [draftValue, setDraftValue] = useState(value);
+  const draggingRef = useRef(false);
+  const rafRef = useRef<number | null>(null);
+  const pendingRef = useRef<number | null>(null);
+  const lastSentRef = useRef(value);
+
+  const flushValue = useCallback((next: number) => {
+    pendingRef.current = null;
+    if (lastSentRef.current === next) return;
+    lastSentRef.current = next;
+    onUpdate({
+      properties: { ...component.properties, value: next },
+    });
+  }, [component.properties, onUpdate]);
+
+  useEffect(() => {
+    if (draggingRef.current) return;
+    setDraftValue(value);
+    lastSentRef.current = value;
+  }, [value]);
+
+  useEffect(() => () => {
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+  }, []);
+
+  const scheduleFlush = useCallback((next: number) => {
+    pendingRef.current = next;
+    if (rafRef.current != null) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      if (pendingRef.current != null) {
+        flushValue(pendingRef.current);
+      }
+    });
+  }, [flushValue]);
+
   return (
     <>
       <PropertyRow label="Position">
         <SliderField
-          value={value}
+          value={draftValue}
           min={0}
           max={100}
-          valueLabel={`${value}%`}
-          onChange={(v) => onUpdate({
-            properties: { ...component.properties, value: v },
-          })}
+          valueLabel={`${draftValue}%`}
+          onChange={(v) => {
+            draggingRef.current = true;
+            setDraftValue(v);
+            scheduleFlush(v);
+          }}
+          onCommit={(v) => {
+            draggingRef.current = false;
+            setDraftValue(v);
+            if (rafRef.current != null) {
+              cancelAnimationFrame(rafRef.current);
+              rafRef.current = null;
+            }
+            flushValue(v);
+          }}
         />
       </PropertyRow>
       <CollapsibleSection title="Pins" defaultOpen>
