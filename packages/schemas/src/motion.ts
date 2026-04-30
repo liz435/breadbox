@@ -4,6 +4,12 @@ import { nonEmptyStringSchema, timestampSchema } from "./primitives";
 export const animationCurveSchema = z.enum(["linear", "easeIn", "easeOut", "easeInOut", "sharp"]);
 export type AnimationCurve = z.infer<typeof animationCurveSchema>;
 
+export const springCurveSchema = z.object({
+  tension: z.number().min(0).max(1),
+  bounce: z.number().min(0).max(1),
+});
+export type SpringCurve = z.infer<typeof springCurveSchema>;
+
 export const bodyKeypointNameSchema = z.enum([
   "nose",
   "left_eye",
@@ -137,6 +143,7 @@ export const motionSegmentSchema = z.object({
   motionPrompt: z.string(),
   compiledPrompt: z.string().optional(),
   animationCurve: animationCurveSchema.optional(),
+  springCurve: springCurveSchema.optional(),
   comfyPipeline: comfyPipelineSchema.optional(),
   status: motionSegmentStatusSchema,
   error: z.string().optional(),

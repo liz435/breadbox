@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { AnimationCurve, MotionSegment } from "@dreamer/schemas";
+import type { MotionSegment } from "@dreamer/schemas";
 import { MotionEditorShell } from "./components/MotionEditorShell";
 import { VideoCanvas } from "./components/VideoCanvas";
 import { TimelineStrip } from "./components/TimelineStrip";
@@ -24,7 +24,9 @@ type ComfyStatusState = {
 export function MotionEditorPage() {
   const [durationSeconds, setDurationSeconds] = useState<number | undefined>(undefined);
   const [generationDuration, setGenerationDuration] = useState<4 | 6 | 8>(4);
-  const [animationCurve, setAnimationCurve] = useState<AnimationCurve>("linear");
+  const [springTension, setSpringTension] = useState(0.2);
+  const [springBounce, setSpringBounce] = useState(0);
+  const [subjectDescription, setSubjectDescription] = useState("");
   const [previewVideoUrl, setPreviewVideoUrl] = useState<string | undefined>(undefined);
   const [veoStatus, setVeoStatus] = useState<VeoStatusState>({
     status: "idle",
@@ -242,9 +244,11 @@ export function MotionEditorPage() {
         <>
           <MotionPromptPanel
             value={state.motionPrompt}
+            subjectDescription={subjectDescription}
             provider={state.provider}
             durationSeconds={generationDuration}
-            animationCurve={animationCurve}
+            springTension={springTension}
+            springBounce={springBounce}
             disabled={!selectedSegment}
             generateDisabled={!selectedSegment || !selectedSegment.frameEdit?.sourceFrameId}
             generating={state.busy === "generating" || generationActive}
@@ -253,10 +257,19 @@ export function MotionEditorPage() {
             onCheckVeoHealth={checkVeoHealth}
             onCheckComfyHealth={checkComfyHealth}
             onChange={setMotionPrompt}
+            onSubjectChange={setSubjectDescription}
             onProviderChange={setProvider}
             onDurationChange={setGenerationDuration}
-            onCurveChange={setAnimationCurve}
-            onGenerate={() => generate(undefined, generationDuration, animationCurve)}
+            onSpringChange={(tension, bounce) => {
+              setSpringTension(tension);
+              setSpringBounce(bounce);
+            }}
+            onGenerate={() =>
+              generate(undefined, generationDuration, {
+                springCurve: { tension: springTension, bounce: springBounce },
+                subjectDescription,
+              })
+            }
           />
           <GenerationResultPanel
             job={state.generationJob}

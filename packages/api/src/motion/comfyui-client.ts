@@ -52,7 +52,7 @@ export function comfyRequestTimeoutMs(): number {
 }
 
 export function comfyPrepTimeoutMs(): number {
-  return readPositiveIntEnv("COMFYUI_PREP_TIMEOUT_MS", 12_000);
+  return readPositiveIntEnv("COMFYUI_PREP_TIMEOUT_MS", 90_000);
 }
 
 function readPositiveIntEnv(name: string, fallback: number): number {
@@ -221,7 +221,9 @@ export async function getRifeResult(promptId: string): Promise<ComfyImageRef[] |
 
   const images = entry.outputs?.["5"]?.images;
   if (!Array.isArray(images) || images.length === 0) return null;
-  return [...images].sort((a, b) => a.name.localeCompare(b.name));
+  const valid = images.filter((img): img is ComfyImageRef => typeof img?.name === "string");
+  if (valid.length === 0) return null;
+  return valid.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function pollRifeResult(
