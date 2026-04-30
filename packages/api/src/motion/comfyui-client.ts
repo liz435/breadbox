@@ -162,7 +162,7 @@ export function buildRifeWorkflowJson(
         fast_mode: true,
         ensemble: true,
         scale_factor: 1.0,
-        dtype: "fp32",
+        dtype: "float32",
         torch_compile: false,
         batch_size: 1,
         ckpt_name: "rife47.pth",
