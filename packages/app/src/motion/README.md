@@ -215,7 +215,7 @@ The result is stored as `rifeSegmentUrl` and shown as `Comfy transition insert`.
 Set these on the API server to enable the local ComfyUI path:
 
 ```text
-COMFYUI_URL=http://your-comfyui-host:8188
+COMFYUI_URL=http://your-comfyui-service.railway.internal:8188
 COMFYUI_RIFE_FRAMES=8
 COMFYUI_REQUEST_TIMEOUT_MS=10000
 COMFYUI_PREP_TIMEOUT_MS=12000
@@ -233,6 +233,8 @@ COMFYUI_CONTROL_WORKFLOW_PATH=/data/comfy-workflows/control.json
 Those workflow hooks are status-aware placeholders right now. The current Docker sidecar only assumes RIFE frame interpolation is present. Inpainting, automatic segmentation, pose/depth/control generation, and richer local video generation require the matching ComfyUI custom nodes and models before the hooks should run.
 
 Hosted prep must return before the Railway app proxy times out. `COMFYUI_REQUEST_TIMEOUT_MS` caps individual ComfyUI HTTP calls, and `COMFYUI_PREP_TIMEOUT_MS` caps the cheap preview poll. A permanent `403` from ComfyUI now fails the preview status immediately instead of retrying until the app request becomes a hosted `502`.
+
+For Railway, prefer the private service URL from the Dreamer API service to the ComfyUI service. Do not use the browser-facing public ComfyUI URL for `COMFYUI_URL` unless you intentionally expose and authenticate it. If the public ComfyUI URL returns `403`, the API will also see `403` unless `COMFYUI_URL` is changed to the private Railway hostname or the required auth header is set with `COMFYUI_AUTH_HEADER`.
 
 ## Veo Configuration
 

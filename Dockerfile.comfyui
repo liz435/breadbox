@@ -2,7 +2,7 @@
 #
 # Deploys as a second Railway service in the same project.
 # The Dreamer API reaches it over Railway's private network:
-#   COMFYUI_URL=http://comfyui.railway.internal:8188
+#   COMFYUI_URL=http://comfyui.railway.internal:${PORT}
 #
 # Cold-start note: rife47.pth (~170 MB) is downloaded on first boot if not
 # already present. Attach a Railway volume at /ComfyUI/models so the

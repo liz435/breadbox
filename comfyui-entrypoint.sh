@@ -2,6 +2,7 @@
 set -e
 
 CKPT_PATH="/ComfyUI/models/VFI/rife/rife47.pth"
+COMFY_PORT="${PORT:-8188}"
 
 if [ ! -f "$CKPT_PATH" ]; then
   echo "[comfyui] Downloading rife47.pth checkpoint (~170 MB)…"
@@ -17,7 +18,7 @@ fi
 
 exec python /ComfyUI/main.py \
   --listen 0.0.0.0 \
-  --port 8188 \
+  --port "$COMFY_PORT" \
   --cpu \
   --disable-auto-launch \
   --preview-method none
