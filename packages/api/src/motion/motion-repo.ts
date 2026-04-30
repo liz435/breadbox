@@ -16,7 +16,7 @@ import {
 } from "@dreamer/schemas";
 import { motionJobsDir, motionProjectsDir } from "../paths";
 import { createDefaultBodyKeypoints } from "./body-keypoints";
-import { comfyUiUrl } from "./comfyui-client";
+import { checkComfyUiHealth, comfyPrepTimeoutMs, comfyUiUrl } from "./comfyui-client";
 import {
   applyRifeBookendTransitions,
   artifactPathFromUrl,
@@ -607,6 +607,28 @@ async function prepareComfyGuidance(input: {
     return { project, segment };
   }
 
+  const health = await checkComfyUiHealth({ performNetworkCheck: true });
+  if (!health.ok) {
+    segment = withComfyStep(segment, "provider", {
+      status: "failed",
+      message: health.message,
+    });
+    segment = withComfyStep(segment, "motionPreview", {
+      status: "failed",
+      message: `ComfyUI preview unavailable: ${health.message}`,
+    });
+    segment = withComfyStep(segment, "transition", {
+      status: "skipped",
+      message: "ComfyUI transition repair will be skipped until the health check passes",
+    });
+    segment = withComfyStep(segment, "stitchBridge", {
+      status: "skipped",
+      message: "Bookend stitch repair will be skipped until ComfyUI is reachable",
+    });
+    await saveSegment(project, segment);
+    return { project, segment };
+  }
+
   const artifactDir = await ensureMotionArtifactDir(project.id);
   const previewFilename = `${segment.id}-comfy-preview.mp4`;
   const previewPath = join(artifactDir, previewFilename);
@@ -624,6 +646,7 @@ async function prepareComfyGuidance(input: {
       tempDir: artifactDir,
       durationSeconds: Math.max(0.25, targetFrame.timeSeconds - sourceFrame.timeSeconds),
       fps: 12,
+      timeoutMs: comfyPrepTimeoutMs(),
     });
     const previewUrl = artifactUrl(project.id, previewFilename);
     segment = {
