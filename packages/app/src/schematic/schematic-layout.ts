@@ -7,6 +7,7 @@ import {
   DEFAULT_BOARD_TARGET,
   formatArduinoPin,
   isBoardComponentType,
+  resolveComponentPins,
   type BoardComponent,
   type BoardTarget,
   type Wire,
@@ -31,11 +32,20 @@ export type SchematicNode = {
 export type SchematicEdge = {
   id: string
   fromNodeId: string
-  fromSide: "left" | "right" | "top" | "bottom"
+  fromSide: SchematicTerminalSide
   toNodeId: string
-  toSide: "left" | "right" | "top" | "bottom"
+  toSide: SchematicTerminalSide
   netId: string
 }
+
+export type SchematicTerminalSide =
+  | "left"
+  | "right"
+  | "top"
+  | "bottom"
+  | "bottom-left"
+  | "bottom-center"
+  | "bottom-right"
 
 export type SchematicLayout = {
   nodes: SchematicNode[]
@@ -47,7 +57,7 @@ export type SchematicLayout = {
 // ── Helpers ────────────────────────────────────────────────────────────
 
 function componentTypeToSymbol(type: string): SchematicSymbolType | null {
-  return getComponentDef(type)?.schematicSymbol ?? null
+  return getComponentDef(type)?.schematicSymbol ?? "generic_module"
 }
 
 function getComponentValue(comp: BoardComponent): string | undefined {
@@ -68,6 +78,59 @@ function getPowerLabel(pin: number): string {
   if (pin === -1) return "5V"
   if (pin === -2) return "3.3V"
   return "VCC"
+}
+
+function terminalSideForPin(
+  compType: string,
+  pinName: string,
+): SchematicTerminalSide {
+  switch (compType) {
+    case "led":
+      return pinName === "cathode" ? "right" : "left"
+    case "capacitor":
+      return pinName === "negative" ? "right" : "left"
+    case "button":
+    case "resistor":
+    case "photoresistor":
+    case "buzzer":
+    case "dc_motor":
+      return pinName === "b" || pinName === "negative" || pinName === "signal"
+        ? "right"
+        : "left"
+    case "potentiometer":
+      if (pinName === "signal") return "top"
+      return pinName === "gnd" ? "right" : "left"
+    case "servo":
+      if (pinName === "signal") return "bottom-left"
+      if (pinName === "vcc") return "bottom-center"
+      return "bottom-right"
+    case "temperature_sensor":
+    case "dht_sensor":
+      if (pinName === "vcc") return "bottom-left"
+      if (pinName === "signal" || pinName === "data") return "bottom-center"
+      return "bottom-right"
+    case "ultrasonic_sensor":
+      return pinName === "trigger" || pinName === "echo" ? "left" : "right"
+    case "neopixel":
+      return pinName === "din" ? "left" : "right"
+    case "pir_sensor":
+    case "ir_receiver":
+      return pinName === "signal" || pinName === "out" ? "left" : "right"
+    case "relay":
+      return pinName === "signal" ? "left" : "right"
+    case "oled_display":
+      return pinName === "sda" || pinName === "scl" ? "left" : "right"
+    case "lcd_16x2":
+    case "seven_segment":
+    case "shift_register":
+      return pinName === "gnd" || pinName === "vss" || pinName === "vdd" ? "right" : "left"
+    default:
+      return "left"
+  }
+}
+
+function fallbackTerminalSide(pinIdx: number): SchematicTerminalSide {
+  return pinIdx === 0 ? "left" : "right"
 }
 
 function detectBoardTarget(components: BoardComponent[]): BoardTarget {
@@ -205,7 +268,7 @@ export function generateSchematicLayout(
 
   // Build a map: component grid points -> component node id
   // We need to figure out which net each component pin belongs to
-  type PinMapping = { nodeId: string; side: "left" | "right" }
+  type PinMapping = { nodeId: string; side: SchematicTerminalSide }
 
   for (const net of nets) {
     // Find all schematic nodes that participate in this net
@@ -225,19 +288,35 @@ export function generateSchematicLayout(
       }
     }
 
-    // Check component nodes: a component is in a net if any of its footprint
-    // grid points falls within the net's points
+    // Check component nodes by named pins first. The footprint order is a
+    // physical rendering detail; schematic terminals need electrical meaning
+    // (anode/cathode, signal/vcc/gnd, etc.) so polarity and sensor headers do
+    // not drift when a component has more than two footprint points.
     for (const comp of circuitComponents) {
-      const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties)
       const compNodeId = `comp-${comp.id}`
       if (!nodes.find((n) => n.id === compNodeId)) continue
 
+      let matchedNamedPin = false
+      const pinMap = resolveComponentPins(comp.type, comp.y, comp.x, comp.properties)
+      for (const [pinName, pinPoint] of Object.entries(pinMap)) {
+        const inNet = net.points.some((np) => np.row === pinPoint.row && np.col === pinPoint.col)
+        if (inNet) {
+          participatingNodes.push({
+            nodeId: compNodeId,
+            side: terminalSideForPin(comp.type, pinName),
+          })
+          matchedNamedPin = true
+          break
+        }
+      }
+      if (matchedNamedPin) continue
+
+      const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties)
       for (let pinIdx = 0; pinIdx < footprint.points.length; pinIdx++) {
         const fp = footprint.points[pinIdx]
         const inNet = net.points.some((np) => np.row === fp.row && np.col === fp.col)
         if (inNet) {
-          // First pin = left side (input), last pin = right side (output)
-          const side = pinIdx === 0 ? "left" as const : "right" as const
+          const side = fallbackTerminalSide(pinIdx)
           participatingNodes.push({ nodeId: compNodeId, side })
           break // One connection per component per net
         }

@@ -23,13 +23,23 @@ function BuzzerRenderer({ component, isSelected, electricalState }: { component:
   const pinNeg = gridToPixel({ row: component.y + 1, col: component.x });
   const radius = KNOB_RADIUS;
   const isActive = electricalState?.isActive ?? false;
+  const loudness = Math.max(0.35, Math.min(1, (electricalState?.current ?? 12) / 35));
+  const waveDur = `${(0.55 - loudness * 0.22).toFixed(2)}s`;
 
   // Body sits to the LEFT of the pin column so the pins stay visible.
   const bodyCx = pinPos.x - radius - 4;
   const bodyCy = (pinPos.y + pinNeg.y) / 2;
+  const buzzGradId = `buzzer-active-${component.id}`;
 
   return (
     <g>
+      <defs>
+        <radialGradient id={buzzGradId} cx="50%" cy="50%" r="65%">
+          <stop offset="0%" stopColor="#a78bfa" stopOpacity={0.95} />
+          <stop offset="65%" stopColor="#7c3aed" stopOpacity={0.35} />
+          <stop offset="100%" stopColor="#7c3aed" stopOpacity={0} />
+        </radialGradient>
+      </defs>
       {/* Pin hole indicators */}
       <circle cx={pinPos.x} cy={pinPos.y} r={2} fill="#ef4444" opacity={0.55} />
       <circle cx={pinNeg.x} cy={pinNeg.y} r={2} fill="#6b7280" opacity={0.55} />
@@ -47,14 +57,34 @@ function BuzzerRenderer({ component, isSelected, electricalState }: { component:
       {/* Vibration rings when active */}
       {isActive && (
         <>
-          <circle cx={bodyCx} cy={bodyCy} r={radius + 4} fill="none" stroke="#a78bfa" strokeWidth={0.8} opacity={0.4}>
-            <animate attributeName="r" values={`${radius + 2};${radius + 10};${radius + 2}`} dur="0.4s" repeatCount="indefinite" />
-            <animate attributeName="opacity" values="0.4;0;0.4" dur="0.4s" repeatCount="indefinite" />
+          <circle cx={bodyCx} cy={bodyCy} r={radius + 2} fill={`url(#${buzzGradId})`} opacity={0.28 * loudness}>
+            <animate attributeName="r" values={`${radius};${radius + 9};${radius}`} dur={waveDur} repeatCount="indefinite" />
+            <animate attributeName="opacity" values={`${0.22 * loudness};0;${0.22 * loudness}`} dur={waveDur} repeatCount="indefinite" />
           </circle>
-          <circle cx={bodyCx} cy={bodyCy} r={radius + 8} fill="none" stroke="#a78bfa" strokeWidth={0.6} opacity={0.2}>
-            <animate attributeName="r" values={`${radius + 6};${radius + 16};${radius + 6}`} dur="0.4s" repeatCount="indefinite" />
-            <animate attributeName="opacity" values="0.2;0;0.2" dur="0.4s" repeatCount="indefinite" />
+          <circle cx={bodyCx} cy={bodyCy} r={radius + 4} fill="none" stroke="#c4b5fd" strokeWidth={0.7 + loudness * 0.4} opacity={0.45 * loudness}>
+            <animate attributeName="r" values={`${radius + 3};${radius + 13};${radius + 3}`} dur={waveDur} begin="0.12s" repeatCount="indefinite" />
+            <animate attributeName="opacity" values={`${0.5 * loudness};0;${0.5 * loudness}`} dur={waveDur} begin="0.12s" repeatCount="indefinite" />
           </circle>
+          <path
+            d={`M ${bodyCx - radius - 7} ${bodyCy - 5} Q ${bodyCx - radius - 11} ${bodyCy} ${bodyCx - radius - 7} ${bodyCy + 5}`}
+            fill="none"
+            stroke="#a78bfa"
+            strokeWidth={0.8}
+            strokeLinecap="round"
+            opacity={0.55}
+          >
+            <animate attributeName="opacity" values="0.15;0.75;0.15" dur={waveDur} repeatCount="indefinite" />
+          </path>
+          <path
+            d={`M ${bodyCx + radius + 7} ${bodyCy - 5} Q ${bodyCx + radius + 11} ${bodyCy} ${bodyCx + radius + 7} ${bodyCy + 5}`}
+            fill="none"
+            stroke="#a78bfa"
+            strokeWidth={0.8}
+            strokeLinecap="round"
+            opacity={0.55}
+          >
+            <animate attributeName="opacity" values="0.15;0.75;0.15" dur={waveDur} begin="0.08s" repeatCount="indefinite" />
+          </path>
         </>
       )}
 
@@ -70,7 +100,13 @@ function BuzzerRenderer({ component, isSelected, electricalState }: { component:
       {/* Inner ring */}
       <circle cx={bodyCx} cy={bodyCy} r={radius - 3} fill="none" stroke="#333" strokeWidth={0.5} />
       {/* Sound hole */}
-      <circle cx={bodyCx} cy={bodyCy} r={3} fill="#2a2a2a" stroke="#444" strokeWidth={0.3} />
+      <circle cx={bodyCx} cy={bodyCy} r={3} fill={isActive ? "#4c1d95" : "#2a2a2a"} stroke={isActive ? "#a78bfa" : "#444"} strokeWidth={0.3} />
+      {isActive && (
+        <circle cx={bodyCx} cy={bodyCy} r={1.25} fill="#ddd6fe">
+          <animate attributeName="r" values="1;2.2;1" dur={waveDur} repeatCount="indefinite" />
+          <animate attributeName="opacity" values="0.8;0.25;0.8" dur={waveDur} repeatCount="indefinite" />
+        </circle>
+      )}
       {/* + marking on the body */}
       <text x={bodyCx - 5} y={bodyCy - radius + 6} fontSize={4} fill="#666" fontFamily="monospace">+</text>
 
@@ -1167,7 +1203,7 @@ function IrReceiverRenderer({ component, isSelected }: { component: BoardCompone
   );
 }
 
-function NeoPixelRenderer({ component, isSelected }: { component: BoardComponent; isSelected: boolean }) {
+function NeoPixelRenderer({ component, isSelected, libraryState }: { component: BoardComponent; isSelected: boolean; libraryState?: LibraryState }) {
   // Vertical 3-pin layout: din / 5v / gnd (row..row+2, col)
   const pins = [0, 1, 2].map(i =>
     gridToPixel({ row: component.y + i, col: component.x }),
@@ -1186,9 +1222,23 @@ function NeoPixelRenderer({ component, isSelected }: { component: BoardComponent
   const stripL = stripCx - stripW / 2;
   const stripT = stripCy - stripH / 2;
 
-  const colors = ["#ef4444", "#22c55e", "#3b82f6", "#eab308", "#a855f7", "#f97316", "#06b6d4", "#ec4899"];
+  const livePixels = libraryState?.neopixels?.[component.id]?.pixels;
+  const hasLivePixels = livePixels != null;
+  const fallbackColors = ["#151515", "#151515", "#151515", "#151515", "#151515", "#151515", "#151515", "#151515"];
+  const toColor = (i: number) => {
+    const live = livePixels?.[i];
+    if (live) return `rgb(${live.r}, ${live.g}, ${live.b})`;
+    return fallbackColors[i % fallbackColors.length];
+  };
+  const brightnessFor = (i: number) => {
+    const live = livePixels?.[i];
+    if (!live) return 0;
+    const raw = Math.max(live.r, live.g, live.b);
+    return raw > 0 ? Math.max(0.42, Math.min(1, raw / 80)) : 0;
+  };
+  const isAnimating = livePixels?.some((p) => p.r > 0 || p.g > 0 || p.b > 0) ?? false;
 
-  const pinNames = ["din", "5v", "gnd"];
+  const pinNames = ["din", "vcc", "gnd"];
   const pinColors = ["#a855f7", "#ef4444", "#6b7280"];
 
   return (
@@ -1218,6 +1268,37 @@ function NeoPixelRenderer({ component, isSelected }: { component: BoardComponent
         rx={1.5} fill="#1a1a1a"
         stroke={isSelected ? "#3b82f6" : "#2a2a2a"}
         strokeWidth={isSelected ? 1.5 : 0.8} />
+      {isAnimating && (
+        <>
+          <rect
+            x={stripL}
+            y={stripT}
+            width={stripW}
+            height={stripH}
+            rx={1.5}
+            fill="none"
+            stroke="#a78bfa"
+            strokeWidth={0.8}
+            strokeDasharray="6 5"
+            opacity={0.55}
+          >
+            <animate attributeName="stroke-dashoffset" values="0;-22" dur="0.9s" repeatCount="indefinite" />
+            <animate attributeName="opacity" values="0.35;0.75;0.35" dur="0.9s" repeatCount="indefinite" />
+          </rect>
+          <rect
+            x={stripL + 2}
+            y={stripT + 2}
+            width={7}
+            height={stripH - 4}
+            rx={1}
+            fill="#ffffff"
+            opacity={0.12}
+          >
+            <animate attributeName="x" values={`${stripL + 2};${stripL + stripW - 9};${stripL + 2}`} dur="1.4s" repeatCount="indefinite" />
+            <animate attributeName="opacity" values="0.05;0.22;0.05" dur="1.4s" repeatCount="indefinite" />
+          </rect>
+        </>
+      )}
       {/* Solder mask green accent lines */}
       <line x1={stripL + 2} y1={stripT + 1.5} x2={stripL + stripW - 2} y2={stripT + 1.5}
         stroke="#065f46" strokeWidth={0.5} opacity={0.4} />
@@ -1228,9 +1309,22 @@ function NeoPixelRenderer({ component, isSelected }: { component: BoardComponent
       {Array.from({ length: displayLeds }, (_, i) => {
         const ledX = stripL + 5 + i * ((stripW - 10) / (displayLeds - 1 || 1));
         const ledSize = 4;
-        const c = colors[i % colors.length];
+        const c = toColor(i);
+        const brightness = brightnessFor(i);
         return (
           <g key={i}>
+            {brightness > 0 && (
+              <circle
+                cx={ledX}
+                cy={stripCy}
+                r={4 + brightness * 4}
+                fill={c}
+                opacity={0.16 + brightness * 0.24}
+              >
+                <animate attributeName="r" values={`${4 + brightness * 2};${5 + brightness * 5};${4 + brightness * 2}`} dur={`${0.8 + i * 0.05}s`} repeatCount="indefinite" />
+                <animate attributeName="opacity" values={`${0.16 + brightness * 0.18};${0.3 + brightness * 0.28};${0.16 + brightness * 0.18}`} dur={`${0.8 + i * 0.05}s`} repeatCount="indefinite" />
+              </circle>
+            )}
             {/* Copper pad */}
             <rect x={ledX - ledSize / 2 - 0.8} y={stripCy - ledSize / 2 - 0.8}
               width={ledSize + 1.6} height={ledSize + 1.6} rx={0.5}
@@ -1242,10 +1336,14 @@ function NeoPixelRenderer({ component, isSelected }: { component: BoardComponent
             {/* Colored LED die */}
             <rect x={ledX - ledSize / 2 + 0.8} y={stripCy - ledSize / 2 + 0.8}
               width={ledSize - 1.6} height={ledSize - 1.6} rx={0.3}
-              fill={c} opacity={0.85} />
+              fill={c} opacity={hasLivePixels ? 0.5 + brightness * 0.5 : 0.35}>
+              {brightness > 0 && (
+                <animate attributeName="opacity" values={`${0.5 + brightness * 0.25};1;${0.5 + brightness * 0.25}`} dur={`${0.72 + i * 0.04}s`} repeatCount="indefinite" />
+              )}
+            </rect>
             {/* Corner mark (pin 1 indicator) */}
             <circle cx={ledX - ledSize / 2 + 1} cy={stripCy - ledSize / 2 + 1}
-              r={0.4} fill={c} opacity={0.5} />
+              r={0.4} fill={c} opacity={hasLivePixels ? 0.7 : 0.35} />
           </g>
         );
       })}
@@ -1775,6 +1873,11 @@ function RelayRenderer({ component, pinStates, isSelected }: {
   const cubeGradId = `relay-cube-${component.id}`;
   const termGradId = `relay-term-${component.id}`;
   const glowId = `relay-glow-${component.id}`;
+  const contactPivotX = cubeL + 4;
+  const contactY = cubeT + cubeH - 4.5;
+  const contactEndX = cubeL + cubeW - 4;
+  const contactOpenY = contactY - 3.2;
+  const contactClosedY = contactY;
 
   return (
     <g>
@@ -1874,15 +1977,34 @@ function RelayRenderer({ component, pinStates, isSelected }: {
         VDC-SL-C
       </text>
       {/* Small clicking line with state indicator */}
+      <circle cx={contactPivotX} cy={contactY} r={1} fill="#bfdbfe" opacity={0.8} />
+      <circle cx={contactEndX} cy={contactY} r={1} fill={energized ? "#fde68a" : "#60a5fa"} opacity={0.85} />
       <line
-        x1={cubeL + 3}
-        y1={cubeT + cubeH - 3}
-        x2={cubeL + cubeW - 3}
-        y2={cubeT + cubeH - 3}
-        stroke={energized ? "#fbbf24" : "#1e3a8a"}
-        strokeWidth={0.8}
+        x1={contactPivotX}
+        y1={contactY}
+        x2={contactEndX}
+        y2={energized ? contactClosedY : contactOpenY}
+        stroke={energized ? "#fbbf24" : "#93c5fd"}
+        strokeWidth={1.05}
         strokeLinecap="round"
-      />
+        filter={energized ? `url(#${glowId})` : undefined}
+      >
+        {energized && (
+          <animate attributeName="stroke-width" values="1.05;1.45;1.05" dur="0.7s" repeatCount="indefinite" />
+        )}
+      </line>
+      {energized && (
+        <path
+          d={`M ${contactEndX - 2.5} ${contactY - 2.2} L ${contactEndX - 0.6} ${contactY - 4.2} L ${contactEndX + 0.2} ${contactY - 2.3}`}
+          fill="none"
+          stroke="#fde68a"
+          strokeWidth={0.55}
+          strokeLinecap="round"
+          opacity={0.85}
+        >
+          <animate attributeName="opacity" values="0.85;0.25;0.85" dur="0.45s" repeatCount="indefinite" />
+        </path>
+      )}
       <text x={cubeL + cubeW / 2} y={cubeT + cubeH - 0.5} textAnchor="middle" fontSize={2} fill="#93c5fd" fontFamily="monospace">
         {energized ? "CLOSED" : "OPEN"}
       </text>
@@ -1926,11 +2048,16 @@ function DcMotorRenderer({ component, pinStates, isSelected }: {
   const isSpinning = duty > 0.01;
   // Period: 0.8s at full speed → 3s at 10% duty
   const spinPeriod = isSpinning ? (0.8 + (1 - duty) * 2.2).toFixed(2) : "0";
+  const motionOpacity = 0.22 + Math.min(0.42, duty * 0.42);
+  const windingStroke = duty > 0.65 ? "#fde68a" : "#fbbf24";
 
   const caseGradId = `motor-case-${component.id}`;
   const innerGradId = `motor-inner-${component.id}`;
   const shaftGradId = `motor-shaft-${component.id}`;
+  const motionGradId = `motor-motion-${component.id}`;
+  const copperGradId = `motor-copper-${component.id}`;
   const glowId = `motor-glow-${component.id}`;
+  const blurId = `motor-blur-${component.id}`;
 
   return (
     <g>
@@ -1953,14 +2080,30 @@ function DcMotorRenderer({ component, pinStates, isSelected }: {
           <stop offset="50%" stopColor="#d6d3d1" />
           <stop offset="100%" stopColor="#78716c" />
         </linearGradient>
+        <radialGradient id={motionGradId} cx="50%" cy="50%" r="55%">
+          <stop offset="0%" stopColor="#fef3c7" stopOpacity={0.95} />
+          <stop offset="38%" stopColor="#fbbf24" stopOpacity={0.45} />
+          <stop offset="78%" stopColor="#f97316" stopOpacity={0.16} />
+          <stop offset="100%" stopColor="#f97316" stopOpacity={0} />
+        </radialGradient>
+        <linearGradient id={copperGradId} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#facc15" />
+          <stop offset="45%" stopColor="#fb923c" />
+          <stop offset="100%" stopColor="#7c2d12" />
+        </linearGradient>
         {isSpinning && (
-          <filter id={glowId} x="-100%" y="-100%" width="300%" height="300%">
-            <feGaussianBlur stdDeviation={0.8} result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
+          <>
+            <filter id={glowId} x="-100%" y="-100%" width="300%" height="300%">
+              <feGaussianBlur stdDeviation={1.15 + duty * 0.55} result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <filter id={blurId} x="-60%" y="-60%" width="220%" height="220%">
+              <feGaussianBlur stdDeviation={0.45 + duty * 0.55} />
+            </filter>
+          </>
         )}
       </defs>
 
@@ -1997,42 +2140,105 @@ function DcMotorRenderer({ component, pinStates, isSelected }: {
       {/* Inner recess — shows the rotor when viewed head-on */}
       <circle cx={x} cy={y} r={radius - 3} fill={`url(#${innerGradId})`} stroke="#0f172a" strokeWidth={0.4} />
 
-      {/* Rotor / armature: three "poles" that spin */}
-      <g filter={isSpinning ? `url(#${glowId})` : undefined}>
+      {/* Rotor / armature: running state gets a blurred copper winding disk */}
+      <g>
         {isSpinning ? (
-          <g>
-            {/* Spinning rotor — 3-armed spoke */}
-            <g>
-              {[0, 120, 240].map((angle, i) => {
-                const rad = (angle * Math.PI) / 180;
-                const x2 = x + Math.cos(rad) * (radius - 4);
-                const y2 = y + Math.sin(rad) * (radius - 4);
-                return (
-                  <line
-                    key={i}
-                    x1={x}
-                    y1={y}
-                    x2={x2}
-                    y2={y2}
-                    stroke="#fbbf24"
-                    strokeWidth={1.4}
-                    strokeLinecap="round"
-                    opacity={0.9}
-                  />
-                );
-              })}
-              <circle cx={x} cy={y} r={1.5} fill="#fbbf24" />
+          <>
+            <circle
+              cx={x}
+              cy={y}
+              r={radius - 3.4}
+              fill={`url(#${motionGradId})`}
+              opacity={motionOpacity}
+              filter={`url(#${blurId})`}
+            />
+            <circle
+              cx={x}
+              cy={y}
+              r={radius - 4}
+              fill="none"
+              stroke="#fef3c7"
+              strokeWidth={0.7}
+              strokeDasharray="2 3"
+              opacity={0.55}
+            >
               <animateTransform
                 attributeName="transform"
                 attributeType="XML"
                 type="rotate"
                 from={`0 ${x} ${y}`}
                 to={`360 ${x} ${y}`}
-                dur={`${spinPeriod}s`}
+                dur={`${Math.max(0.55, Number(spinPeriod) * 0.75).toFixed(2)}s`}
                 repeatCount="indefinite"
               />
+            </circle>
+            <g filter={`url(#${glowId})`}>
+              <g>
+                {[0, 120, 240].map((angle, i) => {
+                  const rad = (angle * Math.PI) / 180;
+                  const tip = radius - 4.2;
+                  const ctrl = radius * 0.35;
+                  const x1 = x + Math.cos(rad - 0.22) * 2.1;
+                  const y1 = y + Math.sin(rad - 0.22) * 2.1;
+                  const cx1 = x + Math.cos(rad + 0.42) * ctrl;
+                  const cy1 = y + Math.sin(rad + 0.42) * ctrl;
+                  const x2 = x + Math.cos(rad) * tip;
+                  const y2 = y + Math.sin(rad) * tip;
+                  return (
+                    <path
+                      key={i}
+                      d={`M ${x1} ${y1} Q ${cx1} ${cy1} ${x2} ${y2}`}
+                      fill="none"
+                      stroke={windingStroke}
+                      strokeWidth={2.2}
+                      strokeLinecap="round"
+                      opacity={0.92}
+                    />
+                  );
+                })}
+                {[60, 180, 300].map((angle, i) => {
+                  const rad = (angle * Math.PI) / 180;
+                  const x2 = x + Math.cos(rad) * (radius - 5.5);
+                  const y2 = y + Math.sin(rad) * (radius - 5.5);
+                  return (
+                    <line
+                      key={i}
+                      x1={x}
+                      y1={y}
+                      x2={x2}
+                      y2={y2}
+                      stroke="#fef3c7"
+                      strokeWidth={0.8}
+                      strokeLinecap="round"
+                      opacity={0.48}
+                    />
+                  );
+                })}
+                <circle cx={x} cy={y} r={3} fill={`url(#${copperGradId})`} stroke="#fef3c7" strokeWidth={0.55} />
+                <circle cx={x} cy={y} r={1.1} fill="#111827" opacity={0.75} />
+                <animateTransform
+                  attributeName="transform"
+                  attributeType="XML"
+                  type="rotate"
+                  from={`0 ${x} ${y}`}
+                  to={`360 ${x} ${y}`}
+                  dur={`${spinPeriod}s`}
+                  repeatCount="indefinite"
+                />
+              </g>
             </g>
-          </g>
+            {[0, 1, 2].map((i) => (
+              <path
+                key={i}
+                d={`M ${x - radius - 4 - i * 2} ${y - 4 + i * 4} C ${x - radius - 9 - i * 2} ${y - 7 + i * 3}, ${x - radius - 9 - i * 2} ${y + 7 - i * 3}, ${x - radius - 4 - i * 2} ${y + 4 - i * 4}`}
+                fill="none"
+                stroke="#fbbf24"
+                strokeWidth={0.65}
+                strokeLinecap="round"
+                opacity={0.14 + duty * 0.28}
+              />
+            ))}
+          </>
         ) : (
           <g>
             {/* Static rotor when stopped */}
@@ -2549,7 +2755,7 @@ function GenericRendererInner({ component, components, pinStates, wires, isSelec
     case "ir_receiver":
       return <g opacity={dimOpacity}><IrReceiverRenderer component={component} isSelected={isSelected} /></g>;
     case "neopixel":
-      return <NeoPixelRenderer component={component} isSelected={isSelected} />;
+      return <NeoPixelRenderer component={component} isSelected={isSelected} libraryState={libraryState} />;
     case "pir_sensor":
       return <g opacity={dimOpacity}><PirRenderer component={component} isSelected={isSelected} /></g>;
     case "relay":

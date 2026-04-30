@@ -1,6 +1,7 @@
 import React from "react"
 import type { BoardComponent, PinState, LibraryState } from "@dreamer/schemas"
 import { gridToPixel } from "@/breadboard/breadboard-grid"
+import { REALISTIC_LED_LIGHTING_PILOT } from "@/breadboard/lighting-pilot"
 import {
   getLedBrightness,
   getServoAngle,
@@ -20,6 +21,8 @@ function LedOverlay({
   component: BoardComponent
   pinStates: PinState[]
 }) {
+  if (REALISTIC_LED_LIGHTING_PILOT && component.type === "led") return null
+
   const brightness = getLedBrightness(component, pinStates)
   if (brightness <= 0) return null
 

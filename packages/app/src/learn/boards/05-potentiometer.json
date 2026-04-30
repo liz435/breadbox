@@ -91,6 +91,6 @@
   },
   "libraryState": { "servos": {}, "lcd": null, "serialBaud": 0 },
   "serialOutput": [],
-  "sketchCode": "// Example: Potentiometer Controls LED Brightness\n// Read the pot on A0 and set LED brightness on pin 9.\n\nint potPin = A0;\nint ledPin = 9;\n\nvoid setup() {\n  pinMode(ledPin, OUTPUT);\n}\n\nvoid loop() {\n  int val = analogRead(potPin);\n  int brightness = map(val, 0, 1023, 0, 255);\n  analogWrite(ledPin, brightness);\n  delay(10);\n}\n",
+  "sketchCode": "// Example: Potentiometer Controls LED Brightness\n// Read the pot on A0 and set LED brightness on pin 9.\n\nint potPin = A0;\nint ledPin = 9;\n\nvoid setup() {\n  pinMode(ledPin, OUTPUT);\n}\n\nvoid loop() {\n  int val = analogRead(potPin);\n  int brightness = map(val, 0, 1023, 0, 255);\n  analogWrite(ledPin, brightness);\n}\n",
   "customLibraries": {}
 }

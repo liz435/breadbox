@@ -178,7 +178,7 @@ describe("boardMachine", () => {
       state: {
         components: { new1: createTestComponent({ id: "new1", name: "New LED" }) },
         wires: {},
-        libraryState: { servos: {}, lcd: null, serialBaud: 9600, oled: {} },
+        libraryState: { servos: {}, lcd: null, serialBaud: 9600, oled: {}, neopixels: {} },
         serialOutput: [{ text: "loaded", ts: 0 }],
         sketchCode: "// loaded",
         customLibraries: {},
@@ -201,7 +201,7 @@ describe("boardMachine", () => {
       state: {
         components: {},
         wires: {},
-        libraryState: { servos: {}, lcd: null, serialBaud: 0, oled: {} },
+        libraryState: { servos: {}, lcd: null, serialBaud: 0, oled: {}, neopixels: {} },
         serialOutput: [],
         sketchCode: "",
         customLibraries: {},
@@ -209,6 +209,76 @@ describe("boardMachine", () => {
       },
     });
     expect(actor.getSnapshot().context.sketchCode).toBe(DEFAULT_SKETCH_CODE);
+    actor.stop();
+  });
+
+  test("LOAD_BOARD normalizes legacy DC motor wiring swap", () => {
+    const actor = createActor(boardMachine).start();
+    actor.send({
+      type: "LOAD_BOARD",
+      state: {
+        components: {
+          "psu-1": {
+            id: "psu-1",
+            type: "power_supply",
+            name: "External 5V",
+            x: 0,
+            y: 0,
+            rotation: 0,
+            pins: {},
+            properties: { leftVoltage: 5, rightVoltage: 5 },
+          },
+          "motor-1": {
+            id: "motor-1",
+            type: "dc_motor",
+            name: "DC Motor",
+            x: 7,
+            y: 5,
+            rotation: 0,
+            pins: { signal: 9 },
+            properties: {},
+          },
+        },
+        wires: {
+          "wire-d9": {
+            id: "wire-d9",
+            fromRow: -999,
+            fromCol: 9,
+            toRow: 5,
+            toCol: 7,
+            color: "#fbbf24",
+          },
+          "wire-vcc": {
+            id: "wire-vcc",
+            fromRow: 0,
+            fromCol: 11,
+            toRow: 6,
+            toCol: 7,
+            color: "#ef4444",
+          },
+          "wire-gnd": {
+            id: "wire-gnd",
+            fromRow: 0,
+            fromCol: 10,
+            toRow: 7,
+            toCol: 7,
+            color: "#1a1a1a",
+          },
+        },
+        libraryState: { servos: {}, lcd: null, serialBaud: 0, oled: {}, neopixels: {} },
+        serialOutput: [],
+        sketchCode: "// motor",
+        customLibraries: {},
+        environment: { obstacles: {}, boundaryEnabled: true, boundaryMargin: 100 },
+      },
+    });
+
+    const ctx = actor.getSnapshot().context;
+    expect(ctx.wires["wire-d9"]?.toRow).toBe(6);
+    expect(ctx.wires["wire-d9"]?.toCol).toBe(7);
+    expect(ctx.wires["wire-vcc"]?.toRow).toBe(5);
+    expect(ctx.wires["wire-vcc"]?.toCol).toBe(7);
+    expect(ctx.wires["wire-gnd"]).toBeUndefined();
     actor.stop();
   });
 });

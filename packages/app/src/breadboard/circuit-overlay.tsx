@@ -14,6 +14,7 @@ import type {
   CircuitWarning,
 } from "@/simulator/circuit-solver"
 import { gridToPixel } from "./breadboard-grid"
+import { REALISTIC_LED_LIGHTING_PILOT } from "./lighting-pilot"
 import type { BoardComponent } from "@dreamer/schemas"
 
 type CircuitOverlayProps = {
@@ -225,7 +226,11 @@ function CircuitOverlayInner({ analysis, components }: CircuitOverlayProps) {
           return <ReversePolarityGlow key={`rev-${id}`} component={comp} />
         }
 
-        if (state.isActive) {
+        const usesSelfRenderedLighting =
+          (comp.type === "led" && REALISTIC_LED_LIGHTING_PILOT) ||
+          comp.type === "rgb_led"
+
+        if (state.isActive && !usesSelfRenderedLighting) {
           return (
             <ActiveComponentGlow
               key={`glow-${id}`}

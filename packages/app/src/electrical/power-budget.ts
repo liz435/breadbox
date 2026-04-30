@@ -142,11 +142,15 @@ function componentPinPoints(component: BoardComponent): Record<string, Point> {
         k: { row: y + 11, col: x },
       };
     case "relay":
+      return {
+        vcc: { row: y + 0, col: x },
+        signal: { row: y + 1, col: x },
+        gnd: { row: y + 2, col: x },
+      };
     case "dc_motor":
       return {
-        signal: { row: y + 0, col: x },
-        vcc: { row: y + 1, col: x },
-        gnd: { row: y + 2, col: x },
+        vcc: { row: y + 0, col: x },
+        signal: { row: y + 1, col: x },
       };
     case "neopixel":
       return {

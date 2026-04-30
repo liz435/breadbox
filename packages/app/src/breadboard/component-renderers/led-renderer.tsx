@@ -3,6 +3,7 @@ import type { BoardComponent, PinState } from "@dreamer/schemas";
 import type { ComponentElectricalState } from "@/simulator/circuit-solver";
 import { gridToPixel } from "@/breadboard/breadboard-grid";
 import { LED_DOME_RADIUS, LEG_WIDTH, LABEL_FONT_SIZE, ANNOTATION_FONT_SIZE } from "@/breadboard/breadboard-constants";
+import { REALISTIC_LED_LIGHTING_PILOT } from "@/breadboard/lighting-pilot";
 import { PinLabel } from "./pin-label";
 
 type LedRendererProps = {
@@ -60,6 +61,8 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
   const filterId = `led-glow-${component.id}`;
   const gradientId = `led-grad-${component.id}`;
   const bodyGradId = `led-body-${component.id}`;
+  const auraGradId = `led-aura-${component.id}`;
+  const coreGradId = `led-core-${component.id}`;
   const reversePolarityFilterId = `led-reverse-${component.id}`;
 
   // Dome shape: bullet profile (rounded top, straight sides, flat bottom)
@@ -90,12 +93,21 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
       : offColor;
 
   const domeOpacity = isOn ? 0.7 + brightness * 0.3 : 0.35;
-  const glowBlur = 2 + brightness * 8;
-  const haloBaseR = R + 2 + brightness * 6;
-  const haloMaxR = haloBaseR + 2 + brightness * 8;
-  const haloOpacity = 0.1 + brightness * 0.35;
+  const visualStrength = Math.max(0, Math.min(1, brightness));
+  const perceptualStrength = Math.pow(visualStrength, REALISTIC_LED_LIGHTING_PILOT ? 0.72 : 1);
+  const glowBlur = REALISTIC_LED_LIGHTING_PILOT ? 1.1 + perceptualStrength * 4.6 : 1.5 + visualStrength * 7.5;
+  const haloBaseR = REALISTIC_LED_LIGHTING_PILOT ? R + 1.8 + perceptualStrength * 4.2 : R + 2 + visualStrength * 7;
+  const haloMaxR = REALISTIC_LED_LIGHTING_PILOT ? haloBaseR + 0.8 + perceptualStrength * 3.6 : haloBaseR + 1.5 + visualStrength * 9;
+  const haloOpacity = REALISTIC_LED_LIGHTING_PILOT ? 0.03 + perceptualStrength * 0.18 : 0.06 + visualStrength * 0.42;
+  const ambientR = REALISTIC_LED_LIGHTING_PILOT ? R + 5 + perceptualStrength * 10 : R + 4 + visualStrength * 14;
+  const ambientMaxR = REALISTIC_LED_LIGHTING_PILOT ? ambientR + 1.2 + perceptualStrength * 4 : ambientR + 2 + visualStrength * 10;
+  const pulseDur = `${1.05 + (1 - visualStrength) * 1.55}s`;
+  const coreR = REALISTIC_LED_LIGHTING_PILOT ? R * 0.35 + perceptualStrength * R * 0.22 : R * 0.48 + visualStrength * R * 0.42;
   const specularOpacity = isOn ? 0.15 + brightness * 0.55 : 0.1;
   const isOverdriven = isOn && currentMa > 25;
+  const spillOpacity = REALISTIC_LED_LIGHTING_PILOT ? 0.035 + perceptualStrength * 0.11 : 0;
+  const spillWidth = 6 + perceptualStrength * 5;
+  const spillDepth = 10 + perceptualStrength * 8;
 
   return (
     <g>
@@ -113,6 +125,16 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
           <stop offset="50%" stopColor={domeColor} stopOpacity={1} />
           <stop offset="100%" stopColor={darken(domeColor, 0.2)} stopOpacity={0.9} />
         </linearGradient>
+        <radialGradient id={auraGradId} cx="50%" cy="48%" r="60%">
+          <stop offset="0%" stopColor={lighten(color, 0.55)} stopOpacity={0.72} />
+          <stop offset="42%" stopColor={color} stopOpacity={0.34} />
+          <stop offset="100%" stopColor={color} stopOpacity={0} />
+        </radialGradient>
+        <radialGradient id={coreGradId} cx="42%" cy="34%" r="58%">
+          <stop offset="0%" stopColor="#ffffff" stopOpacity={0.95} />
+          <stop offset="32%" stopColor={lighten(color, 0.68)} stopOpacity={0.8} />
+          <stop offset="100%" stopColor={color} stopOpacity={0} />
+        </radialGradient>
         {isOn && (
           <filter id={filterId} x="-200%" y="-200%" width="500%" height="500%">
             <feGaussianBlur stdDeviation={glowBlur} result="blur" />
@@ -151,35 +173,142 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
         fill="none"
       />
 
-      {/* LED dome with glow filter */}
-      <g filter={isOn ? `url(#${filterId})` : undefined} opacity={domeOpacity}>
-        {/* Outer halo — scales with brightness */}
-        {isOn && (
-          <ellipse
-            cx={cx}
-            cy={cy - 1}
-            rx={haloBaseR}
-            ry={haloBaseR * 1.1}
-            fill={color}
-            opacity={haloOpacity * 0.6}
-          >
-            <animate
-              attributeName="rx"
-              values={`${haloBaseR};${haloMaxR};${haloBaseR}`}
-              dur={1.5 + (1 - brightness) * 1.5 + "s"}
-              repeatCount="indefinite"
-            />
-            <animate
-              attributeName="opacity"
-              values={`${haloOpacity * 0.4};${haloOpacity};${haloOpacity * 0.4}`}
-              dur={1.5 + (1 - brightness) * 1.5 + "s"}
-              repeatCount="indefinite"
-            />
-          </ellipse>
-        )}
+      {/* Light field behind the epoxy: pilot mode keeps the emitter stable and moves the realism into bloom + spill. */}
+      {isOn && (
+        <g filter={`url(#${filterId})`} pointerEvents="none">
+          {REALISTIC_LED_LIGHTING_PILOT ? (
+            <>
+              <ellipse
+                cx={cx - 0.6}
+                cy={cy - 1.2}
+                rx={ambientR}
+                ry={ambientR * 1.05}
+                fill={`url(#${auraGradId})`}
+                opacity={haloOpacity * 0.45}
+              />
+              <ellipse
+                cx={cx - 0.4}
+                cy={cy - 1}
+                rx={haloBaseR}
+                ry={haloBaseR * 1.02}
+                fill={color}
+                opacity={haloOpacity * 0.72}
+              />
+              <ellipse
+                cx={cx - 0.2}
+                cy={flangeY + flangeH + spillDepth * 0.38}
+                rx={spillWidth}
+                ry={spillDepth}
+                fill={color}
+                opacity={spillOpacity}
+              />
+              <path
+                d={`M ${cx - 1.4} ${flangeY + flangeH} C ${cx - 4.2} ${flangeY + flangeH + 4}, ${cx - spillWidth * 0.62} ${flangeY + flangeH + spillDepth * 0.55}, ${cx - spillWidth * 0.28} ${flangeY + flangeH + spillDepth}`}
+                fill="none"
+                stroke={lighten(color, 0.18)}
+                strokeWidth={1.2 + perceptualStrength * 0.85}
+                strokeLinecap="round"
+                opacity={spillOpacity * 0.7}
+              />
+              <path
+                d={`M ${cx + 1.2} ${flangeY + flangeH + 1} C ${cx + 3.6} ${flangeY + flangeH + 5}, ${cx + spillWidth * 0.42} ${flangeY + flangeH + spillDepth * 0.5}, ${cx + spillWidth * 0.12} ${flangeY + flangeH + spillDepth * 0.92}`}
+                fill="none"
+                stroke={lighten(color, 0.08)}
+                strokeWidth={0.9 + perceptualStrength * 0.55}
+                strokeLinecap="round"
+                opacity={spillOpacity * 0.42}
+              />
+            </>
+          ) : (
+            <>
+              <ellipse
+                cx={cx}
+                cy={cy - 1}
+                rx={ambientR}
+                ry={ambientR * 1.15}
+                fill={`url(#${auraGradId})`}
+                opacity={haloOpacity * 0.55}
+              >
+                <animate
+                  attributeName="rx"
+                  values={`${ambientR};${ambientMaxR};${ambientR}`}
+                  dur={pulseDur}
+                  repeatCount="indefinite"
+                />
+                <animate
+                  attributeName="ry"
+                  values={`${ambientR * 1.1};${ambientMaxR * 1.18};${ambientR * 1.1}`}
+                  dur={pulseDur}
+                  repeatCount="indefinite"
+                />
+                <animate
+                  attributeName="opacity"
+                  values={`${haloOpacity * 0.22};${haloOpacity * 0.7};${haloOpacity * 0.22}`}
+                  dur={pulseDur}
+                  repeatCount="indefinite"
+                />
+              </ellipse>
+              <ellipse
+                cx={cx}
+                cy={cy - 1}
+                rx={haloBaseR}
+                ry={haloBaseR * 1.1}
+                fill={color}
+                opacity={haloOpacity * 0.6}
+              >
+                <animate
+                  attributeName="rx"
+                  values={`${haloBaseR};${haloMaxR};${haloBaseR}`}
+                  dur={pulseDur}
+                  repeatCount="indefinite"
+                />
+                <animate
+                  attributeName="ry"
+                  values={`${haloBaseR * 1.05};${haloMaxR * 1.14};${haloBaseR * 1.05}`}
+                  dur={pulseDur}
+                  repeatCount="indefinite"
+                />
+                <animate
+                  attributeName="opacity"
+                  values={`${haloOpacity * 0.25};${haloOpacity};${haloOpacity * 0.25}`}
+                  dur={pulseDur}
+                  repeatCount="indefinite"
+                />
+              </ellipse>
+              {visualStrength > 0.58 && (
+                <g opacity={(visualStrength - 0.58) * 1.2}>
+                  {[0, 45, 90, 135, 180, 225, 270, 315].map((angle) => {
+                    const rad = (angle * Math.PI) / 180;
+                    const inner = R + 4;
+                    const outer = R + 7 + visualStrength * 10;
+                    return (
+                      <line
+                        key={angle}
+                        x1={cx + Math.cos(rad) * inner}
+                        y1={cy - 1 + Math.sin(rad) * inner}
+                        x2={cx + Math.cos(rad) * outer}
+                        y2={cy - 1 + Math.sin(rad) * outer}
+                        stroke={lighten(color, 0.42)}
+                        strokeWidth={0.55 + visualStrength * 0.55}
+                        strokeLinecap="round"
+                        opacity={0.38}
+                      >
+                        <animate attributeName="opacity" values="0.12;0.5;0.12" dur={pulseDur} repeatCount="indefinite" />
+                      </line>
+                    );
+                  })}
+                </g>
+              )}
+            </>
+          )}
+        </g>
+      )}
+
+      {/* LED dome */}
+      <g opacity={domeOpacity}>
 
         {/* Inner glow ring */}
-        {isOn && brightness > 0.3 && (
+        {isOn && brightness > 0.3 && !REALISTIC_LED_LIGHTING_PILOT && (
           <ellipse
             cx={cx}
             cy={cy - 1}
@@ -190,6 +319,26 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
             strokeWidth={0.5 + brightness}
             opacity={brightness * 0.5}
           />
+        )}
+
+        {isOn && (
+          <circle
+            cx={cx}
+            cy={cy - R * 0.18}
+            r={coreR}
+            fill={`url(#${coreGradId})`}
+            opacity={REALISTIC_LED_LIGHTING_PILOT ? 0.14 + perceptualStrength * 0.18 : 0.16 + visualStrength * 0.42}
+            pointerEvents="none"
+          >
+            {!REALISTIC_LED_LIGHTING_PILOT && (
+              <animate
+                attributeName="opacity"
+                values={`${0.1 + visualStrength * 0.2};${0.22 + visualStrength * 0.5};${0.1 + visualStrength * 0.2}`}
+                dur={pulseDur}
+                repeatCount="indefinite"
+              />
+            )}
+          </circle>
         )}
 
         {/* Dome body — bullet shape */}
@@ -207,7 +356,7 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
           rx={R * 0.35}
           ry={R * 0.25}
           fill="#ffffff"
-          opacity={isOn ? 0.15 + brightness * 0.2 : 0.08}
+          opacity={REALISTIC_LED_LIGHTING_PILOT ? (isOn ? 0.12 + perceptualStrength * 0.1 : 0.08) : (isOn ? 0.15 + brightness * 0.2 : 0.08)}
         />
 
         {/* Hot center spot when overdriven */}

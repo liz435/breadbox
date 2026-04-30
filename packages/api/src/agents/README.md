@@ -96,7 +96,7 @@ agents/
   intent-classifier.ts    ← keyword patterns for complexity/domain
   core/
     agent.ts              ← streamText loop, max 10 steps, compaction, plan+reflect
-    tools.ts              ← all board + sketch tools; mode filters
+    tools.ts              ← board + sketch + CircuitProgram tools; mode filters
   planner.ts              ← async background plan (isDestructive, estimatedToolCalls)
   reflection.ts           ← post-stream confidence check, shouldReplan logic
   policy-engine.ts        ← power budget + routing violation guardrails
@@ -114,3 +114,11 @@ agents/
 | Reflection threshold | confidence < 0.5 | `reflection.ts` |
 | Compaction starts | after step 2, keep last 4 | `core/agent.ts:436,440` |
 | Sonnet escalation triggers | complex · debug · rebuild · mixed domain · 3+ components · 200+ chars · recent failures | `router.ts:161–192` |
+
+## Current Build Path (v1.4.0)
+
+- Default empty-board authoring is now **CircuitProgram-first**:
+  `generate_circuit_program` → `validate_circuit_program` → `apply_circuit_program`
+- `compile_circuit_program` is the dry-run inspection step when the agent needs to see the compiled DreamerDiagram + runtime contracts before committing.
+- `apply_design` remains the explicit import path for pasted DreamerDiagram payloads.
+- `propose_circuit` remains available as the fallback auto-placement path when CircuitProgram is not the right fit.

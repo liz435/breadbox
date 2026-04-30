@@ -1,4 +1,4 @@
-import { useMemo, useCallback, type ReactNode } from "react";
+import { useMemo, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Slider } from "@base-ui/react/slider";
 import { Collapsible } from "@base-ui/react/collapsible";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { GraphInspector } from "./graph-inspector";
 import { pinStateStore } from "@/simulator/pin-state-store";
 import { buttonPressStore, useButtonPressed } from "@/simulator/button-press-store";
 import { usePinState } from "@/simulator/use-pin-state";
-import { analyzeButtonWiring } from "@/breadboard/component-pin-resolver";
+import { analyzeButtonWiring, findArduinoPinForComponentPin } from "@/breadboard/component-pin-resolver";
 import { useCircuitAnalysis } from "@/simulator/circuit-analysis-hook";
 import { useElectricalReport } from "@/electrical/power-budget";
 import {
@@ -20,7 +20,7 @@ import {
   CANVAS_WIDTH,
   CANVAS_HEIGHT,
 } from "@/simulator/ray-cast";
-import type { BoardComponent, Wire } from "@dreamer/schemas";
+import type { BoardComponent, LibraryState, Wire } from "@dreamer/schemas";
 
 const WIRE_COLORS = [
   { label: "Yellow", value: "#fbbf24" },
@@ -112,6 +112,7 @@ function SliderField({
   step = 1,
   valueLabel,
   onChange,
+  onCommit,
   disabled,
 }: {
   value: number;
@@ -120,6 +121,7 @@ function SliderField({
   step?: number;
   valueLabel: string;
   onChange: (v: number) => void;
+  onCommit?: (v: number) => void;
   disabled?: boolean;
 }) {
   return (
@@ -132,6 +134,9 @@ function SliderField({
         disabled={disabled}
         onValueChange={(v) => {
           if (typeof v === "number") onChange(v);
+        }}
+        onValueCommitted={(v) => {
+          if (typeof v === "number") onCommit?.(v);
         }}
         className="flex h-7 min-w-0 flex-1 items-center"
       >
@@ -462,24 +467,62 @@ function ButtonInspector({ component, onUpdate }: {
   );
 }
 
-function ServoInspector({ component, onUpdate }: {
+const SERVO_MIN_PULSE_US = 544;
+const SERVO_MAX_PULSE_US = 2400;
+
+function formatSignalPin(pin: number | null): string {
+  if (pin == null) return "-";
+  return pin >= 14 ? `A${pin - 14}` : `D${pin}`;
+}
+
+function ServoInspector({ component, onUpdate, wires, libraryState }: {
   component: BoardComponent;
   onUpdate: (changes: Partial<BoardComponent>) => void;
+  wires: Record<string, Wire>;
+  libraryState: LibraryState;
 }) {
-  const angle = (component.properties.angle as number) ?? 90;
+  const configuredAngle = (component.properties.angle as number) ?? 90;
+  const signalPin = findArduinoPinForComponentPin(component, "signal", wires);
+  const servoState = libraryState.servos[component.id] ??
+    Object.values(libraryState.servos).find((entry) => entry.pin === signalPin);
+  const liveAngle = servoState?.angle;
+  const displayAngle = liveAngle ?? configuredAngle;
+  const pulseUs = Math.round(
+    SERVO_MIN_PULSE_US +
+      (Math.max(0, Math.min(180, displayAngle)) / 180) *
+        (SERVO_MAX_PULSE_US - SERVO_MIN_PULSE_US),
+  );
+  const isLive = liveAngle != null;
+
   return (
     <>
       <PropertyRow label="Angle">
         <SliderField
-          value={angle}
+          value={configuredAngle}
           min={0}
           max={180}
-          valueLabel={`${angle}°`}
+          valueLabel={`${displayAngle}°`}
           onChange={(v) => onUpdate({
             properties: { ...component.properties, angle: v },
           })}
         />
       </PropertyRow>
+      <div className="rounded-md border border-border bg-muted/20 px-2.5 py-2 text-[11px] leading-snug text-muted-foreground">
+        <div className="flex items-center justify-between gap-3">
+          <span>Servo pulse</span>
+          <span className={cn("font-mono tabular-nums", isLive ? "text-blue-400" : "text-foreground/70")}>
+            {formatSignalPin(signalPin)} · {pulseUs}µs @ 50Hz
+          </span>
+        </div>
+        <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-background">
+          <div
+            className={cn("h-full rounded-full", isLive ? "bg-blue-400" : "bg-foreground/40")}
+            style={{
+              width: `${Math.max(0, Math.min(100, ((pulseUs - SERVO_MIN_PULSE_US) / (SERVO_MAX_PULSE_US - SERVO_MIN_PULSE_US)) * 100))}%`,
+            }}
+          />
+        </div>
+      </div>
       <CollapsibleSection title="Pins" defaultOpen>
         <PropertyRow label="Signal">
           <PinSelect
@@ -641,17 +684,64 @@ function PotentiometerInspector({ component, onUpdate }: {
   onUpdate: (changes: Partial<BoardComponent>) => void;
 }) {
   const value = (component.properties.value as number) ?? 50;
+  const [draftValue, setDraftValue] = useState(value);
+  const draggingRef = useRef(false);
+  const rafRef = useRef<number | null>(null);
+  const pendingRef = useRef<number | null>(null);
+  const lastSentRef = useRef(value);
+
+  const flushValue = useCallback((next: number) => {
+    pendingRef.current = null;
+    if (lastSentRef.current === next) return;
+    lastSentRef.current = next;
+    onUpdate({
+      properties: { ...component.properties, value: next },
+    });
+  }, [component.properties, onUpdate]);
+
+  useEffect(() => {
+    if (draggingRef.current) return;
+    setDraftValue(value);
+    lastSentRef.current = value;
+  }, [value]);
+
+  useEffect(() => () => {
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+  }, []);
+
+  const scheduleFlush = useCallback((next: number) => {
+    pendingRef.current = next;
+    if (rafRef.current != null) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      if (pendingRef.current != null) {
+        flushValue(pendingRef.current);
+      }
+    });
+  }, [flushValue]);
+
   return (
     <>
       <PropertyRow label="Position">
         <SliderField
-          value={value}
+          value={draftValue}
           min={0}
           max={100}
-          valueLabel={`${value}%`}
-          onChange={(v) => onUpdate({
-            properties: { ...component.properties, value: v },
-          })}
+          valueLabel={`${draftValue}%`}
+          onChange={(v) => {
+            draggingRef.current = true;
+            setDraftValue(v);
+            scheduleFlush(v);
+          }}
+          onCommit={(v) => {
+            draggingRef.current = false;
+            setDraftValue(v);
+            if (rafRef.current != null) {
+              cancelAnimationFrame(rafRef.current);
+              rafRef.current = null;
+            }
+            flushValue(v);
+          }}
         />
       </PropertyRow>
       <CollapsibleSection title="Pins" defaultOpen>
@@ -684,9 +774,9 @@ function RgbLedInspector({ component, onUpdate }: {
         <PinSelect value={component.pins.blue ?? null}
           onChange={(pin) => onUpdate({ pins: { ...component.pins, blue: pin } })} />
       </PropertyRow>
-      <PropertyRow label="Cathode">
-        <PinSelect value={component.pins.cathode ?? null}
-          onChange={(pin) => onUpdate({ pins: { ...component.pins, cathode: pin } })} />
+      <PropertyRow label="Common">
+        <PinSelect value={(component.pins.common ?? component.pins.cathode) ?? null}
+          onChange={(pin) => onUpdate({ pins: { ...component.pins, common: pin } })} />
       </PropertyRow>
     </CollapsibleSection>
   );
@@ -1146,13 +1236,15 @@ const DOCS_PATHS: Record<string, string> = {
 function renderTypeInspector(
   component: BoardComponent,
   onUpdate: (changes: Partial<BoardComponent>) => void,
+  wires: Record<string, Wire>,
+  libraryState: LibraryState,
 ) {
   switch (component.type) {
     case "led": return <LedInspector component={component} onUpdate={onUpdate} />;
     case "rgb_led": return <RgbLedInspector component={component} onUpdate={onUpdate} />;
     case "resistor": return <ResistorInspector component={component} onUpdate={onUpdate} />;
     case "button": return <ButtonInspector component={component} onUpdate={onUpdate} />;
-    case "servo": return <ServoInspector component={component} onUpdate={onUpdate} />;
+    case "servo": return <ServoInspector component={component} onUpdate={onUpdate} wires={wires} libraryState={libraryState} />;
     case "buzzer": return <BuzzerInspector component={component} onUpdate={onUpdate} />;
     case "capacitor": return <CapacitorInspector component={component} onUpdate={onUpdate} />;
     case "potentiometer": return <PotentiometerInspector component={component} onUpdate={onUpdate} />;
@@ -1212,15 +1304,17 @@ function ComponentHeader({
   );
 }
 
-function ComponentInspector({ component, onUpdate }: {
+function ComponentInspector({ component, onUpdate, wires, libraryState }: {
   component: BoardComponent;
   onUpdate: (changes: Partial<BoardComponent>) => void;
+  wires: Record<string, Wire>;
+  libraryState: LibraryState;
 }) {
   return (
     <div className="flex flex-col gap-4">
       <ComponentHeader component={component} onUpdate={onUpdate} />
       <div className="flex flex-col gap-3">
-        {renderTypeInspector(component, onUpdate)}
+        {renderTypeInspector(component, onUpdate, wires, libraryState)}
       </div>
     </div>
   );
@@ -1298,6 +1392,8 @@ export default function Inspector() {
               <ComponentInspector
                 component={selectedComponent}
                 onUpdate={handleComponentUpdate}
+                wires={boardState.wires}
+                libraryState={boardState.libraryState}
               />
               <ComponentWarnings componentId={selectedComponent.id} />
             </>

@@ -136,6 +136,16 @@ export const oledStateSchema = z.object({
 });
 export type OledState = z.infer<typeof oledStateSchema>;
 
+export const neoPixelStateSchema = z.object({
+  pin: z.number().int().min(0).max(MAX_ARDUINO_PIN),
+  pixels: z.array(z.object({
+    r: z.number().int().min(0).max(255),
+    g: z.number().int().min(0).max(255),
+    b: z.number().int().min(0).max(255),
+  })),
+});
+export type NeoPixelState = z.infer<typeof neoPixelStateSchema>;
+
 export const libraryStateSchema = z.object({
   servos: z.record(z.string(), servoStateSchema),
   lcd: lcdStateSchema.nullable().default(null),
@@ -143,11 +153,12 @@ export const libraryStateSchema = z.object({
   // Keyed by componentId (mirrors `servos`). I²C addresses aren't unique
   // across multiple soft-buses and the renderer locates by component.
   oled: z.record(z.string(), oledStateSchema).default({}),
+  neopixels: z.record(z.string(), neoPixelStateSchema).default({}),
 });
 export type LibraryState = z.infer<typeof libraryStateSchema>;
 
 // Save-path schema: framebuffers are runtime-only, never persisted to disk.
-export const persistedLibraryStateSchema = libraryStateSchema.omit({ oled: true });
+export const persistedLibraryStateSchema = libraryStateSchema.omit({ oled: true, neopixels: true });
 export type PersistedLibraryState = z.infer<typeof persistedLibraryStateSchema>;
 
 // ── Board Component ──────────────────────────────────────────────
@@ -225,7 +236,7 @@ export type Environment = z.infer<typeof environmentSchema>;
 const boardStateBaseSchema = z.object({
   components: z.record(z.string(), boardComponentSchema),
   wires: z.record(z.string(), wireSchema),
-  libraryState: libraryStateSchema.default({ servos: {}, lcd: null, serialBaud: 0, oled: {} }),
+  libraryState: libraryStateSchema.default({ servos: {}, lcd: null, serialBaud: 0, oled: {}, neopixels: {} }),
   // Supports legacy string[] format from old saves, normalises to {text, ts}.
   serialOutput: z.array(
     z.union([
@@ -269,7 +280,7 @@ export function createDefaultBoardState(): BoardState {
   return {
     components: {},
     wires: {},
-    libraryState: { servos: {}, lcd: null, serialBaud: 0, oled: {} },
+    libraryState: { servos: {}, lcd: null, serialBaud: 0, oled: {}, neopixels: {} },
     serialOutput: [],
     sketchCode: DEFAULT_SKETCH_CODE,
     customLibraries: {},

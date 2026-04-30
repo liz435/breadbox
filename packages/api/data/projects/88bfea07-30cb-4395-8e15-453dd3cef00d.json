@@ -5,7 +5,7 @@
     "ownerId": "local",
     "version": 1,
     "createdAt": "2026-04-21T00:38:01.534Z",
-    "updatedAt": "2026-04-22T22:19:08.865Z",
+    "updatedAt": "2026-04-28T23:18:34.468Z",
     "threadId": "ddc7ce94-a9ec-41a3-aef6-45123f12fd25",
     "activeSceneId": "728a26d2-7e83-4d2d-a5b2-823ae62d8129"
   },
@@ -79,67 +79,63 @@
   },
   "boardState": {
     "components": {
-      "led-1": {
-        "id": "led-1",
-        "type": "led",
-        "name": "LED",
+      "psu-1": {
+        "id": "psu-1",
+        "type": "power_supply",
+        "name": "External 5V",
+        "x": 0,
+        "y": 0,
+        "rotation": 0,
+        "pins": {},
+        "properties": {
+          "leftVoltage": 5,
+          "rightVoltage": 5
+        }
+      },
+      "relay-1": {
+        "id": "relay-1",
+        "type": "relay",
+        "name": "Relay",
         "x": 7,
         "y": 5,
         "rotation": 0,
         "pins": {
-          "anode": null,
-          "cathode": null
+          "signal": null
         },
-        "properties": {
-          "color": "#ef4444"
-        }
-      },
-      "resistor-1": {
-        "id": "resistor-1",
-        "type": "resistor",
-        "name": "R1 220Ω",
-        "x": 3,
-        "y": 5,
-        "rotation": 0,
-        "pins": {
-          "a": null,
-          "b": null
-        },
-        "properties": {
-          "resistance": 220
-        }
-      },
-      "7d16a053-e07e-4d4f-9bd5-54c34413616d": {
-        "id": "7d16a053-e07e-4d4f-9bd5-54c34413616d",
-        "type": "led",
-        "name": "Led",
-        "x": 9,
-        "y": 5,
-        "rotation": 0,
-        "pins": {
-          "anode": null,
-          "cathode": null
-        },
-        "properties": {
-          "color": "#ef4444"
-        }
+        "properties": {}
       }
     },
     "wires": {
-      "wire-d13": {
-        "id": "wire-d13",
+      "wire-d7": {
+        "id": "wire-d7",
         "fromRow": -999,
-        "fromCol": 13,
+        "fromCol": 7,
         "toRow": 5,
-        "toCol": 3,
+        "toCol": 7,
         "color": "#fbbf24"
+      },
+      "wire-vcc": {
+        "id": "wire-vcc",
+        "fromRow": 0,
+        "fromCol": 11,
+        "toRow": 6,
+        "toCol": 7,
+        "color": "#ef4444"
       },
       "wire-gnd": {
         "id": "wire-gnd",
+        "fromRow": 0,
+        "fromCol": 10,
+        "toRow": 7,
+        "toCol": 7,
+        "color": "#1a1a1a"
+      },
+      "wire-common-gnd": {
+        "id": "wire-common-gnd",
         "fromRow": -999,
         "fromCol": -3,
-        "toRow": 6,
-        "toCol": 9,
+        "toRow": 1,
+        "toCol": 10,
         "color": "#1a1a1a"
       }
     },
@@ -147,10 +143,11 @@
       "servos": {},
       "lcd": null,
       "serialBaud": 0,
-      "oled": {}
+      "oled": {},
+      "neopixels": {}
     },
     "serialOutput": [],
-    "sketchCode": "// Example: Blink LED\n// Toggle an LED on pin 13 every 500ms.\n\nvoid setup() {\n  pinMode(13, OUTPUT);\n  Serial.begin(9600);\n}\n\nvoid loop() {\n  digitalWrite(13, HIGH);\n  delay(500);\n  digitalWrite(13, LOW);\n  delay(500);\n}\n",
+    "sketchCode": "// Example: Relay Toggle\n// Switch a relay on and off every 2 seconds.\n// Uses external 5V power supply for the relay coil.\n\nint relayPin = 7;\n\nvoid setup() {\n  pinMode(relayPin, OUTPUT);\n}\n\nvoid loop() {\n  digitalWrite(relayPin, HIGH);\n  delay(2000);\n  digitalWrite(relayPin, LOW);\n  delay(2000);\n}\n",
     "customLibraries": {},
     "boardTarget": "arduino_uno",
     "environment": {

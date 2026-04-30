@@ -1,0 +1,164 @@
+import { AlertTriangle, CheckCircle2, Loader2, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import type { AnimationCurve, GenerationProvider } from "@dreamer/schemas";
+import { cn } from "@/lib/utils";
+import { AnimationCurveControl } from "./AnimationCurveControl";
+
+type VeoHealthIndicator = {
+  status: "idle" | "checking" | "ok" | "error";
+  message: string;
+  model?: string;
+};
+
+type MotionPromptPanelProps = {
+  value: string;
+  provider: GenerationProvider;
+  durationSeconds: 4 | 6 | 8;
+  animationCurve: AnimationCurve;
+  disabled?: boolean;
+  generateDisabled?: boolean;
+  generating?: boolean;
+  veoHealth?: VeoHealthIndicator;
+  onCheckVeoHealth?: () => void;
+  onChange: (value: string) => void;
+  onProviderChange: (provider: GenerationProvider) => void;
+  onDurationChange: (duration: 4 | 6 | 8) => void;
+  onCurveChange: (curve: AnimationCurve) => void;
+  onGenerate: () => void;
+};
+
+const DURATION_OPTIONS: ReadonlyArray<4 | 6 | 8> = [4, 6, 8];
+
+export function MotionPromptPanel({
+  value,
+  provider,
+  durationSeconds,
+  animationCurve,
+  disabled,
+  generateDisabled,
+  generating,
+  veoHealth,
+  onCheckVeoHealth,
+  onChange,
+  onProviderChange,
+  onDurationChange,
+  onCurveChange,
+  onGenerate,
+}: MotionPromptPanelProps) {
+  const controlsDisabled = disabled || generating;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <textarea
+        value={value}
+        disabled={controlsDisabled}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="Make the left leg flag behind the right leg, then step up smoothly."
+        aria-label="Motion instruction"
+        className="min-h-28 w-full resize-none rounded-lg bg-white/5 px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground/50 focus:ring-1 focus:ring-ring disabled:opacity-40"
+      />
+
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] uppercase tracking-widest text-muted-foreground/50">
+          Duration
+        </span>
+        <div className="flex items-center gap-1">
+          {DURATION_OPTIONS.map((option) => {
+            const isActive = option === durationSeconds;
+            return (
+              <button
+                key={option}
+                type="button"
+                disabled={controlsDisabled}
+                onClick={() => onDurationChange(option)}
+                className={cn(
+                  "h-7 px-3 text-xs rounded-full border-0 bg-transparent disabled:cursor-not-allowed disabled:opacity-40",
+                  isActive
+                    ? "bg-white/15 text-foreground"
+                    : "text-muted-foreground/50 hover:text-muted-foreground",
+                )}
+              >
+                {option}s
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="flex w-full min-w-0 flex-col gap-1.5">
+        <span className="text-[10px] uppercase tracking-widest text-muted-foreground/50">
+          Curve
+        </span>
+        <div className="w-full min-w-0">
+          <AnimationCurveControl
+            value={animationCurve}
+            disabled={controlsDisabled}
+            onChange={onCurveChange}
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <select
+          value={provider}
+          disabled={controlsDisabled}
+          onChange={(event) => onProviderChange(event.target.value as GenerationProvider)}
+          aria-label="Generation provider"
+          className="h-8 flex-1 rounded-md bg-white/5 px-2 text-xs text-muted-foreground outline-none focus:ring-1 focus:ring-ring disabled:opacity-40"
+        >
+          <option value="veo">Veo</option>
+          <option value="mock">Mock</option>
+        </select>
+        <Button
+          type="button"
+          className="h-8 gap-1.5 rounded-md bg-white text-xs font-medium text-black hover:bg-white/90 disabled:opacity-30"
+          disabled={disabled || generateDisabled || generating}
+          onClick={() => onGenerate()}
+        >
+          <Sparkles className="size-3" />
+          {generating ? "Generating…" : "Generate"}
+        </Button>
+      </div>
+
+      {provider === "veo" ? (
+        <div className="flex items-center justify-between rounded-md border border-white/10 bg-white/5 px-2 py-1.5">
+          <div className="flex min-w-0 items-center gap-1.5 text-[11px]">
+            {veoHealth?.status === "checking" ? (
+              <Loader2 className="size-3 animate-spin text-muted-foreground" />
+            ) : veoHealth?.status === "ok" ? (
+              <CheckCircle2 className="size-3 text-emerald-400" />
+            ) : (
+              <AlertTriangle className="size-3 text-amber-400" />
+            )}
+            <span
+              className={cn(
+                "truncate",
+                veoHealth?.status === "ok" ? "text-emerald-300" : "text-muted-foreground",
+              )}
+              title={veoHealth?.message ?? "Veo status unknown"}
+            >
+              {veoHealth?.status === "checking"
+                ? "Checking Veo API…"
+                : veoHealth?.status === "ok"
+                  ? "Veo API connected"
+                  : veoHealth?.message ?? "Veo API status unknown"}
+            </span>
+            {veoHealth?.model ? (
+              <span className="truncate text-muted-foreground/70" title={veoHealth.model}>
+                {veoHealth.model}
+              </span>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            disabled={controlsDisabled || !onCheckVeoHealth || veoHealth?.status === "checking"}
+            onClick={() => onCheckVeoHealth?.()}
+            className="shrink-0 text-[11px] text-muted-foreground/80 transition hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Check
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}

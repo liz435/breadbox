@@ -75,8 +75,8 @@ describe("UltrasonicPeripheral — wire-resolved pins", () => {
     bus.attachBoard({
       components: { "us-1": makeSensor() },
       wires: {
-        "w-trig": wireFrom(7, 5, 7), // D7 → row y+0 (trig)
-        "w-echo": wireFrom(8, 6, 7), // D8 → row y+1 (echo)
+        "w-trig": wireFrom(7, 6, 7), // D7 → row y+1 (trigger)
+        "w-echo": wireFrom(8, 7, 7), // D8 → row y+2 (echo)
       },
       pinStore: new PinStateStore(),
     })
@@ -92,8 +92,8 @@ describe("UltrasonicPeripheral — wire-resolved pins", () => {
     bus.attachBoard({
       components: { "us-1": makeSensor() },
       wires: {
-        "w-trig": wireFrom(7, 5, 7),
-        "w-echo": wireFrom(8, 6, 7),
+        "w-trig": wireFrom(7, 6, 7),
+        "w-echo": wireFrom(8, 7, 7),
       },
       pinStore: new PinStateStore(),
     })

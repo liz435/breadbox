@@ -6,8 +6,9 @@
 //
 // To add a new component:
 //   1. Add its type string to componentTypeSchema in packages/schemas/src/arduino.ts
-//   2. Create a definition object here and add it to COMPONENT_REGISTRY in registry.ts
-//   3. Optionally add a dedicated renderer in component-renderers/ and inspector in panels/
+//   2. Add its named pin mapping in packages/schemas/src/component-pins.ts
+//   3. Create a definition object here and add it to COMPONENT_REGISTRY in registry.ts
+//   4. Optionally add a dedicated renderer in component-renderers/ and inspector in panels/
 //      (both fall back gracefully if omitted)
 
 import type { ReactNode } from "react"

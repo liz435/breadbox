@@ -28,9 +28,7 @@ import type {
   PeripheralTrace,
   PinEdge,
 } from "./types"
-
-// Footprint offset for the signal pin.
-const SIGNAL_ROW_OFFSET = 0
+import { findArduinoPinForComponentPin } from "@/breadboard/component-pin-resolver"
 
 // Protocol timings — all in ms (sub-ms precision via scheduler chunks).
 const MIN_START_PULSE_MS = 0.8           // tolerate any LOW ≥ this
@@ -42,20 +40,6 @@ const BIT_HIGH_ZERO_MS = 0.026           // 26 µs HIGH = 0
 const BIT_HIGH_ONE_MS = 0.07             // 70 µs HIGH = 1
 
 const TRACE_RING_SIZE = 32
-
-function resolveWiredPin(
-  wires: Record<string, Wire>,
-  targetRow: number,
-  targetCol: number,
-): number | null {
-  for (const w of Object.values(wires)) {
-    if (w.fromRow !== -999) continue
-    if (w.toRow !== targetRow) continue
-    if (w.toCol >= 0 && w.toCol <= 4 && targetCol >= 0 && targetCol <= 4) return w.fromCol
-    if (w.toCol >= 5 && w.toCol <= 9 && targetCol >= 5 && targetCol <= 9) return w.fromCol
-  }
-  return null
-}
 
 /** Build the 5-byte frame, returning [b0, b1, b2, b3, checksum]. */
 function buildFrame(variant: "dht11" | "dht22", temperatureC: number, humidity: number): [number, number, number, number, number] {
@@ -91,8 +75,7 @@ export class DhtPeripheral implements Peripheral<DhtStateShape> {
 
   private _watchedPins = new Set<number>()
   private ctx: PeripheralContext | null = null
-  private readonly componentY: number
-  private readonly componentX: number
+  private readonly component: BoardComponent
   private readonly explicitSignal: number | null
   private readonly variant: "dht11" | "dht22"
 
@@ -111,8 +94,7 @@ export class DhtPeripheral implements Peripheral<DhtStateShape> {
 
   constructor(component: BoardComponent) {
     this.id = component.id
-    this.componentY = component.y
-    this.componentX = component.x
+    this.component = component
     const explicit = component.pins?.signal ?? component.pins?.data
     this.explicitSignal = typeof explicit === "number" && explicit >= 0 ? explicit : null
     this.variant = component.properties?.variant === "dht22" ? "dht22" : "dht11"
@@ -135,11 +117,7 @@ export class DhtPeripheral implements Peripheral<DhtStateShape> {
   attach(ctx: PeripheralContext): void {
     this.ctx = ctx
     if (this.signalPin === null) {
-      const resolved = resolveWiredPin(
-        ctx.wires,
-        this.componentY + SIGNAL_ROW_OFFSET,
-        this.componentX,
-      )
+      const resolved = findArduinoPinForComponentPin(this.component, ["data", "signal"], ctx.wires)
       if (resolved !== null) {
         this.signalPin = resolved
         this._watchedPins.add(resolved)

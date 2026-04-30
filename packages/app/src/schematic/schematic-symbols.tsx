@@ -220,6 +220,88 @@ export function BuzzerSymbol({ x, y, label, value, voltage, current, isActive }:
   )
 }
 
+export function DcMotorSymbol({ x, y, label, value, voltage, current, isActive }: SymbolProps) {
+  const w = 60
+  const r = 13
+  const cx = x + w / 2
+  const stroke = isActive ? STROKE_ACTIVE : STROKE
+
+  return (
+    <g>
+      {/* Lead lines */}
+      <line x1={x} y1={y} x2={cx - r} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      <line x1={cx + r} y1={y} x2={x + w} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Motor body */}
+      <circle cx={cx} cy={y} r={r} fill="none" stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* M inside */}
+      <text x={cx} y={y + 4} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+        M
+      </text>
+      {/* Terminal dots */}
+      <circle cx={x} cy={y} r={3} fill={stroke} />
+      <circle cx={x + w} cy={y} r={3} fill={stroke} />
+      {/* Label */}
+      <text x={cx} y={y - r - 8} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+        {label}
+      </text>
+      {value && (
+        <text x={cx} y={y + r + 14} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+          {value}
+        </text>
+      )}
+      <Annotation x={cx} y={y + r + 26} voltage={voltage} current={current} />
+    </g>
+  )
+}
+
+export function RelaySymbol({ x, y, label, value, voltage, current, isActive }: SymbolProps) {
+  const w = 60
+  const h = 28
+  const stroke = isActive ? STROKE_ACTIVE : STROKE
+
+  return (
+    <g>
+      {/* Module body */}
+      <rect
+        x={x + 8}
+        y={y - h / 2}
+        width={w - 16}
+        height={h}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={STROKE_WIDTH}
+        rx={2}
+      />
+      {/* Coil indicator */}
+      <path
+        d={`M ${x + 16} ${y} q 4 -6 8 0 q 4 6 8 0 q 4 -6 8 0`}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={1.5}
+      />
+      {/* Contact arm */}
+      <line x1={x + 40} y1={y + 6} x2={x + 48} y2={y - 2} stroke={stroke} strokeWidth={1.5} />
+      <circle cx={x + 40} cy={y + 6} r={1.8} fill={stroke} />
+      <circle cx={x + 50} cy={y - 2} r={1.8} fill={stroke} />
+      {/* Leads */}
+      <line x1={x} y1={y} x2={x + 8} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      <line x1={x + w - 8} y1={y} x2={x + w} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      <circle cx={x} cy={y} r={3} fill={stroke} />
+      <circle cx={x + w} cy={y} r={3} fill={stroke} />
+      {/* Label */}
+      <text x={x + w / 2} y={y - h / 2 - 8} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+        {label}
+      </text>
+      {value && (
+        <text x={x + w / 2} y={y + h / 2 + 14} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+          {value}
+        </text>
+      )}
+      <Annotation x={x + w / 2} y={y + h / 2 + 26} voltage={voltage} current={current} />
+    </g>
+  )
+}
+
 export function ServoSymbol({ x, y, label, value, voltage, current, isActive }: SymbolProps) {
   const w = 60
   const h = 30
@@ -745,6 +827,40 @@ export function PirSensorSymbol({ x, y, label, value, voltage, current, isActive
   )
 }
 
+export function GenericModuleSymbol({ x, y, label, value, voltage, current, isActive }: SymbolProps) {
+  const w = 60
+  const h = 30
+  const stroke = isActive ? STROKE_ACTIVE : STROKE
+
+  return (
+    <g>
+      <rect
+        x={x + 6}
+        y={y - h / 2}
+        width={w - 12}
+        height={h}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={STROKE_WIDTH}
+        rx={2}
+      />
+      <line x1={x} y1={y} x2={x + 6} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      <line x1={x + w - 6} y1={y} x2={x + w} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      <circle cx={x} cy={y} r={3} fill={stroke} />
+      <circle cx={x + w} cy={y} r={3} fill={stroke} />
+      <text x={x + w / 2} y={y - h / 2 - 8} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+        {label}
+      </text>
+      {value && (
+        <text x={x + w / 2} y={y + h / 2 + 14} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+          {value}
+        </text>
+      )}
+      <Annotation x={x + w / 2} y={y + h / 2 + 26} voltage={voltage} current={current} />
+    </g>
+  )
+}
+
 // ── Symbol Lookup ──────────────────────────────────────────────────────
 
 export type SchematicSymbolType =
@@ -753,6 +869,8 @@ export type SchematicSymbolType =
   | "button"
   | "capacitor"
   | "buzzer"
+  | "dc_motor"
+  | "relay"
   | "servo"
   | "potentiometer"
   | "seven_segment"
@@ -766,6 +884,7 @@ export type SchematicSymbolType =
   | "ground"
   | "arduino_pin"
   | "junction"
+  | "generic_module"
 
 export function renderSymbol(
   type: SchematicSymbolType,
@@ -782,6 +901,10 @@ export function renderSymbol(
       return <CapacitorSymbol {...props} />
     case "buzzer":
       return <BuzzerSymbol {...props} />
+    case "dc_motor":
+      return <DcMotorSymbol {...props} />
+    case "relay":
+      return <RelaySymbol {...props} />
     case "servo":
       return <ServoSymbol {...props} />
     case "potentiometer":
@@ -808,6 +931,8 @@ export function renderSymbol(
       return <ArduinoPinSymbol {...props} />
     case "junction":
       return <WireJunction x={props.x} y={props.y} />
+    case "generic_module":
+      return <GenericModuleSymbol {...props} />
   }
 }
 

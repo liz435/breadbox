@@ -12,6 +12,9 @@ import {
   AVRIOPort,
   AVRUSART,
   AVRTWI,
+  AVRADC,
+  ADCMuxInputType,
+  adcConfig,
   timer0Config,
   timer1Config,
   timer2Config,
@@ -35,6 +38,7 @@ export type AVRRunnerCallbacks = {
    */
   onPinChange: (port: string, pin: number, state: PinState) => void
   onSerialOutput: (char: string) => void
+  readAnalogInput?: (arduinoPin: number) => number
 }
 
 export type AVRRunner = {
@@ -110,6 +114,7 @@ export function createAVRRunner(callbacks: AVRRunnerCallbacks): AVRRunner {
 
   let usart = new AVRUSART(cpu, usart0Config, AVR_FREQ_HZ)
   let twi = new AVRTWI(cpu, twiConfig, AVR_FREQ_HZ)
+  let adc = new AVRADC(cpu, adcConfig)
   // Bytes waiting to be delivered to the AVR USART RX line.
   const serialInputQueue: number[] = []
   let serialInputReadIdx = 0
@@ -135,6 +140,38 @@ export function createAVRRunner(callbacks: AVRRunnerCallbacks): AVRRunner {
     B: Array(8).fill(PinState.Input),
     C: Array(8).fill(PinState.Input),
     D: Array(8).fill(PinState.Input),
+  }
+
+  function defaultAdcResult(input: Parameters<typeof adc.onADCRead>[0]): number {
+    let voltage = 0
+    switch (input.type) {
+      case ADCMuxInputType.Constant:
+        voltage = input.voltage
+        break
+      case ADCMuxInputType.Differential:
+        voltage = input.gain *
+          ((adc.channelValues[input.positiveChannel] || 0) -
+            (adc.channelValues[input.negativeChannel] || 0))
+        break
+      case ADCMuxInputType.Temperature:
+        voltage = 0.378125
+        break
+      case ADCMuxInputType.SingleEnded:
+        voltage = adc.channelValues[input.channel] ?? 0
+        break
+    }
+    return Math.min(Math.max(Math.floor((voltage / adc.referenceVoltage) * 1024), 0), 1023)
+  }
+
+  function wireAdc(): void {
+    adc.onADCRead = (input) => {
+      const result =
+        input.type === ADCMuxInputType.SingleEnded
+          ? callbacks.readAnalogInput?.(14 + input.channel) ?? 0
+          : defaultAdcResult(input)
+      const clamped = Math.min(Math.max(Math.round(result), 0), 1023)
+      cpu.addClockEvent(() => adc.completeADCRead(clamped), adc.sampleCycles)
+    }
   }
 
   function wireListeners(): void {
@@ -204,6 +241,7 @@ export function createAVRRunner(callbacks: AVRRunnerCallbacks): AVRRunner {
   }
 
   wireListeners()
+  wireAdc()
 
   function load(program: Uint16Array): void {
     cpu.reset()
@@ -262,11 +300,13 @@ export function createAVRRunner(callbacks: AVRRunnerCallbacks): AVRRunner {
     timer2 = new AVRTimer(cpu, timer2Config)
     usart = new AVRUSART(cpu, usart0Config, AVR_FREQ_HZ)
     twi = new AVRTWI(cpu, twiConfig, AVR_FREQ_HZ)
+    adc = new AVRADC(cpu, adcConfig)
     for (const port of Object.keys(lastPinState)) {
       lastPinState[port].fill(PinState.Input)
     }
     clearSerialInputQueue()
     wireListeners()
+    wireAdc()
   }
 
   function getCycleCount(): number {

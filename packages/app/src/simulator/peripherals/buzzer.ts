@@ -15,6 +15,7 @@ import type {
   PeripheralTrace,
   PinEdge,
 } from "./types"
+import { findArduinoPinForComponentPin } from "@/breadboard/component-pin-resolver"
 
 const AUDIBLE_MIN_HZ = 20
 const AUDIBLE_MAX_HZ = 20_000
@@ -32,24 +33,6 @@ const FREQ_CHANGE_THRESHOLD = 0.1
 
 const TRACE_RING_SIZE = 32
 
-function resolveSignalPinFromWires(
-  wires: Record<string, Wire>,
-  signalRow: number,
-  signalCol: number,
-): number | null {
-  for (const w of Object.values(wires)) {
-    if (w.fromRow !== -999) continue
-    if (w.toRow !== signalRow) continue
-    if (w.toCol >= 0 && w.toCol <= 4 && signalCol >= 0 && signalCol <= 4) {
-      return w.fromCol
-    }
-    if (w.toCol >= 5 && w.toCol <= 9 && signalCol >= 5 && signalCol <= 9) {
-      return w.fromCol
-    }
-  }
-  return null
-}
-
 type BuzzerStateShape = Extract<PeripheralState, { kind: "buzzer" }>
 
 export class BuzzerPeripheral implements Peripheral<BuzzerStateShape> {
@@ -61,8 +44,7 @@ export class BuzzerPeripheral implements Peripheral<BuzzerStateShape> {
 
   private _watchedPins = new Set<number>()
   private ctx: PeripheralContext | null = null
-  private readonly componentY: number
-  private readonly componentX: number
+  private readonly component: BoardComponent
 
   private boundPin: number | null = null
   private frequencyHz: number | null = null
@@ -83,8 +65,7 @@ export class BuzzerPeripheral implements Peripheral<BuzzerStateShape> {
 
   constructor(component: BoardComponent) {
     this.id = component.id
-    this.componentY = component.y
-    this.componentX = component.x
+    this.component = component
     const explicit = component.pins?.positive
     if (typeof explicit === "number" && explicit >= 0) {
       this._watchedPins.add(explicit)
@@ -99,11 +80,7 @@ export class BuzzerPeripheral implements Peripheral<BuzzerStateShape> {
   attach(ctx: PeripheralContext): void {
     this.ctx = ctx
     if (this.boundPin === null) {
-      const resolved = resolveSignalPinFromWires(
-        ctx.wires,
-        this.componentY,
-        this.componentX,
-      )
+      const resolved = findArduinoPinForComponentPin(this.component, "positive", ctx.wires)
       if (resolved !== null) {
         this.boundPin = resolved
         this._watchedPins.add(resolved)
