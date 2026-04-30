@@ -215,11 +215,20 @@ The result is stored as `rifeSegmentUrl` and shown as `Comfy transition insert`.
 Set these on the API server to enable the local ComfyUI path:
 
 ```text
-COMFYUI_URL=http://your-comfyui-host:8188
+COMFYUI_URL=http://your-comfyui-service.railway.internal:8188
 COMFYUI_RIFE_FRAMES=8
 COMFYUI_REQUEST_TIMEOUT_MS=10000
 COMFYUI_PREP_TIMEOUT_MS=12000
 ```
+
+Set these on the ComfyUI Railway service:
+
+```text
+PORT=8188
+COMFYUI_LISTEN=::
+```
+
+The API server cannot automatically read the ComfyUI service runtime `PORT`, so keep the sidecar on a fixed `PORT=8188` unless you also update `COMFYUI_URL` to match. Railway private networking should use `http://`, the internal `*.railway.internal` hostname, and the port the ComfyUI service is listening on.
 
 Optional workflow hooks:
 
@@ -233,6 +242,11 @@ COMFYUI_CONTROL_WORKFLOW_PATH=/data/comfy-workflows/control.json
 Those workflow hooks are status-aware placeholders right now. The current Docker sidecar only assumes RIFE frame interpolation is present. Inpainting, automatic segmentation, pose/depth/control generation, and richer local video generation require the matching ComfyUI custom nodes and models before the hooks should run.
 
 Hosted prep must return before the Railway app proxy times out. `COMFYUI_REQUEST_TIMEOUT_MS` caps individual ComfyUI HTTP calls, and `COMFYUI_PREP_TIMEOUT_MS` caps the cheap preview poll. A permanent `403` from ComfyUI now fails the preview status immediately instead of retrying until the app request becomes a hosted `502`.
+
+For Railway, prefer the private service URL from the Dreamer API service to the ComfyUI service. Do not use the browser-facing public ComfyUI URL for `COMFYUI_URL` unless you intentionally expose and authenticate it. If the public ComfyUI URL returns `403`, the API will also see `403` unless `COMFYUI_URL` is changed to the private Railway hostname or the required auth header is set with `COMFYUI_AUTH_HEADER`.
+
+A browser-facing Railway `502 Application failed to respond` on the ComfyUI URL means Railway cannot reach the sidecar process. Check that the ComfyUI service logs show `[comfyui] Starting ComfyUI on [::]:8188`, that the service variable `PORT` is `8188`, and that any public domain target port is also `8188`. The Dreamer app does not need ComfyUI to be public; `/motion` only needs the API server to reach `COMFYUI_URL` from inside Railway.
+
 
 ## Veo Configuration
 

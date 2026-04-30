@@ -317,7 +317,10 @@ export function useMotionEditorState() {
   }, []);
 
   const prepareComfyGuidance = useCallback(async () => {
-    if (!selectedSegment) return;
+    if (!selectedSegment) {
+      dispatch({ type: "ERROR", error: "Select an S/T range before preparing ComfyUI guidance." });
+      return;
+    }
     dispatch({ type: "START", busy: "preparing-comfy" });
     try {
       const result = await prepareComfyMotionSegment({ segmentId: selectedSegment.id });

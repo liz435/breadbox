@@ -4,6 +4,14 @@
 # The Dreamer API reaches it over Railway's private network:
 #   COMFYUI_URL=http://comfyui.railway.internal:8188
 #
+# Recommended Railway env on the ComfyUI service:
+#   PORT=8188
+#   COMFYUI_LISTEN=::
+#
+# Railway private networking is IPv6-capable and older environments may be
+# IPv6-only, so the entrypoint listens on :: by default. Override
+# COMFYUI_LISTEN only if your Railway environment requires a different host.
+#
 # Cold-start note: rife47.pth (~170 MB) is downloaded on first boot if not
 # already present. Attach a Railway volume at /ComfyUI/models so the
 # checkpoint survives redeployments without re-downloading.

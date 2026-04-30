@@ -273,7 +273,7 @@ export function MotionEditorPage() {
               (!selectedSegment?.stitchedVideoUrl || !selectedSegment?.retimedSegmentUrl)
             }
             preparingComfy={state.busy === "preparing-comfy"}
-            onPrepareComfy={selectedSegment ? prepareComfyGuidance : undefined}
+            onPrepareComfy={prepareComfyGuidance}
             onLoadStitched={() => setPreviewVideoUrl(selectedSegment?.stitchedVideoUrl)}
             onCancelJob={cancelJob}
           />
