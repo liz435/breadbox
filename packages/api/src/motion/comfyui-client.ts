@@ -356,7 +356,31 @@ export async function checkComfyUiHealth(input?: {
       };
     }
 
-    const rifeReady = objectInfoRes.ok;
+    if (!objectInfoRes.ok) {
+      return {
+        provider: "comfyui",
+        configured: true,
+        ok: false,
+        mode: "live",
+        baseUrl,
+        checkedAt,
+        message: "ComfyUI connected but RIFE VFI node is unavailable — ensure ComfyUI-Frame-Interpolation is installed",
+        features,
+        statusCode: objectInfoRes.status,
+      };
+    }
+
+    // Verify at least one checkpoint is listed — a 400 results from queuing
+    // with ckpt_name when the file hasn't been downloaded yet.
+    const objectInfo = (await objectInfoRes.json()) as Record<string, unknown>;
+    const ckptChoices = (
+      (objectInfo["RIFE VFI"] as Record<string, unknown> | undefined)
+        ?.input as Record<string, unknown> | undefined
+    )?.required;
+    const ckptList = (ckptChoices as Record<string, unknown[][]> | undefined)?.ckpt_name?.[0];
+    const hasCheckpoint = Array.isArray(ckptList) && ckptList.length > 0;
+
+    const rifeReady = hasCheckpoint;
     return {
       provider: "comfyui",
       configured: true,
@@ -364,7 +388,9 @@ export async function checkComfyUiHealth(input?: {
       mode: "live",
       baseUrl,
       checkedAt,
-      message: rifeReady ? "ComfyUI connected with RIFE VFI available" : "ComfyUI connected but RIFE VFI is unavailable",
+      message: rifeReady
+        ? "ComfyUI connected with RIFE VFI available"
+        : "ComfyUI connected but no RIFE checkpoint found — redeploy the ComfyUI service to download rife47.pth",
       features: {
         ...features,
         rife: rifeReady,
@@ -372,7 +398,6 @@ export async function checkComfyUiHealth(input?: {
         transition: rifeReady,
         provider: rifeReady,
       },
-      statusCode: rifeReady ? undefined : objectInfoRes.status,
     };
   } catch (err) {
     return {
