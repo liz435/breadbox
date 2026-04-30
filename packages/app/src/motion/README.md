@@ -247,6 +247,7 @@ For Railway, prefer the private service URL from the Dreamer API service to the 
 
 A browser-facing Railway `502 Application failed to respond` on the ComfyUI URL means Railway cannot reach the sidecar process. Check that the ComfyUI service logs show `[comfyui] Starting ComfyUI on [::]:8188`, that the service variable `PORT` is `8188`, and that any public domain target port is also `8188`. The Dreamer app does not need ComfyUI to be public; `/motion` only needs the API server to reach `COMFYUI_URL` from inside Railway.
 
+
 ## Veo Configuration
 
 Set these on the API server:

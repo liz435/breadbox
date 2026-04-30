@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-CKPT_PATH="/ComfyUI/models/VFI/rife/rife47.pth"
+CKPT_PATH="/ComfyUI/models/VFI/rife47.pth"
 COMFY_PORT="${PORT:-8188}"
 COMFY_LISTEN="${COMFYUI_LISTEN:-::}"
 

@@ -204,9 +204,22 @@ export async function getRifeResult(promptId: string): Promise<ComfyImageRef[] |
   await assertComfyOk(endpoint, res);
   const json = (await res.json()) as Record<
     string,
-    { outputs?: Record<string, { images?: ComfyImageRef[] }> }
+    {
+      status?: { status_str?: string; completed?: boolean; messages?: [string, { exception_message?: string; node_id?: string }][] };
+      outputs?: Record<string, { images?: ComfyImageRef[] }>;
+    }
   >;
-  const images = json[promptId]?.outputs?.["5"]?.images;
+  const entry = json[promptId];
+  if (!entry) return null;
+
+  // Fail fast on workflow execution errors rather than waiting for timeout.
+  const status = entry.status;
+  if (status?.status_str === "error") {
+    const errMsg = status.messages?.find(([type]) => type === "execution_error")?.[1]?.exception_message;
+    throw new Error(`ComfyUI workflow failed: ${errMsg ?? "unknown error"}`);
+  }
+
+  const images = entry.outputs?.["5"]?.images;
   if (!Array.isArray(images) || images.length === 0) return null;
   return [...images].sort((a, b) => a.name.localeCompare(b.name));
 }
