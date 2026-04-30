@@ -2,6 +2,20 @@
 
 export type ComfyImageRef = { name: string; subfolder: string; type: string };
 
+class ComfyUiHttpError extends Error {
+  constructor(
+    readonly endpoint: string,
+    readonly status: number,
+    readonly statusText: string,
+    detail: string,
+  ) {
+    super(
+      `ComfyUI ${endpoint} failed (${status} ${statusText})${detail ? `: ${detail.slice(0, 500)}` : ""}`,
+    );
+    this.name = "ComfyUiHttpError";
+  }
+}
+
 export type ComfyProviderHealth = {
   provider: "comfyui";
   configured: boolean;
@@ -33,31 +47,77 @@ export function comfyRifeFrameCount(): number {
   return Number.isFinite(parsed) && parsed >= 2 ? parsed : 8;
 }
 
+export function comfyRequestTimeoutMs(): number {
+  return readPositiveIntEnv("COMFYUI_REQUEST_TIMEOUT_MS", 10_000);
+}
+
+export function comfyPrepTimeoutMs(): number {
+  return readPositiveIntEnv("COMFYUI_PREP_TIMEOUT_MS", 12_000);
+}
+
+function readPositiveIntEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  const parsed = raw ? parseInt(raw, 10) : NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 function requireComfyUiUrl(): string {
   const url = comfyUiUrl();
   if (!url) throw new Error("COMFYUI_URL is not configured");
   return url.replace(/\/+$/, "");
 }
 
+function comfyHeaders(headers?: HeadersInit): Headers {
+  const next = new Headers(headers);
+  const authHeader = process.env.COMFYUI_AUTH_HEADER?.trim();
+  if (authHeader) next.set("Authorization", authHeader);
+  return next;
+}
+
+async function fetchComfy(
+  endpoint: string,
+  init?: RequestInit,
+  timeoutMs = comfyRequestTimeoutMs(),
+): Promise<Response> {
+  const baseUrl = requireComfyUiUrl();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(`${baseUrl}${endpoint}`, {
+      ...init,
+      headers: comfyHeaders(init?.headers),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error(`ComfyUI ${endpoint} timed out after ${timeoutMs}ms`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function assertComfyOk(endpoint: string, res: Response): Promise<Response> {
+  if (res.ok) return res;
+  const detail = await res.text().catch(() => "");
+  throw new ComfyUiHttpError(endpoint, res.status, res.statusText, detail);
+}
+
 export async function uploadImageToComfyUI(
   filePath: string,
   filename: string,
 ): Promise<ComfyImageRef> {
-  const baseUrl = requireComfyUiUrl();
   const bytes = await Bun.file(filePath).arrayBuffer();
   const form = new FormData();
   form.append("image", new Blob([bytes], { type: "image/jpeg" }), filename);
 
-  const res = await fetch(`${baseUrl}/upload/image`, {
+  const endpoint = "/upload/image";
+  const res = await fetchComfy(endpoint, {
     method: "POST",
     body: form,
   });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(
-      `ComfyUI upload failed (${res.status} ${res.statusText}): ${detail.slice(0, 500)}`,
-    );
-  }
+  await assertComfyOk(endpoint, res);
   const json = (await res.json()) as { name?: string; subfolder?: string; type?: string };
   if (typeof json.name !== "string" || typeof json.type !== "string") {
     throw new Error(
@@ -120,20 +180,15 @@ export async function queueRifeWorkflow(
   frameBRef: ComfyImageRef,
   outputFrameCount: number,
 ): Promise<string> {
-  const baseUrl = requireComfyUiUrl();
   const prompt = buildRifeWorkflowJson(frameARef, frameBRef, outputFrameCount);
 
-  const res = await fetch(`${baseUrl}/prompt`, {
+  const endpoint = "/prompt";
+  const res = await fetchComfy(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ prompt }),
   });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(
-      `ComfyUI queue failed (${res.status} ${res.statusText}): ${detail.slice(0, 500)}`,
-    );
-  }
+  await assertComfyOk(endpoint, res);
   const json = (await res.json()) as { prompt_id?: unknown };
   if (typeof json.prompt_id !== "string" || json.prompt_id.length === 0) {
     throw new Error(
@@ -144,14 +199,9 @@ export async function queueRifeWorkflow(
 }
 
 export async function getRifeResult(promptId: string): Promise<ComfyImageRef[] | null> {
-  const baseUrl = requireComfyUiUrl();
-  const res = await fetch(`${baseUrl}/history/${encodeURIComponent(promptId)}`);
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(
-      `ComfyUI history failed (${res.status} ${res.statusText}): ${detail.slice(0, 500)}`,
-    );
-  }
+  const endpoint = `/history/${encodeURIComponent(promptId)}`;
+  const res = await fetchComfy(endpoint);
+  await assertComfyOk(endpoint, res);
   const json = (await res.json()) as Record<
     string,
     { outputs?: Record<string, { images?: ComfyImageRef[] }> }
@@ -165,7 +215,6 @@ export async function pollRifeResult(
   promptId: string,
   timeoutMs = 60_000,
 ): Promise<ComfyImageRef[]> {
-  const baseUrl = requireComfyUiUrl();
   const startedAt = Date.now();
 
   return new Promise<ComfyImageRef[]>((resolve, reject) => {
@@ -194,20 +243,14 @@ export async function pollRifeResult(
           return;
         }
 
-        const res = await fetch(
-          `${baseUrl}/history/${encodeURIComponent(promptId)}`,
-        );
-        if (!res.ok) {
-          // Transient errors are retried until timeout.
-          return;
-        }
         const sorted = await getRifeResult(promptId);
         if (sorted && sorted.length > 0) {
           cleanup();
           resolve(sorted);
         }
-      } catch {
-        // Swallow transient fetch errors; will retry on next tick or time out.
+      } catch (err) {
+        cleanup();
+        reject(err instanceof Error ? err : new Error("ComfyUI polling failed"));
       } finally {
         inFlight = false;
       }
@@ -220,19 +263,14 @@ export async function pollRifeResult(
 }
 
 export async function downloadComfyFrame(ref: ComfyImageRef): Promise<ArrayBuffer> {
-  const baseUrl = requireComfyUiUrl();
   const params = new URLSearchParams({
     filename: ref.name,
     subfolder: ref.subfolder,
     type: ref.type,
   });
-  const res = await fetch(`${baseUrl}/view?${params.toString()}`);
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(
-      `ComfyUI download failed (${res.status} ${res.statusText}): ${detail.slice(0, 500)}`,
-    );
-  }
+  const endpoint = `/view?${params.toString()}`;
+  const res = await fetchComfy(endpoint);
+  await assertComfyOk(endpoint, res);
   return res.arrayBuffer();
 }
 
@@ -287,10 +325,9 @@ export async function checkComfyUiHealth(input?: {
   }
 
   try {
-    const normalized = baseUrl.replace(/\/+$/, "");
     const [statsRes, objectInfoRes] = await Promise.all([
-      fetch(`${normalized}/system_stats`),
-      fetch(`${normalized}/object_info/RIFE%20VFI`),
+      fetchComfy("/system_stats"),
+      fetchComfy("/object_info/RIFE%20VFI"),
     ]);
     if (!statsRes.ok) {
       return {

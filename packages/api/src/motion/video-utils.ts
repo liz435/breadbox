@@ -674,6 +674,7 @@ export async function renderRifeInterpolationClip(input: {
   durationSeconds: number;
   fps?: number;
   frameCount?: number;
+  timeoutMs?: number;
 }): Promise<void> {
   const fps = Math.max(1, Math.round(input.fps ?? 12));
   const frameCount = Math.max(
@@ -684,7 +685,7 @@ export async function renderRifeInterpolationClip(input: {
   const frameARef = await uploadImageToComfyUI(input.frameAPath, `${uniquePrefix}-a.jpg`);
   const frameBRef = await uploadImageToComfyUI(input.frameBPath, `${uniquePrefix}-b.jpg`);
   const promptId = await queueRifeWorkflow(frameARef, frameBRef, frameCount);
-  const outputRefs = await pollRifeResult(promptId, 120_000);
+  const outputRefs = await pollRifeResult(promptId, input.timeoutMs ?? 120_000);
   await writeComfyFramesToVideo({
     frameRefs: outputRefs,
     outputPath: input.outputPath,

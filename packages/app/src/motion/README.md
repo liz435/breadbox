@@ -217,17 +217,22 @@ Set these on the API server to enable the local ComfyUI path:
 ```text
 COMFYUI_URL=http://your-comfyui-host:8188
 COMFYUI_RIFE_FRAMES=8
+COMFYUI_REQUEST_TIMEOUT_MS=10000
+COMFYUI_PREP_TIMEOUT_MS=12000
 ```
 
 Optional workflow hooks:
 
 ```text
+COMFYUI_AUTH_HEADER=Bearer ...
 COMFYUI_TARGET_FRAME_WORKFLOW_PATH=/data/comfy-workflows/target-frame.json
 COMFYUI_MASK_WORKFLOW_PATH=/data/comfy-workflows/mask.json
 COMFYUI_CONTROL_WORKFLOW_PATH=/data/comfy-workflows/control.json
 ```
 
 Those workflow hooks are status-aware placeholders right now. The current Docker sidecar only assumes RIFE frame interpolation is present. Inpainting, automatic segmentation, pose/depth/control generation, and richer local video generation require the matching ComfyUI custom nodes and models before the hooks should run.
+
+Hosted prep must return before the Railway app proxy times out. `COMFYUI_REQUEST_TIMEOUT_MS` caps individual ComfyUI HTTP calls, and `COMFYUI_PREP_TIMEOUT_MS` caps the cheap preview poll. A permanent `403` from ComfyUI now fails the preview status immediately instead of retrying until the app request becomes a hosted `502`.
 
 ## Veo Configuration
 
