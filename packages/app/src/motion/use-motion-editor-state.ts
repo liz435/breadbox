@@ -18,6 +18,7 @@ import {
   createMotionSegment,
   generateMotionSegment,
   getMotionJob,
+  getMotionSegment,
   prepareComfyMotionSegment,
   renderMotionFrameEdit,
   updateMotionKeyframe,
@@ -325,6 +326,29 @@ export function useMotionEditorState() {
     try {
       const result = await prepareComfyMotionSegment({ segmentId: selectedSegment.id });
       dispatch({ type: "SEGMENT_READY", project: result.project, segment: result.segment });
+
+      // RIFE preview runs in the background on the server (CPU inference can
+      // exceed Railway's 30s proxy timeout). Poll until no step is "running".
+      const segmentId = result.segment.id;
+      const isAnyRunning = (seg: typeof result.segment) =>
+        Object.values(seg.comfyPipeline ?? {}).some((s) => (s as { status?: string })?.status === "running");
+
+      if (isAnyRunning(result.segment)) {
+        const poll = async () => {
+          const deadline = Date.now() + 120_000;
+          while (Date.now() < deadline) {
+            await new Promise((r) => setTimeout(r, 2_000));
+            try {
+              const refreshed = await getMotionSegment({ segmentId });
+              dispatch({ type: "SEGMENT_READY", project: refreshed.project, segment: refreshed.segment });
+              if (!isAnyRunning(refreshed.segment)) break;
+            } catch {
+              break;
+            }
+          }
+        };
+        void poll();
+      }
     } catch (err) {
       dispatch({ type: "ERROR", error: errorMessage(err) });
     }
