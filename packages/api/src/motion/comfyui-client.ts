@@ -219,11 +219,20 @@ export async function getRifeResult(promptId: string): Promise<ComfyImageRef[] |
     throw new Error(`ComfyUI workflow failed: ${errMsg ?? "unknown error"}`);
   }
 
-  const images = entry.outputs?.["5"]?.images;
-  if (!Array.isArray(images) || images.length === 0) return null;
-  const valid = images.filter((img): img is ComfyImageRef => typeof img?.name === "string");
-  if (valid.length === 0) return null;
-  return valid.sort((a, b) => a.name.localeCompare(b.name));
+  // SaveImage history entries use "filename" not "name" — map to ComfyImageRef.
+  const rawImages = entry.outputs?.["5"]?.images as Array<
+    { filename?: string; name?: string; subfolder?: string; type?: string }
+  > | undefined;
+  if (!Array.isArray(rawImages) || rawImages.length === 0) return null;
+  const mapped: ComfyImageRef[] = rawImages
+    .map((img) => ({
+      name: img.name ?? img.filename ?? "",
+      subfolder: img.subfolder ?? "",
+      type: img.type ?? "output",
+    }))
+    .filter((img) => img.name.length > 0);
+  if (mapped.length === 0) return null;
+  return mapped.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function pollRifeResult(
