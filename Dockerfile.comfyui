@@ -35,8 +35,14 @@ RUN git clone --depth 1 https://github.com/comfyanonymous/ComfyUI /ComfyUI \
 RUN git clone --depth 1 \
     https://github.com/Fannovel16/ComfyUI-Frame-Interpolation \
     /ComfyUI/custom_nodes/ComfyUI-Frame-Interpolation \
-  && pip install --no-cache-dir \
-       -r /ComfyUI/custom_nodes/ComfyUI-Frame-Interpolation/requirements.txt
+  && cd /ComfyUI/custom_nodes/ComfyUI-Frame-Interpolation \
+  && if [ -f requirements.txt ]; then \
+       pip install --no-cache-dir -r requirements.txt; \
+     elif [ -f requirements-no-cupy.txt ]; then \
+       pip install --no-cache-dir -r requirements-no-cupy.txt; \
+     else \
+       pip install --no-cache-dir einops kornia; \
+     fi
 
 # Model directory — mount a persistent volume here to survive redeployments
 RUN mkdir -p /ComfyUI/models/VFI/rife
