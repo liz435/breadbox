@@ -52,7 +52,7 @@ export function comfyRequestTimeoutMs(): number {
 }
 
 export function comfyPrepTimeoutMs(): number {
-  return readPositiveIntEnv("COMFYUI_PREP_TIMEOUT_MS", 12_000);
+  return readPositiveIntEnv("COMFYUI_PREP_TIMEOUT_MS", 90_000);
 }
 
 function readPositiveIntEnv(name: string, fallback: number): number {
