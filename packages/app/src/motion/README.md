@@ -325,7 +325,7 @@ The Dockerfile installs `ffmpeg` because `/motion` needs it for segment clipping
 - No full-video stitching/export yet.
 - No cloud object storage yet; artifacts are local to `DREAMER_HOME`.
 - Veo can reject generations because of safety settings, people generation policy, model access, quota, or prompt constraints.
-- Veo duration is normalized to 4, 6, or 8 seconds.
+- The editor UI always requests a 4-second generated clip, then retimes it into the selected S/T range. The backend still accepts 4, 6, or 8 seconds for provider experiments.
 - API typecheck may still be blocked by unrelated existing board test fixtures missing `libraryState.neopixels`.
 
 ## Verification Used

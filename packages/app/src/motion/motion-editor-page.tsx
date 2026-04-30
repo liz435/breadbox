@@ -21,9 +21,10 @@ type ComfyStatusState = {
   message: string;
 };
 
+const DEFAULT_GENERATION_DURATION_SECONDS = 4;
+
 export function MotionEditorPage() {
   const [durationSeconds, setDurationSeconds] = useState<number | undefined>(undefined);
-  const [generationDuration, setGenerationDuration] = useState<4 | 6 | 8>(4);
   const [springTension, setSpringTension] = useState(0.2);
   const [springBounce, setSpringBounce] = useState(0);
   const [subjectDescription, setSubjectDescription] = useState("");
@@ -246,7 +247,6 @@ export function MotionEditorPage() {
             value={state.motionPrompt}
             subjectDescription={subjectDescription}
             provider={state.provider}
-            durationSeconds={generationDuration}
             springTension={springTension}
             springBounce={springBounce}
             disabled={!selectedSegment}
@@ -259,13 +259,12 @@ export function MotionEditorPage() {
             onChange={setMotionPrompt}
             onSubjectChange={setSubjectDescription}
             onProviderChange={setProvider}
-            onDurationChange={setGenerationDuration}
             onSpringChange={(tension, bounce) => {
               setSpringTension(tension);
               setSpringBounce(bounce);
             }}
             onGenerate={() =>
-              generate(undefined, generationDuration, {
+              generate(undefined, DEFAULT_GENERATION_DURATION_SECONDS, {
                 springCurve: { tension: springTension, bounce: springBounce },
                 subjectDescription,
               })
