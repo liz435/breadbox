@@ -615,6 +615,11 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
     (boardId: string, e: React.PointerEvent) => {
       if (effectiveReadOnly) return;
       if (e.button !== 0) return;
+      // Don't swallow the event while the user is placing a new component
+      // from the palette — the canvas-level placement handler needs to see
+      // it. Same for wire placement.
+      const snap = breadboardInteractionActor.getSnapshot();
+      if (snap.context.mode === "placing" || snap.context.mode === "wiring") return;
       e.stopPropagation();
       const comp = components[boardId];
       if (!comp) return;
@@ -1130,7 +1135,13 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
                     wire-start gesture (Q14 a). */}
                 <g
                   onPointerDown={(e) => handleBoardPointerDown(board.id, e)}
-                  onClick={(e) => { e.stopPropagation(); send({ type: "SELECT", id: board.id }); }}
+                  onClick={(e) => {
+                    // While placing/wiring, let the canvas handle the click.
+                    const snap = breadboardInteractionActor.getSnapshot();
+                    if (snap.context.mode === "placing" || snap.context.mode === "wiring") return;
+                    e.stopPropagation();
+                    send({ type: "SELECT", id: board.id });
+                  }}
                   style={{ cursor: "move" }}
                 >
                   {/* Top frame */}
