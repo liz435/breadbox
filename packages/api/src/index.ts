@@ -1,6 +1,7 @@
 // ── Secret lockdown (must be first) ─────────────────────────────────────
 // Side-effect import: captures ANTHROPIC_API_KEY into a module-local and
 // deletes it from process.env before any agent/tool module loads.
+// (build-trigger: redeploy after Dockerfile --frozen-lockfile fix)
 import "./bootstrap-secrets";
 
 import { Elysia } from "elysia";
