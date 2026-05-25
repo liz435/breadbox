@@ -13,12 +13,13 @@
       },
       "properties": {
         "color": "#22c55e"
-      }
+      },
+      "parentId": "breadboard-1"
     },
     "resistor-1": {
       "id": "resistor-1",
       "type": "resistor",
-      "name": "R1 220\u03a9",
+      "name": "R1 220Ω",
       "x": 3,
       "y": 4,
       "rotation": 0,
@@ -28,7 +29,8 @@
       },
       "properties": {
         "resistance": 220
-      }
+      },
+      "parentId": "breadboard-1"
     },
     "button-1": {
       "id": "button-1",
@@ -41,7 +43,34 @@
         "a": null,
         "b": null
       },
-      "properties": {}
+      "properties": {},
+      "parentId": "breadboard-1"
+    },
+    "breadboard-1": {
+      "id": "breadboard-1",
+      "type": "breadboard_full",
+      "name": "Breadboard",
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "pins": {},
+      "properties": {},
+      "parentId": null,
+      "worldX": 0,
+      "worldY": 0
+    },
+    "arduino-1": {
+      "id": "arduino-1",
+      "type": "arduino_uno",
+      "name": "Arduino Uno",
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "pins": {},
+      "properties": {},
+      "parentId": null,
+      "worldX": -300,
+      "worldY": 0
     }
   },
   "wires": {
@@ -51,7 +80,11 @@
       "fromCol": 13,
       "toRow": 4,
       "toCol": 3,
-      "color": "#fbbf24"
+      "color": "#fbbf24",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "d13",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_4_left"
     },
     "wire-led-gnd": {
       "id": "wire-led-gnd",
@@ -59,7 +92,11 @@
       "fromCol": -3,
       "toRow": 5,
       "toCol": 9,
-      "color": "#1a1a1a"
+      "color": "#1a1a1a",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "gnd",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_5_right"
     },
     "wire-d2": {
       "id": "wire-d2",
@@ -67,7 +104,11 @@
       "fromCol": 2,
       "toRow": 10,
       "toCol": 3,
-      "color": "#22c55e"
+      "color": "#22c55e",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "d2",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_10_left"
     },
     "wire-btn-gnd": {
       "id": "wire-btn-gnd",
@@ -75,10 +116,18 @@
       "fromCol": -4,
       "toRow": 10,
       "toCol": 9,
-      "color": "#1a1a1a"
+      "color": "#1a1a1a",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "gnd",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_10_right"
     }
   },
-  "libraryState": { "servos": {}, "lcd": null, "serialBaud": 0 },
+  "libraryState": {
+    "servos": {},
+    "lcd": null,
+    "serialBaud": 0
+  },
   "serialOutput": [],
   "sketchCode": "// Example: Button Controls LED\n// Press the button to turn on the LED.\n\nvoid setup() {\n  pinMode(2, INPUT_PULLUP);\n  pinMode(13, OUTPUT);\n}\n\nvoid loop() {\n  if (digitalRead(2) == LOW) {\n    digitalWrite(13, HIGH);\n  } else {\n    digitalWrite(13, LOW);\n  }\n}\n",
   "customLibraries": {}

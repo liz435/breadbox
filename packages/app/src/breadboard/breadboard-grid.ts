@@ -732,6 +732,15 @@ export function getComponentFootprint(
  * - Each row of 5 holes on the same side is internally connected
  * - Power rails run the full length
  * - The center gap separates left (0-4) and right (5-9) sides
+ *
+ * TODO(multi-board-resolver): this signature has no notion of which board a
+ * (row, col) belongs to. When multiple surface boards exist in components{}
+ * (the schema supports it today), endpoints with the same row/col on
+ * DIFFERENT boards will be reported as connected. The simulator,
+ * netlist-builder, and pin resolver all silently produce wrong answers in
+ * that case. Fix shape: accept `{ boardId, row, col }` and require boardId
+ * equality before applying the bus-equivalence rules below. See the design
+ * note in CLAUDE.md / branch web-bb-component (task #7).
  */
 export function areConnected(a: GridPoint, b: GridPoint): boolean {
   // Same point
@@ -823,6 +832,15 @@ class UnionFind {
 /**
  * Resolve which component pins are electrically connected through
  * the breadboard's internal bus + wires.
+ *
+ * TODO(multi-board-resolver): clusters by `(row, col)` only — assumes a
+ * single implicit breadboard. With multiple surface boards in components{}
+ * the union-find merges nets across physically isolated boards. To fix:
+ * cluster by `(boardId, stripId)` using each wire's fromStrip/toStrip when
+ * present, and project every component footprint through its parentId to
+ * a `(boardId, row, col)` tuple before unioning. The strip-id constants in
+ * @dreamer/schemas (legacyRowColToStripId, breadboardFullStripIds, ...) are
+ * already in place to receive this.
  */
 export function resolveNets(
   components: Record<string, BoardComponent>,

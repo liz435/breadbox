@@ -8,7 +8,11 @@
       "y": 0,
       "rotation": 0,
       "pins": {},
-      "properties": { "leftVoltage": 5, "rightVoltage": 5 }
+      "properties": {
+        "leftVoltage": 5,
+        "rightVoltage": 5
+      },
+      "parentId": "breadboard-1"
     },
     "motor-1": {
       "id": "motor-1",
@@ -20,7 +24,34 @@
       "pins": {
         "signal": 9
       },
-      "properties": {}
+      "properties": {},
+      "parentId": "breadboard-1"
+    },
+    "breadboard-1": {
+      "id": "breadboard-1",
+      "type": "breadboard_full",
+      "name": "Breadboard",
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "pins": {},
+      "properties": {},
+      "parentId": null,
+      "worldX": 0,
+      "worldY": 0
+    },
+    "arduino-1": {
+      "id": "arduino-1",
+      "type": "arduino_uno",
+      "name": "Arduino Uno",
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "pins": {},
+      "properties": {},
+      "parentId": null,
+      "worldX": -300,
+      "worldY": 0
     }
   },
   "wires": {
@@ -30,7 +61,11 @@
       "fromCol": 9,
       "toRow": 6,
       "toCol": 7,
-      "color": "#fbbf24"
+      "color": "#fbbf24",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "d9",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_6_right"
     },
     "wire-vcc": {
       "id": "wire-vcc",
@@ -38,7 +73,11 @@
       "fromCol": 11,
       "toRow": 5,
       "toCol": 7,
-      "color": "#ef4444"
+      "color": "#ef4444",
+      "fromBoardId": "breadboard-1",
+      "fromStrip": "pwr_bot_neg_l",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_5_right"
     },
     "wire-common-gnd": {
       "id": "wire-common-gnd",
@@ -46,10 +85,18 @@
       "fromCol": -3,
       "toRow": 1,
       "toCol": 10,
-      "color": "#1a1a1a"
+      "color": "#1a1a1a",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "gnd",
+      "toBoardId": "breadboard-1",
+      "toStrip": "pwr_bot_pos_l"
     }
   },
-  "libraryState": { "servos": {}, "lcd": null, "serialBaud": 0 },
+  "libraryState": {
+    "servos": {},
+    "lcd": null,
+    "serialBaud": 0
+  },
   "serialOutput": [],
   "sketchCode": "// Example: DC Motor Speed Ramp\n// Gradually ramp motor speed up and down using PWM.\n// Uses external 5V power supply for the motor.\n\nint motorPin = 9;\n\nvoid setup() {\n  pinMode(motorPin, OUTPUT);\n}\n\nvoid loop() {\n  for (int speed = 0; speed <= 255; speed += 5) {\n    analogWrite(motorPin, speed);\n    delay(30);\n  }\n  for (int speed = 255; speed >= 0; speed -= 5) {\n    analogWrite(motorPin, speed);\n    delay(30);\n  }\n  delay(500);\n}\n",
   "customLibraries": {}

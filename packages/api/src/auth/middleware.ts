@@ -28,6 +28,9 @@ const PUBLIC_PATHS = new Set<string>([
   "/api/auth/logout",
   "/api/auth/me",
   "/__bootstrap",
+  "/api/eval/dashboard",
+  "/api/eval/summary",
+  "/api/eval/all",
 ])
 
 // The API's guarded surface. Anything outside these prefixes — static

@@ -16,7 +16,8 @@
         "f": 7,
         "g": 8
       },
-      "properties": {}
+      "properties": {},
+      "parentId": "breadboard-1"
     },
     "res-a": {
       "id": "res-a",
@@ -25,8 +26,14 @@
       "x": 3,
       "y": 5,
       "rotation": 0,
-      "pins": { "a": null, "b": null },
-      "properties": { "resistance": 220 }
+      "pins": {
+        "a": null,
+        "b": null
+      },
+      "properties": {
+        "resistance": 220
+      },
+      "parentId": "breadboard-1"
     },
     "res-b": {
       "id": "res-b",
@@ -35,8 +42,14 @@
       "x": 3,
       "y": 6,
       "rotation": 0,
-      "pins": { "a": null, "b": null },
-      "properties": { "resistance": 220 }
+      "pins": {
+        "a": null,
+        "b": null
+      },
+      "properties": {
+        "resistance": 220
+      },
+      "parentId": "breadboard-1"
     },
     "res-c": {
       "id": "res-c",
@@ -45,8 +58,14 @@
       "x": 3,
       "y": 7,
       "rotation": 0,
-      "pins": { "a": null, "b": null },
-      "properties": { "resistance": 220 }
+      "pins": {
+        "a": null,
+        "b": null
+      },
+      "properties": {
+        "resistance": 220
+      },
+      "parentId": "breadboard-1"
     },
     "res-d": {
       "id": "res-d",
@@ -55,8 +74,14 @@
       "x": 3,
       "y": 8,
       "rotation": 0,
-      "pins": { "a": null, "b": null },
-      "properties": { "resistance": 220 }
+      "pins": {
+        "a": null,
+        "b": null
+      },
+      "properties": {
+        "resistance": 220
+      },
+      "parentId": "breadboard-1"
     },
     "res-e": {
       "id": "res-e",
@@ -65,8 +90,14 @@
       "x": 3,
       "y": 9,
       "rotation": 0,
-      "pins": { "a": null, "b": null },
-      "properties": { "resistance": 220 }
+      "pins": {
+        "a": null,
+        "b": null
+      },
+      "properties": {
+        "resistance": 220
+      },
+      "parentId": "breadboard-1"
     },
     "res-f": {
       "id": "res-f",
@@ -75,8 +106,14 @@
       "x": 3,
       "y": 10,
       "rotation": 0,
-      "pins": { "a": null, "b": null },
-      "properties": { "resistance": 220 }
+      "pins": {
+        "a": null,
+        "b": null
+      },
+      "properties": {
+        "resistance": 220
+      },
+      "parentId": "breadboard-1"
     },
     "res-g": {
       "id": "res-g",
@@ -85,8 +122,40 @@
       "x": 3,
       "y": 11,
       "rotation": 0,
-      "pins": { "a": null, "b": null },
-      "properties": { "resistance": 220 }
+      "pins": {
+        "a": null,
+        "b": null
+      },
+      "properties": {
+        "resistance": 220
+      },
+      "parentId": "breadboard-1"
+    },
+    "breadboard-1": {
+      "id": "breadboard-1",
+      "type": "breadboard_full",
+      "name": "Breadboard",
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "pins": {},
+      "properties": {},
+      "parentId": null,
+      "worldX": 0,
+      "worldY": 0
+    },
+    "arduino-1": {
+      "id": "arduino-1",
+      "type": "arduino_uno",
+      "name": "Arduino Uno",
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "pins": {},
+      "properties": {},
+      "parentId": null,
+      "worldX": -300,
+      "worldY": 0
     }
   },
   "wires": {
@@ -96,7 +165,11 @@
       "fromCol": 2,
       "toRow": 5,
       "toCol": 3,
-      "color": "#fbbf24"
+      "color": "#fbbf24",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "d2",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_5_left"
     },
     "wire-d3": {
       "id": "wire-d3",
@@ -104,7 +177,11 @@
       "fromCol": 3,
       "toRow": 6,
       "toCol": 3,
-      "color": "#fbbf24"
+      "color": "#fbbf24",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "d3",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_6_left"
     },
     "wire-d4": {
       "id": "wire-d4",
@@ -112,7 +189,11 @@
       "fromCol": 4,
       "toRow": 7,
       "toCol": 3,
-      "color": "#fbbf24"
+      "color": "#fbbf24",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "d4",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_7_left"
     },
     "wire-d5": {
       "id": "wire-d5",
@@ -120,7 +201,11 @@
       "fromCol": 5,
       "toRow": 8,
       "toCol": 3,
-      "color": "#22c55e"
+      "color": "#22c55e",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "d5",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_8_left"
     },
     "wire-d6": {
       "id": "wire-d6",
@@ -128,7 +213,11 @@
       "fromCol": 6,
       "toRow": 9,
       "toCol": 3,
-      "color": "#22c55e"
+      "color": "#22c55e",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "d6",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_9_left"
     },
     "wire-d7": {
       "id": "wire-d7",
@@ -136,7 +225,11 @@
       "fromCol": 7,
       "toRow": 10,
       "toCol": 3,
-      "color": "#22c55e"
+      "color": "#22c55e",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "d7",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_10_left"
     },
     "wire-d8": {
       "id": "wire-d8",
@@ -144,7 +237,11 @@
       "fromCol": 8,
       "toRow": 11,
       "toCol": 3,
-      "color": "#3b82f6"
+      "color": "#3b82f6",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "d8",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_11_left"
     },
     "wire-ra-seg": {
       "id": "wire-ra-seg",
@@ -152,7 +249,11 @@
       "fromCol": 6,
       "toRow": 5,
       "toCol": 7,
-      "color": "#a855f7"
+      "color": "#a855f7",
+      "fromBoardId": "breadboard-1",
+      "fromStrip": "term_5_right",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_5_right"
     },
     "wire-rb-seg": {
       "id": "wire-rb-seg",
@@ -160,7 +261,11 @@
       "fromCol": 6,
       "toRow": 6,
       "toCol": 7,
-      "color": "#a855f7"
+      "color": "#a855f7",
+      "fromBoardId": "breadboard-1",
+      "fromStrip": "term_6_right",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_6_right"
     },
     "wire-rc-seg": {
       "id": "wire-rc-seg",
@@ -168,7 +273,11 @@
       "fromCol": 6,
       "toRow": 7,
       "toCol": 7,
-      "color": "#a855f7"
+      "color": "#a855f7",
+      "fromBoardId": "breadboard-1",
+      "fromStrip": "term_7_right",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_7_right"
     },
     "wire-rd-seg": {
       "id": "wire-rd-seg",
@@ -176,7 +285,11 @@
       "fromCol": 6,
       "toRow": 8,
       "toCol": 7,
-      "color": "#a855f7"
+      "color": "#a855f7",
+      "fromBoardId": "breadboard-1",
+      "fromStrip": "term_8_right",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_8_right"
     },
     "wire-re-seg": {
       "id": "wire-re-seg",
@@ -184,7 +297,11 @@
       "fromCol": 6,
       "toRow": 9,
       "toCol": 7,
-      "color": "#a855f7"
+      "color": "#a855f7",
+      "fromBoardId": "breadboard-1",
+      "fromStrip": "term_9_right",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_9_right"
     },
     "wire-rf-seg": {
       "id": "wire-rf-seg",
@@ -192,7 +309,11 @@
       "fromCol": 6,
       "toRow": 10,
       "toCol": 7,
-      "color": "#a855f7"
+      "color": "#a855f7",
+      "fromBoardId": "breadboard-1",
+      "fromStrip": "term_10_right",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_10_right"
     },
     "wire-rg-seg": {
       "id": "wire-rg-seg",
@@ -200,18 +321,30 @@
       "fromCol": 6,
       "toRow": 11,
       "toCol": 7,
-      "color": "#a855f7"
+      "color": "#a855f7",
+      "fromBoardId": "breadboard-1",
+      "fromStrip": "term_11_right",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_11_right"
     },
     "wire-gnd": {
       "id": "wire-gnd",
       "fromRow": -999,
       "fromCol": -3,
-      "toRow": 12,
+      "toRow": 13,
       "toCol": 9,
-      "color": "#1a1a1a"
+      "color": "#1a1a1a",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "gnd",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_13_right"
     }
   },
-  "libraryState": { "servos": {}, "lcd": null, "serialBaud": 0 },
+  "libraryState": {
+    "servos": {},
+    "lcd": null,
+    "serialBaud": 0
+  },
   "serialOutput": [],
   "sketchCode": "// Example: 7-Segment Display Counter\n// Count from 0-9 on a common-cathode 7-segment display.\n// Segments a-g on pins 2-8.\n// Each byte encodes segments a-g as bits 0-6.\n\nint segPins[] = {2, 3, 4, 5, 6, 7, 8};\nbyte digits[] = {0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F};\n\nvoid showDigit(int d) {\n  for (int i = 0; i < 7; i++) {\n    digitalWrite(segPins[i], (digits[d] >> i) & 1);\n  }\n}\n\nvoid setup() {\n  for (int i = 0; i < 7; i++) {\n    pinMode(segPins[i], OUTPUT);\n  }\n}\n\nvoid loop() {\n  for (int d = 0; d < 10; d++) {\n    showDigit(d);\n    delay(1000);\n  }\n}\n",
   "customLibraries": {}

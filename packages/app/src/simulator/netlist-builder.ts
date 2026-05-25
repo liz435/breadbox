@@ -66,6 +66,12 @@ export type NetlistResult = {
 
 const ARDUINO_OUTPUT_SOURCE_RESISTANCE_OHMS = 25
 
+// TODO(multi-board-resolver): inherits resolveNets's single-board assumption.
+// In a scene with >1 surface board, components on different boards that
+// happen to share (row, col) will be merged into the same SPICE node,
+// producing a wrong netlist. The fix lives in breadboard-grid.ts; once
+// resolveNets returns board-scoped nets this function will pick it up
+// for free.
 export function buildNetlist(
   components: Record<string, BoardComponent>,
   wires: Record<string, Wire>,

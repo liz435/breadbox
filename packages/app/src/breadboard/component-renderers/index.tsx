@@ -11,6 +11,8 @@ import { ServoRenderer } from "./servo-renderer";
 import { PowerSupplyRenderer } from "./power-supply-renderer";
 import { MultimeterRenderer } from "./multimeter-renderer";
 import { GenericRenderer } from "./generic-renderer";
+import { BreadboardRenderer } from "./breadboard-renderer";
+import { PerfboardRenderer } from "./perfboard-renderer";
 
 export type ComponentRendererProps = {
   component: BoardComponent;
@@ -36,6 +38,11 @@ const RENDERER_MAP: Record<
   power_supply: PowerSupplyRenderer,
   multimeter: MultimeterRenderer,
   // arduino_uno is rendered as a fixed board, not as a component
+  // breadboard_full / perfboard_generic: see the renderer files for why
+  // these are stubs today. The implicit BB still owns the visual; these
+  // renderers will take over once the canvas is carved out.
+  breadboard_full: BreadboardRenderer,
+  perfboard_generic: PerfboardRenderer,
 };
 
 export function getComponentRenderer(

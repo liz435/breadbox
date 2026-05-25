@@ -1,9 +1,8 @@
 import React, { useMemo } from "react";
 import { Tooltip } from "@base-ui/react/tooltip";
-import { BOARD_TARGETS, DEFAULT_BOARD_TARGET, type BoardTarget, type ComponentType } from "@dreamer/schemas";
+import type { ComponentType } from "@dreamer/schemas";
 import { breadboardInteractionActor } from "./breadboard-interaction";
 import { COMPONENT_REGISTRY } from "@/components/registry";
-import { useBoard } from "@/store/board-context";
 
 type PaletteItem = {
   type: ComponentType;
@@ -107,12 +106,6 @@ function PaletteItemButton({
 const MemoizedPaletteItem = React.memo(PaletteItemButton);
 
 function ComponentPaletteInner() {
-  const { state, send } = useBoard();
-  const activeBoardTarget = (state.boardTarget ?? DEFAULT_BOARD_TARGET) as BoardTarget;
-  const setBoardTarget = (target: BoardTarget) => {
-    send({ type: "SET_BOARD_TARGET", boardTarget: target });
-  };
-
   // Group by category
   const grouped = useMemo(() => {
     const groups = new Map<string, PaletteItem[]>();
@@ -131,28 +124,6 @@ function ComponentPaletteInner() {
   return (
     <Tooltip.Provider delay={400}>
       <div className="flex h-full flex-col bg-card">
-        {/* Board Target Selector */}
-        <div className="px-3 py-2 border-b border-border">
-          <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Board
-          </label>
-          <select
-            value={activeBoardTarget}
-            onChange={(e) => setBoardTarget(e.target.value as BoardTarget)}
-            className="w-full rounded-md border border-border bg-popover px-2 py-1.5 text-xs text-foreground outline-none transition-colors hover:bg-accent focus-visible:border-accent-foreground/40"
-            title={`${BOARD_TARGETS[activeBoardTarget].label} • ${BOARD_TARGETS[activeBoardTarget].mcu}`}
-          >
-            {Object.values(BOARD_TARGETS).map((target) => (
-              <option key={target.id} value={target.id}>
-                {target.label}
-              </option>
-            ))}
-          </select>
-          <p className="mt-1 text-[10px] text-muted-foreground">
-            The board is fixed on canvas; switch model here.
-          </p>
-        </div>
-
         {/* Cmd+K hint */}
         <button
           type="button"

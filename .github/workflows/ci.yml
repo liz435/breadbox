@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, web]
+
+# Cancel in-progress runs for the same branch when a new commit is pushed.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        # No --frozen-lockfile: the lockfile drifts from package.json in this
+        # repo (binary bun.lockb that nobody refreshes on every dep tweak),
+        # which would otherwise fail every CI run on lockfile-changes-but-
+        # frozen. Trade dep-pinning strictness for green CI by default.
+        run: bun install
+
+      - name: Typecheck all packages
+        run: bun run typecheck
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        # No --frozen-lockfile: the lockfile drifts from package.json in this
+        # repo (binary bun.lockb that nobody refreshes on every dep tweak),
+        # which would otherwise fail every CI run on lockfile-changes-but-
+        # frozen. Trade dep-pinning strictness for green CI by default.
+        run: bun install
+
+      - name: Run tests
+        # Use the workspace script (test:schemas → test:app → test:api →
+        # test:cli) so each package runs in its own Bun process. A single
+        # repo-wide `bun test` loads every package into one module graph,
+        # and tests that set process.env at file scope (e.g. auth-github,
+        # admin) get stale env reads when imports from other packages
+        # cache the auth/env modules first.
+        run: bun run test
