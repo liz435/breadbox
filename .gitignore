@@ -9,3 +9,4 @@ arduinoLLM
 packages/cli/src/web-ui-manifest.generated.ts
 packages/app/dist/
 packages/cli/dist/
+motionEditor

@@ -333,7 +333,7 @@ function AppInner() {
 
     // Clear stale layouts from before Arduino simulator conversion.
     // The old layout references "canvas" and missing panels — force a fresh default.
-    const LAYOUT_VERSION = "arduino-sim-v13";
+    const LAYOUT_VERSION = "arduino-sim-v14";
     const saved = localStorage.getItem(LAYOUT_STORAGE_KEY);
     const savedVersion = localStorage.getItem(LAYOUT_STORAGE_KEY + ":version");
     if (saved && savedVersion === LAYOUT_VERSION) {
@@ -388,13 +388,6 @@ function AppInner() {
       position: { referencePanel: sketchPanel, direction: "within" },
     });
 
-    api.addPanel({
-      id: "diagram",
-      component: "diagram",
-      title: "Diagram",
-      position: { referencePanel: sketchPanel, direction: "within" },
-    });
-
     sketchPanel.api.setActive();
 
     // Inspector in the fourth column (right)
@@ -404,6 +397,16 @@ function AppInner() {
       title: "Inspector",
       position: { referencePanel: sketchPanel, direction: "right" },
     });
+
+    // Diagram as a secondary tab in the Inspector group
+    api.addPanel({
+      id: "diagram",
+      component: "diagram",
+      title: "Diagram",
+      position: { referencePanel: inspectorPanel, direction: "within" },
+    });
+
+    inspectorPanel.api.setActive();
 
     // Pin Inspector below Inspector
     api.addPanel({
@@ -440,7 +443,7 @@ function AppInner() {
       debounceRef.current = setTimeout(() => {
         const layout = api.toJSON();
         localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout));
-        localStorage.setItem(LAYOUT_STORAGE_KEY + ":version", "arduino-sim-v12");
+        localStorage.setItem(LAYOUT_STORAGE_KEY + ":version", "arduino-sim-v14");
       }, 300);
     });
   }

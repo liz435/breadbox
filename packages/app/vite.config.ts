@@ -26,6 +26,12 @@ export default defineConfig({
       "@dreamer/schemas": path.resolve(__dirname, "../schemas/src/index.ts"),
     },
   },
+  // Dev-only: pre-scan every source file so Vite discovers all (incl. lazy)
+  // imports before serving the first request. Prevents the "chunk-XXXX.js
+  // 404" caused by mid-session re-optimization. Has no effect on prod builds.
+  optimizeDeps: {
+    entries: ["index.html", "src/**/*.{ts,tsx}"],
+  },
   server: {
     port: APP_PORT,
     proxy: {

@@ -26,7 +26,7 @@
       "id": "wire-5v",
       "fromRow": -999,
       "fromCol": -1,
-      "toRow": 6,
+      "toRow": 7,
       "toCol": 7,
       "color": "#ef4444"
     },
@@ -34,7 +34,7 @@
       "id": "wire-gnd",
       "fromRow": -999,
       "fromCol": -3,
-      "toRow": 7,
+      "toRow": 6,
       "toCol": 7,
       "color": "#1a1a1a"
     }

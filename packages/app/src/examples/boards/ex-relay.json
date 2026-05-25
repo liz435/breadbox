@@ -28,7 +28,7 @@
       "id": "wire-d7",
       "fromRow": -999,
       "fromCol": 7,
-      "toRow": 5,
+      "toRow": 6,
       "toCol": 7,
       "color": "#fbbf24"
     },
@@ -36,7 +36,7 @@
       "id": "wire-vcc",
       "fromRow": 0,
       "fromCol": 11,
-      "toRow": 6,
+      "toRow": 5,
       "toCol": 7,
       "color": "#ef4444"
     },

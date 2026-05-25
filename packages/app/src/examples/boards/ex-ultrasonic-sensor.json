@@ -21,7 +21,7 @@
       "id": "wire-5v",
       "fromRow": -999,
       "fromCol": -1,
-      "toRow": 7,
+      "toRow": 5,
       "toCol": 7,
       "color": "#ef4444"
     },
@@ -29,7 +29,7 @@
       "id": "wire-d7-trig",
       "fromRow": -999,
       "fromCol": 7,
-      "toRow": 5,
+      "toRow": 6,
       "toCol": 7,
       "color": "#fbbf24"
     },
@@ -37,7 +37,7 @@
       "id": "wire-d8-echo",
       "fromRow": -999,
       "fromCol": 8,
-      "toRow": 6,
+      "toRow": 7,
       "toCol": 7,
       "color": "#3b82f6"
     },

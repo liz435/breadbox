@@ -306,11 +306,11 @@ describe("symbol coordinate placement", () => {
     expect(html).toContain(`cx="${x}"`)
   })
 
-  test("ArduinoPinSymbol lead right extends to x+50", () => {
+  test("ArduinoPinSymbol terminal dot is at x+88 (IC stub end)", () => {
     const x = 80
     const html = render(<ArduinoPinSymbol x={x} y={100} label="D13" />)
-    // Terminal dot at x + 36 + 14 = x + 50
-    expect(html).toContain(`cx="${x + 50}"`)
+    // Terminal dot at x + ARDUINO_IC_LABEL_WIDTH(68) + ARDUINO_IC_STUB_LENGTH(20) = x + 88
+    expect(html).toContain(`cx="${x + 88}"`)
   })
 
   test("VoltageSourceSymbol terminal dot is at x+60", () => {

@@ -48,7 +48,7 @@
       "id": "wire-d2-pir",
       "fromRow": -999,
       "fromCol": 2,
-      "toRow": 10,
+      "toRow": 11,
       "toCol": 7,
       "color": "#22c55e"
     },
@@ -56,7 +56,7 @@
       "id": "wire-5v",
       "fromRow": -999,
       "fromCol": -1,
-      "toRow": 11,
+      "toRow": 10,
       "toCol": 7,
       "color": "#ef4444"
     },

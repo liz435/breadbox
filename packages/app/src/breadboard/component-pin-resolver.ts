@@ -115,7 +115,19 @@ export function findArduinoPinsForComponentPin(
     if (arduinoPin < 0 || arduinoPin > MAX_ARDUINO_PIN) continue
 
     const wireTo = { row: wire.toRow, col: wire.toCol }
-    if (targetPoints.some((point) => areConnected(wireTo, point))) {
+    if (targetPoints.some((point) => {
+      if (areConnected(wireTo, point)) return true
+      // One-hop through a series resistor straddling the center gap.
+      // Resistors bridge the left strip (cols 0–4) to the right strip (cols 5–9)
+      // on the same row. If the target pin is on the right side and the signal
+      // wire lands on the left side at the same row (or vice-versa), the signal
+      // reaches the pin through the resistor.
+      return (
+        wireTo.row === point.row &&
+        ((point.col >= 5 && wireTo.col >= 0 && wireTo.col <= 4) ||
+         (point.col <= 4 && wireTo.col >= 5 && wireTo.col <= 9))
+      )
+    })) {
       pins.add(arduinoPin)
     }
   }

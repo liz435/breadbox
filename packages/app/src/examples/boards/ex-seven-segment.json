@@ -206,7 +206,7 @@
       "id": "wire-gnd",
       "fromRow": -999,
       "fromCol": -3,
-      "toRow": 12,
+      "toRow": 13,
       "toCol": 9,
       "color": "#1a1a1a"
     }

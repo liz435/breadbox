@@ -18,7 +18,7 @@
       "id": "wire-d2",
       "fromRow": -999,
       "fromCol": 2,
-      "toRow": 5,
+      "toRow": 6,
       "toCol": 7,
       "color": "#22c55e"
     },
@@ -26,7 +26,7 @@
       "id": "wire-5v",
       "fromRow": -999,
       "fromCol": -1,
-      "toRow": 6,
+      "toRow": 5,
       "toCol": 7,
       "color": "#ef4444"
     },
