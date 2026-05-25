@@ -32,6 +32,7 @@ import { screenToBoard, fitBbox } from "./breadboard-camera";
 import { breadboardInteractionActor } from "./breadboard-interaction";
 import { simulationRef } from "@/simulator/simulation-ref";
 import { ComponentRenderer } from "./component-renderers/index";
+import { BreadboardDefs } from "./component-renderers/breadboard-renderer";
 import { WireRenderer } from "./component-renderers/wire-renderer";
 import { ArduinoUnoBoard } from "./component-renderers/arduino-uno-renderer";
 import { ArduinoAltBoard } from "./component-renderers/arduino-alt-board-renderer";
@@ -333,24 +334,7 @@ const StaticBackground = React.memo(function StaticBackground() {
 
   return (
     <g>
-      {/* SVG defs for gradients used by the board body, holes, and gap. */}
-      <defs>
-        <linearGradient id="board-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#f5f1ea" />
-          <stop offset="50%" stopColor="#ece7df" />
-          <stop offset="100%" stopColor="#e0dbd2" />
-        </linearGradient>
-        <radialGradient id="hole-fill" cx="0.5" cy="0.5" r="0.5">
-          <stop offset="0%" stopColor="#0a0a0a" />
-          <stop offset="60%" stopColor="#1f1f1f" />
-          <stop offset="100%" stopColor="#2a2a2a" />
-        </radialGradient>
-        <linearGradient id="gap-fill" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#cfc9bf" />
-          <stop offset="50%" stopColor="#dcd6cc" />
-          <stop offset="100%" stopColor="#cfc9bf" />
-        </linearGradient>
-      </defs>
+      {/* SVG defs rendered once at the canvas root via <BreadboardDefs />. */}
 
       {/* Soft drop shadow under the board */}
       <rect
@@ -576,7 +560,6 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
 
   // ── Extracted hooks (all interaction state lives in the XState machine) ──
   const camera = useBreadboardCamera({ svgRef, panMode });
-  const drag = useBreadboardDrag({ svgRef, components, send });
   const wire = useBreadboardWire({ svgRef, send, boardTarget });
   const pinLayout = useMemo(() => getBoardPinLayout(boardTarget), [boardTarget]);
 
@@ -595,6 +578,8 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
     ),
     [components],
   );
+
+  const drag = useBreadboardDrag({ svgRef, components, surfaceBoards: surfaceBoardComponents, send });
 
   // ── Board drag state ────────────────────────────────────────────
   // Declared early because parentOffsets / surfaceBoardsForRender below
@@ -1228,6 +1213,9 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
     >
+      {/* Shared <defs> for breadboard gradients; one set covers any number of
+          BreadboardRenderer instances in the scene. */}
+      <BreadboardDefs />
       <g transform={`translate(${cam.offsetX}, ${cam.offsetY}) scale(${cam.zoom})`}>
         {boardTarget === "arduino_uno" ? (
           <ArduinoUnoBoard

@@ -231,26 +231,13 @@ function BreadboardRendererInner({ component }: ComponentRendererProps) {
   const dx = component.worldX ?? 0;
   const dy = component.worldY ?? 0;
 
+  // The <defs> block (board-fill, hole-fill, gap-fill gradients) is rendered
+  // once at the canvas root — see <BreadboardDefs /> below. With multiple
+  // breadboards on the canvas, inlining defs per renderer would collide on
+  // id and silently leave the later definitions inert.
+
   return (
     <g transform={dx !== 0 || dy !== 0 ? `translate(${dx}, ${dy})` : undefined}>
-      <defs>
-        <linearGradient id="board-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#f5f1ea" />
-          <stop offset="50%" stopColor="#ece7df" />
-          <stop offset="100%" stopColor="#e0dbd2" />
-        </linearGradient>
-        <radialGradient id="hole-fill" cx="0.5" cy="0.5" r="0.5">
-          <stop offset="0%" stopColor="#0a0a0a" />
-          <stop offset="60%" stopColor="#1f1f1f" />
-          <stop offset="100%" stopColor="#2a2a2a" />
-        </radialGradient>
-        <linearGradient id="gap-fill" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#cfc9bf" />
-          <stop offset="50%" stopColor="#dcd6cc" />
-          <stop offset="100%" stopColor="#cfc9bf" />
-        </linearGradient>
-      </defs>
-
       <rect
         x={bbX + 2}
         y={4}
@@ -318,3 +305,30 @@ function BreadboardRendererInner({ component }: ComponentRendererProps) {
 }
 
 export const BreadboardRenderer = React.memo(BreadboardRendererInner);
+
+/**
+ * Shared SVG defs (gradients) used by all BreadboardRenderer instances.
+ * Render exactly once at the canvas root — the BreadboardRenderer references
+ * these ids by url(#board-fill) etc.
+ */
+export function BreadboardDefs() {
+  return (
+    <defs>
+      <linearGradient id="board-fill" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stopColor="#f5f1ea" />
+        <stop offset="50%" stopColor="#ece7df" />
+        <stop offset="100%" stopColor="#e0dbd2" />
+      </linearGradient>
+      <radialGradient id="hole-fill" cx="0.5" cy="0.5" r="0.5">
+        <stop offset="0%" stopColor="#0a0a0a" />
+        <stop offset="60%" stopColor="#1f1f1f" />
+        <stop offset="100%" stopColor="#2a2a2a" />
+      </radialGradient>
+      <linearGradient id="gap-fill" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stopColor="#cfc9bf" />
+        <stop offset="50%" stopColor="#dcd6cc" />
+        <stop offset="100%" stopColor="#cfc9bf" />
+      </linearGradient>
+    </defs>
+  );
+}
