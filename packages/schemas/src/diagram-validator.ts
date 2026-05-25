@@ -119,21 +119,37 @@ function semanticIssues(state: BoardState): DiagramIssue[] {
     });
   }
 
-  // Build a set of every (row, col) touched by any wire endpoint.
-  const touchedPoints = new Set<string>();
+  // Collect wire endpoints as grid points (skip -999 Arduino sentinel rows).
+  const wireEndpoints: Array<{ row: number; col: number }> = [];
   for (const w of wires) {
-    touchedPoints.add(`${w.fromRow},${w.fromCol}`);
-    touchedPoints.add(`${w.toRow},${w.toCol}`);
+    if (w.fromRow !== -999) wireEndpoints.push({ row: w.fromRow, col: w.fromCol });
+    wireEndpoints.push({ row: w.toRow, col: w.toCol });
   }
 
-  // Dangling component: none of the component's footprint points appear
-  // in any wire endpoint.
+  // Two breadboard points are "in the same bus" when they share a row and both
+  // fall on the same terminal strip (left: cols 0–4, right: cols 5–9). Wires
+  // that land anywhere on a row's bus reach every hole in that bus, so an LED
+  // whose pin is at col 7 IS touched by a GND wire landing at col 9 on the
+  // same row.
+  function sameBus(
+    ep: { row: number; col: number },
+    pin: { row: number; col: number },
+  ): boolean {
+    if (ep.row !== pin.row) return false;
+    if (ep.col === pin.col) return true;
+    if (ep.col >= 0 && ep.col <= 4 && pin.col >= 0 && pin.col <= 4) return true;
+    if (ep.col >= 5 && ep.col <= 9 && pin.col >= 5 && pin.col <= 9) return true;
+    return false;
+  }
+
+  // Dangling component: no wire endpoint lands on the same breadboard bus as
+  // any of the component's pins.
   for (const comp of simComponents) {
     const pins = resolveComponentPins(comp.type, comp.y, comp.x, comp.properties);
     const entries = Object.entries(pins);
     if (entries.length === 0) continue; // nothing to check
     const touched = entries.some(([, pt]) =>
-      touchedPoints.has(`${pt.row},${pt.col}`),
+      wireEndpoints.some((ep) => sameBus(ep, pt)),
     );
     if (!touched) {
       issues.push({
@@ -148,13 +164,30 @@ function semanticIssues(state: BoardState): DiagramIssue[] {
 
   // Missing ground for components with a `gnd` (or `negative` / `cathode`)
   // pin. We walk wires from that pin's grid point and check if the other
-  // endpoint is at an Arduino GND (col -3/-4/-6) or a power_supply
-  // negative anchor. Approximate (doesn't chase multi-hop jumper chains),
+  // endpoint is at an Arduino GND (col -3/-4/-6), a breadboard GND rail, or
+  // a PSU negative anchor. Approximate (doesn't chase multi-hop jumper chains),
   // but catches the most common "forgot GND" mistake.
-  const psuNegAnchors = new Set<string>();
+  //
+  // Two GND-rail representations to handle:
+  //   1. DSL-style: wire to psu.-, resolves to {psu.y+1, psu.x}
+  //   2. Raw BoardState: wire to col 10 (right negative rail) or col -1 (left)
+  const hasPsu = simComponents.some((c) => c.type === "power_supply");
+  // DSL-style PSU negative anchors (psu.-)
+  const psuNegPoints = new Set<string>();
   for (const c of simComponents) {
     if (c.type !== "power_supply") continue;
-    psuNegAnchors.add(`${c.y + 1},${c.x}`); // canonical PSU negative anchor
+    psuNegPoints.add(`${c.y + 1},${c.x}`);
+  }
+  // Raw breadboard GND rails: col 10 or col -1, either from PSU or directly wired to Arduino GND
+  const gndRailCols = new Set<number>(hasPsu ? [10, -1] : []);
+  if (!hasPsu) {
+    for (const w of wires) {
+      const fromIsArduinoGnd =
+        w.fromRow === -999 && (w.fromCol === -3 || w.fromCol === -4 || w.fromCol === -6);
+      if (fromIsArduinoGnd && (w.toCol === 10 || w.toCol === -1)) {
+        gndRailCols.add(w.toCol);
+      }
+    }
   }
 
   for (const comp of simComponents) {
@@ -166,10 +199,9 @@ function semanticIssues(state: BoardState): DiagramIssue[] {
     const gnd = pins[groundPinKey];
     if (!gnd) continue;
 
-    const gndCoord = `${gnd.row},${gnd.col}`;
     const connectedToGround = wires.some((w) => {
-      const fromIsPin = w.fromRow === gnd.row && w.fromCol === gnd.col;
-      const toIsPin = w.toRow === gnd.row && w.toCol === gnd.col;
+      const fromIsPin = w.fromRow !== -999 && sameBus({ row: w.fromRow, col: w.fromCol }, gnd);
+      const toIsPin = sameBus({ row: w.toRow, col: w.toCol }, gnd);
       if (!fromIsPin && !toIsPin) return false;
       const other = fromIsPin
         ? { row: w.toRow, col: w.toCol }
@@ -178,15 +210,17 @@ function semanticIssues(state: BoardState): DiagramIssue[] {
       if (other.row === -999 && (other.col === -3 || other.col === -4 || other.col === -6)) {
         return true;
       }
-      // PSU negative anchor
-      if (psuNegAnchors.has(`${other.row},${other.col}`)) return true;
+      // DSL-style PSU negative anchor (psu.-)
+      if (psuNegPoints.has(`${other.row},${other.col}`)) return true;
+      // Raw breadboard GND rail (col 10 = right negative, col -1 = left negative)
+      if (gndRailCols.has(other.col)) return true;
       return false;
     });
 
     if (!connectedToGround) {
       // Only flag if there IS at least one wire touching the gnd pin —
       // otherwise DANGLING_COMPONENT already covers it.
-      if (!touchedPoints.has(gndCoord)) continue;
+      if (!wireEndpoints.some((ep) => sameBus(ep, gnd))) continue;
       issues.push({
         severity: "warning",
         category: "semantic",

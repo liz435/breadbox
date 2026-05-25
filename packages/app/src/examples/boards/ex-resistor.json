@@ -13,12 +13,13 @@
       },
       "properties": {
         "color": "#22c55e"
-      }
+      },
+      "parentId": "breadboard-1"
     },
     "resistor-1": {
       "id": "resistor-1",
       "type": "resistor",
-      "name": "R1 330\u03a9",
+      "name": "R1 330Ω",
       "x": 3,
       "y": 5,
       "rotation": 0,
@@ -28,7 +29,34 @@
       },
       "properties": {
         "resistance": 330
-      }
+      },
+      "parentId": "breadboard-1"
+    },
+    "breadboard-1": {
+      "id": "breadboard-1",
+      "type": "breadboard_full",
+      "name": "Breadboard",
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "pins": {},
+      "properties": {},
+      "parentId": null,
+      "worldX": 0,
+      "worldY": 0
+    },
+    "arduino-1": {
+      "id": "arduino-1",
+      "type": "arduino_uno",
+      "name": "Arduino Uno",
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "pins": {},
+      "properties": {},
+      "parentId": null,
+      "worldX": -300,
+      "worldY": 0
     }
   },
   "wires": {
@@ -38,7 +66,11 @@
       "fromCol": 13,
       "toRow": 5,
       "toCol": 3,
-      "color": "#fbbf24"
+      "color": "#fbbf24",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "d13",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_5_left"
     },
     "wire-gnd": {
       "id": "wire-gnd",
@@ -46,11 +78,19 @@
       "fromCol": -3,
       "toRow": 6,
       "toCol": 9,
-      "color": "#1a1a1a"
+      "color": "#1a1a1a",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "gnd",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_6_right"
     }
   },
-  "libraryState": { "servos": {}, "lcd": null, "serialBaud": 0 },
+  "libraryState": {
+    "servos": {},
+    "lcd": null,
+    "serialBaud": 0
+  },
   "serialOutput": [],
-  "sketchCode": "// Example: Resistor Current Limiting\n// A 330\u03a9 resistor protects the LED from excess current.\n\nvoid setup() {\n  pinMode(13, OUTPUT);\n}\n\nvoid loop() {\n  digitalWrite(13, HIGH);\n  delay(1000);\n  digitalWrite(13, LOW);\n  delay(1000);\n}\n",
+  "sketchCode": "// Example: Resistor Current Limiting\n// A 330Ω resistor protects the LED from excess current.\n\nvoid setup() {\n  pinMode(13, OUTPUT);\n}\n\nvoid loop() {\n  digitalWrite(13, HIGH);\n  delay(1000);\n  digitalWrite(13, LOW);\n  delay(1000);\n}\n",
   "customLibraries": {}
 }

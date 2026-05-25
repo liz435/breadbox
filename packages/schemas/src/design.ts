@@ -38,6 +38,16 @@ export const diagramComponentSchema = z.object({
   name: z.string().optional(),
   pins: z.record(z.string(), z.number().nullable()).optional(),
   properties: z.record(z.string(), z.unknown()).default({}),
+  /**
+   * Surface board (`breadboard_full` | `perfboard_generic`) this component
+   * lives on. `null` for board-type components themselves (they live in
+   * world coords). Omitted when the project has a single default board and
+   * the adapter can infer it on read.
+   */
+  parentId: z.string().nullable().optional(),
+  /** World-space coords for board-type components. Ignored for non-boards. */
+  worldX: z.number().optional(),
+  worldY: z.number().optional(),
 });
 export type DiagramComponent = z.infer<typeof diagramComponentSchema>;
 
@@ -52,6 +62,16 @@ export const diagramWireSchema = z.object({
   from: z.string(),
   to: z.string(),
   color: z.string().default("#22c55e"),
+  /**
+   * Board-scoped endpoint pair. Populated by the adapter on write so a
+   * round-trip preserves which board a wire endpoint lives on. Optional on
+   * input: hand-authored diagrams can omit them and the adapter derives
+   * them at parse time. Useful when boards{} contains 2+ surface boards.
+   */
+  fromBoardId: z.string().optional(),
+  fromStrip: z.string().optional(),
+  toBoardId: z.string().optional(),
+  toStrip: z.string().optional(),
 });
 export type DiagramWire = z.infer<typeof diagramWireSchema>;
 

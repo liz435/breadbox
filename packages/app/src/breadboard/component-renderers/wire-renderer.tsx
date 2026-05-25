@@ -1,20 +1,41 @@
 import React from "react";
-import type { Wire } from "@dreamer/schemas";
+import type { Wire, BoardComponent } from "@dreamer/schemas";
 import { gridToPixel, type ArduinoPinInfo } from "@/breadboard/breadboard-grid";
 
 type WireRendererProps = {
   wire: Wire;
   arduinoPins: ArduinoPinInfo[];
   isSelected: boolean;
+  /**
+   * Surface board components (breadboard_full / perfboard_generic). When a
+   * wire endpoint references one of these via fromBoardId / toBoardId, the
+   * board's worldX/worldY shifts the endpoint's pixel position so the wire
+   * stays attached when the board moves.
+   */
+  surfaceBoards?: BoardComponent[];
   onSelect?: (id: string) => void;
   onDragEndpoint?: (wireId: string, endpoint: "from" | "to", e: React.PointerEvent) => void;
 };
+
+function offsetForBoard(
+  boardId: string | undefined,
+  surfaceBoards: BoardComponent[] | undefined,
+): { dx: number; dy: number } {
+  if (!boardId || !surfaceBoards) return { dx: 0, dy: 0 };
+  const b = surfaceBoards.find((sb) => sb.id === boardId);
+  if (!b) return { dx: 0, dy: 0 };
+  return { dx: b.worldX ?? 0, dy: b.worldY ?? 0 };
+}
 
 /**
  * Resolve the "from" pixel position of a wire.
  * If fromRow === -999, this is an Arduino pin wire — look up the pin position by pin number (fromCol).
  */
-function resolveFromPosition(wire: Wire, arduinoPins: ArduinoPinInfo[]): { x: number; y: number } {
+function resolveFromPosition(
+  wire: Wire,
+  arduinoPins: ArduinoPinInfo[],
+  surfaceBoards: BoardComponent[] | undefined,
+): { x: number; y: number } {
   if (wire.fromRow === -999) {
     const pinInfo =
       (wire.fromPinLabel
@@ -30,12 +51,23 @@ function resolveFromPosition(wire: Wire, arduinoPins: ArduinoPinInfo[]): { x: nu
     }
     return { x: 0, y: 0 };
   }
-  return gridToPixel({ row: wire.fromRow, col: wire.fromCol });
+  const base = gridToPixel({ row: wire.fromRow, col: wire.fromCol });
+  const { dx, dy } = offsetForBoard(wire.fromBoardId, surfaceBoards);
+  return { x: base.x + dx, y: base.y + dy };
 }
 
-function WireRendererInner({ wire, arduinoPins, isSelected, onSelect, onDragEndpoint }: WireRendererProps) {
-  const from = resolveFromPosition(wire, arduinoPins);
-  const to = gridToPixel({ row: wire.toRow, col: wire.toCol });
+function resolveToPosition(
+  wire: Wire,
+  surfaceBoards: BoardComponent[] | undefined,
+): { x: number; y: number } {
+  const base = gridToPixel({ row: wire.toRow, col: wire.toCol });
+  const { dx, dy } = offsetForBoard(wire.toBoardId, surfaceBoards);
+  return { x: base.x + dx, y: base.y + dy };
+}
+
+function WireRendererInner({ wire, arduinoPins, isSelected, surfaceBoards, onSelect, onDragEndpoint }: WireRendererProps) {
+  const from = resolveFromPosition(wire, arduinoPins, surfaceBoards);
+  const to = resolveToPosition(wire, surfaceBoards);
   const color = wire.color ?? "#22c55e";
 
   const isPower =
@@ -45,9 +77,36 @@ function WireRendererInner({ wire, arduinoPins, isSelected, onSelect, onDragEndp
 
   const wireColor = isPower ? "#ef4444" : isGround ? "#1a1a1a" : color;
 
-  const midY = (from.y + to.y) / 2;
-  const curveOffset = Math.abs(from.x - to.x) * 0.15 + 4;
-  const pathD = `M ${from.x} ${from.y} C ${from.x} ${midY - curveOffset}, ${to.x} ${midY + curveOffset}, ${to.x} ${to.y}`;
+  // Cross-board wires (between two different surface boards) draw as a
+  // single quadratic arc — straight line with a slight midpoint nudge — so
+  // the visual reads as "loose jumper crossing the gap" rather than "rigid
+  // on-board jumper" (Q15 d). Same-board wires keep the existing cubic.
+  const isCrossBoard =
+    wire.fromBoardId != null &&
+    wire.toBoardId != null &&
+    wire.fromBoardId !== wire.toBoardId &&
+    wire.fromBoardId !== "arduino-1" &&
+    wire.toBoardId !== "arduino-1";
+
+  let pathD: string;
+  if (isCrossBoard) {
+    const midX = (from.x + to.x) / 2;
+    const midY = (from.y + to.y) / 2;
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    // Nudge the control point perpendicular to the line so the wire arcs.
+    const arcAmount = Math.min(40, len * 0.08);
+    const nx = len > 0 ? -dy / len : 0;
+    const ny = len > 0 ? dx / len : 0;
+    const cx = midX + nx * arcAmount;
+    const cy = midY + ny * arcAmount;
+    pathD = `M ${from.x} ${from.y} Q ${cx} ${cy}, ${to.x} ${to.y}`;
+  } else {
+    const midY = (from.y + to.y) / 2;
+    const curveOffset = Math.abs(from.x - to.x) * 0.15 + 4;
+    pathD = `M ${from.x} ${from.y} C ${from.x} ${midY - curveOffset}, ${to.x} ${midY + curveOffset}, ${to.x} ${to.y}`;
+  }
 
   const pinRadius = 3;
   const isArduinoPinWire = wire.fromRow === -999;

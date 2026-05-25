@@ -11,12 +11,13 @@
         "a": null,
         "b": null
       },
-      "properties": {}
+      "properties": {},
+      "parentId": "breadboard-1"
     },
     "resistor-1": {
       "id": "resistor-1",
       "type": "resistor",
-      "name": "R1 10k\u03a9",
+      "name": "R1 10kΩ",
       "x": 3,
       "y": 6,
       "rotation": 0,
@@ -26,7 +27,34 @@
       },
       "properties": {
         "resistance": 10000
-      }
+      },
+      "parentId": "breadboard-1"
+    },
+    "breadboard-1": {
+      "id": "breadboard-1",
+      "type": "breadboard_full",
+      "name": "Breadboard",
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "pins": {},
+      "properties": {},
+      "parentId": null,
+      "worldX": 0,
+      "worldY": 0
+    },
+    "arduino-1": {
+      "id": "arduino-1",
+      "type": "arduino_uno",
+      "name": "Arduino Uno",
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "pins": {},
+      "properties": {},
+      "parentId": null,
+      "worldX": -300,
+      "worldY": 0
     }
   },
   "wires": {
@@ -36,7 +64,11 @@
       "fromCol": -1,
       "toRow": 5,
       "toCol": 7,
-      "color": "#ef4444"
+      "color": "#ef4444",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "5v",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_5_right"
     },
     "wire-a0": {
       "id": "wire-a0",
@@ -44,18 +76,30 @@
       "fromCol": 14,
       "toRow": 6,
       "toCol": 7,
-      "color": "#22c55e"
+      "color": "#22c55e",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "a0",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_6_right"
     },
     "wire-gnd": {
       "id": "wire-gnd",
       "fromRow": -999,
       "fromCol": -3,
       "toRow": 6,
-      "toCol": 6,
-      "color": "#1a1a1a"
+      "toCol": 3,
+      "color": "#1a1a1a",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "gnd",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_6_left"
     }
   },
-  "libraryState": { "servos": {}, "lcd": null, "serialBaud": 0 },
+  "libraryState": {
+    "servos": {},
+    "lcd": null,
+    "serialBaud": 0
+  },
   "serialOutput": [],
   "sketchCode": "// Example: Photoresistor Light Sensor\n// Read light level on A0 and print to Serial.\n\nint sensorPin = A0;\n\nvoid setup() {\n  Serial.begin(9600);\n}\n\nvoid loop() {\n  int lightVal = analogRead(sensorPin);\n  Serial.print(\"Light: \");\n  Serial.println(lightVal);\n  delay(500);\n}\n",
   "customLibraries": {}

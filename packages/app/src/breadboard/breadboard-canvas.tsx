@@ -28,10 +28,11 @@ import {
   getBoardPinLayout,
   type ArduinoPinInfo,
 } from "./breadboard-grid";
-import { screenToBoard } from "./breadboard-camera";
+import { screenToBoard, fitBbox } from "./breadboard-camera";
 import { breadboardInteractionActor } from "./breadboard-interaction";
 import { simulationRef } from "@/simulator/simulation-ref";
 import { ComponentRenderer } from "./component-renderers/index";
+import { BreadboardDefs } from "./component-renderers/breadboard-renderer";
 import { WireRenderer } from "./component-renderers/wire-renderer";
 import { ArduinoUnoBoard } from "./component-renderers/arduino-uno-renderer";
 import { ArduinoAltBoard } from "./component-renderers/arduino-alt-board-renderer";
@@ -333,24 +334,7 @@ const StaticBackground = React.memo(function StaticBackground() {
 
   return (
     <g>
-      {/* SVG defs for gradients used by the board body, holes, and gap. */}
-      <defs>
-        <linearGradient id="board-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#f5f1ea" />
-          <stop offset="50%" stopColor="#ece7df" />
-          <stop offset="100%" stopColor="#e0dbd2" />
-        </linearGradient>
-        <radialGradient id="hole-fill" cx="0.5" cy="0.5" r="0.5">
-          <stop offset="0%" stopColor="#0a0a0a" />
-          <stop offset="60%" stopColor="#1f1f1f" />
-          <stop offset="100%" stopColor="#2a2a2a" />
-        </radialGradient>
-        <linearGradient id="gap-fill" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#cfc9bf" />
-          <stop offset="50%" stopColor="#dcd6cc" />
-          <stop offset="100%" stopColor="#cfc9bf" />
-        </linearGradient>
-      </defs>
+      {/* SVG defs rendered once at the canvas root via <BreadboardDefs />. */}
 
       {/* Soft drop shadow under the board */}
       <rect
@@ -429,18 +413,20 @@ const StaticBackground = React.memo(function StaticBackground() {
 type WireLayerProps = {
   wires: Record<string, import("@dreamer/schemas").Wire>;
   arduinoPins: ArduinoPinInfo[];
+  surfaceBoards: BoardComponent[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   onDragEndpoint: (wireId: string, endpoint: "from" | "to", e: React.PointerEvent) => void;
 };
 
-const WireLayer = React.memo(function WireLayer({ wires, arduinoPins, selectedId, onSelect, onDragEndpoint }: WireLayerProps) {
+const WireLayer = React.memo(function WireLayer({ wires, arduinoPins, surfaceBoards, selectedId, onSelect, onDragEndpoint }: WireLayerProps) {
   const wireList = useMemo(() => Object.values(wires), [wires]);
   return (
     <g>
       {wireList.map((wire) => (
         <WireRenderer key={wire.id} wire={wire}
           arduinoPins={arduinoPins}
+          surfaceBoards={surfaceBoards}
           isSelected={selectedId === wire.id} onSelect={onSelect}
           onDragEndpoint={onDragEndpoint} />
       ))}
@@ -458,12 +444,14 @@ type ComponentLayerProps = {
   analysis: import("@/simulator/circuit-solver").CircuitAnalysis | null;
   libraryState: LibraryState;
   pinStates: import("@dreamer/schemas").PinState[];
+  /** Parent-board pixel offset per component id (worldX, worldY of parent BB). */
+  parentOffsets: Map<string, { dx: number; dy: number }>;
   onSelect: (id: string) => void;
   onDragStart: (id: string, e: React.PointerEvent) => void;
 };
 
 const ComponentLayer = React.memo(function ComponentLayer({
-  components, wires, selectedId, draggingId, analysis, libraryState, pinStates,
+  components, wires, selectedId, draggingId, analysis, libraryState, pinStates, parentOffsets,
   onSelect, onDragStart,
 }: ComponentLayerProps) {
   return (
@@ -473,6 +461,10 @@ const ComponentLayer = React.memo(function ComponentLayer({
         const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties);
         const primaryPos = gridToPixel({ row: comp.y, col: comp.x });
         const rot = comp.rotation ?? 0;
+        const { dx: parentDx, dy: parentDy } = parentOffsets.get(comp.id) ?? { dx: 0, dy: 0 };
+        const parentTransform = parentDx !== 0 || parentDy !== 0
+          ? `translate(${parentDx}, ${parentDy})`
+          : undefined;
 
         return (
           <g
@@ -482,6 +474,7 @@ const ComponentLayer = React.memo(function ComponentLayer({
             onPointerDown={(e) => { if (e.button === 0) { e.stopPropagation(); onDragStart(comp.id, e); } }}
             style={{ cursor: isDragging ? "grabbing" : "pointer" }}
             opacity={isDragging ? 0.35 : 1}
+            transform={parentTransform}
           >
             {selectedId === comp.id && (
               <rect
@@ -508,11 +501,12 @@ const ComponentLayer = React.memo(function ComponentLayer({
       {components.map((comp) => {
         const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties);
         const accentColor = getAccentColor(comp.type as ComponentType) ?? "#60a5fa";
+        const { dx: parentDx, dy: parentDy } = parentOffsets.get(comp.id) ?? { dx: 0, dy: 0 };
         return footprint.points.map((pt, i) => {
           const pos = gridToPixel(pt);
           return (
             <circle key={`occ-${comp.id}-${i}`}
-              cx={pos.x} cy={pos.y} r={HOLE_RADIUS + 1.5}
+              cx={pos.x + parentDx} cy={pos.y + parentDy} r={HOLE_RADIUS + 1.5}
               fill="none" stroke={accentColor} strokeWidth={1}
               opacity={0.7} pointerEvents="none" />
           );
@@ -566,7 +560,6 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
 
   // ── Extracted hooks (all interaction state lives in the XState machine) ──
   const camera = useBreadboardCamera({ svgRef, panMode });
-  const drag = useBreadboardDrag({ svgRef, components, send });
   const wire = useBreadboardWire({ svgRef, send, boardTarget });
   const pinLayout = useMemo(() => getBoardPinLayout(boardTarget), [boardTarget]);
 
@@ -574,6 +567,95 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
     () => Object.values(components).filter((c) => !isBoardComponentType(c.type)),
     [components],
   );
+
+  // Board-type components in `components{}`. Today this is the explicit
+  // breadboard (and any perfboards) added by the migration. The Arduino
+  // board is rendered separately by <ArduinoUnoBoard> / <ArduinoAltBoard>
+  // and is excluded from this list.
+  const surfaceBoardComponents = useMemo(
+    () => Object.values(components).filter(
+      (c) => c.type === "breadboard_full" || c.type === "perfboard_generic",
+    ),
+    [components],
+  );
+
+  const drag = useBreadboardDrag({ svgRef, components, surfaceBoards: surfaceBoardComponents, send });
+
+  // ── Board drag state ────────────────────────────────────────────
+  // Declared early because parentOffsets / surfaceBoardsForRender below
+  // fold the live in-flight delta in. Tracks an in-flight drag of a
+  // board-type component (breadboard/perfboard); kept out of the XState
+  // machine because it operates in world coords (not grid coords) and
+  // dispatches UPDATE_COMPONENT directly. Live position is mirrored into a
+  // local React state so the renderer can show the moving board without
+  // committing a store update per frame; the final position is committed
+  // in pointerUp.
+  const boardDragRef = useRef<{
+    boardId: string;
+    startWorldX: number;
+    startWorldY: number;
+    startPointerBoardX: number;
+    startPointerBoardY: number;
+  } | null>(null);
+  const [boardDragOffset, setBoardDragOffset] = React.useState<{ id: string; dx: number; dy: number } | null>(null);
+
+  // Maps each non-board component id to its parent board's pixel offset
+  // (worldX, worldY) so the component renders attached to a moved board.
+  // Includes the live in-flight drag delta so children visually follow the
+  // board while the user is still holding the pointer.
+  const parentOffsets = useMemo(() => {
+    const map = new Map<string, { dx: number; dy: number }>();
+    for (const comp of Object.values(components)) {
+      if (!comp.parentId) continue;
+      const parent = components[comp.parentId];
+      if (!parent) continue;
+      const isLiveDrag = boardDragOffset?.id === parent.id;
+      const liveDx = isLiveDrag ? boardDragOffset.dx : 0;
+      const liveDy = isLiveDrag ? boardDragOffset.dy : 0;
+      const dx = (parent.worldX ?? 0) + liveDx;
+      const dy = (parent.worldY ?? 0) + liveDy;
+      if (dx !== 0 || dy !== 0) {
+        map.set(comp.id, { dx, dy });
+      }
+    }
+    return map;
+  }, [components, boardDragOffset]);
+
+  // Surface boards with the in-flight drag delta folded in. Passed to the
+  // WireLayer so wire endpoints follow the board live while it's being
+  // dragged (without this, wires snap back to the stored position until
+  // pointer-up).
+  const surfaceBoardsForRender = useMemo(() => {
+    if (!boardDragOffset) return surfaceBoardComponents;
+    return surfaceBoardComponents.map((b) =>
+      b.id === boardDragOffset.id
+        ? { ...b, worldX: (b.worldX ?? 0) + boardDragOffset.dx, worldY: (b.worldY ?? 0) + boardDragOffset.dy }
+        : b,
+    );
+  }, [surfaceBoardComponents, boardDragOffset]);
+
+  // Frame all surface boards on first mount (and on subsequent count changes
+  // that the user opts into via the home key). Skipping when no boards exist
+  // keeps the legacy fallback path's camera behaviour unchanged.
+  const didInitialFitRef = useRef(false);
+  React.useEffect(() => {
+    if (didInitialFitRef.current) return;
+    if (surfaceBoardComponents.length === 0) return;
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const xs = surfaceBoardComponents.map((b) => (b.worldX ?? 0) + BREADBOARD_OFFSET_X);
+    const ys = surfaceBoardComponents.map((b) => b.worldY ?? 0);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    const maxX = Math.max(...xs.map((x) => x + BREADBOARD_WIDTH));
+    const maxY = Math.max(...ys.map((y) => y + BREADBOARD_HEIGHT));
+    fitBbox(
+      { x: minX, y: minY, width: maxX - minX, height: maxY - minY },
+      { width: rect.width, height: rect.height },
+    );
+    camera.forceUpdate();
+    didInitialFitRef.current = true;
+  }, [surfaceBoardComponents, camera]);
 
   // ── Area selection state ───────────────────────────────────────
   const areaSelectRef = useRef<{ startX: number; startY: number } | null>(null);
@@ -583,6 +665,35 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
   // ── Wire endpoint drag state ───────────────────────────────��──
   const wireDragRef = useRef<{ wireId: string; endpoint: "from" | "to" } | null>(null);
   const [wireDragGhost, setWireDragGhost] = React.useState<{ row: number; col: number } | null>(null);
+
+  const handleBoardPointerDown = useCallback(
+    (boardId: string, e: React.PointerEvent) => {
+      if (effectiveReadOnly) return;
+      if (e.button !== 0) return;
+      // Don't swallow the event while the user is placing a new component
+      // from the palette — the canvas-level placement handler needs to see
+      // it. Same for wire placement.
+      const snap = breadboardInteractionActor.getSnapshot();
+      if (snap.context.mode === "placing" || snap.context.mode === "wiring") return;
+      e.stopPropagation();
+      const comp = components[boardId];
+      if (!comp) return;
+      const rect = svgRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const board = screenToBoard(e.clientX - rect.left, e.clientY - rect.top);
+      boardDragRef.current = {
+        boardId,
+        startWorldX: comp.worldX ?? 0,
+        startWorldY: comp.worldY ?? 0,
+        startPointerBoardX: board.x,
+        startPointerBoardY: board.y,
+      };
+      setBoardDragOffset({ id: boardId, dx: 0, dy: 0 });
+      send({ type: "SELECT", id: boardId });
+      svgRef.current?.setPointerCapture(e.pointerId);
+    },
+    [components, effectiveReadOnly, send],
+  );
 
   const handleWireEndpointDragStart = useCallback(
     (wireId: string, endpoint: "from" | "to", e: React.PointerEvent) => {
@@ -684,15 +795,32 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
         const board = screenToBoard(e.clientX - rect.left, e.clientY - rect.top);
         const grid = pixelToGrid(board.x, board.y);
 
+        const placingType = wire.placingType;
+        const isSurfaceBoard = placingType === "breadboard_full" || placingType === "perfboard_generic";
+
+        // Sequential ids for boards match the convention seeded by the
+        // migration script (breadboard-1, perfboard-1, ...).
+        const idPrefix = isSurfaceBoard
+          ? (placingType === "breadboard_full" ? "breadboard" : "perfboard")
+          : null;
+        const nextSequentialId = (prefix: string): string => {
+          let n = 1;
+          while (components[`${prefix}-${n}`]) n += 1;
+          return `${prefix}-${n}`;
+        };
+
         const component: BoardComponent = {
-          id: crypto.randomUUID(),
-          type: wire.placingType,
-          name: wire.placingType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
-          x: grid.col,
-          y: grid.row,
+          id: idPrefix ? nextSequentialId(idPrefix) : crypto.randomUUID(),
+          type: placingType,
+          name: placingType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+          x: isSurfaceBoard ? 0 : grid.col,
+          y: isSurfaceBoard ? 0 : grid.row,
           rotation: breadboardInteractionActor.getSnapshot().context.placingRotation,
-          pins: getDefaultPins(wire.placingType),
-          properties: getDefaultProperties(wire.placingType),
+          pins: getDefaultPins(placingType),
+          properties: getDefaultProperties(placingType),
+          ...(isSurfaceBoard
+            ? { parentId: null, worldX: board.x - BREADBOARD_OFFSET_X, worldY: board.y }
+            : {}),
         };
 
         send({ type: "PLACE_COMPONENT", component });
@@ -715,7 +843,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
         }
       }
     },
-    [send, camera, wire, effectiveReadOnly],
+    [send, camera, wire, effectiveReadOnly, components],
   );
 
   const handlePointerMove = useCallback(
@@ -729,6 +857,75 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
         const board = screenToBoard(e.clientX - rect.left, e.clientY - rect.top);
         const grid = pixelToGrid(board.x, board.y);
         setWireDragGhost(grid);
+        return;
+      }
+
+      // Board drag (breadboard / perfboard)
+      if (boardDragRef.current) {
+        const rect = svgRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const board = screenToBoard(e.clientX - rect.left, e.clientY - rect.top);
+        const d = boardDragRef.current;
+        let dx = board.x - d.startPointerBoardX;
+        let dy = board.y - d.startPointerBoardY;
+
+        // Candidate world position for the dragged board.
+        const candWorldX = d.startWorldX + dx;
+        const candWorldY = d.startWorldY + dy;
+        // AABB in legacy world coords (the renderer paints from
+        // worldX + BREADBOARD_OFFSET_X).
+        const candLeft = candWorldX + BREADBOARD_OFFSET_X;
+        const candRight = candLeft + BREADBOARD_WIDTH;
+        const candTop = candWorldY;
+        const candBottom = candTop + BREADBOARD_HEIGHT;
+
+        // Edge / row snap (Q18 c): within threshold of another board's left
+        // or right edge, magnetise so they sit flush; align rows so cross-
+        // board jumpers stay parallel.
+        const SNAP = 8;
+        let snappedDx = dx;
+        let snappedDy = dy;
+        for (const other of surfaceBoardComponents) {
+          if (other.id === d.boardId) continue;
+          const oLeft = (other.worldX ?? 0) + BREADBOARD_OFFSET_X;
+          const oRight = oLeft + BREADBOARD_WIDTH;
+          const oTop = other.worldY ?? 0;
+          // Cand right edge → other's left edge (place candidate to the left).
+          if (Math.abs(candRight - oLeft) < SNAP) {
+            snappedDx = oLeft - BREADBOARD_WIDTH - BREADBOARD_OFFSET_X - d.startWorldX;
+          }
+          // Cand left edge → other's right edge (place candidate to the right).
+          else if (Math.abs(candLeft - oRight) < SNAP) {
+            snappedDx = oRight - BREADBOARD_OFFSET_X - d.startWorldX;
+          }
+          // Row alignment: worldY → other.worldY when within half a row-pitch.
+          if (Math.abs(candTop - oTop) < HOLE_SPACING / 2) {
+            snappedDy = oTop - d.startWorldY;
+          }
+        }
+        dx = snappedDx;
+        dy = snappedDy;
+
+        // Re-check overlap after snapping; if the snapped position would
+        // overlap another board, fall back to the previous valid offset.
+        const finalLeft = d.startWorldX + dx + BREADBOARD_OFFSET_X;
+        const finalRight = finalLeft + BREADBOARD_WIDTH;
+        const finalTop = d.startWorldY + dy;
+        const finalBottom = finalTop + BREADBOARD_HEIGHT;
+        const overlaps = surfaceBoardComponents.some((other) => {
+          if (other.id === d.boardId) return false;
+          const oLeft = (other.worldX ?? 0) + BREADBOARD_OFFSET_X;
+          const oRight = oLeft + BREADBOARD_WIDTH;
+          const oTop = other.worldY ?? 0;
+          const oBottom = oTop + BREADBOARD_HEIGHT;
+          return finalLeft < oRight && finalRight > oLeft && finalTop < oBottom && finalBottom > oTop;
+        });
+        if (overlaps) {
+          // Stick at the last valid offset — the board behaves like it hit
+          // a wall. (Q17 a: AABB clamp, no overlap allowed.)
+          return;
+        }
+        setBoardDragOffset({ id: d.boardId, dx, dy });
         return;
       }
 
@@ -752,7 +949,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
       if (drag.handleDragMove(e)) return;
       wire.handlePlacementMove(e);
     },
-    [camera, drag, wire],
+    [camera, drag, wire, surfaceBoardComponents],
   );
 
   const handlePointerUp = useCallback(() => {
@@ -805,8 +1002,24 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
       return;
     }
 
+    // Complete board drag — commit final worldX/worldY
+    if (boardDragRef.current && boardDragOffset) {
+      const { boardId, startWorldX, startWorldY } = boardDragRef.current;
+      const { dx, dy } = boardDragOffset;
+      if (dx !== 0 || dy !== 0) {
+        send({
+          type: "UPDATE_COMPONENT",
+          id: boardId,
+          changes: { worldX: startWorldX + dx, worldY: startWorldY + dy },
+        });
+      }
+      boardDragRef.current = null;
+      setBoardDragOffset(null);
+      return;
+    }
+
     drag.handleDragEnd();
-  }, [camera, drag, wires, wireDragGhost, send]);
+  }, [camera, drag, wires, wireDragGhost, boardDragOffset, send]);
 
   // ── Keyboard ──────────────────────────────────────────────────
 
@@ -830,6 +1043,26 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
         areaSelectRef.current = null;
         setAreaRect(null);
         setMultiSelected(new Set());
+      }
+
+      // Home / 0: re-frame all surface boards (Q20 a).
+      if (e.code === "Home" || (e.code === "Digit0" && !e.metaKey && !e.ctrlKey)) {
+        if (surfaceBoardComponents.length === 0) return;
+        const rect = svgRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        e.preventDefault();
+        const xs = surfaceBoardComponents.map((b) => (b.worldX ?? 0) + BREADBOARD_OFFSET_X);
+        const ys = surfaceBoardComponents.map((b) => b.worldY ?? 0);
+        const minX = Math.min(...xs);
+        const minY = Math.min(...ys);
+        const maxX = Math.max(...xs.map((x) => x + BREADBOARD_WIDTH));
+        const maxY = Math.max(...ys.map((y) => y + BREADBOARD_HEIGHT));
+        fitBbox(
+          { x: minX, y: minY, width: maxX - minX, height: maxY - minY },
+          { width: rect.width, height: rect.height },
+        );
+        camera.forceUpdate();
+        return;
       }
 
       // Cmd+A: select all components and wires
@@ -874,6 +1107,37 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
         }
         if (selectedId in componentsRef) {
           const comp = componentsRef[selectedId];
+          // Surface board cascade delete: only allowed when ≥2 surface
+          // boards remain. Children + their incident wires are removed.
+          if (comp.type === "breadboard_full" || comp.type === "perfboard_generic") {
+            const surfaceBoards = Object.values(componentsRef).filter(
+              (c) => c.type === "breadboard_full" || c.type === "perfboard_generic",
+            );
+            if (surfaceBoards.length < 2) {
+              e.preventDefault();
+              return;
+            }
+            e.preventDefault();
+            send({ type: "SNAPSHOT" });
+            const childIds = Object.values(componentsRef)
+              .filter((c) => c.parentId === selectedId)
+              .map((c) => c.id);
+            const childIdSet = new Set(childIds);
+            // Drop wires that reference the board or any of its children.
+            for (const [wId, w] of Object.entries(wires)) {
+              if (
+                w.fromBoardId === selectedId ||
+                w.toBoardId === selectedId ||
+                childIdSet.has(wId)
+              ) {
+                send({ type: "REMOVE_WIRE", id: wId });
+              }
+            }
+            for (const cid of childIds) send({ type: "REMOVE_COMPONENT", id: cid });
+            send({ type: "REMOVE_COMPONENT", id: selectedId });
+            send({ type: "SELECT", id: null });
+            return;
+          }
           if (!isBoardComponentType(comp.type)) {
             e.preventDefault();
             send({ type: "REMOVE_COMPONENT", id: selectedId });
@@ -909,7 +1173,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [selectedId, components, wires, send, camera, drag, wire, multiSelected, effectiveReadOnly]);
+  }, [selectedId, components, wires, send, camera, drag, wire, multiSelected, effectiveReadOnly, surfaceBoardComponents]);
 
   const handleComponentClick = useCallback(
     (id: string) => {
@@ -949,6 +1213,9 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
     >
+      {/* Shared <defs> for breadboard gradients; one set covers any number of
+          BreadboardRenderer instances in the scene. */}
+      <BreadboardDefs />
       <g transform={`translate(${cam.offsetX}, ${cam.offsetY}) scale(${cam.zoom})`}>
         {boardTarget === "arduino_uno" ? (
           <ArduinoUnoBoard
@@ -971,9 +1238,125 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
           />
         )}
 
-        <StaticBackground />
+        {surfaceBoardComponents.length > 0 ? (
+          surfaceBoardComponents.map((board) => {
+            const isThisDragging = boardDragOffset?.id === board.id;
+            const liveDx = isThisDragging ? boardDragOffset.dx : 0;
+            const liveDy = isThisDragging ? boardDragOffset.dy : 0;
+            // Board AABB in legacy world coords (anchored at BREADBOARD_OFFSET_X,
+            // matching how BreadboardRenderer paints). worldX/worldY shift the
+            // whole board; liveDx/liveDy add the in-flight drag delta.
+            const bbX = BREADBOARD_OFFSET_X + (board.worldX ?? 0) + liveDx;
+            const bbY = (board.worldY ?? 0) + liveDy;
+            const isSelected = selectedId === board.id;
+            const handleSize = 6;
+            return (
+              <g key={board.id} data-board-id={board.id}>
+                <g
+                  transform={liveDx !== 0 || liveDy !== 0 ? `translate(${liveDx}, ${liveDy})` : undefined}
+                >
+                  <ComponentRenderer
+                    component={board}
+                    components={surfaceBoardComponents}
+                    pinStates={pinStates}
+                    wires={wires}
+                    isSelected={isSelected}
+                    libraryState={libraryState}
+                  />
+                </g>
+                {/* Invisible hit target along the board's outer frame so clicks
+                    on the plastic body select / start dragging the board, while
+                    clicks on the inner hole grid still fall through to the
+                    wire-start gesture (Q14 a). */}
+                <g
+                  onPointerDown={(e) => handleBoardPointerDown(board.id, e)}
+                  onClick={(e) => {
+                    // While placing/wiring, let the canvas handle the click.
+                    const snap = breadboardInteractionActor.getSnapshot();
+                    if (snap.context.mode === "placing" || snap.context.mode === "wiring") return;
+                    e.stopPropagation();
+                    send({ type: "SELECT", id: board.id });
+                  }}
+                  style={{ cursor: "move" }}
+                >
+                  {/* Top frame */}
+                  <rect
+                    x={bbX}
+                    y={bbY}
+                    width={BREADBOARD_WIDTH}
+                    height={BOARD_PADDING}
+                    fill="transparent"
+                  />
+                  {/* Bottom frame */}
+                  <rect
+                    x={bbX}
+                    y={bbY + BREADBOARD_HEIGHT - BOARD_PADDING}
+                    width={BREADBOARD_WIDTH}
+                    height={BOARD_PADDING}
+                    fill="transparent"
+                  />
+                  {/* Left frame */}
+                  <rect
+                    x={bbX}
+                    y={bbY}
+                    width={BOARD_PADDING}
+                    height={BREADBOARD_HEIGHT}
+                    fill="transparent"
+                  />
+                  {/* Right frame */}
+                  <rect
+                    x={bbX + BREADBOARD_WIDTH - BOARD_PADDING}
+                    y={bbY}
+                    width={BOARD_PADDING}
+                    height={BREADBOARD_HEIGHT}
+                    fill="transparent"
+                  />
+                </g>
+                {isSelected && (
+                  <g pointerEvents="none">
+                    <rect
+                      x={bbX - 2}
+                      y={bbY - 2}
+                      width={BREADBOARD_WIDTH + 4}
+                      height={BREADBOARD_HEIGHT + 4}
+                      rx={5}
+                      fill="none"
+                      stroke="#3b82f6"
+                      strokeWidth={1.5}
+                      strokeDasharray="4 2"
+                      opacity={0.85}
+                    />
+                    {([
+                      [bbX, bbY],
+                      [bbX + BREADBOARD_WIDTH, bbY],
+                      [bbX, bbY + BREADBOARD_HEIGHT],
+                      [bbX + BREADBOARD_WIDTH, bbY + BREADBOARD_HEIGHT],
+                    ] as Array<[number, number]>).map(([hx, hy], i) => (
+                      <rect
+                        key={`bh-${i}`}
+                        x={hx - handleSize / 2}
+                        y={hy - handleSize / 2}
+                        width={handleSize}
+                        height={handleSize}
+                        fill="#3b82f6"
+                        stroke="#ffffff"
+                        strokeWidth={1}
+                      />
+                    ))}
+                  </g>
+                )}
+              </g>
+            );
+          })
+        ) : (
+          // Fallback for any diagram that hasn't been migrated — paint the
+          // legacy implicit breadboard. Migrated example boards always have
+          // an explicit breadboard_full in components{} and take the path
+          // above. Once user save files are migrated this fallback can go.
+          <StaticBackground />
+        )}
 
-        <WireLayer wires={wires} arduinoPins={pinLayout.allPins} selectedId={selectedId} onSelect={handleComponentClick}
+        <WireLayer wires={wires} arduinoPins={pinLayout.allPins} surfaceBoards={surfaceBoardsForRender} selectedId={selectedId} onSelect={handleComponentClick}
           onDragEndpoint={handleWireEndpointDragStart} />
 
         <ComponentLayer
@@ -984,6 +1367,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
           analysis={analysis}
           libraryState={libraryState}
           pinStates={pinStates}
+          parentOffsets={parentOffsets}
           onSelect={handleComponentClick}
           onDragStart={effectiveReadOnly ? noopDragStart : drag.handleDragStart}
         />

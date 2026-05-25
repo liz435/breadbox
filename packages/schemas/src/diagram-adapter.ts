@@ -300,6 +300,14 @@ export function diagramToBoardState(input: unknown): DiagramParseResult {
       rotation: c.rotation,
       pins: c.pins ?? {},
       properties: c.properties,
+      // Multi-board fields. Optional in the DSL — when present, preserve so
+      // a saved diagram with placed boards round-trips. When absent for a
+      // surface-board component, the post-processing below back-fills sane
+      // defaults (parentId: null, worldX/worldY: 0) so the renderer treats
+      // it as the default position.
+      ...(c.parentId !== undefined ? { parentId: c.parentId } : {}),
+      ...(c.worldX !== undefined ? { worldX: c.worldX } : {}),
+      ...(c.worldY !== undefined ? { worldY: c.worldY } : {}),
     };
 
     // Validate the assembled component through the canonical schema so any
@@ -372,10 +380,35 @@ export function diagramToBoardState(input: unknown): DiagramParseResult {
       toRow: to.row,
       toCol: to.col,
       color: w.color,
+      ...(w.fromBoardId !== undefined ? { fromBoardId: w.fromBoardId } : {}),
+      ...(w.fromStrip !== undefined ? { fromStrip: w.fromStrip } : {}),
+      ...(w.toBoardId !== undefined ? { toBoardId: w.toBoardId } : {}),
+      ...(w.toStrip !== undefined ? { toStrip: w.toStrip } : {}),
     };
   }
 
   if (errors.length > 0) return { ok: false, errors };
+
+  // Normalise the multi-board fields. If the DSL omitted parentId on a
+  // non-board component, default it to a surface board if exactly one
+  // exists — same intent as the migration script. This keeps hand-written
+  // single-board diagrams working with the new schema even when the author
+  // doesn't think about parentage.
+  const surfaceBoardIds = Object.values(components)
+    .filter((c) => c.type === "breadboard_full" || c.type === "perfboard_generic")
+    .map((c) => c.id);
+  const defaultParent = surfaceBoardIds.length === 1 ? surfaceBoardIds[0] : null;
+  for (const c of Object.values(components)) {
+    const isBoard = c.type === "breadboard_full" || c.type === "perfboard_generic"
+      || c.type === "arduino_uno" || c.type === "arduino_nano" || c.type === "arduino_mega_2560";
+    if (isBoard) {
+      if (c.parentId === undefined) c.parentId = null;
+      if (c.worldX === undefined) c.worldX = c.type === "breadboard_full" || c.type === "perfboard_generic" ? 0 : -300;
+      if (c.worldY === undefined) c.worldY = 0;
+    } else if (c.parentId === undefined && defaultParent) {
+      c.parentId = defaultParent;
+    }
+  }
 
   const environment: Environment = diagram.environment
     ? environmentSchema.parse({
@@ -441,6 +474,12 @@ export function boardStateToDiagram(state: BoardState): DreamerDiagram {
       };
       if (c.name && c.name !== defaultComponentName({ type: c.type })) out.name = c.name;
       if (hasExplicit) out.pins = explicitPins;
+      // Multi-board fields. Only emit when non-default so the DSL stays
+      // terse for the common single-board case.
+      if (c.parentId !== undefined && c.parentId !== null) out.parentId = c.parentId;
+      else if (c.parentId === null) out.parentId = null;
+      if (c.worldX !== undefined && c.worldX !== 0) out.worldX = c.worldX;
+      if (c.worldY !== undefined && c.worldY !== 0) out.worldY = c.worldY;
       return out;
     });
 
@@ -458,6 +497,13 @@ export function boardStateToDiagram(state: BoardState): DreamerDiagram {
         state.components,
         state.boardTarget ?? DEFAULT_BOARD_TARGET,
       ),
+      // Preserve board-scoped endpoints so the DSL survives multi-board
+      // scenes. Optional: omit when both endpoints reference the default
+      // single board, keeping the round-tripped DSL terse.
+      ...(w.fromBoardId ? { fromBoardId: w.fromBoardId } : {}),
+      ...(w.fromStrip ? { fromStrip: w.fromStrip } : {}),
+      ...(w.toBoardId ? { toBoardId: w.toBoardId } : {}),
+      ...(w.toStrip ? { toStrip: w.toStrip } : {}),
       to: humanizeEndpoint(
         { row: w.toRow, col: w.toCol },
         pinIndex,

@@ -27,6 +27,8 @@ export type SchematicNode = {
   value?: string
   componentId?: string
   arduinoPin?: number
+  /** For ic_pin nodes: the logical pin name on the parent IC (e.g. "a", "data"). */
+  pinName?: string
 }
 
 export type SchematicEdge = {
@@ -148,6 +150,27 @@ const HORIZONTAL_SPACING = 150
 const VERTICAL_SPACING = 100
 const PADDING = 80
 
+/**
+ * Component types that should be rendered as IC entities — one ic_pin stub
+ * per connected named signal pin — instead of a single 2-terminal symbol.
+ * GND/VCC pins of these ICs are still routed through the shared GND/power
+ * column nodes; only signal pins become ic_pin stubs.
+ */
+const MULTI_PIN_IC_TYPES = new Set(["seven_segment", "lcd_16x2", "shift_register"])
+
+/**
+ * Named pins on multi-pin ICs that should NOT become ic_pin stubs because
+ * they are already represented by the shared ground/power nodes.
+ */
+const MULTI_PIN_IC_SKIP_PINS = new Set([
+  "gnd",
+  "gnd_a",
+  "gnd_b",
+  "vss",
+  "vdd",
+  "vcc",
+])
+
 export function generateSchematicLayout(
   components: Record<string, BoardComponent>,
   wires: Record<string, Wire>,
@@ -157,7 +180,9 @@ export function generateSchematicLayout(
   const allComponents = Object.values(components)
   const boardTarget = detectBoardTarget(allComponents)
 
-  // 1. Filter circuit components (not arduino_uno or wire)
+  // 1. Filter circuit components (not arduino_uno or wire), then split into
+  //    regular (single 2-terminal symbol) vs multi-pin IC components which
+  //    expand into one ic_pin stub per connected signal pin.
   const circuitComponents = allComponents.filter(
     (c) => !isBoardComponentType(c.type) && c.type !== "wire",
   )
@@ -165,6 +190,13 @@ export function generateSchematicLayout(
   if (circuitComponents.length === 0) {
     return { nodes: [], edges: [], width: 0, height: 0 }
   }
+
+  const regularComponents = circuitComponents.filter(
+    (c) => !MULTI_PIN_IC_TYPES.has(c.type),
+  )
+  const multiPinComponents = circuitComponents.filter(
+    (c) => MULTI_PIN_IC_TYPES.has(c.type),
+  )
 
   // 2. Resolve nets to understand connectivity
   const nets = resolveNets(components, wires)
@@ -215,10 +247,12 @@ export function generateSchematicLayout(
   }
   if (signalPins.length > 0) col++
 
-  // Column 2+: Circuit components arranged vertically
+  // Column 2+: Regular circuit components arranged vertically. Multi-pin ICs
+  //  are deferred to the next column so the visual flow reads
+  //  Arduino → Resistors → IC pins → IC body.
   let compRow = 0
   const componentCol = col
-  for (const comp of circuitComponents) {
+  for (const comp of regularComponents) {
     const symbolType = componentTypeToSymbol(comp.type)
     if (symbolType == null) continue
 
@@ -233,7 +267,57 @@ export function generateSchematicLayout(
     })
     compRow++
   }
-  if (circuitComponents.length > 0) col = componentCol + 1
+  if (regularComponents.length > 0) col = componentCol + 1
+
+  // Column N: Multi-pin IC entities — one ic_pin stub per connected named
+  // signal pin. GND / VCC pins are intentionally skipped here; they are
+  // already covered by the shared ground/power column nodes and would
+  // otherwise create duplicate visual rails.
+  const icPinCol = componentCol + (regularComponents.length > 0 ? 1 : 0)
+  let icRow = 0
+  for (const comp of multiPinComponents) {
+    const pinMap = resolveComponentPins(comp.type, comp.y, comp.x, comp.properties)
+    for (const [pinName, pinPoint] of Object.entries(pinMap)) {
+      if (MULTI_PIN_IC_SKIP_PINS.has(pinName)) continue
+
+      // Find the net carrying this pin (skip pins that are not wired up).
+      const net = nets.find((n) =>
+        n.points.some((np) => np.row === pinPoint.row && np.col === pinPoint.col),
+      )
+      if (net == null) continue
+
+      // If a regular component shares this net, align Y with that node so
+      // the wire is a clean horizontal trace; otherwise stack down by row.
+      let alignedY: number | null = null
+      for (const regComp of regularComponents) {
+        const regPins = resolveComponentPins(regComp.type, regComp.y, regComp.x, regComp.properties)
+        const sharesNet = Object.values(regPins).some((p) =>
+          net.points.some((np) => np.row === p.row && np.col === p.col),
+        )
+        if (sharesNet) {
+          const regNode = nodes.find((n) => n.id === `comp-${regComp.id}`)
+          if (regNode != null) {
+            alignedY = regNode.y
+            break
+          }
+        }
+      }
+      const y = alignedY ?? PADDING + icRow * VERTICAL_SPACING
+
+      nodes.push({
+        id: `ic-pin-${comp.id}-${pinName}`,
+        type: "ic_pin",
+        x: PADDING + icPinCol * HORIZONTAL_SPACING,
+        y,
+        label: pinName,
+        value: comp.name,
+        componentId: comp.id,
+        pinName,
+      })
+      if (alignedY == null) icRow++
+    }
+  }
+  if (multiPinComponents.length > 0) col = icPinCol + 1
 
   // Column last: Ground nodes
   const groundPins = [...connectedArduinoPins].filter(isGroundPin)
@@ -288,11 +372,12 @@ export function generateSchematicLayout(
       }
     }
 
-    // Check component nodes by named pins first. The footprint order is a
-    // physical rendering detail; schematic terminals need electrical meaning
-    // (anode/cathode, signal/vcc/gnd, etc.) so polarity and sensor headers do
-    // not drift when a component has more than two footprint points.
-    for (const comp of circuitComponents) {
+    // Check regular component nodes by named pins first. The footprint order
+    // is a physical rendering detail; schematic terminals need electrical
+    // meaning (anode/cathode, signal/vcc/gnd, etc.) so polarity and sensor
+    // headers do not drift when a component has more than two footprint
+    // points. Multi-pin ICs are handled separately below.
+    for (const comp of regularComponents) {
       const compNodeId = `comp-${comp.id}`
       if (!nodes.find((n) => n.id === compNodeId)) continue
 
@@ -319,6 +404,24 @@ export function generateSchematicLayout(
           const side = fallbackTerminalSide(pinIdx)
           participatingNodes.push({ nodeId: compNodeId, side })
           break // One connection per component per net
+        }
+      }
+    }
+
+    // Multi-pin ICs: each connected signal pin participates as its own
+    // ic_pin node so that wires terminate at distinct stubs rather than
+    // collapsing onto a single shared terminal.
+    for (const ic of multiPinComponents) {
+      const icPinMap = resolveComponentPins(ic.type, ic.y, ic.x, ic.properties)
+      for (const [pinName, pinPoint] of Object.entries(icPinMap)) {
+        const inNet = net.points.some(
+          (np) => np.row === pinPoint.row && np.col === pinPoint.col,
+        )
+        if (!inNet) continue
+        const icPinNodeId = `ic-pin-${ic.id}-${pinName}`
+        if (nodes.find((n) => n.id === icPinNodeId)) {
+          participatingNodes.push({ nodeId: icPinNodeId, side: "left" as const })
+          break
         }
       }
     }

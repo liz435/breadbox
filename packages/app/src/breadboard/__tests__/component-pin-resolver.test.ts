@@ -136,4 +136,29 @@ describe("findArduinoPinForComponentPin", () => {
     expect(findArduinoPinForComponentPin(rgb, "green", wires)).toBe(10)
     expect(findArduinoPinForComponentPin(rgb, "blue", wires)).toBe(11)
   })
+
+  test("resolves RGB LED channels when Arduino wires pass through center-gap resistors", () => {
+    // RGB LED on the right side (col 7) — matches the ex-rgb-led.json example board.
+    // Arduino signal wires land on the LEFT side (col 3) and each series resistor
+    // bridges col 3 → col 6, putting the signal on the same right-side bus as the LED.
+    const rgb: import("@dreamer/schemas").BoardComponent = {
+      id: "rgb-led-1",
+      type: "rgb_led",
+      name: "RGB LED",
+      x: 7,
+      y: 5,
+      rotation: 0,
+      pins: { red: null, green: null, blue: null, common: null },
+      properties: {},
+    }
+    const wires: Record<string, Wire> = {
+      red: signalWire("red", 9, 5, 3),
+      green: signalWire("green", 10, 6, 3),
+      blue: signalWire("blue", 11, 7, 3),
+    }
+
+    expect(findArduinoPinForComponentPin(rgb, "red", wires)).toBe(9)
+    expect(findArduinoPinForComponentPin(rgb, "green", wires)).toBe(10)
+    expect(findArduinoPinForComponentPin(rgb, "blue", wires)).toBe(11)
+  })
 })

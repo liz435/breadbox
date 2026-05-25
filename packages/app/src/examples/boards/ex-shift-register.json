@@ -12,7 +12,34 @@
         "clock": null,
         "latch": null
       },
-      "properties": {}
+      "properties": {},
+      "parentId": "breadboard-1"
+    },
+    "breadboard-1": {
+      "id": "breadboard-1",
+      "type": "breadboard_full",
+      "name": "Breadboard",
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "pins": {},
+      "properties": {},
+      "parentId": null,
+      "worldX": 0,
+      "worldY": 0
+    },
+    "arduino-1": {
+      "id": "arduino-1",
+      "type": "arduino_uno",
+      "name": "Arduino Uno",
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "pins": {},
+      "properties": {},
+      "parentId": null,
+      "worldX": -300,
+      "worldY": 0
     }
   },
   "wires": {
@@ -22,7 +49,11 @@
       "fromCol": 8,
       "toRow": 5,
       "toCol": 7,
-      "color": "#fbbf24"
+      "color": "#fbbf24",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "d8",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_5_right"
     },
     "wire-d11-clock": {
       "id": "wire-d11-clock",
@@ -30,7 +61,11 @@
       "fromCol": 11,
       "toRow": 6,
       "toCol": 7,
-      "color": "#3b82f6"
+      "color": "#3b82f6",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "d11",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_6_right"
     },
     "wire-d12-latch": {
       "id": "wire-d12-latch",
@@ -38,7 +73,11 @@
       "fromCol": 12,
       "toRow": 7,
       "toCol": 7,
-      "color": "#22c55e"
+      "color": "#22c55e",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "d12",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_7_right"
     },
     "wire-5v": {
       "id": "wire-5v",
@@ -46,7 +85,11 @@
       "fromCol": -1,
       "toRow": 8,
       "toCol": 7,
-      "color": "#ef4444"
+      "color": "#ef4444",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "5v",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_8_right"
     },
     "wire-gnd": {
       "id": "wire-gnd",
@@ -54,10 +97,18 @@
       "fromCol": -3,
       "toRow": 9,
       "toCol": 7,
-      "color": "#1a1a1a"
+      "color": "#1a1a1a",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "gnd",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_9_right"
     }
   },
-  "libraryState": { "servos": {}, "lcd": null, "serialBaud": 0 },
+  "libraryState": {
+    "servos": {},
+    "lcd": null,
+    "serialBaud": 0
+  },
   "serialOutput": [],
   "sketchCode": "// Example: Shift Register LED Chaser\n// Use a 74HC595 to chase LEDs with shiftOut.\n\nint dataPin = 8;\nint clockPin = 11;\nint latchPin = 12;\n\nvoid setup() {\n  pinMode(dataPin, OUTPUT);\n  pinMode(clockPin, OUTPUT);\n  pinMode(latchPin, OUTPUT);\n}\n\nvoid loop() {\n  for (int i = 0; i < 8; i++) {\n    byte pattern = 1 << i;\n    digitalWrite(latchPin, LOW);\n    shiftOut(dataPin, clockPin, MSBFIRST, pattern);\n    digitalWrite(latchPin, HIGH);\n    delay(200);\n  }\n}\n",
   "customLibraries": {}

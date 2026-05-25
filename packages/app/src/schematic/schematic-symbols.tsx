@@ -435,32 +435,37 @@ export function GroundSymbol({ x, y, label }: SymbolProps) {
   )
 }
 
+// Dimensions used by both ArduinoPinSymbol and the IC body drawn in the renderer
+export const ARDUINO_IC_LABEL_WIDTH = 68  // label area inside the IC body
+export const ARDUINO_IC_STUB_LENGTH = 20  // stub from body right edge to terminal
+export const ARDUINO_IC_TERMINAL_OFFSET = ARDUINO_IC_LABEL_WIDTH + ARDUINO_IC_STUB_LENGTH  // 88
+
 export function ArduinoPinSymbol({ x, y, label }: SymbolProps) {
-  const w = 36
-  const h = 18
   const stroke = "#22c55e"
 
   return (
     <g>
-      {/* Small rectangle */}
-      <rect
-        x={x}
-        y={y - h / 2}
-        width={w}
-        height={h}
-        fill="rgba(34,197,94,0.15)"
-        stroke={stroke}
-        strokeWidth={STROKE_WIDTH}
-        rx={3}
-      />
-      {/* Pin label */}
-      <text x={x + w / 2} y={y + 4} textAnchor="middle" fill="#22c55e" style={{ font: FONT_LABEL }}>
+      {/* Pin label, right-aligned inside IC body */}
+      <text
+        x={x + ARDUINO_IC_LABEL_WIDTH - 6}
+        y={y + 4}
+        textAnchor="end"
+        fill="#22c55e"
+        style={{ font: FONT_LABEL }}
+      >
         {label}
       </text>
-      {/* Lead right */}
-      <line x1={x + w} y1={y} x2={x + w + 14} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Stub extending right from IC body edge */}
+      <line
+        x1={x + ARDUINO_IC_LABEL_WIDTH}
+        y1={y}
+        x2={x + ARDUINO_IC_TERMINAL_OFFSET}
+        y2={y}
+        stroke={stroke}
+        strokeWidth={STROKE_WIDTH}
+      />
       {/* Terminal dot */}
-      <circle cx={x + w + 14} cy={y} r={3} fill={stroke} />
+      <circle cx={x + ARDUINO_IC_TERMINAL_OFFSET} cy={y} r={3} fill={stroke} />
     </g>
   )
 }
@@ -827,6 +832,38 @@ export function PirSensorSymbol({ x, y, label, value, voltage, current, isActive
   )
 }
 
+export function IcPinSymbol({ x, y, label }: SymbolProps) {
+  const stroke = STROKE
+  const stubLength = 16
+  const labelOffset = 20
+
+  return (
+    <g>
+      {/* Terminal dot at (x, y) — left side, where wires connect */}
+      <circle cx={x} cy={y} r={3} fill={stroke} />
+      {/* Short stub going right from (x, y) to (x+stubLength, y) */}
+      <line
+        x1={x}
+        y1={y}
+        x2={x + stubLength}
+        y2={y}
+        stroke={stroke}
+        strokeWidth={STROKE_WIDTH}
+      />
+      {/* Pin name label, vertically centered, starting just past the stub */}
+      <text
+        x={x + labelOffset}
+        y={y}
+        dominantBaseline="middle"
+        fill="#ccc"
+        style={{ font: FONT_LABEL }}
+      >
+        {label}
+      </text>
+    </g>
+  )
+}
+
 export function GenericModuleSymbol({ x, y, label, value, voltage, current, isActive }: SymbolProps) {
   const w = 60
   const h = 30
@@ -883,6 +920,7 @@ export type SchematicSymbolType =
   | "voltage_source"
   | "ground"
   | "arduino_pin"
+  | "ic_pin"
   | "junction"
   | "generic_module"
 
@@ -929,6 +967,8 @@ export function renderSymbol(
       return <GroundSymbol {...props} />
     case "arduino_pin":
       return <ArduinoPinSymbol {...props} />
+    case "ic_pin":
+      return <IcPinSymbol {...props} />
     case "junction":
       return <WireJunction x={props.x} y={props.y} />
     case "generic_module":

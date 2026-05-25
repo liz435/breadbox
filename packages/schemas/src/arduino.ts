@@ -15,14 +15,36 @@ void loop() {
 
 // ── Component Types ──────────────────────────────────────────────
 
-const boardComponentTypeValues = [
+// MCU boards (the dev board itself — has digital/analog pin headers).
+const mcuBoardTypeValues = [
   "arduino_uno",
   "arduino_nano",
   "arduino_mega_2560",
 ] as const;
 
+// Surface boards (host components on a grid — no MCU).
+const surfaceBoardTypeValues = [
+  "breadboard_full",
+  "perfboard_generic",
+] as const;
+
+// All board-type components. "board" = anything in components{} that is itself
+// a parent surface or MCU, as opposed to a regular discrete component. Wires
+// reference these via from/toBoardId; non-board components have parentId
+// pointing to a surface board.
+const boardComponentTypeValues = [
+  ...mcuBoardTypeValues,
+  ...surfaceBoardTypeValues,
+] as const;
+
 export const boardComponentTypeSchema = z.enum(boardComponentTypeValues);
 export type BoardComponentType = z.infer<typeof boardComponentTypeSchema>;
+
+export const mcuBoardTypeSchema = z.enum(mcuBoardTypeValues);
+export type McuBoardType = z.infer<typeof mcuBoardTypeSchema>;
+
+export const surfaceBoardTypeSchema = z.enum(surfaceBoardTypeValues);
+export type SurfaceBoardType = z.infer<typeof surfaceBoardTypeSchema>;
 
 export const componentTypeSchema = z.enum([
   "led",
@@ -55,9 +77,19 @@ export const componentTypeSchema = z.enum([
 export type ComponentType = z.infer<typeof componentTypeSchema>;
 
 export const BOARD_COMPONENT_TYPES = boardComponentTypeValues;
+export const MCU_BOARD_TYPES = mcuBoardTypeValues;
+export const SURFACE_BOARD_TYPES = surfaceBoardTypeValues;
 
 export function isBoardComponentType(type: string): type is BoardComponentType {
   return (BOARD_COMPONENT_TYPES as readonly string[]).includes(type);
+}
+
+export function isMcuBoardType(type: string): type is McuBoardType {
+  return (MCU_BOARD_TYPES as readonly string[]).includes(type);
+}
+
+export function isSurfaceBoardType(type: string): type is SurfaceBoardType {
+  return (SURFACE_BOARD_TYPES as readonly string[]).includes(type);
 }
 
 // ── Pin Mode ─────────────────────────────────────────────────────
@@ -172,6 +204,15 @@ export const boardComponentSchema = z.object({
   rotation: z.number().default(0),
   pins: z.record(z.string(), z.number().nullable()), // component pin name -> Arduino pin number
   properties: z.record(z.string(), z.unknown()), // type-specific props
+  // Parent surface board (breadboard | perfboard). Null for board-type
+  // components themselves (they live in world space, not on another board).
+  // Optional during migration window — populated by migrator.
+  parentId: z.string().nullable().optional(),
+  // World coords for board-type components (where the board sits on the
+  // canvas). Ignored for non-board components, which derive world position
+  // from parent + grid (x, y).
+  worldX: z.number().optional(),
+  worldY: z.number().optional(),
 });
 export type BoardComponent = z.infer<typeof boardComponentSchema>;
 
@@ -189,6 +230,14 @@ export const wireSchema = z.object({
   toRow: z.number(),
   toCol: z.number(),
   color: z.string().default("#22c55e"),
+  // Hybrid endpoint shape (post-multi-BB). Strip id resolves to a single net
+  // on the named board. For Arduino, `strip` is the pin id (e.g. "d2", "a0").
+  // For breadboard/perfboard, `strip` is a strip id (see strip-ids.ts).
+  // Optional during migration window — populated by migrator.
+  fromBoardId: z.string().optional(),
+  fromStrip: z.string().optional(),
+  toBoardId: z.string().optional(),
+  toStrip: z.string().optional(),
 });
 export type Wire = z.infer<typeof wireSchema>;
 

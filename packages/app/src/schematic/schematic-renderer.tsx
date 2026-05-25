@@ -5,7 +5,7 @@
 
 import type { CircuitAnalysis } from "@/simulator/circuit-solver"
 import type { SchematicLayout, SchematicEdge, SchematicTerminalSide } from "./schematic-layout"
-import { renderSymbol, WireJunction, type SymbolProps } from "./schematic-symbols"
+import { renderSymbol, WireJunction, ARDUINO_IC_LABEL_WIDTH, ARDUINO_IC_TERMINAL_OFFSET, type SymbolProps } from "./schematic-symbols"
 
 type SchematicRendererProps = {
   layout: SchematicLayout
@@ -37,9 +37,9 @@ function getTerminalPos(
 ): { x: number; y: number } {
   const offset = TERMINAL_OFFSET[side]
 
-  // Arduino pin has terminal at right edge (width 36 + 14 lead)
+  // Arduino pin terminal is at the end of the IC stub
   if (nodeType === "arduino_pin" && side === "right") {
-    return { x: nodeX + 50, y: nodeY }
+    return { x: nodeX + ARDUINO_IC_TERMINAL_OFFSET, y: nodeY }
   }
 
   // Voltage source has terminal at right (x + 60)
@@ -135,11 +135,126 @@ function findJunctions(layout: SchematicLayout): Array<{ x: number; y: number }>
 
 // ── Main Renderer ──────────────────────────────────────────────────────
 
+function ArduinoICBody({ layout }: { layout: SchematicLayout }) {
+  const pinNodes = layout.nodes.filter((n) => n.type === "arduino_pin")
+  if (pinNodes.length === 0) return null
+
+  const ys = pinNodes.map((n) => n.y)
+  const x = pinNodes[0]!.x
+  const minY = Math.min(...ys)
+  const maxY = Math.max(...ys)
+
+  // Pad by half a pin slot above/below the first and last pin
+  const vPad = 40
+  const bodyX = x - 4
+  const bodyY = minY - vPad
+  const bodyW = ARDUINO_IC_LABEL_WIDTH + 4  // label area + left pad
+  const bodyH = maxY - minY + vPad * 2
+
+  const midY = bodyY + bodyH / 2
+
+  return (
+    <g>
+      {/* IC body rectangle */}
+      <rect
+        x={bodyX}
+        y={bodyY}
+        width={bodyW}
+        height={bodyH}
+        fill="rgba(34,197,94,0.05)"
+        stroke="#22c55e"
+        strokeWidth={1.5}
+        rx={2}
+      />
+      {/* "Arduino" label rotated vertically in the center */}
+      <text
+        x={bodyX + bodyW / 2}
+        y={midY}
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fill="#22c55e"
+        style={{ font: "bold 10px monospace", opacity: 0.6 }}
+        transform={`rotate(-90, ${bodyX + bodyW / 2}, ${midY})`}
+      >
+        Arduino
+      </text>
+    </g>
+  )
+}
+
+function IcBodyGroup({ layout }: { layout: SchematicLayout }) {
+  // Group ic_pin nodes by their parent componentId so each multi-pin IC
+  // gets a single body rectangle wrapping all its named pin stubs.
+  const icGroups = new Map<string, { nodes: typeof layout.nodes; name: string }>()
+  for (const node of layout.nodes) {
+    if (node.type !== "ic_pin" || node.componentId == null) continue
+    const existing = icGroups.get(node.componentId)
+    if (existing != null) {
+      existing.nodes.push(node)
+    } else {
+      icGroups.set(node.componentId, {
+        nodes: [node],
+        name: node.value ?? "",
+      })
+    }
+  }
+
+  if (icGroups.size === 0) return null
+
+  return (
+    <g>
+      {[...icGroups.entries()].map(([componentId, group]) => {
+        const ys = group.nodes.map((n) => n.y)
+        const minY = Math.min(...ys)
+        const maxY = Math.max(...ys)
+        const x = group.nodes[0]!.x
+        const bodyX = x + 12
+        const bodyY = minY - 40
+        const bodyW = 58
+        const bodyH = maxY - minY + 80
+
+        return (
+          <g key={`ic-body-${componentId}`}>
+            <rect
+              x={bodyX}
+              y={bodyY}
+              width={bodyW}
+              height={bodyH}
+              fill="rgba(100,100,100,0.08)"
+              stroke="#555"
+              strokeWidth={1.5}
+              rx={2}
+            />
+            {group.name && (
+              <text
+                x={bodyX + bodyW / 2}
+                y={bodyY + 12}
+                textAnchor="middle"
+                fill="#aaa"
+                fontStyle="italic"
+                style={{ font: "10px monospace" }}
+              >
+                {group.name}
+              </text>
+            )}
+          </g>
+        )
+      })}
+    </g>
+  )
+}
+
 export function SchematicRenderer({ layout, analysis, pressedButtons, selectedComponentId, onSelectComponent }: SchematicRendererProps) {
   const junctions = findJunctions(layout)
 
   return (
     <g>
+      {/* Arduino IC body (drawn behind everything) */}
+      <ArduinoICBody layout={layout} />
+
+      {/* Multi-pin IC bodies (shift register, seven-segment, lcd_16x2) */}
+      <IcBodyGroup layout={layout} />
+
       {/* Edges (wires) */}
       {layout.edges.map((edge) => (
         <WirePath key={edge.id} edge={edge} layout={layout} />
