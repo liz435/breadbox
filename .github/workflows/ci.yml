@@ -51,6 +51,10 @@ jobs:
         run: bun install
 
       - name: Run tests
-        # `bun test` runs every *.test.ts file under packages/.
-        # Tests must not require network or LLM credentials.
-        run: bun test
+        # Use the workspace script (test:schemas → test:app → test:api →
+        # test:cli) so each package runs in its own Bun process. A single
+        # repo-wide `bun test` loads every package into one module graph,
+        # and tests that set process.env at file scope (e.g. auth-github,
+        # admin) get stale env reads when imports from other packages
+        # cache the auth/env modules first.
+        run: bun run test

@@ -124,24 +124,24 @@ describe("stepCapVoltage — near-zero current threshold", () => {
 // ── 25V hard ceiling ──────────────────────────────────────────────────
 
 describe("stepCapVoltage — 25V ceiling", () => {
+  // dV per step with these args = I*dt/C = 10*0.05/1 = 0.5V. Step count
+  // therefore needs to be ≥ 50 to actually exercise the 25V clamp; using
+  // 60 leaves headroom so the post-ceiling test below can assert ===25.
   test("voltage is clamped to 25V maximum", () => {
-    // Manually push cap close to ceiling with repeated charges
     let v = 0
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 60; i++) {
       v = stepCapVoltage("cap1", 10, 1, 0.05)
     }
     expect(v).toBeLessThanOrEqual(25)
   })
 
   test("once at 25V ceiling, further charging stays at 25V", () => {
-    // Push to ceiling
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 60; i++) {
       stepCapVoltage("cap1", 10, 1, 0.05)
     }
     const atCeiling = getCapVoltage("cap1")
     expect(atCeiling).toBe(25)
 
-    // More charging attempts
     for (let i = 0; i < 5; i++) {
       stepCapVoltage("cap1", 10, 1, 0.05)
     }
