@@ -28,7 +28,7 @@ import {
   getBoardPinLayout,
   type ArduinoPinInfo,
 } from "./breadboard-grid";
-import { screenToBoard } from "./breadboard-camera";
+import { screenToBoard, fitBbox } from "./breadboard-camera";
 import { breadboardInteractionActor } from "./breadboard-interaction";
 import { simulationRef } from "@/simulator/simulation-ref";
 import { ComponentRenderer } from "./component-renderers/index";
@@ -586,6 +586,29 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
     [components],
   );
 
+  // Frame all surface boards on first mount (and on subsequent count changes
+  // that the user opts into via the home key). Skipping when no boards exist
+  // keeps the legacy fallback path's camera behaviour unchanged.
+  const didInitialFitRef = useRef(false);
+  React.useEffect(() => {
+    if (didInitialFitRef.current) return;
+    if (surfaceBoardComponents.length === 0) return;
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const xs = surfaceBoardComponents.map((b) => (b.worldX ?? 0) + BREADBOARD_OFFSET_X);
+    const ys = surfaceBoardComponents.map((b) => b.worldY ?? 0);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    const maxX = Math.max(...xs.map((x) => x + BREADBOARD_WIDTH));
+    const maxY = Math.max(...ys.map((y) => y + BREADBOARD_HEIGHT));
+    fitBbox(
+      { x: minX, y: minY, width: maxX - minX, height: maxY - minY },
+      { width: rect.width, height: rect.height },
+    );
+    camera.forceUpdate();
+    didInitialFitRef.current = true;
+  }, [surfaceBoardComponents, camera]);
+
   // ── Area selection state ───────────────────────────────────────
   const areaSelectRef = useRef<{ startX: number; startY: number } | null>(null);
   const [areaRect, setAreaRect] = React.useState<{ x: number; y: number; w: number; h: number } | null>(null);
@@ -811,8 +834,65 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
         if (!rect) return;
         const board = screenToBoard(e.clientX - rect.left, e.clientY - rect.top);
         const d = boardDragRef.current;
-        const dx = board.x - d.startPointerBoardX;
-        const dy = board.y - d.startPointerBoardY;
+        let dx = board.x - d.startPointerBoardX;
+        let dy = board.y - d.startPointerBoardY;
+
+        // Candidate world position for the dragged board.
+        const candWorldX = d.startWorldX + dx;
+        const candWorldY = d.startWorldY + dy;
+        // AABB in legacy world coords (the renderer paints from
+        // worldX + BREADBOARD_OFFSET_X).
+        const candLeft = candWorldX + BREADBOARD_OFFSET_X;
+        const candRight = candLeft + BREADBOARD_WIDTH;
+        const candTop = candWorldY;
+        const candBottom = candTop + BREADBOARD_HEIGHT;
+
+        // Edge / row snap (Q18 c): within threshold of another board's left
+        // or right edge, magnetise so they sit flush; align rows so cross-
+        // board jumpers stay parallel.
+        const SNAP = 8;
+        let snappedDx = dx;
+        let snappedDy = dy;
+        for (const other of surfaceBoardComponents) {
+          if (other.id === d.boardId) continue;
+          const oLeft = (other.worldX ?? 0) + BREADBOARD_OFFSET_X;
+          const oRight = oLeft + BREADBOARD_WIDTH;
+          const oTop = other.worldY ?? 0;
+          // Cand right edge → other's left edge (place candidate to the left).
+          if (Math.abs(candRight - oLeft) < SNAP) {
+            snappedDx = oLeft - BREADBOARD_WIDTH - BREADBOARD_OFFSET_X - d.startWorldX;
+          }
+          // Cand left edge → other's right edge (place candidate to the right).
+          else if (Math.abs(candLeft - oRight) < SNAP) {
+            snappedDx = oRight - BREADBOARD_OFFSET_X - d.startWorldX;
+          }
+          // Row alignment: worldY → other.worldY when within half a row-pitch.
+          if (Math.abs(candTop - oTop) < HOLE_SPACING / 2) {
+            snappedDy = oTop - d.startWorldY;
+          }
+        }
+        dx = snappedDx;
+        dy = snappedDy;
+
+        // Re-check overlap after snapping; if the snapped position would
+        // overlap another board, fall back to the previous valid offset.
+        const finalLeft = d.startWorldX + dx + BREADBOARD_OFFSET_X;
+        const finalRight = finalLeft + BREADBOARD_WIDTH;
+        const finalTop = d.startWorldY + dy;
+        const finalBottom = finalTop + BREADBOARD_HEIGHT;
+        const overlaps = surfaceBoardComponents.some((other) => {
+          if (other.id === d.boardId) return false;
+          const oLeft = (other.worldX ?? 0) + BREADBOARD_OFFSET_X;
+          const oRight = oLeft + BREADBOARD_WIDTH;
+          const oTop = other.worldY ?? 0;
+          const oBottom = oTop + BREADBOARD_HEIGHT;
+          return finalLeft < oRight && finalRight > oLeft && finalTop < oBottom && finalBottom > oTop;
+        });
+        if (overlaps) {
+          // Stick at the last valid offset — the board behaves like it hit
+          // a wall. (Q17 a: AABB clamp, no overlap allowed.)
+          return;
+        }
         setBoardDragOffset({ id: d.boardId, dx, dy });
         return;
       }
@@ -837,7 +917,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
       if (drag.handleDragMove(e)) return;
       wire.handlePlacementMove(e);
     },
-    [camera, drag, wire],
+    [camera, drag, wire, surfaceBoardComponents],
   );
 
   const handlePointerUp = useCallback(() => {
@@ -931,6 +1011,26 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
         areaSelectRef.current = null;
         setAreaRect(null);
         setMultiSelected(new Set());
+      }
+
+      // Home / 0: re-frame all surface boards (Q20 a).
+      if (e.code === "Home" || (e.code === "Digit0" && !e.metaKey && !e.ctrlKey)) {
+        if (surfaceBoardComponents.length === 0) return;
+        const rect = svgRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        e.preventDefault();
+        const xs = surfaceBoardComponents.map((b) => (b.worldX ?? 0) + BREADBOARD_OFFSET_X);
+        const ys = surfaceBoardComponents.map((b) => b.worldY ?? 0);
+        const minX = Math.min(...xs);
+        const minY = Math.min(...ys);
+        const maxX = Math.max(...xs.map((x) => x + BREADBOARD_WIDTH));
+        const maxY = Math.max(...ys.map((y) => y + BREADBOARD_HEIGHT));
+        fitBbox(
+          { x: minX, y: minY, width: maxX - minX, height: maxY - minY },
+          { width: rect.width, height: rect.height },
+        );
+        camera.forceUpdate();
+        return;
       }
 
       // Cmd+A: select all components and wires
@@ -1041,7 +1141,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [selectedId, components, wires, send, camera, drag, wire, multiSelected, effectiveReadOnly]);
+  }, [selectedId, components, wires, send, camera, drag, wire, multiSelected, effectiveReadOnly, surfaceBoardComponents]);
 
   const handleComponentClick = useCallback(
     (id: string) => {
