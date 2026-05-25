@@ -1,4 +1,5 @@
 # ── Dreamer hosted-mode Docker image ──────────────────────────────────────
+# build-trigger: 2026-05-25 api redeploy after lockfile fix
 #
 # Target: Railway (or any container host). Builds a self-contained image
 # with:
