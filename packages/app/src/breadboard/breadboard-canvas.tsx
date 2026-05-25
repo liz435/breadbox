@@ -460,12 +460,14 @@ type ComponentLayerProps = {
   analysis: import("@/simulator/circuit-solver").CircuitAnalysis | null;
   libraryState: LibraryState;
   pinStates: import("@dreamer/schemas").PinState[];
+  /** Parent-board pixel offset per component id (worldX, worldY of parent BB). */
+  parentOffsets: Map<string, { dx: number; dy: number }>;
   onSelect: (id: string) => void;
   onDragStart: (id: string, e: React.PointerEvent) => void;
 };
 
 const ComponentLayer = React.memo(function ComponentLayer({
-  components, wires, selectedId, draggingId, analysis, libraryState, pinStates,
+  components, wires, selectedId, draggingId, analysis, libraryState, pinStates, parentOffsets,
   onSelect, onDragStart,
 }: ComponentLayerProps) {
   return (
@@ -475,6 +477,10 @@ const ComponentLayer = React.memo(function ComponentLayer({
         const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties);
         const primaryPos = gridToPixel({ row: comp.y, col: comp.x });
         const rot = comp.rotation ?? 0;
+        const { dx: parentDx, dy: parentDy } = parentOffsets.get(comp.id) ?? { dx: 0, dy: 0 };
+        const parentTransform = parentDx !== 0 || parentDy !== 0
+          ? `translate(${parentDx}, ${parentDy})`
+          : undefined;
 
         return (
           <g
@@ -484,6 +490,7 @@ const ComponentLayer = React.memo(function ComponentLayer({
             onPointerDown={(e) => { if (e.button === 0) { e.stopPropagation(); onDragStart(comp.id, e); } }}
             style={{ cursor: isDragging ? "grabbing" : "pointer" }}
             opacity={isDragging ? 0.35 : 1}
+            transform={parentTransform}
           >
             {selectedId === comp.id && (
               <rect
@@ -510,11 +517,12 @@ const ComponentLayer = React.memo(function ComponentLayer({
       {components.map((comp) => {
         const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties);
         const accentColor = getAccentColor(comp.type as ComponentType) ?? "#60a5fa";
+        const { dx: parentDx, dy: parentDy } = parentOffsets.get(comp.id) ?? { dx: 0, dy: 0 };
         return footprint.points.map((pt, i) => {
           const pos = gridToPixel(pt);
           return (
             <circle key={`occ-${comp.id}-${i}`}
-              cx={pos.x} cy={pos.y} r={HOLE_RADIUS + 1.5}
+              cx={pos.x + parentDx} cy={pos.y + parentDy} r={HOLE_RADIUS + 1.5}
               fill="none" stroke={accentColor} strokeWidth={1}
               opacity={0.7} pointerEvents="none" />
           );
@@ -588,6 +596,59 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
     [components],
   );
 
+  // ── Board drag state ────────────────────────────────────────────
+  // Declared early because parentOffsets / surfaceBoardsForRender below
+  // fold the live in-flight delta in. Tracks an in-flight drag of a
+  // board-type component (breadboard/perfboard); kept out of the XState
+  // machine because it operates in world coords (not grid coords) and
+  // dispatches UPDATE_COMPONENT directly. Live position is mirrored into a
+  // local React state so the renderer can show the moving board without
+  // committing a store update per frame; the final position is committed
+  // in pointerUp.
+  const boardDragRef = useRef<{
+    boardId: string;
+    startWorldX: number;
+    startWorldY: number;
+    startPointerBoardX: number;
+    startPointerBoardY: number;
+  } | null>(null);
+  const [boardDragOffset, setBoardDragOffset] = React.useState<{ id: string; dx: number; dy: number } | null>(null);
+
+  // Maps each non-board component id to its parent board's pixel offset
+  // (worldX, worldY) so the component renders attached to a moved board.
+  // Includes the live in-flight drag delta so children visually follow the
+  // board while the user is still holding the pointer.
+  const parentOffsets = useMemo(() => {
+    const map = new Map<string, { dx: number; dy: number }>();
+    for (const comp of Object.values(components)) {
+      if (!comp.parentId) continue;
+      const parent = components[comp.parentId];
+      if (!parent) continue;
+      const isLiveDrag = boardDragOffset?.id === parent.id;
+      const liveDx = isLiveDrag ? boardDragOffset.dx : 0;
+      const liveDy = isLiveDrag ? boardDragOffset.dy : 0;
+      const dx = (parent.worldX ?? 0) + liveDx;
+      const dy = (parent.worldY ?? 0) + liveDy;
+      if (dx !== 0 || dy !== 0) {
+        map.set(comp.id, { dx, dy });
+      }
+    }
+    return map;
+  }, [components, boardDragOffset]);
+
+  // Surface boards with the in-flight drag delta folded in. Passed to the
+  // WireLayer so wire endpoints follow the board live while it's being
+  // dragged (without this, wires snap back to the stored position until
+  // pointer-up).
+  const surfaceBoardsForRender = useMemo(() => {
+    if (!boardDragOffset) return surfaceBoardComponents;
+    return surfaceBoardComponents.map((b) =>
+      b.id === boardDragOffset.id
+        ? { ...b, worldX: (b.worldX ?? 0) + boardDragOffset.dx, worldY: (b.worldY ?? 0) + boardDragOffset.dy }
+        : b,
+    );
+  }, [surfaceBoardComponents, boardDragOffset]);
+
   // Frame all surface boards on first mount (and on subsequent count changes
   // that the user opts into via the home key). Skipping when no boards exist
   // keeps the legacy fallback path's camera behaviour unchanged.
@@ -619,22 +680,6 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
   // ── Wire endpoint drag state ───────────────────────────────��──
   const wireDragRef = useRef<{ wireId: string; endpoint: "from" | "to" } | null>(null);
   const [wireDragGhost, setWireDragGhost] = React.useState<{ row: number; col: number } | null>(null);
-
-  // ── Board drag state ────────────────────────────────────────────
-  // Tracks an in-flight drag of a board-type component (breadboard/perfboard).
-  // Kept out of the XState machine because it operates in world coords (not
-  // grid coords) and dispatches UPDATE_COMPONENT directly. Live position is
-  // mirrored into a local React state so the renderer can show the moving
-  // board without committing a store update per frame; the final position is
-  // committed in pointerUp.
-  const boardDragRef = useRef<{
-    boardId: string;
-    startWorldX: number;
-    startWorldY: number;
-    startPointerBoardX: number;
-    startPointerBoardY: number;
-  } | null>(null);
-  const [boardDragOffset, setBoardDragOffset] = React.useState<{ id: string; dx: number; dy: number } | null>(null);
 
   const handleBoardPointerDown = useCallback(
     (boardId: string, e: React.PointerEvent) => {
@@ -1323,7 +1368,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
           <StaticBackground />
         )}
 
-        <WireLayer wires={wires} arduinoPins={pinLayout.allPins} surfaceBoards={surfaceBoardComponents} selectedId={selectedId} onSelect={handleComponentClick}
+        <WireLayer wires={wires} arduinoPins={pinLayout.allPins} surfaceBoards={surfaceBoardsForRender} selectedId={selectedId} onSelect={handleComponentClick}
           onDragEndpoint={handleWireEndpointDragStart} />
 
         <ComponentLayer
@@ -1334,6 +1379,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
           analysis={analysis}
           libraryState={libraryState}
           pinStates={pinStates}
+          parentOffsets={parentOffsets}
           onSelect={handleComponentClick}
           onDragStart={effectiveReadOnly ? noopDragStart : drag.handleDragStart}
         />
