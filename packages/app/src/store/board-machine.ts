@@ -599,8 +599,23 @@ export const boardMachine = setup({
           oled: {},
           neopixels: {},
         }, s.libraryState ?? {});
+
+        // Retroactive migration: projects saved before the seeded default
+        // breadboard have no surface-board component, so the canvas paints a
+        // legacy <StaticBackground/> fallback. The moment the user places a
+        // new breadboard, that fallback vanishes and the "default board"
+        // appears to disappear. Seed an explicit breadboard-1 on load when
+        // none is present so behaviour matches new projects.
+        const hasSurfaceBoard = Object.values(s.components ?? {}).some(
+          (c) => c.type === "breadboard_full" || c.type === "perfboard_generic",
+        );
+        const components = hasSurfaceBoard
+          ? s.components
+          : { ...s.components, ...createDefaultBoardState().components };
+
         return {
           ...s,
+          components,
           libraryState,
           serialOutput: s.serialOutput ?? [],
           sketchCode: normalizedSketch,

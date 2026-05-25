@@ -327,7 +327,26 @@ export function createDefaultPinStates(): PinState[] {
 
 export function createDefaultBoardState(): BoardState {
   return {
-    components: {},
+    // Seed an explicit `breadboard-1`. Without this, the canvas renders a
+    // legacy <StaticBackground/> fallback that vanishes the moment the user
+    // places any explicit breadboard_full — making the "default" breadboard
+    // appear to disappear. Treating it as a real component up front keeps
+    // both the default and the newly placed board on screen.
+    components: {
+      "breadboard-1": {
+        id: "breadboard-1",
+        type: "breadboard_full",
+        name: "Breadboard",
+        x: 0,
+        y: 0,
+        rotation: 0,
+        pins: {},
+        properties: {},
+        parentId: null,
+        worldX: 0,
+        worldY: 0,
+      },
+    },
     wires: {},
     libraryState: { servos: {}, lcd: null, serialBaud: 0, oled: {}, neopixels: {} },
     serialOutput: [],
