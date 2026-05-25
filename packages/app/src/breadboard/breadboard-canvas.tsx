@@ -575,6 +575,17 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
     [components],
   );
 
+  // Board-type components in `components{}`. Today this is the explicit
+  // breadboard (and any perfboards) added by the migration. The Arduino
+  // board is rendered separately by <ArduinoUnoBoard> / <ArduinoAltBoard>
+  // and is excluded from this list.
+  const surfaceBoardComponents = useMemo(
+    () => Object.values(components).filter(
+      (c) => c.type === "breadboard_full" || c.type === "perfboard_generic",
+    ),
+    [components],
+  );
+
   // ── Area selection state ───────────────────────────────────────
   const areaSelectRef = useRef<{ startX: number; startY: number } | null>(null);
   const [areaRect, setAreaRect] = React.useState<{ x: number; y: number; w: number; h: number } | null>(null);
@@ -971,7 +982,25 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
           />
         )}
 
-        <StaticBackground />
+        {surfaceBoardComponents.length > 0 ? (
+          surfaceBoardComponents.map((board) => (
+            <ComponentRenderer
+              key={board.id}
+              component={board}
+              components={surfaceBoardComponents}
+              pinStates={pinStates}
+              wires={wires}
+              isSelected={selectedId === board.id}
+              libraryState={libraryState}
+            />
+          ))
+        ) : (
+          // Fallback for any diagram that hasn't been migrated — paint the
+          // legacy implicit breadboard. Migrated example boards always have
+          // an explicit breadboard_full in components{} and take the path
+          // above. Once user save files are migrated this fallback can go.
+          <StaticBackground />
+        )}
 
         <WireLayer wires={wires} arduinoPins={pinLayout.allPins} selectedId={selectedId} onSelect={handleComponentClick}
           onDragEndpoint={handleWireEndpointDragStart} />
