@@ -25,7 +25,10 @@ COPY package.json bun.lockb tsconfig.base.json ./
 COPY packages packages
 COPY scripts scripts
 
-RUN bun install --frozen-lockfile
+# No --frozen-lockfile: bun.lockb drifts from package.json in normal use
+# (nobody re-runs `bun install` on every dep tweak), so the strict flag
+# breaks production builds when the lockfile is stale.
+RUN bun install
 
 # Produce packages/app/dist/ via Vite; then we can serve it statically
 # from the API process. (The generate-asset-manifest.ts step is CLI-binary
