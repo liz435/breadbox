@@ -429,18 +429,20 @@ const StaticBackground = React.memo(function StaticBackground() {
 type WireLayerProps = {
   wires: Record<string, import("@dreamer/schemas").Wire>;
   arduinoPins: ArduinoPinInfo[];
+  surfaceBoards: BoardComponent[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   onDragEndpoint: (wireId: string, endpoint: "from" | "to", e: React.PointerEvent) => void;
 };
 
-const WireLayer = React.memo(function WireLayer({ wires, arduinoPins, selectedId, onSelect, onDragEndpoint }: WireLayerProps) {
+const WireLayer = React.memo(function WireLayer({ wires, arduinoPins, surfaceBoards, selectedId, onSelect, onDragEndpoint }: WireLayerProps) {
   const wireList = useMemo(() => Object.values(wires), [wires]);
   return (
     <g>
       {wireList.map((wire) => (
         <WireRenderer key={wire.id} wire={wire}
           arduinoPins={arduinoPins}
+          surfaceBoards={surfaceBoards}
           isSelected={selectedId === wire.id} onSelect={onSelect}
           onDragEndpoint={onDragEndpoint} />
       ))}
@@ -1321,7 +1323,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
           <StaticBackground />
         )}
 
-        <WireLayer wires={wires} arduinoPins={pinLayout.allPins} selectedId={selectedId} onSelect={handleComponentClick}
+        <WireLayer wires={wires} arduinoPins={pinLayout.allPins} surfaceBoards={surfaceBoardComponents} selectedId={selectedId} onSelect={handleComponentClick}
           onDragEndpoint={handleWireEndpointDragStart} />
 
         <ComponentLayer
