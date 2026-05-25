@@ -788,7 +788,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
         }
       }
     },
-    [send, camera, wire, effectiveReadOnly],
+    [send, camera, wire, effectiveReadOnly, components],
   );
 
   const handlePointerMove = useCallback(
