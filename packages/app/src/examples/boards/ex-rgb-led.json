@@ -13,12 +13,13 @@
         "blue": null,
         "common": null
       },
-      "properties": {}
+      "properties": {},
+      "parentId": "breadboard-1"
     },
     "resistor-r": {
       "id": "resistor-r",
       "type": "resistor",
-      "name": "R-Red 220\u03a9",
+      "name": "R-Red 220Ω",
       "x": 3,
       "y": 5,
       "rotation": 0,
@@ -28,12 +29,13 @@
       },
       "properties": {
         "resistance": 220
-      }
+      },
+      "parentId": "breadboard-1"
     },
     "resistor-g": {
       "id": "resistor-g",
       "type": "resistor",
-      "name": "R-Green 220\u03a9",
+      "name": "R-Green 220Ω",
       "x": 3,
       "y": 6,
       "rotation": 0,
@@ -43,12 +45,13 @@
       },
       "properties": {
         "resistance": 220
-      }
+      },
+      "parentId": "breadboard-1"
     },
     "resistor-b": {
       "id": "resistor-b",
       "type": "resistor",
-      "name": "R-Blue 220\u03a9",
+      "name": "R-Blue 220Ω",
       "x": 3,
       "y": 7,
       "rotation": 0,
@@ -58,7 +61,34 @@
       },
       "properties": {
         "resistance": 220
-      }
+      },
+      "parentId": "breadboard-1"
+    },
+    "breadboard-1": {
+      "id": "breadboard-1",
+      "type": "breadboard_full",
+      "name": "Breadboard",
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "pins": {},
+      "properties": {},
+      "parentId": null,
+      "worldX": 0,
+      "worldY": 0
+    },
+    "arduino-1": {
+      "id": "arduino-1",
+      "type": "arduino_uno",
+      "name": "Arduino Uno",
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "pins": {},
+      "properties": {},
+      "parentId": null,
+      "worldX": -300,
+      "worldY": 0
     }
   },
   "wires": {
@@ -68,7 +98,11 @@
       "fromCol": 9,
       "toRow": 5,
       "toCol": 3,
-      "color": "#ef4444"
+      "color": "#ef4444",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "d9",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_5_left"
     },
     "wire-d10": {
       "id": "wire-d10",
@@ -76,7 +110,11 @@
       "fromCol": 10,
       "toRow": 6,
       "toCol": 3,
-      "color": "#22c55e"
+      "color": "#22c55e",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "d10",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_6_left"
     },
     "wire-d11": {
       "id": "wire-d11",
@@ -84,7 +122,11 @@
       "fromCol": 11,
       "toRow": 7,
       "toCol": 3,
-      "color": "#3b82f6"
+      "color": "#3b82f6",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "d11",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_7_left"
     },
     "wire-gnd": {
       "id": "wire-gnd",
@@ -92,10 +134,18 @@
       "fromCol": -3,
       "toRow": 8,
       "toCol": 9,
-      "color": "#1a1a1a"
+      "color": "#1a1a1a",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "gnd",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_8_right"
     }
   },
-  "libraryState": { "servos": {}, "lcd": null, "serialBaud": 0 },
+  "libraryState": {
+    "servos": {},
+    "lcd": null,
+    "serialBaud": 0
+  },
   "serialOutput": [],
   "sketchCode": "// Example: RGB LED Color Cycle\n// Cycle through red, green, and blue using PWM.\n\nint redPin = 9;\nint greenPin = 10;\nint bluePin = 11;\n\nvoid setup() {\n  pinMode(redPin, OUTPUT);\n  pinMode(greenPin, OUTPUT);\n  pinMode(bluePin, OUTPUT);\n}\n\nvoid loop() {\n  // Red\n  analogWrite(redPin, 255);\n  analogWrite(greenPin, 0);\n  analogWrite(bluePin, 0);\n  delay(1000);\n  // Green\n  analogWrite(redPin, 0);\n  analogWrite(greenPin, 255);\n  analogWrite(bluePin, 0);\n  delay(1000);\n  // Blue\n  analogWrite(redPin, 0);\n  analogWrite(greenPin, 0);\n  analogWrite(bluePin, 255);\n  delay(1000);\n}\n",
   "customLibraries": {}
