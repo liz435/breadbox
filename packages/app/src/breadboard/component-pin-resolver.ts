@@ -9,6 +9,16 @@
 // This module provides small helpers that walk the breadboard wire graph
 // to find Arduino pins connected to a given component, optionally
 // filtered by direction (input pins only, excluding 5V/GND).
+//
+// TODO(multi-board-resolver): every helper here ignores `wire.fromBoardId
+// / toBoardId` and `component.parentId`. With a single implicit breadboard
+// that is fine — every endpoint shares one coordinate space. With
+// multiple surface boards in components{} the helpers will treat the
+// same (row, col) on DIFFERENT boards as connected, producing wrong
+// pin lookups, false-positive button signals, and incorrect "what's on
+// pin N" answers. Fix in lockstep with breadboard-grid.ts (areConnected,
+// resolveNets) so all consumers — netlist-builder, circuit-solver,
+// power-budget, schematic-layout — switch over together.
 
 import {
   MAX_ARDUINO_PIN,

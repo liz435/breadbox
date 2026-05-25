@@ -278,6 +278,12 @@ function connectBreadboardBuses(ds: DisjointSet) {
   }
 }
 
+// TODO(multi-board-resolver): traces nets via the single-board resolver, so
+// power-rail islands across multiple surface boards (Q16 — intentionally
+// not auto-bridged) are misreported: a load on breadboard-2 may appear
+// connected to breadboard-1's 5V rail because their (row, col) coincide.
+// power-budget-guard (the project skill) is the natural lint surface for
+// rail-island warnings once the resolver is board-aware.
 export function analyzeElectricalBoard(board: BoardState): ElectricalReport {
   const boardTarget = board.boardTarget ?? DEFAULT_BOARD_TARGET;
   const issues: ElectricalIssue[] = [];
