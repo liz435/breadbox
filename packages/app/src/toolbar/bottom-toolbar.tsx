@@ -15,6 +15,7 @@ import { StatusDisplay } from "./status-display"
 import { BoardStatus } from "./board-status"
 import { AiToolbarHistory } from "./ai-toolbar"
 import { useChatMessages } from "./use-chat-messages"
+import { AuthStatusBadge } from "@/auth/auth-status-badge"
 import {
   AGENT_SNAPSHOT_DEFAULT,
   AGENT_SNAPSHOT_FALLBACK,
@@ -147,8 +148,10 @@ export function BottomToolbar() {
 
       {/* Toolbar card — the 640px pill is the only visible chrome. Each
           mode already carries its own bg-card + border + shadow, so
-          removing the outer strip doesn't change the pill's look. */}
-      <div className="flex justify-center px-4 pb-3">
+          removing the outer strip doesn't change the pill's look. The
+          AuthStatusBadge sits as a sibling pill so it stays visible
+          across mode swaps. */}
+      <div className="flex items-center justify-center gap-2 px-4 pb-3">
         <TooltipProvider delay={400}>
           {mode === "edit" ? (
             <div className="pointer-events-auto flex h-10 w-fit items-center gap-2 rounded-lg border border-border bg-card px-2 shadow-sm">
@@ -189,6 +192,7 @@ export function BottomToolbar() {
             </div>
           )}
         </TooltipProvider>
+        <AuthStatusBadge />
       </div>
     </div>
   )
