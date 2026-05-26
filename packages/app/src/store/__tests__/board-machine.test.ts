@@ -29,11 +29,17 @@ function createTestWire(overrides: Partial<Wire> = {}): Wire {
   };
 }
 
+// The machine seeds an explicit `breadboard-1` in initial context so the
+// canvas always paints a surface board. Tests that count `components`
+// must account for it; see board-machine-undo.test.ts for the same pattern.
+const SEED_COUNT = 1;
+
 describe("boardMachine", () => {
-  test("initial context has empty board", () => {
+  test("initial context contains only the seeded breadboard", () => {
     const actor = createActor(boardMachine).start();
     const ctx = actor.getSnapshot().context;
-    expect(Object.keys(ctx.components)).toHaveLength(0);
+    expect(Object.keys(ctx.components)).toHaveLength(SEED_COUNT);
+    expect(ctx.components["breadboard-1"]?.type).toBe("breadboard_full");
     expect(Object.keys(ctx.wires)).toHaveLength(0);
     expect(ctx.selectedId).toBeNull();
     expect(ctx.sketchCode).toBe(DEFAULT_SKETCH_CODE);
@@ -109,13 +115,13 @@ describe("boardMachine", () => {
     const actor = createActor(boardMachine).start();
     const led = createTestComponent({ id: "led-1" });
     actor.send({ type: "PLACE_COMPONENT", component: led });
-    expect(Object.keys(actor.getSnapshot().context.components)).toHaveLength(1);
+    expect(Object.keys(actor.getSnapshot().context.components)).toHaveLength(1 + SEED_COUNT);
 
     actor.send({ type: "UNDO" });
-    expect(Object.keys(actor.getSnapshot().context.components)).toHaveLength(0);
+    expect(Object.keys(actor.getSnapshot().context.components)).toHaveLength(0 + SEED_COUNT);
 
     actor.send({ type: "REDO" });
-    expect(Object.keys(actor.getSnapshot().context.components)).toHaveLength(1);
+    expect(Object.keys(actor.getSnapshot().context.components)).toHaveLength(1 + SEED_COUNT);
     actor.stop();
   });
 
