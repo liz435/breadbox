@@ -16,6 +16,7 @@ import { BoardStatus } from "./board-status"
 import { AiToolbarHistory } from "./ai-toolbar"
 import { useChatMessages } from "./use-chat-messages"
 import { AuthStatusBadge } from "@/auth/auth-status-badge"
+import { CreditChip } from "@/billing/credit-chip"
 import {
   AGENT_SNAPSHOT_DEFAULT,
   AGENT_SNAPSHOT_FALLBACK,
@@ -192,6 +193,7 @@ export function BottomToolbar() {
             </div>
           )}
         </TooltipProvider>
+        <CreditChip />
         <AuthStatusBadge />
       </div>
     </div>

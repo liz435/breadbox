@@ -142,8 +142,33 @@ async function authedFetch(url: string, init?: RequestInit): Promise<Response> {
   const res = await fetch(url, resolveFetchOptions(init));
   if (res.status === 401) {
     void handleUnauthorized();
+  } else if (res.status === 402) {
+    void handleInsufficientCredits();
   }
   return res;
+}
+
+// 402 handler — fired once per page (debounced) so a stampede of
+// failed requests doesn't spam the toast stack. Surfaces a single
+// "you're out of credits" message and invalidates the wallet cache so
+// the chip flips to its empty state on next render.
+let insufficientCreditsHandled = false;
+async function handleInsufficientCredits(): Promise<void> {
+  if (insufficientCreditsHandled) return;
+  insufficientCreditsHandled = true;
+  try {
+    const { refreshWallet } = await import("@/billing/use-wallet");
+    await refreshWallet();
+  } catch {
+    // Ignore — the wallet refresh is best-effort.
+  }
+  toast.error(
+    "You're out of free credits. Future PRs will add a purchase flow.",
+    { duration: 8000 },
+  );
+  setTimeout(() => {
+    insufficientCreditsHandled = false;
+  }, 8000);
 }
 
 async function request<T>(
