@@ -12,7 +12,7 @@ const TEST_DATA_DIR = await mkdtemp(join(tmpdir(), "dreamer-mcp-handlers-"))
 const PREVIOUS_DATA_DIR = process.env.DATA_DIR
 process.env.DATA_DIR = TEST_DATA_DIR
 
-const { projectRepo } = await import("@dreamer/api/db/project-repo")
+const { projectRepo } = await import("@dreamer/api/db/adapters/file/project-repo")
 const {
   applyDesign,
   analyzePowerBudgetHandler,

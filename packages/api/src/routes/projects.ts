@@ -8,13 +8,22 @@ import {
 import { boardStateSchema } from "@dreamer/schemas";
 import {
   OpValidationError,
-  projectRepo,
+  storage,
   VersionConflictError,
-} from "../db/project-repo";
+} from "../db";
 import type { Asset } from "../db/schemas";
 import type { AuthContext } from "../auth/context";
 import { authPlugin } from "../auth/auth-plugin";
 import { auditLog } from "../auth/audit-log";
+import { getSupabaseAdmin } from "../supabase/admin-client";
+import { IS_HOSTED_MODE } from "../supabase/env";
+
+const ASSET_BUCKET = "project-assets";
+
+/** Object key under the bucket. Mirrors the file adapter's directory layout. */
+function assetObjectKey(ownerId: string, projectId: string, filename: string): string {
+  return `${ownerId}/${projectId}/${filename}`;
+}
 
 // Combined save payload — both fields optional so the client can omit one
 // when nothing changed in that half. At least one must be present.
@@ -62,19 +71,19 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
   .use(authPlugin)
   .get("/", async ({ auth }) => {
     const ownerId = requireOwnerId(auth);
-    return projectRepo.listProjects(ownerId);
+    return storage.projects.listProjects(ownerId);
   })
   .post("/", async ({ auth, body, set }) => {
     const ownerId = requireOwnerId(auth);
     try {
       const payload = (body ?? {}) as { id?: string; name?: string; ensure?: boolean };
       const project = payload.ensure
-        ? await projectRepo.getOrCreateProject({
+        ? await storage.projects.getOrCreateProject({
             ownerId,
             id: payload.id,
             name: payload.name,
           })
-        : await projectRepo.createProject({
+        : await storage.projects.createProject({
             ownerId,
             id: payload.id,
             name: payload.name,
@@ -95,7 +104,7 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
   })
   .get("/:id", async ({ auth, params, set }) => {
     const ownerId = requireOwnerId(auth);
-    const project = await projectRepo.readProject(params.id, ownerId);
+    const project = await storage.projects.readProject(params.id, ownerId);
     if (!project) {
       set.status = 404;
       return { error: "Project not found" };
@@ -104,7 +113,7 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
   })
   .delete("/:id", async ({ auth, params, set }) => {
     const ownerId = requireOwnerId(auth);
-    const deleted = await projectRepo.deleteProject(params.id, ownerId);
+    const deleted = await storage.projects.deleteProject(params.id, ownerId);
     if (!deleted) {
       set.status = 404;
       return { error: "Project not found" };
@@ -124,7 +133,7 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
       set.status = 400;
       return { error: "Name is required" };
     }
-    const result = await projectRepo.renameProject(params.id, ownerId, name);
+    const result = await storage.projects.renameProject(params.id, ownerId, name);
     if (!result) {
       set.status = 404;
       return { error: "Project not found" };
@@ -145,7 +154,7 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
       set.status = 400;
       return { error: "Name is required" };
     }
-    const result = await projectRepo.renameScene(
+    const result = await storage.projects.renameScene(
       params.id,
       ownerId,
       params.sceneId,
@@ -167,7 +176,7 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
     const ownerId = requireOwnerId(auth);
     try {
       const input = applyOpsRequestSchema.parse(body);
-      const result = await projectRepo.applyOps(params.id, ownerId, input);
+      const result = await storage.projects.applyOps(params.id, ownerId, input);
       if (!result) {
         set.status = 404;
         return { error: "Project not found" };
@@ -211,7 +220,7 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
     const ownerId = requireOwnerId(auth);
     try {
       const graph = projectGraphSchema.parse(body);
-      const result = await projectRepo.saveGraph(params.id, ownerId, graph);
+      const result = await storage.projects.saveGraph(params.id, ownerId, graph);
       if (!result) {
         set.status = 404;
         return { error: "Project not found" };
@@ -227,7 +236,7 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
     const ownerId = requireOwnerId(auth);
     try {
       const boardState = boardStateSchema.parse(body);
-      const result = await projectRepo.saveBoardState(
+      const result = await storage.projects.saveBoardState(
         params.id,
         ownerId,
         boardState,
@@ -251,7 +260,7 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
     const ownerId = requireOwnerId(auth);
     try {
       const payload = saveStateRequestSchema.parse(body);
-      const result = await projectRepo.saveBoardAndGraph(
+      const result = await storage.projects.saveBoardAndGraph(
         params.id,
         ownerId,
         payload,
@@ -269,7 +278,7 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
   // ── Asset upload ────────────────────────────────────────────────────────
   .post("/:id/assets", async ({ auth, params, request, set }) => {
     const ownerId = requireOwnerId(auth);
-    const project = await projectRepo.readProject(params.id, ownerId);
+    const project = await storage.projects.readProject(params.id, ownerId);
     if (!project) {
       set.status = 404;
       return { error: "Project not found" };
@@ -282,18 +291,35 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
       return { error: "Missing file in form data" };
     }
 
-    const dir = await projectRepo.ensureAssetsDir(params.id, ownerId);
-    if (!dir) {
-      set.status = 404;
-      return { error: "Project not found" };
-    }
     const ext = file.name.split(".").pop() ?? "bin";
     const assetId = crypto.randomUUID();
     const filename = `${assetId}.${ext}`;
-    const filePath = join(dir, filename);
-
     const buffer = await file.arrayBuffer();
-    await Bun.write(filePath, buffer);
+
+    if (IS_HOSTED_MODE) {
+      // Hosted: upload to Supabase Storage. Bucket is private; the route
+      // mints short-lived signed URLs on GET.
+      const supabase = getSupabaseAdmin();
+      const { error } = await supabase.storage
+        .from(ASSET_BUCKET)
+        .upload(assetObjectKey(ownerId, params.id, filename), buffer, {
+          contentType: file.type || "application/octet-stream",
+          upsert: false,
+        });
+      if (error) {
+        set.status = 502;
+        return { error: `asset upload failed: ${error.message}` };
+      }
+    } else {
+      // CLI: write to filesystem under the project's asset dir.
+      const dir = await storage.projects.ensureAssetsDir(params.id, ownerId);
+      if (!dir) {
+        set.status = 404;
+        return { error: "Project not found" };
+      }
+      const filePath = join(dir, filename);
+      await Bun.write(filePath, buffer);
+    }
 
     const uri = `/project/${params.id}/assets/${filename}`;
     const assetType = mimeToAssetType(file.type, ext);
@@ -313,7 +339,7 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
       },
     };
     project.project.updatedAt = new Date().toISOString();
-    await projectRepo.writeProject(params.id, ownerId, project);
+    await storage.projects.writeProject(params.id, ownerId, project);
 
     void auditLog({
       userId: ownerId,
@@ -333,7 +359,7 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
   // ── Asset list ─────────────────────────────────────────────────────────
   .get("/:id/assets", async ({ auth, params, set }) => {
     const ownerId = requireOwnerId(auth);
-    const project = await projectRepo.readProject(params.id, ownerId);
+    const project = await storage.projects.readProject(params.id, ownerId);
     if (!project) {
       set.status = 404;
       return { error: "Project not found" };
@@ -343,7 +369,7 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
   // ── Asset rename ────────────────────────────────────────────────────────
   .patch("/:id/assets/:assetId", async ({ auth, params, body, set }) => {
     const ownerId = requireOwnerId(auth);
-    const project = await projectRepo.readProject(params.id, ownerId);
+    const project = await storage.projects.readProject(params.id, ownerId);
     if (!project) {
       set.status = 404;
       return { error: "Project not found" };
@@ -361,13 +387,13 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
     }
     asset.meta.name = name;
     project.project.updatedAt = new Date().toISOString();
-    await projectRepo.writeProject(params.id, ownerId, project);
+    await storage.projects.writeProject(params.id, ownerId, project);
     return { id: asset.id, name };
   })
   // ── Asset delete ───────────────────────────────────────────────────────
   .delete("/:id/assets/:assetId", async ({ auth, params, set }) => {
     const ownerId = requireOwnerId(auth);
-    const project = await projectRepo.readProject(params.id, ownerId);
+    const project = await storage.projects.readProject(params.id, ownerId);
     if (!project) {
       set.status = 404;
       return { error: "Project not found" };
@@ -381,17 +407,32 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
     // Remove from project JSON
     delete project.assets[params.assetId];
     project.project.updatedAt = new Date().toISOString();
-    await projectRepo.writeProject(params.id, ownerId, project);
+    await storage.projects.writeProject(params.id, ownerId, project);
 
-    // Try to delete the file (best effort)
+    // Try to delete the underlying object (best effort — JSON metadata is
+    // already detached).
     const filename = asset.uri.split("/").pop();
     if (filename) {
-      const filePath = join(projectRepo.projectAssetsDir(params.id), filename);
-      try {
-        const { unlink } = await import("fs/promises");
-        await unlink(filePath);
-      } catch {
-        // File may already be gone
+      if (IS_HOSTED_MODE) {
+        try {
+          const supabase = getSupabaseAdmin();
+          await supabase.storage
+            .from(ASSET_BUCKET)
+            .remove([assetObjectKey(ownerId, params.id, filename)]);
+        } catch {
+          // Object may already be gone
+        }
+      } else {
+        const filePath = join(
+          storage.projects.projectAssetsDir(params.id),
+          filename,
+        );
+        try {
+          const { unlink } = await import("fs/promises");
+          await unlink(filePath);
+        } catch {
+          // File may already be gone
+        }
       }
     }
 
@@ -410,16 +451,16 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
     // Ownership check first: even though asset filenames are UUIDs, we
     // don't want to leak existence of another user's asset by filename
     // probing. Reading through `readProject` gates the whole endpoint.
-    const project = await projectRepo.readProject(params.id, ownerId);
+    const project = await storage.projects.readProject(params.id, ownerId);
     if (!project) {
       set.status = 404;
       return { error: "Project not found" };
     }
 
-    // Containment check: reject anything that isn't a bare basename, then
-    // verify the resolved path stays inside the project's asset directory.
-    // Without this, ".." segments or absolute paths in `:filename` could
-    // escape the directory and read arbitrary local files (path traversal).
+    // Containment check: reject anything that isn't a bare basename. Path
+    // traversal isn't possible in hosted mode (the Supabase object key is
+    // a constructed string with no user-provided slashes), but we keep the
+    // same gate in both modes for consistency + defense-in-depth.
     const filename = params.filename;
     if (
       filename.length === 0 ||
@@ -433,7 +474,27 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
       return { error: "Invalid asset filename" };
     }
 
-    const dir = projectRepo.projectAssetsDir(params.id);
+    if (IS_HOSTED_MODE) {
+      // Hosted: mint a short-lived signed URL and 302-redirect. The
+      // browser caches the redirect just long enough that subsequent
+      // renders hit the bucket directly.
+      const supabase = getSupabaseAdmin();
+      const { data, error } = await supabase.storage
+        .from(ASSET_BUCKET)
+        .createSignedUrl(assetObjectKey(ownerId, params.id, filename), 3600);
+      if (error || !data?.signedUrl) {
+        set.status = 404;
+        return { error: "Asset not found" };
+      }
+      set.status = 302;
+      set.headers["Location"] = data.signedUrl;
+      // Cache the redirect itself for slightly less than the signed-URL
+      // TTL so the browser re-fetches a fresh URL before this one expires.
+      set.headers["Cache-Control"] = "private, max-age=3300";
+      return "";
+    }
+
+    const dir = storage.projects.projectAssetsDir(params.id);
     const dirResolved = resolve(dir);
     const filePath = resolve(join(dir, filename));
     if (filePath !== dirResolved && !filePath.startsWith(dirResolved + sep)) {

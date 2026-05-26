@@ -13,7 +13,7 @@ import { tmpdir } from "os";
 const TEST_DATA_DIR = await mkdtemp(join(tmpdir(), "dreamer-api-project-repo-"));
 process.env.DATA_DIR = TEST_DATA_DIR;
 
-const { projectRepo, VersionConflictError } = await import("../project-repo");
+const { projectRepo, VersionConflictError } = await import("../adapters/file/project-repo");
 
 const OWNER_A = "user-a";
 const OWNER_B = "user-b";

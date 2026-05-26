@@ -3,13 +3,12 @@ import { ZodError } from "zod";
 import { runCoreAgent } from "../agents/core/agent";
 import { resolveAgentSnapshotVersion } from "../agents/version";
 import { buildSummarizedHistory } from "../agents/history-summarizer";
-import { agentRunRepo } from "../db/agent-run-repo";
 import { agentRunRequestSchema } from "../db/schemas";
 import {
   OpValidationError,
-  projectRepo,
+  storage,
   VersionConflictError,
-} from "../db/project-repo";
+} from "../db";
 import { createLogger } from "../logger";
 import type { AuthContext } from "../auth/context";
 import { authPlugin } from "../auth/auth-plugin";
@@ -48,7 +47,7 @@ export const agentRunRoutes = new Elysia({ prefix: "/agent" }).use(authPlugin).p
         projectId: input.projectId,
       });
 
-      const project = await projectRepo.readProject(input.projectId, ownerId);
+      const project = await storage.projects.readProject(input.projectId, ownerId);
       if (!project) {
         set.status = 404;
         return { error: "Project not found" };
@@ -62,9 +61,9 @@ export const agentRunRoutes = new Elysia({ prefix: "/agent" }).use(authPlugin).p
         return { error: "Scene not found" };
       }
 
-      await agentRunRepo.getOrCreateThread(input.threadId, input.projectId);
+      await storage.agentRuns.getOrCreateThread(input.threadId, input.projectId);
       const snapshotVersion = resolveAgentSnapshotVersion(input.snapshotVersion);
-      const runFile = await agentRunRepo.createRun({
+      const runFile = await storage.agentRuns.createRun({
         threadId: input.threadId,
         projectId: input.projectId,
         sceneId: input.sceneId,
@@ -73,10 +72,10 @@ export const agentRunRoutes = new Elysia({ prefix: "/agent" }).use(authPlugin).p
         agent: "core",
         snapshotVersion,
       });
-      await agentRunRepo.attachRunToThread(input.threadId, runFile.run.id);
+      await storage.agentRuns.attachRunToThread(input.threadId, runFile.run.id);
 
       // Build conversation history from prior runs
-      const priorRuns = await agentRunRepo.listRunsForThread(input.threadId);
+      const priorRuns = await storage.agentRuns.listRunsForThread(input.threadId);
       const completedRuns = priorRuns.filter(
         (r) => r.run.id !== runFile.run.id && r.run.status === "completed"
       );
@@ -101,7 +100,7 @@ export const agentRunRoutes = new Elysia({ prefix: "/agent" }).use(authPlugin).p
       let appliedOps = [] as typeof result.proposedOps;
 
       if (result.proposedOps.length > 0) {
-        const applyResult = await projectRepo.applyBoardOps(
+        const applyResult = await storage.projects.applyBoardOps(
           input.projectId,
           ownerId,
           {
@@ -122,7 +121,7 @@ export const agentRunRoutes = new Elysia({ prefix: "/agent" }).use(authPlugin).p
         );
       }
 
-      await agentRunRepo.completeRun({
+      await storage.agentRuns.completeRun({
         runId: runFile.run.id,
         assistantText: result.assistantText,
         messages: result.messages,

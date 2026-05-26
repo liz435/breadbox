@@ -7,7 +7,7 @@ import type { BoardOp, BoardState } from "@dreamer/schemas";
 import { createDefaultBoardState } from "@dreamer/schemas";
 import { routeRequest, type RoutingDecision } from "../router";
 import { boardTracker } from "../../db/board-state-tracker";
-import { agentRunRepo } from "../../db/agent-run-repo";
+import { storage } from "../../db";
 import { runPolicies } from "../policy-engine";
 import { generatePlan, type AgentPlan, type PlannerUsage } from "../planner";
 import { reflectOnOutput, shouldReplan } from "../reflection";
@@ -263,7 +263,7 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
 
   // Persist routing + concrete tool inventory on the run file so version
   // comparisons can track actual tool-surface changes over time.
-  agentRunRepo
+  storage.agentRuns
     .setRouting(ctx.runId, { ...decision, availableTools })
     .catch((err) => {
       log.warn(`failed to persist routing decision: ${err}`);

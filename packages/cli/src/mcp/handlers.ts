@@ -14,7 +14,7 @@ import {
   type DiagramWire,
   type DreamerDiagram,
 } from "@dreamer/schemas"
-import { projectRepo } from "@dreamer/api/db/project-repo"
+import { projectRepo } from "@dreamer/api/db/adapters/file/project-repo"
 import { analyzePowerBudget } from "@dreamer/api/electrical/power-budget-analyzer"
 import { validateSketch } from "@dreamer/api/utils/sketch-validator"
 import { WIRING_GUIDE_TEXT } from "@dreamer/api/agents/core/wiring-guide-text"

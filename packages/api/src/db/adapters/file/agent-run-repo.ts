@@ -1,7 +1,7 @@
 import { join } from "path";
 import { mkdir } from "fs/promises";
-import { runsDir as runsDirPath, threadsDir as threadsDirPath } from "../paths";
-import { AGENT_VERSION } from "../agents/version";
+import { runsDir as runsDirPath, threadsDir as threadsDirPath } from "../../../paths";
+import { AGENT_VERSION } from "../../../agents/version";
 import {
   agentRunFileSchema,
   agentRunRecordSchema,
@@ -11,7 +11,7 @@ import {
   type AgentRunRecord,
   type CachedSummary,
   type ProjectThreadFile,
-} from "./schemas";
+} from "../../schemas";
 import type { BoardOp } from "@dreamer/schemas";
 
 // Path resolution lives in ../paths.ts; called on each access so tests
@@ -175,7 +175,7 @@ async function completeRun(params: {
   await writeRun(existing.run.id, existing);
 
   // Fire-and-forget: auto-evaluate the run
-  import("../eval/batch-evaluator").then(({ evaluateSingleRun }) => {
+  import("../../../eval/batch-evaluator").then(({ evaluateSingleRun }) => {
     evaluateSingleRun(params.runId).catch(() => {});
   }).catch(() => {});
 }
@@ -280,7 +280,7 @@ async function appendOverhead(
   await writeRun(runId, existing);
 
   // Re-run eval so the summary picks up the corrected total
-  import("../eval/batch-evaluator").then(({ evaluateSingleRun }) => {
+  import("../../../eval/batch-evaluator").then(({ evaluateSingleRun }) => {
     evaluateSingleRun(runId).catch(() => {});
   }).catch(() => {});
 }
