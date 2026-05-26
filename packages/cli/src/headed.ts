@@ -1,6 +1,6 @@
 import { Elysia } from "elysia"
 import { cors } from "@elysiajs/cors"
-import { authPlugin } from "@dreamer/api/auth/middleware"
+import { authPlugin } from "@dreamer/api/auth/auth-plugin"
 import { createLogger } from "@dreamer/api/logger"
 import { adminRoutes } from "@dreamer/api/routes/admin"
 import { agentRunRoutes } from "@dreamer/api/routes/agent-run"
@@ -13,7 +13,6 @@ import { evalRoutes } from "@dreamer/api/routes/eval"
 import { flashRoutes } from "@dreamer/api/routes/flash"
 import { libraryRoutes } from "@dreamer/api/routes/libraries"
 import { projectRoutes } from "@dreamer/api/routes/projects"
-import { buildBootstrapUrl } from "./headed-bootstrap-url"
 import { ASSET_COUNT } from "./web-ui-manifest.generated"
 import { startStaticWebUI, type StaticWebUI } from "./web-ui"
 
@@ -46,14 +45,6 @@ const APP_PORT = Number(process.env.APP_PORT ?? 3004)
 // reach /api/*. Defense-in-depth alongside the authPlugin's Host-header
 // allowlist; see `DREAMER_BIND` in packages/api/src/env.ts.
 const API_HOST = "127.0.0.1"
-
-/**
- * Re-exported for CLI consumers that wire `startHeadedMode` directly —
- * the URL-building helper itself lives in `headed-bootstrap-url.ts` so
- * unit tests can import it without transitively loading the full API
- * route graph (chat/agent-run/web-ui manifest).
- */
-export { buildBootstrapUrl }
 
 /**
  * Decide whether to serve the web UI from embedded static assets or by
@@ -145,21 +136,16 @@ export async function startHeadedMode(): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 2000))
   }
 
-  // 3. Mint a one-shot bootstrap URL. This goes through the frontend
-  //    port (Vite or static-UI) so that the `dreamer_local` cookie lands
-  //    on the same origin that serves the UI — same-origin means the
-  //    cookie is attached to every /api fetch automatically.
-  const bootstrapUrl = buildBootstrapUrl(APP_PORT)
+  // 3. CLI mode is single-tenant — the auth middleware short-circuits to
+  //    a fixed local user id (no bootstrap nonce, no GitHub OAuth). The
+  //    frontend just renders the app and starts hitting /api.
   const appUrl = `http://localhost:${APP_PORT}`
   log.info(`Frontend at ${appUrl}`)
 
-  // Clear banner on stdout (not the logger) so it's unmissable even if
-  // logs are redirected. Most terminals auto-link plain http:// URLs.
   const banner =
     `\n` +
     `─── Open in browser ───────────────────────────────────────\n` +
-    `  ${bootstrapUrl}\n` +
-    `  (one-shot sign-in link; valid for 1 hour)\n` +
+    `  ${appUrl}\n` +
     `───────────────────────────────────────────────────────────\n`
   process.stdout.write(banner)
 
@@ -167,7 +153,7 @@ export async function startHeadedMode(): Promise<void> {
   //    non-TTY). The open helpers are all fire-and-forget; a failed
   //    spawn just means the user copies the URL themselves.
   const headless = process.env.CI === "true" || !process.stdout.isTTY
-  if (!headless) openBrowser(bootstrapUrl)
+  if (!headless) openBrowser(appUrl)
 
   // Clean up on exit. In dev mode we must kill Vite and wait for it to
   // flush; in static mode we only stop our own Bun.serve instance.

@@ -8,19 +8,20 @@ const API_PORT = Number(process.env.API_PORT ?? process.env.DREAMER_API_PORT ?? 
 const APP_ORIGIN = process.env.APP_ORIGIN ?? `http://localhost:${APP_PORT}`
 const API_ORIGIN = process.env.API_ORIGIN ?? process.env.VITE_API_ORIGIN ?? `http://localhost:${API_PORT}`
 
-// Vite proxies /api and /__bootstrap onto the Elysia API on the loopback
-// interface. Same-origin in the browser means the `dreamer_local` cookie
-// set by /__bootstrap is attached to every /api request without any
-// cross-origin fetch ceremony. `changeOrigin: true` rewrites the Host
-// header to `127.0.0.1:<API_PORT>`, which matches the authPlugin's
-// LOCAL_HOST_ALLOW set — the app's port (3002/3004) would otherwise 403.
+// Vite proxies /api, /project, /agent, and /auth onto the Elysia API on
+// the loopback interface. Same-origin in the browser means the Supabase
+// auth cookies set by /auth/callback are attached to every /api request
+// without any cross-origin fetch ceremony. `changeOrigin: true` rewrites
+// the Host header to `127.0.0.1:<API_PORT>`, which matches the
+// authPlugin's LOCAL_HOST_ALLOW set — the app's port (3002/3004) would
+// otherwise 403.
 //
 // `configureProxy` adds X-Forwarded-Host / -Proto so that hosted-mode
-// auth in dev (DREAMER_HOSTED=1) reconstructs the OAuth `redirect_uri`
-// as `http://localhost:3002/...` instead of `http://127.0.0.1:4111/...`.
-// GitHub's OAuth flow requires the redirect_uri at /callback to byte-
-// match the one used at /start, and the registered app, or the exchange
-// fails. Without this header rewrite, real-auth-in-dev is unworkable.
+// auth in dev (DREAMER_MODE=hosted) reconstructs the OAuth `redirect_uri`
+// as `http://localhost:3002/auth/callback` instead of
+// `http://127.0.0.1:4111/auth/callback`. Supabase's GitHub provider
+// requires the redirect_uri at exchange time to byte-match the one used
+// at sign-in init, or the exchange fails.
 const API_PROXY_TARGET = `http://127.0.0.1:${API_PORT}`
 
 function configureProxy(proxy: {
@@ -55,7 +56,9 @@ export default defineConfig({
     port: APP_PORT,
     proxy: {
       "/api": { target: API_PROXY_TARGET, changeOrigin: true, configure: configureProxy },
-      "/__bootstrap": { target: API_PROXY_TARGET, changeOrigin: true, configure: configureProxy },
+      "/project": { target: API_PROXY_TARGET, changeOrigin: true, configure: configureProxy },
+      "/agent": { target: API_PROXY_TARGET, changeOrigin: true, configure: configureProxy },
+      "/auth": { target: API_PROXY_TARGET, changeOrigin: true, configure: configureProxy },
     },
   },
   build: { target: "esnext" },

@@ -22,7 +22,7 @@ import { refreshCurrentUser, useCurrentUser } from "./use-current-user"
 
 async function signOut(): Promise<void> {
   try {
-    await fetch(`${API_ORIGIN}/api/auth/logout`, {
+    await fetch(`${API_ORIGIN}/auth/sign-out`, {
       method: "POST",
       credentials: "include",
     })

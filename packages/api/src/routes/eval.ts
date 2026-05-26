@@ -10,7 +10,7 @@ import { Elysia } from "elysia"
 import { runBatchEval, readEvalSummary, readRunEval } from "../eval/batch-evaluator"
 import { generateDashboardHTML } from "../eval/dashboard"
 import type { AuthContext } from "../auth/context"
-import { authPlugin } from "../auth/middleware"
+import { authPlugin } from "../auth/auth-plugin"
 import { requireRateLimit, RateLimitError } from "../auth/rate-limit"
 
 function requireOwnerId(auth: AuthContext | null | undefined): string {

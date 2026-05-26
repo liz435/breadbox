@@ -17,10 +17,11 @@ import { join } from "node:path"
 import { z, ZodError } from "zod"
 import { ADMIN_GITHUB_LOGINS, IS_HOSTED } from "../env"
 import { legacyProjectsDir, projectsDir } from "../paths"
-import { authPlugin } from "../auth/middleware"
-import { readSession } from "../auth/session-store"
+import { authPlugin } from "../auth/auth-plugin"
 import type { AuthContext } from "../auth/context"
 import { auditLog } from "../auth/audit-log"
+import { createRequestClient, type ElysiaCookieJar } from "../supabase/request-client"
+import { IS_HOSTED_MODE } from "../supabase/env"
 import { createLogger } from "../logger"
 
 const log = createLogger("admin-routes")
@@ -36,22 +37,48 @@ const PROJECT_ID_PATTERN = /^[A-Za-z0-9_-]+$/
 
 async function resolveAdminLogin(
   auth: AuthContext | null | undefined,
+  request: Request,
+  set: { headers: Record<string, string | string[]> },
 ): Promise<string | null> {
-  if (!auth || !auth.sessionId) return null
-  const session = await readSession(auth.sessionId)
-  if (!session) return null
-  if (!ADMIN_GITHUB_LOGINS.includes(session.githubLogin)) return null
-  return session.githubLogin
+  if (!auth || !IS_HOSTED_MODE) return null
+  const jar: ElysiaCookieJar = {
+    cookieHeader: request.headers.get("cookie"),
+    pendingSetCookies: [],
+  }
+  const supabase = createRequestClient(jar)
+  const { data, error } = await supabase.auth.getUser()
+  if (jar.pendingSetCookies.length > 0) {
+    const existing = set.headers["set-cookie"]
+    set.headers["set-cookie"] = existing
+      ? [
+          ...(Array.isArray(existing) ? existing : [existing]),
+          ...jar.pendingSetCookies,
+        ]
+      : jar.pendingSetCookies
+  }
+  if (error || !data.user) return null
+  const meta = (data.user.user_metadata ?? {}) as {
+    user_name?: string
+    preferred_username?: string
+  }
+  const githubLogin = meta.user_name ?? meta.preferred_username
+  if (!githubLogin) return null
+  if (!ADMIN_GITHUB_LOGINS.includes(githubLogin)) return null
+  return githubLogin
 }
 
 export const adminRoutes = new Elysia({ name: "admin-routes" })
   .use(authPlugin)
-  .post("/api/admin/claim-project", async ({ auth, body, set }) => {
+  .post("/api/admin/claim-project", async ({ auth, request, body, set }) => {
     if (!IS_HOSTED) {
       set.status = 404
       return { error: "not found" }
     }
-    const adminLogin = await resolveAdminLogin(auth)
+    const adminLogin = await resolveAdminLogin(
+      auth,
+      request,
+      set as { headers: Record<string, string | string[]> },
+    )
     if (!adminLogin) {
       set.status = 403
       return { error: "forbidden" }

@@ -7,8 +7,7 @@ import "./bootstrap-secrets";
 import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { createLogger } from "./logger";
-import { authPlugin } from "./auth/middleware";
-import { startSessionGc } from "./auth/session-gc";
+import { authPlugin } from "./auth/auth-plugin";
 import { migrateOwnership } from "./db/migrate-ownership";
 import { projectRoutes } from "./routes/projects";
 import { agentRunRoutes } from "./routes/agent-run";
@@ -106,12 +105,6 @@ const app = new Elysia()
   .listen({ port: API_PORT, hostname: DREAMER_BIND });
 
 log.info(`listening on http://${DREAMER_BIND}:${app.server?.port}${IS_HOSTED ? " (hosted, serving web UI)" : ""}`);
-
-// ── Session GC ──────────────────────────────────────────────────────────────
-// Sweeps expired session files every 6h so `$DREAMER_HOME/sessions/`
-// doesn't grow unbounded. Interval is unref'd — a tick in flight won't
-// hold the process open during shutdown.
-startSessionGc();
 
 // ── Graceful shutdown ───────────────────────────────────────────────────────
 // Railway sends SIGTERM on redeploy with ~10s before SIGKILL. We stop

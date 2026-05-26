@@ -13,7 +13,7 @@ import {
 } from "../db/project-repo";
 import type { Asset } from "../db/schemas";
 import type { AuthContext } from "../auth/context";
-import { authPlugin } from "../auth/middleware";
+import { authPlugin } from "../auth/auth-plugin";
 import { auditLog } from "../auth/audit-log";
 
 // Combined save payload — both fields optional so the client can omit one
