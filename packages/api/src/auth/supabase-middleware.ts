@@ -16,14 +16,20 @@
 
 import { Elysia } from "elysia"
 import type { AuthContext } from "./context"
-import { createRequestClient, type ElysiaCookieJar } from "../supabase/request-client"
+import { bindCookieJar, createRequestClient } from "../supabase/request-client"
+import { createLogger } from "../logger"
+
+const log = createLogger("auth-middleware")
 
 // Public endpoints — reachable without an auth context. Keep this set
 // deliberately small; a stray entry here is a tenant-takeover bug.
+// Sign-in / callback / sign-out live under /auth/* and are matched by the
+// AUTHED_PREFIXES check below: those prefixes don't start with /auth, so
+// the gate skips them by falling through to the second isAuthedApiPath
+// branch.
 const PUBLIC_PATHS = new Set<string>([
   "/api/capabilities",
   "/api/auth/me",
-  "/auth/exchange",
   "/api/eval/dashboard",
   "/api/eval/summary",
   "/api/eval/all",
@@ -54,35 +60,38 @@ export const supabaseAuthPlugin = new Elysia({ name: "auth" }).derive(
     if (PUBLIC_PATHS.has(url.pathname)) return { auth: null }
     if (!isAuthedApiPath(url.pathname)) return { auth: null }
 
-    const jar: ElysiaCookieJar = {
-      cookieHeader: request.headers.get("cookie"),
-      pendingSetCookies: [],
-    }
+    const { jar, attach } = bindCookieJar(request, set)
     const supabase = createRequestClient(jar)
 
     let userId: string | null = null
     try {
       const { data, error } = await supabase.auth.getUser()
-      if (!error && data.user) userId = data.user.id
-    } catch {
-      // Treat any thrown error from getUser as "no session" — 401 below.
+      if (error) {
+        // "no session" / "session_not_found" are the expected outcomes
+        // when a caller arrives without cookies; anything else is an
+        // operational signal (Supabase outage, key mismatch, network).
+        // Log non-routine errors so they surface during an incident
+        // rather than presenting as silent 401s.
+        const msg = error.message ?? ""
+        if (
+          !msg.toLowerCase().includes("session") &&
+          !msg.toLowerCase().includes("auth session missing")
+        ) {
+          log.warn(`getUser error: ${msg}`)
+        }
+      } else if (data.user) {
+        userId = data.user.id
+      }
+    } catch (err) {
+      // Network/transport-level failures throw rather than returning an
+      // error field. Same disposition (401 below) but worth a log line.
+      log.warn(
+        `getUser threw: ${err instanceof Error ? err.message : String(err)}`,
+      )
     }
 
-    // Attach any Set-Cookie strings the refresh flow wrote. Elysia's
-    // header bag for `set-cookie` accepts string | string[]; we always
-    // produce an array to keep things uniform.
-    if (jar.pendingSetCookies.length > 0) {
-      const existing = set.headers["set-cookie"]
-      const next = jar.pendingSetCookies
-      set.headers["set-cookie"] = existing
-        ? [
-            ...(Array.isArray(existing) ? existing : [existing]),
-            ...next,
-          ]
-        : next.length === 1
-          ? next[0]!
-          : next
-    }
+    // Attach any Set-Cookie strings the refresh flow wrote.
+    attach()
 
     if (!userId) {
       set.status = 401

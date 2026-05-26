@@ -110,9 +110,9 @@ export const cliAuthPlugin = new Elysia({ name: "auth" }).derive(
       }
     }
 
-    // CLI mode is single-tenant; DREAMER_DEV_SKIP_AUTH is implied. The
-    // dev flag still exists for symmetry with tests but doesn't change
-    // behavior here.
+    // CLI mode is single-tenant: every authenticated path returns the
+    // fixed local user. There is no opt-out — the Host/Origin gate above
+    // is the only defense, and it's appropriate for loopback-only.
     return {
       auth: { userId: CLI_LOCAL_USER_ID, sessionId: null, mode: "dev" },
     }

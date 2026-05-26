@@ -20,7 +20,7 @@ import { legacyProjectsDir, projectsDir } from "../paths"
 import { authPlugin } from "../auth/auth-plugin"
 import type { AuthContext } from "../auth/context"
 import { auditLog } from "../auth/audit-log"
-import { createRequestClient, type ElysiaCookieJar } from "../supabase/request-client"
+import { bindCookieJar, createRequestClient } from "../supabase/request-client"
 import { IS_HOSTED_MODE } from "../supabase/env"
 import { createLogger } from "../logger"
 
@@ -38,25 +38,26 @@ const PROJECT_ID_PATTERN = /^[A-Za-z0-9_-]+$/
 async function resolveAdminLogin(
   auth: AuthContext | null | undefined,
   request: Request,
-  set: { headers: Record<string, string | string[]> },
+  set: {
+    headers: { [key: string]: string | string[] | number | undefined }
+  },
 ): Promise<string | null> {
   if (!auth || !IS_HOSTED_MODE) return null
-  const jar: ElysiaCookieJar = {
-    cookieHeader: request.headers.get("cookie"),
-    pendingSetCookies: [],
-  }
+  const { jar, attach } = bindCookieJar(request, set)
   const supabase = createRequestClient(jar)
   const { data, error } = await supabase.auth.getUser()
-  if (jar.pendingSetCookies.length > 0) {
-    const existing = set.headers["set-cookie"]
-    set.headers["set-cookie"] = existing
-      ? [
-          ...(Array.isArray(existing) ? existing : [existing]),
-          ...jar.pendingSetCookies,
-        ]
-      : jar.pendingSetCookies
+  attach()
+  if (error) {
+    const msg = error.message ?? ""
+    if (
+      !msg.toLowerCase().includes("session") &&
+      !msg.toLowerCase().includes("auth session missing")
+    ) {
+      log.warn(`admin getUser error: ${msg}`)
+    }
+    return null
   }
-  if (error || !data.user) return null
+  if (!data.user) return null
   const meta = (data.user.user_metadata ?? {}) as {
     user_name?: string
     preferred_username?: string
@@ -74,11 +75,7 @@ export const adminRoutes = new Elysia({ name: "admin-routes" })
       set.status = 404
       return { error: "not found" }
     }
-    const adminLogin = await resolveAdminLogin(
-      auth,
-      request,
-      set as { headers: Record<string, string | string[]> },
-    )
+    const adminLogin = await resolveAdminLogin(auth, request, set)
     if (!adminLogin) {
       set.status = 403
       return { error: "forbidden" }

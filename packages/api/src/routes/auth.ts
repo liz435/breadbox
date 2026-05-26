@@ -14,7 +14,7 @@
 // returns the fixed local user.
 
 import { Elysia } from "elysia"
-import { createRequestClient, type ElysiaCookieJar } from "../supabase/request-client"
+import { bindCookieJar, createRequestClient } from "../supabase/request-client"
 import {
   IS_HOSTED_MODE,
   CLI_LOCAL_USER_ID,
@@ -26,40 +26,15 @@ const log = createLogger("auth-routes")
 // ── redirectPath sanitizer ──────────────────────────────────────────────
 //
 // Same-origin paths only; defeats `?redirect=https://attacker.example`.
+// Also strips CR/LF so a crafted value can't bleed into the Location
+// header — Bun normalizes outgoing headers, but rejecting at the boundary
+// keeps the rule visible at the call site.
 function sanitizeRedirectPath(raw: unknown): string {
   if (typeof raw !== "string" || raw.length === 0) return "/"
   if (!raw.startsWith("/")) return "/"
   if (raw.startsWith("//") || raw.startsWith("/\\")) return "/"
+  if (/[\r\n]/.test(raw)) return "/"
   return raw.length > 512 ? "/" : raw
-}
-
-/**
- * Build a request-bound jar for @supabase/ssr. Returns the jar plus an
- * `attach` helper that flushes pending Set-Cookie strings onto the Elysia
- * response.
- */
-function buildJar(
-  request: Request,
-  set: { headers: Record<string, string | string[]> },
-) {
-  const jar: ElysiaCookieJar = {
-    cookieHeader: request.headers.get("cookie"),
-    pendingSetCookies: [],
-  }
-  function attach(): void {
-    if (jar.pendingSetCookies.length === 0) return
-    const existing = set.headers["set-cookie"]
-    const next = jar.pendingSetCookies
-    set.headers["set-cookie"] = existing
-      ? [
-          ...(Array.isArray(existing) ? existing : [existing]),
-          ...next,
-        ]
-      : next.length === 1
-        ? next[0]!
-        : next
-  }
-  return { jar, attach }
 }
 
 function callbackUrlFor(request: Request): string {
@@ -89,10 +64,7 @@ export const authRoutes = new Elysia({ name: "auth-routes" })
     }
 
     const redirectPath = sanitizeRedirectPath(query.redirect)
-    const { jar, attach } = buildJar(
-      request,
-      set as { headers: Record<string, string | string[]> },
-    )
+    const { jar, attach } = bindCookieJar(request, set)
     const supabase = createRequestClient(jar)
 
     // Server-side OAuth init: returns the GitHub authorize URL and
@@ -134,10 +106,7 @@ export const authRoutes = new Elysia({ name: "auth-routes" })
       return { error: "missing code" }
     }
 
-    const { jar, attach } = buildJar(
-      request,
-      set as { headers: Record<string, string | string[]> },
-    )
+    const { jar, attach } = bindCookieJar(request, set)
     const supabase = createRequestClient(jar)
 
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
@@ -164,10 +133,7 @@ export const authRoutes = new Elysia({ name: "auth-routes" })
       return { ok: true }
     }
 
-    const { jar, attach } = buildJar(
-      request,
-      set as { headers: Record<string, string | string[]> },
-    )
+    const { jar, attach } = bindCookieJar(request, set)
     const supabase = createRequestClient(jar)
     await supabase.auth.signOut()
     attach()
@@ -189,10 +155,7 @@ export const authRoutes = new Elysia({ name: "auth-routes" })
       }
     }
 
-    const { jar, attach } = buildJar(
-      request,
-      set as { headers: Record<string, string | string[]> },
-    )
+    const { jar, attach } = bindCookieJar(request, set)
     const supabase = createRequestClient(jar)
     const { data, error } = await supabase.auth.getUser()
     attach()

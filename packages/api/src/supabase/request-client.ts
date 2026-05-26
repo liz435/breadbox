@@ -81,4 +81,41 @@ export function createRequestClient(jar: ElysiaCookieJar): SupabaseClient {
   })
 }
 
+// Elysia's HTTPHeaders types each value as `string | string[] | number`.
+// We only touch `set-cookie`, which is always string-shaped — but the
+// helper has to interoperate with Elysia's structural type, so we accept
+// the wider value union here and narrow inside.
+type ElysiaSetLike = {
+  headers: { [key: string]: string | string[] | number | undefined }
+}
+
+/**
+ * Build a request-bound jar and a flush function. Call `attach()` after
+ * any Supabase auth operation that may rotate cookies (sign-in,
+ * exchangeCodeForSession, getUser-with-refresh, signOut) — it appends
+ * the pending Set-Cookie strings onto the Elysia response.
+ */
+export function bindCookieJar(
+  request: Request,
+  set: ElysiaSetLike,
+): { jar: ElysiaCookieJar; attach: () => void } {
+  const jar: ElysiaCookieJar = {
+    cookieHeader: request.headers.get("cookie"),
+    pendingSetCookies: [],
+  }
+  function attach(): void {
+    if (jar.pendingSetCookies.length === 0) return
+    const existing = set.headers["set-cookie"]
+    const next = jar.pendingSetCookies
+    const existingArray: string[] = Array.isArray(existing)
+      ? existing
+      : typeof existing === "string"
+        ? [existing]
+        : []
+    const merged = [...existingArray, ...next]
+    set.headers["set-cookie"] = merged.length === 1 ? merged[0]! : merged
+  }
+  return { jar, attach }
+}
+
 export type { ElysiaCookieJar }

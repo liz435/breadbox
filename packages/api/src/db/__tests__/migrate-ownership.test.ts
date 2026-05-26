@@ -229,4 +229,66 @@ describe("migrateOwnership — edge cases", () => {
     ).json();
     expect(stamped.project.ownerId).toBe("cli-user");
   });
+
+  test("rewrites pre-Supabase 'local' ownerId to the canonical UUID", async () => {
+    const dataDir = await freshDataDir();
+    allDirs.push(dataDir);
+    const projectsRoot = join(dataDir, "projects");
+    await mkdir(projectsRoot, { recursive: true });
+
+    const legacyLocalId = crypto.randomUUID();
+    await writeFile(
+      join(projectsRoot, `${legacyLocalId}.json`),
+      JSON.stringify(
+        ownedProjectJson(legacyLocalId, "Pre-Supabase CLI", "local"),
+        null,
+        2,
+      ),
+    );
+
+    scopeDataDir(dataDir);
+    const result = await migrateOwnership({
+      hosted: false,
+      ownerIdForLocal: "00000000-0000-0000-0000-000000000001",
+    });
+
+    expect(result.rewritten).toBe(1);
+    expect(result.stamped).toBe(0);
+
+    const rewritten = await Bun.file(
+      join(projectsRoot, `${legacyLocalId}.json`),
+    ).json();
+    expect(rewritten.project.ownerId).toBe(
+      "00000000-0000-0000-0000-000000000001",
+    );
+  });
+
+  test("does NOT rewrite 'local' in hosted mode (avoid tenant-takeover)", async () => {
+    const dataDir = await freshDataDir();
+    allDirs.push(dataDir);
+    const projectsRoot = join(dataDir, "projects");
+    await mkdir(projectsRoot, { recursive: true });
+
+    const legacyLocalId = crypto.randomUUID();
+    await writeFile(
+      join(projectsRoot, `${legacyLocalId}.json`),
+      JSON.stringify(
+        ownedProjectJson(legacyLocalId, "Pre-Supabase CLI", "local"),
+        null,
+        2,
+      ),
+    );
+
+    scopeDataDir(dataDir);
+    const result = await migrateOwnership({
+      hosted: true,
+      ownerIdForLocal: "00000000-0000-0000-0000-000000000001",
+    });
+
+    expect(result.rewritten).toBe(0);
+    const still = await Bun.file(
+      join(projectsRoot, `${legacyLocalId}.json`),
+    ).json();
+    expect(still.project.ownerId).toBe("local");
+  });
 });

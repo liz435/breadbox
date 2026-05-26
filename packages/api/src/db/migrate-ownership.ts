@@ -13,10 +13,13 @@
 //     are invisible to listing until an admin explicitly claims them.
 //
 //   • Local (default) / dev: the CLI is single-tenant and every legacy
-//     project belongs to the one user. Stamp `ownerId: "local"` in place.
+//     project belongs to the one user. Stamp the local owner UUID in place.
+//     Earlier CLI versions stamped the literal string "local"; those are
+//     rewritten to the UUID on this pass so projects authored before the
+//     Supabase migration remain visible to their owner.
 //
-// Idempotent on re-run: files with an ownerId are left alone, and files
-// already under `_legacy/` are never rescanned.
+// Idempotent on re-run: files with the current ownerId are left alone, and
+// files already under `_legacy/` are never rescanned.
 
 import { readdir, mkdir, rename } from "node:fs/promises"
 import { join } from "node:path"
@@ -45,16 +48,23 @@ export type OwnershipMigrationResult = {
   scanned: number
   migrated: number
   stamped: number
+  rewritten: number
   skipped: number
   errors: number
 }
+
+// CLI versions before the Supabase migration stamped this literal string
+// as the local owner; we now use a UUID so it can join hosted-mode rows
+// in Postgres without a type cast. Any project still wearing the legacy
+// string is rewritten to the canonical UUID below.
+const LEGACY_LOCAL_OWNER_ID = "local"
 
 export async function migrateOwnership(params?: {
   ownerIdForLocal?: string
   /** Override for tests; defaults to DREAMER_HOSTED env check at call time. */
   hosted?: boolean
 }): Promise<OwnershipMigrationResult> {
-  const ownerIdForLocal = params?.ownerIdForLocal ?? "local"
+  const ownerIdForLocal = params?.ownerIdForLocal ?? LEGACY_LOCAL_OWNER_ID
   // Read env at call time (not import time) so tests that flip the flag
   // between runs don't need module-cache tricks.
   const isHosted = params?.hosted ?? process.env.DREAMER_HOSTED === "1"
@@ -64,6 +74,7 @@ export async function migrateOwnership(params?: {
     scanned: 0,
     migrated: 0,
     stamped: 0,
+    rewritten: 0,
     skipped: 0,
     errors: 0,
   }
@@ -100,7 +111,33 @@ export async function migrateOwnership(params?: {
       }
 
       const existingOwner = probe.data.project.ownerId
-      if (typeof existingOwner === "string" && existingOwner.length > 0) {
+      const hasOwner =
+        typeof existingOwner === "string" && existingOwner.length > 0
+
+      // Local-mode rewrite: pre-Supabase CLI versions wrote the literal
+      // "local"; bring those forward to the UUID so the active owner gate
+      // still recognizes them. Hosted mode never touches these — a project
+      // wearing "local" arrived from a CLI checkout and shouldn't be
+      // claimed for an arbitrary GitHub user.
+      if (
+        hasOwner &&
+        mode === "local" &&
+        existingOwner === LEGACY_LOCAL_OWNER_ID &&
+        ownerIdForLocal !== LEGACY_LOCAL_OWNER_ID
+      ) {
+        const rewritten = {
+          ...probe.data,
+          project: {
+            ...probe.data.project,
+            ownerId: ownerIdForLocal,
+          },
+        }
+        await Bun.write(filePath, JSON.stringify(rewritten, null, 2))
+        result.rewritten += 1
+        continue
+      }
+
+      if (hasOwner) {
         result.skipped += 1
         continue
       }
@@ -137,7 +174,7 @@ export async function migrateOwnership(params?: {
     )
   } else {
     log.info(
-      `stamped ${result.stamped} local projects with ownerId=${ownerIdForLocal} (scanned ${result.scanned}, skipped ${result.skipped}, errors ${result.errors})`,
+      `stamped ${result.stamped} / rewrote ${result.rewritten} local projects with ownerId=${ownerIdForLocal} (scanned ${result.scanned}, skipped ${result.skipped}, errors ${result.errors})`,
     )
   }
 
