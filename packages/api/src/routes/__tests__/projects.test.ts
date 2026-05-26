@@ -14,7 +14,7 @@ const TEST_DATA_DIR = await mkdtemp(join(tmpdir(), "dreamer-api-project-routes-"
 process.env.DATA_DIR = TEST_DATA_DIR;
 
 const { projectRoutes } = await import("../projects");
-const { projectRepo } = await import("../../db/project-repo");
+const { projectRepo } = await import("../../db/adapters/file/project-repo");
 
 const TEST_OWNER = "test-owner";
 

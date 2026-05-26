@@ -1,4 +1,4 @@
-import { projectRepo } from "@dreamer/api/db/project-repo"
+import { projectRepo } from "@dreamer/api/db/adapters/file/project-repo"
 import { boardTracker } from "@dreamer/api/db/board-state-tracker"
 import type { ProjectFile } from "@dreamer/schemas"
 

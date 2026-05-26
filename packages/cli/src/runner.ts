@@ -1,6 +1,6 @@
 import { streamCoreAgent } from "@dreamer/api/agents/core/agent"
-import { agentRunRepo } from "@dreamer/api/db/agent-run-repo"
-import { projectRepo } from "@dreamer/api/db/project-repo"
+import { agentRunRepo } from "@dreamer/api/db/adapters/file/agent-run-repo"
+import { projectRepo } from "@dreamer/api/db/adapters/file/project-repo"
 import { boardTracker } from "@dreamer/api/db/board-state-tracker"
 import { buildTieredMemory } from "@dreamer/api/agents/tiered-memory"
 import { resolveAgentSnapshotVersion } from "@dreamer/api/agents/version"

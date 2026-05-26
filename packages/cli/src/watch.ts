@@ -1,4 +1,4 @@
-import { projectRepo } from "@dreamer/api/db/project-repo"
+import { projectRepo } from "@dreamer/api/db/adapters/file/project-repo"
 import type { ProjectFile } from "@dreamer/schemas"
 import { compileSketch, flashSketch } from "./compile-flash"
 import type { ProjectState } from "./project-manager"

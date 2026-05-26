@@ -3,8 +3,7 @@ import { z, ZodError } from "zod";
 import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
 import { isBoardComponentType, nonEmptyStringSchema } from "@dreamer/schemas";
 import type { BoardOp } from "@dreamer/schemas";
-import { projectRepo, VersionConflictError, OpValidationError } from "../db/project-repo";
-import { agentRunRepo } from "../db/agent-run-repo";
+import { storage, VersionConflictError, OpValidationError } from "../db";
 import { buildTieredMemory } from "../agents/tiered-memory";
 import { generateThreadSummary } from "../agents/history-summarizer";
 import { streamCoreAgent } from "../agents/core/agent";
@@ -134,10 +133,10 @@ export const chatRoutes = new Elysia().use(authPlugin).post("/api/chat", async (
   const snapshotVersion = resolveAgentSnapshotVersion(input.snapshotVersion);
 
   // 1. Read or bootstrap project
-  let project = await projectRepo.readProject(input.projectId, ownerId);
+  let project = await storage.projects.readProject(input.projectId, ownerId);
   if (!project) {
     reqLog.info(`project ${input.projectId} not found, creating`);
-    project = await projectRepo.getOrCreateProject({ ownerId, id: input.projectId });
+    project = await storage.projects.getOrCreateProject({ ownerId, id: input.projectId });
   }
 
   if (!project.scenes[input.sceneId]) {
@@ -151,10 +150,10 @@ export const chatRoutes = new Elysia().use(authPlugin).post("/api/chat", async (
   }
 
   // 2. Ensure thread exists
-  await agentRunRepo.getOrCreateThread(input.threadId, input.projectId);
+  await storage.agentRuns.getOrCreateThread(input.threadId, input.projectId);
 
   // 3. Create core agent run
-  const runFile = await agentRunRepo.createRun({
+  const runFile = await storage.agentRuns.createRun({
     threadId: input.threadId,
     projectId: input.projectId,
     sceneId: input.sceneId,
@@ -163,7 +162,7 @@ export const chatRoutes = new Elysia().use(authPlugin).post("/api/chat", async (
     agent: "core",
     snapshotVersion,
   });
-  await agentRunRepo.attachRunToThread(input.threadId, runFile.run.id);
+  await storage.agentRuns.attachRunToThread(input.threadId, runFile.run.id);
   reqLog.info(`created run: ${runFile.run.id}`);
 
   // 3b. Open trace span for the full request
@@ -211,7 +210,7 @@ export const chatRoutes = new Elysia().use(authPlugin).post("/api/chat", async (
 
       // Apply ops server-side
       try {
-        await projectRepo.applyBoardOps(input.projectId, ownerId, {
+        await storage.projects.applyBoardOps(input.projectId, ownerId, {
           expectedVersion: input.expectedVersion,
           ops: templateOps,
         });
@@ -221,7 +220,7 @@ export const chatRoutes = new Elysia().use(authPlugin).post("/api/chat", async (
       }
 
       // Complete the run record
-      await agentRunRepo.completeRun({
+      await storage.agentRuns.completeRun({
         runId: runFile.run.id,
         assistantText: result.description,
         messages: [{ role: "assistant" as const, content: result.description }],
@@ -273,8 +272,8 @@ export const chatRoutes = new Elysia().use(authPlugin).post("/api/chat", async (
 
   // 5. Build conversation history using tiered memory retrieval
   const { finish: finishMemory } = startSpan(trace.rootSpan, "tiered_memory");
-  const priorRuns = await agentRunRepo.listRunsForThread(input.threadId);
-  const cachedSummary = await agentRunRepo.readThreadSummary(input.threadId);
+  const priorRuns = await storage.agentRuns.listRunsForThread(input.threadId);
+  const cachedSummary = await storage.agentRuns.readThreadSummary(input.threadId);
   const completedRuns = priorRuns.filter(
     (r) => r.run.id !== runFile.run.id && r.run.status === "completed"
   );
@@ -375,7 +374,7 @@ export const chatRoutes = new Elysia().use(authPlugin).post("/api/chat", async (
 
       if (boardOps.length > 0) {
         try {
-          const applyResult = await projectRepo.applyBoardOps(capturedProjectId, ownerId, {
+          const applyResult = await storage.projects.applyBoardOps(capturedProjectId, ownerId, {
             expectedVersion: capturedExpectedVersion,
             ops: boardOps,
           });
@@ -415,7 +414,7 @@ export const chatRoutes = new Elysia().use(authPlugin).post("/api/chat", async (
       // Apply graph ops to the project file — skip if board ops were aborted
       if (graphOps.length > 0) {
         try {
-          const currentProject = await projectRepo.readProject(capturedProjectId, ownerId);
+          const currentProject = await storage.projects.readProject(capturedProjectId, ownerId);
           if (currentProject) {
             const graph = currentProject.graph ?? { nodes: {}, edges: {} };
             for (const rawOp of graphOps) {
@@ -464,7 +463,7 @@ export const chatRoutes = new Elysia().use(authPlugin).post("/api/chat", async (
                   break;
               }
             }
-            await projectRepo.saveGraph(capturedProjectId, ownerId, graph);
+            await storage.projects.saveGraph(capturedProjectId, ownerId, graph);
             reqLog.info(`persisted ${graphOps.length} graph ops to project file`);
           }
         } catch (graphErr) {
@@ -485,7 +484,7 @@ export const chatRoutes = new Elysia().use(authPlugin).post("/api/chat", async (
     onError(error) {
       reqLog.error(`failed`, error);
 
-      agentRunRepo.completeRun({
+      storage.agentRuns.completeRun({
         runId: runFile.run.id,
         proposedOps: [],
         appliedOps: [],
@@ -511,11 +510,11 @@ export const chatRoutes = new Elysia().use(authPlugin).post("/api/chat", async (
   // Thread ownership flows through the project. Fetch runs first, then
   // confirm the thread's project belongs to the caller — otherwise a
   // threadId guess would leak another user's prompts.
-  const runs = await agentRunRepo.listRunsForThread(threadId);
+  const runs = await storage.agentRuns.listRunsForThread(threadId);
   if (runs.length > 0) {
     const projectId = runs[0]?.run.projectId;
     if (projectId) {
-      const project = await projectRepo.readProject(projectId, ownerId);
+      const project = await storage.projects.readProject(projectId, ownerId);
       if (!project) {
         set.status = 404;
         return { error: "Thread not found" };
@@ -585,7 +584,7 @@ async function finalizeRun(
   };
 
   // Persist completed run
-  await agentRunRepo.completeRun({
+  await storage.agentRuns.completeRun({
     runId: runFile.run.id,
     assistantText: result.assistantText,
     messages: result.messages,
@@ -601,13 +600,13 @@ async function finalizeRun(
   // Background: pre-cache history summary for next turn. Tracked in
   // pendingSummaries so shutdown can drain before exit (Railway SIGTERM).
   const runIdForBackground = runFile.run.id;
-  const summaryTask = agentRunRepo.listRunsForThread(input.threadId).then(async (allThreadRuns) => {
+  const summaryTask = storage.agentRuns.listRunsForThread(input.threadId).then(async (allThreadRuns) => {
     const allCompleted = allThreadRuns.filter((r) => r.run.status === "completed");
     const summaryResult = await generateThreadSummary(allCompleted);
     if (!summaryResult) return;
 
-    await agentRunRepo.updateThreadSummary(input.threadId, summaryResult.summary);
-    await agentRunRepo.appendOverhead(runIdForBackground, {
+    await storage.agentRuns.updateThreadSummary(input.threadId, summaryResult.summary);
+    await storage.agentRuns.appendOverhead(runIdForBackground, {
       kind: "summarizer_background",
       inputTokens: summaryResult.usage.inputTokens,
       outputTokens: summaryResult.usage.outputTokens,
@@ -617,7 +616,7 @@ async function finalizeRun(
   }).catch(async (err) => {
     reqLog.warn(`background summary cache failed: ${err}`);
     try {
-      await agentRunRepo.updateThreadSummary(input.threadId, { text: "", runCount: 0 });
+      await storage.agentRuns.updateThreadSummary(input.threadId, { text: "", runCount: 0 });
       reqLog.info("invalidated stale summary cache after background failure");
     } catch (invalidateErr) {
       reqLog.warn(`failed to invalidate summary cache: ${invalidateErr}`);
@@ -626,7 +625,7 @@ async function finalizeRun(
   trackSummary(summaryTask);
 
   // Gather child run token usage
-  const allRuns = await agentRunRepo.listRunsForThread(input.threadId);
+  const allRuns = await storage.agentRuns.listRunsForThread(input.threadId);
   const childRuns = allRuns
     .filter((r) => r.run.parentRunId === runFile.run.id && r.tokenUsage)
     .map((r) => ({

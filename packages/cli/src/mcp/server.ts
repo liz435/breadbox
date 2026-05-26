@@ -10,7 +10,7 @@ import {
   ResourceTemplate,
 } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
-import { projectRepo } from "@dreamer/api/db/project-repo"
+import { projectRepo } from "@dreamer/api/db/adapters/file/project-repo"
 import { CLI_VERSION } from "../version"
 import { LOCAL_OWNER_ID, createSession } from "./context"
 import { registerTools } from "./tools"

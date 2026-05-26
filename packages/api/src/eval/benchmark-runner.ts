@@ -83,8 +83,8 @@ type BenchmarkReport = {
 };
 
 type RuntimeDeps = {
-  projectRepo: typeof import("../db/project-repo").projectRepo;
-  agentRunRepo: typeof import("../db/agent-run-repo").agentRunRepo;
+  projectRepo: typeof import("../db").storage.projects;
+  agentRunRepo: typeof import("../db").storage.agentRuns;
   boardTracker: typeof import("../db/board-state-tracker").boardTracker;
   classifyIntent: typeof import("../agents/intent-classifier").classifyIntent;
   CIRCUIT_TEMPLATES: typeof import("../agents/circuit-templates").CIRCUIT_TEMPLATES;
@@ -122,8 +122,7 @@ function currentExpectedVersion(project: { project: { version: number } }): numb
 
 async function loadRuntimeDeps(): Promise<RuntimeDeps> {
   const [
-    { projectRepo },
-    { agentRunRepo },
+    { storage },
     { boardTracker },
     { classifyIntent },
     { CIRCUIT_TEMPLATES },
@@ -133,8 +132,7 @@ async function loadRuntimeDeps(): Promise<RuntimeDeps> {
     { evaluateRun },
     { createLogger },
   ] = await Promise.all([
-    import("../db/project-repo"),
-    import("../db/agent-run-repo"),
+    import("../db"),
     import("../db/board-state-tracker"),
     import("../agents/intent-classifier"),
     import("../agents/circuit-templates"),
@@ -146,8 +144,8 @@ async function loadRuntimeDeps(): Promise<RuntimeDeps> {
   ]);
 
   return {
-    projectRepo,
-    agentRunRepo,
+    projectRepo: storage.projects,
+    agentRunRepo: storage.agentRuns,
     boardTracker,
     classifyIntent,
     CIRCUIT_TEMPLATES,

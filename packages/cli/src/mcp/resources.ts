@@ -2,7 +2,7 @@
 // in server.ts. Resources are read-only — mutations must go through tools.
 
 import { boardStateToDiagram } from "@dreamer/schemas"
-import { projectRepo } from "@dreamer/api/db/project-repo"
+import { projectRepo } from "@dreamer/api/db/adapters/file/project-repo"
 import { WIRING_GUIDE_TEXT } from "@dreamer/api/agents/core/wiring-guide-text"
 import { LOCAL_OWNER_ID } from "./context"
 
