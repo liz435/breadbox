@@ -103,6 +103,14 @@ describe("undo/redo — sketch", () => {
 
 // ── Multi-step undo/redo ──────────────────────────────────────────────────────
 
+// The machine seeds an explicit `breadboard-1` in its initial context
+// (createDefaultBoardState in @dreamer/schemas) so the canvas always has
+// a surface board to render. That seeded breadboard is a real component
+// and counts in `Object.keys(components)`, so every assertion below adds
+// `SEED_COUNT` to the number of LEDs the test placed. If the default
+// seed changes, only this constant moves.
+const SEED_COUNT = 1;
+
 describe("undo/redo — multi-step", () => {
   test("multiple undos walk back through the full history", () => {
     const a = actor();
@@ -110,16 +118,16 @@ describe("undo/redo — multi-step", () => {
     a.send({ type: "PLACE_COMPONENT", component: led("c2") });
     a.send({ type: "PLACE_COMPONENT", component: led("c3") });
 
-    expect(Object.keys(a.getSnapshot().context.components)).toHaveLength(3);
+    expect(Object.keys(a.getSnapshot().context.components)).toHaveLength(3 + SEED_COUNT);
 
     a.send({ type: "UNDO" });
-    expect(Object.keys(a.getSnapshot().context.components)).toHaveLength(2);
+    expect(Object.keys(a.getSnapshot().context.components)).toHaveLength(2 + SEED_COUNT);
 
     a.send({ type: "UNDO" });
-    expect(Object.keys(a.getSnapshot().context.components)).toHaveLength(1);
+    expect(Object.keys(a.getSnapshot().context.components)).toHaveLength(1 + SEED_COUNT);
 
     a.send({ type: "UNDO" });
-    expect(Object.keys(a.getSnapshot().context.components)).toHaveLength(0);
+    expect(Object.keys(a.getSnapshot().context.components)).toHaveLength(0 + SEED_COUNT);
     a.stop();
   });
 
@@ -128,10 +136,10 @@ describe("undo/redo — multi-step", () => {
     a.send({ type: "PLACE_COMPONENT", component: led("c1") });
     a.send({ type: "PLACE_COMPONENT", component: led("c2") });
 
-    a.send({ type: "UNDO" }); // back to 1 component
-    a.send({ type: "REDO" }); // forward to 2 components
+    a.send({ type: "UNDO" }); // back to 1 LED + seed
+    a.send({ type: "REDO" }); // forward to 2 LEDs + seed
 
-    expect(Object.keys(a.getSnapshot().context.components)).toHaveLength(2);
+    expect(Object.keys(a.getSnapshot().context.components)).toHaveLength(2 + SEED_COUNT);
     expect(a.getSnapshot().context.components["c2"]).toBeDefined();
     a.stop();
   });
@@ -154,7 +162,7 @@ describe("undo/redo — multi-step", () => {
   test("undo at empty history is a no-op", () => {
     const a = actor();
     a.send({ type: "UNDO" });
-    expect(Object.keys(a.getSnapshot().context.components)).toHaveLength(0);
+    expect(Object.keys(a.getSnapshot().context.components)).toHaveLength(0 + SEED_COUNT);
     a.stop();
   });
 
@@ -162,7 +170,7 @@ describe("undo/redo — multi-step", () => {
     const a = actor();
     a.send({ type: "PLACE_COMPONENT", component: led("c1") });
     a.send({ type: "REDO" }); // nothing to redo
-    expect(Object.keys(a.getSnapshot().context.components)).toHaveLength(1);
+    expect(Object.keys(a.getSnapshot().context.components)).toHaveLength(1 + SEED_COUNT);
     a.stop();
   });
 

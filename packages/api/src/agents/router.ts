@@ -127,9 +127,21 @@ export function routeRequest(params: {
   const reasons: string[] = [];
 
   // Signals
+  //
+  // `boardComponents` is meant to count user-placed circuitry, not the
+  // substrate. The MCU (arduino_uno) was excluded for this reason; surface
+  // boards (breadboard_full / perfboard_generic) are now also excluded
+  // since `createDefaultBoardState()` seeds an explicit `breadboard-1` so
+  // the canvas always has a board to paint. Without this exclusion every
+  // new project routes to "edit" instead of "build".
+  const SUBSTRATE_TYPES = new Set([
+    "arduino_uno",
+    "breadboard_full",
+    "perfboard_generic",
+  ]);
   const boardComponents = project.boardState
     ? Object.values(project.boardState.components).filter(
-        (c) => c.type !== "arduino_uno"
+        (c) => !SUBSTRATE_TYPES.has(c.type)
       ).length
     : 0;
   const graphNodes = project.graph
