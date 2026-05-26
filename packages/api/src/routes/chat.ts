@@ -416,7 +416,18 @@ export const chatRoutes = new Elysia().use(authPlugin).post("/api/chat", async (
             });
             // Skip graph ops entirely — atomic abort
             finishApply({ aborted: true, reason: "version_conflict" });
-            await finalizeRun(writer, result, runFile, input, trace, liveSummarizerUsage, reqLog, [], newVersion, ownerId);
+            await finalizeRun({
+              writer,
+              result,
+              runFile,
+              input,
+              trace,
+              liveSummarizerUsage,
+              reqLog,
+              appliedOps: [],
+              newVersion,
+              ownerId,
+            });
             return;
           } else if (err instanceof OpValidationError) {
             reqLog.warn(`op validation error: ${err.message}`);
@@ -500,7 +511,18 @@ export const chatRoutes = new Elysia().use(authPlugin).post("/api/chat", async (
 
       finishApply({ boardOps: boardOps.length, graphOps: graphOps.length, appliedOps: appliedOps.length });
 
-      await finalizeRun(writer, result, runFile, input, trace, liveSummarizerUsage, reqLog, appliedOps, newVersion, ownerId);
+      await finalizeRun({
+        writer,
+        result,
+        runFile,
+        input,
+        trace,
+        liveSummarizerUsage,
+        reqLog,
+        appliedOps,
+        newVersion,
+        ownerId,
+      });
     },
     onError(error) {
       reqLog.error(`failed`, error);
@@ -574,18 +596,39 @@ export const chatRoutes = new Elysia().use(authPlugin).post("/api/chat", async (
 // ── Helper: finalize run + emit metadata ────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function finalizeRun(
-  writer: { write: (data: any) => void },
-  result: { tokenUsage: { inputTokens: number; outputTokens: number; totalTokens: number; model: string }; proposedOps: BoardOp[]; assistantText: string; messages: unknown[] },
-  runFile: { run: { id: string } },
-  input: { threadId: string; projectId: string },
-  trace: ReturnType<typeof createTrace>,
-  liveSummarizerUsage: { inputTokens: number; outputTokens: number; totalTokens: number; model: string } | null,
-  reqLog: ReturnType<typeof createLogger>,
-  appliedOps: BoardOp[],
-  newVersion: number,
-  ownerId: string,
-) {
+type FinalizeRunArgs = {
+  writer: { write: (data: any) => void }
+  result: {
+    tokenUsage: { inputTokens: number; outputTokens: number; totalTokens: number; model: string }
+    proposedOps: BoardOp[]
+    assistantText: string
+    messages: unknown[]
+  }
+  runFile: { run: { id: string } }
+  input: { threadId: string; projectId: string }
+  trace: ReturnType<typeof createTrace>
+  liveSummarizerUsage:
+    | { inputTokens: number; outputTokens: number; totalTokens: number; model: string }
+    | null
+  reqLog: ReturnType<typeof createLogger>
+  appliedOps: BoardOp[]
+  newVersion: number
+  ownerId: string
+}
+
+async function finalizeRun(args: FinalizeRunArgs) {
+  const {
+    writer,
+    result,
+    runFile,
+    input,
+    trace,
+    liveSummarizerUsage,
+    reqLog,
+    appliedOps,
+    newVersion,
+    ownerId,
+  } = args
   // Roll up overhead (summarizer) into the parent run's tokenUsage
   const overhead = liveSummarizerUsage && liveSummarizerUsage.totalTokens > 0
     ? [{

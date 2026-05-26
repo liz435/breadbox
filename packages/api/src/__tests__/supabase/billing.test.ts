@@ -208,27 +208,76 @@ describeOrSkip("billing — wallet + ledger", () => {
     expect(after?.delta).toBe(originalDelta)
   })
 
-  // ── RLS ──────────────────────────────────────────────────────────
+  // ── Concurrent first-call race ──────────────────────────────────
 
-  test("user B cannot read user A's wallet via the anon client", async () => {
-    const userA = await newUser()
-    const userB = await newUser()
-    await ensureWalletForUser(userA)
+  test("two concurrent ensureWalletForUser calls produce exactly one grant_signup row", async () => {
+    const userId = await newUser()
+    // Fire both concurrently. The race window inside the RPC's BEGIN
+    // block is what the partial unique index + exception handler are
+    // there to defend; we want to confirm exactly one grant_signup
+    // row lands and the wallet ends at the configured initial balance.
+    await Promise.all([
+      ensureWalletForUser(userId),
+      ensureWalletForUser(userId),
+    ])
 
-    // Sign in as user B via the anon key + a fresh session.
-    const userBEmail = (await admin.auth.admin.getUserById(userB)).data.user?.email ?? ""
-    // Service role can read user A; we just need to verify the RLS
-    // shape — easier path: query as the anon role with userB's JWT.
-    // We'll skip building a full session here and instead assert via
-    // the row-count gate: an anon client without any session returns
-    // 0 rows regardless of userId, which is the same shape as RLS
-    // refusing.
+    const { data: ledger } = await admin
+      .from("credit_transactions")
+      .select("id, delta, kind")
+      .eq("user_id", userId)
+      .eq("kind", "grant_signup")
+    expect(ledger?.length).toBe(1)
+    expect(ledger?.[0]?.delta).toBe(INITIAL_FREE_CREDITS)
+
+    const wallet = await getWallet(userId)
+    expect(wallet?.balancePosted).toBe(INITIAL_FREE_CREDITS)
+  })
+
+  // ── RLS isolation ───────────────────────────────────────────────
+  //
+  // The contract: user B, holding a valid JWT, cannot read user A's
+  // wallet. We sign in as user B via the anon client (which respects
+  // RLS) and confirm a query for the credit_wallets table returns only
+  // their own row.
+
+  test("user B's authenticated client cannot read user A's wallet", async () => {
+    const userAId = await newUser()
+    await ensureWalletForUser(userAId)
+
+    // Create user B and sign them in to get a real JWT.
+    const password = `pw-${crypto.randomUUID()}`
+    const { data: createdB, error: createErr } =
+      await admin.auth.admin.createUser({
+        email: `rls-${crypto.randomUUID()}@dreamer.test`,
+        password,
+        email_confirm: true,
+      })
+    if (createErr || !createdB.user) {
+      throw new Error(`createUser B: ${createErr?.message}`)
+    }
+    createdUserIds.push(createdB.user.id)
+    await ensureWalletForUser(createdB.user.id)
+
+    const userBEmail = createdB.user.email ?? ""
     const anon = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },
     })
-    const { data } = await anon.from("credit_wallets").select("user_id")
-    // Anon (no JWT) → 0 rows because user_id = auth.uid() can't match.
-    expect(data?.length ?? 0).toBe(0)
-    expect(userBEmail.length).toBeGreaterThan(0) // sanity that user B exists
+    const { data: signIn, error: signInErr } =
+      await anon.auth.signInWithPassword({ email: userBEmail, password })
+    if (signInErr || !signIn.session) {
+      throw new Error(`signIn B: ${signInErr?.message ?? "no session"}`)
+    }
+
+    // Now query as user B. RLS policy `using (user_id = auth.uid())`
+    // must hide user A's row and return only user B's.
+    const { data, error } = await anon
+      .from("credit_wallets")
+      .select("user_id")
+    expect(error).toBeNull()
+    const ids = (data ?? []).map((r) => r.user_id as string)
+    expect(ids).not.toContain(userAId)
+    expect(ids).toContain(createdB.user.id)
+    // Single-row visibility — exactly user B, no leak.
+    expect(ids).toHaveLength(1)
   })
 })
