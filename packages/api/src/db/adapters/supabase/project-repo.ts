@@ -12,7 +12,6 @@
 // every WHERE for defense-in-depth and so "not found vs not owned" is
 // indistinguishable from the client's perspective (no enumeration).
 
-import { match } from "ts-pattern"
 import { generateUniqueProjectName } from "../../../utils/name-generator"
 import {
   applyOpsRequestSchema,
@@ -208,8 +207,22 @@ async function writeProject(
   ownerId: string,
   data: ProjectFile,
 ): Promise<void> {
-  // Unconditional bump — used by callers that already coordinated
-  // concurrency themselves. Mirrors the file adapter's writeProject.
+  // Unconditional UPDATE — no version guard. The callers that ride this
+  // (saveGraph, saveBoardState, saveBoardAndGraph, renameScene, asset
+  // mutations) all use a read-mutate-write pattern that is intentionally
+  // last-write-wins. Two concurrent saves on the same project will both
+  // succeed and the later writer's payload survives.
+  //
+  // We accept this for graph/board-state because:
+  //   1. The frontend already serializes these writes per-user (one
+  //      active session in the SPA at a time).
+  //   2. The full state object replaces the field, so a stale write
+  //      doesn't merge with a fresh one — it just overwrites it.
+  //   3. The cost of a version-conflict UX for ergonomic mutations like
+  //      "rename a scene" outweighs the cost of a rare lost update.
+  //
+  // applyOps / applyBoardOps go through updateProject() instead, which
+  // does enforce optimistic concurrency.
   const supabase = getSupabaseAdmin()
   const row = projectToRow(parseInDev(projectFileSchema, data))
   const { error } = await supabase
@@ -461,8 +474,3 @@ export const projectRepo = {
 // Re-export common error classes so callers don't have to know which
 // adapter is active.
 export { VersionConflictError, OpValidationError } from "../file/project-repo"
-
-// Quiet unused-import lint while keeping the import in case PR3 wants
-// to gate `applyOneOp`/`applyOneBoardOp` on schema parse failures.
-// (Both are referenced inside applyOps / applyBoardOps above.)
-match

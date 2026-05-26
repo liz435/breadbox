@@ -27,20 +27,45 @@ export type ProjectRow = {
   updated_at: string
 }
 
+/**
+ * The `project` sub-object that lives inside the `data jsonb` column —
+ * exactly the fields NOT duplicated as canonical columns. Stripping
+ * id / ownerId / name / version / createdAt / updatedAt at write time
+ * means the column is the single source of truth for those values.
+ */
+type ProjectJsonbInner = Omit<
+  ProjectFile["project"],
+  "id" | "ownerId" | "name" | "version" | "createdAt" | "updatedAt"
+>
+
+/**
+ * The shape stored in `projects.data`: the whole ProjectFile but with
+ * the canonical fields removed from `project`. `rowToProject` re-stitches
+ * those fields from the row columns on read.
+ */
+type ProjectJsonb = Omit<ProjectFile, "project"> & {
+  project: ProjectJsonbInner
+}
+
 export function projectToRow(p: ProjectFile): {
   id: string
   owner_id: string
   name: string
   version: number
-  data: ProjectFile
+  data: ProjectJsonb
   created_at: string
   updated_at: string
 } {
   const proj = p.project
-  const dataProject = {
-    threadId: proj.threadId,
-    activeSceneId: proj.activeSceneId,
-  } as ProjectFile["project"]
+  const {
+    id: _id,
+    ownerId: _ownerId,
+    name: _name,
+    version: _version,
+    createdAt: _createdAt,
+    updatedAt: _updatedAt,
+    ...projectInner
+  } = proj
   return {
     id: proj.id,
     owner_id: proj.ownerId,
@@ -48,12 +73,12 @@ export function projectToRow(p: ProjectFile): {
     version: proj.version,
     created_at: proj.createdAt,
     updated_at: proj.updatedAt,
-    data: { ...p, project: dataProject },
+    data: { ...p, project: projectInner },
   }
 }
 
 export function rowToProject(row: ProjectRow): ProjectFile {
-  const data = row.data as ProjectFile
+  const data = row.data as ProjectJsonb
   return {
     ...data,
     project: {

@@ -37,6 +37,11 @@ function pickAdapter(): StorageAdapter {
 
 let _storage: StorageAdapter = pickAdapter()
 
+// Proxy indirection so `setStorageForTests` can swap the active adapter
+// without rewiring every call site. The trade-off: the Supabase SDK ships
+// in CLI builds because both adapters are statically imported above. A
+// future bundle-size pass could move to dynamic import + a `getStorage()`
+// accessor; for PR1 the simpler shape wins.
 export const storage = new Proxy({} as StorageAdapter, {
   get(_target, prop) {
     return _storage[prop as keyof StorageAdapter]
@@ -47,10 +52,14 @@ export const storage = new Proxy({} as StorageAdapter, {
  * Test-only escape hatch. Lets a test inject a synthetic adapter
  * without rewiring callers. Always restored in afterEach via the
  * returned undo callback.
+ *
+ * Guard: refuse only when NODE_ENV is explicitly "production". Bun's
+ * test runner doesn't set NODE_ENV by default, so a strict equality
+ * check against "test" would silently break suites that depend on this.
  */
 export function setStorageForTests(next: StorageAdapter): () => void {
-  if (process.env.NODE_ENV !== "test") {
-    throw new Error("setStorageForTests called outside test env")
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("setStorageForTests called in production")
   }
   const prev = _storage
   _storage = next
