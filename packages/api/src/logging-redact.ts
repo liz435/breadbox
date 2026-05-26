@@ -69,6 +69,7 @@ export function redactHeadersDeep(data: unknown, depth = 0): unknown {
 
 const SENSITIVE_KEYS = new Set<string>([
   "authorization",
+  "bearer",
   "cookie",
   "set-cookie",
   "password",
@@ -78,9 +79,12 @@ const SENSITIVE_KEYS = new Set<string>([
   "access_token",
   "refresh_token",
   "id_token",
+  "api_key",
   "anthropic_api_key",
   "service_role_key",
+  "secret",
   "client_secret",
+  "private_key",
 ])
 
 /**

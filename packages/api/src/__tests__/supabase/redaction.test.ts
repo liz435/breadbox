@@ -38,6 +38,25 @@ describe("redactSensitive", () => {
     expect(scrubbed.display_name).toBe("Alice")
   })
 
+  test("scrubs generic secret-shaped keys (secret, api_key, private_key, bearer)", () => {
+    const scrubbed = redactSensitive({
+      secret: "shh-1",
+      api_key: "ak-1234",
+      private_key: "-----BEGIN PRIVATE KEY-----",
+      bearer: "Bearer xyz",
+      // Substring-only matches must NOT trigger (defends against false
+      // positives on things like apiKeyCount or secretsLoaded).
+      apiKeyCount: 3,
+      secretsLoaded: true,
+    }) as Record<string, unknown>
+    expect(scrubbed.secret).toBe("[redacted]")
+    expect(scrubbed.api_key).toBe("[redacted]")
+    expect(scrubbed.private_key).toBe("[redacted]")
+    expect(scrubbed.bearer).toBe("[redacted]")
+    expect(scrubbed.apiKeyCount).toBe(3)
+    expect(scrubbed.secretsLoaded).toBe(true)
+  })
+
   test("recurses into nested objects + arrays", () => {
     const scrubbed = redactSensitive({
       user: {

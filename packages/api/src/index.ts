@@ -9,6 +9,7 @@ import { cors } from "@elysiajs/cors";
 import { createLogger } from "./logger";
 import { authPlugin } from "./auth/auth-plugin";
 import { requestContextPlugin } from "./request-context";
+import { flush as flushLogSink } from "./log-supabase-sink";
 import { migrateOwnership } from "./db/migrate-ownership";
 import { projectRoutes } from "./routes/projects";
 import { agentRunRoutes } from "./routes/agent-run";
@@ -22,6 +23,7 @@ import { capabilitiesRoutes } from "./routes/capabilities";
 import { authRoutes } from "./routes/auth";
 import { adminRoutes } from "./routes/admin";
 import { motionRoutes } from "./routes/motion";
+import { billingRoutes } from "./routes/billing";
 import { createWebUiStatic } from "./routes/web-ui-static";
 import { stopWorker } from "./serial/serialport-bridge";
 import { APP_ORIGIN, API_PORT as _API_PORT } from "@dreamer/config";
@@ -97,6 +99,7 @@ const app = new Elysia()
   .use(libraryRoutes)
   .use(capabilitiesRoutes)
   .use(motionRoutes)
+  .use(billingRoutes)
   .use(staticWebUi)
   .onError(({ code, request }) => {
     // Elysia's default NOT_FOUND response body is literally "NOT_FOUND",
@@ -144,6 +147,14 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   }
 
   await awaitPendingSummaries(SHUTDOWN_DEADLINE_MS - 500)
+
+  // Drain the Supabase log sink so the last second of warn+ entries
+  // make it to Postgres before SIGKILL. In CLI mode this is a no-op.
+  try {
+    await flushLogSink()
+  } catch (err) {
+    log.warn(`flush log sink failed: ${err instanceof Error ? err.message : err}`)
+  }
 
   log.info("shutdown complete")
   process.exit(0)
