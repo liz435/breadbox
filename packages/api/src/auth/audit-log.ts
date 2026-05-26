@@ -1,24 +1,32 @@
 // ── Audit log ───────────────────────────────────────────────────────────
 //
-// Append-only JSONL, rotated per calendar day. Lives under
-// `$DREAMER_HOME/audit/{YYYY-MM-DD}.jsonl`. The operator is responsible
-// for rotation/archival beyond that — Dreamer does not delete or
-// compress its own audit trail.
+// Two backends, picked by DREAMER_MODE:
 //
-// Writes are fire-and-forget: the caller does `void auditLog(evt)` and
-// never awaits. An audit failure (disk full, permission denied, etc.)
-// must not fail the user's request, so we log-warn locally and swallow.
+//   • CLI (default): append-only JSONL rotated per calendar day under
+//     `$DREAMER_HOME/audit/{YYYY-MM-DD}.jsonl`. Operator handles
+//     rotation/archival.
 //
-// Concurrency: `fs.appendFile` + a single `\n`-terminated line per call
+//   • Hosted: one row per event in `public.audit_events`. Indexed on
+//     (user_id, ts desc) and (project_id, ts desc). RLS is intentionally
+//     empty — service-role only.
+//
+// Writes are fire-and-forget in both modes: callers do `void auditLog(evt)`
+// and never await. An audit failure (disk full, network blip, Supabase
+// outage) must not fail the user's request — we log-warn locally and
+// swallow.
+//
+// CLI concurrency: `fs.appendFile` + a single `\n`-terminated line per call
 // is atomic on POSIX up to PIPE_BUF (4 KiB on Linux, 512 B on macOS) for
-// our typical event sizes. Much larger than our events, so concurrent
-// writers can't interleave partial lines.
+// our typical event sizes, so concurrent writers can't interleave partial
+// lines.
 
 import { appendFile, mkdir } from "node:fs/promises"
 import { join } from "node:path"
 import { z } from "zod"
 import { dreamerHome } from "../paths"
 import { createLogger } from "../logger"
+import { IS_HOSTED_MODE } from "../supabase/env"
+import { getSupabaseAdmin } from "../supabase/admin-client"
 
 const log = createLogger("audit")
 
@@ -94,11 +102,23 @@ async function ensureDir(): Promise<void> {
 
 // ── API ───────────────────────────────────────────────────────────────
 
+// userId field arrives as either a Supabase UUID (hosted) or the fixed
+// CLI local user UUID. The Postgres column is `uuid`-typed but
+// historically we accepted the literal string "local" for legacy CLI
+// callers. Pre-screen for the UUID shape; if the input doesn't match,
+// we still write the JSONL row (CLI) but pass null into Postgres so
+// the schema constraint isn't violated.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function looksLikeUuid(value: string): boolean {
+  return UUID_RE.test(value)
+}
+
 /**
- * Append an event to today's audit file. Fire-and-forget: returns a
- * promise that never rejects. Callers should `void auditLog(...)` and
- * not await unless they specifically want to sequence against the
- * write (which should be rare).
+ * Append an event to today's audit file (CLI) or insert one row into
+ * public.audit_events (hosted). Fire-and-forget: returns a promise that
+ * never rejects. Callers should `void auditLog(...)` and not await
+ * unless they specifically want to sequence against the write (rare).
  */
 export async function auditLog(input: AuditEventInput): Promise<void> {
   try {
@@ -110,18 +130,39 @@ export async function auditLog(input: AuditEventInput): Promise<void> {
       ...(input.extra !== undefined ? { extra: input.extra } : {}),
     }
     // Validate before write; if the input was malformed, drop it here
-    // rather than writing a bogus line.
+    // rather than writing a bogus record.
     const parsed = auditEventSchema.safeParse(event)
     if (!parsed.success) {
       log.warn(`audit event failed schema: ${parsed.error.message}`)
       return
     }
-    await ensureDir()
-    await appendFile(auditFilePath(event.ts), JSON.stringify(parsed.data) + "\n")
+
+    if (IS_HOSTED_MODE) {
+      await writeToPostgres(parsed.data)
+    } else {
+      await writeToJsonl(parsed.data)
+    }
   } catch (err) {
     // Swallow: audit must never fail a request.
     log.warn(`audit append failed: ${err instanceof Error ? err.message : String(err)}`)
   }
+}
+
+async function writeToJsonl(event: AuditEvent): Promise<void> {
+  await ensureDir()
+  await appendFile(auditFilePath(event.ts), JSON.stringify(event) + "\n")
+}
+
+async function writeToPostgres(event: AuditEvent): Promise<void> {
+  const supabase = getSupabaseAdmin()
+  const { error } = await supabase.from("audit_events").insert({
+    ts: new Date(event.ts).toISOString(),
+    user_id: looksLikeUuid(event.userId) ? event.userId : null,
+    action: event.action,
+    project_id: event.projectId ?? null,
+    extra: event.extra ?? null,
+  })
+  if (error) throw new Error(error.message)
 }
 
 /** Exposed for tests — file path for a given timestamp. */

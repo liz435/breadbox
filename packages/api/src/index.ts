@@ -8,6 +8,7 @@ import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { createLogger } from "./logger";
 import { authPlugin } from "./auth/auth-plugin";
+import { requestContextPlugin } from "./request-context";
 import { migrateOwnership } from "./db/migrate-ownership";
 import { projectRoutes } from "./routes/projects";
 import { agentRunRoutes } from "./routes/agent-run";
@@ -81,6 +82,9 @@ const app = new Elysia()
     })
   )
   .use(authPlugin)
+  // Must come AFTER authPlugin so auth.userId is populated when the
+  // request-context plugin reads it.
+  .use(requestContextPlugin)
   .use(authRoutes)
   .use(adminRoutes)
   .use(projectRoutes)
