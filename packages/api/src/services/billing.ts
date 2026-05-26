@@ -108,14 +108,18 @@ export async function getWallet(
  * here, so a single run can drive the balance negative by exactly one
  * run's worth of credits. We accept that overdraft.
  *
+ * Lazy-seeds the wallet on first call so a brand-new user isn't told
+ * "you're out of credits" before they've ever been granted any. This is
+ * the cheap defense against the foot-gun where a caller forgets to
+ * `ensureWalletForUser` first. The seed is idempotent.
+ *
  * No-op in CLI mode.
  */
 export async function assertCreditsAvailable(userId: string): Promise<void> {
   if (!IS_HOSTED_MODE) return
-  const wallet = await getWallet(userId)
-  const available = wallet?.balancePosted ?? 0
-  if (available <= 0) {
-    throw new InsufficientCreditsError(userId, available)
+  const wallet = await ensureWalletForUser(userId)
+  if (wallet.balancePosted <= 0) {
+    throw new InsufficientCreditsError(userId, wallet.balancePosted)
   }
 }
 

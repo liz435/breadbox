@@ -83,6 +83,16 @@ create index credit_transactions_ref_idx
   on public.credit_transactions (ref_type, ref_id)
   where ref_id is not null;
 
+-- One signup grant per user, period. Closes the race in
+-- ensure_credit_wallet where two concurrent first-calls could each
+-- insert a grant_signup row (the wallet INSERT is ON CONFLICT DO
+-- NOTHING; the ledger INSERT had no such defense). With this partial
+-- unique index, the second concurrent INSERT raises a unique violation
+-- that the RPC's exception handler converts into a no-op return.
+create unique index credit_transactions_one_grant_signup_per_user
+  on public.credit_transactions (user_id)
+  where kind = 'grant_signup';
+
 -- Append-only enforcement at the database level. UPDATE/DELETE silently
 -- no-op via RULEs — corrections come in as compensating rows.
 -- (DROP RULE … or removing them from a future migration is a deliberate
@@ -180,6 +190,12 @@ grant execute on function public.debit_credits to service_role;
 -- triggers this; subsequent calls return the existing balance without
 -- duplicating the grant. The whole thing is one transaction so the
 -- wallet + opening ledger row land together (or not at all).
+--
+-- Concurrent-safe: the wallet INSERT uses ON CONFLICT DO NOTHING, and
+-- the ledger INSERT is protected by the partial unique index above. If
+-- two callers race for the same brand-new user, the second one hits a
+-- unique_violation on the ledger INSERT — we trap it and return the
+-- existing balance instead of propagating the exception.
 
 create or replace function public.ensure_credit_wallet(
   p_user_id uuid,
@@ -199,14 +215,24 @@ begin
     return;
   end if;
 
-  insert into public.credit_wallets (user_id, balance_posted)
-    values (p_user_id, p_initial_credits)
-    on conflict (user_id) do nothing;
+  begin
+    insert into public.credit_wallets (user_id, balance_posted)
+      values (p_user_id, p_initial_credits)
+      on conflict (user_id) do nothing;
 
-  insert into public.credit_transactions (user_id, delta, kind)
-    values (p_user_id, p_initial_credits, 'grant_signup');
+    insert into public.credit_transactions (user_id, delta, kind)
+      values (p_user_id, p_initial_credits, 'grant_signup');
 
-  return query select true, p_initial_credits;
+    return query select true, p_initial_credits;
+  exception
+    -- Lost the race against a concurrent first-call. The other writer
+    -- already posted the grant_signup row + seeded the wallet. Treat
+    -- this as a "wallet existed" path and return the current balance.
+    when unique_violation then
+      select balance_posted into v_existing
+        from public.credit_wallets where user_id = p_user_id;
+      return query select false, coalesce(v_existing, p_initial_credits);
+  end;
 end;
 $$;
 
