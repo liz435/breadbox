@@ -11,7 +11,8 @@ import { authPlugin } from "./auth/auth-plugin";
 import { requestContextPlugin } from "./request-context";
 import { flush as flushLogSink } from "./log-supabase-sink";
 import { migrateOwnership } from "./db/migrate-ownership";
-import { CLI_LOCAL_USER_ID, IS_HOSTED_MODE } from "./supabase/env";
+import { CLI_LOCAL_USER_ID, IS_HOSTED_MODE, SUPABASE_URL, SUPABASE_ANON_KEY } from "./supabase/env";
+import { getSupabaseServiceRoleKey } from "./secrets";
 import { projectRoutes } from "./routes/projects";
 import { agentRunRoutes } from "./routes/agent-run";
 import { chatRoutes, awaitPendingSummaries } from "./routes/chat";
@@ -32,6 +33,25 @@ import { DREAMER_BIND, IS_HOSTED } from "./env";
 const API_PORT = Number(process.env.PORT ?? _API_PORT);
 
 const log = createLogger("server");
+
+// ── TEMP DIAGNOSTIC — Supabase key sanity ──────────────────────────────
+// Prints redacted metadata about the Supabase env at boot so we can
+// compare what the container actually sees vs the dashboard value.
+// Revert this commit after the issue is identified.
+if (IS_HOSTED_MODE) {
+  const previewSecret = (raw: string): string => {
+    if (!raw) return "<EMPTY>";
+    const trimmed = raw.trim();
+    const hasWs = trimmed !== raw;
+    const len = raw.length;
+    const head = trimmed.slice(0, 10);
+    const tail = trimmed.slice(-8);
+    return `len=${len} head=${head}… tail=…${tail} trimWs=${hasWs}`;
+  };
+  log.info(`[supabase-diag] SUPABASE_URL=${SUPABASE_URL || "<EMPTY>"} (len=${SUPABASE_URL.length})`);
+  log.info(`[supabase-diag] SUPABASE_ANON_KEY ${previewSecret(SUPABASE_ANON_KEY)}`);
+  log.info(`[supabase-diag] SUPABASE_SERVICE_ROLE_KEY ${previewSecret(getSupabaseServiceRoleKey())}`);
+}
 
 // Static web UI (hosted deployments). Plugin registers /, /index.html;
 // handleNotFound serves assets + SPA fallback for unmatched routes.
