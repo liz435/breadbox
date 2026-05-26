@@ -32,9 +32,9 @@ type LoginScreenProps = {
 }
 
 function buildSignInHref(): string {
-  if (typeof window === "undefined") return "/api/auth/github/start"
+  if (typeof window === "undefined") return "/auth/sign-in"
   const redirect = window.location.pathname + window.location.search
-  return `/api/auth/github/start?redirect=${encodeURIComponent(redirect)}`
+  return `/auth/sign-in?redirect=${encodeURIComponent(redirect)}`
 }
 
 function GithubMark({ className }: { className?: string }) {

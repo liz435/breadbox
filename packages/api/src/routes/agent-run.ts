@@ -12,7 +12,7 @@ import {
 } from "../db/project-repo";
 import { createLogger } from "../logger";
 import type { AuthContext } from "../auth/context";
-import { authPlugin } from "../auth/middleware";
+import { authPlugin } from "../auth/auth-plugin";
 import { requireRateLimit, RateLimitError } from "../auth/rate-limit";
 import { auditLog } from "../auth/audit-log";
 

@@ -7,9 +7,9 @@ import "./bootstrap-secrets";
 import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { createLogger } from "./logger";
-import { authPlugin } from "./auth/middleware";
-import { startSessionGc } from "./auth/session-gc";
+import { authPlugin } from "./auth/auth-plugin";
 import { migrateOwnership } from "./db/migrate-ownership";
+import { CLI_LOCAL_USER_ID, IS_HOSTED_MODE } from "./supabase/env";
 import { projectRoutes } from "./routes/projects";
 import { agentRunRoutes } from "./routes/agent-run";
 import { chatRoutes, awaitPendingSummaries } from "./routes/chat";
@@ -62,12 +62,16 @@ const corsOrigin: string[] = IS_HOSTED
 
 // ── Ownership migration ─────────────────────────────────────────────────
 // Scan project JSONs that predate the ownerId schema field. Hosted mode
-// quarantines them under `_legacy/`; local mode stamps them with
-// `ownerId: "local"` in place. Failures are logged and swallowed — a
-// migration error must not wedge a restart, since we can always re-run
-// on the next boot.
+// quarantines them under `_legacy/`; local mode stamps them with the
+// canonical CLI owner UUID (and rewrites the pre-Supabase "local" literal
+// to the same UUID on the way through). Failures are logged and
+// swallowed — a migration error must not wedge a restart, since we can
+// always re-run on the next boot.
 try {
-  await migrateOwnership();
+  await migrateOwnership({
+    ownerIdForLocal: CLI_LOCAL_USER_ID,
+    hosted: IS_HOSTED_MODE,
+  });
 } catch (err) {
   log.warn(`ownership migration failed: ${err instanceof Error ? err.message : err}`);
 }
@@ -106,12 +110,6 @@ const app = new Elysia()
   .listen({ port: API_PORT, hostname: DREAMER_BIND });
 
 log.info(`listening on http://${DREAMER_BIND}:${app.server?.port}${IS_HOSTED ? " (hosted, serving web UI)" : ""}`);
-
-// ── Session GC ──────────────────────────────────────────────────────────────
-// Sweeps expired session files every 6h so `$DREAMER_HOME/sessions/`
-// doesn't grow unbounded. Interval is unref'd — a tick in flight won't
-// hold the process open during shutdown.
-startSessionGc();
 
 // ── Graceful shutdown ───────────────────────────────────────────────────────
 // Railway sends SIGTERM on redeploy with ~10s before SIGKILL. We stop

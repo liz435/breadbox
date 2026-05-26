@@ -51,7 +51,7 @@ import {
   compileSlotStats,
 } from "./_compile-limiter"
 import type { AuthContext } from "../auth/context"
-import { authPlugin } from "../auth/middleware"
+import { authPlugin } from "../auth/auth-plugin"
 import { requireRateLimit, RateLimitError } from "../auth/rate-limit"
 import { auditLog } from "../auth/audit-log"
 

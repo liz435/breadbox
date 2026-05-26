@@ -18,20 +18,19 @@ export class ApiError extends Error {
 // ── Auth-aware fetch plumbing ────────────────────────────────────────────
 //
 // Every API call threads through `resolveFetchOptions` so the browser
-// attaches the session cookie (`dreamer_session` hosted, `dreamer_local`
-// locally). The fetch is same-origin in prod (static UI served by the
-// Elysia API) and via Vite's /api proxy in dev, so `credentials: "include"`
-// is sufficient — no bearer token, no `window.__DREAMER__.localToken`.
+// attaches the Supabase auth cookies (HttpOnly, set by /auth/callback).
+// The fetch is same-origin in prod (static UI served by the Elysia API)
+// and via Vite's /api proxy in dev, so `credentials: "include"` is
+// sufficient — no bearer token in the URL or headers.
 //
 // On 401 we invalidate the cached auth snapshot so the next render of
 // the App gate observes the logged-out state, then:
-//   - hosted:  redirect to /api/auth/github/start with the current path
-//              so the post-callback redirect lands back where the user
-//              was. Preserves query + hash.
-//   - local:   a cookie was expected but wasn't accepted. Can't redirect
-//              (no OAuth in local mode); show a toast telling the user
-//              to restart the CLI to mint a fresh bootstrap URL.
-//   - dev:     should never happen (auth is skipped), but log it.
+//   - hosted:  redirect to /auth/sign-in with the current path so the
+//              post-callback redirect lands back where the user was.
+//              Preserves query + hash.
+//   - dev:     CLI mode is single-tenant with auth bypassed, so a 401
+//              here means a Host/Origin gate fired — log and surface a
+//              toast instead of redirecting.
 
 /**
  * Merge auth-aware defaults into a RequestInit. Always sets
@@ -59,15 +58,17 @@ export function isInAnonymousPreview(): boolean {
 }
 
 /**
- * Start the GitHub OAuth flow, preserving the user's current location
- * so they land back on the same page after sign-in. Safe to call from
- * event handlers in anonymous preview.
+ * Start the GitHub OAuth flow via the server-orchestrated Supabase Auth
+ * route. The server holds the PKCE verifier in an HttpOnly cookie, runs
+ * the exchange, and sets session cookies — the browser never touches a
+ * raw access token. Preserves the user's current path so they land back
+ * where they came from after callback.
  */
 export function redirectToSignIn(): void {
   if (typeof window === "undefined") return;
   const redirect = window.location.pathname + window.location.search;
   window.location.assign(
-    `/api/auth/github/start?redirect=${encodeURIComponent(redirect)}`,
+    `/auth/sign-in?redirect=${encodeURIComponent(redirect)}`,
   );
 }
 

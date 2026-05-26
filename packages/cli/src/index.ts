@@ -278,6 +278,11 @@ async function dispatch(command: Command, projectId: string | null, sceneId: str
     }
 
     case "headed": {
+      // CLI mode: single-tenant, file-backed, no Supabase. Pin these env
+      // vars before the API modules import — auth-plugin reads them at
+      // import time to pick cli vs supabase middleware.
+      process.env.DREAMER_MODE = "cli"
+      process.env.DREAMER_DEV_SKIP_AUTH = "1"
       const state = await resolveState(projectId, sceneId)
       const { startHeadedMode } = await import("./headed")
       await startHeadedMode()

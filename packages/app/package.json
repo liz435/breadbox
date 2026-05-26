@@ -30,6 +30,8 @@
     "@codemirror/view": "^6.41.0",
     "@dreamer/config": "workspace:*",
     "@dreamer/schemas": "workspace:*",
+    "@supabase/ssr": "^0.10.3",
+    "@supabase/supabase-js": "^2.106.2",
     "@tailwindcss/vite": "^4.2.0",
     "@xstate/react": "^6.0.0",
     "@xyflow/react": "^12.10.1",

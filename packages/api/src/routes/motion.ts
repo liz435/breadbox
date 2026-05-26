@@ -12,7 +12,7 @@ import {
   type GenerationProvider,
 } from "@dreamer/schemas";
 import type { AuthContext } from "../auth/context";
-import { authPlugin } from "../auth/middleware";
+import { authPlugin } from "../auth/auth-plugin";
 import { motionArtifactsDir } from "../paths";
 import { checkComfyUiHealth } from "../motion/comfyui-client";
 import { MotionValidationError, motionRepo } from "../motion/motion-repo";
