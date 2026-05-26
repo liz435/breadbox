@@ -17,6 +17,13 @@ import { createLogger } from "../logger";
 import type { AuthContext } from "../auth/context";
 import { authPlugin } from "../auth/auth-plugin";
 import { requireRateLimit, RateLimitError } from "../auth/rate-limit";
+import {
+  assertCreditsAvailable,
+  debitForLlmRun,
+  ensureWalletForUser,
+} from "../services/billing";
+import { InsufficientCreditsError } from "../billing/errors";
+import type { DreamerSupportedLLM } from "../billing";
 
 const log = createLogger("chat");
 let requestId = 0;
@@ -103,6 +110,20 @@ export const chatRoutes = new Elysia().use(authPlugin).post("/api/chat", async (
       set.status = 429;
       set.headers["Retry-After"] = String(err.retryAfterSec);
       return { error: err.message, retryAfterSec: err.retryAfterSec };
+    }
+    throw err;
+  }
+
+  // Pre-stream balance gate. CLI mode no-ops; hosted 402s when the
+  // user is out of credits so the frontend can prompt before a long
+  // SSE stream opens against a dead wallet.
+  try {
+    await ensureWalletForUser(ownerId);
+    await assertCreditsAvailable(ownerId);
+  } catch (err) {
+    if (err instanceof InsufficientCreditsError) {
+      set.status = 402;
+      return { error: "insufficient credits", available: err.available };
     }
     throw err;
   }
@@ -395,7 +416,7 @@ export const chatRoutes = new Elysia().use(authPlugin).post("/api/chat", async (
             });
             // Skip graph ops entirely — atomic abort
             finishApply({ aborted: true, reason: "version_conflict" });
-            await finalizeRun(writer, result, runFile, input, trace, liveSummarizerUsage, reqLog, [], newVersion);
+            await finalizeRun(writer, result, runFile, input, trace, liveSummarizerUsage, reqLog, [], newVersion, ownerId);
             return;
           } else if (err instanceof OpValidationError) {
             reqLog.warn(`op validation error: ${err.message}`);
@@ -479,7 +500,7 @@ export const chatRoutes = new Elysia().use(authPlugin).post("/api/chat", async (
 
       finishApply({ boardOps: boardOps.length, graphOps: graphOps.length, appliedOps: appliedOps.length });
 
-      await finalizeRun(writer, result, runFile, input, trace, liveSummarizerUsage, reqLog, appliedOps, newVersion);
+      await finalizeRun(writer, result, runFile, input, trace, liveSummarizerUsage, reqLog, appliedOps, newVersion, ownerId);
     },
     onError(error) {
       reqLog.error(`failed`, error);
@@ -563,6 +584,7 @@ async function finalizeRun(
   reqLog: ReturnType<typeof createLogger>,
   appliedOps: BoardOp[],
   newVersion: number,
+  ownerId: string,
 ) {
   // Roll up overhead (summarizer) into the parent run's tokenUsage
   const overhead = liveSummarizerUsage && liveSummarizerUsage.totalTokens > 0
@@ -591,6 +613,21 @@ async function finalizeRun(
     proposedOps: result.proposedOps,
     appliedOps,
     tokenUsage: tokenUsageWithOverhead,
+  });
+
+  // Post-stream debit. Idempotent on runId. Fire-and-forget so a debit
+  // failure can't leak back into an already-flushed SSE response.
+  void debitForLlmRun({
+    userId: ownerId,
+    runId: runFile.run.id,
+    llm: {
+      kind: "llm",
+      model: result.tokenUsage.model as DreamerSupportedLLM,
+      inputTokens: result.tokenUsage.inputTokens,
+      outputTokens: result.tokenUsage.outputTokens,
+    },
+  }).catch((err) => {
+    reqLog.warn(`debit failed for run ${runFile.run.id}: ${err}`);
   });
 
   reqLog.info(

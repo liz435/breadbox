@@ -14,6 +14,13 @@ import type { AuthContext } from "../auth/context";
 import { authPlugin } from "../auth/auth-plugin";
 import { requireRateLimit, RateLimitError } from "../auth/rate-limit";
 import { auditLog } from "../auth/audit-log";
+import {
+  assertCreditsAvailable,
+  debitForLlmRun,
+  ensureWalletForUser,
+} from "../services/billing";
+import { InsufficientCreditsError } from "../billing/errors";
+import type { DreamerSupportedLLM } from "../billing";
 
 const log = createLogger("agent-run");
 
@@ -34,6 +41,20 @@ export const agentRunRoutes = new Elysia({ prefix: "/agent" }).use(authPlugin).p
         set.status = 429;
         set.headers["Retry-After"] = String(err.retryAfterSec);
         return { error: err.message, retryAfterSec: err.retryAfterSec };
+      }
+      throw err;
+    }
+
+    // Lazy wallet seed + pre-run balance gate. Both are no-ops in CLI
+    // mode. Hosted mode 402s on insufficient credits so the UI can flip
+    // to a "you ran out" affordance instead of streaming a dead run.
+    try {
+      await ensureWalletForUser(ownerId);
+      await assertCreditsAvailable(ownerId);
+    } catch (err) {
+      if (err instanceof InsufficientCreditsError) {
+        set.status = 402;
+        return { error: "insufficient credits", available: err.available };
       }
       throw err;
     }
@@ -129,6 +150,26 @@ export const agentRunRoutes = new Elysia({ prefix: "/agent" }).use(authPlugin).p
         appliedOps,
         tokenUsage: result.tokenUsage,
       });
+
+      // Post-run debit. Idempotent on runId, so a retry of completeRun
+      // won't double-charge. Fire-and-forget — a debit failure must not
+      // fail the user's already-streamed response.
+      if (result.tokenUsage) {
+        void debitForLlmRun({
+          userId: ownerId,
+          runId: runFile.run.id,
+          llm: {
+            kind: "llm",
+            model: result.tokenUsage.model as DreamerSupportedLLM,
+            inputTokens: result.tokenUsage.inputTokens,
+            outputTokens: result.tokenUsage.outputTokens,
+          },
+        }).catch((err) => {
+          log.warn(
+            `debit failed for run ${runFile.run.id}: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        });
+      }
 
       return {
         runId: runFile.run.id,

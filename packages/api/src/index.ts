@@ -8,6 +8,8 @@ import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { createLogger } from "./logger";
 import { authPlugin } from "./auth/auth-plugin";
+import { requestContextPlugin } from "./request-context";
+import { flush as flushLogSink } from "./log-supabase-sink";
 import { migrateOwnership } from "./db/migrate-ownership";
 import { CLI_LOCAL_USER_ID, IS_HOSTED_MODE } from "./supabase/env";
 import { projectRoutes } from "./routes/projects";
@@ -86,6 +88,9 @@ const app = new Elysia()
     })
   )
   .use(authPlugin)
+  // Must come AFTER authPlugin so auth.userId is populated when the
+  // request-context plugin reads it.
+  .use(requestContextPlugin)
   .use(authRoutes)
   .use(adminRoutes)
   .use(projectRoutes)
@@ -145,6 +150,14 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   }
 
   await awaitPendingSummaries(SHUTDOWN_DEADLINE_MS - 500)
+
+  // Drain the Supabase log sink so the last second of warn+ entries
+  // make it to Postgres before SIGKILL. In CLI mode this is a no-op.
+  try {
+    await flushLogSink()
+  } catch (err) {
+    log.warn(`flush log sink failed: ${err instanceof Error ? err.message : err}`)
+  }
 
   log.info("shutdown complete")
   process.exit(0)
