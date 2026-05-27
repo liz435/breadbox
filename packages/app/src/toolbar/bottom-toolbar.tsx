@@ -18,9 +18,12 @@ import { useChatMessages } from "./use-chat-messages"
 import { AuthStatusBadge } from "@/auth/auth-status-badge"
 import { CreditChip } from "@/billing/credit-chip"
 
-// Pin the agent to the DSL (1.3.5) snapshot. The DSL/AUTO toggle was
-// removed — DSL is the only build path the frontend offers now.
-const AGENT_SNAPSHOT_VERSION = "1.3.5"
+// Pin the agent to the DSL (1.3.6) snapshot. The DSL/AUTO toggle was
+// removed — DSL is the only build path the frontend offers now. 1.3.6
+// adds a Common Pitfalls block and worked examples for servo+pot,
+// OLED I²C, HC-SR04, and multi-LED rail distribution. See
+// `packages/api/src/agents/version.ts` for the full changelog.
+const AGENT_SNAPSHOT_VERSION = "1.3.6"
 
 type ToolbarMode = "edit" | "ai"
 

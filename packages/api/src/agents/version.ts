@@ -28,7 +28,7 @@ export const DEFAULT_AGENT_SNAPSHOT_VERSION =
  * Explicitly listed snapshots that can be selected safely. Add a new entry
  * whenever introducing a new behavior profile.
  */
-export const SUPPORTED_AGENT_SNAPSHOTS = ["1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.0.4", "1.0.5", "1.0.6", "1.0.7", "1.0.8", "1.1.0", "1.1.1", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", "1.4.0"] as const;
+export const SUPPORTED_AGENT_SNAPSHOTS = ["1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.0.4", "1.0.5", "1.0.6", "1.0.7", "1.0.8", "1.1.0", "1.1.1", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", "1.3.6", "1.4.0"] as const;
 
 export type AgentSnapshotVersion = (typeof SUPPORTED_AGENT_SNAPSHOTS)[number];
 
@@ -70,6 +70,17 @@ export const AGENT_CHANGELOG: Array<{
       "BUILD_PROMPT: default build path is now CircuitProgram-first instead of hand-authored DreamerDiagram-first. The agent now plans modules, nets, sketch contracts, and runtime behavior contracts before compiling to DreamerDiagram under the hood.",
       "apply_design remains available for explicit pasted DreamerDiagram imports; propose_circuit remains as the fallback auto-placement path when CircuitProgram attempts fail or the user explicitly asks for it.",
       "Introduced CircuitProgram v1 as a breadboard IR that separates circuit structure (program), semantic handles (words), and component/runtime identity (profiles), so the agent can reason about servo pulse, analog input, WS2812 timing, and similar component-specific behavior earlier in the flow.",
+    ],
+  },
+  {
+    version: "1.3.6",
+    date: "2026-05-27",
+    changes: [
+      "BUILD_PROMPT: removed the stale 'user can switch to AUTO mode' sentence in the 3-failure stop instruction. The DSL/AUTO toggle was removed from the bottom toolbar (`packages/app/src/toolbar/bottom-toolbar.tsx`), so suggesting that mode would mislead the user. DSL is now documented as the only build path.",
+      "BUILD_PROMPT: added a `Common pitfalls` block with 8 WRONG→RIGHT pairs covering supply fan-out vs rail distribution, INPUT vs INPUT_PULLUP, canonical pin names, resistor/button `at:[row,3]`, 2D array initializers, const-array initializers, echoing JSON/code in chat, and suggesting nonexistent build modes. Negative examples reinforce the prose rules that Haiku tends to skim.",
+      "BUILD_PROMPT: added four worked examples — servo+potentiometer (analog input + PWM, shared 5V/GND rails), SSD1306 OLED over I²C (SDA=A4, SCL=A5), HC-SR04 ultrasonic, and 4 LEDs on D2–D5 with rail distribution. Haiku's accuracy on these classes was limited by the prompt only having LED/button/7-seg examples.",
+      "Companion change in `packages/api/src/agents/core/agent.ts:281-302`: the system message is now split into two `{role:'system'}` blocks — stable prompt (ephemeral cache_control) + per-turn board summary (uncached). Previously the combined message busted the cache on every board mutation, re-billing the full prefix each turn.",
+      "Frontend pin: `bottom-toolbar.tsx` updated to `AGENT_SNAPSHOT_VERSION = '1.3.6'`. Snapshot 1.3.5 stays frozen for reproducibility of prior runs.",
     ],
   },
   {
