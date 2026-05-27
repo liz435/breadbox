@@ -18,6 +18,69 @@ function getMessageText(msg: UseChatMessagesReturn["messages"][number]): string 
     .join("")
 }
 
+/**
+ * Vercel AI SDK v5 streams `tool-<toolName>` parts on assistant
+ * messages. We narrow structurally — the SDK's union typing doesn't
+ * surface `state` / `toolCallId` after a pattern-match on `type`.
+ */
+type ToolCallPart = {
+  type: string
+  state: string
+  toolCallId?: string
+}
+
+function isToolCallPart(part: unknown): part is ToolCallPart {
+  if (typeof part !== "object" || part === null) return false
+  const p = part as { type?: unknown; state?: unknown }
+  return (
+    typeof p.type === "string" &&
+    p.type.startsWith("tool-") &&
+    typeof p.state === "string"
+  )
+}
+
+function partToolName(part: ToolCallPart): string {
+  return part.type.slice("tool-".length)
+}
+
+function stateIcon(state: string): string {
+  switch (state) {
+    case "input-streaming":
+      return "⏵"
+    case "input-available":
+      return "▶"
+    case "output-available":
+      return "✓"
+    default:
+      return "•"
+  }
+}
+
+function isToolInFlight(state: string): boolean {
+  return state === "input-streaming" || state === "input-available"
+}
+
+/**
+ * Find the tool currently being called by the most recent assistant
+ * message. Used to swap the generic "Thinking..." pulse for a specific
+ * "Using <toolName>..." indicator during the stream.
+ */
+function activeToolName(
+  messages: UseChatMessagesReturn["messages"],
+): string | null {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const msg = messages[i]
+    if (!msg || msg.role !== "assistant") continue
+    for (const part of msg.parts) {
+      if (isToolCallPart(part) && isToolInFlight(part.state)) {
+        return partToolName(part)
+      }
+    }
+    return null
+  }
+  return null
+}
+
 export function AiToolbarHistory({ chat }: AiToolbarProps) {
   const { messages, status } = chat
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -70,27 +133,51 @@ export function AiToolbarHistory({ chat }: AiToolbarProps) {
           <div className="px-3 py-2 pr-8">
             {messages.map((msg) => {
               const text = getMessageText(msg)
-              if (!text) return null
+              const toolParts: ToolCallPart[] = []
+              for (const part of msg.parts) {
+                if (isToolCallPart(part)) toolParts.push(part)
+              }
+              if (!text && toolParts.length === 0) return null
               return (
                 <div key={msg.id} className="mb-3 last:mb-0">
-                  <div
-                    className={cn(
-                      "text-sm leading-relaxed rounded-md",
-                      msg.role === "user"
-                        ? "bg-accent px-2.5 py-1.5"
-                        : "text-muted-foreground py-1 prose prose-sm prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-strong:text-foreground prose-headings:text-foreground prose-code:text-foreground prose-code:bg-muted prose-code:px-1 prose-code:rounded"
-                    )}
-                  >
-                    {msg.role === "user" ? text : <Markdown>{text}</Markdown>}
-                  </div>
+                  {text && (
+                    <div
+                      className={cn(
+                        "text-sm leading-relaxed rounded-md",
+                        msg.role === "user"
+                          ? "bg-accent px-2.5 py-1.5"
+                          : "text-muted-foreground py-1 prose prose-sm prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-strong:text-foreground prose-headings:text-foreground prose-code:text-foreground prose-code:bg-muted prose-code:px-1 prose-code:rounded"
+                      )}
+                    >
+                      {msg.role === "user" ? text : <Markdown>{text}</Markdown>}
+                    </div>
+                  )}
+                  {/* Inline tool-activity list. Tool name only — args
+                      (huge sketches) + outputs (already reflected in
+                      board diff) would be noise. */}
+                  {toolParts.length > 0 && (
+                    <div className="mt-1 space-y-0.5">
+                      {toolParts.map((part) => (
+                        <div
+                          key={part.toolCallId ?? `${part.type}-${part.state}`}
+                          className="text-xs italic text-muted-foreground/80 font-mono"
+                        >
+                          {stateIcon(part.state)} {partToolName(part)}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )
             })}
-            {isStreaming && (
-              <div className="text-xs text-muted-foreground animate-pulse py-1">
-                Thinking...
-              </div>
-            )}
+            {isStreaming && (() => {
+              const tool = activeToolName(messages)
+              return (
+                <div className="text-xs text-muted-foreground animate-pulse py-1 font-mono">
+                  {tool ? `Using ${tool}...` : "Thinking..."}
+                </div>
+              )
+            })()}
             <div ref={bottomRef} />
           </div>
         </ScrollArea>

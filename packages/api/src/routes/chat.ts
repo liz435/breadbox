@@ -7,6 +7,13 @@ import { storage, VersionConflictError, OpValidationError } from "../db";
 import { buildTieredMemory } from "../agents/tiered-memory";
 import { generateThreadSummary } from "../agents/history-summarizer";
 import { streamCoreAgent } from "../agents/core/agent";
+import {
+  EMPTY_REPORT,
+  isReportEmpty,
+  mergeReports,
+  sanitizeModelMessages,
+  type SanitizationReport,
+} from "../agents/sanitize-messages";
 import { classifyIntent } from "../agents/intent-classifier";
 import { CIRCUIT_TEMPLATES } from "../agents/circuit-templates";
 import { makeBoardOp } from "../agents/make-op";
@@ -321,6 +328,12 @@ export const chatRoutes = new Elysia().use(authPlugin).post("/api/chat", async (
   }
 
   // 6. Start streaming agent
+  // Accumulator for per-step sanitizer reports. The mid-stream guard in
+  // prepareStep fires `onHistorySanitized` once per step it dropped
+  // anything; we merge into this closure-local total and emit ONE SSE
+  // event in finalizeRun. Write-side sanitization (before completeRun
+  // persist) also folds in here.
+  let sanitizationTotals: SanitizationReport = EMPTY_REPORT;
   const { finish: finishAgentSetup } = startSpan(trace.rootSpan, "agent_setup");
   const agentStream = streamCoreAgent({
     prompt,
@@ -334,6 +347,9 @@ export const chatRoutes = new Elysia().use(authPlugin).post("/api/chat", async (
     parentLog: reqLog,
     history,
     priorRuns: completedRuns,
+    onHistorySanitized: (delta) => {
+      sanitizationTotals = mergeReports(sanitizationTotals, delta);
+    },
   });
   finishAgentSetup();
 
@@ -427,6 +443,7 @@ export const chatRoutes = new Elysia().use(authPlugin).post("/api/chat", async (
               appliedOps: [],
               newVersion,
               ownerId,
+              sanitizationTotals,
             });
             return;
           } else if (err instanceof OpValidationError) {
@@ -522,6 +539,7 @@ export const chatRoutes = new Elysia().use(authPlugin).post("/api/chat", async (
         appliedOps,
         newVersion,
         ownerId,
+        sanitizationTotals,
       });
     },
     onError(error) {
@@ -614,6 +632,12 @@ type FinalizeRunArgs = {
   appliedOps: BoardOp[]
   newVersion: number
   ownerId: string
+  /**
+   * Aggregated mid-stream + write-side sanitizer counts for this request.
+   * If non-empty, finalizeRun emits one `data-history-sanitized` SSE event
+   * so the frontend can toast.warning the user.
+   */
+  sanitizationTotals: SanitizationReport
 }
 
 async function finalizeRun(args: FinalizeRunArgs) {
@@ -628,7 +652,24 @@ async function finalizeRun(args: FinalizeRunArgs) {
     appliedOps,
     newVersion,
     ownerId,
+    sanitizationTotals,
   } = args
+  // Write-side sanitize: even though prepareStep dropped bad blocks
+  // before each Anthropic call, `result.messages` is what streamText
+  // accumulated, which may still contain the raw model output. Strip
+  // any survivors before persistence so a future replay never sees
+  // them. The counts merge into the totals we emit below.
+  const writeSanitize = sanitizeModelMessages(
+    result.messages as Parameters<typeof sanitizeModelMessages>[0],
+  )
+  if (!isReportEmpty(writeSanitize.report)) {
+    reqLog.warn(
+      `write-side sanitize: dropped ${writeSanitize.report.toolCalls} tool-call(s), ${writeSanitize.report.toolResults} orphaned tool-result(s), ${writeSanitize.report.messages} empty message(s) before persist`,
+    )
+  }
+  const persistMessages = writeSanitize.sanitized
+  const totalsWithWrite = mergeReports(sanitizationTotals, writeSanitize.report)
+
   // Roll up overhead (summarizer) into the parent run's tokenUsage
   const overhead = liveSummarizerUsage && liveSummarizerUsage.totalTokens > 0
     ? [{
@@ -652,11 +693,20 @@ async function finalizeRun(args: FinalizeRunArgs) {
   await storage.agentRuns.completeRun({
     runId: runFile.run.id,
     assistantText: result.assistantText,
-    messages: result.messages,
+    messages: persistMessages,
     proposedOps: result.proposedOps,
     appliedOps,
     tokenUsage: tokenUsageWithOverhead,
   });
+
+  // Surface sanitizer recovery to the user. Aggregate-at-end: one toast
+  // per chat completion that had any sanitization, never mid-stream.
+  if (!isReportEmpty(totalsWithWrite)) {
+    writer.write({
+      type: "data-history-sanitized",
+      data: totalsWithWrite,
+    });
+  }
 
   // Post-stream debit. Idempotent on runId. Fire-and-forget so a debit
   // failure can't leak back into an already-flushed SSE response.

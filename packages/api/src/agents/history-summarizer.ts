@@ -106,7 +106,7 @@ export async function buildSummarizedHistory(
   const coreRuns = getCoreRuns(completedRuns);
 
   if (coreRuns.length < MIN_RUNS_FOR_SUMMARY) {
-    return { messages: buildModelMessagesFromRuns(completedRuns), usage: null };
+    return { messages: buildModelMessagesFromRuns(completedRuns).messages, usage: null };
   }
 
   const oldRuns = coreRuns.slice(0, -RECENT_RUNS_TO_KEEP);
@@ -157,7 +157,7 @@ export async function buildSummarizedHistory(
     }
   }
 
-  const recentMessages = buildModelMessagesFromRuns(recentRuns);
+  const recent = buildModelMessagesFromRuns(recentRuns);
 
   return {
     messages: [
@@ -170,7 +170,7 @@ export async function buildSummarizedHistory(
         content:
           "Got it — I have the context from our earlier conversation. How can I help?",
       },
-      ...recentMessages,
+      ...recent.messages,
     ],
     usage,
   };

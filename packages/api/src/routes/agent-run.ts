@@ -3,6 +3,10 @@ import { ZodError } from "zod";
 import { runCoreAgent } from "../agents/core/agent";
 import { resolveAgentSnapshotVersion } from "../agents/version";
 import { buildSummarizedHistory } from "../agents/history-summarizer";
+import {
+  isReportEmpty,
+  sanitizeModelMessages,
+} from "../agents/sanitize-messages";
 import { agentRunRequestSchema } from "../db/schemas";
 import {
   OpValidationError,
@@ -142,10 +146,22 @@ export const agentRunRoutes = new Elysia({ prefix: "/agent" }).use(authPlugin).p
         );
       }
 
+      // Write-side sanitize: scrub any tool-call blocks the model emitted
+      // with non-object input before they land in DB. Mid-stream guard
+      // already drops them for replay; this closes the persistence loop.
+      const writeSanitize = sanitizeModelMessages(
+        result.messages as Parameters<typeof sanitizeModelMessages>[0],
+      );
+      if (!isReportEmpty(writeSanitize.report)) {
+        log.warn(
+          `agent-run write-side sanitize: dropped ${writeSanitize.report.toolCalls} tool-call(s), ${writeSanitize.report.toolResults} orphaned tool-result(s) before persist`,
+        );
+      }
+
       await storage.agentRuns.completeRun({
         runId: runFile.run.id,
         assistantText: result.assistantText,
-        messages: result.messages,
+        messages: writeSanitize.sanitized,
         proposedOps: result.proposedOps,
         appliedOps,
         tokenUsage: result.tokenUsage,
