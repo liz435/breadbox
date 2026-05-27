@@ -1,5 +1,22 @@
 import type { ModelMessage } from "ai";
 import type { AgentRunFile } from "./schemas";
+import {
+  EMPTY_REPORT,
+  sanitizeModelMessages,
+  type SanitizationReport,
+} from "../agents/sanitize-messages";
+
+export type BuiltMessages = {
+  messages: ModelMessage[];
+  /**
+   * Sanitization report from the defensive layer. Currently always empty
+   * because this function only emits stringly content (no tool-call
+   * blocks), but the report is plumbed through so a future change that
+   * replays raw tool blocks would surface counts to the user via the
+   * existing data-history-sanitized SSE event.
+   */
+  report: SanitizationReport;
+};
 
 /**
  * Builds a ModelMessage[] conversation history from completed agent runs.
@@ -10,7 +27,7 @@ import type { AgentRunFile } from "./schemas";
  * Only includes runs with agent === "core" (top-level runs),
  * so child specialist runs don't pollute the history.
  */
-export function buildModelMessagesFromRuns(runs: AgentRunFile[]): ModelMessage[] {
+export function buildModelMessagesFromRuns(runs: AgentRunFile[]): BuiltMessages {
   const result: ModelMessage[] = [];
 
   for (const run of runs) {
@@ -80,5 +97,14 @@ export function buildModelMessagesFromRuns(runs: AgentRunFile[]): ModelMessage[]
     }
   }
 
-  return result;
+  // Defensive sanitize: no-op today (we only push stringly content
+  // above) but future-proofs against any change that replays raw
+  // run.messages. Same sanitizer the mid-stream loop uses.
+  const { sanitized, report } = sanitizeModelMessages(result);
+  return {
+    messages: sanitized,
+    report: report.toolCalls + report.toolResults + report.messages > 0
+      ? report
+      : EMPTY_REPORT,
+  };
 }

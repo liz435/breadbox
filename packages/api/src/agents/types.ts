@@ -21,6 +21,16 @@ export type AgentContext = {
    * retry-after-failure situations and escalate the model accordingly.
    */
   priorRuns?: import("../db/schemas").AgentRunFile[];
+  /**
+   * Called once per step when the in-loop sanitizer drops malformed
+   * tool-call blocks before sending the conversation back to Anthropic.
+   * Delta semantics — each call carries only that step's contribution.
+   * The route layer aggregates and emits a single SSE event at end of
+   * stream. See packages/api/src/agents/sanitize-messages.ts.
+   */
+  onHistorySanitized?: (
+    report: import("./sanitize-messages").SanitizationReport,
+  ) => void;
 };
 
 export type OverheadUsage = {

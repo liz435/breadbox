@@ -220,10 +220,10 @@ export async function buildTieredMemory(params: {
 
   // TF-IDF retrieved turns (relevant older context)
   if (tfidfResults.length > 0) {
-    const retrievedMessages = buildModelMessagesFromRuns(
+    const retrieved = buildModelMessagesFromRuns(
       tfidfResults.map((r) => r.run),
     );
-    if (retrievedMessages.length > 0) {
+    if (retrieved.messages.length > 0) {
       messages.push({
         role: "user" as const,
         content: "[Relevant earlier turns retrieved by similarity]",
@@ -232,13 +232,13 @@ export async function buildTieredMemory(params: {
         role: "assistant" as const,
         content: "I see the relevant context from those earlier turns.",
       });
-      messages.push(...retrievedMessages);
+      messages.push(...retrieved.messages);
     }
   }
 
   // Recent turns (full messages)
-  const recentMessages = buildModelMessagesFromRuns(recentRuns);
-  messages.push(...recentMessages);
+  const recent = buildModelMessagesFromRuns(recentRuns);
+  messages.push(...recent.messages);
 
   return { messages, usage, tfidfRunIds };
 }

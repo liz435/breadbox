@@ -16,6 +16,7 @@ import {
   CORE_PROMPT_SNAPSHOTS,
   DEFAULT_CORE_PROMPT_SNAPSHOT,
 } from "./prompts";
+import { sanitizeModelMessages } from "../sanitize-messages";
 
 // ── Model context limits (used for message sizing) ──────────────────────
 
@@ -277,24 +278,14 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
         ? snapshotPrompts.editPrompt
         : snapshotPrompts.editPrompt;
 
-  // Size messages to fit model context.
-  //
-  // Two system blocks so the stable prompt stays cached across turns while
-  // the per-turn board summary varies. Anthropic accepts an array of system
-  // blocks each with their own cache_control; only the first carries the
-  // ephemeral marker. Combining the two into one message would invalidate
-  // the entire prefix on every board mutation.
+  // Size messages to fit model context
   const rawMessages: ModelMessage[] = [
     {
       role: "system",
-      content: systemPrompt,
+      content: `${systemPrompt}\n\n## Current Board State\n${boardSummary}`,
       providerOptions: {
         anthropic: { cacheControl: { type: "ephemeral" } },
       },
-    },
-    {
-      role: "system",
-      content: `## Current Board State\n${boardSummary}`,
     },
     ...(ctx.history ?? []),
     { role: "user", content: agentPrompt },
@@ -375,19 +366,45 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
     // very heavy. After step 2, compact older tool results to cut the
     // ~82% accumulation overhead.
     prepareStep({ messages: stepMessages, stepNumber }) {
-      if (stepNumber < 2) return {};
+      // Sanitize first — drop any tool-call blocks whose `input` isn't a
+      // valid JSON object. Anthropic rejects the whole request when it
+      // sees one, so this guard runs at EVERY step (no gate), including
+      // before the existing compaction's early-return for steps 0/1.
+      const sanitizeResult = sanitizeModelMessages(stepMessages);
+      const dirty =
+        sanitizeResult.report.toolCalls +
+          sanitizeResult.report.toolResults +
+          sanitizeResult.report.messages >
+        0;
+      if (dirty) {
+        log.warn(
+          `prepareStep ${stepNumber}: sanitized ${sanitizeResult.report.toolCalls} tool-call(s), ${sanitizeResult.report.toolResults} orphaned tool-result(s), ${sanitizeResult.report.messages} empty message(s); tools=[${sanitizeResult.report.toolNames.join(",")}]`,
+        );
+        ctx.onHistorySanitized?.(sanitizeResult.report);
+      }
+      const cleaned = sanitizeResult.sanitized;
+
+      if (stepNumber < 2) {
+        // Below the compaction threshold: only override messages if the
+        // sanitizer changed something. Otherwise return {} so the SDK
+        // uses its own defaults.
+        return dirty ? { messages: cleaned as ModelMessage[] } : {};
+      }
 
       // After step 4, shrink the window to 1 pair (2 messages) — by then the
       // system prompt already carries the board summary, so older pairs add
       // cost without adding signal. Steps 2–3 keep 2 pairs (4 messages) for
       // continuity during the initial propose_circuit→fix loop.
       const KEEP_RECENT = stepNumber >= 4 ? 2 : 4;
-      const systemEnd = stepMessages.findIndex((m) => m.role !== "system") || 1;
-      const compactEnd = Math.max(systemEnd, stepMessages.length - KEEP_RECENT);
+      const systemEnd = cleaned.findIndex((m) => m.role !== "system") || 1;
+      const compactEnd = Math.max(systemEnd, cleaned.length - KEEP_RECENT);
 
-      if (compactEnd <= systemEnd) return {};
+      if (compactEnd <= systemEnd) {
+        // No compaction needed but sanitizer may have produced changes.
+        return dirty ? { messages: cleaned as ModelMessage[] } : {};
+      }
 
-      const compacted = stepMessages.map((msg, idx) => {
+      const compacted = cleaned.map((msg, idx) => {
         // Keep system prompt and recent messages untouched
         if (idx < systemEnd || idx >= compactEnd) return msg;
 
@@ -432,7 +449,9 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
         return msg;
       });
 
-      const originalChars = JSON.stringify(stepMessages).length;
+      // Measure compaction against the post-sanitizer baseline so the
+      // metric reflects compaction's contribution, not sanitization's.
+      const originalChars = JSON.stringify(cleaned).length;
       const compactedChars = JSON.stringify(compacted).length;
       const saved = originalChars - compactedChars;
       if (saved > 1000) {
