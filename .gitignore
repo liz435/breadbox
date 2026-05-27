@@ -11,7 +11,12 @@ packages/app/dist/
 packages/cli/dist/
 motionEditor
 
-# API runtime data — regenerated/mutated on every API run
+# Per-developer runtime state from `bun run dev` — projects, agent runs,
+# threads, tests, and audit logs are rewritten on every server interaction
+# and should not be committed. The directories are recreated on boot if
+# missing; only the contents are ignored.
 packages/api/data/projects/*.json
+packages/api/data/runs/*.json
+packages/api/data/threads/*.json
 packages/api/data/tests/*.json
 packages/api/data/audit/
