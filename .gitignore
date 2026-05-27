@@ -10,3 +10,12 @@ packages/cli/src/web-ui-manifest.generated.ts
 packages/app/dist/
 packages/cli/dist/
 motionEditor
+
+# Per-developer runtime state from `bun run dev` — projects, agent runs,
+# threads, and audit logs are rewritten on every server interaction and
+# should not be committed. The directories are recreated on boot if
+# missing; only the contents are ignored.
+packages/api/data/projects/*.json
+packages/api/data/runs/*.json
+packages/api/data/threads/*.json
+packages/api/data/audit/*.jsonl
