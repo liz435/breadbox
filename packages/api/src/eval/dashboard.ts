@@ -324,12 +324,13 @@ function versionAtLeast(v, target){
 }
 function resolveDiagramVersion(rawVersion){
   var v = String(rawVersion || '').trim();
-  if (v === '1.0.0' || v === '1.0.1' || v === '1.0.2' || v === '1.0.3' || v === '1.0.4' || v === '1.0.5' || v === '1.0.6' || v === '1.0.7' || v === '1.0.8' || v === '1.1.0' || v === '1.1.1' || v === '1.2.0' || v === '1.2.1' || v === '1.2.2' || v === '1.2.3' || v === '1.2.4' || v === '1.2.5' || v === '1.3.0' || v === '1.3.1' || v === '1.3.2' || v === '1.3.3' || v === '1.3.4' || v === '1.3.5' || v === '1.4.0') return v;
+  if (v === '1.0.0' || v === '1.0.1' || v === '1.0.2' || v === '1.0.3' || v === '1.0.4' || v === '1.0.5' || v === '1.0.6' || v === '1.0.7' || v === '1.0.8' || v === '1.1.0' || v === '1.1.1' || v === '1.2.0' || v === '1.2.1' || v === '1.2.2' || v === '1.2.3' || v === '1.2.4' || v === '1.2.5' || v === '1.3.0' || v === '1.3.1' || v === '1.3.2' || v === '1.3.3' || v === '1.3.4' || v === '1.3.5' || v === '1.4.0' || v === '1.5.0') return v;
   // Default to the latest known diagram, but preserve 1.0.0 if current is old.
-  return versionAtLeast(CURRENT_VER, '1.4.0') ? '1.4.0' : versionAtLeast(CURRENT_VER, '1.3.5') ? '1.3.5' : versionAtLeast(CURRENT_VER, '1.3.4') ? '1.3.4' : versionAtLeast(CURRENT_VER, '1.3.3') ? '1.3.3' : versionAtLeast(CURRENT_VER, '1.3.2') ? '1.3.2' : versionAtLeast(CURRENT_VER, '1.3.1') ? '1.3.1' : versionAtLeast(CURRENT_VER, '1.3.0') ? '1.3.0' : versionAtLeast(CURRENT_VER, '1.2.5') ? '1.2.5' : versionAtLeast(CURRENT_VER, '1.2.4') ? '1.2.4' : versionAtLeast(CURRENT_VER, '1.2.3') ? '1.2.3' : versionAtLeast(CURRENT_VER, '1.2.2') ? '1.2.2' : versionAtLeast(CURRENT_VER, '1.2.1') ? '1.2.1' : versionAtLeast(CURRENT_VER, '1.2.0') ? '1.2.0' : versionAtLeast(CURRENT_VER, '1.1.1') ? '1.1.1' : versionAtLeast(CURRENT_VER, '1.1.0') ? '1.1.0' : versionAtLeast(CURRENT_VER, '1.0.8') ? '1.0.8' : versionAtLeast(CURRENT_VER, '1.0.7') ? '1.0.7' : versionAtLeast(CURRENT_VER, '1.0.6') ? '1.0.6' : versionAtLeast(CURRENT_VER, '1.0.5') ? '1.0.5' : versionAtLeast(CURRENT_VER, '1.0.4') ? '1.0.4' : versionAtLeast(CURRENT_VER, '1.0.3') ? '1.0.3' : versionAtLeast(CURRENT_VER, '1.0.2') ? '1.0.2' : versionAtLeast(CURRENT_VER, '1.0.1') ? '1.0.1' : '1.0.0';
+  return versionAtLeast(CURRENT_VER, '1.5.0') ? '1.5.0' : versionAtLeast(CURRENT_VER, '1.4.0') ? '1.4.0' : versionAtLeast(CURRENT_VER, '1.3.5') ? '1.3.5' : versionAtLeast(CURRENT_VER, '1.3.4') ? '1.3.4' : versionAtLeast(CURRENT_VER, '1.3.3') ? '1.3.3' : versionAtLeast(CURRENT_VER, '1.3.2') ? '1.3.2' : versionAtLeast(CURRENT_VER, '1.3.1') ? '1.3.1' : versionAtLeast(CURRENT_VER, '1.3.0') ? '1.3.0' : versionAtLeast(CURRENT_VER, '1.2.5') ? '1.2.5' : versionAtLeast(CURRENT_VER, '1.2.4') ? '1.2.4' : versionAtLeast(CURRENT_VER, '1.2.3') ? '1.2.3' : versionAtLeast(CURRENT_VER, '1.2.2') ? '1.2.2' : versionAtLeast(CURRENT_VER, '1.2.1') ? '1.2.1' : versionAtLeast(CURRENT_VER, '1.2.0') ? '1.2.0' : versionAtLeast(CURRENT_VER, '1.1.1') ? '1.1.1' : versionAtLeast(CURRENT_VER, '1.1.0') ? '1.1.0' : versionAtLeast(CURRENT_VER, '1.0.8') ? '1.0.8' : versionAtLeast(CURRENT_VER, '1.0.7') ? '1.0.7' : versionAtLeast(CURRENT_VER, '1.0.6') ? '1.0.6' : versionAtLeast(CURRENT_VER, '1.0.5') ? '1.0.5' : versionAtLeast(CURRENT_VER, '1.0.4') ? '1.0.4' : versionAtLeast(CURRENT_VER, '1.0.3') ? '1.0.3' : versionAtLeast(CURRENT_VER, '1.0.2') ? '1.0.2' : versionAtLeast(CURRENT_VER, '1.0.1') ? '1.0.1' : '1.0.0';
 }
 function previousDiagramVersion(v){
   var resolved = resolveDiagramVersion(v);
+  if (resolved === '1.5.0') return '1.4.0';
   if (resolved === '1.4.0') return '1.3.5';
   if (resolved === '1.3.5') return '1.3.4';
   if (resolved === '1.3.4') return '1.3.3';
@@ -357,6 +358,7 @@ function previousDiagramVersion(v){
 }
 function introducedNodesForVersion(v){
   var resolved = resolveDiagramVersion(v);
+  if (resolved === '1.5.0') return ['VFY', 'TMB']; // verify_circuit + build-mode label rewritten (propose_circuit-first)
   if (resolved === '1.4.0') return ['TCP', 'ACP', 'TMB'];
   if (resolved === '1.0.1') return ['SNAP'];
   if (resolved === '1.0.2') return ['PCV'];
@@ -369,7 +371,7 @@ function changedNodesBetween(fromV, toV){
   var from = resolveDiagramVersion(fromV || baselineDiagramVersion());
   var to = resolveDiagramVersion(toV || CURRENT_VER);
   if (!versionAtLeast(to, from)) return [];
-  var known = ['1.0.1','1.0.2','1.0.3','1.0.4','1.0.5','1.0.6','1.0.7','1.0.8','1.1.0','1.1.1','1.2.0','1.2.1','1.2.2','1.2.3','1.2.4','1.2.5','1.3.0','1.3.1','1.3.2','1.3.3','1.3.4','1.3.5','1.4.0'];
+  var known = ['1.0.1','1.0.2','1.0.3','1.0.4','1.0.5','1.0.6','1.0.7','1.0.8','1.1.0','1.1.1','1.2.0','1.2.1','1.2.2','1.2.3','1.2.4','1.2.5','1.3.0','1.3.1','1.3.2','1.3.3','1.3.4','1.3.5','1.4.0','1.5.0'];
   var out = [];
   known.forEach(function(v){
     if (versionAtLeast(v, from) && versionAtLeast(to, v) && v !== from) {
@@ -412,7 +414,7 @@ function latestVersionFromRuns(evals){
 }
 function allKnownVersions(evals){
   var versions=Object.keys(versionBuckets(evals||[]));
-  var known=['1.0.0','1.0.1','1.0.2','1.0.3','1.0.4','1.0.5','1.0.6','1.0.7','1.0.8','1.1.0','1.1.1','1.2.0','1.2.1','1.2.2','1.2.3','1.2.4','1.2.5','1.3.0','1.3.1','1.3.2','1.3.3','1.3.4','1.3.5','1.4.0'];
+  var known=['1.0.0','1.0.1','1.0.2','1.0.3','1.0.4','1.0.5','1.0.6','1.0.7','1.0.8','1.1.0','1.1.1','1.2.0','1.2.1','1.2.2','1.2.3','1.2.4','1.2.5','1.3.0','1.3.1','1.3.2','1.3.3','1.3.4','1.3.5','1.4.0','1.5.0'];
   known.forEach(function(v){ if(versions.indexOf(v)<0) versions.push(v); });
   var currentResolved=resolveDiagramVersion(CURRENT_VER);
   if(versions.indexOf(currentResolved)<0) versions.push(currentResolved);
@@ -468,6 +470,108 @@ mermaid.initialize({
   }
 });
 
+// ── Current-state flowchart (v1.5.0+) ──────────────────────────────────────
+//
+// Hand-authored to reflect the agent as it actually exists right now, rather
+// than layering historical overlays on top of a 1.0.0 baseline. Trimmed for
+// legibility:
+//   - Routing diamonds (DOM / RT / CXC / MSC) collapsed into a single
+//     ROUTER node — they fire on every request but the user usually wants
+//     to see "Router picked Haiku · toolMode=build", not 4 stacked diamonds.
+//   - Step-loop fan-out branches by toolMode (build vs edit) instead of
+//     showing every tool category as if they were always reachable. Build
+//     mode only renders its 6 tools; edit mode only renders its surface.
+//   - Internal validators (v1.0.2 electrical gate, sketch_validation retry
+//     budget) collapsed into the tool node that owns them — they're not
+//     separate agent decisions, just tool-execute branches.
+//   - Delegation (specialist agents) is gone since v1.1.0 — removed entirely.
+//
+// Node IDs are preserved where they overlap with the heatmap classifier
+// (START, ROUTER, TMB, TME, SL, WPC, VFY, WPF, WSK, RD, POST, etc.) so
+// per-run coloring + the changedNodes delta highlighting keep working.
+function buildCurrentFlowchart(c, agg, changedNodes) {
+  var L = [
+    '%%{init:{"theme":"base","themeVariables":{"background":"#0f1117","primaryColor":"#1e293b","primaryTextColor":"#e2e8f0","primaryBorderColor":"#334155","lineColor":"#475569","edgeLabelBackground":"#0f172a","fontFamily":"system-ui","fontSize":"11px"}}}%%',
+    'flowchart TD',
+
+    '%% ── ENTRY + CONTEXT ────────────────────────────────────────────────',
+    '  START(["User sends message"])'+c('START'),
+    '  START --> HIST["Load prior runs · thread summary cache · merge context"]'+c('HIST'),
+    '  HIST --> ROUTER["Router\\nmodel (Haiku / Sonnet) · toolMode (build / edit / all)\\nsnapshot v1.5.0"]'+c('ROUTER'),
+
+    '%% ── PLAN + AGENT ───────────────────────────────────────────────────',
+    '  ROUTER --> PL["generatePlan (async · non-blocking)"]'+c('PL'),
+    '  ROUTER --> CA["Core Agent · streamText (max 10 steps)"]'+c('CA'),
+    '  CA --> TMC{{"toolMode?"}}'+c('TMC'),
+
+    '%% ── BUILD MODE (empty board) ───────────────────────────────────────',
+    '  TMC -- "empty board" --> TMB["BUILD · 6 tools\\npropose_circuit · verify_circuit · update_sketch\\nlist_components · list_wires · analyze_power_budget"]'+c('TMB'),
+    '  TMB --> SL{{"Step loop"}}'+c('SL'),
+    '  SL -- "primary" --> WPC["propose_circuit\\nauto-place + auto-wire + sketch\\n(max 3 attempts/turn · internal power + routing gates)"]'+c('WPC'),
+    '  WPC -- "success" --> VFY["verify_circuit\\nsketch pins ↔ wired pins"]'+c('VFY'),
+    '  VFY -- "consistent" --> SL',
+    '  VFY -- "unwired pin referenced" --> WPC',
+    '  WPC -- "fail · attempts < 3" --> SL',
+    '  WPC -- "fail · 3 attempts" --> ST',
+
+    '%% ── EDIT MODE (populated board) ────────────────────────────────────',
+    '  TMC -- "populated board" --> TME["EDIT\\npropose_fix (batch) + granular CRUD + apply_design (paste import)"]'+c('TME'),
+    '  TMC -- "rebuild" --> TMA["ALL · build + edit tools combined"]'+c('TMA'),
+    '  TME & TMA --> SL',
+    '  SL -- "batch edit" --> WPF["propose_fix\\natomic add/remove/move + wires + sketch\\n(max 5 attempts · schema + electrical)"]'+c('WPF'),
+    '  WPF --> SL',
+    '  SL -- "granular write" --> WBB["place_component · connect_wire · update_wire\\nremove_component · remove_wire · etc."]'+c('WBB'),
+    '  WBB --> SL',
+
+    '%% ── SHARED (reads + sketch) ────────────────────────────────────────',
+    '  SL -- "read" --> RD["list_components · list_wires · analyze_power_budget\\n(get_board_overview / get_sketch_code in edit mode)"]'+c('RD'),
+    '  RD --> SL',
+    '  SL -- "sketch only" --> WSK["update_sketch (build / edit) · patch_sketch (edit)\\nstructural validate · 2-attempt retry budget on syntax errors"]'+c('WSK'),
+    '  WSK --> SL',
+
+    '%% ── TERMINATION + POST-STREAM ──────────────────────────────────────',
+    '  SL -- "done" --> POST["collectResult()"]'+c('POST'),
+    '  SL -- "steps = 10" --> ST["Max steps hit"]'+c('ST'),
+    '  ST --> POST',
+    '  POST --> PCK{{"Policy engine\\nreflection (re-enter if conf < 0.5)\\npower budget + routing checks"}}'+c('PCK'),
+    '  PCK -- "violations" --> PBL["Discard ops · return blocked text"]'+c('PBL'),
+    '  PCK -- "pass" --> SUC["Apply ops · stream result · update thread summary"]'+c('SUC'),
+    '  PBL --> FPOL["FAIL: policy blocked"]'+c('FPOL'),
+    '  SUC --> DONE(["Done"])'+c('DONE'),
+  ];
+
+  if (!agg) {
+    L = L.concat([
+      '  classDef actual fill:#1e3a8a,stroke:#3b82f6,color:#bfdbfe,font-weight:600',
+      '  classDef warn   fill:#78350f,stroke:#f59e0b,color:#fef3c7,font-weight:600',
+      '  classDef fail   fill:#7f1d1d,stroke:#ef4444,color:#fecaca,font-weight:600',
+      '  classDef ok     fill:#14532d,stroke:#22c55e,color:#bbf7d0,font-weight:600',
+      '  classDef delta  fill:#0b3b4a,stroke:#22d3ee,color:#a5f3fc,font-weight:700',
+      '  classDef ghost  fill:#1e293b,stroke:#334155,color:#475569,stroke-dasharray:3 3',
+    ]);
+  } else {
+    L = L.concat([
+      '  classDef freq4  fill:#166534,stroke:#22c55e,color:#bbf7d0',
+      '  classDef freq3  fill:#15803d,stroke:#4ade80,color:#d1fae5',
+      '  classDef freq2  fill:#1d4ed8,stroke:#3b82f6,color:#bfdbfe',
+      '  classDef freq1  fill:#1e3a8a,stroke:#60a5fa,color:#dbeafe',
+      '  classDef freq0  fill:#292524,stroke:#57534e,color:#a8a29e',
+      '  classDef delta  fill:#0b3b4a,stroke:#22d3ee,color:#a5f3fc,font-weight:700',
+      '  classDef ghost  fill:#1e293b,stroke:#334155,color:#475569,stroke-dasharray:3 3',
+    ]);
+  }
+  if (changedNodes && changedNodes.length) {
+    // Filter to nodes that actually exist in the current graph — historical
+    // node IDs (TCP, ACP, DEL, etc.) shouldn't bleed into class assignments.
+    var present = ['START','HIST','ROUTER','PL','CA','TMC','TMB','TME','TMA','SL','WPC','VFY','WPF','WBB','RD','WSK','POST','ST','PCK','PBL','SUC','FPOL','DONE'];
+    var live = changedNodes.filter(function(n){ return present.indexOf(n) >= 0; });
+    if (live.length) {
+      L.push('  class ' + live.join(',') + ' delta');
+    }
+  }
+  return L.join('\\n');
+}
+
 // ── Flowchart builder ──────────────────────────────────────────────────────
 function buildFlowchart(nc, agg, diagramVersion, fromVersion) {
   var resolvedDiagramVersion = resolveDiagramVersion(diagramVersion);
@@ -475,8 +579,20 @@ function buildFlowchart(nc, agg, diagramVersion, fromVersion) {
   var isV102 = versionAtLeast(resolvedDiagramVersion, '1.0.2');
   var isV110 = versionAtLeast(resolvedDiagramVersion, '1.1.0');
   var isV140 = versionAtLeast(resolvedDiagramVersion, '1.4.0');
+  var isV150 = versionAtLeast(resolvedDiagramVersion, '1.5.0');
   var changedNodes = changedNodesBetween(fromVersion || previousDiagramVersion(resolvedDiagramVersion), resolvedDiagramVersion);
   function c(id){ return nc[id] ? ':::'+nc[id] : ':::ghost'; }
+
+  // v1.5.0+: render a clean current-state graph rather than accumulating every
+  // historical overlay. The build-mode surface shrank to 6 tools, delegation
+  // was gone since 1.1.0, the CircuitProgram detour was reverted, and the
+  // v1.0.2 electrical gate is internal to propose_circuit (not a separate
+  // agent decision). Showing the full historical fan-out misrepresented the
+  // live shape. Older versions keep the layered overlay for archaeology.
+  if (isV150) {
+    return buildCurrentFlowchart(c, agg, changedNodes);
+  }
+  // ── Legacy accumulated overlay (versions <= 1.4.0) ─────────────────────────
   var L = [
     '%%{init:{"theme":"base","themeVariables":{"background":"#0f1117","primaryColor":"#1e293b","primaryTextColor":"#e2e8f0","primaryBorderColor":"#334155","lineColor":"#475569","edgeLabelBackground":"#0f172a","fontFamily":"system-ui","fontSize":"11px"}}}%%',
     'flowchart TD',
@@ -661,6 +777,7 @@ function buildFlowchart(nc, agg, diagramVersion, fromVersion) {
       );
     }
   }
+  // (v1.5.0 has its own clean graph in buildCurrentFlowchart — early-returned above.)
   if(!agg){
     L=L.concat([
       '  classDef actual fill:#1e3a8a,stroke:#3b82f6,color:#bfdbfe,font-weight:600',
