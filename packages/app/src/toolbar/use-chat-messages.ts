@@ -11,6 +11,7 @@ import { applyGraphOpsToGraph, isGraphOp } from "@/chat/apply-graph-ops"
 import type { GraphOp } from "@dreamer/schemas"
 import { API_ORIGIN } from "@dreamer/config"
 import { resolveFetchOptions } from "@/project/api-client"
+import { refreshWallet } from "@/billing/use-wallet"
 
 async function fetchThreadMessages(threadId: string): Promise<UIMessage[]> {
   try {
@@ -144,6 +145,11 @@ export function useChatMessages(options: UseChatMessagesOptions = {}): UseChatMe
         if (result.newVersion !== undefined) {
           project.setVersion(result.newVersion)
         }
+        // Server fires the post-run debit just before emitting this event
+        // (fire-and-forget, so it may still be in flight). The chip
+        // tolerates a stale read — the visibility-change listener picks
+        // up any race-loss the next time the tab refocuses.
+        void refreshWallet()
       }
     },
   })
