@@ -3,7 +3,7 @@ import { Pencil, Sparkles } from "lucide-react"
 import { ToggleGroup } from "@/components/ui/toggle-group"
 import { Toggle } from "@/components/ui/toggle"
 import { Separator } from "@/components/ui/separator"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { PromptBox } from "@/chat/prompt-box"
 import { useBoard } from "@/store/board-context"
 import { useSimulation } from "@/simulator/simulation-loop"
@@ -17,12 +17,10 @@ import { AiToolbarHistory } from "./ai-toolbar"
 import { useChatMessages } from "./use-chat-messages"
 import { AuthStatusBadge } from "@/auth/auth-status-badge"
 import { CreditChip } from "@/billing/credit-chip"
-import {
-  AGENT_SNAPSHOT_DEFAULT,
-  AGENT_SNAPSHOT_FALLBACK,
-  useAgentSnapshot,
-  type AgentSnapshotChoice,
-} from "./use-agent-snapshot"
+
+// Pin the agent to the DSL (1.3.5) snapshot. The DSL/AUTO toggle was
+// removed — DSL is the only build path the frontend offers now.
+const AGENT_SNAPSHOT_VERSION = "1.3.5"
 
 type ToolbarMode = "edit" | "ai"
 
@@ -53,55 +51,9 @@ function ModeToggle({
   )
 }
 
-function AgentSnapshotToggle({
-  snapshotVersion,
-  onChange,
-}: {
-  snapshotVersion: AgentSnapshotChoice
-  onChange: (next: AgentSnapshotChoice) => void
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger render={<div className="inline-flex" />}>
-        <ToggleGroup
-          value={[snapshotVersion]}
-          onValueChange={(newValue: string[]) => {
-            if (newValue.length > 0) {
-              onChange(newValue[0] as AgentSnapshotChoice)
-            }
-          }}
-          className="border-none gap-0"
-        >
-          <Toggle
-            value={AGENT_SNAPSHOT_DEFAULT}
-            size="sm"
-            className="rounded-r-none px-2 text-[10px] font-semibold tracking-wide"
-          >
-            DSL
-          </Toggle>
-          <Toggle
-            value={AGENT_SNAPSHOT_FALLBACK}
-            size="sm"
-            className="rounded-l-none px-2 text-[10px] font-semibold tracking-wide"
-          >
-            AUTO
-          </Toggle>
-        </ToggleGroup>
-      </TooltipTrigger>
-      <TooltipContent>
-        Agent build path. <strong>DSL</strong> = apply_design as primary, you control{" "}
-        component IDs &amp; positions, no auto-fallback (v1.3.5, default).{" "}
-        <strong>AUTO</strong> = propose_circuit auto-layout — describe the circuit, the{" "}
-        breadboard is laid out for you (v1.2.5).
-      </TooltipContent>
-    </Tooltip>
-  )
-}
-
 export function BottomToolbar() {
   const [mode, setMode] = useState<ToolbarMode>("edit")
-  const { snapshotVersion, setSnapshotVersion } = useAgentSnapshot()
-  const chat = useChatMessages({ snapshotVersion })
+  const chat = useChatMessages({ snapshotVersion: AGENT_SNAPSHOT_VERSION })
   const { send: boardSend } = useBoard()
 
   // Lift the simulation here so PlayControls and StatusDisplay share one
@@ -141,7 +93,7 @@ export function BottomToolbar() {
           expanded. Absolute positioning relative to this wrapper. */}
       {mode === "ai" && (
         <div className="absolute inset-x-0 bottom-full flex justify-center px-4 pb-2">
-          <div className="pointer-events-auto w-full max-w-2xl">
+          <div className="pointer-events-auto w-[640px]">
             <AiToolbarHistory chat={chat} />
           </div>
         </div>
@@ -150,9 +102,11 @@ export function BottomToolbar() {
       {/* Toolbar card — the 640px pill is the only visible chrome. Each
           mode already carries its own bg-card + border + shadow, so
           removing the outer strip doesn't change the pill's look. The
-          AuthStatusBadge sits as a sibling pill so it stays visible
-          across mode swaps. */}
-      <div className="flex items-center justify-center gap-2 px-4 pb-3">
+          credit/auth chips are absolutely positioned to the right so
+          they don't shift the main pill off viewport-center (the AI
+          history above is centered on the viewport, and the pill must
+          line up with it). */}
+      <div className="relative flex items-center justify-center px-4 pb-3">
         <TooltipProvider delay={400}>
           {mode === "edit" ? (
             <div className="pointer-events-auto flex h-10 w-fit items-center gap-2 rounded-lg border border-border bg-card px-2 shadow-sm">
@@ -179,22 +133,15 @@ export function BottomToolbar() {
                 onStop={chat.stop}
                 isStreaming={chat.status === "streaming" || chat.status === "submitted"}
                 placeholder="Ask the agent, or describe what to build…"
-                leading={
-                  <div className="flex items-center gap-1">
-                    <ModeToggle mode={mode} onModeChange={setMode} />
-                    <Separator orientation="vertical" className="h-5" />
-                    <AgentSnapshotToggle
-                      snapshotVersion={snapshotVersion}
-                      onChange={setSnapshotVersion}
-                    />
-                  </div>
-                }
+                leading={<ModeToggle mode={mode} onModeChange={setMode} />}
               />
             </div>
           )}
         </TooltipProvider>
-        <CreditChip />
-        <AuthStatusBadge />
+        <div className="pointer-events-auto absolute right-4 bottom-3 flex items-center gap-2">
+          <CreditChip />
+          <AuthStatusBadge />
+        </div>
       </div>
     </div>
   )
