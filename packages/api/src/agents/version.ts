@@ -14,7 +14,7 @@
  * Major bumps (X.0.0): structural rewrites — new agents, removed paths,
  *   fundamentally different routing logic.
  */
-export const AGENT_VERSION = "1.6.0";
+export const AGENT_VERSION = "1.5.0";
 
 /**
  * Snapshot version controls which frozen agent behavior profile is used at
@@ -28,7 +28,7 @@ export const DEFAULT_AGENT_SNAPSHOT_VERSION =
  * Explicitly listed snapshots that can be selected safely. Add a new entry
  * whenever introducing a new behavior profile.
  */
-export const SUPPORTED_AGENT_SNAPSHOTS = ["1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.0.4", "1.0.5", "1.0.6", "1.0.7", "1.0.8", "1.1.0", "1.1.1", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", "1.3.6", "1.4.0", "1.5.0", "1.6.0"] as const;
+export const SUPPORTED_AGENT_SNAPSHOTS = ["1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.0.4", "1.0.5", "1.0.6", "1.0.7", "1.0.8", "1.1.0", "1.1.1", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", "1.3.6", "1.4.0", "1.5.0"] as const;
 
 export type AgentSnapshotVersion = (typeof SUPPORTED_AGENT_SNAPSHOTS)[number];
 
@@ -63,26 +63,19 @@ export const AGENT_CHANGELOG: Array<{
   changes: string[];
 }> = [
   {
-    version: "1.6.0",
-    date: "2026-05-27",
-    changes: [
-      "propose_fix reliability pass. Stored eval showed propose_fix at 22% per-call success vs propose_circuit's 83% — six structural disadvantages stack against it (UUIDs to reference, six operation arrays vs two, strict re-parse counts toward the attempt budget, etc.). This release targets the single biggest failure mode: ID hallucination.",
-      "summarizeBoardState (`agents/core/tools/shared.ts`) now lists every wire ID inline (previously elided) and raises the per-turn display limits from 8 components / 6 wires to 24 / 32. The system-prompt block is uncached since v1.5.0's cache split, so growing it does not bust the prefix cache. Agents in edit mode can now read all the IDs they need straight from the summary without a list_components/list_wires roundtrip.",
-      "propose_fix returns 'Did you mean X (name=Y)?' suggestions when addWires.toExistingComponent, throughExistingComponent, or moveComponents.componentId references an unknown ID. Implemented in `agents/core/tools/id-resolver.ts` via prefix / substring / Levenshtein scoring against the working board's component list. Previously a hallucinated ID burned one of the 5 retry attempts on a flat 'not found'.",
-      "verify_circuit is now in EDIT_MODE_TOOLS (`agents/core/tools/shared.ts:EDIT_MODE_TOOLS`). Edit-mode runs can call it after a successful propose_fix to confirm the sketch's pin references still align with the (now-mutated) wiring.",
-      "EDIT_PROMPT_V1_6_0: documents the wider board summary (no longer requires the explicit list_components/list_wires preflight unless the limit is hit), the new did-you-mean error path, and the verify_circuit follow-up. v1.5.0 edit prompt frozen as EDIT_PROMPT_V1_5_0.",
-      "Dashboard: nodeClasses (`eval/dashboard.ts`) now classifies propose_fix and verify_circuit calls (previously both rendered ghost-styled regardless of trace data). buildCurrentFlowchart wires a verify_circuit edge off propose_fix as well as propose_circuit. Frontend pin bumped 1.5.0 → 1.6.0.",
-    ],
-  },
-  {
     version: "1.5.0",
     date: "2026-05-27",
     changes: [
       "BUILD_PROMPT flipped back to propose_circuit-first after the v1.3.x DSL-first experiment underperformed. Eval over 44 stored build-mode runs: propose_circuit converged on 100% of runs at 19,471 avg total tokens; apply_design converged on only 84% of runs at 27,903 avg total tokens (~43% more expensive, terminal failures on malformed DSL blocks despite a 3-retry budget).",
       "BUILD_MODE_TOOLS trimmed from 17 → 6 (propose_circuit, verify_circuit, update_sketch, list_components, list_wires, analyze_power_budget). Dropped: apply_design + validate_design (DSL stays as an HTTP endpoint for paste-import/export, but is hidden from the agent), the 4 CircuitProgram tools (generate/validate/compile/apply_circuit_program — zero adoption in eval), and the 4 redundant reads + patch_sketch (never called; per-turn board summary covers them).",
-      "New tool `verify_circuit` (`packages/api/src/agents/core/tools/verify-tools.ts`): read-only cross-check that every pin referenced by pinMode/digitalRead/digitalWrite/analogRead/analogWrite/pulseIn/Servo.attach in the current sketch is actually wired on the board. Best-effort identifier resolution (const int / #define / A0–A5 tokens). The 1.3.6 HC-SR04 worked example was the canonical bug class: sketch referenced echo pin 8 with no wire on pin 8 — propose_circuit's electrical validator missed it because the wires-as-placed were internally consistent.",
+      "New tool `verify_circuit` (`packages/api/src/agents/core/tools/verify-tools.ts`): read-only cross-check that every pin referenced by pinMode/digitalRead/digitalWrite/analogRead/analogWrite/pulseIn/Servo.attach in the current sketch is actually wired on the board. Best-effort identifier resolution (const int / #define / A0–A5 tokens). Available in BOTH build and edit modes — in edit mode the agent calls it after a successful propose_fix to catch sketch/wiring drift from mutations.",
       "New `extractPinReferences()` in `packages/api/src/utils/sketch-validator.ts` reuses the existing comment/string stripper from validateSketch so the new tool doesn't carry its own parser.",
       "Cache split restored in `agents/core/agent.ts` rawMessages — stable system prompt (ephemeral-cached) + per-turn board summary (uncached). Commit 77a873b silently reverted the v1.3.6 split when adding the tool-call sanitizer; this restores the intent of commit 8814e1d. Pure billing fix, no behavior change.",
+      "propose_fix reliability pass — stored eval showed propose_fix at 22% per-call success vs propose_circuit's 83% across 19+30 calls. The gap is structural (UUIDs to reference, six op arrays vs two, populated-state divergence) but the biggest contributor is ID hallucination. v1.5.0 targets that specifically:",
+      "  • `summarizeBoardState` (`agents/core/tools/shared.ts`) now lists every wire ID inline (previously elided entirely) and raises the per-turn display limits from 8 components / 6 wires to 24 / 32. The system-prompt block is uncached since the cache split above, so growing it does not bust the prefix cache. Edit-mode agents can read all IDs they need from the summary without a list_components/list_wires roundtrip.",
+      "  • propose_fix returns 'Did you mean X (name=Y, type=led)?' suggestions when addWires.toExistingComponent, throughExistingComponent, or moveComponents.componentId references an unknown ID. New `agents/core/tools/id-resolver.ts` scores candidates by exact-id > exact-name > id-prefix > substring > Levenshtein ≤3. Previously a hallucinated ID burned one of the 5 retry attempts on a flat 'not found'.",
+      "EDIT_PROMPT rewritten to leverage the wider summary (no longer mandates the list_components/list_wires preflight), document the did-you-mean error path, and instruct the agent to call verify_circuit after a successful propose_fix.",
+      "Dashboard: nodeClasses (`eval/dashboard.ts`) was never reading propose_fix or verify_circuit from the trace, so WPF and VFY always rendered ghost-styled regardless of run data — now classified by trace contents with warn styling on failures. buildCurrentFlowchart adds the WPF → VFY edge so the edit-mode lane mirrors build's WPC → VFY flow, and routes VFY's failure edge to SL so the agent picks the right retry tool for its active mode.",
       "Frontend pin bumped from 1.3.6 → 1.5.0 in `packages/app/src/toolbar/bottom-toolbar.tsx`. Snapshots 1.3.6 and 1.4.0 stay frozen for reproducibility.",
     ],
   },

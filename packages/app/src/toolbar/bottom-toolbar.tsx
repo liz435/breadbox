@@ -18,15 +18,16 @@ import { useChatMessages } from "./use-chat-messages"
 import { AuthStatusBadge } from "@/auth/auth-status-badge"
 import { CreditChip } from "@/billing/credit-chip"
 
-// Pin the agent to the propose_fix-reliability snapshot (1.6.0). v1.5.0
-// kept propose_circuit-first for build; v1.6.0 closes part of the
-// propose_fix gap (22% per-call success in eval) by inlining wire IDs +
-// raising the board-summary limits so the agent no longer needs to call
-// list_components/list_wires first, returning "Did you mean X?" on
-// unknown IDs, and exposing verify_circuit in edit mode for post-fix
-// sketch/pin consistency checks.
+// Pin the agent to the v1.5.0 snapshot. Build mode is propose_circuit-first
+// with verify_circuit follow-up (returning from the v1.3.x DSL experiment
+// after eval showed apply_design converged on only 84% of runs at +43%
+// token cost). Edit mode bundles a propose_fix reliability pass: inlined
+// wire IDs + raised board-summary limits so the agent no longer needs a
+// list_components/list_wires preflight, "Did you mean X?" on unknown IDs,
+// and verify_circuit available in edit mode for post-fix sketch/pin
+// consistency checks.
 // See `packages/api/src/agents/version.ts` for the full changelog.
-const AGENT_SNAPSHOT_VERSION = "1.6.0"
+const AGENT_SNAPSHOT_VERSION = "1.5.0"
 
 type ToolbarMode = "edit" | "ai"
 
