@@ -180,7 +180,7 @@ export function EditToolbar() {
   const projectOpen = isPanelOpen(dockviewApi, "projectFiles")
   const serialOpen = isPanelOpen(dockviewApi, "serialMonitor")
   const sketchOpen = isPanelOpen(dockviewApi, "sketchEditor", "graph", "schematic", "libraryManager")
-  const inspectorOpen = isPanelOpen(dockviewApi, "inspector", "pinInspector")
+  const inspectorOpen = isPanelOpen(dockviewApi, "inspector", "diagram", "pinInspector")
   const electricalOpen = isPanelOpen(dockviewApi, "electricalReport")
 
   const handleProject = useCallback(() => {
@@ -204,6 +204,7 @@ export function EditToolbar() {
   const handleInspector = useCallback(() => {
     togglePanelGroup(dockviewApi, [
       { id: "inspector", component: "inspector", title: "Inspector" },
+      { id: "diagram", component: "diagram", title: "Diagram" },
       { id: "pinInspector", component: "pinInspector", title: "Pin Inspector" },
       { id: "electricalReport", component: "electricalReport", title: "Electrical" },
     ])
