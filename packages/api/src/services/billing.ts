@@ -182,3 +182,65 @@ export async function debitForLlmRun(args: {
       : 0,
   }
 }
+
+/**
+ * Admin-only credit grant. Inverse of `debitForLlmRun` — writes a
+ * positive-delta ledger row and bumps the wallet. Idempotent on
+ * `(ref_type, ref_id)` so a webhook retry or a "redo" click stays safe.
+ *
+ * Throws `BillingMisconfiguredError` on a Supabase failure (the route
+ * layer maps that to 500). Authorization is the caller's responsibility
+ * — this function trusts that whoever invokes it has already verified
+ * admin status.
+ *
+ * No-op in CLI mode (returns `credited: false` with `Infinity` balance).
+ */
+export async function grantCreditsForAdmin(args: {
+  targetUserId: string
+  credits: number
+  kind: "grant_signup" | "grant_monthly_plan" | "adjustment" | "refund"
+  refType?: string
+  refId?: string
+  metadata?: Record<string, unknown>
+  /** Admin who issued the grant — recorded for audit. */
+  actingUserId: string
+}): Promise<{
+  credited: boolean
+  credits: number
+  balancePosted: number
+}> {
+  if (!IS_HOSTED_MODE) {
+    return {
+      credited: false,
+      credits: 0,
+      balancePosted: Number.POSITIVE_INFINITY,
+    }
+  }
+  if (args.credits <= 0) {
+    throw new BillingMisconfiguredError(
+      `grantCreditsForAdmin: credits must be positive (got ${args.credits})`,
+    )
+  }
+  const supabase = getSupabaseAdmin()
+  const { data, error } = await supabase.rpc("credit_credits", {
+    p_user_id: args.targetUserId,
+    p_credits: args.credits,
+    p_kind: args.kind,
+    p_ref_type: args.refType ?? "admin_grant",
+    p_ref_id: args.refId ?? `admin-grant-${crypto.randomUUID()}`,
+    p_metadata: args.metadata ?? {},
+    p_created_by_user_id: args.actingUserId,
+  })
+  if (error) {
+    throw new BillingMisconfiguredError(
+      `credit_credits rpc failed: ${error.message}`,
+    )
+  }
+  const row = Array.isArray(data) ? data[0] : data
+  return {
+    credited: Boolean(row?.credited),
+    credits: args.credits,
+    balancePosted:
+      typeof row?.balance_posted === "number" ? row.balance_posted : 0,
+  }
+}

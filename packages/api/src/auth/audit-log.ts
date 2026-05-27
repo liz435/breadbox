@@ -42,6 +42,7 @@ export type AuditAction =
   | "compile.start"
   | "flash.start"
   | "admin.claim-project"
+  | "admin.grant-credits"
 
 const auditActionSchema = z.enum([
   "project.create",
@@ -54,6 +55,7 @@ const auditActionSchema = z.enum([
   "compile.start",
   "flash.start",
   "admin.claim-project",
+  "admin.grant-credits",
 ])
 
 export const auditEventSchema = z.object({

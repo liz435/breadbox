@@ -64,8 +64,25 @@ function ensureFetch(): Promise<WalletResponse> {
   return promiseCache
 }
 
+// Refresh on tab visibility change. After an agent run drops the
+// balance server-side, the user usually switches away from the tab and
+// back — refreshing on focus picks up the new number without a poll.
+// Idempotent and shared across all subscribers.
+let visibilityHookInstalled = false
+function ensureVisibilityHook(): void {
+  if (visibilityHookInstalled) return
+  if (typeof document === "undefined") return
+  visibilityHookInstalled = true
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      void refreshWallet()
+    }
+  })
+}
+
 function subscribe(onStoreChange: () => void): () => void {
   void ensureFetch()
+  ensureVisibilityHook()
   subscribers.add(onStoreChange)
   return () => {
     subscribers.delete(onStoreChange)

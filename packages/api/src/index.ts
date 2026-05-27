@@ -23,6 +23,7 @@ import { libraryRoutes } from "./routes/libraries";
 import { capabilitiesRoutes } from "./routes/capabilities";
 import { authRoutes } from "./routes/auth";
 import { adminRoutes } from "./routes/admin";
+import { billingRoutes } from "./routes/billing";
 import { motionRoutes } from "./routes/motion";
 import { createWebUiStatic } from "./routes/web-ui-static";
 import { stopWorker } from "./serial/serialport-bridge";
@@ -93,6 +94,7 @@ const app = new Elysia()
   .use(requestContextPlugin)
   .use(authRoutes)
   .use(adminRoutes)
+  .use(billingRoutes)
   .use(projectRoutes)
   .use(agentRunRoutes)
   .use(chatRoutes)
