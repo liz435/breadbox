@@ -168,11 +168,16 @@ begin
     p_user_id, -p_credits, p_kind, p_ref_type, p_ref_id, p_metadata, p_created_by_user_id
   );
 
-  update public.credit_wallets
-     set balance_posted = balance_posted - p_credits,
+  -- Alias the table so `cw.balance_posted` isn't ambiguous with the
+  -- function's RETURNS TABLE column of the same name. Without this PG
+  -- raises `column reference "balance_posted" is ambiguous` at runtime
+  -- (PL/pgSQL validates the function body lazily, so CREATE FUNCTION
+  -- succeeded but every call failed).
+  update public.credit_wallets cw
+     set balance_posted = cw.balance_posted - p_credits,
          updated_at = now()
-   where user_id = p_user_id
-   returning balance_posted into v_balance;
+   where cw.user_id = p_user_id
+   returning cw.balance_posted into v_balance;
 
   return query select true, coalesce(v_balance, 0);
 end;
