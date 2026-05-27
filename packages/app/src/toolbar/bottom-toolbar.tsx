@@ -18,13 +18,15 @@ import { useChatMessages } from "./use-chat-messages"
 import { AuthStatusBadge } from "@/auth/auth-status-badge"
 import { CreditChip } from "@/billing/credit-chip"
 
-// Pin the agent to the propose_circuit-first snapshot (1.5.0). The
-// v1.3.x DSL-first experiment converged on only 84% of build runs and
-// cost ~43% more total tokens than propose_circuit; v1.5.0 returns to
-// propose_circuit as the primary build path and adds verify_circuit to
-// catch sketch ↔ wired-pin mismatches after each successful build.
+// Pin the agent to the propose_fix-reliability snapshot (1.6.0). v1.5.0
+// kept propose_circuit-first for build; v1.6.0 closes part of the
+// propose_fix gap (22% per-call success in eval) by inlining wire IDs +
+// raising the board-summary limits so the agent no longer needs to call
+// list_components/list_wires first, returning "Did you mean X?" on
+// unknown IDs, and exposing verify_circuit in edit mode for post-fix
+// sketch/pin consistency checks.
 // See `packages/api/src/agents/version.ts` for the full changelog.
-const AGENT_SNAPSHOT_VERSION = "1.5.0"
+const AGENT_SNAPSHOT_VERSION = "1.6.0"
 
 type ToolbarMode = "edit" | "ai"
 

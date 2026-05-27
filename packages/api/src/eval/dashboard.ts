@@ -324,12 +324,13 @@ function versionAtLeast(v, target){
 }
 function resolveDiagramVersion(rawVersion){
   var v = String(rawVersion || '').trim();
-  if (v === '1.0.0' || v === '1.0.1' || v === '1.0.2' || v === '1.0.3' || v === '1.0.4' || v === '1.0.5' || v === '1.0.6' || v === '1.0.7' || v === '1.0.8' || v === '1.1.0' || v === '1.1.1' || v === '1.2.0' || v === '1.2.1' || v === '1.2.2' || v === '1.2.3' || v === '1.2.4' || v === '1.2.5' || v === '1.3.0' || v === '1.3.1' || v === '1.3.2' || v === '1.3.3' || v === '1.3.4' || v === '1.3.5' || v === '1.4.0' || v === '1.5.0') return v;
+  if (v === '1.0.0' || v === '1.0.1' || v === '1.0.2' || v === '1.0.3' || v === '1.0.4' || v === '1.0.5' || v === '1.0.6' || v === '1.0.7' || v === '1.0.8' || v === '1.1.0' || v === '1.1.1' || v === '1.2.0' || v === '1.2.1' || v === '1.2.2' || v === '1.2.3' || v === '1.2.4' || v === '1.2.5' || v === '1.3.0' || v === '1.3.1' || v === '1.3.2' || v === '1.3.3' || v === '1.3.4' || v === '1.3.5' || v === '1.4.0' || v === '1.5.0' || v === '1.6.0') return v;
   // Default to the latest known diagram, but preserve 1.0.0 if current is old.
-  return versionAtLeast(CURRENT_VER, '1.5.0') ? '1.5.0' : versionAtLeast(CURRENT_VER, '1.4.0') ? '1.4.0' : versionAtLeast(CURRENT_VER, '1.3.5') ? '1.3.5' : versionAtLeast(CURRENT_VER, '1.3.4') ? '1.3.4' : versionAtLeast(CURRENT_VER, '1.3.3') ? '1.3.3' : versionAtLeast(CURRENT_VER, '1.3.2') ? '1.3.2' : versionAtLeast(CURRENT_VER, '1.3.1') ? '1.3.1' : versionAtLeast(CURRENT_VER, '1.3.0') ? '1.3.0' : versionAtLeast(CURRENT_VER, '1.2.5') ? '1.2.5' : versionAtLeast(CURRENT_VER, '1.2.4') ? '1.2.4' : versionAtLeast(CURRENT_VER, '1.2.3') ? '1.2.3' : versionAtLeast(CURRENT_VER, '1.2.2') ? '1.2.2' : versionAtLeast(CURRENT_VER, '1.2.1') ? '1.2.1' : versionAtLeast(CURRENT_VER, '1.2.0') ? '1.2.0' : versionAtLeast(CURRENT_VER, '1.1.1') ? '1.1.1' : versionAtLeast(CURRENT_VER, '1.1.0') ? '1.1.0' : versionAtLeast(CURRENT_VER, '1.0.8') ? '1.0.8' : versionAtLeast(CURRENT_VER, '1.0.7') ? '1.0.7' : versionAtLeast(CURRENT_VER, '1.0.6') ? '1.0.6' : versionAtLeast(CURRENT_VER, '1.0.5') ? '1.0.5' : versionAtLeast(CURRENT_VER, '1.0.4') ? '1.0.4' : versionAtLeast(CURRENT_VER, '1.0.3') ? '1.0.3' : versionAtLeast(CURRENT_VER, '1.0.2') ? '1.0.2' : versionAtLeast(CURRENT_VER, '1.0.1') ? '1.0.1' : '1.0.0';
+  return versionAtLeast(CURRENT_VER, '1.6.0') ? '1.6.0' : versionAtLeast(CURRENT_VER, '1.5.0') ? '1.5.0' : versionAtLeast(CURRENT_VER, '1.4.0') ? '1.4.0' : versionAtLeast(CURRENT_VER, '1.3.5') ? '1.3.5' : versionAtLeast(CURRENT_VER, '1.3.4') ? '1.3.4' : versionAtLeast(CURRENT_VER, '1.3.3') ? '1.3.3' : versionAtLeast(CURRENT_VER, '1.3.2') ? '1.3.2' : versionAtLeast(CURRENT_VER, '1.3.1') ? '1.3.1' : versionAtLeast(CURRENT_VER, '1.3.0') ? '1.3.0' : versionAtLeast(CURRENT_VER, '1.2.5') ? '1.2.5' : versionAtLeast(CURRENT_VER, '1.2.4') ? '1.2.4' : versionAtLeast(CURRENT_VER, '1.2.3') ? '1.2.3' : versionAtLeast(CURRENT_VER, '1.2.2') ? '1.2.2' : versionAtLeast(CURRENT_VER, '1.2.1') ? '1.2.1' : versionAtLeast(CURRENT_VER, '1.2.0') ? '1.2.0' : versionAtLeast(CURRENT_VER, '1.1.1') ? '1.1.1' : versionAtLeast(CURRENT_VER, '1.1.0') ? '1.1.0' : versionAtLeast(CURRENT_VER, '1.0.8') ? '1.0.8' : versionAtLeast(CURRENT_VER, '1.0.7') ? '1.0.7' : versionAtLeast(CURRENT_VER, '1.0.6') ? '1.0.6' : versionAtLeast(CURRENT_VER, '1.0.5') ? '1.0.5' : versionAtLeast(CURRENT_VER, '1.0.4') ? '1.0.4' : versionAtLeast(CURRENT_VER, '1.0.3') ? '1.0.3' : versionAtLeast(CURRENT_VER, '1.0.2') ? '1.0.2' : versionAtLeast(CURRENT_VER, '1.0.1') ? '1.0.1' : '1.0.0';
 }
 function previousDiagramVersion(v){
   var resolved = resolveDiagramVersion(v);
+  if (resolved === '1.6.0') return '1.5.0';
   if (resolved === '1.5.0') return '1.4.0';
   if (resolved === '1.4.0') return '1.3.5';
   if (resolved === '1.3.5') return '1.3.4';
@@ -358,6 +359,7 @@ function previousDiagramVersion(v){
 }
 function introducedNodesForVersion(v){
   var resolved = resolveDiagramVersion(v);
+  if (resolved === '1.6.0') return ['WPF', 'TME']; // propose_fix did-you-mean + verify_circuit edge in edit + EDIT_PROMPT rewrite
   if (resolved === '1.5.0') return ['VFY', 'TMB']; // verify_circuit + build-mode label rewritten (propose_circuit-first)
   if (resolved === '1.4.0') return ['TCP', 'ACP', 'TMB'];
   if (resolved === '1.0.1') return ['SNAP'];
@@ -371,7 +373,7 @@ function changedNodesBetween(fromV, toV){
   var from = resolveDiagramVersion(fromV || baselineDiagramVersion());
   var to = resolveDiagramVersion(toV || CURRENT_VER);
   if (!versionAtLeast(to, from)) return [];
-  var known = ['1.0.1','1.0.2','1.0.3','1.0.4','1.0.5','1.0.6','1.0.7','1.0.8','1.1.0','1.1.1','1.2.0','1.2.1','1.2.2','1.2.3','1.2.4','1.2.5','1.3.0','1.3.1','1.3.2','1.3.3','1.3.4','1.3.5','1.4.0','1.5.0'];
+  var known = ['1.0.1','1.0.2','1.0.3','1.0.4','1.0.5','1.0.6','1.0.7','1.0.8','1.1.0','1.1.1','1.2.0','1.2.1','1.2.2','1.2.3','1.2.4','1.2.5','1.3.0','1.3.1','1.3.2','1.3.3','1.3.4','1.3.5','1.4.0','1.5.0','1.6.0'];
   var out = [];
   known.forEach(function(v){
     if (versionAtLeast(v, from) && versionAtLeast(to, v) && v !== from) {
@@ -414,7 +416,7 @@ function latestVersionFromRuns(evals){
 }
 function allKnownVersions(evals){
   var versions=Object.keys(versionBuckets(evals||[]));
-  var known=['1.0.0','1.0.1','1.0.2','1.0.3','1.0.4','1.0.5','1.0.6','1.0.7','1.0.8','1.1.0','1.1.1','1.2.0','1.2.1','1.2.2','1.2.3','1.2.4','1.2.5','1.3.0','1.3.1','1.3.2','1.3.3','1.3.4','1.3.5','1.4.0','1.5.0'];
+  var known=['1.0.0','1.0.1','1.0.2','1.0.3','1.0.4','1.0.5','1.0.6','1.0.7','1.0.8','1.1.0','1.1.1','1.2.0','1.2.1','1.2.2','1.2.3','1.2.4','1.2.5','1.3.0','1.3.1','1.3.2','1.3.3','1.3.4','1.3.5','1.4.0','1.5.0','1.6.0'];
   known.forEach(function(v){ if(versions.indexOf(v)<0) versions.push(v); });
   var currentResolved=resolveDiagramVersion(CURRENT_VER);
   if(versions.indexOf(currentResolved)<0) versions.push(currentResolved);
@@ -489,7 +491,7 @@ mermaid.initialize({
 // Node IDs are preserved where they overlap with the heatmap classifier
 // (START, ROUTER, TMB, TME, SL, WPC, VFY, WPF, WSK, RD, POST, etc.) so
 // per-run coloring + the changedNodes delta highlighting keep working.
-function buildCurrentFlowchart(c, agg, changedNodes) {
+function buildCurrentFlowchart(c, agg, changedNodes, isV160) {
   var L = [
     '%%{init:{"theme":"base","themeVariables":{"background":"#0f1117","primaryColor":"#1e293b","primaryTextColor":"#e2e8f0","primaryBorderColor":"#334155","lineColor":"#475569","edgeLabelBackground":"#0f172a","fontFamily":"system-ui","fontSize":"11px"}}}%%',
     'flowchart TD',
@@ -508,9 +510,12 @@ function buildCurrentFlowchart(c, agg, changedNodes) {
     '  TMC -- "empty board" --> TMB["BUILD · 6 tools\\npropose_circuit · verify_circuit · update_sketch\\nlist_components · list_wires · analyze_power_budget"]'+c('TMB'),
     '  TMB --> SL{{"Step loop"}}'+c('SL'),
     '  SL -- "primary" --> WPC["propose_circuit\\nauto-place + auto-wire + sketch\\n(max 3 attempts/turn · internal power + routing gates)"]'+c('WPC'),
-    '  WPC -- "success" --> VFY["verify_circuit\\nsketch pins ↔ wired pins"]'+c('VFY'),
+    '  WPC -- "success" --> VFY["verify_circuit\\nsketch pins ↔ wired pins' + (isV160 ? '\\n(also in edit mode in v1.6.0)' : '') + '"]'+c('VFY'),
     '  VFY -- "consistent" --> SL',
-    '  VFY -- "unwired pin referenced" --> WPC',
+    // Failure routes back to SL so the agent picks the right retry tool for
+    // the active mode (WPC in build, WPF in edit). Earlier v1.5.0 hardcoded
+    // VFY → WPC, which assumed build-mode origin.
+    '  VFY -- "unwired pin referenced" --> SL',
     '  WPC -- "fail · attempts < 3" --> SL',
     '  WPC -- "fail · 3 attempts" --> ST',
 
@@ -518,8 +523,10 @@ function buildCurrentFlowchart(c, agg, changedNodes) {
     '  TMC -- "populated board" --> TME["EDIT\\npropose_fix (batch) + granular CRUD + apply_design (paste import)"]'+c('TME'),
     '  TMC -- "rebuild" --> TMA["ALL · build + edit tools combined"]'+c('TMA'),
     '  TME & TMA --> SL',
-    '  SL -- "batch edit" --> WPF["propose_fix\\natomic add/remove/move + wires + sketch\\n(max 5 attempts · schema + electrical)"]'+c('WPF'),
-    '  WPF --> SL',
+    '  SL -- "batch edit" --> WPF["propose_fix\\natomic add/remove/move + wires + sketch\\n(max 5 attempts · schema + electrical' + (isV160 ? ' · did-you-mean on unknown IDs' : '') + ')"]'+c('WPF'),
+    (isV160
+      ? '  WPF -- "success" --> VFY'
+      : '  WPF --> SL'),
     '  SL -- "granular write" --> WBB["place_component · connect_wire · update_wire\\nremove_component · remove_wire · etc."]'+c('WBB'),
     '  WBB --> SL',
 
@@ -580,6 +587,7 @@ function buildFlowchart(nc, agg, diagramVersion, fromVersion) {
   var isV110 = versionAtLeast(resolvedDiagramVersion, '1.1.0');
   var isV140 = versionAtLeast(resolvedDiagramVersion, '1.4.0');
   var isV150 = versionAtLeast(resolvedDiagramVersion, '1.5.0');
+  var isV160 = versionAtLeast(resolvedDiagramVersion, '1.6.0');
   var changedNodes = changedNodesBetween(fromVersion || previousDiagramVersion(resolvedDiagramVersion), resolvedDiagramVersion);
   function c(id){ return nc[id] ? ':::'+nc[id] : ':::ghost'; }
 
@@ -590,7 +598,7 @@ function buildFlowchart(nc, agg, diagramVersion, fromVersion) {
   // agent decision). Showing the full historical fan-out misrepresented the
   // live shape. Older versions keep the layered overlay for archaeology.
   if (isV150) {
-    return buildCurrentFlowchart(c, agg, changedNodes);
+    return buildCurrentFlowchart(c, agg, changedNodes, isV160);
   }
   // ── Legacy accumulated overlay (versions <= 1.4.0) ─────────────────────────
   var L = [
@@ -822,6 +830,8 @@ function nodeClasses(e){
   var hasAddBB = calls.some(function(t){return ADD_BB.indexOf(t)>=0;});
   var hasWSK   = calls.some(function(t){return WRITE_SK.indexOf(t)>=0;});
   var hasProp  = calls.indexOf('propose_circuit')>=0;
+  var hasFix   = calls.indexOf('propose_fix')>=0;
+  var hasVFY   = calls.indexOf('verify_circuit')>=0;
   var hasCircuitProgramPlan = calls.some(function(t){ return t === 'generate_circuit_program' || t === 'validate_circuit_program' || t === 'compile_circuit_program'; });
   var hasCircuitProgramApply = calls.indexOf('apply_circuit_program') >= 0;
   var delegs   = (p.delegations)||[];
@@ -873,6 +883,18 @@ function nodeClasses(e){
     if (versionAtLeast(diagramVersion, '1.0.2')) {
       nc['PCV'] = (e.electrical && e.electrical.errors > 0) ? 'warn' : 'actual';
     }
+  }
+  // propose_fix and verify_circuit weren't classified before — without these,
+  // WPF + VFY always rendered as ghost regardless of run data.
+  if(hasFix) {
+    var fixResults=trace.filter(function(s){return s.type==='tool_result' && s.toolName==='propose_fix';});
+    var fixFailures=fixResults.filter(function(s){return !s.succeeded;}).length;
+    nc['WPF'] = fixFailures > 0 ? 'warn' : 'actual';
+  }
+  if(hasVFY) {
+    var vfyResults=trace.filter(function(s){return s.type==='tool_result' && s.toolName==='verify_circuit';});
+    var vfyFailures=vfyResults.filter(function(s){return !s.succeeded;}).length;
+    nc['VFY'] = vfyFailures > 0 ? 'warn' : 'actual';
   }
 
   if(hasCirc||hasGraph) { nc['DEL']='actual'; nc['DRET']='actual'; }

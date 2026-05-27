@@ -14,7 +14,7 @@
  * Major bumps (X.0.0): structural rewrites — new agents, removed paths,
  *   fundamentally different routing logic.
  */
-export const AGENT_VERSION = "1.5.0";
+export const AGENT_VERSION = "1.6.0";
 
 /**
  * Snapshot version controls which frozen agent behavior profile is used at
@@ -28,7 +28,7 @@ export const DEFAULT_AGENT_SNAPSHOT_VERSION =
  * Explicitly listed snapshots that can be selected safely. Add a new entry
  * whenever introducing a new behavior profile.
  */
-export const SUPPORTED_AGENT_SNAPSHOTS = ["1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.0.4", "1.0.5", "1.0.6", "1.0.7", "1.0.8", "1.1.0", "1.1.1", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", "1.3.6", "1.4.0", "1.5.0"] as const;
+export const SUPPORTED_AGENT_SNAPSHOTS = ["1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.0.4", "1.0.5", "1.0.6", "1.0.7", "1.0.8", "1.1.0", "1.1.1", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", "1.3.6", "1.4.0", "1.5.0", "1.6.0"] as const;
 
 export type AgentSnapshotVersion = (typeof SUPPORTED_AGENT_SNAPSHOTS)[number];
 
@@ -62,6 +62,18 @@ export const AGENT_CHANGELOG: Array<{
   date: string;
   changes: string[];
 }> = [
+  {
+    version: "1.6.0",
+    date: "2026-05-27",
+    changes: [
+      "propose_fix reliability pass. Stored eval showed propose_fix at 22% per-call success vs propose_circuit's 83% — six structural disadvantages stack against it (UUIDs to reference, six operation arrays vs two, strict re-parse counts toward the attempt budget, etc.). This release targets the single biggest failure mode: ID hallucination.",
+      "summarizeBoardState (`agents/core/tools/shared.ts`) now lists every wire ID inline (previously elided) and raises the per-turn display limits from 8 components / 6 wires to 24 / 32. The system-prompt block is uncached since v1.5.0's cache split, so growing it does not bust the prefix cache. Agents in edit mode can now read all the IDs they need straight from the summary without a list_components/list_wires roundtrip.",
+      "propose_fix returns 'Did you mean X (name=Y)?' suggestions when addWires.toExistingComponent, throughExistingComponent, or moveComponents.componentId references an unknown ID. Implemented in `agents/core/tools/id-resolver.ts` via prefix / substring / Levenshtein scoring against the working board's component list. Previously a hallucinated ID burned one of the 5 retry attempts on a flat 'not found'.",
+      "verify_circuit is now in EDIT_MODE_TOOLS (`agents/core/tools/shared.ts:EDIT_MODE_TOOLS`). Edit-mode runs can call it after a successful propose_fix to confirm the sketch's pin references still align with the (now-mutated) wiring.",
+      "EDIT_PROMPT_V1_6_0: documents the wider board summary (no longer requires the explicit list_components/list_wires preflight unless the limit is hit), the new did-you-mean error path, and the verify_circuit follow-up. v1.5.0 edit prompt frozen as EDIT_PROMPT_V1_5_0.",
+      "Dashboard: nodeClasses (`eval/dashboard.ts`) now classifies propose_fix and verify_circuit calls (previously both rendered ghost-styled regardless of trace data). buildCurrentFlowchart wires a verify_circuit edge off propose_fix as well as propose_circuit. Frontend pin bumped 1.5.0 → 1.6.0.",
+    ],
+  },
   {
     version: "1.5.0",
     date: "2026-05-27",

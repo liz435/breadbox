@@ -5,6 +5,7 @@ import { makeBoardOp } from "../../make-op";
 import { analyzePowerBudget } from "../../../electrical/power-budget-analyzer";
 import { analyzeRoutingPolicy } from "../../../electrical/routing-policy";
 import { validateSketch } from "../../../utils/sketch-validator";
+import { formatSuggestion, type IdCandidate } from "./id-resolver";
 import type { ToolContext, SketchState, ToolMode, PinRole } from "./shared";
 import {
   ALL_COMPONENT_TYPES,
@@ -1062,10 +1063,16 @@ Example — rewire an existing component:
         }
 
         // ── 3. Move components ──
+        // Build the candidate list here (before deletions in step 2 affected
+        // it, those IDs are already gone). Reused by every move-target lookup.
+        const moveCandidates: IdCandidate[] = Object.entries(workingBoard.components).map(
+          ([id, c]) => ({ id, name: c.name, type: c.type }),
+        );
         for (const move of input.moveComponents ?? []) {
           const comp = workingBoard.components[move.componentId];
           if (!comp) {
-            errors.push(`Component ${move.componentId} not found for move.`);
+            const hint = formatSuggestion(move.componentId, moveCandidates);
+            errors.push(`Component ${move.componentId} not found for move.${hint}`);
             continue;
           }
           const overlap = Object.values(workingBoard.components).find(
@@ -1266,6 +1273,14 @@ Example — rewire an existing component:
         const wiresByPin = new Map<number, Array<{ target: { row: number; col: number }; color: string }>>();
         const seriesJumperOps: BoardOp[] = [];
 
+        // v1.6.0: build once, reuse across every "component not found" path.
+        // Lets us return "did you mean X?" instead of a flat 404 and burning
+        // a retry attempt. Includes both UUIDs and human names because agents
+        // hallucinate friendly aliases ('led1') more often than mistype UUIDs.
+        const componentCandidates: IdCandidate[] = Object.entries(workingBoard.components).map(
+          ([id, c]) => ({ id, name: c.name, type: c.type }),
+        );
+
         for (const wire of input.addWires ?? []) {
           const color = wire.color ?? "#22c55e";
 
@@ -1274,7 +1289,8 @@ Example — rewire an existing component:
           if (wire.toExistingComponent) {
             const existing = workingBoard.components[wire.toExistingComponent];
             if (!existing) {
-              errors.push(`Wire target component ${wire.toExistingComponent} not found.`);
+              const hint = formatSuggestion(wire.toExistingComponent, componentCandidates);
+              errors.push(`Wire target component ${wire.toExistingComponent} not found.${hint}`);
               continue;
             }
             targetComp = existing;
@@ -1302,7 +1318,8 @@ Example — rewire an existing component:
           if (wire.throughExistingComponent) {
             const existing = workingBoard.components[wire.throughExistingComponent];
             if (!existing) {
-              errors.push(`Through-component ${wire.throughExistingComponent} not found.`);
+              const hint = formatSuggestion(wire.throughExistingComponent, componentCandidates);
+              errors.push(`Through-component ${wire.throughExistingComponent} not found.${hint}`);
               continue;
             }
             throughComp = existing;

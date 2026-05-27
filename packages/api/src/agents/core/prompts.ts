@@ -1378,7 +1378,13 @@ Then:
 
 Do not echo CircuitProgram JSON back in chat. Describe the result in plain language.`;
 
-const EDIT_PROMPT = `${COMMON_PROMPT}
+// ── EDIT_PROMPT (v1.5.0, frozen) ─────────────────────────────────────────
+// Pre-v1.6.0 wording — required list_components/list_wires as a first step,
+// because the per-turn board summary didn't carry wire IDs and only the
+// first 8 component IDs. v1.6.0 widens the summary to include wire IDs +
+// up to 24 components / 32 wires, so the explicit list_* dance becomes
+// optional.
+const EDIT_PROMPT_V1_5_0 = `${COMMON_PROMPT}
 
 ## Mode: EDIT (board has existing components — preserve them!)
 The board already has components and wires. You have TWO approaches:
@@ -1410,6 +1416,54 @@ propose_fix({
 - apply_design ONLY for explicit full-diagram import/replace requests (e.g. pasted DreamerDiagram JSON). Do not use apply_design for small edits. When calling the tool, drop the \`$schema\` key — it is not part of the tool schema (pass the body only: { board?, sketch, components, wires, ... }).
 
 Do NOT replace the whole circuit. Make the smallest change that satisfies the user's request. Reuse existing component IDs from the board state below — never invent IDs.`;
+
+// ── EDIT_PROMPT (v1.6.0, live) — propose_fix reliability pass ────────────
+// Three changes from v1.5.0 motivated by the propose_fix per-call success
+// rate (~22% in the stored eval, vs 83% for propose_circuit):
+//   1. The per-turn board summary now lists every component + wire ID
+//      inline (up to 24 / 32). The "call list_components/list_wires first"
+//      preflight is no longer required — IDs are in the system message.
+//   2. propose_fix returns a "Did you mean X?" suggestion when an addWires
+//      target / through component / move target references an unknown ID,
+//      so an inevitable miss costs nudging instead of a wasted attempt.
+//   3. verify_circuit is now available in edit mode — call it once after
+//      a successful propose_fix to confirm the sketch's pin references
+//      still match the wires after mutations.
+const EDIT_PROMPT_V1_6_0 = `${COMMON_PROMPT}
+
+## Mode: EDIT (board has existing components — preserve them!)
+The board already has components and wires. You have TWO approaches.
+
+### Primary: propose_fix (preferred for multi-step changes)
+Use propose_fix to batch ALL changes into a single atomic call — components, wires, and sketch. It auto-positions new parts, resolves wire targets, validates wiring, and rolls back on failure. Max 5 attempts per run.
+
+**Use the IDs from the board summary above** — every component carries \`id=<uuid>\` and every wire is prefixed with its own id. You do **not** need to call \`list_components\` / \`list_wires\` first unless the summary's limit (24 components / 32 wires) was hit. Never invent placeholder IDs like \`btn-up-id\` or \`led1\` — the tool will report "Did you mean X?" but that still costs an attempt.
+
+After a successful propose_fix, **call verify_circuit once** to confirm the resulting sketch references only wired pins. If verify_circuit reports \`unwired_pin_referenced\`, fix the wiring or the sketch in another propose_fix call.
+
+If a previous propose_fix failed with electrical_validation about direct fanout/ground-power distribution, retry with a wiring-only propose_fix first (omit sketch), then apply sketch in a separate call.
+
+propose_fix({
+  removeWires: ["wire-id-1"],
+  removeComponents: ["comp-id-1"],
+  addComponents: [{type:"button", name:"BTN", pinRoles:{a:"signal_input", b:"reference_ground"}}],
+  addWires: [
+    {arduinoPin:2, toNewComponent:0, toPin:"a"},
+    {arduinoPin:-3, toNewComponent:0, toPin:"b"},
+    {arduinoPin:9, toExistingComponent:"<paste-uuid-from-summary>", toPin:"signal"}
+  ],
+  sketch: "void setup(){...}"
+})
+
+### Fallback: granular tools (for single small changes)
+- place_component / remove_component / update_component / move_component
+- connect_wire / wire_component_to_pin / remove_wire / update_wire
+- update_sketch (full rewrite) or patch_sketch (small edits)
+- apply_design ONLY for explicit full-diagram import/replace requests (e.g. pasted DreamerDiagram JSON). Do not use apply_design for small edits. When calling the tool, drop the \`$schema\` key — it is not part of the tool schema (pass the body only: { board?, sketch, components, wires, ... }).
+
+Do NOT replace the whole circuit. Make the smallest change that satisfies the user's request. Reuse existing component IDs from the board state above — never invent IDs.`;
+
+const EDIT_PROMPT = EDIT_PROMPT_V1_6_0;
 
 export type CorePromptSnapshot = {
   commonPrompt: string;
@@ -1868,7 +1922,21 @@ const PROMPTS_1_4_0: CorePromptSnapshot = {
 const PROMPTS_1_5_0: CorePromptSnapshot = {
   commonPrompt: COMMON_PROMPT,
   buildPrompt: BUILD_PROMPT_V1_5_0,
-  editPrompt: EDIT_PROMPT,
+  editPrompt: EDIT_PROMPT_V1_5_0,
+};
+
+// v1.6.0 — propose_fix reliability pass. EDIT_PROMPT rewritten to leverage
+// the wider board summary (which now includes wire IDs + raised limits)
+// and to require verify_circuit after a successful propose_fix. Tool-side
+// changes: per-turn board summary in `shared.ts:summarizeBoardState` now
+// emits wire IDs inline and bumps the component/wire display limits from
+// 8/6 → 24/32; propose_fix returns "Did you mean X?" on unknown component
+// IDs via `id-resolver.ts`; verify_circuit is now in EDIT_MODE_TOOLS.
+// BUILD_PROMPT unchanged from 1.5.0.
+const PROMPTS_1_6_0: CorePromptSnapshot = {
+  commonPrompt: COMMON_PROMPT,
+  buildPrompt: BUILD_PROMPT_V1_5_0,
+  editPrompt: EDIT_PROMPT_V1_6_0,
 };
 
 export const CORE_PROMPT_SNAPSHOTS: Record<string, CorePromptSnapshot> = {
@@ -1898,6 +1966,7 @@ export const CORE_PROMPT_SNAPSHOTS: Record<string, CorePromptSnapshot> = {
   "1.3.6": PROMPTS_1_3_6, // BUILD_PROMPT: drop stale AUTO-mode reference; add Common Pitfalls block + worked examples (servo+pot, OLED I²C, HC-SR04, multi-LED rail)
   "1.4.0": PROMPTS_1_4_0, // BUILD_PROMPT: CircuitProgram-first whole-board path via generate/validate/compile/apply_circuit_program
   "1.5.0": PROMPTS_1_5_0, // BUILD_PROMPT: propose_circuit-first + verify_circuit (sketch ↔ wired-pin cross-check); BUILD_MODE_TOOLS trimmed to 6
+  "1.6.0": PROMPTS_1_6_0, // EDIT_PROMPT: propose_fix reliability pass — wider board summary w/ wire IDs, did-you-mean on unknown IDs, verify_circuit in edit mode
   // When bumping AGENT_VERSION: copy live constants into a new PROMPTS_X_Y_Z
   // const above and add an explicit entry here. The lookup below falls back to
   // DEFAULT_CORE_PROMPT_SNAPSHOT (live) for any unrecognised version.
