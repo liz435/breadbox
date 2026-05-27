@@ -58,11 +58,14 @@ describe("CircuitProgram core tools", () => {
     const board = createDefaultBoardState();
     const project = makeProject(board);
     const ops: BoardOp[] = [];
+    // v1.5.0 drops apply_circuit_program from BUILD_MODE_TOOLS (it had zero
+    // adoption across stored runs and competed with propose_circuit). The
+    // tool itself still exists — verify its behavior via mode="all".
     const { tools } = createCoreTools({
       project,
       sceneId: "scene-1",
       ops,
-      mode: "build",
+      mode: "all",
       workingBoard: board,
     });
 
@@ -123,7 +126,7 @@ describe("CircuitProgram core tools", () => {
     expect(board.sketchCode.includes("analogWrite")).toBe(true);
   });
 
-  test("CircuitProgram tools are available in build mode and excluded from edit mode", () => {
+  test("CircuitProgram tools are hidden from build and edit; available in all mode (v1.5.0)", () => {
     const board = createDefaultBoardState();
     const project = makeProject(board);
 
@@ -141,10 +144,22 @@ describe("CircuitProgram core tools", () => {
       mode: "edit",
       workingBoard: board,
     });
+    const all = createCoreTools({
+      project,
+      sceneId: "scene-1",
+      ops: [],
+      mode: "all",
+      workingBoard: board,
+    });
 
-    expect("generate_circuit_program" in build.tools).toBe(true);
-    expect("apply_circuit_program" in build.tools).toBe(true);
+    // v1.5.0: CircuitProgram tools competed with propose_circuit and had
+    // zero adoption — dropped from both build and edit surfaces. Still
+    // present in `all` so direct API callers / future opt-ins keep working.
+    expect("generate_circuit_program" in build.tools).toBe(false);
+    expect("apply_circuit_program" in build.tools).toBe(false);
     expect("generate_circuit_program" in edit.tools).toBe(false);
     expect("apply_circuit_program" in edit.tools).toBe(false);
+    expect("generate_circuit_program" in all.tools).toBe(true);
+    expect("apply_circuit_program" in all.tools).toBe(true);
   });
 });

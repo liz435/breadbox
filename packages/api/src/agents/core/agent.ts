@@ -278,14 +278,24 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
         ? snapshotPrompts.editPrompt
         : snapshotPrompts.editPrompt;
 
-  // Size messages to fit model context
+  // Two system blocks so the stable prompt stays cached across turns while
+  // the per-turn board summary varies. Anthropic accepts an array of system
+  // blocks each with their own cache_control; only the first carries the
+  // ephemeral marker. Combining the two into one message would invalidate
+  // the entire prefix on every board mutation. (Commit 77a873b reverted
+  // this split accidentally while adding the tool-call sanitizer — v1.5.0
+  // restores the original intent of commit 8814e1d.)
   const rawMessages: ModelMessage[] = [
     {
       role: "system",
-      content: `${systemPrompt}\n\n## Current Board State\n${boardSummary}`,
+      content: systemPrompt,
       providerOptions: {
         anthropic: { cacheControl: { type: "ephemeral" } },
       },
+    },
+    {
+      role: "system",
+      content: `## Current Board State\n${boardSummary}`,
     },
     ...(ctx.history ?? []),
     { role: "user", content: agentPrompt },

@@ -159,8 +159,15 @@ export function summarizeBoardState(project: ProjectFile): string {
 export type ToolMode = "build" | "edit" | "all"
 
 /**
- * Build mode: only propose_circuit + read tools.
- *   For new circuits — agent describes the whole thing in one call.
+ * Build mode (v1.5.0): propose_circuit + verify_circuit + the handful of
+ * reads/writes the model actually picks. The trimmed surface dropped:
+ *   - DSL tools (apply_design, validate_design) — kept as HTTP routes for
+ *     paste-import/export round-tripping, but hidden from the agent.
+ *   - CircuitProgram tools (generate/validate/compile/apply_circuit_program)
+ *     — zero adoption across stored runs; competed with propose_circuit.
+ *   - Redundant reads (get_board_overview/state/details/sketch_code) — the
+ *     per-turn system block already inlines the board summary.
+ *   - patch_sketch — never called; update_sketch covers the same job.
  *
  * Edit mode: granular tools for modifying existing circuits.
  *   No propose_circuit (would replace work), no place_component
@@ -169,27 +176,12 @@ export type ToolMode = "build" | "edit" | "all"
  * All: every tool. Used as fallback when mode is unclear.
  */
 export const BUILD_MODE_TOOLS = new Set([
-  "get_board_overview",
+  "propose_circuit",
+  "verify_circuit",
+  "update_sketch",
   "list_components",
   "list_wires",
-  "get_component_details",
-  "get_sketch_code",
-  "get_board_state",
   "analyze_power_budget",
-  "get_wiring_guide",
-  "generate_circuit_program",
-  "validate_circuit_program",
-  "compile_circuit_program",
-  "apply_circuit_program",
-  "propose_circuit",
-  // validate_design is the prompt-documented dry-run gate for apply_design
-  // ("validate-first workflow"). Must be in both mode sets so the agent
-  // doesn't hallucinate an unknown-tool error when the prompt tells it to
-  // validate before committing.
-  "validate_design",
-  "apply_design",
-  "update_sketch",
-  "patch_sketch",
 ])
 
 export const EDIT_MODE_TOOLS = new Set([

@@ -14,7 +14,7 @@
  * Major bumps (X.0.0): structural rewrites — new agents, removed paths,
  *   fundamentally different routing logic.
  */
-export const AGENT_VERSION = "1.4.0";
+export const AGENT_VERSION = "1.5.0";
 
 /**
  * Snapshot version controls which frozen agent behavior profile is used at
@@ -28,7 +28,7 @@ export const DEFAULT_AGENT_SNAPSHOT_VERSION =
  * Explicitly listed snapshots that can be selected safely. Add a new entry
  * whenever introducing a new behavior profile.
  */
-export const SUPPORTED_AGENT_SNAPSHOTS = ["1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.0.4", "1.0.5", "1.0.6", "1.0.7", "1.0.8", "1.1.0", "1.1.1", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", "1.3.6", "1.4.0"] as const;
+export const SUPPORTED_AGENT_SNAPSHOTS = ["1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.0.4", "1.0.5", "1.0.6", "1.0.7", "1.0.8", "1.1.0", "1.1.1", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", "1.3.6", "1.4.0", "1.5.0"] as const;
 
 export type AgentSnapshotVersion = (typeof SUPPORTED_AGENT_SNAPSHOTS)[number];
 
@@ -62,6 +62,18 @@ export const AGENT_CHANGELOG: Array<{
   date: string;
   changes: string[];
 }> = [
+  {
+    version: "1.5.0",
+    date: "2026-05-27",
+    changes: [
+      "BUILD_PROMPT flipped back to propose_circuit-first after the v1.3.x DSL-first experiment underperformed. Eval over 44 stored build-mode runs: propose_circuit converged on 100% of runs at 19,471 avg total tokens; apply_design converged on only 84% of runs at 27,903 avg total tokens (~43% more expensive, terminal failures on malformed DSL blocks despite a 3-retry budget).",
+      "BUILD_MODE_TOOLS trimmed from 17 → 6 (propose_circuit, verify_circuit, update_sketch, list_components, list_wires, analyze_power_budget). Dropped: apply_design + validate_design (DSL stays as an HTTP endpoint for paste-import/export, but is hidden from the agent), the 4 CircuitProgram tools (generate/validate/compile/apply_circuit_program — zero adoption in eval), and the 4 redundant reads + patch_sketch (never called; per-turn board summary covers them).",
+      "New tool `verify_circuit` (`packages/api/src/agents/core/tools/verify-tools.ts`): read-only cross-check that every pin referenced by pinMode/digitalRead/digitalWrite/analogRead/analogWrite/pulseIn/Servo.attach in the current sketch is actually wired on the board. Best-effort identifier resolution (const int / #define / A0–A5 tokens). The 1.3.6 HC-SR04 worked example was the canonical bug class: sketch referenced echo pin 8 with no wire on pin 8 — propose_circuit's electrical validator missed it because the wires-as-placed were internally consistent.",
+      "New `extractPinReferences()` in `packages/api/src/utils/sketch-validator.ts` reuses the existing comment/string stripper from validateSketch so the new tool doesn't carry its own parser.",
+      "Cache split restored in `agents/core/agent.ts` rawMessages — stable system prompt (ephemeral-cached) + per-turn board summary (uncached). Commit 77a873b silently reverted the v1.3.6 split when adding the tool-call sanitizer; this restores the intent of commit 8814e1d. Pure billing fix, no behavior change.",
+      "Frontend pin bumped from 1.3.6 → 1.5.0 in `packages/app/src/toolbar/bottom-toolbar.tsx`. Snapshots 1.3.6 and 1.4.0 stay frozen for reproducibility.",
+    ],
+  },
   {
     version: "1.4.0",
     date: "2026-04-28",

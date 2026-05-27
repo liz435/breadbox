@@ -18,12 +18,13 @@ import { useChatMessages } from "./use-chat-messages"
 import { AuthStatusBadge } from "@/auth/auth-status-badge"
 import { CreditChip } from "@/billing/credit-chip"
 
-// Pin the agent to the DSL (1.3.6) snapshot. The DSL/AUTO toggle was
-// removed — DSL is the only build path the frontend offers now. 1.3.6
-// adds a Common Pitfalls block and worked examples for servo+pot,
-// OLED I²C, HC-SR04, and multi-LED rail distribution. See
-// `packages/api/src/agents/version.ts` for the full changelog.
-const AGENT_SNAPSHOT_VERSION = "1.3.6"
+// Pin the agent to the propose_circuit-first snapshot (1.5.0). The
+// v1.3.x DSL-first experiment converged on only 84% of build runs and
+// cost ~43% more total tokens than propose_circuit; v1.5.0 returns to
+// propose_circuit as the primary build path and adds verify_circuit to
+// catch sketch ↔ wired-pin mismatches after each successful build.
+// See `packages/api/src/agents/version.ts` for the full changelog.
+const AGENT_SNAPSHOT_VERSION = "1.5.0"
 
 type ToolbarMode = "edit" | "ai"
 

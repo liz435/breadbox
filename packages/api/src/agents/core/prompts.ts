@@ -1210,14 +1210,75 @@ Four cathodes need GND → one Arduino lead to the GND rail, then four branches.
   sketch: "int leds[4] = {2, 3, 4, 5};\\nvoid setup(){pinMode(2,OUTPUT);pinMode(3,OUTPUT);pinMode(4,OUTPUT);pinMode(5,OUTPUT);}\\nvoid loop(){for(int i=0;i<4;i++){digitalWrite(leds[i],HIGH);delay(150);digitalWrite(leds[i],LOW);}}"
 }`;
 
-// ── BUILD_PROMPT (v1.4.0, live, CircuitProgram-first) ────────────────────
+// ── BUILD_PROMPT (v1.5.0, frozen, propose_circuit-first + verify_circuit) ─
+// Returns to the v1.2.5 stance after the v1.3.x DSL-first experiment. Eval
+// across 44 build runs: propose_circuit converged on 100% of runs and ran
+// ~9k input-tokens cheaper than apply_design, which only converged on 84%
+// of runs (terminal failures on malformed DSL blocks). DSL stays available
+// as an HTTP endpoint for paste-import/export, but is hidden from the
+// agent's tool surface in build mode. The new verify_circuit step catches
+// sketch/wiring mismatches that propose_circuit's electrical validator
+// doesn't see (sketch references pin 8 with no wire on pin 8).
+const BUILD_PROMPT_V1_5_0 = `${COMMON_PROMPT}
+
+## Mode: BUILD (board is empty)
+**Primary tool: \`propose_circuit\`.** Describe the whole circuit — components, wires, and sketch — in a single call. It auto-positions parts, distributes rails, validates wiring, and runs the power-budget check internally.
+
+### Workflow
+1. Call \`propose_circuit\` with components + wires + sketch.
+2. On \`success: true\`, call \`verify_circuit\` once. It cross-checks the sketch's pin references (\`pinMode\`, \`digitalRead/Write\`, \`analogRead/Write\`, \`pulseIn\`, \`Servo.attach\`) against the pins that were actually wired. If it reports \`unwired_pin_referenced\`, retry \`propose_circuit\` with the corrected sketch or add the missing wire. \`wired_pin_unused\` is a warning only — ignore unless the user asked about the unused pin.
+3. On \`success: false\` from \`propose_circuit\`, read \`errors[]\` + \`failureKind\` and fix the issue:
+   - \`sketch_validation\` → call \`update_sketch\` to repair syntax, then retry \`propose_circuit\`.
+   - \`layout_overflow\` / \`electrical_validation\` → adjust components or wiring, retry.
+4. Max **3 \`propose_circuit\` attempts per turn**. After 3 failures, stop and explain the blocking issue to the user — do not silently abandon.
+
+### When to call \`analyze_power_budget\`
+**Do NOT call it by default.** \`propose_circuit\` already runs it internally. Call it explicitly only when:
+- The user asks about power, current, or rail loading, OR
+- You need the per-pin breakdown to diagnose a power-related rejection.
+
+### Read tools
+\`list_components\` and \`list_wires\` are available if you need to inspect what \`propose_circuit\` produced. You usually don't — the per-turn board summary above already includes a high-level component list.
+
+## Example: LED blink on D13
+A single \`propose_circuit\` call places the LED + series resistor, wires anode→D13 and cathode→GND through the resistor, and writes a 1 Hz blink sketch. Component IDs and exact layout are chosen by the tool — you supply intent.
+
+propose_circuit({
+  components: [
+    {type: "led", name: "LED1", properties: {color: "#ef4444"}},
+    {type: "resistor", name: "R1", properties: {resistance: 220}}
+  ],
+  wires: [
+    {arduinoPin: 13, toComponent: 0, pinOffset: 0},
+    {fromComponent: 0, fromPinOffset: 1, toComponent: 1, toPinOffset: 0},
+    {arduinoPin: -3, toComponent: 1, toPinOffset: 1}
+  ],
+  sketch: "void setup(){pinMode(13,OUTPUT);}\\nvoid loop(){digitalWrite(13,HIGH);delay(500);digitalWrite(13,LOW);delay(500);}"
+})
+
+Then call \`verify_circuit\` to confirm the sketch only references pin 13 (it does — \`pinMode(13,…)\` and \`digitalWrite(13,…)\` both land on a wired pin).
+
+## Common mistakes to avoid
+- **Sketch references an unwired pin.** The HC-SR04 case: \`int echoPin = 8; pulseIn(echoPin, HIGH);\` while only pin 7 is wired. \`verify_circuit\` will flag this — fix by adding the missing wire (preferred) or by changing the sketch to use a pin that is wired.
+- **\`INPUT\` instead of \`INPUT_PULLUP\` for buttons.** See the button wiring rule in the common section above. Always pair pin-B→GND wiring with \`INPUT_PULLUP\` and active-LOW detection.
+- **Echoing sketch code or diagram JSON back in chat.** Describe what the circuit does in plain language; the code lives in the editor and the board renders the wiring.`;
+
+// Live alias — `BUILD_PROMPT` always points at the current snapshot's build
+// prompt. Older PROMPTS_X_Y_Z entries below that reference `BUILD_PROMPT`
+// without an explicit version suffix are picking up *this* value (they
+// were authored when their version was the live one and never updated).
+const BUILD_PROMPT = BUILD_PROMPT_V1_5_0;
+
+// ── BUILD_PROMPT (v1.4.0, frozen, CircuitProgram-first) ──────────────────
 //
-// The agent now has a higher-level breadboard IR: CircuitProgram v1.
+// The agent had a higher-level breadboard IR: CircuitProgram v1.
 // Default path:
 //   generate_circuit_program -> validate_circuit_program -> apply_circuit_program
-// The compiler owns net wiring, layout, rail distribution, and runtime
-// behavior contracts, then emits a DreamerDiagram under the hood.
-const BUILD_PROMPT = `${COMMON_PROMPT}
+// The compiler owned net wiring, layout, rail distribution, and runtime
+// behavior contracts, then emitted a DreamerDiagram under the hood.
+// v1.5.0 demotes this path: the CircuitProgram tools had zero adoption
+// across stored runs and competed with propose_circuit for the same job.
+const BUILD_PROMPT_V1_4_0 = `${COMMON_PROMPT}
 
 ## Mode: BUILD (board is empty)
 **Default path: author a CircuitProgram and apply it with \`apply_circuit_program\`.**
@@ -1794,7 +1855,19 @@ const PROMPTS_1_3_6: CorePromptSnapshot = {
 // DreamerDiagram import, while propose_circuit becomes the fallback path.
 const PROMPTS_1_4_0: CorePromptSnapshot = {
   commonPrompt: COMMON_PROMPT,
-  buildPrompt: BUILD_PROMPT,
+  buildPrompt: BUILD_PROMPT_V1_4_0,
+  editPrompt: EDIT_PROMPT,
+};
+
+// v1.5.0 — propose_circuit-first (return to the v1.2.5 stance after the
+// DSL-first experiment). New verify_circuit tool runs after propose_circuit
+// to catch sketch/wiring pin-reference mismatches. BUILD_MODE_TOOLS
+// trimmed from 17 to 6 (apply_design + validate_design + the 4 CircuitProgram
+// tools + redundant reads dropped). apply_design stays as an HTTP endpoint
+// for paste-import / DSL export, but is no longer visible to the agent.
+const PROMPTS_1_5_0: CorePromptSnapshot = {
+  commonPrompt: COMMON_PROMPT,
+  buildPrompt: BUILD_PROMPT_V1_5_0,
   editPrompt: EDIT_PROMPT,
 };
 
@@ -1824,6 +1897,7 @@ export const CORE_PROMPT_SNAPSHOTS: Record<string, CorePromptSnapshot> = {
   "1.3.5": PROMPTS_1_3_5, // BUILD_PROMPT: rail distribution required for ≥2 GND/5V consumers; grid.<row>,-1 / -2 / 10 / 11 endpoint syntax
   "1.3.6": PROMPTS_1_3_6, // BUILD_PROMPT: drop stale AUTO-mode reference; add Common Pitfalls block + worked examples (servo+pot, OLED I²C, HC-SR04, multi-LED rail)
   "1.4.0": PROMPTS_1_4_0, // BUILD_PROMPT: CircuitProgram-first whole-board path via generate/validate/compile/apply_circuit_program
+  "1.5.0": PROMPTS_1_5_0, // BUILD_PROMPT: propose_circuit-first + verify_circuit (sketch ↔ wired-pin cross-check); BUILD_MODE_TOOLS trimmed to 6
   // When bumping AGENT_VERSION: copy live constants into a new PROMPTS_X_Y_Z
   // const above and add an explicit entry here. The lookup below falls back to
   // DEFAULT_CORE_PROMPT_SNAPSHOT (live) for any unrecognised version.

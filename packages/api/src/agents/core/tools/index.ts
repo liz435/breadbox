@@ -22,6 +22,7 @@ import { createWireTools } from "./wire-tools";
 import { createSketchTools } from "./sketch-tools";
 import { createDesignTools } from "./design-tools";
 import { createProposeTools } from "./propose-tools";
+import { createVerifyTools } from "./verify-tools";
 
 // Re-exports preserve the public API of the old `./tools` module so callers
 // (agent.ts, router.ts, tests) keep importing from the same path.
@@ -126,6 +127,7 @@ export function createCoreTools(params: {
     ...createSketchTools(ctx, sketchState, mode),
     ...createDesignTools(ctx),
     ...createProposeTools(ctx, sketchState, mode),
+    ...createVerifyTools(ctx),
   } as const;
 
   let filteredTools: typeof allTools;

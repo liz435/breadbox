@@ -109,7 +109,7 @@ describe("apply_design", () => {
     expect(board.environment.obstacles["obs-1"]?.shape).toBe("wall");
   });
 
-  test("is available in build and edit modes", () => {
+  test("is hidden from build mode, available in edit + all (v1.5.0)", () => {
     const board = createDefaultBoardState();
     const project = makeProject(board);
 
@@ -127,8 +127,20 @@ describe("apply_design", () => {
       mode: "edit",
       workingBoard: board,
     });
+    const all = createCoreTools({
+      project,
+      sceneId: "scene-1",
+      ops: [],
+      mode: "all",
+      workingBoard: board,
+    });
 
-    expect("apply_design" in build.tools).toBe(true);
+    // v1.5.0: apply_design is no longer in BUILD_MODE_TOOLS. DSL stays as
+    // an HTTP endpoint for paste-import / export round-tripping but is
+    // hidden from the build agent (propose_circuit is the build path).
+    // Still in edit + all so edit-mode pasted-import flows keep working.
+    expect("apply_design" in build.tools).toBe(false);
     expect("apply_design" in edit.tools).toBe(true);
+    expect("apply_design" in all.tools).toBe(true);
   });
 });
