@@ -12,6 +12,7 @@ import type { GraphOp } from "@dreamer/schemas"
 import { API_ORIGIN } from "@dreamer/config"
 import { resolveFetchOptions } from "@/project/api-client"
 import { toast } from "@/components/ui/toast"
+import { refreshWallet } from "@/billing/use-wallet"
 
 async function fetchThreadMessages(threadId: string): Promise<UIMessage[]> {
   try {
@@ -145,6 +146,11 @@ export function useChatMessages(options: UseChatMessagesOptions = {}): UseChatMe
         if (result.newVersion !== undefined) {
           project.setVersion(result.newVersion)
         }
+        // Wallet was just debited server-side by the post-stream
+        // `debitForLlmRun` call. Refresh the chip so users see the
+        // drop without needing to tab-focus the window. PR #52 added
+        // the visibilitychange refresh; this closes the in-tab gap.
+        void refreshWallet()
       }
       if (dataPart.type === "data-history-sanitized") {
         // Server dropped malformed tool-call blocks from this request's
