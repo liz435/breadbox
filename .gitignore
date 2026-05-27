@@ -10,3 +10,8 @@ packages/cli/src/web-ui-manifest.generated.ts
 packages/app/dist/
 packages/cli/dist/
 motionEditor
+
+# API runtime data — regenerated/mutated on every API run
+packages/api/data/projects/*.json
+packages/api/data/tests/*.json
+packages/api/data/audit/
