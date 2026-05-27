@@ -208,8 +208,11 @@ as $$
 declare
   v_existing integer;
 begin
-  select balance_posted into v_existing
-    from public.credit_wallets where user_id = p_user_id;
+  -- Alias the table so `cw.balance_posted` isn't ambiguous with the
+  -- function's RETURNS TABLE column of the same name. Same pattern as
+  -- `debit_credits` and `credit_credits`.
+  select cw.balance_posted into v_existing
+    from public.credit_wallets cw where cw.user_id = p_user_id;
   if v_existing is not null then
     return query select false, v_existing;
     return;
@@ -229,8 +232,8 @@ begin
     -- already posted the grant_signup row + seeded the wallet. Treat
     -- this as a "wallet existed" path and return the current balance.
     when unique_violation then
-      select balance_posted into v_existing
-        from public.credit_wallets where user_id = p_user_id;
+      select cw.balance_posted into v_existing
+        from public.credit_wallets cw where cw.user_id = p_user_id;
       return query select false, coalesce(v_existing, p_initial_credits);
   end;
 end;
