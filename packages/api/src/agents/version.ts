@@ -14,7 +14,7 @@
  * Major bumps (X.0.0): structural rewrites — new agents, removed paths,
  *   fundamentally different routing logic.
  */
-export const AGENT_VERSION = "1.5.2";
+export const AGENT_VERSION = "2.0.0";
 
 /**
  * Snapshot version controls which frozen agent behavior profile is used at
@@ -28,7 +28,7 @@ export const DEFAULT_AGENT_SNAPSHOT_VERSION =
  * Explicitly listed snapshots that can be selected safely. Add a new entry
  * whenever introducing a new behavior profile.
  */
-export const SUPPORTED_AGENT_SNAPSHOTS = ["1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.0.4", "1.0.5", "1.0.6", "1.0.7", "1.0.8", "1.1.0", "1.1.1", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", "1.3.6", "1.4.0", "1.5.0", "1.5.1", "1.5.2"] as const;
+export const SUPPORTED_AGENT_SNAPSHOTS = ["1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.0.4", "1.0.5", "1.0.6", "1.0.7", "1.0.8", "1.1.0", "1.1.1", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", "1.3.6", "1.4.0", "1.5.0", "1.5.1", "1.5.2", "2.0.0"] as const;
 
 export type AgentSnapshotVersion = (typeof SUPPORTED_AGENT_SNAPSHOTS)[number];
 
@@ -62,6 +62,22 @@ export const AGENT_CHANGELOG: Array<{
   date: string;
   changes: string[];
 }> = [
+  {
+    version: "2.0.0",
+    date: "2026-05-28",
+    changes: [
+      "STRUCTURAL REWRITE: single-agent step loop split into two specialized sub-agents with a dispatcher. Motivated by three production symptoms (repeated tool calls, chaotic step ordering, poor propose_fix per-call success) that the v1.5.x patches could not fix without changing the underlying architecture.",
+      "Dispatcher (`agents/core/agent.ts:streamDispatchAgent`): routes to BuildAgent if the board has zero non-surface components, otherwise to FixAgent. Replaces the v1.x router.toolMode three-way decision (build / edit / all) with a simpler two-way board-state check. The vestigial `\"all\"` mode is gone.",
+      "BuildAgent (`agents/core/build-agent.ts`): empty-board build workflow. 7-tool surface (propose_circuit, propose_fix, verify_circuit, update_sketch, list_components, list_wires, analyze_power_budget). State machine enforces propose_circuit → verify_circuit → terminate, with a recovery branch (propose_fix + update_sketch) when verify_circuit reports unwired_pin_referenced.",
+      "FixAgent (`agents/core/fix-agent.ts`): populated-board edit workflow. 21-tool surface (full v1.5.2 EDIT_MODE_TOOLS including granular CRUDs — kept for safety, trim later with data). State machine: full read+write surface at start, narrows to verify_circuit after any successful write.",
+      "State machines (`agents/core/agent-states.ts`): pure module, 220 lines including types. Each transition consumes a ToolOutcome (toolName + success + failureKind + optional verifyIssues) and returns the next allowed tool set. Empty set forces terminal text response. Default-deny on unknown tool transitions.",
+      "Tool gating implementation: AI SDK's `prepareStep` returns `activeTools: Array<keyof TOOLS>` per step. Verified the @ai-sdk v6 pinned in this repo supports the mechanism (`ai/dist/index.d.ts:1220`). The existing prepareStep callback (which already handles sanitization + compaction) is extended with state-machine-derived activeTools.",
+      "Engine refactor: `streamCoreAgent` becomes a 5-line dispatcher. The 770-line body moves to `streamCoreAgentInternal` and accepts an optional `SpecializedConfig` parameter (prompt, tool name set, state machine). Legacy 1.x runs pass `null` config → bit-identical behavior. Sub-agents pass their own configs.",
+      "Prompts: BUILD_PROMPT_V2_0_0 (40 lines, down from v1.5.1's 80) and EDIT_PROMPT_V2_0_0 (35 lines). Workflow ordering instructions removed since the state machine enforces them. Earlier 1.5.x edit prompt frozen as EDIT_PROMPT_V1_5_0 so 1.5.x snapshots stay reproducible.",
+      "Reversibility: legacy single-agent codepath stays intact in agent.ts under streamCoreAgentInternal. Routes are unchanged (still call streamCoreAgent / runCoreAgent). To roll back, pin the frontend to AGENT_SNAPSHOT_VERSION = '1.5.2' — all turns route through the legacy path. Git tag `pre-v2.0.0` on the previous HEAD provides a clean revert target.",
+      "Frontend pin: 1.5.2 → 2.0.0. Dashboard version registry adds 2.0.0 with new dispatcher → BuildAgent | FixAgent Mermaid layout. introducedNodesForVersion('2.0.0') = ['DSP', 'BA', 'FA', 'BSM', 'FSM'].",
+    ],
+  },
   {
     version: "1.5.2",
     date: "2026-05-28",

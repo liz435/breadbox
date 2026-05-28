@@ -27,7 +27,12 @@ import { CreditChip } from "@/billing/credit-chip"
 // and verify_circuit available in edit mode for post-fix sketch/pin
 // consistency checks.
 // See `packages/api/src/agents/version.ts` for the full changelog.
-const AGENT_SNAPSHOT_VERSION = "1.5.2"
+// Pin to v2.0.0 (multi-agent architecture: Dispatcher → BuildAgent | FixAgent).
+// Rollback: change to "1.5.2" to route everyone through the legacy single-agent
+// codepath. The 1.5.2 implementation is untouched in agent.ts under
+// streamCoreAgentInternal; only the dispatcher in streamCoreAgent gates which
+// path each turn takes.
+const AGENT_SNAPSHOT_VERSION = "2.0.0"
 
 type ToolbarMode = "edit" | "ai"
 
