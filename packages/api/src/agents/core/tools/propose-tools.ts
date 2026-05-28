@@ -861,6 +861,25 @@ Example — LED blink:
           workingBoard.sketchCode = input.sketch;
         }
 
+        // v1.5.2: mirror generated connect_wire ops into workingBoard.wires
+        // BEFORE the power/routing validators run. Previously the validators
+        // (and any mid-turn read tool like verify_circuit or list_wires)
+        // saw workingBoard.wires === {} because propose_circuit only pushed
+        // ops to the queue, never mutating workingBoard directly. That made
+        // the internal electrical gate pass trivially (no wires → nothing
+        // to flag) and caused verify_circuit to report wiredPins=[] right
+        // after a successful build, triggering phantom propose_fix retries
+        // that added duplicate wires. propose_fix has always done this at
+        // line 1620; propose_circuit needed the same.
+        // On electrical_validation failure below, restoreWorkingBoardSnapshot
+        // rolls the wires back along with the rest of the board state.
+        for (const op of generatedOps) {
+          if (op.kind === "connect_wire") {
+            const w = op.payload.wire;
+            workingBoard.wires[w.id] = w;
+          }
+        }
+
         // Final safety gate on the fully assembled tentative board.
         // This prevents propose_circuit from "succeeding" with known electrical
         // errors and forces the model to repair before completion.

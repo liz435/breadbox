@@ -14,7 +14,7 @@
  * Major bumps (X.0.0): structural rewrites — new agents, removed paths,
  *   fundamentally different routing logic.
  */
-export const AGENT_VERSION = "1.5.1";
+export const AGENT_VERSION = "1.5.2";
 
 /**
  * Snapshot version controls which frozen agent behavior profile is used at
@@ -28,7 +28,7 @@ export const DEFAULT_AGENT_SNAPSHOT_VERSION =
  * Explicitly listed snapshots that can be selected safely. Add a new entry
  * whenever introducing a new behavior profile.
  */
-export const SUPPORTED_AGENT_SNAPSHOTS = ["1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.0.4", "1.0.5", "1.0.6", "1.0.7", "1.0.8", "1.1.0", "1.1.1", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", "1.3.6", "1.4.0", "1.5.0", "1.5.1"] as const;
+export const SUPPORTED_AGENT_SNAPSHOTS = ["1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.0.4", "1.0.5", "1.0.6", "1.0.7", "1.0.8", "1.1.0", "1.1.1", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", "1.3.6", "1.4.0", "1.5.0", "1.5.1", "1.5.2"] as const;
 
 export type AgentSnapshotVersion = (typeof SUPPORTED_AGENT_SNAPSHOTS)[number];
 
@@ -62,6 +62,17 @@ export const AGENT_CHANGELOG: Array<{
   date: string;
   changes: string[];
 }> = [
+  {
+    version: "1.5.2",
+    date: "2026-05-28",
+    changes: [
+      "Fix: propose_circuit now mirrors its emitted connect_wire ops into workingBoard.wires so mid-turn read tools (verify_circuit, list_wires) see fresh state. Pre-1.5.2 propose_circuit pushed ops to the queue but never mutated workingBoard.wires directly — only components and sketchCode got updated. verify_circuit reads workingBoard.wires, so right after a successful propose_circuit it would report wiredPins=[] and the agent's prompt would route the (apparent) wiring failure to propose_fix. propose_fix would re-add the same wires, creating duplicates on the board.",
+      "Side effect of the same fix: propose_circuit's own internal electrical gate (analyzePowerBudget + analyzeRoutingPolicy at lines 868-869) was passing trivially because it also reads workingBoard.wires which was empty. The gate now sees the real wires and can catch electrical issues before returning success — the same way propose_fix's gate has always worked.",
+      "Forensic trace from run d0a55856 (v1.5.1) shows the bug end-to-end: propose_circuit created 7 wires correctly; verify_circuit reported wiredPins=[]; propose_fix #1 failed (missing BTN.b→GND in agent's input); propose_fix #2 added 5 wires (3 duplicates + 2 corrections); board ended with 12 wires where 7 were sufficient. Post-fix simulation: 3 tool calls instead of 6, no duplicates.",
+      "Regression test: `propose-circuit-guards.test.ts:verify_circuit sees the wires propose_circuit just created`.",
+      "Prompts unchanged from v1.5.1 (PROMPTS_1_5_2 reuses BUILD_PROMPT_V1_5_1). Frontend pin bumped 1.5.1 → 1.5.2. Dashboard version registry updated.",
+    ],
+  },
   {
     version: "1.5.1",
     date: "2026-05-27",

@@ -27,7 +27,7 @@ import { CreditChip } from "@/billing/credit-chip"
 // and verify_circuit available in edit mode for post-fix sketch/pin
 // consistency checks.
 // See `packages/api/src/agents/version.ts` for the full changelog.
-const AGENT_SNAPSHOT_VERSION = "1.5.1"
+const AGENT_SNAPSHOT_VERSION = "1.5.2"
 
 type ToolbarMode = "edit" | "ai"
 

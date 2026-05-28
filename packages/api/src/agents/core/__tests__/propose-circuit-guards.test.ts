@@ -146,6 +146,45 @@ describe("propose_circuit v1.5.1 guards", () => {
     expect(r4.abandoned).toBe(true)
   })
 
+  test("verify_circuit sees the wires propose_circuit just created", async () => {
+    // Regression for the v1.5.2 bug: propose_circuit pushed connect_wire
+    // ops to the queue but never mutated workingBoard.wires. verify_circuit
+    // (which reads workingBoard directly) saw wiredPins=[] right after a
+    // successful build → agent triggered phantom propose_fix retries that
+    // added duplicate wires. propose_circuit must mirror its emitted wires
+    // into workingBoard.wires so mid-turn reads see fresh state.
+    const board = createDefaultBoardState()
+    board.boardTarget = "arduino_uno"
+    const project = makeProject(board)
+    const ops: BoardOp[] = []
+    const { tools } = createCoreTools({
+      project, sceneId: "scene-1", ops, mode: "build", workingBoard: board,
+    })
+
+    const proposeResult = await runPropose(tools, ledBlinkInput) as Record<string, unknown>
+    expect(proposeResult.success).toBe(true)
+
+    // verify_circuit reads workingBoard.wires. If propose_circuit forgot to
+    // mutate, wiredPins comes back empty and the sketch's pinMode(13)/
+    // digitalWrite(13) calls get flagged as "unwired_pin_referenced".
+    const verifyExec = tools.verify_circuit.execute as unknown as (
+      i: unknown,
+      o: unknown,
+    ) => Promise<{
+      success: boolean
+      sketchPins: number[]
+      wiredPins: number[]
+      issues: Array<{ kind: string; pin: number }>
+    }>
+    const verifyResult = await verifyExec({}, {})
+    expect(verifyResult.sketchPins).toContain(13)
+    expect(verifyResult.wiredPins).toContain(13)
+    // No unwired_pin_referenced issues for the LED's pin.
+    const unwired = verifyResult.issues.filter((i) => i.kind === "unwired_pin_referenced")
+    expect(unwired).toHaveLength(0)
+    expect(verifyResult.success).toBe(true)
+  })
+
   test("attempt budget fires even when every call is on an empty board", async () => {
     // Hypothetical: the agent calls propose_circuit, it returns success,
     // user undoes / scene resets between calls so the board is empty

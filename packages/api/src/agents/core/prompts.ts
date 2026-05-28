@@ -1957,6 +1957,16 @@ const PROMPTS_1_5_1: CorePromptSnapshot = {
   editPrompt: EDIT_PROMPT,
 };
 
+// v1.5.2 — propose_circuit now mutates workingBoard.wires alongside the
+// emitted ops, so mid-turn reads (verify_circuit, list_wires) see fresh
+// state instead of pre-build empty state. Pure tool fix; prompts unchanged
+// from v1.5.1.
+const PROMPTS_1_5_2: CorePromptSnapshot = {
+  commonPrompt: COMMON_PROMPT,
+  buildPrompt: BUILD_PROMPT_V1_5_1,
+  editPrompt: EDIT_PROMPT,
+};
+
 export const CORE_PROMPT_SNAPSHOTS: Record<string, CorePromptSnapshot> = {
   "1.0.0": PROMPTS_1_0_0,
   "1.0.1": PROMPTS_1_0_0, // no prompt changes in 1.0.1–1.0.4
@@ -1985,6 +1995,7 @@ export const CORE_PROMPT_SNAPSHOTS: Record<string, CorePromptSnapshot> = {
   "1.4.0": PROMPTS_1_4_0, // BUILD_PROMPT: CircuitProgram-first whole-board path via generate/validate/compile/apply_circuit_program
   "1.5.0": PROMPTS_1_5_0, // BUILD_PROMPT: propose_circuit-first + verify_circuit (sketch ↔ wired-pin cross-check); BUILD_MODE_TOOLS trimmed to 6. EDIT_PROMPT: propose_fix reliability pass — wider board summary w/ wire IDs, did-you-mean on unknown IDs, verify_circuit in edit mode
   "1.5.1": PROMPTS_1_5_1, // BUILD_PROMPT: code-enforced max 3 propose_circuit/turn + board_not_empty guard; propose_fix added to BUILD_MODE_TOOLS as the post-build fix path
+  "1.5.2": PROMPTS_1_5_2, // (tool fix) propose_circuit now mutates workingBoard.wires so verify_circuit + internal electrical gate see the wires it created
   // When bumping AGENT_VERSION: copy live constants into a new PROMPTS_X_Y_Z
   // const above and add an explicit entry here. The lookup below falls back to
   // DEFAULT_CORE_PROMPT_SNAPSHOT (live) for any unrecognised version.
