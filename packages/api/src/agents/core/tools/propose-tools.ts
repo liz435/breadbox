@@ -1,10 +1,12 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { BoardOp } from "@dreamer/schemas";
+import { isBoardComponentType } from "@dreamer/schemas";
 import { makeBoardOp } from "../../make-op";
 import { analyzePowerBudget } from "../../../electrical/power-budget-analyzer";
 import { analyzeRoutingPolicy } from "../../../electrical/routing-policy";
 import { validateSketch } from "../../../utils/sketch-validator";
+import { formatSuggestion, type IdCandidate } from "./id-resolver";
 import type { ToolContext, SketchState, ToolMode, PinRole } from "./shared";
 import {
   ALL_COMPONENT_TYPES,
@@ -18,6 +20,11 @@ import {
 } from "./shared";
 
 const MAX_PROPOSE_FIX_ATTEMPTS = 5;
+// v1.5.1: code-enforced cap mirroring the prompt's "max 3 attempts/turn"
+// rule. Pre-1.5.1 the rule was advisory and Haiku ignored it in retry
+// spirals; the bug was 8+ propose_circuit calls in one turn stacking
+// components until "board too constrained" errors.
+const MAX_PROPOSE_CIRCUIT_ATTEMPTS = 3;
 
 export function createProposeTools(
   ctx: ToolContext,
@@ -27,6 +34,7 @@ export function createProposeTools(
   const { workingBoard, ops, opCtx } = ctx;
 
   let proposeFixAttempts = 0;
+  let proposeCircuitAttempts = 0;
 
   return {
     // ── Plan-then-execute: propose_circuit ────────────────────────
@@ -115,6 +123,46 @@ Example — LED blink:
             errors: [
               "Build is paused on sketch recovery. Use update_sketch or patch_sketch to submit a valid sketch before calling propose_circuit again.",
             ],
+          };
+        }
+
+        // v1.5.1: code-enforced attempt budget. Counts every call (success
+        // or fail) so a turn with 3 successful builds also stops here —
+        // the user shouldn't see 4+ propose_circuit invocations in one turn
+        // regardless of outcome.
+        proposeCircuitAttempts += 1;
+        if (proposeCircuitAttempts > MAX_PROPOSE_CIRCUIT_ATTEMPTS) {
+          return {
+            success: false,
+            blocked: true,
+            abandoned: true,
+            failureKind: "attempt_limit",
+            errors: [
+              `propose_circuit attempt budget exhausted (${MAX_PROPOSE_CIRCUIT_ATTEMPTS} this turn). Stop retrying and report the blocking issue to the user. For incremental fixes on a populated board use propose_fix; for sketch-only changes use update_sketch.`,
+            ],
+            nextStep: "Stop and report. Do not call propose_circuit again this turn.",
+          };
+        }
+
+        // v1.5.1: refuse propose_circuit on a non-empty board. propose_circuit
+        // auto-positions new parts AFTER existing components (see the
+        // estimatedNextRow loop below), so calling it on a populated board
+        // stacks parts rather than replacing — which is what produced the
+        // "board too constrained" retry-loop bug. propose_fix is the right
+        // tool for additive changes on any board state.
+        // `isBoardComponentType` excludes Arduino + breadboard/perfboard
+        // surfaces (those are always present); we only count user-placed parts.
+        const existingNonBoardComponents = Object.values(workingBoard.components)
+          .filter((c) => !isBoardComponentType(c.type)).length;
+        if (existingNonBoardComponents > 0) {
+          return {
+            success: false,
+            blocked: true,
+            failureKind: "board_not_empty",
+            errors: [
+              `propose_circuit is for empty-board builds. Board currently has ${existingNonBoardComponents} component(s). Use propose_fix to add wires, fix pin assignments, or update the sketch — it accepts the same addComponents/addWires/sketch shape and the remove/move ops just skip when not used.`,
+            ],
+            nextStep: "Switch to propose_fix. It works on populated boards (and empty ones).",
           };
         }
 
@@ -813,6 +861,25 @@ Example — LED blink:
           workingBoard.sketchCode = input.sketch;
         }
 
+        // v1.5.2: mirror generated connect_wire ops into workingBoard.wires
+        // BEFORE the power/routing validators run. Previously the validators
+        // (and any mid-turn read tool like verify_circuit or list_wires)
+        // saw workingBoard.wires === {} because propose_circuit only pushed
+        // ops to the queue, never mutating workingBoard directly. That made
+        // the internal electrical gate pass trivially (no wires → nothing
+        // to flag) and caused verify_circuit to report wiredPins=[] right
+        // after a successful build, triggering phantom propose_fix retries
+        // that added duplicate wires. propose_fix has always done this at
+        // line 1620; propose_circuit needed the same.
+        // On electrical_validation failure below, restoreWorkingBoardSnapshot
+        // rolls the wires back along with the rest of the board state.
+        for (const op of generatedOps) {
+          if (op.kind === "connect_wire") {
+            const w = op.payload.wire;
+            workingBoard.wires[w.id] = w;
+          }
+        }
+
         // Final safety gate on the fully assembled tentative board.
         // This prevents propose_circuit from "succeeding" with known electrical
         // errors and forces the model to repair before completion.
@@ -1062,10 +1129,16 @@ Example — rewire an existing component:
         }
 
         // ── 3. Move components ──
+        // Build the candidate list here (before deletions in step 2 affected
+        // it, those IDs are already gone). Reused by every move-target lookup.
+        const moveCandidates: IdCandidate[] = Object.entries(workingBoard.components).map(
+          ([id, c]) => ({ id, name: c.name, type: c.type }),
+        );
         for (const move of input.moveComponents ?? []) {
           const comp = workingBoard.components[move.componentId];
           if (!comp) {
-            errors.push(`Component ${move.componentId} not found for move.`);
+            const hint = formatSuggestion(move.componentId, moveCandidates);
+            errors.push(`Component ${move.componentId} not found for move.${hint}`);
             continue;
           }
           const overlap = Object.values(workingBoard.components).find(
@@ -1266,6 +1339,14 @@ Example — rewire an existing component:
         const wiresByPin = new Map<number, Array<{ target: { row: number; col: number }; color: string }>>();
         const seriesJumperOps: BoardOp[] = [];
 
+        // v1.6.0: build once, reuse across every "component not found" path.
+        // Lets us return "did you mean X?" instead of a flat 404 and burning
+        // a retry attempt. Includes both UUIDs and human names because agents
+        // hallucinate friendly aliases ('led1') more often than mistype UUIDs.
+        const componentCandidates: IdCandidate[] = Object.entries(workingBoard.components).map(
+          ([id, c]) => ({ id, name: c.name, type: c.type }),
+        );
+
         for (const wire of input.addWires ?? []) {
           const color = wire.color ?? "#22c55e";
 
@@ -1274,7 +1355,8 @@ Example — rewire an existing component:
           if (wire.toExistingComponent) {
             const existing = workingBoard.components[wire.toExistingComponent];
             if (!existing) {
-              errors.push(`Wire target component ${wire.toExistingComponent} not found.`);
+              const hint = formatSuggestion(wire.toExistingComponent, componentCandidates);
+              errors.push(`Wire target component ${wire.toExistingComponent} not found.${hint}`);
               continue;
             }
             targetComp = existing;
@@ -1302,7 +1384,8 @@ Example — rewire an existing component:
           if (wire.throughExistingComponent) {
             const existing = workingBoard.components[wire.throughExistingComponent];
             if (!existing) {
-              errors.push(`Through-component ${wire.throughExistingComponent} not found.`);
+              const hint = formatSuggestion(wire.throughExistingComponent, componentCandidates);
+              errors.push(`Through-component ${wire.throughExistingComponent} not found.${hint}`);
               continue;
             }
             throughComp = existing;

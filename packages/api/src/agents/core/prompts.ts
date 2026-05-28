@@ -1210,14 +1210,138 @@ Four cathodes need GND → one Arduino lead to the GND rail, then four branches.
   sketch: "int leds[4] = {2, 3, 4, 5};\\nvoid setup(){pinMode(2,OUTPUT);pinMode(3,OUTPUT);pinMode(4,OUTPUT);pinMode(5,OUTPUT);}\\nvoid loop(){for(int i=0;i<4;i++){digitalWrite(leds[i],HIGH);delay(150);digitalWrite(leds[i],LOW);}}"
 }`;
 
-// ── BUILD_PROMPT (v1.4.0, live, CircuitProgram-first) ────────────────────
+// ── BUILD_PROMPT (v1.5.0, frozen, propose_circuit-first + verify_circuit) ─
+// Returns to the v1.2.5 stance after the v1.3.x DSL-first experiment. Eval
+// across 44 build runs: propose_circuit converged on 100% of runs and ran
+// ~9k input-tokens cheaper than apply_design, which only converged on 84%
+// of runs (terminal failures on malformed DSL blocks). DSL stays available
+// as an HTTP endpoint for paste-import/export, but is hidden from the
+// agent's tool surface in build mode. The new verify_circuit step catches
+// sketch/wiring mismatches that propose_circuit's electrical validator
+// doesn't see (sketch references pin 8 with no wire on pin 8).
+const BUILD_PROMPT_V1_5_0 = `${COMMON_PROMPT}
+
+## Mode: BUILD (board is empty)
+**Primary tool: \`propose_circuit\`.** Describe the whole circuit — components, wires, and sketch — in a single call. It auto-positions parts, distributes rails, validates wiring, and runs the power-budget check internally.
+
+### Workflow
+1. Call \`propose_circuit\` with components + wires + sketch.
+2. On \`success: true\`, call \`verify_circuit\` once. It cross-checks the sketch's pin references (\`pinMode\`, \`digitalRead/Write\`, \`analogRead/Write\`, \`pulseIn\`, \`Servo.attach\`) against the pins that were actually wired. If it reports \`unwired_pin_referenced\`, retry \`propose_circuit\` with the corrected sketch or add the missing wire. \`wired_pin_unused\` is a warning only — ignore unless the user asked about the unused pin.
+3. On \`success: false\` from \`propose_circuit\`, read \`errors[]\` + \`failureKind\` and fix the issue:
+   - \`sketch_validation\` → call \`update_sketch\` to repair syntax, then retry \`propose_circuit\`.
+   - \`layout_overflow\` / \`electrical_validation\` → adjust components or wiring, retry.
+4. Max **3 \`propose_circuit\` attempts per turn**. After 3 failures, stop and explain the blocking issue to the user — do not silently abandon.
+
+### When to call \`analyze_power_budget\`
+**Do NOT call it by default.** \`propose_circuit\` already runs it internally. Call it explicitly only when:
+- The user asks about power, current, or rail loading, OR
+- You need the per-pin breakdown to diagnose a power-related rejection.
+
+### Read tools
+\`list_components\` and \`list_wires\` are available if you need to inspect what \`propose_circuit\` produced. You usually don't — the per-turn board summary above already includes a high-level component list.
+
+## Example: LED blink on D13
+A single \`propose_circuit\` call places the LED + series resistor, wires anode→D13 and cathode→GND through the resistor, and writes a 1 Hz blink sketch. Component IDs and exact layout are chosen by the tool — you supply intent.
+
+propose_circuit({
+  components: [
+    {type: "led", name: "LED1", properties: {color: "#ef4444"}},
+    {type: "resistor", name: "R1", properties: {resistance: 220}}
+  ],
+  wires: [
+    {arduinoPin: 13, toComponent: 0, pinOffset: 0},
+    {fromComponent: 0, fromPinOffset: 1, toComponent: 1, toPinOffset: 0},
+    {arduinoPin: -3, toComponent: 1, toPinOffset: 1}
+  ],
+  sketch: "void setup(){pinMode(13,OUTPUT);}\\nvoid loop(){digitalWrite(13,HIGH);delay(500);digitalWrite(13,LOW);delay(500);}"
+})
+
+Then call \`verify_circuit\` to confirm the sketch only references pin 13 (it does — \`pinMode(13,…)\` and \`digitalWrite(13,…)\` both land on a wired pin).
+
+## Common mistakes to avoid
+- **Sketch references an unwired pin.** The HC-SR04 case: \`int echoPin = 8; pulseIn(echoPin, HIGH);\` while only pin 7 is wired. \`verify_circuit\` will flag this — fix by adding the missing wire (preferred) or by changing the sketch to use a pin that is wired.
+- **\`INPUT\` instead of \`INPUT_PULLUP\` for buttons.** See the button wiring rule in the common section above. Always pair pin-B→GND wiring with \`INPUT_PULLUP\` and active-LOW detection.
+- **Echoing sketch code or diagram JSON back in chat.** Describe what the circuit does in plain language; the code lives in the editor and the board renders the wiring.`;
+
+// ── BUILD_PROMPT (v1.5.1, live) — propose_circuit retry-loop fix ─────────
+// Three changes from v1.5.0 motivated by a production trace where the
+// agent called propose_circuit 8+ times in one turn, stacking components
+// until the board "ran out of rows" (75.6k tokens, no usable output):
+//   1. propose_circuit now refuses calls on a non-empty board with
+//      failureKind: "board_not_empty". Routes the agent to propose_fix.
+//   2. Hard cap of 3 propose_circuit attempts per turn, enforced in code
+//      (the v1.5.0 "max 3" rule was prose-only and ignored under retry
+//      pressure). 4th call returns failureKind: "attempt_limit".
+//   3. propose_fix is now in BUILD_MODE_TOOLS — the agent has a real
+//      tool for additive touch-ups after the first propose_circuit
+//      lands. The prompt teaches the propose_circuit → propose_fix
+//      pattern explicitly.
+const BUILD_PROMPT_V1_5_1 = `${COMMON_PROMPT}
+
+## Mode: BUILD (board is empty)
+**You have two write tools.** Use them in this order:
+- \`propose_circuit\` — build the whole circuit + sketch in one call on an **empty board**. Auto-positions parts, distributes rails, validates wiring, runs the power-budget check internally. This is your first call on every build-mode turn.
+- \`propose_fix\` — additive or surgical changes once the board has components. Takes addComponents/addWires/sketch (and removeWires/removeComponents/moveComponents if you need them — they skip safely if not used).
+
+### Workflow
+1. Call \`propose_circuit\` with components + wires + sketch.
+2. On \`success: true\`, call \`verify_circuit\` once. It cross-checks the sketch's pin references against the pins that were actually wired.
+   - If verify_circuit reports \`unwired_pin_referenced\`, call **propose_fix** to add the missing wire or change the sketch's pin reference. Do NOT call propose_circuit again — the board is no longer empty and the tool will refuse with \`failureKind: "board_not_empty"\`.
+   - If verify_circuit reports \`success: true\`, you're done. Stop.
+3. On \`propose_circuit success: false\`, read \`errors[]\` + \`failureKind\`:
+   - \`sketch_validation\` → call \`update_sketch\` to repair syntax, then retry \`propose_circuit\` (still on an empty board, so still allowed).
+   - \`layout_overflow\` / \`electrical_validation\` → adjust components or wiring, retry once. Do not retry blindly — read the errors.
+4. **Maximum 3 \`propose_circuit\` attempts per turn — enforced by the tool.** A 4th call returns \`failureKind: "attempt_limit"\`. If you hit the limit, stop and explain the blocking issue to the user.
+
+### When to call \`analyze_power_budget\`
+**Do NOT call it by default.** \`propose_circuit\` already runs it internally. Call it explicitly only when:
+- The user asks about power, current, or rail loading, OR
+- You need the per-pin breakdown to diagnose a power-related rejection.
+
+### Read tools
+\`list_components\` and \`list_wires\` are available if you need to inspect what was placed. The per-turn board summary above already includes a high-level list with IDs; the read tools are usually redundant.
+
+## Example: LED blink on D13
+A single \`propose_circuit\` call places the LED + series resistor, wires anode→D13 and cathode→GND through the resistor, and writes a 1 Hz blink sketch.
+
+propose_circuit({
+  components: [
+    {type: "led", name: "LED1", properties: {color: "#ef4444"}},
+    {type: "resistor", name: "R1", properties: {resistance: 220}}
+  ],
+  wires: [
+    {arduinoPin: 13, toComponent: 0, pinOffset: 0},
+    {fromComponent: 0, fromPinOffset: 1, toComponent: 1, toPinOffset: 0},
+    {arduinoPin: -3, toComponent: 1, toPinOffset: 1}
+  ],
+  sketch: "void setup(){pinMode(13,OUTPUT);}\\nvoid loop(){digitalWrite(13,HIGH);delay(500);digitalWrite(13,LOW);delay(500);}"
+})
+
+Then call \`verify_circuit\` to confirm. If it flags an issue, fix it with **propose_fix** (not another propose_circuit).
+
+## Common mistakes to avoid
+- **Calling propose_circuit twice in a turn.** The tool refuses on a populated board (\`failureKind: "board_not_empty"\`). After your first successful build, use propose_fix for any further changes. Calling propose_circuit again used to stack components on top of the existing ones until the board ran out of rows — now it just returns an error.
+- **Retrying propose_circuit past the 3-attempt budget.** The 4th call returns \`failureKind: "attempt_limit"\` and you should stop. Three attempts is enough — if it hasn't converged by then, the request needs clarification from the user.
+- **Sketch references an unwired pin.** The HC-SR04 case: \`int echoPin = 8; pulseIn(echoPin, HIGH);\` while only pin 7 is wired. \`verify_circuit\` will flag this — fix by passing \`addWires\` (with the missing wire) and an updated \`sketch\` to **propose_fix**, not another propose_circuit.
+- **\`INPUT\` instead of \`INPUT_PULLUP\` for buttons.** See the button wiring rule in the common section above. Always pair pin-B→GND wiring with \`INPUT_PULLUP\` and active-LOW detection.
+- **Echoing sketch code or diagram JSON back in chat.** Describe what the circuit does in plain language; the code lives in the editor and the board renders the wiring.`;
+
+// Live alias — `BUILD_PROMPT` always points at the current snapshot's build
+// prompt. Older PROMPTS_X_Y_Z entries below that reference `BUILD_PROMPT`
+// without an explicit version suffix are picking up *this* value (they
+// were authored when their version was the live one and never updated).
+const BUILD_PROMPT = BUILD_PROMPT_V1_5_1;
+
+// ── BUILD_PROMPT (v1.4.0, frozen, CircuitProgram-first) ──────────────────
 //
-// The agent now has a higher-level breadboard IR: CircuitProgram v1.
+// The agent had a higher-level breadboard IR: CircuitProgram v1.
 // Default path:
 //   generate_circuit_program -> validate_circuit_program -> apply_circuit_program
-// The compiler owns net wiring, layout, rail distribution, and runtime
-// behavior contracts, then emits a DreamerDiagram under the hood.
-const BUILD_PROMPT = `${COMMON_PROMPT}
+// The compiler owned net wiring, layout, rail distribution, and runtime
+// behavior contracts, then emitted a DreamerDiagram under the hood.
+// v1.5.0 demotes this path: the CircuitProgram tools had zero adoption
+// across stored runs and competed with propose_circuit for the same job.
+const BUILD_PROMPT_V1_4_0 = `${COMMON_PROMPT}
 
 ## Mode: BUILD (board is empty)
 **Default path: author a CircuitProgram and apply it with \`apply_circuit_program\`.**
@@ -1317,18 +1441,31 @@ Then:
 
 Do not echo CircuitProgram JSON back in chat. Describe the result in plain language.`;
 
+// ── EDIT_PROMPT (v1.5.0, live) — propose_fix reliability pass ────────────
+// Three changes from earlier edit prompts motivated by the propose_fix
+// per-call success rate (~22% in stored eval, vs 83% for propose_circuit):
+//   1. The per-turn board summary now lists every component + wire ID
+//      inline (up to 24 / 32). The "call list_components/list_wires first"
+//      preflight is no longer required — IDs are in the system message.
+//   2. propose_fix returns a "Did you mean X?" suggestion when an addWires
+//      target / through component / move target references an unknown ID,
+//      so an inevitable miss costs nudging instead of a wasted attempt.
+//   3. verify_circuit is now available in edit mode — call it once after
+//      a successful propose_fix to confirm the sketch's pin references
+//      still match the wires after mutations.
 const EDIT_PROMPT = `${COMMON_PROMPT}
 
 ## Mode: EDIT (board has existing components — preserve them!)
-The board already has components and wires. You have TWO approaches:
+The board already has components and wires. You have TWO approaches.
 
 ### Primary: propose_fix (preferred for multi-step changes)
-Use propose_fix to batch ALL changes into a single atomic call — components, wires, and sketch. It auto-positions new parts, resolves wire targets, validates wiring, and rolls back on failure. Max 3 attempts per run.
+Use propose_fix to batch ALL changes into a single atomic call — components, wires, and sketch. It auto-positions new parts, resolves wire targets, validates wiring, and rolls back on failure. Max 5 attempts per run.
 
-Before proposing removals/rewires on existing parts:
-- Call list_components and list_wires first in this turn.
-- Copy exact existing IDs from tool output. Never invent placeholder IDs (e.g. "btn-up-id").
-- If a previous propose_fix failed with electrical_validation about direct fanout/ground-power distribution, retry with a wiring-only propose_fix first (omit sketch), then apply sketch in a separate call.
+**Use the IDs from the board summary above** — every component carries \`id=<uuid>\` and every wire is prefixed with its own id. You do **not** need to call \`list_components\` / \`list_wires\` first unless the summary's limit (24 components / 32 wires) was hit. Never invent placeholder IDs like \`btn-up-id\` or \`led1\` — the tool will report "Did you mean X?" but that still costs an attempt.
+
+After a successful propose_fix, **call verify_circuit once** to confirm the resulting sketch references only wired pins. If verify_circuit reports \`unwired_pin_referenced\`, fix the wiring or the sketch in another propose_fix call.
+
+If a previous propose_fix failed with electrical_validation about direct fanout/ground-power distribution, retry with a wiring-only propose_fix first (omit sketch), then apply sketch in a separate call.
 
 propose_fix({
   removeWires: ["wire-id-1"],
@@ -1337,7 +1474,7 @@ propose_fix({
   addWires: [
     {arduinoPin:2, toNewComponent:0, toPin:"a"},
     {arduinoPin:-3, toNewComponent:0, toPin:"b"},
-    {arduinoPin:9, toExistingComponent:"existing-comp-id", toPin:"signal"}
+    {arduinoPin:9, toExistingComponent:"<paste-uuid-from-summary>", toPin:"signal"}
   ],
   sketch: "void setup(){...}"
 })
@@ -1348,7 +1485,7 @@ propose_fix({
 - update_sketch (full rewrite) or patch_sketch (small edits)
 - apply_design ONLY for explicit full-diagram import/replace requests (e.g. pasted DreamerDiagram JSON). Do not use apply_design for small edits. When calling the tool, drop the \`$schema\` key — it is not part of the tool schema (pass the body only: { board?, sketch, components, wires, ... }).
 
-Do NOT replace the whole circuit. Make the smallest change that satisfies the user's request. Reuse existing component IDs from the board state below — never invent IDs.`;
+Do NOT replace the whole circuit. Make the smallest change that satisfies the user's request. Reuse existing component IDs from the board state above — never invent IDs.`;
 
 export type CorePromptSnapshot = {
   commonPrompt: string;
@@ -1794,7 +1931,39 @@ const PROMPTS_1_3_6: CorePromptSnapshot = {
 // DreamerDiagram import, while propose_circuit becomes the fallback path.
 const PROMPTS_1_4_0: CorePromptSnapshot = {
   commonPrompt: COMMON_PROMPT,
-  buildPrompt: BUILD_PROMPT,
+  buildPrompt: BUILD_PROMPT_V1_4_0,
+  editPrompt: EDIT_PROMPT,
+};
+
+// v1.5.0 — propose_circuit-first (return to the v1.2.5 stance after the
+// DSL-first experiment). New verify_circuit tool runs after propose_circuit
+// to catch sketch/wiring pin-reference mismatches. BUILD_MODE_TOOLS
+// trimmed from 17 to 6 (apply_design + validate_design + the 4 CircuitProgram
+// tools + redundant reads dropped). apply_design stays as an HTTP endpoint
+// for paste-import / DSL export, but is no longer visible to the agent.
+const PROMPTS_1_5_0: CorePromptSnapshot = {
+  commonPrompt: COMMON_PROMPT,
+  buildPrompt: BUILD_PROMPT_V1_5_0,
+  editPrompt: EDIT_PROMPT,
+};
+
+// v1.5.1 — propose_circuit retry-loop fix. Hard-cap attempt budget at 3,
+// refuse on non-empty boards, route follow-up work to propose_fix (now
+// also in BUILD_MODE_TOOLS). Tool-side enforcement lives in
+// `tools/propose-tools.ts`; the prompt teaches the new pattern.
+const PROMPTS_1_5_1: CorePromptSnapshot = {
+  commonPrompt: COMMON_PROMPT,
+  buildPrompt: BUILD_PROMPT_V1_5_1,
+  editPrompt: EDIT_PROMPT,
+};
+
+// v1.5.2 — propose_circuit now mutates workingBoard.wires alongside the
+// emitted ops, so mid-turn reads (verify_circuit, list_wires) see fresh
+// state instead of pre-build empty state. Pure tool fix; prompts unchanged
+// from v1.5.1.
+const PROMPTS_1_5_2: CorePromptSnapshot = {
+  commonPrompt: COMMON_PROMPT,
+  buildPrompt: BUILD_PROMPT_V1_5_1,
   editPrompt: EDIT_PROMPT,
 };
 
@@ -1824,6 +1993,9 @@ export const CORE_PROMPT_SNAPSHOTS: Record<string, CorePromptSnapshot> = {
   "1.3.5": PROMPTS_1_3_5, // BUILD_PROMPT: rail distribution required for ≥2 GND/5V consumers; grid.<row>,-1 / -2 / 10 / 11 endpoint syntax
   "1.3.6": PROMPTS_1_3_6, // BUILD_PROMPT: drop stale AUTO-mode reference; add Common Pitfalls block + worked examples (servo+pot, OLED I²C, HC-SR04, multi-LED rail)
   "1.4.0": PROMPTS_1_4_0, // BUILD_PROMPT: CircuitProgram-first whole-board path via generate/validate/compile/apply_circuit_program
+  "1.5.0": PROMPTS_1_5_0, // BUILD_PROMPT: propose_circuit-first + verify_circuit (sketch ↔ wired-pin cross-check); BUILD_MODE_TOOLS trimmed to 6. EDIT_PROMPT: propose_fix reliability pass — wider board summary w/ wire IDs, did-you-mean on unknown IDs, verify_circuit in edit mode
+  "1.5.1": PROMPTS_1_5_1, // BUILD_PROMPT: code-enforced max 3 propose_circuit/turn + board_not_empty guard; propose_fix added to BUILD_MODE_TOOLS as the post-build fix path
+  "1.5.2": PROMPTS_1_5_2, // (tool fix) propose_circuit now mutates workingBoard.wires so verify_circuit + internal electrical gate see the wires it created
   // When bumping AGENT_VERSION: copy live constants into a new PROMPTS_X_Y_Z
   // const above and add an explicit entry here. The lookup below falls back to
   // DEFAULT_CORE_PROMPT_SNAPSHOT (live) for any unrecognised version.
