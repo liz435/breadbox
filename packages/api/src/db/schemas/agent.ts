@@ -61,6 +61,11 @@ export const agentRunRecordSchema = z.object({
    * Optional for backward compatibility with older run files.
    */
   agentSnapshotVersion: z.string().optional(),
+  /**
+   * v2.0.0+: which specialized sub-agent the dispatcher picked.
+   * Absent on 1.x runs (single-agent codepath).
+   */
+  subAgent: z.enum(["build", "fix"]).optional(),
 });
 
 export type AgentRunRecord = z.infer<typeof agentRunRecordSchema>;

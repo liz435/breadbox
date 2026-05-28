@@ -196,6 +196,17 @@ async function setRouting(
   await upsertRunRow(existing)
 }
 
+/** v2.0.0: persist which specialized sub-agent the dispatcher picked. */
+async function setSubAgent(
+  runId: string,
+  subAgent: "build" | "fix",
+): Promise<void> {
+  const existing = await readRunRow(runId)
+  if (!existing) return
+  existing.run.subAgent = subAgent
+  await upsertRunRow(existing)
+}
+
 async function attachRunToThread(
   threadId: string,
   runId: string,
@@ -293,6 +304,7 @@ export const agentRunRepo = {
   createRun,
   completeRun,
   setRouting,
+  setSubAgent,
   attachRunToThread,
   readRun,
   listRunsForThread,

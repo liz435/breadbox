@@ -17,6 +17,79 @@ import {
   DEFAULT_CORE_PROMPT_SNAPSHOT,
 } from "./prompts";
 import { sanitizeModelMessages } from "../sanitize-messages";
+import {
+  BUILD_STATE_MACHINE,
+  FIX_STATE_MACHINE,
+  type AgentStateMachine,
+  type ToolOutcome,
+} from "./agent-states";
+import { isBoardComponentType } from "@dreamer/schemas";
+import { streamBuildAgent } from "./build-agent";
+import { streamFixAgent } from "./fix-agent";
+
+// ── v2.0.0 specialization ───────────────────────────────────────────────
+//
+// SpecializedConfig parameterizes streamCoreAgentInternal so the same
+// engine can run as the legacy single-agent loop (config = null) or as a
+// specialized sub-agent (config provided). Build-agent.ts and fix-agent.ts
+// supply their own configs; the dispatcher in streamCoreAgent picks one.
+
+export type SpecializedConfig = {
+  /** Identifies the sub-agent. Persisted on the run record for dashboards. */
+  name: "build" | "fix"
+  /** System prompt to use instead of the snapshot-derived prompt. */
+  systemPrompt: string
+  /** Tool names to expose (subset of createCoreTools output). */
+  toolNames: Set<string>
+  /** Per-step tool gating. State updated after each tool result. */
+  stateMachine: AgentStateMachine<string>
+}
+
+/**
+ * Pull a ToolOutcome out of an AI SDK tool-result step item. Tool result
+ * shape varies (propose_circuit uses success; verify_circuit uses success
+ * + issues; older tools used `ok`), so we normalize here. Returns null
+ * when the result isn't recognizable — caller leaves state unchanged.
+ */
+function extractToolOutcome(toolResult: unknown): ToolOutcome | null {
+  if (!toolResult || typeof toolResult !== "object") return null;
+  const r = toolResult as {
+    toolName?: string;
+    output?: { type?: string; value?: unknown };
+  };
+  if (!r.toolName) return null;
+  const value = r.output?.value;
+  if (!value || typeof value !== "object") {
+    // error-text / non-json outputs are treated as failures with no kind.
+    return { toolName: r.toolName, success: false };
+  }
+  const v = value as { success?: unknown; ok?: unknown; failureKind?: unknown; issues?: unknown };
+  const success = v.success === true || v.ok === true;
+  const failureKind = typeof v.failureKind === "string" ? v.failureKind : undefined;
+  let verifyIssues: ToolOutcome["verifyIssues"];
+  if (r.toolName === "verify_circuit" && Array.isArray(v.issues)) {
+    verifyIssues = v.issues
+      .filter((i): i is { kind: unknown } => !!i && typeof i === "object" && "kind" in i)
+      .filter((i): i is { kind: "unwired_pin_referenced" | "wired_pin_unused" } =>
+        i.kind === "unwired_pin_referenced" || i.kind === "wired_pin_unused",
+      )
+      .map((i) => ({ kind: i.kind }));
+  }
+  return { toolName: r.toolName, success, failureKind, verifyIssues };
+}
+
+/** Reverse-compatible semver-ish at-least check. */
+function versionAtLeast(a: string, b: string): boolean {
+  const pa = a.split(".").map(Number)
+  const pb = b.split(".").map(Number)
+  for (let i = 0; i < 3; i++) {
+    const ai = pa[i] ?? 0
+    const bi = pb[i] ?? 0
+    if (ai > bi) return true
+    if (ai < bi) return false
+  }
+  return true
+}
 
 // ── Model context limits (used for message sizing) ──────────────────────
 
@@ -205,8 +278,38 @@ function sizeMessagesToModel(
 
 // ── Main ────────────────────────────────────────────────────────────────
 
+/**
+ * Public entry. For v2.x snapshots dispatches into BuildAgent or FixAgent
+ * based on board state; for older snapshots passes through to the legacy
+ * single-agent engine.
+ */
 export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
-  const log = ctx.parentLog.child("core-agent");
+  const snap = ctx.snapshotVersion ?? AGENT_VERSION;
+  if (versionAtLeast(snap, "2.0.0")) {
+    return streamDispatchAgent(ctx);
+  }
+  return streamCoreAgentInternal(ctx, null);
+}
+
+/**
+ * v2.0.0 dispatcher. Routes to BuildAgent if the board is empty, otherwise
+ * to FixAgent. Diagram-import intent (user pasting DSL) forces FixAgent
+ * regardless of board state because apply_design lives there.
+ */
+function streamDispatchAgent(ctx: AgentContext): CoreAgentStream {
+  const board = ctx.project.boardState;
+  const userComponents = board
+    ? Object.values(board.components).filter((c) => !isBoardComponentType(c.type)).length
+    : 0;
+  const goesToFix = userComponents > 0;
+  return goesToFix ? streamFixAgent(ctx) : streamBuildAgent(ctx);
+}
+
+export function streamCoreAgentInternal(
+  ctx: AgentContext,
+  config: SpecializedConfig | null,
+): CoreAgentStream {
+  const log = ctx.parentLog.child(config ? `${config.name}-agent` : "core-agent");
   const start = performance.now();
   const ops: BoardOp[] = [];
   // Prompt normalizer retired. Earlier it wrapped the user message in an
@@ -253,13 +356,22 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
     trackedBoard ?? ctx.project.boardState ?? createDefaultBoardState()
   );
 
-  const { tools, isSketchRecoveryAbandoned } = createCoreTools({
+  // v2.0.0: sub-agents pass their own tool name set; everyone else uses
+  // mode-based filtering. createCoreTools internally filters by mode; if a
+  // SpecializedConfig is in play we use mode="all" (unfiltered) then narrow
+  // to config.toolNames so the sub-agent sees exactly what its config says.
+  const { tools: allTools, isSketchRecoveryAbandoned } = createCoreTools({
     project: ctx.project,
     sceneId: ctx.sceneId,
     ops,
-    mode,
+    mode: config ? "all" : mode,
     workingBoard,
   });
+  const tools = config
+    ? (Object.fromEntries(
+        Object.entries(allTools).filter(([name]) => config.toolNames.has(name)),
+      ) as typeof allTools)
+    : allTools;
   const availableTools = Object.keys(tools).sort();
 
   // Persist routing + concrete tool inventory on the run file so version
@@ -270,9 +382,23 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
       log.warn(`failed to persist routing decision: ${err}`);
     });
 
+  // v2.0.0: persist sub-agent identity so the dashboard heatmap can color
+  // BA/FA nodes by which sub-agent ran. Legacy 1.x runs (config === null)
+  // leave the field absent.
+  if (config) {
+    storage.agentRuns
+      .setSubAgent(ctx.runId, config.name)
+      .catch((err) => {
+        log.warn(`failed to persist subAgent: ${err}`);
+      });
+  }
+
   const boardSummary = summarizeBoardState({ ...ctx.project, boardState: workingBoard });
-  const systemPrompt =
-    mode === "build"
+  // v2.0.0 sub-agents supply their own prompt; legacy uses snapshot's
+  // mode-based selection.
+  const systemPrompt = config
+    ? config.systemPrompt
+    : mode === "build"
       ? snapshotPrompts.buildPrompt
       : mode === "edit"
         ? snapshotPrompts.editPrompt
@@ -363,6 +489,10 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
     log.warn(`plan generation failed (non-blocking): ${detail}`);
   });
 
+  // v2.0.0: tracks the sub-agent's workflow state across prepareStep calls.
+  // null when config is null (legacy path, no state machine).
+  let currentAgentState: string | null = config ? config.stateMachine.initialState : null;
+
   const stream = streamText({
     model: anthropicModel(CORE_MODEL),
     tools,
@@ -375,7 +505,24 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
     // propose_circuit layouts, wiring guides, board state dumps) are
     // very heavy. After step 2, compact older tool results to cut the
     // ~82% accumulation overhead.
-    prepareStep({ messages: stepMessages, stepNumber }) {
+    prepareStep({ steps, messages: stepMessages, stepNumber }) {
+      // ── v2.0.0 state machine update ──
+      // Walk back the last completed step's tool results, extract the
+      // outcome, and advance the state machine. activeTools is then
+      // derived from the new state and added to the return.
+      if (config && currentAgentState !== null) {
+        const lastStep = steps[steps.length - 1];
+        const lastResult = lastStep?.toolResults?.[lastStep.toolResults.length - 1];
+        if (lastResult) {
+          const outcome = extractToolOutcome(lastResult);
+          if (outcome) {
+            currentAgentState = config.stateMachine.next(currentAgentState, outcome);
+            log.info(
+              `state machine: step ${stepNumber} → state="${currentAgentState}" after ${outcome.toolName}(success=${outcome.success}${outcome.failureKind ? `, failureKind=${outcome.failureKind}` : ""})`,
+            );
+          }
+        }
+      }
       // Sanitize first — drop any tool-call blocks whose `input` isn't a
       // valid JSON object. Anthropic rejects the whole request when it
       // sees one, so this guard runs at EVERY step (no gate), including
@@ -394,11 +541,22 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
       }
       const cleaned = sanitizeResult.sanitized;
 
+      // v2.0.0 state-machine tool gating — applied to every return path.
+      // `activeTools: []` empty array forces the model to produce a terminal
+      // text response. Legacy path leaves it undefined → SDK uses all tools.
+      const activeTools: string[] | undefined =
+        config && currentAgentState !== null
+          ? [...config.stateMachine.activeTools(currentAgentState)]
+          : undefined;
+
       if (stepNumber < 2) {
         // Below the compaction threshold: only override messages if the
         // sanitizer changed something. Otherwise return {} so the SDK
         // uses its own defaults.
-        return dirty ? { messages: cleaned as ModelMessage[] } : {};
+        return {
+          ...(dirty ? { messages: cleaned as ModelMessage[] } : {}),
+          ...(activeTools !== undefined ? { activeTools: activeTools as Array<keyof typeof tools> } : {}),
+        };
       }
 
       // After step 4, shrink the window to 1 pair (2 messages) — by then the
@@ -411,7 +569,10 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
 
       if (compactEnd <= systemEnd) {
         // No compaction needed but sanitizer may have produced changes.
-        return dirty ? { messages: cleaned as ModelMessage[] } : {};
+        return {
+          ...(dirty ? { messages: cleaned as ModelMessage[] } : {}),
+          ...(activeTools !== undefined ? { activeTools: activeTools as Array<keyof typeof tools> } : {}),
+        };
       }
 
       const compacted = cleaned.map((msg, idx) => {
@@ -470,7 +631,10 @@ export function streamCoreAgent(ctx: AgentContext): CoreAgentStream {
         );
       }
 
-      return { messages: compacted as ModelMessage[] };
+      return {
+        messages: compacted as ModelMessage[],
+        ...(activeTools !== undefined ? { activeTools: activeTools as Array<keyof typeof tools> } : {}),
+      };
     },
 
     onError({ error }) {

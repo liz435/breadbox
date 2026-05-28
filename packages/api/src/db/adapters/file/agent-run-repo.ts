@@ -210,6 +210,17 @@ async function setRouting(
   await writeRun(runId, existing);
 }
 
+/**
+ * v2.0.0: persist which specialized sub-agent the dispatcher picked.
+ * Absent for 1.x runs (legacy single-agent codepath).
+ */
+async function setSubAgent(runId: string, subAgent: "build" | "fix") {
+  const existing = await readRun(runId);
+  if (!existing) return;
+  existing.run.subAgent = subAgent;
+  await writeRun(runId, existing);
+}
+
 async function attachRunToThread(threadId: string, runId: string) {
   const thread = await readThread(threadId);
   if (!thread) return;
@@ -290,6 +301,7 @@ export const agentRunRepo = {
   createRun,
   completeRun,
   setRouting,
+  setSubAgent,
   attachRunToThread,
   readRun,
   listRunsForThread,

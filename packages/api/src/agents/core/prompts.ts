@@ -1326,11 +1326,50 @@ Then call \`verify_circuit\` to confirm. If it flags an issue, fix it with **pro
 - **\`INPUT\` instead of \`INPUT_PULLUP\` for buttons.** See the button wiring rule in the common section above. Always pair pin-B→GND wiring with \`INPUT_PULLUP\` and active-LOW detection.
 - **Echoing sketch code or diagram JSON back in chat.** Describe what the circuit does in plain language; the code lives in the editor and the board renders the wiring.`;
 
+// ── BUILD_PROMPT (v2.0.0, live, multi-agent specialized) ─────────────────
+//
+// Specialized BuildAgent prompt. Trimmed from v1.5.1's ~80 lines because
+// the v2.0.0 state machine enforces workflow order at the tool-gating
+// layer — the prompt doesn't need to explain "after propose_circuit call
+// verify_circuit" because step 2 will only have verify_circuit available.
+// We keep just the *what* (what each tool does), not the *when*.
+const BUILD_PROMPT_V2_0_0 = `${COMMON_PROMPT}
+
+## Mode: BUILD (empty board → propose, verify, done)
+
+You are the build-mode sub-agent. The workflow is enforced step-by-step:
+each step you'll see only the tool(s) that make sense at that point.
+
+### Tools at each stage
+- **Step 1**: \`propose_circuit\` — describe the whole circuit (components, wires, ledResistorPairs, sketch). Auto-positions parts, distributes rails, validates wiring.
+- **Step 2**: \`verify_circuit\` — cross-checks sketch's pin references against wired pins. Confirms the build is correct.
+- **Done**: model writes a brief plain-language summary of what was built.
+
+### Recovery (only if verify_circuit flags an issue)
+- If \`verify_circuit\` returns \`unwired_pin_referenced\`: you'll see \`propose_fix\` and \`update_sketch\`. Add the missing wire or change the sketch's pin reference.
+- If \`propose_circuit\` itself fails: you'll see \`propose_circuit\` and \`update_sketch\`. Read the errors, fix, retry (max 3 attempts).
+
+### When NOT to call \`analyze_power_budget\`
+\`propose_circuit\` runs the power-budget check internally. Don't call it unless the user explicitly asks about power, current, or rail loading.
+
+## Example: LED blink on D13
+propose_circuit({
+  components: [
+    {type: "led", name: "LED1", pinRoles: {anode: "signal_output", cathode: "reference_ground"}},
+    {type: "resistor", name: "R1", pinRoles: {a: "passive_series", b: "passive_series"}, properties: {resistance: 220}}
+  ],
+  wires: [{arduinoPin: 13, toComponent: 0, toPin: "anode"}],
+  ledResistorPairs: [{ledIndex: 0, resistorIndex: 1}],
+  sketch: "void setup(){pinMode(13,OUTPUT);}\\nvoid loop(){digitalWrite(13,HIGH);delay(500);digitalWrite(13,LOW);delay(500);}"
+})
+
+Then verify_circuit auto-presents itself. Then you write a one-sentence summary. That's the whole turn.`;
+
 // Live alias — `BUILD_PROMPT` always points at the current snapshot's build
 // prompt. Older PROMPTS_X_Y_Z entries below that reference `BUILD_PROMPT`
 // without an explicit version suffix are picking up *this* value (they
 // were authored when their version was the live one and never updated).
-const BUILD_PROMPT = BUILD_PROMPT_V1_5_1;
+const BUILD_PROMPT = BUILD_PROMPT_V2_0_0;
 
 // ── BUILD_PROMPT (v1.4.0, frozen, CircuitProgram-first) ──────────────────
 //
@@ -1441,19 +1480,11 @@ Then:
 
 Do not echo CircuitProgram JSON back in chat. Describe the result in plain language.`;
 
-// ── EDIT_PROMPT (v1.5.0, live) — propose_fix reliability pass ────────────
+// ── EDIT_PROMPT (v1.5.x, frozen) — propose_fix reliability pass ──────────
 // Three changes from earlier edit prompts motivated by the propose_fix
-// per-call success rate (~22% in stored eval, vs 83% for propose_circuit):
-//   1. The per-turn board summary now lists every component + wire ID
-//      inline (up to 24 / 32). The "call list_components/list_wires first"
-//      preflight is no longer required — IDs are in the system message.
-//   2. propose_fix returns a "Did you mean X?" suggestion when an addWires
-//      target / through component / move target references an unknown ID,
-//      so an inevitable miss costs nudging instead of a wasted attempt.
-//   3. verify_circuit is now available in edit mode — call it once after
-//      a successful propose_fix to confirm the sketch's pin references
-//      still match the wires after mutations.
-const EDIT_PROMPT = `${COMMON_PROMPT}
+// per-call success rate (~22% in stored eval, vs 83% for propose_circuit).
+// Frozen as v1.5.x's edit prompt; v2.0.0 has its own version.
+const EDIT_PROMPT_V1_5_0 = `${COMMON_PROMPT}
 
 ## Mode: EDIT (board has existing components — preserve them!)
 The board already has components and wires. You have TWO approaches.
@@ -1486,6 +1517,49 @@ propose_fix({
 - apply_design ONLY for explicit full-diagram import/replace requests (e.g. pasted DreamerDiagram JSON). Do not use apply_design for small edits. When calling the tool, drop the \`$schema\` key — it is not part of the tool schema (pass the body only: { board?, sketch, components, wires, ... }).
 
 Do NOT replace the whole circuit. Make the smallest change that satisfies the user's request. Reuse existing component IDs from the board state above — never invent IDs.`;
+
+// ── EDIT_PROMPT (v2.0.0, live, multi-agent specialized) ──────────────────
+// FixAgent prompt. The v2.0.0 state machine enforces the propose_fix →
+// verify_circuit ordering — the prompt no longer needs to instruct it.
+// Trimmed from v1.5.0's ~30 lines.
+const EDIT_PROMPT_V2_0_0 = `${COMMON_PROMPT}
+
+## Mode: EDIT (board has existing components — preserve them!)
+
+You are the fix-mode sub-agent. The board already has components; the workflow is enforced step-by-step.
+
+### Tools at each stage
+- **First step**: choose one — \`propose_fix\` (batched edit, primary path), \`apply_design\` (paste-imported DreamerDiagram), or any read tool (\`list_components\`, \`list_wires\`, \`get_component_details\`, etc.) to gather context first.
+- **After a successful write**: only \`verify_circuit\` is exposed. Confirm pin/wiring consistency.
+- **Done**: write a brief plain-language summary.
+
+### Using propose_fix
+- Use IDs from the **board summary above** — every component shows \`id=<uuid>\`, every wire is prefixed with its id. No need to call list_components/list_wires first unless the summary truncated (24 components / 32 wires).
+- Never invent IDs like \`btn-up-id\` or \`led1\`. The tool returns "Did you mean X?" on unknown IDs but it still burns one of 5 attempts.
+- propose_fix is atomic: removeWires + removeComponents + addComponents + moveComponents + addWires + sketch all apply together, or none.
+
+propose_fix({
+  removeWires: ["wire-id-from-summary"],
+  addComponents: [{type:"button", name:"BTN", pinRoles:{a:"signal_input", b:"reference_ground"}}],
+  addWires: [
+    {arduinoPin:2, toNewComponent:0, toPin:"a"},
+    {arduinoPin:-3, toNewComponent:0, toPin:"b"}
+  ],
+  sketch: "void setup(){...}"
+})
+
+### Recovery (only when verify_circuit flags an issue)
+If verify_circuit returns \`unwired_pin_referenced\`: you'll see \`propose_fix\` and \`update_sketch\` next. Add the missing wire, or change the sketch's pin reference. If propose_fix fails with a budget-remaining error you'll get the full read surface again to diagnose.
+
+### Don't
+- Replace the whole circuit. Make the smallest change that satisfies the user.
+- Echo diagram JSON or sketch code in chat. The board UI and code editor are the source of truth.`;
+
+// Live alias. Frozen 1.5.x snapshots reference EDIT_PROMPT_V1_5_0 directly;
+// pre-1.5.x snapshots reference this alias and so will pick up v2.0.0's
+// edit content. Acceptable: those older snapshots aren't reproducible at
+// the prompt level anyway (this is the longstanding behavior).
+const EDIT_PROMPT = EDIT_PROMPT_V2_0_0;
 
 export type CorePromptSnapshot = {
   commonPrompt: string;
@@ -1944,7 +2018,7 @@ const PROMPTS_1_4_0: CorePromptSnapshot = {
 const PROMPTS_1_5_0: CorePromptSnapshot = {
   commonPrompt: COMMON_PROMPT,
   buildPrompt: BUILD_PROMPT_V1_5_0,
-  editPrompt: EDIT_PROMPT,
+  editPrompt: EDIT_PROMPT_V1_5_0,
 };
 
 // v1.5.1 — propose_circuit retry-loop fix. Hard-cap attempt budget at 3,
@@ -1954,7 +2028,7 @@ const PROMPTS_1_5_0: CorePromptSnapshot = {
 const PROMPTS_1_5_1: CorePromptSnapshot = {
   commonPrompt: COMMON_PROMPT,
   buildPrompt: BUILD_PROMPT_V1_5_1,
-  editPrompt: EDIT_PROMPT,
+  editPrompt: EDIT_PROMPT_V1_5_0,
 };
 
 // v1.5.2 — propose_circuit now mutates workingBoard.wires alongside the
@@ -1964,7 +2038,17 @@ const PROMPTS_1_5_1: CorePromptSnapshot = {
 const PROMPTS_1_5_2: CorePromptSnapshot = {
   commonPrompt: COMMON_PROMPT,
   buildPrompt: BUILD_PROMPT_V1_5_1,
-  editPrompt: EDIT_PROMPT,
+  editPrompt: EDIT_PROMPT_V1_5_0,
+};
+
+// v2.0.0 — multi-agent architecture. BuildAgent + FixAgent + Dispatcher
+// (see core/agent.ts, build-agent.ts, fix-agent.ts). State machines
+// enforce step-by-step tool gating; prompts are trimmed because workflow
+// ordering is no longer their job.
+const PROMPTS_2_0_0: CorePromptSnapshot = {
+  commonPrompt: COMMON_PROMPT,
+  buildPrompt: BUILD_PROMPT_V2_0_0,
+  editPrompt: EDIT_PROMPT_V2_0_0,
 };
 
 export const CORE_PROMPT_SNAPSHOTS: Record<string, CorePromptSnapshot> = {
@@ -1996,6 +2080,7 @@ export const CORE_PROMPT_SNAPSHOTS: Record<string, CorePromptSnapshot> = {
   "1.5.0": PROMPTS_1_5_0, // BUILD_PROMPT: propose_circuit-first + verify_circuit (sketch ↔ wired-pin cross-check); BUILD_MODE_TOOLS trimmed to 6. EDIT_PROMPT: propose_fix reliability pass — wider board summary w/ wire IDs, did-you-mean on unknown IDs, verify_circuit in edit mode
   "1.5.1": PROMPTS_1_5_1, // BUILD_PROMPT: code-enforced max 3 propose_circuit/turn + board_not_empty guard; propose_fix added to BUILD_MODE_TOOLS as the post-build fix path
   "1.5.2": PROMPTS_1_5_2, // (tool fix) propose_circuit now mutates workingBoard.wires so verify_circuit + internal electrical gate see the wires it created
+  "2.0.0": PROMPTS_2_0_0, // Multi-agent: Dispatcher → BuildAgent | FixAgent, each with its own state-machine-gated tool loop
   // When bumping AGENT_VERSION: copy live constants into a new PROMPTS_X_Y_Z
   // const above and add an explicit entry here. The lookup below falls back to
   // DEFAULT_CORE_PROMPT_SNAPSHOT (live) for any unrecognised version.
