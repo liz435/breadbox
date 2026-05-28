@@ -14,7 +14,7 @@
  * Major bumps (X.0.0): structural rewrites — new agents, removed paths,
  *   fundamentally different routing logic.
  */
-export const AGENT_VERSION = "1.5.0";
+export const AGENT_VERSION = "1.5.1";
 
 /**
  * Snapshot version controls which frozen agent behavior profile is used at
@@ -28,7 +28,7 @@ export const DEFAULT_AGENT_SNAPSHOT_VERSION =
  * Explicitly listed snapshots that can be selected safely. Add a new entry
  * whenever introducing a new behavior profile.
  */
-export const SUPPORTED_AGENT_SNAPSHOTS = ["1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.0.4", "1.0.5", "1.0.6", "1.0.7", "1.0.8", "1.1.0", "1.1.1", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", "1.3.6", "1.4.0", "1.5.0"] as const;
+export const SUPPORTED_AGENT_SNAPSHOTS = ["1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.0.4", "1.0.5", "1.0.6", "1.0.7", "1.0.8", "1.1.0", "1.1.1", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", "1.3.6", "1.4.0", "1.5.0", "1.5.1"] as const;
 
 export type AgentSnapshotVersion = (typeof SUPPORTED_AGENT_SNAPSHOTS)[number];
 
@@ -62,6 +62,19 @@ export const AGENT_CHANGELOG: Array<{
   date: string;
   changes: string[];
 }> = [
+  {
+    version: "1.5.1",
+    date: "2026-05-27",
+    changes: [
+      "Fixes a propose_circuit retry-loop visible in a real v1.5.0 production trace: 8+ propose_circuit calls in a single turn, 75.6k tokens, no usable output. The agent stacked components from each retry on top of the previous build until the breadboard ran out of rows, narrating its own confusion (\"the board is too constrained\") without realizing propose_circuit itself was causing the constraint.",
+      "Hard-cap propose_circuit attempts in code (`tools/propose-tools.ts`): `MAX_PROPOSE_CIRCUIT_ATTEMPTS = 3`, mirrored after `MAX_PROPOSE_FIX_ATTEMPTS`. A 4th call returns `failureKind: \"attempt_limit\"` with `abandoned: true`. The v1.5.0 prompt said \"max 3 attempts/turn\" but it was prose-only — Haiku ignored it once in retry mode.",
+      "Refuse propose_circuit on a non-empty board (`failureKind: \"board_not_empty\"`). propose_circuit's auto-positioning (`propose-tools.ts:243`) places new parts AFTER existing components rather than replacing — every retry stacked. The guard makes the bug structurally impossible.",
+      "Add `propose_fix` to `BUILD_MODE_TOOLS`. propose_fix's remove/move ops skip safely when not used (`propose-tools.ts:1037,1047`), so addComponents/addWires/sketch behaves identically on empty + populated boards. After the first propose_circuit lands, propose_fix is the right tool for the missing wire or pin correction that verify_circuit flagged. Build surface 6 → 7 tools.",
+      "BUILD_PROMPT_V1_5_1: teaches the propose_circuit → verify_circuit → propose_fix pattern explicitly. Drops the v1.5.0 instruction to retry propose_circuit on verify_circuit failure (the cause of the loop). Adds explicit \"Common mistake\" entries documenting the budget + board_not_empty errors so the agent recognizes them.",
+      "Dashboard: register '1.5.1' in `eval/dashboard.ts` version resolver + dropdown + introducedNodesForVersion (['WPC','WPF'] — WPC label updated to mention the budget/guard, WPF newly reachable from the build-mode SL lane).",
+      "Frontend pin bumped 1.5.0 → 1.5.1 in `app/src/toolbar/bottom-toolbar.tsx`. v1.5.0 stays frozen.",
+    ],
+  },
   {
     version: "1.5.0",
     date: "2026-05-27",

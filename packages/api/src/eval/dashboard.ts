@@ -324,12 +324,13 @@ function versionAtLeast(v, target){
 }
 function resolveDiagramVersion(rawVersion){
   var v = String(rawVersion || '').trim();
-  if (v === '1.0.0' || v === '1.0.1' || v === '1.0.2' || v === '1.0.3' || v === '1.0.4' || v === '1.0.5' || v === '1.0.6' || v === '1.0.7' || v === '1.0.8' || v === '1.1.0' || v === '1.1.1' || v === '1.2.0' || v === '1.2.1' || v === '1.2.2' || v === '1.2.3' || v === '1.2.4' || v === '1.2.5' || v === '1.3.0' || v === '1.3.1' || v === '1.3.2' || v === '1.3.3' || v === '1.3.4' || v === '1.3.5' || v === '1.4.0' || v === '1.5.0') return v;
+  if (v === '1.0.0' || v === '1.0.1' || v === '1.0.2' || v === '1.0.3' || v === '1.0.4' || v === '1.0.5' || v === '1.0.6' || v === '1.0.7' || v === '1.0.8' || v === '1.1.0' || v === '1.1.1' || v === '1.2.0' || v === '1.2.1' || v === '1.2.2' || v === '1.2.3' || v === '1.2.4' || v === '1.2.5' || v === '1.3.0' || v === '1.3.1' || v === '1.3.2' || v === '1.3.3' || v === '1.3.4' || v === '1.3.5' || v === '1.4.0' || v === '1.5.0' || v === '1.5.1') return v;
   // Default to the latest known diagram, but preserve 1.0.0 if current is old.
-  return versionAtLeast(CURRENT_VER, '1.5.0') ? '1.5.0' : versionAtLeast(CURRENT_VER, '1.4.0') ? '1.4.0' : versionAtLeast(CURRENT_VER, '1.3.5') ? '1.3.5' : versionAtLeast(CURRENT_VER, '1.3.4') ? '1.3.4' : versionAtLeast(CURRENT_VER, '1.3.3') ? '1.3.3' : versionAtLeast(CURRENT_VER, '1.3.2') ? '1.3.2' : versionAtLeast(CURRENT_VER, '1.3.1') ? '1.3.1' : versionAtLeast(CURRENT_VER, '1.3.0') ? '1.3.0' : versionAtLeast(CURRENT_VER, '1.2.5') ? '1.2.5' : versionAtLeast(CURRENT_VER, '1.2.4') ? '1.2.4' : versionAtLeast(CURRENT_VER, '1.2.3') ? '1.2.3' : versionAtLeast(CURRENT_VER, '1.2.2') ? '1.2.2' : versionAtLeast(CURRENT_VER, '1.2.1') ? '1.2.1' : versionAtLeast(CURRENT_VER, '1.2.0') ? '1.2.0' : versionAtLeast(CURRENT_VER, '1.1.1') ? '1.1.1' : versionAtLeast(CURRENT_VER, '1.1.0') ? '1.1.0' : versionAtLeast(CURRENT_VER, '1.0.8') ? '1.0.8' : versionAtLeast(CURRENT_VER, '1.0.7') ? '1.0.7' : versionAtLeast(CURRENT_VER, '1.0.6') ? '1.0.6' : versionAtLeast(CURRENT_VER, '1.0.5') ? '1.0.5' : versionAtLeast(CURRENT_VER, '1.0.4') ? '1.0.4' : versionAtLeast(CURRENT_VER, '1.0.3') ? '1.0.3' : versionAtLeast(CURRENT_VER, '1.0.2') ? '1.0.2' : versionAtLeast(CURRENT_VER, '1.0.1') ? '1.0.1' : '1.0.0';
+  return versionAtLeast(CURRENT_VER, '1.5.1') ? '1.5.1' : versionAtLeast(CURRENT_VER, '1.5.0') ? '1.5.0' : versionAtLeast(CURRENT_VER, '1.4.0') ? '1.4.0' : versionAtLeast(CURRENT_VER, '1.3.5') ? '1.3.5' : versionAtLeast(CURRENT_VER, '1.3.4') ? '1.3.4' : versionAtLeast(CURRENT_VER, '1.3.3') ? '1.3.3' : versionAtLeast(CURRENT_VER, '1.3.2') ? '1.3.2' : versionAtLeast(CURRENT_VER, '1.3.1') ? '1.3.1' : versionAtLeast(CURRENT_VER, '1.3.0') ? '1.3.0' : versionAtLeast(CURRENT_VER, '1.2.5') ? '1.2.5' : versionAtLeast(CURRENT_VER, '1.2.4') ? '1.2.4' : versionAtLeast(CURRENT_VER, '1.2.3') ? '1.2.3' : versionAtLeast(CURRENT_VER, '1.2.2') ? '1.2.2' : versionAtLeast(CURRENT_VER, '1.2.1') ? '1.2.1' : versionAtLeast(CURRENT_VER, '1.2.0') ? '1.2.0' : versionAtLeast(CURRENT_VER, '1.1.1') ? '1.1.1' : versionAtLeast(CURRENT_VER, '1.1.0') ? '1.1.0' : versionAtLeast(CURRENT_VER, '1.0.8') ? '1.0.8' : versionAtLeast(CURRENT_VER, '1.0.7') ? '1.0.7' : versionAtLeast(CURRENT_VER, '1.0.6') ? '1.0.6' : versionAtLeast(CURRENT_VER, '1.0.5') ? '1.0.5' : versionAtLeast(CURRENT_VER, '1.0.4') ? '1.0.4' : versionAtLeast(CURRENT_VER, '1.0.3') ? '1.0.3' : versionAtLeast(CURRENT_VER, '1.0.2') ? '1.0.2' : versionAtLeast(CURRENT_VER, '1.0.1') ? '1.0.1' : '1.0.0';
 }
 function previousDiagramVersion(v){
   var resolved = resolveDiagramVersion(v);
+  if (resolved === '1.5.1') return '1.5.0';
   if (resolved === '1.5.0') return '1.4.0';
   if (resolved === '1.4.0') return '1.3.5';
   if (resolved === '1.3.5') return '1.3.4';
@@ -358,6 +359,7 @@ function previousDiagramVersion(v){
 }
 function introducedNodesForVersion(v){
   var resolved = resolveDiagramVersion(v);
+  if (resolved === '1.5.1') return ['WPC', 'WPF']; // propose_circuit hard budget + board_not_empty; propose_fix newly reachable from build-mode SL
   if (resolved === '1.5.0') return ['VFY', 'TMB', 'TME', 'WPF']; // verify_circuit (build+edit), propose_circuit-first label, propose_fix reliability pass
   if (resolved === '1.4.0') return ['TCP', 'ACP', 'TMB'];
   if (resolved === '1.0.1') return ['SNAP'];
@@ -371,7 +373,7 @@ function changedNodesBetween(fromV, toV){
   var from = resolveDiagramVersion(fromV || baselineDiagramVersion());
   var to = resolveDiagramVersion(toV || CURRENT_VER);
   if (!versionAtLeast(to, from)) return [];
-  var known = ['1.0.1','1.0.2','1.0.3','1.0.4','1.0.5','1.0.6','1.0.7','1.0.8','1.1.0','1.1.1','1.2.0','1.2.1','1.2.2','1.2.3','1.2.4','1.2.5','1.3.0','1.3.1','1.3.2','1.3.3','1.3.4','1.3.5','1.4.0','1.5.0'];
+  var known = ['1.0.1','1.0.2','1.0.3','1.0.4','1.0.5','1.0.6','1.0.7','1.0.8','1.1.0','1.1.1','1.2.0','1.2.1','1.2.2','1.2.3','1.2.4','1.2.5','1.3.0','1.3.1','1.3.2','1.3.3','1.3.4','1.3.5','1.4.0','1.5.0','1.5.1'];
   var out = [];
   known.forEach(function(v){
     if (versionAtLeast(v, from) && versionAtLeast(to, v) && v !== from) {
@@ -414,7 +416,7 @@ function latestVersionFromRuns(evals){
 }
 function allKnownVersions(evals){
   var versions=Object.keys(versionBuckets(evals||[]));
-  var known=['1.0.0','1.0.1','1.0.2','1.0.3','1.0.4','1.0.5','1.0.6','1.0.7','1.0.8','1.1.0','1.1.1','1.2.0','1.2.1','1.2.2','1.2.3','1.2.4','1.2.5','1.3.0','1.3.1','1.3.2','1.3.3','1.3.4','1.3.5','1.4.0','1.5.0'];
+  var known=['1.0.0','1.0.1','1.0.2','1.0.3','1.0.4','1.0.5','1.0.6','1.0.7','1.0.8','1.1.0','1.1.1','1.2.0','1.2.1','1.2.2','1.2.3','1.2.4','1.2.5','1.3.0','1.3.1','1.3.2','1.3.3','1.3.4','1.3.5','1.4.0','1.5.0','1.5.1'];
   known.forEach(function(v){ if(versions.indexOf(v)<0) versions.push(v); });
   var currentResolved=resolveDiagramVersion(CURRENT_VER);
   if(versions.indexOf(currentResolved)<0) versions.push(currentResolved);
@@ -505,13 +507,13 @@ function buildCurrentFlowchart(c, agg, changedNodes) {
     '  CA --> TMC{{"toolMode?"}}'+c('TMC'),
 
     '%% ── BUILD MODE (empty board) ───────────────────────────────────────',
-    '  TMC -- "empty board" --> TMB["BUILD · 6 tools\\npropose_circuit · verify_circuit · update_sketch\\nlist_components · list_wires · analyze_power_budget"]'+c('TMB'),
+    '  TMC -- "empty board" --> TMB["BUILD · 7 tools\\npropose_circuit · propose_fix · verify_circuit · update_sketch\\nlist_components · list_wires · analyze_power_budget"]'+c('TMB'),
     '  TMB --> SL{{"Step loop"}}'+c('SL'),
-    '  SL -- "primary" --> WPC["propose_circuit\\nauto-place + auto-wire + sketch\\n(max 3 attempts/turn · internal power + routing gates)"]'+c('WPC'),
-    '  WPC -- "success" --> VFY["verify_circuit\\nsketch pins ↔ wired pins\\n(also reachable from edit-mode propose_fix)"]'+c('VFY'),
+    '  SL -- "primary (empty board)" --> WPC["propose_circuit\\nauto-place + auto-wire + sketch\\n(max 3 attempts/turn — enforced ·\\nrefuses when board not empty · internal power + routing gates)"]'+c('WPC'),
+    '  WPC -- "success" --> VFY["verify_circuit\\nsketch pins ↔ wired pins\\n(also reachable from propose_fix in both modes)"]'+c('VFY'),
     '  VFY -- "consistent" --> SL',
-    // Failure routes back to SL so the agent picks the right retry tool for
-    // the active mode (WPC in build, WPF in edit).
+    // Failure routes back to SL so the agent picks propose_fix (board now
+    // populated; propose_circuit will refuse).
     '  VFY -- "unwired pin referenced" --> SL',
     '  WPC -- "fail · attempts < 3" --> SL',
     '  WPC -- "fail · 3 attempts" --> ST',
@@ -520,7 +522,10 @@ function buildCurrentFlowchart(c, agg, changedNodes) {
     '  TMC -- "populated board" --> TME["EDIT\\npropose_fix (batch) + granular CRUD + apply_design (paste import)"]'+c('TME'),
     '  TMC -- "rebuild" --> TMA["ALL · build + edit tools combined"]'+c('TMA'),
     '  TME & TMA --> SL',
-    '  SL -- "batch edit" --> WPF["propose_fix\\natomic add/remove/move + wires + sketch\\n(max 5 attempts · schema + electrical · did-you-mean on unknown IDs)"]'+c('WPF'),
+    // propose_fix is reachable from BOTH lanes since v1.5.1 — the build lane
+    // uses it for post-propose_circuit touch-ups; the edit lane uses it as
+    // the primary batch editor. Same node, two entry edges.
+    '  SL -- "batch edit / post-build fix-up" --> WPF["propose_fix\\natomic add/remove/move + wires + sketch\\n(max 5 attempts · schema + electrical · did-you-mean on unknown IDs ·\\nin BUILD_MODE_TOOLS since v1.5.1)"]'+c('WPF'),
     '  WPF -- "success" --> VFY',
     '  WPF -- "fail" --> SL',
     '  SL -- "granular write" --> WBB["place_component · connect_wire · update_wire\\nremove_component · remove_wire · etc."]'+c('WBB'),

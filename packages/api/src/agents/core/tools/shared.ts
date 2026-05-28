@@ -192,6 +192,12 @@ export type ToolMode = "build" | "edit" | "all"
  */
 export const BUILD_MODE_TOOLS = new Set([
   "propose_circuit",
+  // v1.5.1: propose_fix is now in the build surface too. propose_circuit's
+  // attempt budget + board_not_empty guard force the agent to switch tools
+  // for any follow-up work after the initial build; propose_fix is the
+  // right destination (its remove/move ops are no-ops on an empty board,
+  // its add/wire/sketch ops handle the touch-up case).
+  "propose_fix",
   "verify_circuit",
   "update_sketch",
   "list_components",

@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { BoardOp } from "@dreamer/schemas";
+import { isBoardComponentType } from "@dreamer/schemas";
 import { makeBoardOp } from "../../make-op";
 import { analyzePowerBudget } from "../../../electrical/power-budget-analyzer";
 import { analyzeRoutingPolicy } from "../../../electrical/routing-policy";
@@ -19,6 +20,11 @@ import {
 } from "./shared";
 
 const MAX_PROPOSE_FIX_ATTEMPTS = 5;
+// v1.5.1: code-enforced cap mirroring the prompt's "max 3 attempts/turn"
+// rule. Pre-1.5.1 the rule was advisory and Haiku ignored it in retry
+// spirals; the bug was 8+ propose_circuit calls in one turn stacking
+// components until "board too constrained" errors.
+const MAX_PROPOSE_CIRCUIT_ATTEMPTS = 3;
 
 export function createProposeTools(
   ctx: ToolContext,
@@ -28,6 +34,7 @@ export function createProposeTools(
   const { workingBoard, ops, opCtx } = ctx;
 
   let proposeFixAttempts = 0;
+  let proposeCircuitAttempts = 0;
 
   return {
     // ── Plan-then-execute: propose_circuit ────────────────────────
@@ -116,6 +123,46 @@ Example — LED blink:
             errors: [
               "Build is paused on sketch recovery. Use update_sketch or patch_sketch to submit a valid sketch before calling propose_circuit again.",
             ],
+          };
+        }
+
+        // v1.5.1: code-enforced attempt budget. Counts every call (success
+        // or fail) so a turn with 3 successful builds also stops here —
+        // the user shouldn't see 4+ propose_circuit invocations in one turn
+        // regardless of outcome.
+        proposeCircuitAttempts += 1;
+        if (proposeCircuitAttempts > MAX_PROPOSE_CIRCUIT_ATTEMPTS) {
+          return {
+            success: false,
+            blocked: true,
+            abandoned: true,
+            failureKind: "attempt_limit",
+            errors: [
+              `propose_circuit attempt budget exhausted (${MAX_PROPOSE_CIRCUIT_ATTEMPTS} this turn). Stop retrying and report the blocking issue to the user. For incremental fixes on a populated board use propose_fix; for sketch-only changes use update_sketch.`,
+            ],
+            nextStep: "Stop and report. Do not call propose_circuit again this turn.",
+          };
+        }
+
+        // v1.5.1: refuse propose_circuit on a non-empty board. propose_circuit
+        // auto-positions new parts AFTER existing components (see the
+        // estimatedNextRow loop below), so calling it on a populated board
+        // stacks parts rather than replacing — which is what produced the
+        // "board too constrained" retry-loop bug. propose_fix is the right
+        // tool for additive changes on any board state.
+        // `isBoardComponentType` excludes Arduino + breadboard/perfboard
+        // surfaces (those are always present); we only count user-placed parts.
+        const existingNonBoardComponents = Object.values(workingBoard.components)
+          .filter((c) => !isBoardComponentType(c.type)).length;
+        if (existingNonBoardComponents > 0) {
+          return {
+            success: false,
+            blocked: true,
+            failureKind: "board_not_empty",
+            errors: [
+              `propose_circuit is for empty-board builds. Board currently has ${existingNonBoardComponents} component(s). Use propose_fix to add wires, fix pin assignments, or update the sketch — it accepts the same addComponents/addWires/sketch shape and the remove/move ops just skip when not used.`,
+            ],
+            nextStep: "Switch to propose_fix. It works on populated boards (and empty ones).",
           };
         }
 
