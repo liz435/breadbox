@@ -29,7 +29,7 @@ describe("v2.0.0 dispatcher logic", () => {
       y: 5,
       rotation: 0,
       properties: {},
-    } as (typeof board.components)[string]
+    } as unknown as (typeof board.components)[string]
     expect(dispatchTarget(board)).toBe("fix")
   })
 
@@ -48,13 +48,13 @@ describe("v2.0.0 dispatcher logic", () => {
       type: "led",
       name: "LED1",
       x: 5, y: 5, rotation: 0, properties: {},
-    } as (typeof board.components)[string]
+    } as unknown as (typeof board.components)[string]
     board.components["r1"] = {
       id: "r1",
       type: "resistor",
       name: "R1",
       x: 3, y: 5, rotation: 0, properties: { resistance: 220 },
-    } as (typeof board.components)[string]
+    } as unknown as (typeof board.components)[string]
     expect(dispatchTarget(board)).toBe("fix")
   })
 })
