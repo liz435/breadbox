@@ -55,7 +55,12 @@ export default defineConfig({
   server: {
     port: APP_PORT,
     proxy: {
-      "/api": { target: API_PROXY_TARGET, changeOrigin: true, configure: configureProxy },
+      // `ws: true` makes the proxy forward WebSocket upgrade requests.
+      // Without it, /api/boards/:path (the local-board serial proxy) hits
+      // Vite directly, which has no WS handler — the browser's WebSocket
+      // immediately fires onerror and we surface that as
+      // "WebSocket error connecting to /dev/cu.usbmodem1101".
+      "/api": { target: API_PROXY_TARGET, changeOrigin: true, ws: true, configure: configureProxy },
       "/project": { target: API_PROXY_TARGET, changeOrigin: true, configure: configureProxy },
       "/agent": { target: API_PROXY_TARGET, changeOrigin: true, configure: configureProxy },
       "/auth": { target: API_PROXY_TARGET, changeOrigin: true, configure: configureProxy },

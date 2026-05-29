@@ -287,10 +287,22 @@ const boardStateBaseSchema = z.object({
   wires: z.record(z.string(), wireSchema),
   libraryState: libraryStateSchema.default({ servos: {}, lcd: null, serialBaud: 0, oled: {}, neopixels: {} }),
   // Supports legacy string[] format from old saves, normalises to {text, ts}.
+  // `source` (optional, added v2.x) lets the Serial Monitor filter output by
+  // origin when both the simulator AND a paired real board are emitting at
+  // once. Older saves and entries written before the tagging shipped have
+  // no source and are treated as "unknown" by the filter (always visible).
   serialOutput: z.array(
     z.union([
-      z.string().transform((s) => ({ text: s, ts: 0 })),
-      z.object({ text: z.string(), ts: z.number() }),
+      z.string().transform((s) => ({
+        text: s,
+        ts: 0,
+        source: undefined as "simulator" | "board" | undefined,
+      })),
+      z.object({
+        text: z.string(),
+        ts: z.number(),
+        source: z.enum(["simulator", "board"]).optional(),
+      }),
     ])
   ).default([]),
   sketchCode: z.string(),

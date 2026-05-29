@@ -73,7 +73,7 @@ export type BoardEvent =
   | { type: "REMOVE_WIRE"; id: string }
   | { type: "SET_LIBRARY_STATE"; changes: Partial<LibraryState> }
   | { type: "UPDATE_SKETCH"; code: string }
-  | { type: "APPEND_SERIAL"; text: string; ts?: number }
+  | { type: "APPEND_SERIAL"; text: string; ts?: number; source?: "simulator" | "board" }
   | { type: "CLEAR_SERIAL" }
   | { type: "APPEND_BUILD_LOG"; tag: "compiler" | "upload"; line: string; ts?: number }
   | { type: "CLEAR_BUILD_LOG" }
@@ -465,7 +465,7 @@ export const boardMachine = setup({
       actions: assign(({ context, event }) => ({
         serialOutput: [
           ...context.serialOutput,
-          { text: event.text, ts: event.ts ?? Date.now() },
+          { text: event.text, ts: event.ts ?? Date.now(), source: event.source },
         ],
       })),
     },

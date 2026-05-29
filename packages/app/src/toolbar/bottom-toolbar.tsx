@@ -73,7 +73,9 @@ export function BottomToolbar() {
   // sketch-editor, command palette, serial monitor, etc.
   const onSerialPrint = useCallback(
     (text: string) => {
-      boardSend({ type: "APPEND_SERIAL", text })
+      // Tag as simulator so the SerialMonitor's source filter can
+      // distinguish this from real-board WebSerial output.
+      boardSend({ type: "APPEND_SERIAL", text, source: "simulator" })
       markSerialUnread()
     },
     [boardSend],

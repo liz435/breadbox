@@ -38,12 +38,24 @@ export type BoardConnectionState = {
 
 const POLL_INTERVAL_MS = 3_000
 
+/**
+ * Number of consecutive polls during which `_selectedPort` must be absent
+ * from the server's port list before we treat it as "really gone" and
+ * clear the user's selection. Guards against a single racy
+ * `arduino-cli board list` (re-enumeration during a flash, USB hub flake,
+ * slow first response) yanking the port out from under the user. At
+ * `POLL_INTERVAL_MS = 3s`, three misses = ~9s of confirmed absence.
+ */
+const SELECTED_PORT_MISS_THRESHOLD = 3
+
 // ── Shared module-level state ───────────────────────────────────────────
 
 let _ports: PortInfo[] = []
 let _cliAvailable = true
 let _loading = false
 let _selectedPort: string | null = null
+let _selectedPortMissCount = 0
+let _hasCompletedFirstPoll = false
 const _listeners = new Set<() => void>()
 
 // Refcount-driven polling. `startPolling` / `stopPolling` are idempotent.
@@ -55,8 +67,45 @@ function notifyListeners() {
   for (const fn of _listeners) fn()
 }
 
+/**
+ * Shallow-compare a snapshot of the externally-visible state. Used by
+ * `fetchPortsOnce` to skip the post-poll notify when nothing actually
+ * changed — every poll otherwise re-rendered every consumer twice per
+ * 3s tick, which (a) burned cycles for nothing and (b) cascaded into
+ * any downstream effect whose deps weren't perfectly stable.
+ */
+type StateSnapshot = {
+  ports: PortInfo[]
+  cliAvailable: boolean
+  selectedPort: string | null
+  loading: boolean
+}
+function snapshotState(): StateSnapshot {
+  return { ports: _ports, cliAvailable: _cliAvailable, selectedPort: _selectedPort, loading: _loading }
+}
+function portsEqual(a: PortInfo[], b: PortInfo[]): boolean {
+  if (a === b) return true
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].path !== b[i].path || a[i].manufacturer !== b[i].manufacturer) return false
+  }
+  return true
+}
+function stateChanged(prev: StateSnapshot): boolean {
+  return (
+    prev.cliAvailable !== _cliAvailable ||
+    prev.selectedPort !== _selectedPort ||
+    prev.loading !== _loading ||
+    !portsEqual(prev.ports, _ports)
+  )
+}
+
 export function setGlobalSelectedPort(path: string | null) {
+  if (_selectedPort === path) return
   _selectedPort = path
+  // User just (re)affirmed their choice; cancel any in-flight miss-count
+  // toward auto-clearing.
+  _selectedPortMissCount = 0
   notifyListeners()
 }
 
@@ -65,8 +114,15 @@ export function getGlobalSelectedPort(): string | null {
 }
 
 async function fetchPortsOnce(): Promise<void> {
+  const prev = snapshotState()
   _loading = true
-  notifyListeners()
+  // Only emit a loading-true notify for the very first poll, since that's
+  // the only path that surfaces a "Scanning ports…" hint (board-status.tsx
+  // gates that copy on `loading && ports.length === 0`). Steady-state
+  // polls would otherwise flip every subscriber twice per 3s tick with
+  // no UI consequence.
+  if (!_hasCompletedFirstPoll) notifyListeners()
+
   try {
     const res = await fetch(`${API_ORIGIN}/api/boards`, resolveFetchOptions())
     if (!res.ok) return
@@ -74,15 +130,30 @@ async function fetchPortsOnce(): Promise<void> {
     _ports = data.ports ?? []
     _cliAvailable = data.cliAvailable ?? true
 
-    // Auto-clear selected port if it's no longer available.
-    if (_selectedPort && !_ports.some((p) => p.path === _selectedPort)) {
-      _selectedPort = null
+    // Auto-clear selected port only after N consecutive misses — a single
+    // dropout (USB hub flake, arduino-cli enumeration race during a
+    // flash, slow first response) shouldn't yank the user's choice.
+    if (_selectedPort) {
+      if (_ports.some((p) => p.path === _selectedPort)) {
+        _selectedPortMissCount = 0
+      } else {
+        _selectedPortMissCount++
+        if (_selectedPortMissCount >= SELECTED_PORT_MISS_THRESHOLD) {
+          _selectedPort = null
+          _selectedPortMissCount = 0
+        }
+      }
     }
   } catch {
-    // API not running yet — silently ignore
+    // API not running yet — silently ignore. Don't bump miss count: a
+    // network failure isn't evidence the port disappeared, just that we
+    // can't see it right now.
   } finally {
     _loading = false
-    notifyListeners()
+    _hasCompletedFirstPoll = true
+    // Only fire if anything subscribers care about actually changed.
+    // Eliminates the per-poll re-render storm on idle steady state.
+    if (stateChanged(prev)) notifyListeners()
   }
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react"
+import { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import { useBoard } from "@/store/board-context"
 import { createLocalBoard, type LocalBoardConnection } from "@/simulator/local-board"
 import { createWebSerialBoard } from "@/simulator/web-serial-board"
@@ -9,6 +9,23 @@ import { simulationRef } from "@/simulator/simulation-ref"
 import { cn } from "@/utils/classnames"
 
 type LineEnding = "none" | "nl" | "cr" | "both"
+
+/**
+ * Which serial source the monitor renders + routes typed input to.
+ * - "simulator": only show avr8js sketch output; send input only to sim.
+ * - "board": only show paired-port output; send input only to real board.
+ * - "both": render everything interleaved + broadcast input to both (legacy).
+ *
+ * Entries from before this field shipped have no source — they appear in
+ * every mode so old saves don't suddenly look blank.
+ */
+type SourceFilter = "simulator" | "board" | "both"
+
+const SOURCE_LABELS: Record<SourceFilter, string> = {
+  simulator: "Simulator",
+  board: "Board",
+  both: "Both",
+}
 
 const LINE_ENDING_LABELS: Record<LineEnding, string> = {
   none: "No line ending",
@@ -36,6 +53,19 @@ export function SerialMonitor() {
   const [showTimestamps, setShowTimestamps] = useState(false)
   const [serialConnected, setSerialConnected] = useState(false)
   const boardRef = useRef<LocalBoardConnection | null>(null)
+  // Default to "both" so existing UX is preserved on first render;
+  // users who want filtered output toggle explicitly.
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("both")
+  // Diagnostic counter — how many bytes the WebSerial read loop has
+  // delivered since this Monitor instance mounted. Visible in the
+  // status line so users can tell "no output because nothing arrived"
+  // apart from "no output because the filter is wrong".
+  const [boardBytesReceived, setBoardBytesReceived] = useState(0)
+  // Tracks whether the user manually picked a baud. If false, we
+  // auto-match Serial.begin(N) from the sketch source so the most
+  // common case (sketch declares 115200, default monitor is 9600,
+  // user sees "no output" because of mismatch) just works.
+  const userPickedBaud = useRef(false)
 
   const { selectedPort } = useBoardConnection()
   const { capabilities } = useCapabilities()
@@ -52,18 +82,29 @@ export function SerialMonitor() {
 
   // Create board connection once per environment. Recreating when `hosted`
   // flips keeps state simple — capabilities only flips once during boot.
+  // `send` from useBoard() is `actorRef.send.bind(actorRef)` — a fresh
+  // function every render. Reading it through a ref keeps callbacks up to
+  // date without making the board factory effect re-fire on every render
+  // (which would tear down + recreate the WebSocket each time, manifesting
+  // as the "WS open / WS close" loop in the server logs).
+  const sendRef = useRef(send)
+  sendRef.current = send
+
   useEffect(() => {
     const callbacks = {
       onData: (text: string) => {
-        send({ type: "APPEND_SERIAL", text, ts: Date.now() })
+        // Tag as "board" so the source filter can distinguish from
+        // simulator output (which bottom-toolbar.tsx tags as "simulator").
+        sendRef.current({ type: "APPEND_SERIAL", text, ts: Date.now(), source: "board" })
+        setBoardBytesReceived((n) => n + text.length)
       },
       onConnect: () => setSerialConnected(true),
       onDisconnect: () => setSerialConnected(false),
       onReconnecting: () => {
-        send({ type: "APPEND_SERIAL", text: "[Reconnecting after flash…]\n", ts: Date.now() })
+        sendRef.current({ type: "APPEND_SERIAL", text: "[Reconnecting after flash…]\n", ts: Date.now(), source: "board" })
       },
       onError: (err: string) => {
-        send({ type: "APPEND_SERIAL", text: `[Serial Error] ${err}\n`, ts: Date.now() })
+        sendRef.current({ type: "APPEND_SERIAL", text: `[Serial Error] ${err}\n`, ts: Date.now(), source: "board" })
         setSerialConnected(false)
       },
     }
@@ -72,7 +113,7 @@ export function SerialMonitor() {
       : createLocalBoard(callbacks)
     boardRef.current = board
     return () => { void board.disconnect() }
-  }, [send, capabilities.hosted])
+  }, [capabilities.hosted])
 
   // Auto-connect when the active port changes
   useEffect(() => {
@@ -85,17 +126,60 @@ export function SerialMonitor() {
     }
 
     if (board.getPortPath() !== activePort) {
-      board.connect(activePort, baudRate).catch(() => {})
+      // Surface auto-connect failures via the createXxxBoard callbacks
+      // (onError) rather than dispatching APPEND_SERIAL from inside this
+      // effect — dispatching here changes `send`'s ref, re-firing this
+      // effect, retrying connect, failing again → infinite storm.
+      // The board callbacks already log one [Serial Error] per failure;
+      // that's enough.
+      board.connect(activePort, baudRate).catch(() => {
+        // Intentionally silent — the createXxxBoard callbacks already
+        // emit a one-shot [Serial Error] via onError. Logging here would
+        // duplicate that AND re-trigger the effect (see above).
+      })
     }
   }, [activePort, baudRate])
 
   // Auto-scroll on new output
+  // Auto-derive baud from the sketch's Serial.begin(N) call so users
+  // don't have to think about it. Skipped if the user explicitly picked
+  // a baud via the dropdown (tracked via userPickedBaud ref). Comments
+  // are stripped first so `// Serial.begin(115200)` doesn't override
+  // an actual Serial.begin(9600). Cheap regex — full parsing would be
+  // overkill for one declaration.
+  const sketchBaud = useMemo<number | null>(() => {
+    const stripped = state.sketchCode
+      .replace(/\/\/.*$/gm, "")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+    const m = stripped.match(/Serial\.begin\s*\(\s*(\d+)/)
+    if (!m) return null
+    const n = Number(m[1])
+    if (BAUD_RATES.includes(n)) return n
+    return null
+  }, [state.sketchCode])
+
+  useEffect(() => {
+    if (!userPickedBaud.current && sketchBaud && sketchBaud !== baudRate) {
+      setBaudRate(sketchBaud)
+    }
+  }, [sketchBaud, baudRate])
+
+  // Filtered view of serialOutput per the source toggle. Entries without
+  // a source field (legacy or pre-tagging) are visible in every mode so
+  // old saves aren't blank under "Simulator" or "Board".
+  const visibleSerial = useMemo(() => {
+    if (sourceFilter === "both") return state.serialOutput
+    return state.serialOutput.filter(
+      (entry) => entry.source === undefined || entry.source === sourceFilter,
+    )
+  }, [state.serialOutput, sourceFilter])
+
   useEffect(() => {
     if (!autoscroll) return
     const el = scrollRef.current
     if (!el) return
     el.scrollTop = el.scrollHeight
-  }, [state.serialOutput.length, autoscroll])
+  }, [visibleSerial.length, autoscroll])
 
   const simBaudRate = state.libraryState.serialBaud
   // Mode comes from the live VM only — before a sketch has been run, the
@@ -120,15 +204,26 @@ export function SerialMonitor() {
     if (!input) return
     const data = input + LINE_ENDING_CHARS[lineEnding]
 
-    // Echo the input into the serial output so the user sees what they sent
-    send({ type: "APPEND_SERIAL", text: `> ${input}\n`, ts: Date.now() })
+    // Echo the input into the serial output so the user sees what they sent.
+    // Tag with the active filter so the echo follows the same lane.
+    send({
+      type: "APPEND_SERIAL",
+      text: `> ${input}\n`,
+      ts: Date.now(),
+      source: sourceFilter === "both" ? undefined : sourceFilter,
+    })
 
-    if (boardRef.current?.isConnected()) {
+    // Route input by source. In "both" mode broadcast to both (legacy);
+    // in a filtered mode send only to the selected destination so the
+    // user's keystrokes don't leak to whichever lane they hid.
+    if (sourceFilter !== "simulator" && boardRef.current?.isConnected()) {
       boardRef.current.write(data)
     }
-    simulationRef.current?.sendSerialInput(data)
+    if (sourceFilter !== "board") {
+      simulationRef.current?.sendSerialInput(data)
+    }
     setInput("")
-  }, [input, lineEnding, send])
+  }, [input, lineEnding, send, sourceFilter])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -171,11 +266,33 @@ export function SerialMonitor() {
         </span>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Connection status */}
+          {/* Connection status — prioritized:
+               1. Real board connected → green
+               2. Real board AVAILABLE but disconnected → amber (most actionable;
+                  previously this state silently rendered "Simulated AVR" which
+                  hid the fact that one Connect-click stood between the user
+                  and real-board output)
+               3. Simulator running → grey
+               4. Nothing → grey */}
           {serialConnected ? (
-            <span className="flex items-center gap-1 text-[10px] text-emerald-400">
+            <span
+              className="flex items-center gap-1 text-[10px] text-emerald-400"
+              title={`Open at ${baudRate} baud · ${boardBytesReceived} bytes received`}
+            >
               <span className="size-1.5 rounded-full bg-emerald-400" />
               {activePort ?? "Connected"}
+              <span className="text-zinc-500">
+                · {baudRate} baud · {boardBytesReceived}B rx
+              </span>
+            </span>
+          ) : activePort ? (
+            <span
+              className="flex items-center gap-1 text-[10px] text-amber-300"
+              title="A board is paired but the read loop isn't running. Click Connect."
+            >
+              <span className="size-1.5 rounded-full bg-amber-300/80" />
+              Board disconnected
+              <span className="text-zinc-500">· click Connect →</span>
             </span>
           ) : simMode === "avr" ? (
             <span className="text-[10px] text-zinc-500">
@@ -185,13 +302,34 @@ export function SerialMonitor() {
             <span className="text-[10px] text-zinc-500">not initialized</span>
           )}
 
+          {/* Baud mismatch hint — if the sketch declares Serial.begin(N)
+              and the monitor isn't on N, surface a one-click fix. The
+              auto-derive effect handles this on first load; this catches
+              the case where the user manually picked a wrong baud. */}
+          {sketchBaud && sketchBaud !== baudRate ? (
+            <button
+              type="button"
+              onClick={() => {
+                userPickedBaud.current = false
+                setBaudRate(sketchBaud)
+              }}
+              title="Click to match the sketch's Serial.begin() baud"
+              className="rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-300 hover:bg-amber-500/20"
+            >
+              sketch uses {sketchBaud} baud · match
+            </button>
+          ) : null}
+
           {/* Baud rate — only meaningful for real hardware. In simulation
               the VM emits serial via a direct JS callback and bypasses
               the UART, so the dropdown wouldn't change anything. */}
           {activePort ? (
             <select
               value={baudRate}
-              onChange={(e) => setBaudRate(Number(e.target.value))}
+              onChange={(e) => {
+                userPickedBaud.current = true
+                setBaudRate(Number(e.target.value))
+              }}
               className="bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 text-[10px] text-zinc-300 outline-none"
             >
               {BAUD_RATES.map((r) => (
@@ -248,6 +386,39 @@ export function SerialMonitor() {
           >
             Clear
           </button>
+
+          {/* Source filter — pick which serial stream to show + send input to.
+             "Both" preserves the legacy interleaved view. */}
+          <div
+            role="radiogroup"
+            aria-label="Serial source"
+            className="ml-1 flex overflow-hidden rounded border border-zinc-700"
+          >
+            {(["simulator", "board", "both"] as const).map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                role="radio"
+                aria-checked={sourceFilter === opt}
+                onClick={() => setSourceFilter(opt)}
+                title={
+                  opt === "simulator"
+                    ? "Show only avr8js (Run-button) output"
+                    : opt === "board"
+                      ? "Show only paired-board WebSerial output"
+                      : "Interleave both streams (legacy)"
+                }
+                className={cn(
+                  "px-2 py-0.5 text-[10px] transition-colors",
+                  sourceFilter === opt
+                    ? "bg-zinc-700 text-zinc-200"
+                    : "text-zinc-500 hover:bg-zinc-800",
+                )}
+              >
+                {SOURCE_LABELS[opt]}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -284,14 +455,24 @@ export function SerialMonitor() {
         ref={scrollRef}
         className="flex-1 overflow-y-auto whitespace-pre-wrap px-3 py-2 text-green-400"
       >
-        {state.serialOutput.length === 0 ? (
+        {visibleSerial.length === 0 ? (
           <span className="text-zinc-600 italic">
-            {activePort
-              ? "No output yet. Run a sketch or connect a board."
-              : "No output yet. Run a sketch to see output here, or select a board from the toolbar."}
+            {sourceFilter === "board" && activePort && !serialConnected
+              ? "No board output yet. Click Connect (top right) to start reading from the paired port — the read loop only runs while connected."
+              : sourceFilter === "board" && !activePort
+                ? "No board output yet. Pair a board via the toolbar first, then click Connect."
+                : sourceFilter === "board" && serialConnected && boardBytesReceived === 0
+                  ? "Connected but the board hasn't sent any bytes yet. Check that (1) your sketch was flashed (Upload), (2) the sketch calls Serial.begin(N) + Serial.println(...), and (3) the baud matches."
+                  : sourceFilter === "simulator"
+                    ? "No simulator output yet. Hit Run (top of the editor) to start the simulator. Run only starts the simulator — it doesn't touch the real board."
+                    : state.serialOutput.length === 0
+                      ? activePort
+                        ? "No output yet. Run a sketch or connect a board."
+                        : "No output yet. Run a sketch to see output here, or select a board from the toolbar."
+                      : "No matching output for this filter."}
           </span>
         ) : (
-          state.serialOutput.map((entry, i) => formatLine(entry, i))
+          visibleSerial.map((entry, i) => formatLine(entry, i))
         )}
       </pre>
     </div>
