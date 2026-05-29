@@ -118,20 +118,19 @@ export function SerialMonitor() {
     }
 
     if (board.getPortPath() !== activePort) {
-      // Surface auto-connect failures into the monitor itself instead of
-      // swallowing them. The previous .catch(() => {}) left the user
-      // staring at "Simulated AVR · Connect button" with no clue why
-      // nothing happened.
-      board.connect(activePort, baudRate).catch((err) => {
-        send({
-          type: "APPEND_SERIAL",
-          text: `[Serial] auto-connect failed: ${err instanceof Error ? err.message : String(err)}\n`,
-          ts: Date.now(),
-          source: "board",
-        })
+      // Surface auto-connect failures via the createXxxBoard callbacks
+      // (onError) rather than dispatching APPEND_SERIAL from inside this
+      // effect — dispatching here changes `send`'s ref, re-firing this
+      // effect, retrying connect, failing again → infinite storm.
+      // The board callbacks already log one [Serial Error] per failure;
+      // that's enough.
+      board.connect(activePort, baudRate).catch(() => {
+        // Intentionally silent — the createXxxBoard callbacks already
+        // emit a one-shot [Serial Error] via onError. Logging here would
+        // duplicate that AND re-trigger the effect (see above).
       })
     }
-  }, [activePort, baudRate, send])
+  }, [activePort, baudRate])
 
   // Auto-scroll on new output
   // Auto-derive baud from the sketch's Serial.begin(N) call so users
