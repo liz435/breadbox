@@ -75,6 +75,12 @@ const recentSerialSchema = z
     z.object({
       text: z.string().max(4_000),
       ts: z.number().int().nonnegative(),
+      // Optional today; populated by the client once the serialOutput
+      // schema gains source tagging (the WebSerial PR adds this on
+      // BoardState). Accepting it here keeps the wire format
+      // forward-compatible so the client can start sending the field
+      // without a route bump.
+      source: z.enum(["simulator", "board"]).optional(),
     }),
   )
   .max(1_000)

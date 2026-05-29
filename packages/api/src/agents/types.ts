@@ -42,6 +42,14 @@ export type AgentContext = {
   recentSerial?: Array<{
     text: string;
     ts: number;
+    /**
+     * Optional today (the on-disk BoardState only has { text, ts }). The
+     * `read_serial_monitor` tool's `source` filter is permissive:
+     * untagged entries always pass. Once a future schema bump adds
+     * source-tagging to serialOutput, the client will start populating
+     * this and the filter will start narrowing — no callers need to change.
+     */
+    source?: "simulator" | "board";
   }>;
 };
 
