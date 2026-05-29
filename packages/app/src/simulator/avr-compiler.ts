@@ -95,89 +95,13 @@ export async function* readNdjsonStream<T = unknown>(
 }
 
 /**
- * Parse an Intel HEX file string into a Uint16Array suitable for loading
- * into the avr8js CPU's progMem.
- *
- * Intel HEX format (each line):
- *   :LLAAAATT[DD...]CC
- *   LL   = byte count
- *   AAAA = 16-bit address
- *   TT   = record type (00=data, 01=EOF, 02=ext segment, 04=ext linear)
- *   DD   = data bytes
- *   CC   = checksum (two's complement of sum of all bytes)
+ * Re-exported from `./intel-hex` (extracted to a zero-dep module so the
+ * bun test suite can use it without pulling in the API client). Kept here
+ * for backwards-compat with the many callers of `simulator/avr-compiler`.
  */
-export function parseIntelHex(hex: string): Uint16Array {
-  const lines = hex.split("\n").filter((l) => l.startsWith(":"))
-  if (lines.length === 0) {
-    throw new Error("Invalid Intel HEX: no records found")
-  }
+import { parseIntelHex } from "./intel-hex"
+export { parseIntelHex } from "./intel-hex"
 
-  // First pass: determine the maximum address to size the output buffer
-  let maxAddr = 0
-  let baseAddress = 0
-
-  for (const line of lines) {
-    const byteCount = parseInt(line.slice(1, 3), 16)
-    const address = parseInt(line.slice(3, 7), 16)
-    const recordType = parseInt(line.slice(7, 9), 16)
-
-    if (recordType === 0x02) {
-      // Extended segment address
-      baseAddress = parseInt(line.slice(9, 13), 16) << 4
-    } else if (recordType === 0x04) {
-      // Extended linear address
-      baseAddress = parseInt(line.slice(9, 13), 16) << 16
-    } else if (recordType === 0x00) {
-      const endAddr = baseAddress + address + byteCount
-      if (endAddr > maxAddr) {
-        maxAddr = endAddr
-      }
-    }
-  }
-
-  // ATmega328P has 32KB flash = 16K 16-bit words
-  const progBytes = new Uint8Array(Math.max(maxAddr, 0x8000))
-  baseAddress = 0
-
-  // Second pass: fill the byte buffer
-  for (const line of lines) {
-    const byteCount = parseInt(line.slice(1, 3), 16)
-    const address = parseInt(line.slice(3, 7), 16)
-    const recordType = parseInt(line.slice(7, 9), 16)
-
-    // Verify checksum
-    let sum = 0
-    for (let i = 0; i < byteCount + 4 + 1; i++) {
-      sum += parseInt(line.slice(1 + i * 2, 3 + i * 2), 16)
-    }
-    if ((sum & 0xff) !== 0) {
-      throw new Error(`Invalid Intel HEX checksum at line: ${line.slice(0, 20)}...`)
-    }
-
-    if (recordType === 0x02) {
-      baseAddress = parseInt(line.slice(9, 13), 16) << 4
-    } else if (recordType === 0x04) {
-      baseAddress = parseInt(line.slice(9, 13), 16) << 16
-    } else if (recordType === 0x00) {
-      for (let i = 0; i < byteCount; i++) {
-        const byteVal = parseInt(line.slice(9 + i * 2, 11 + i * 2), 16)
-        progBytes[baseAddress + address + i] = byteVal
-      }
-    } else if (recordType === 0x01) {
-      // EOF
-      break
-    }
-  }
-
-  // Convert byte array to 16-bit word array (little-endian, as AVR uses)
-  const wordCount = Math.ceil(progBytes.length / 2)
-  const progMem = new Uint16Array(wordCount)
-  for (let i = 0; i < wordCount; i++) {
-    progMem[i] = progBytes[i * 2] | (progBytes[i * 2 + 1] << 8)
-  }
-
-  return progMem
-}
 
 /** Event shapes on the wire from `/api/compile` (see routes/_stream-lines.ts). */
 type CompileStreamEvent =
