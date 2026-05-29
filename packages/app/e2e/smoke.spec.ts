@@ -9,10 +9,14 @@
 // either a DOM change or a network call. Avoid screenshot assertions
 // here — those land in Phase 3.
 
-import { test, expect } from "@playwright/test"
+import { test, expect } from "./fixtures"
 
 test.describe("app shell", () => {
-  test("loads without console errors", async ({ page }) => {
+  test("loads without console errors", async ({ page, debug }) => {
+    // `debug` fixture: buffers console + network so on failure the
+    // bundle is written to test-results/<test>/debug/debug-bundle.json
+    // automatically.
+    void debug
     const errors: string[] = []
     page.on("pageerror", (err) => errors.push(err.message))
     page.on("console", (msg) => {
@@ -33,7 +37,8 @@ test.describe("app shell", () => {
 })
 
 test.describe("example loading", () => {
-  test("clicking 'Blink LED' loads an LED onto the board", async ({ page }) => {
+  test("clicking 'Blink LED' loads an LED onto the board", async ({ page, debug }) => {
+    void debug
     await page.goto("/")
     await page.getByTestId("example-button").click()
 
