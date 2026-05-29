@@ -56,6 +56,16 @@ export function SerialMonitor() {
   // Default to "both" so existing UX is preserved on first render;
   // users who want filtered output toggle explicitly.
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("both")
+  // Diagnostic counter — how many bytes the WebSerial read loop has
+  // delivered since this Monitor instance mounted. Visible in the
+  // status line so users can tell "no output because nothing arrived"
+  // apart from "no output because the filter is wrong".
+  const [boardBytesReceived, setBoardBytesReceived] = useState(0)
+  // Tracks whether the user manually picked a baud. If false, we
+  // auto-match Serial.begin(N) from the sketch source so the most
+  // common case (sketch declares 115200, default monitor is 9600,
+  // user sees "no output" because of mismatch) just works.
+  const userPickedBaud = useRef(false)
 
   const { selectedPort } = useBoardConnection()
   const { capabilities } = useCapabilities()
@@ -78,6 +88,7 @@ export function SerialMonitor() {
         // Tag as "board" so the source filter can distinguish from
         // simulator output (which bottom-toolbar.tsx tags as "simulator").
         send({ type: "APPEND_SERIAL", text, ts: Date.now(), source: "board" })
+        setBoardBytesReceived((n) => n + text.length)
       },
       onConnect: () => setSerialConnected(true),
       onDisconnect: () => setSerialConnected(false),
@@ -112,6 +123,29 @@ export function SerialMonitor() {
   }, [activePort, baudRate])
 
   // Auto-scroll on new output
+  // Auto-derive baud from the sketch's Serial.begin(N) call so users
+  // don't have to think about it. Skipped if the user explicitly picked
+  // a baud via the dropdown (tracked via userPickedBaud ref). Comments
+  // are stripped first so `// Serial.begin(115200)` doesn't override
+  // an actual Serial.begin(9600). Cheap regex — full parsing would be
+  // overkill for one declaration.
+  const sketchBaud = useMemo<number | null>(() => {
+    const stripped = state.sketchCode
+      .replace(/\/\/.*$/gm, "")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+    const m = stripped.match(/Serial\.begin\s*\(\s*(\d+)/)
+    if (!m) return null
+    const n = Number(m[1])
+    if (BAUD_RATES.includes(n)) return n
+    return null
+  }, [state.sketchCode])
+
+  useEffect(() => {
+    if (!userPickedBaud.current && sketchBaud && sketchBaud !== baudRate) {
+      setBaudRate(sketchBaud)
+    }
+  }, [sketchBaud, baudRate])
+
   // Filtered view of serialOutput per the source toggle. Entries without
   // a source field (legacy or pre-tagging) are visible in every mode so
   // old saves aren't blank under "Simulator" or "Board".
@@ -216,9 +250,15 @@ export function SerialMonitor() {
         <div className="flex items-center gap-2 flex-wrap">
           {/* Connection status */}
           {serialConnected ? (
-            <span className="flex items-center gap-1 text-[10px] text-emerald-400">
+            <span
+              className="flex items-center gap-1 text-[10px] text-emerald-400"
+              title={`Open at ${baudRate} baud · ${boardBytesReceived} bytes received`}
+            >
               <span className="size-1.5 rounded-full bg-emerald-400" />
               {activePort ?? "Connected"}
+              <span className="text-zinc-500">
+                · {baudRate} baud · {boardBytesReceived}B rx
+              </span>
             </span>
           ) : simMode === "avr" ? (
             <span className="text-[10px] text-zinc-500">
@@ -228,13 +268,34 @@ export function SerialMonitor() {
             <span className="text-[10px] text-zinc-500">not initialized</span>
           )}
 
+          {/* Baud mismatch hint — if the sketch declares Serial.begin(N)
+              and the monitor isn't on N, surface a one-click fix. The
+              auto-derive effect handles this on first load; this catches
+              the case where the user manually picked a wrong baud. */}
+          {sketchBaud && sketchBaud !== baudRate ? (
+            <button
+              type="button"
+              onClick={() => {
+                userPickedBaud.current = false
+                setBaudRate(sketchBaud)
+              }}
+              title="Click to match the sketch's Serial.begin() baud"
+              className="rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-300 hover:bg-amber-500/20"
+            >
+              sketch uses {sketchBaud} baud · match
+            </button>
+          ) : null}
+
           {/* Baud rate — only meaningful for real hardware. In simulation
               the VM emits serial via a direct JS callback and bypasses
               the UART, so the dropdown wouldn't change anything. */}
           {activePort ? (
             <select
               value={baudRate}
-              onChange={(e) => setBaudRate(Number(e.target.value))}
+              onChange={(e) => {
+                userPickedBaud.current = true
+                setBaudRate(Number(e.target.value))
+              }}
               className="bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 text-[10px] text-zinc-300 outline-none"
             >
               {BAUD_RATES.map((r) => (
