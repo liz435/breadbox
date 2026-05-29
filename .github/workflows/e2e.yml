@@ -30,8 +30,12 @@ jobs:
       - name: Get Playwright version
         id: pw-version
         run: |
-          VERSION=$(bun pm ls --cwd packages/app 2>/dev/null | grep "@playwright/test" | head -1 | sed 's/.*@//' || echo "unknown")
+          # Cache key uses the version from package.json so it invalidates
+          # when @playwright/test is bumped. Resolved-version cache lookup
+          # is overkill; the spec range is good enough.
+          VERSION=$(grep '"@playwright/test"' packages/app/package.json | head -1 | sed -E 's/.*"\^?([0-9.]+)".*/\1/' || echo "unknown")
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Playwright spec from package.json: ${VERSION}"
 
       - name: Cache Playwright browsers
         uses: actions/cache@v4
@@ -40,7 +44,8 @@ jobs:
           key: playwright-${{ runner.os }}-${{ steps.pw-version.outputs.version }}
 
       - name: Install Playwright Chromium
-        run: bunx --cwd packages/app playwright install --with-deps chromium
+        # `bunx --cwd` isn't a real flag — cd into the workspace first.
+        run: cd packages/app && bunx playwright install --with-deps chromium
 
       # webServer in playwright.config.ts boots `bun run dev` (which spawns
       # both API and Vite). It waits for http://localhost:3002 before
