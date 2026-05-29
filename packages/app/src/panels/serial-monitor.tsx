@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from "react"
 import { useBoard } from "@/store/board-context"
 import { createLocalBoard, type LocalBoardConnection } from "@/simulator/local-board"
+import { createWebSerialBoard } from "@/simulator/web-serial-board"
 import { useBoardConnection } from "@/simulator/use-board-connection"
+import { useCapabilities } from "@/project/use-capabilities"
+import { usePairedPort } from "@/simulator/web-serial-port-store"
 import { simulationRef } from "@/simulator/simulation-ref"
 import { cn } from "@/utils/classnames"
 
@@ -35,11 +38,23 @@ export function SerialMonitor() {
   const boardRef = useRef<LocalBoardConnection | null>(null)
 
   const { selectedPort } = useBoardConnection()
+  const { capabilities } = useCapabilities()
+  const { port: pairedPort } = usePairedPort()
 
-  // Create board connection once
+  // On hosted, the SerialMonitor talks WebSerial directly (no server USB
+  // proxy). The "active port" is the paired one; on local it's the
+  // user-picked entry from the server's /api/boards list.
+  const activePort = capabilities.hosted
+    ? pairedPort
+      ? `usb:${pairedPort.getInfo().vendorId ?? "????"}:${pairedPort.getInfo().productId ?? "????"}`
+      : null
+    : selectedPort
+
+  // Create board connection once per environment. Recreating when `hosted`
+  // flips keeps state simple — capabilities only flips once during boot.
   useEffect(() => {
-    const board = createLocalBoard({
-      onData: (text) => {
+    const callbacks = {
+      onData: (text: string) => {
         send({ type: "APPEND_SERIAL", text, ts: Date.now() })
       },
       onConnect: () => setSerialConnected(true),
@@ -47,30 +62,32 @@ export function SerialMonitor() {
       onReconnecting: () => {
         send({ type: "APPEND_SERIAL", text: "[Reconnecting after flash…]\n", ts: Date.now() })
       },
-      onError: (err) => {
+      onError: (err: string) => {
         send({ type: "APPEND_SERIAL", text: `[Serial Error] ${err}\n`, ts: Date.now() })
         setSerialConnected(false)
       },
-    })
+    }
+    const board = capabilities.hosted
+      ? createWebSerialBoard(callbacks)
+      : createLocalBoard(callbacks)
     boardRef.current = board
-    return () => { board.disconnect() }
-  }, [send])
+    return () => { void board.disconnect() }
+  }, [send, capabilities.hosted])
 
-  // Auto-connect when selected port changes
+  // Auto-connect when the active port changes
   useEffect(() => {
     const board = boardRef.current
     if (!board) return
 
-    if (!selectedPort) {
-      if (board.isConnected()) board.disconnect()
+    if (!activePort) {
+      if (board.isConnected()) void board.disconnect()
       return
     }
 
-    // Reconnect if port changed
-    if (board.getPortPath() !== selectedPort) {
-      board.connect(selectedPort, baudRate).catch(() => {})
+    if (board.getPortPath() !== activePort) {
+      board.connect(activePort, baudRate).catch(() => {})
     }
-  }, [selectedPort, baudRate])
+  }, [activePort, baudRate])
 
   // Auto-scroll on new output
   useEffect(() => {
@@ -91,13 +108,13 @@ export function SerialMonitor() {
 
   const handleConnect = useCallback(async () => {
     const board = boardRef.current
-    if (!board || !selectedPort) return
+    if (!board || !activePort) return
     if (board.isConnected()) {
       await board.disconnect()
     } else {
-      await board.connect(selectedPort, baudRate).catch(() => {})
+      await board.connect(activePort, baudRate).catch(() => {})
     }
-  }, [selectedPort, baudRate])
+  }, [activePort, baudRate])
 
   const handleSend = useCallback(() => {
     if (!input) return
@@ -158,7 +175,7 @@ export function SerialMonitor() {
           {serialConnected ? (
             <span className="flex items-center gap-1 text-[10px] text-emerald-400">
               <span className="size-1.5 rounded-full bg-emerald-400" />
-              {selectedPort ?? "Connected"}
+              {activePort ?? "Connected"}
             </span>
           ) : simMode === "avr" ? (
             <span className="text-[10px] text-zinc-500">
@@ -171,7 +188,7 @@ export function SerialMonitor() {
           {/* Baud rate — only meaningful for real hardware. In simulation
               the VM emits serial via a direct JS callback and bypasses
               the UART, so the dropdown wouldn't change anything. */}
-          {selectedPort ? (
+          {activePort ? (
             <select
               value={baudRate}
               onChange={(e) => setBaudRate(Number(e.target.value))}
@@ -184,7 +201,7 @@ export function SerialMonitor() {
           ) : null}
 
           {/* Connect/disconnect — only shown when a port is selected */}
-          {selectedPort && (
+          {activePort && (
             <button
               type="button"
               onClick={handleConnect}
@@ -269,7 +286,7 @@ export function SerialMonitor() {
       >
         {state.serialOutput.length === 0 ? (
           <span className="text-zinc-600 italic">
-            {selectedPort
+            {activePort
               ? "No output yet. Run a sketch or connect a board."
               : "No output yet. Run a sketch to see output here, or select a board from the toolbar."}
           </span>

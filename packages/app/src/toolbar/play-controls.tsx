@@ -10,8 +10,12 @@ import type { SimulationActions } from "@/simulator/simulation-loop"
 import { useBoardConnection } from "@/simulator/use-board-connection"
 import { useElectricalReport } from "@/electrical/power-budget"
 import { cn } from "@/utils/classnames"
-import { readNdjsonStream } from "@/simulator/avr-compiler"
+import { compileSketch, readNdjsonStream } from "@/simulator/avr-compiler"
 import { resolveFetchOptions } from "@/project/api-client"
+import { useCapabilities } from "@/project/use-capabilities"
+import { usePairedPort } from "@/simulator/web-serial-port-store"
+import { isWebSerialSupported } from "@/simulator/web-serial-types"
+import { flashViaStk500v1 } from "@/simulator/stk500-uploader"
 import { setUploadState, useUploadState } from "./upload-status-store"
 
 type PlayControlsProps = {
@@ -22,6 +26,8 @@ export function PlayControls({ sim }: PlayControlsProps) {
   const { state, send: boardSend } = useBoard()
   const dockviewApi = useDockviewApi()
   const { selectedPort } = useBoardConnection()
+  const { capabilities } = useCapabilities()
+  const { port: pairedPort } = usePairedPort()
   const electrical = useElectricalReport()
   const upload = useUploadState()
 
@@ -71,7 +77,67 @@ export function PlayControls({ sim }: PlayControlsProps) {
 
   const handleUpload = useCallback(async () => {
     if (electrical.hasErrors) return
-    if (!selectedPort || !sketchCodeRef.current) return
+    if (!sketchCodeRef.current) return
+
+    // Hosted has no USB on the server; flash via WebSerial directly from
+    // the browser. Local mode keeps the existing server-driven path so
+    // CLI users get unchanged behavior.
+    if (capabilities.hosted) {
+      if (!pairedPort) return
+      const uploadParams = boardTargetInfo.webSerialUpload
+      if (!uploadParams) {
+        setUploadState({
+          status: "error",
+          error: `${boardTargetInfo.label} can't yet be flashed from the browser`,
+        })
+        return
+      }
+
+      setUploadState({ status: "compiling", error: null })
+      boardSend({ type: "CLEAR_BUILD_LOG" })
+      try {
+        const compile = await compileSketch(sketchCodeRef.current, {
+          fqbn: boardTargetInfo.fqbn,
+          onLog: (tag, line, ts) => boardSend({ type: "APPEND_BUILD_LOG", tag, line, ts }),
+        })
+        if (!compile.success) {
+          setUploadState({ status: "error", error: compile.error })
+          return
+        }
+        if (compile.format !== "hex") {
+          setUploadState({
+            status: "error",
+            error: "Browser flashing currently only supports Intel HEX (Uno/Nano). Pico support is coming soon.",
+          })
+          return
+        }
+
+        setUploadState({ status: "flashing", error: null })
+        await flashViaStk500v1({
+          hexText: compile.hexText,
+          baudRate: uploadParams.baudRate,
+          pageSize: uploadParams.pageSize,
+          onLog: (line) =>
+            boardSend({ type: "APPEND_BUILD_LOG", tag: "upload", line, ts: Date.now() }),
+          onProgress: () => { /* progress bar TBD */ },
+        })
+
+        setUploadState({ status: "reconnecting", error: null })
+        // SerialMonitor (via web-serial-board.ts) reopens at the remembered
+        // baud once status leaves "flashing"; reset to idle so the button
+        // becomes clickable again. 1.5s matches Optiboot's post-reset boot.
+        setTimeout(() => setUploadState({ status: "idle", error: null }), 1_500)
+      } catch (err) {
+        setUploadState({
+          status: "error",
+          error: err instanceof Error ? err.message : "Upload failed",
+        })
+      }
+      return
+    }
+
+    // Local path: server-side arduino-cli upload.
+    if (!selectedPort) return
     setUploadState({ status: "compiling", error: null })
     // Fresh panel for this upload session — compile + upload logs stream in.
     boardSend({ type: "CLEAR_BUILD_LOG" })
@@ -143,7 +209,15 @@ export function PlayControls({ sim }: PlayControlsProps) {
         error: err instanceof Error ? err.message : "Upload failed",
       })
     }
-  }, [electrical.hasErrors, selectedPort, boardTarget, boardTargetInfo.fqbn, boardSend])
+  }, [
+    electrical.hasErrors,
+    selectedPort,
+    boardTarget,
+    boardTargetInfo,
+    boardSend,
+    capabilities.hosted,
+    pairedPort,
+  ])
 
   const isRunning = status === "running"
   const isPaused = status === "paused"
@@ -155,6 +229,25 @@ export function PlayControls({ sim }: PlayControlsProps) {
     upload.status === "compiling" ||
     upload.status === "flashing" ||
     upload.status === "reconnecting"
+
+  // On hosted the Upload button is always visible (so the user has a clear
+  // place to land when they haven't paired yet — the disabled tooltip
+  // tells them what to do). On local we keep the historical rule of
+  // hiding the button until the user picks a server-detected port.
+  const webSerialOk = capabilities.hosted && isWebSerialSupported()
+  const showUpload = capabilities.hosted ? true : !!selectedPort
+  const canUpload = capabilities.hosted
+    ? (webSerialOk && !!pairedPort && !!boardTargetInfo.webSerialUpload)
+    : !!selectedPort
+  const uploadDisabledReason: string | null = !capabilities.hosted
+    ? null
+    : !isWebSerialSupported()
+      ? "Use Chrome or Edge to flash a board"
+      : !pairedPort
+        ? "Pair a board first"
+        : !boardTargetInfo.webSerialUpload
+          ? `${boardTargetInfo.label} can't yet be flashed from the browser`
+          : null
 
   return (
     <div className="flex items-center gap-1">
@@ -227,9 +320,10 @@ export function PlayControls({ sim }: PlayControlsProps) {
           right-edge status cluster (next to StatusDisplay) in
           bottom-toolbar.tsx so the board + status read as one unit. */}
 
-      {/* Upload to Arduino — only shown when a port is selected. Inline status
-          text used to live here; it now renders in <StatusDisplay/>. */}
-      {selectedPort && (
+      {/* Upload to Arduino — visible on hosted (so user sees where to pair),
+          gated on a selected port locally. Inline status text used to live
+          here; it now renders in <StatusDisplay/>. */}
+      {showUpload && (
         <Tooltip>
           <TooltipTrigger
             render={
@@ -237,7 +331,7 @@ export function PlayControls({ sim }: PlayControlsProps) {
                 variant="ghost"
                 size="icon"
                 onClick={handleUpload}
-                disabled={electrical.hasErrors || uploadInProgress}
+                disabled={electrical.hasErrors || uploadInProgress || !canUpload}
               />
             }
           >
@@ -263,7 +357,9 @@ export function PlayControls({ sim }: PlayControlsProps) {
               : upload.status === "reconnecting" ? "Reconnecting…"
               : electrical.hasErrors ? (electricalBlockReason ?? "Electrical issue blocks upload")
               : upload.status === "error" ? (upload.error ?? "Upload failed")
-              : `Compile & Upload (${boardTargetInfo.label})`}
+              : uploadDisabledReason
+                ? uploadDisabledReason
+                : `Compile & Upload (${boardTargetInfo.label})`}
           </TooltipContent>
         </Tooltip>
       )}

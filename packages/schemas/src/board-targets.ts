@@ -39,6 +39,19 @@ export type BoardTargetInfo = {
    * arduino-cli internally, so this is mostly redundant for Uno/Nano.
    */
   realCompileCheck?: boolean;
+  /**
+   * Browser-side upload parameters, used by the hosted WebSerial flash
+   * path. Absent for boards that can't yet be flashed from the browser
+   * (e.g. the RP2040, which needs UF2 over WebUSB / drag-and-drop). The
+   * UI hides the hosted Upload button when this is undefined.
+   */
+  webSerialUpload?: {
+    protocol: "stk500v1";
+    /** Bootloader baud rate. Optiboot on Uno R3 = 115200. */
+    baudRate: number;
+    /** Flash page size in bytes (atmega328p = 128). */
+    pageSize: number;
+  };
 };
 
 export const BOARD_TARGETS: Record<BoardTarget, BoardTargetInfo> = {
@@ -48,6 +61,7 @@ export const BOARD_TARGETS: Record<BoardTarget, BoardTargetInfo> = {
     mcu: "ATmega328P @ 16 MHz",
     fqbn: "arduino:avr:uno",
     runner: "avr",
+    webSerialUpload: { protocol: "stk500v1", baudRate: 115200, pageSize: 128 },
   },
   arduino_nano: {
     id: "arduino_nano",

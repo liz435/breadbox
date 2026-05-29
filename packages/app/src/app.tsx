@@ -33,6 +33,7 @@ import { DockviewContext } from "./store/dockview-context";
 import { ProjectLoader } from "./project/project-loader";
 import { useGraphPersistence } from "./project/use-graph-persistence";
 import { useBoardPersistence } from "./project/use-board-persistence";
+import { restorePairedPort } from "./simulator/web-serial-port-store";
 import { SketchEditor } from "./editor/sketch-editor";
 import { SchematicPanel } from "./schematic/schematic-panel";
 import { LibraryManager } from "./editor/library-manager";
@@ -122,6 +123,11 @@ function AppInner() {
   const project = useProject();
   useGraphPersistence();
   const { saveNow } = useBoardPersistence();
+
+  // Re-acquire any previously-granted WebSerial port so hosted users don't
+  // have to re-pair their board on every reload. No-op outside Chromium /
+  // when no permission has been granted yet.
+  useEffect(() => { void restorePairedPort(); }, []);
   const dockviewApiRef = useRef<DockviewApi | null>(null);
   // Track which projectId we have already hydrated for. switchProject() now
   // re-runs hydration cleanly without leaking state from the previous project.
