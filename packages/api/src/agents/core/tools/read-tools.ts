@@ -90,9 +90,11 @@ export function createReadTools(ctx: ToolContext) {
         "Use this to debug Serial.println() output, inspect sensor values, " +
         "check whether the main loop is iterating, or look at runtime error " +
         "traces. Returns the most recent entries (capped). Each entry is " +
-        "{ text, ts }. The buffer is a snapshot taken at request time — " +
-        "output produced after the user pressed Send won't appear; ask them " +
-        "to retry if you need fresher data.",
+        "{ text, ts, source? } where source — when present — is 'board' " +
+        "(real hardware over USB) or 'simulator' (in-browser AVR8js). The " +
+        "buffer is a snapshot taken at request time — output produced after " +
+        "the user pressed Send won't appear; ask them to retry if you need " +
+        "fresher data.",
       inputSchema: z.object({
         tailLines: z.number().int().min(1).max(500).default(50)
           .describe("Number of most-recent matching lines to return."),
@@ -100,9 +102,18 @@ export function createReadTools(ctx: ToolContext) {
           .describe("If set, only return entries with ts within the last N ms. Use to focus on output from the last few seconds."),
         grep: z.string().optional()
           .describe("Optional JS regex (case-sensitive). Only entries whose text matches are returned."),
+        source: z.enum(["simulator", "board", "both"]).default("both")
+          .describe("Filter by source. 'both' includes untagged entries (and is the right default when you don't know which surface the user is running on)."),
       }),
       execute: async (input) => {
-        const all = workingBoard.serialOutput ?? [];
+        // Forward-compatible read of the optional `source` field. The
+        // on-disk BoardState schema today is { text, ts }; the WebSerial
+        // PR extends it with `source?: "simulator" | "board"`. Treating
+        // entries as a wider shape here lets this filter ship now and
+        // start narrowing once the schema gains source-tagging — no
+        // follow-up to this file needed.
+        type SerialEntry = { text: string; ts: number; source?: "simulator" | "board" };
+        const all = (workingBoard.serialOutput ?? []) as SerialEntry[];
         if (all.length === 0) {
           return {
             entries: [],
@@ -123,6 +134,11 @@ export function createReadTools(ctx: ToolContext) {
         const cutoff = input.sinceMs ? Date.now() - input.sinceMs : 0;
         const filtered = all.filter((entry) => {
           if (entry.ts < cutoff) return false;
+          // Source filter is permissive: only drop an entry when it has
+          // a source tag AND that tag disagrees with the requested
+          // filter. Untagged entries always pass — matches the
+          // SerialMonitor's UI behavior of showing untagged in every view.
+          if (input.source !== "both" && entry.source && entry.source !== input.source) return false;
           if (re && !re.test(entry.text)) return false;
           return true;
         });
