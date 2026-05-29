@@ -355,6 +355,13 @@ export function streamCoreAgentInternal(
   const workingBoard: BoardState = structuredClone(
     trackedBoard ?? ctx.project.boardState ?? createDefaultBoardState()
   );
+  // The client sends a fresh tail of the Serial Monitor buffer on each
+  // request — it's the live in-memory state, not the on-disk snapshot
+  // (which only updates on project save). Splice it in so the
+  // read_serial_monitor tool sees what the user just observed.
+  if (ctx.recentSerial && ctx.recentSerial.length > 0) {
+    workingBoard.serialOutput = ctx.recentSerial;
+  }
 
   // v2.0.0: sub-agents pass their own tool name set; everyone else uses
   // mode-based filtering. createCoreTools internally filters by mode; if a

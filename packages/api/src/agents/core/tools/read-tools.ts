@@ -83,5 +83,57 @@ export function createReadTools(ctx: ToolContext) {
       inputSchema: z.object({}),
       execute: async () => ({ guide: WIRING_GUIDE_TEXT }),
     }),
+
+    read_serial_monitor: tool({
+      description:
+        "Read recent Serial Monitor output from the user's running sketch. " +
+        "Use this to debug Serial.println() output, inspect sensor values, " +
+        "check whether the main loop is iterating, or look at runtime error " +
+        "traces. Returns the most recent entries (capped). Each entry is " +
+        "{ text, ts }. The buffer is a snapshot taken at request time — " +
+        "output produced after the user pressed Send won't appear; ask them " +
+        "to retry if you need fresher data.",
+      inputSchema: z.object({
+        tailLines: z.number().int().min(1).max(500).default(50)
+          .describe("Number of most-recent matching lines to return."),
+        sinceMs: z.number().int().min(0).optional()
+          .describe("If set, only return entries with ts within the last N ms. Use to focus on output from the last few seconds."),
+        grep: z.string().optional()
+          .describe("Optional JS regex (case-sensitive). Only entries whose text matches are returned."),
+      }),
+      execute: async (input) => {
+        const all = workingBoard.serialOutput ?? [];
+        if (all.length === 0) {
+          return {
+            entries: [],
+            totalAvailable: 0,
+            filteredCount: 0,
+            truncated: false,
+            note: "Serial buffer is empty. Either the sketch hasn't run, Serial.begin() hasn't been called, or the monitor isn't connected.",
+          };
+        }
+        let re: RegExp | null = null;
+        if (input.grep) {
+          try {
+            re = new RegExp(input.grep);
+          } catch (err) {
+            return { error: `Invalid regex: ${err instanceof Error ? err.message : "unknown"}` };
+          }
+        }
+        const cutoff = input.sinceMs ? Date.now() - input.sinceMs : 0;
+        const filtered = all.filter((entry) => {
+          if (entry.ts < cutoff) return false;
+          if (re && !re.test(entry.text)) return false;
+          return true;
+        });
+        const tail = filtered.slice(-input.tailLines);
+        return {
+          entries: tail,
+          totalAvailable: all.length,
+          filteredCount: filtered.length,
+          truncated: filtered.length > tail.length,
+        };
+      },
+    }),
   } as const;
 }

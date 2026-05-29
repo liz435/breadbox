@@ -72,7 +72,13 @@ export function useChatMessages(options: UseChatMessagesOptions = {}): UseChatMe
   const project = useProject()
   const { send: sceneSend } = useScene()
   const { send: graphSend } = useGraph()
-  const { send: boardSend } = useBoard()
+  const { send: boardSend, state: boardState } = useBoard()
+  // Tail of the Serial Monitor buffer, snapshotted at send time so the
+  // agent's `read_serial_monitor` tool gets fresh output. Kept in a ref
+  // so the transport's `prepareSendMessagesRequest` can pull the current
+  // value without forcing a transport rebuild on every keystroke.
+  const serialTailRef = useRef<typeof boardState.serialOutput>(boardState.serialOutput)
+  serialTailRef.current = boardState.serialOutput
   const [inputValue, setInputValue] = useState("")
   const [lastTokenUsage, setLastTokenUsage] = useState<TokenUsageData | null>(null)
   const [sessionTokenUsage, setSessionTokenUsage] = useState<SessionTokenUsage>({
@@ -91,6 +97,21 @@ export function useChatMessages(options: UseChatMessagesOptions = {}): UseChatMe
         sessionId: project.sessionId,
         expectedVersion: project.version,
         ...(snapshotVersion ? { snapshotVersion } : {}),
+      },
+      // Inject the live Serial Monitor tail per send (capped at 500
+      // entries to keep the request bounded — the agent tool further
+      // tails/filters server-side). prepareSendMessagesRequest fires
+      // on every send and reads from the ref, so the agent always sees
+      // the freshest output.
+      prepareSendMessagesRequest({ messages, body }) {
+        const tail = serialTailRef.current.slice(-500)
+        return {
+          body: {
+            ...(body as Record<string, unknown>),
+            messages,
+            ...(tail.length > 0 ? { recentSerial: tail } : {}),
+          },
+        }
       },
     }),
     onData(dataPart) {

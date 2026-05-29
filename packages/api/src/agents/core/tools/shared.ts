@@ -230,6 +230,9 @@ export const EDIT_MODE_TOOLS = new Set([
   // v1.6.0: also available in edit mode so the agent can cross-check
   // sketch ↔ wired pins after propose_fix mutates the board.
   "verify_circuit",
+  // Debug aid — lets the agent read Serial.println output when diagnosing
+  // "why doesn't my sketch work" without rerunning the loop.
+  "read_serial_monitor",
 ])
 
 // ── Shared tool context ─────────────────────────────────────────────────
