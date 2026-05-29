@@ -64,6 +64,22 @@ export async function awaitPendingSummaries(timeoutMs: number): Promise<void> {
  * Schema for the useChat DefaultChatTransport request body.
  * It sends `messages` (UIMessage[]) plus any custom `body` fields we configured.
  */
+/**
+ * Live Serial Monitor tail forwarded by the client so the
+ * `read_serial_monitor` agent tool has access to the freshest output.
+ * Bounded so a runaway sketch can't blow up the request body — the
+ * client already tails to the last N entries before sending.
+ */
+const recentSerialSchema = z
+  .array(
+    z.object({
+      text: z.string().max(4_000),
+      ts: z.number().int().nonnegative(),
+    }),
+  )
+  .max(1_000)
+  .optional();
+
 const chatRequestSchema = z.object({
   messages: z.array(z.object({
     id: z.string(),
@@ -76,6 +92,7 @@ const chatRequestSchema = z.object({
   sessionId: nonEmptyStringSchema,
   expectedVersion: z.number().int().nonnegative(),
   snapshotVersion: z.string().optional(),
+  recentSerial: recentSerialSchema,
 });
 
 /** Extract the text from the last user message's parts. */
@@ -347,6 +364,7 @@ export const chatRoutes = new Elysia().use(authPlugin).post("/api/chat", async (
     parentLog: reqLog,
     history,
     priorRuns: completedRuns,
+    recentSerial: input.recentSerial,
     onHistorySanitized: (delta) => {
       sanitizationTotals = mergeReports(sanitizationTotals, delta);
     },

@@ -31,6 +31,18 @@ export type AgentContext = {
   onHistorySanitized?: (
     report: import("./sanitize-messages").SanitizationReport,
   ) => void;
+  /**
+   * Snapshot of the Serial Monitor buffer at request time, sent by the
+   * client when the user invokes the agent. The board snapshot persisted
+   * on disk is stale (only updates on project save), so the live tail is
+   * piped in via the request body. Consumed by `read_serial_monitor` —
+   * agent.ts splices it onto workingBoard.serialOutput before tool
+   * creation. Bounded (max 1000 entries) to keep request size sane.
+   */
+  recentSerial?: Array<{
+    text: string;
+    ts: number;
+  }>;
 };
 
 export type OverheadUsage = {
