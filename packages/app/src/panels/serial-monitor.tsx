@@ -82,21 +82,29 @@ export function SerialMonitor() {
 
   // Create board connection once per environment. Recreating when `hosted`
   // flips keeps state simple — capabilities only flips once during boot.
+  // `send` from useBoard() is `actorRef.send.bind(actorRef)` — a fresh
+  // function every render. Reading it through a ref keeps callbacks up to
+  // date without making the board factory effect re-fire on every render
+  // (which would tear down + recreate the WebSocket each time, manifesting
+  // as the "WS open / WS close" loop in the server logs).
+  const sendRef = useRef(send)
+  sendRef.current = send
+
   useEffect(() => {
     const callbacks = {
       onData: (text: string) => {
         // Tag as "board" so the source filter can distinguish from
         // simulator output (which bottom-toolbar.tsx tags as "simulator").
-        send({ type: "APPEND_SERIAL", text, ts: Date.now(), source: "board" })
+        sendRef.current({ type: "APPEND_SERIAL", text, ts: Date.now(), source: "board" })
         setBoardBytesReceived((n) => n + text.length)
       },
       onConnect: () => setSerialConnected(true),
       onDisconnect: () => setSerialConnected(false),
       onReconnecting: () => {
-        send({ type: "APPEND_SERIAL", text: "[Reconnecting after flash…]\n", ts: Date.now(), source: "board" })
+        sendRef.current({ type: "APPEND_SERIAL", text: "[Reconnecting after flash…]\n", ts: Date.now(), source: "board" })
       },
       onError: (err: string) => {
-        send({ type: "APPEND_SERIAL", text: `[Serial Error] ${err}\n`, ts: Date.now(), source: "board" })
+        sendRef.current({ type: "APPEND_SERIAL", text: `[Serial Error] ${err}\n`, ts: Date.now(), source: "board" })
         setSerialConnected(false)
       },
     }
@@ -105,7 +113,7 @@ export function SerialMonitor() {
       : createLocalBoard(callbacks)
     boardRef.current = board
     return () => { void board.disconnect() }
-  }, [send, capabilities.hosted])
+  }, [capabilities.hosted])
 
   // Auto-connect when the active port changes
   useEffect(() => {
