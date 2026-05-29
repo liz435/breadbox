@@ -76,6 +76,7 @@ export function ExampleButton() {
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger
+        data-testid="example-button"
         className="flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium text-neutral-300 hover:bg-neutral-700 transition-colors"
       >
         <svg viewBox="0 0 16 16" className="size-3 fill-current">
@@ -243,6 +244,7 @@ function ExampleRow({
     <button
       type="button"
       onClick={() => onLoad(example)}
+      data-testid={`example-row-${example.key}`}
       className="flex w-full items-start gap-2 rounded px-2 py-1.5 text-left transition-colors hover:bg-neutral-700"
     >
       <div className="min-w-0 flex-1">

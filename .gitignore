@@ -20,3 +20,9 @@ packages/api/data/runs/*.json
 packages/api/data/threads/*.json
 packages/api/data/tests/*.json
 packages/api/data/audit/
+
+
+# Playwright e2e
+packages/app/test-results/
+packages/app/playwright-report/
+packages/app/.playwright/
