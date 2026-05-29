@@ -23,7 +23,18 @@ export type SketchSizeInfo = {
 }
 
 export type CompileResult =
-  | { success: true; format: "hex"; hex: Uint16Array; sizeInfo?: SketchSizeInfo }
+  | {
+      success: true
+      format: "hex"
+      hex: Uint16Array
+      /**
+       * Raw Intel HEX text as returned by arduino-cli. The simulator reads
+       * `hex` (word-packed); the hosted WebSerial flasher reads `hexText`
+       * to avoid round-tripping word data back to bytes.
+       */
+      hexText: string
+      sizeInfo?: SketchSizeInfo
+    }
   | {
       success: true
       format: "uf2"
@@ -132,7 +143,7 @@ function decodeFirmware(
   sizeInfo: SketchSizeInfo | undefined,
 ): CompileResult {
   if (format === "hex") {
-    return { success: true, format: "hex", hex: parseIntelHex(data), sizeInfo }
+    return { success: true, format: "hex", hex: parseIntelHex(data), hexText: data, sizeInfo }
   }
   const { flash, flashOffset } = parseRp2040Uf2(base64ToBytes(data))
   return { success: true, format: "uf2", flash, flashOffset, sizeInfo }

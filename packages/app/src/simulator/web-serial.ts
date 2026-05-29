@@ -2,24 +2,12 @@
 //
 // Connects to a real Arduino (or any USB serial device) via the Web Serial API.
 // Chrome/Edge only. Requires HTTPS or localhost.
+//
+// Types live in `./web-serial-types` so this wrapper and the hosted
+// upload/monitor paths share one Navigator augmentation.
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-// Web Serial API types (not in default TS lib)
-type SerialPort = {
-  readable: ReadableStream<Uint8Array> | null
-  writable: WritableStream<Uint8Array> | null
-  open: (options: { baudRate: number }) => Promise<void>
-  close: () => Promise<void>
-  addEventListener: (event: string, handler: () => void) => void
-}
-
-declare global {
-  interface Navigator {
-    serial?: {
-      requestPort: () => Promise<SerialPort>
-    }
-  }
-}
+import { isWebSerialSupported, type SerialPort } from "./web-serial-types"
+export { isWebSerialSupported } from "./web-serial-types"
 
 export type WebSerialCallbacks = {
   onData: (text: string) => void
@@ -34,10 +22,6 @@ export type WebSerialConnection = {
   disconnect: () => Promise<void>
   write: (data: string) => Promise<void>
   getPort: () => SerialPort | null
-}
-
-export function isWebSerialSupported(): boolean {
-  return "serial" in navigator
 }
 
 export function createWebSerial(callbacks: WebSerialCallbacks): WebSerialConnection {
