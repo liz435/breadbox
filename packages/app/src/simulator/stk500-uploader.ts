@@ -32,10 +32,20 @@ const RESP_INSYNC = 0x14
 const RESP_OK = 0x10
 const MEMTYPE_FLASH = 0x46
 
-const SYNC_RETRIES = 5
+const SYNC_RETRIES = 10
+/** Default read timeout for prog / verify steps (each page can be slow). */
 const READ_TIMEOUT_MS = 1_000
-/** ms to hold DTR low before releasing — the cap-coupled reset pulse. */
-const RESET_PULSE_MS = 250
+/**
+ * Read timeout for sync attempts specifically. Optiboot's window is ~500ms;
+ * a slow timeout means the first failed retry burns through that window
+ * before retry 2 starts. 200ms × 10 retries fits inside the window AND
+ * recovers cleanly from transient bus noise.
+ */
+const SYNC_READ_TIMEOUT_MS = 200
+/** Settle time before pulsing DTR — let the initial signal state stabilize. */
+const PRE_RESET_SETTLE_MS = 50
+/** ms to hold DTR asserted (RESET LOW). Long enough for cap to charge fully. */
+const RESET_PULSE_MS = 100
 /** ms to wait after release before talking to the bootloader. Optiboot is fast. */
 const BOOTLOADER_SETTLE_MS = 50
 
@@ -111,6 +121,7 @@ async function readByte(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   buffer: { tail: Uint8Array; offset: number },
   signal: AbortSignal | undefined,
+  timeoutMs: number = READ_TIMEOUT_MS,
 ): Promise<number> {
   if (buffer.offset < buffer.tail.length) {
     const b = buffer.tail[buffer.offset]
@@ -120,7 +131,7 @@ async function readByte(
   const result = await Promise.race([
     reader.read(),
     new Promise<never>((_, reject) => {
-      const id = setTimeout(() => reject(new FlashError("read timeout")), READ_TIMEOUT_MS)
+      const id = setTimeout(() => reject(new FlashError("read timeout")), timeoutMs)
       signal?.addEventListener("abort", () => {
         clearTimeout(id)
         reject(new FlashError("aborted"))
@@ -141,8 +152,9 @@ async function readExpect(
   expected: number,
   signal: AbortSignal | undefined,
   label: string,
+  timeoutMs?: number,
 ): Promise<void> {
-  const b = await readByte(reader, buffer, signal)
+  const b = await readByte(reader, buffer, signal, timeoutMs)
   if (b !== expected) {
     throw new FlashError(`expected ${label} (0x${expected.toString(16)}) but got 0x${b.toString(16)}`)
   }
@@ -198,15 +210,23 @@ async function sync(
   for (let attempt = 1; attempt <= SYNC_RETRIES; attempt++) {
     try {
       await write(writer, [CMD_GET_SYNC, EOP])
-      await readExpect(reader, buffer, RESP_INSYNC, signal, "INSYNC")
-      await readExpect(reader, buffer, RESP_OK, signal, "OK")
+      // Use the short sync timeout — full SYNC_RETRIES × 200ms = 2s,
+      // well within the Optiboot ~500ms window for the early retries
+      // and recovering noise-induced misses without burning the whole
+      // window on the first failure.
+      await readExpect(reader, buffer, RESP_INSYNC, signal, "INSYNC", SYNC_READ_TIMEOUT_MS)
+      await readExpect(reader, buffer, RESP_OK, signal, "OK", SYNC_READ_TIMEOUT_MS)
       onLog(`[stk500] sync ok (attempt ${attempt})`)
       return
     } catch (err) {
       onLog(`[stk500] sync attempt ${attempt} failed: ${(err as Error).message}`)
+      // Drain any stale bytes that might've come from a previous
+      // garbled write — clears the read pointer for the next attempt
+      // without consuming additional time. No setTimeout pause: the
+      // bootloader keeps listening; we want to retry IMMEDIATELY.
+      buffer.tail = new Uint8Array(0)
+      buffer.offset = 0
       if (attempt === SYNC_RETRIES) throw err
-      // Brief pause; the bootloader may still be settling.
-      await new Promise((r) => setTimeout(r, 100))
     }
   }
 }
@@ -281,15 +301,34 @@ export async function flashViaStk500v1(opts: FlashOptions): Promise<void> {
   let session: FlashSession | null = null
   try {
     session = await openFlashSession(baudRate)
-    // Auto-reset: drop DTR low (assert), wait, raise (release). The cap on
-    // the Arduino board turns the DTR transition into a short RESET pulse.
+
+    // Auto-reset sequence. Web Serial signal convention:
+    //   dataTerminalReady: true  → DTR asserted → LOW on USB-serial chip
+    //                              → cap-coupled RESET pulse on the AVR
+    //   dataTerminalReady: false → DTR deasserted → HIGH
+    //
+    // The reset must be a PULSE — assert briefly, then release. Some
+    // USB-serial bridges (notably CH340 clones, common on cheap Uno
+    // clones) hold the AVR in continuous reset while DTR stays asserted,
+    // preventing the bootloader from running. The previous version of
+    // this code left DTR asserted forever, which manifested as "all 5
+    // sync attempts time out" on those boards. RTS is held quiet
+    // throughout to avoid bootloaders that incidentally wire RTS to
+    // something they shouldn't (rare but seen on early clones).
+    onLog(`[stk500] resetting board via DTR pulse`)
     await session.setSignals({ dataTerminalReady: false, requestToSend: false })
+    await new Promise((r) => setTimeout(r, PRE_RESET_SETTLE_MS))
+    await session.setSignals({ dataTerminalReady: true, requestToSend: false })
     await new Promise((r) => setTimeout(r, RESET_PULSE_MS))
-    await session.setSignals({ dataTerminalReady: true, requestToSend: true })
+    await session.setSignals({ dataTerminalReady: false, requestToSend: false })
     await new Promise((r) => setTimeout(r, BOOTLOADER_SETTLE_MS))
 
     const buffer = { tail: new Uint8Array(0), offset: 0 }
-    await drainStale(session.reader, buffer)
+    // Skip drainStale here — Optiboot doesn't emit a banner pre-sync, and
+    // the drain wait (~150ms) was eating ~30% of the bootloader window.
+    // If a board does send junk, the sync retry loop catches it: the
+    // wrong-byte response throws "expected INSYNC but got 0xXX" and
+    // attempt 2 starts immediately.
     onProgress({ phase: "sync", bytesTotal: data.length })
     await sync(session.reader, session.writer, buffer, signal, onLog)
     await enterProgmode(session.reader, session.writer, buffer, signal)
