@@ -24,6 +24,7 @@ import {
   pairPort,
   unpairPort,
   usePairedPort,
+  formatPortLabel,
 } from "@/simulator/web-serial-port-store"
 import { cn } from "@/utils/classnames"
 
@@ -220,10 +221,7 @@ function HostedPairingBody({ pairedPort, pairedInfo }: HostedBodyProps) {
     )
   }
 
-  const vidPid =
-    pairedInfo?.vendorId !== undefined && pairedInfo?.productId !== undefined
-      ? `${pairedInfo.vendorId.toString(16).padStart(4, "0")}:${pairedInfo.productId.toString(16).padStart(4, "0")}`
-      : "USB device"
+  const vidPid = formatPortLabel(pairedInfo)
 
   return (
     <>
