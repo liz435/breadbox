@@ -118,9 +118,20 @@ export function SerialMonitor() {
     }
 
     if (board.getPortPath() !== activePort) {
-      board.connect(activePort, baudRate).catch(() => {})
+      // Surface auto-connect failures into the monitor itself instead of
+      // swallowing them. The previous .catch(() => {}) left the user
+      // staring at "Simulated AVR · Connect button" with no clue why
+      // nothing happened.
+      board.connect(activePort, baudRate).catch((err) => {
+        send({
+          type: "APPEND_SERIAL",
+          text: `[Serial] auto-connect failed: ${err instanceof Error ? err.message : String(err)}\n`,
+          ts: Date.now(),
+          source: "board",
+        })
+      })
     }
-  }, [activePort, baudRate])
+  }, [activePort, baudRate, send])
 
   // Auto-scroll on new output
   // Auto-derive baud from the sketch's Serial.begin(N) call so users
@@ -248,7 +259,14 @@ export function SerialMonitor() {
         </span>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Connection status */}
+          {/* Connection status — prioritized:
+               1. Real board connected → green
+               2. Real board AVAILABLE but disconnected → amber (most actionable;
+                  previously this state silently rendered "Simulated AVR" which
+                  hid the fact that one Connect-click stood between the user
+                  and real-board output)
+               3. Simulator running → grey
+               4. Nothing → grey */}
           {serialConnected ? (
             <span
               className="flex items-center gap-1 text-[10px] text-emerald-400"
@@ -259,6 +277,15 @@ export function SerialMonitor() {
               <span className="text-zinc-500">
                 · {baudRate} baud · {boardBytesReceived}B rx
               </span>
+            </span>
+          ) : activePort ? (
+            <span
+              className="flex items-center gap-1 text-[10px] text-amber-300"
+              title="A board is paired but the read loop isn't running. Click Connect."
+            >
+              <span className="size-1.5 rounded-full bg-amber-300/80" />
+              Board disconnected
+              <span className="text-zinc-500">· click Connect →</span>
             </span>
           ) : simMode === "avr" ? (
             <span className="text-[10px] text-zinc-500">
@@ -423,13 +450,19 @@ export function SerialMonitor() {
       >
         {visibleSerial.length === 0 ? (
           <span className="text-zinc-600 italic">
-            {state.serialOutput.length === 0
-              ? activePort
-                ? "No output yet. Run a sketch or connect a board."
-                : "No output yet. Run a sketch to see output here, or select a board from the toolbar."
-              : sourceFilter === "simulator"
-                ? "No simulator output yet. Hit Run to start the simulator."
-                : "No board output yet. Pair a board and flash a sketch."}
+            {sourceFilter === "board" && activePort && !serialConnected
+              ? "No board output yet. Click Connect (top right) to start reading from the paired port — the read loop only runs while connected."
+              : sourceFilter === "board" && !activePort
+                ? "No board output yet. Pair a board via the toolbar first, then click Connect."
+                : sourceFilter === "board" && serialConnected && boardBytesReceived === 0
+                  ? "Connected but the board hasn't sent any bytes yet. Check that (1) your sketch was flashed (Upload), (2) the sketch calls Serial.begin(N) + Serial.println(...), and (3) the baud matches."
+                  : sourceFilter === "simulator"
+                    ? "No simulator output yet. Hit Run (top of the editor) to start the simulator. Run only starts the simulator — it doesn't touch the real board."
+                    : state.serialOutput.length === 0
+                      ? activePort
+                        ? "No output yet. Run a sketch or connect a board."
+                        : "No output yet. Run a sketch to see output here, or select a board from the toolbar."
+                      : "No matching output for this filter."}
           </span>
         ) : (
           visibleSerial.map((entry, i) => formatLine(entry, i))
