@@ -366,10 +366,21 @@ export const boardMachine = setup({
           }
         }
 
+        // Clean up the default box obstacle auto-created for an ultrasonic
+        // sensor on placement — it shares the component's id (obs_<id>), so
+        // deleting the sensor removes its box too.
+        let environment = context.environment;
+        const obstacleId = `obs_${event.id}`;
+        if (environment.obstacles[obstacleId]) {
+          const { [obstacleId]: _removedObstacle, ...remainingObstacles } = environment.obstacles;
+          environment = { ...environment, obstacles: remainingObstacles };
+        }
+
         return {
           ...pushHistory(context),
           components: remainingComponents,
           wires: remainingWires,
+          environment,
           selectedId: context.selectedId === event.id ? null : context.selectedId,
         };
       }),
