@@ -129,7 +129,6 @@ function ServoRendererInner({ component, isSelected, libraryState }: ServoRender
 
   const bodyGradId = `servo-body-${component.id}`;
   const hubGradId = `servo-hub-${component.id}`;
-  const hornGradId = `servo-horn-${component.id}`;
   const glowId = `servo-glow-${component.id}`;
 
   // Mounting flange (the screw-tab ears) y position.
@@ -149,10 +148,6 @@ function ServoRendererInner({ component, isSelected, libraryState }: ServoRender
           <stop offset="55%" stopColor="#d8d8d8" />
           <stop offset="100%" stopColor="#9e9e9e" />
         </radialGradient>
-        <linearGradient id={hornGradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#ffffff" />
-          <stop offset="100%" stopColor="#d6d6d6" />
-        </linearGradient>
         {isDriven && (
           <filter id={glowId} x="-120%" y="-120%" width="340%" height="340%">
             <feGaussianBlur stdDeviation={0.9} result="blur" />
@@ -224,12 +219,14 @@ function ServoRendererInner({ component, isSelected, libraryState }: ServoRender
           <line x1={cx} y1={shaftY} x2={cx + hornLen} y2={shaftY}
             stroke="#60a5fa" strokeWidth={5} strokeLinecap="round" opacity={0.22} filter={`url(#${glowId})`} />
         )}
-        {/* Short counter-arm so it reads as a real 2-sided horn */}
+        {/* Short counter-arm so it reads as a real 2-sided horn.
+            NB: solid stroke — a gradient on a horizontal (zero-height) line
+            has a degenerate objectBoundingBox and paints nothing. */}
         <line x1={cx} y1={shaftY} x2={cx - hornLen * 0.42} y2={shaftY}
-          stroke={`url(#${hornGradId})`} strokeWidth={2.4} strokeLinecap="round" />
+          stroke="#e2e2e2" strokeWidth={2.4} strokeLinecap="round" />
         {/* Main arm */}
         <line x1={cx} y1={shaftY} x2={cx + hornLen} y2={shaftY}
-          stroke={`url(#${hornGradId})`} strokeWidth={2.8} strokeLinecap="round" />
+          stroke="#ffffff" strokeWidth={2.8} strokeLinecap="round" />
         {/* Arm mounting holes */}
         <circle cx={cx + hornLen} cy={shaftY} r={1.4} fill="#eee" stroke="#9e9e9e" strokeWidth={0.3} />
         <circle cx={cx + hornLen} cy={shaftY} r={0.6} fill="#9e9e9e" />
