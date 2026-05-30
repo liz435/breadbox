@@ -628,6 +628,7 @@ function defaultComponentName(c: { type: string }): string {
     dc_motor: "DC Motor",
     dht_sensor: "DHT Sensor",
     ir_receiver: "IR Receiver",
+    ir_remote: "IR Remote",
     shift_register: "74HC595",
     oled_display: "OLED",
     power_supply: "External 5V",

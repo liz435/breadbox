@@ -13,6 +13,17 @@
       "properties": {},
       "parentId": "breadboard-1"
     },
+    "remote-1": {
+      "id": "remote-1",
+      "type": "ir_remote",
+      "name": "IR Remote",
+      "x": 13,
+      "y": 1,
+      "rotation": 0,
+      "pins": {},
+      "properties": {},
+      "parentId": "breadboard-1"
+    },
     "breadboard-1": {
       "id": "breadboard-1",
       "type": "breadboard_full",

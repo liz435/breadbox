@@ -35,14 +35,17 @@ export function IrReceiverPage() {
           headers={["Feature", "Status"]}
           rows={[
             ["IRrecv class (enableIRIn, decode, resume)", "Implemented"],
+            ["Virtual IR Remote — click a button to beam a code", "Implemented"],
             ["Deterministic codes via Inspector 'Send' button", "Implemented"],
             ["Real remote protocol decoding (NEC, RC5)", "Not implemented"],
           ]}
         />
         <Note>
-          Type a hex code (e.g. <code>FF00FF</code>) in the Inspector and click <strong>Send</strong>
-          to make <code>irrecv.decode(&amp;results)</code> return that code on the next call.
-          The code auto-clears after ~200 ms so each press is a single event.
+          Drop an <strong>IR Remote</strong> from the palette (Input group) and click any of its
+          buttons to beam an NEC code to every receiver on the board — no wiring needed. Or, for an
+          exact code, type a hex value (e.g. <code>FF00FF</code>) in the receiver's Inspector and
+          click <strong>Send</strong>. Either way <code>irrecv.decode(&amp;results)</code> returns
+          that code on the next call.
         </Note>
       </Section>
 

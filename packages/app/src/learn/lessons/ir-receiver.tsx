@@ -24,7 +24,7 @@ export function IrReceiverLesson() {
       <Section title="Try it">
         <BreadboardEmbed board="17-ir-receiver" panels={["code", "serial"]} height={520} />
         <Note>
-          Press <strong>Play</strong>, then click the IR receiver in the embed to send a
+          Press <strong>Play</strong>, then click a button on the IR remote to beam a
           simulated IR code. The hex value prints in the Serial panel.
         </Note>
       </Section>
