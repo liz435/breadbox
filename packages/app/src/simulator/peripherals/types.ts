@@ -77,6 +77,14 @@ export type PeripheralContext = {
    */
   scheduleEdge: (pin: number, value: 0 | 1, atSimMs: number) => void
   /**
+   * The AVR's current simulated time (ms) — the point execution will resume
+   * from on the next run-loop step. Peripherals that emit a self-timed frame
+   * in response to an *external* event (not a pin edge), like the IR receiver
+   * reacting to a remote press, must base their `scheduleEdge` times on this
+   * so the frame unfolds in the future instead of collapsing into one flush.
+   */
+  nowSimMs: () => number
+  /**
    * Register an I²C slave handler at `slaveAddr` (7-bit). Throws if the AVR
    * runner didn't wire TWI into the bus — peripherals that opt in to I²C
    * must be running in AVR mode. Returns a detach function; called by the

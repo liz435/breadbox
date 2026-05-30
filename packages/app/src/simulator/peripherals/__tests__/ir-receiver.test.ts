@@ -83,6 +83,37 @@ describe("IrReceiverPeripheral — NEC envelope", () => {
     expect(lastTransition).toBeLessThan(95)
   })
 
+  test("anchors the frame at the current sim time (no mid-run collapse)", () => {
+    const store = new PinStateStore()
+    const bus = new PeripheralBus()
+    bus.attachBoard({
+      components: { "ir-1": makeIr(2) },
+      wires: {},
+      pinStore: store,
+    })
+    const p = bus.get("ir-1") as IrReceiverPeripheral
+
+    // Advance the clock well past zero (as in a real run) — this also fires
+    // the idle-HIGH seed edge and records nowSimMs on the bus.
+    bus.flushScheduledEdges(5000)
+    expect(bus.scheduledEdgeCount).toBe(0)
+
+    p.sendCode(0x20df10ef)
+    const total = bus.scheduledEdgeCount // 68 frame edges
+    expect(total).toBe(68)
+
+    // A flush at the current instant must NOT drain the whole frame. Only the
+    // leader edge sitting exactly at nowSimMs fires; the rest stay in the
+    // future. (The pre-fix bug anchored at 0, so every edge was ≤ 5000 and the
+    // entire 68-edge envelope collapsed into this single flush.)
+    bus.flushScheduledEdges(5000)
+    expect(bus.scheduledEdgeCount).toBe(total - 1)
+
+    // The frame only fully drains once the clock passes its ~68 ms envelope.
+    bus.flushScheduledEdges(5100)
+    expect(bus.scheduledEdgeCount).toBe(0)
+  })
+
   test("on-tick clears transmitting flag after frame ends", () => {
     const bus = new PeripheralBus()
     bus.attachBoard({

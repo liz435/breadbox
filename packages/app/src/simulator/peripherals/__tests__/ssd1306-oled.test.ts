@@ -29,6 +29,7 @@ function makeCtx(): { ctx: PeripheralContext; getHandler: () => TwiSlaveHandler 
     pinStore: {} as PeripheralContext["pinStore"],
     trace: () => {},
     scheduleEdge: () => {},
+    nowSimMs: () => 0,
     attachTwi: (_addr, handler) => {
       captured = handler
       return () => { captured = null }

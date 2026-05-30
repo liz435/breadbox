@@ -30,6 +30,7 @@ function makeCtx(store: PinStateStore, component: BoardComponent): PeripheralCon
     pinStore: store,
     trace: () => {},
     scheduleEdge: () => {},
+    nowSimMs: () => 0,
     attachTwi: () => () => {},
   }
 }
