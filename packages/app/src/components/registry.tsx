@@ -1168,21 +1168,21 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     ),
     buildNetlist: () => null,
     generateSketch: (comp) => {
-      const pin = comp.pins.signal
+      const pin = comp.pins.signal ?? comp.pins.out
       if (pin == null) return null
+      // IRremote 4.x: the receive timer ISR only services the global
+      // `IrReceiver` object, so a custom `IRrecv` instance never decodes.
       return {
         globalLines: [
           `#include <IRremote.h>`,
-          `IRrecv irrecv(${pin});`,
-          `decode_results results;`,
         ],
         setupLines: [
-          `  irrecv.enableIRIn(); // ${comp.name}`,
+          `  IrReceiver.begin(${pin}); // ${comp.name}`,
         ],
         loopLines: [
-          `  if (irrecv.decode(&results)) { // ${comp.name}`,
-          `    Serial.println(results.value, HEX);`,
-          `    irrecv.resume();`,
+          `  if (IrReceiver.decode()) { // ${comp.name}`,
+          `    Serial.println(IrReceiver.decodedIRData.decodedRawData, HEX);`,
+          `    IrReceiver.resume();`,
           `  }`,
         ],
         hasPin: true,

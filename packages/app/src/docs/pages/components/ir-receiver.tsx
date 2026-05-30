@@ -44,24 +44,23 @@ export function IrReceiverPage() {
           Drop an <strong>IR Remote</strong> from the palette (Input group) and click any of its
           buttons to beam an NEC code to every receiver on the board — no wiring needed. Or, for an
           exact code, type a hex value (e.g. <code>FF00FF</code>) in the receiver's Inspector and
-          click <strong>Send</strong>. Either way <code>irrecv.decode(&amp;results)</code> returns
+          click <strong>Send</strong>. Either way <code>IrReceiver.decode()</code> returns
           that code on the next call.
         </Note>
       </Section>
 
       <Section title="Auto-generated sketch code">
         <CodeBlock code={`#include <IRremote.h>
-IRrecv irrecv(11);
-decode_results results;
 
 void setup() {
-  irrecv.enableIRIn();
+  Serial.begin(9600);
+  IrReceiver.begin(11); // global IrReceiver — IRremote 4.x
 }
 
 void loop() {
-  if (irrecv.decode(&results)) {
-    Serial.println(results.value, HEX);
-    irrecv.resume();
+  if (IrReceiver.decode()) {
+    Serial.println(IrReceiver.decodedIRData.decodedRawData, HEX);
+    IrReceiver.resume();
   }
 }`} />
       </Section>
