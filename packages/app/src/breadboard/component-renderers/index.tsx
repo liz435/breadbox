@@ -10,6 +10,7 @@ import { IcRenderer } from "./ic-renderer";
 import { ServoRenderer } from "./servo-renderer";
 import { PowerSupplyRenderer } from "./power-supply-renderer";
 import { MultimeterRenderer } from "./multimeter-renderer";
+import { IrRemoteRenderer } from "./ir-remote-renderer";
 import { GenericRenderer } from "./generic-renderer";
 import { BreadboardRenderer } from "./breadboard-renderer";
 import { PerfboardRenderer } from "./perfboard-renderer";
@@ -37,6 +38,7 @@ const RENDERER_MAP: Record<
   servo: ServoRenderer,
   power_supply: PowerSupplyRenderer,
   multimeter: MultimeterRenderer,
+  ir_remote: IrRemoteRenderer,
   // arduino_uno is rendered as a fixed board, not as a component
   // breadboard_full / perfboard_generic: see the renderer files for why
   // these are stubs today. The implicit BB still owns the visual; these

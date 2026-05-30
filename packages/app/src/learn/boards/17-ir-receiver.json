@@ -11,6 +11,16 @@
         "signal": null
       },
       "properties": {}
+    },
+    "remote-1": {
+      "id": "remote-1",
+      "type": "ir_remote",
+      "name": "IR Remote",
+      "x": 13,
+      "y": 1,
+      "rotation": 0,
+      "pins": {},
+      "properties": {}
     }
   },
   "wires": {
@@ -41,6 +51,6 @@
   },
   "libraryState": { "servos": {}, "lcd": null, "serialBaud": 0 },
   "serialOutput": [],
-  "sketchCode": "// Example: IR Receiver\n// Decode infrared remote signals on pin 11.\n\n#include <IRremote.h>\n\nint recvPin = 11;\nIRrecv irrecv(recvPin);\ndecode_results results;\n\nvoid setup() {\n  Serial.begin(9600);\n  irrecv.enableIRIn();\n}\n\nvoid loop() {\n  if (irrecv.decode(&results)) {\n    Serial.print(\"IR Code: 0x\");\n    Serial.println(results.value, HEX);\n    irrecv.resume();\n  }\n  delay(100);\n}\n",
+  "sketchCode": "// Example: IR Receiver\n// Decode infrared remote signals on pin 11.\n// Press Play, then click a button on the IR Remote.\n\n#include <IRremote.h>\n\nint recvPin = 11;\n\nvoid setup() {\n  Serial.begin(9600);\n  IrReceiver.begin(recvPin);\n}\n\nvoid loop() {\n  if (IrReceiver.decode()) {\n    Serial.print(\"IR Code: 0x\");\n    Serial.println(IrReceiver.decodedIRData.decodedRawData, HEX);\n    IrReceiver.resume();\n  }\n  delay(100);\n}\n",
   "customLibraries": {}
 }

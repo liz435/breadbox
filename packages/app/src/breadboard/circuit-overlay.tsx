@@ -6,7 +6,7 @@
 // - Red pulsing glow for reverse polarity
 // - Warning indicators near problematic components
 
-import React from "react"
+import React, { useEffect, useRef } from "react"
 import type {
   CircuitAnalysis,
   ComponentElectricalState,
@@ -47,7 +47,38 @@ function SharedFilterDefs() {
 
 // ── Animated current flow line ──────────────────────────────────────
 
+// Peak dot speed in px/s, reached at full intensity. Flow speed scales with
+// current so the dots visibly slow as the current drops — staying in sync with
+// a dimming LED during a capacitor discharge instead of zipping at a fixed rate.
+const FLOW_MAX_SPEED = 70
+
 function CurrentFlowLine({ path }: { path: CurrentPath }) {
+  // Animate stroke-dashoffset by hand via rAF (not SMIL) so the speed can
+  // track the live current smoothly. SMIL's `dur` can't change without
+  // restarting the animation, which is what made the dots ignore the LED.
+  const dashRef = useRef<SVGPathElement>(null)
+  const intensityRef = useRef(0)
+  const offsetRef = useRef(0)
+  const rafRef = useRef(0)
+  const lastTsRef = useRef(0)
+
+  useEffect(() => {
+    function tick(ts: number) {
+      const last = lastTsRef.current || ts
+      const dt = Math.min((ts - last) / 1000, 0.1)
+      lastTsRef.current = ts
+      // Dots move faster with more current, slow to a crawl as it fades.
+      offsetRef.current -= FLOW_MAX_SPEED * intensityRef.current * dt
+      if (offsetRef.current <= -1000) offsetRef.current += 1000
+      if (dashRef.current) {
+        dashRef.current.style.strokeDashoffset = String(offsetRef.current)
+      }
+      rafRef.current = requestAnimationFrame(tick)
+    }
+    rafRef.current = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(rafRef.current)
+  }, [])
+
   if (path.points.length < 2) return null
 
   const d = path.points
@@ -55,6 +86,7 @@ function CurrentFlowLine({ path }: { path: CurrentPath }) {
     .join(" ")
 
   const intensity = Math.min(1, path.current / 20)
+  intensityRef.current = intensity
   const strokeWidth = 1 + intensity * 2
 
   return (
@@ -68,24 +100,18 @@ function CurrentFlowLine({ path }: { path: CurrentPath }) {
         strokeLinecap="round"
         opacity={0.15 * intensity}
       />
-      {/* Animated dashed line */}
+      {/* Dashed line — offset animated in the rAF loop above. Opacity tracks
+          intensity (= the LED's brightness formula) so it fades in lock-step. */}
       <path
+        ref={dashRef}
         d={d}
         fill="none"
         stroke="#fde68a"
         strokeWidth={strokeWidth}
         strokeLinecap="round"
         strokeDasharray="4 6"
-        opacity={0.5 + 0.5 * intensity}
-      >
-        <animate
-          attributeName="stroke-dashoffset"
-          from="0"
-          to="-20"
-          dur="0.6s"
-          repeatCount="indefinite"
-        />
-      </path>
+        opacity={0.15 + 0.55 * intensity}
+      />
     </g>
   )
 }

@@ -186,13 +186,33 @@ export function resolveComponentPins(
         gnd: { row: row + 3, col },
       };
 
-    // ── Shift register (3 signal pins) ───────────────────────────
+    // ── Shift register (74HC595, DIP-16) ─────────────────────────
+    //
+    // Straddles the centre gap on fixed cols 2/7 (like other ICs — the `col`
+    // arg is ignored). Pin order follows the datasheet: pins 1-8 run top→bottom
+    // down the LEFT column, pins 16-9 run top→bottom down the RIGHT column.
+    // Outputs: Q1-Q7 are pins 1-7 (left); Q0 is pin 15 (right).
 
     case "shift_register":
       return {
-        data: { row, col },
-        clock: { row: row + 1, col },
-        latch: { row: row + 2, col },
+        // Left column (col 2): pins 1..8, top → bottom.
+        q1: { row, col: 2 },           // pin 1
+        q2: { row: row + 1, col: 2 },  // pin 2
+        q3: { row: row + 2, col: 2 },  // pin 3
+        q4: { row: row + 3, col: 2 },  // pin 4
+        q5: { row: row + 4, col: 2 },  // pin 5
+        q6: { row: row + 5, col: 2 },  // pin 6
+        q7: { row: row + 6, col: 2 },  // pin 7
+        gnd: { row: row + 7, col: 2 }, // pin 8 (GND)
+        // Right column (col 7): pins 16..9, top → bottom.
+        vcc: { row, col: 7 },            // pin 16 (VCC)
+        q0: { row: row + 1, col: 7 },    // pin 15 (Q0 / Q_A)
+        data: { row: row + 2, col: 7 },  // pin 14 (DS / SER)
+        oe: { row: row + 3, col: 7 },    // pin 13 (/OE)
+        latch: { row: row + 4, col: 7 }, // pin 12 (STCP / RCLK)
+        clock: { row: row + 5, col: 7 }, // pin 11 (SHCP / SRCLK)
+        mr: { row: row + 6, col: 7 },    // pin 10 (/MR / SRCLR)
+        q7s: { row: row + 7, col: 7 },   // pin 9 (Q7' serial-out)
       };
 
     // ── Fallback: generic vertical layout ────────────────────────

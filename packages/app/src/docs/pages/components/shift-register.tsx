@@ -41,8 +41,8 @@ export function ShiftRegisterPage() {
           headers={["Feature", "Status"]}
           rows={[
             ["shiftOut() function", "Implemented — uses the built-in Arduino shiftOut()"],
+            ["Parallel outputs (Q0–Q7)", "Implemented — drive LEDs/components wired to the outputs"],
             ["Cascading (daisy-chain)", "Not implemented — single chip only"],
-            ["Output pin visualization", "Not implemented"],
           ]}
         />
       </Section>

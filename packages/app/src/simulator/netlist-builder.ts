@@ -6,6 +6,7 @@
 import {
   MAX_ARDUINO_PIN,
   isBoardComponentType,
+  resolveComponentPins,
   type BoardComponent,
   type Wire,
   type PinState,
@@ -72,10 +73,16 @@ const ARDUINO_OUTPUT_SOURCE_RESISTANCE_OHMS = 25
 // producing a wrong netlist. The fix lives in breadboard-grid.ts; once
 // resolveNets returns board-scoped nets this function will pick it up
 // for free.
+/** Latched parallel outputs (Q0..Q7) per shift-register component id. */
+export type ShiftRegisterOutputs = ReadonlyMap<string, readonly boolean[]>
+
+const SHIFT_REGISTER_OUTPUT_KEYS = ["q0", "q1", "q2", "q3", "q4", "q5", "q6", "q7"] as const
+
 export function buildNetlist(
   components: Record<string, BoardComponent>,
   wires: Record<string, Wire>,
   pinStates: PinState[],
+  shiftRegisterOutputs?: ShiftRegisterOutputs,
 ): NetlistResult {
   const nets = resolveNets(components, wires)
   const lines: string[] = []
@@ -162,6 +169,33 @@ export function buildNetlist(
         } else if (!ps || ps.mode === "UNSET") {
           // UNSET pins are high-impedance by default: do not source/sink.
         }
+      }
+    }
+  }
+
+  // Shift-register parallel outputs. The 74HC595 isn't an Arduino pin, so its
+  // Q0..Q7 lines never show up in net.arduinoPins. Instead, drive each output
+  // net from the peripheral's latched byte: HIGH → 5V, LOW → 0V, through the
+  // same output resistance a real driver pin has. Wired LEDs then light via the
+  // normal diode path. When the byte isn't supplied (sim not running) the chip
+  // sources nothing and the outputs stay dark.
+  if (shiftRegisterOutputs && shiftRegisterOutputs.size > 0) {
+    for (const comp of Object.values(components)) {
+      if (comp.type !== "shift_register") continue
+      const outputs = shiftRegisterOutputs.get(comp.id)
+      if (!outputs) continue
+      const pinMap = resolveComponentPins(comp.type, comp.y, comp.x, comp.properties)
+      for (let i = 0; i < SHIFT_REGISTER_OUTPUT_KEYS.length; i++) {
+        const pt = pinMap[SHIFT_REGISTER_OUTPUT_KEYS[i]]
+        if (!pt) continue
+        const netId = pointToNetId.get(pointKey(pt))
+        if (!netId) continue
+        voltageSourceNets.push({
+          label: `V_SR_${sanitize(comp.id)}_Q${i}`,
+          netId,
+          voltage: outputs[i] ? 5 : 0,
+          sourceResistanceOhms: ARDUINO_OUTPUT_SOURCE_RESISTANCE_OHMS,
+        })
       }
     }
   }

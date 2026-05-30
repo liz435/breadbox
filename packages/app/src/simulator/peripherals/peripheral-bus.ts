@@ -26,6 +26,7 @@ import { createDhtPeripheral } from "./dht"
 import { createIrReceiverPeripheral } from "./ir-receiver"
 import { createOledPeripheral } from "./ssd1306-oled"
 import { createNeoPixelPeripheral } from "./neopixel"
+import { createShiftRegisterPeripheral } from "./shift-register"
 
 const FACTORIES = new Map<ComponentType, PeripheralFactory>()
 
@@ -45,6 +46,7 @@ registerPeripheralFactory("dht_sensor", createDhtPeripheral)
 registerPeripheralFactory("ir_receiver", createIrReceiverPeripheral)
 registerPeripheralFactory("oled_display", createOledPeripheral)
 registerPeripheralFactory("neopixel", createNeoPixelPeripheral)
+registerPeripheralFactory("shift_register", createShiftRegisterPeripheral)
 
 export type PeripheralBoardInput = {
   components: Record<string, BoardComponent>
@@ -77,6 +79,9 @@ export class PeripheralBus {
   /** Sorted ascending by atSimMs — head is the next edge to fire. */
   private scheduledEdges: ScheduledEdge[] = []
   private boardPinStore: { writeExternal: (pin: number, changes: { digitalValue: 0 | 1 }) => void } | null = null
+  /** Latest AVR sim time seen via flush/tick — the resume point peripherals
+   *  base self-timed frames on (see PeripheralContext.nowSimMs). */
+  private lastSimMs = 0
 
   // ── TWI demux state ────────────────────────────────────────────────────
   private twi: AVRTWI | null = null
@@ -100,6 +105,7 @@ export class PeripheralBus {
         pinStore: input.pinStore,
         trace: (entry) => this.recordTrace(component.id, entry),
         scheduleEdge: (pin, value, atSimMs) => this.scheduleEdge(pin, value, atSimMs),
+        nowSimMs: () => this.lastSimMs,
         attachTwi: (addr, handler) => this.attachTwi(addr, handler),
       })
       this.peripherals.set(component.id, peripheral)
@@ -126,6 +132,7 @@ export class PeripheralBus {
     this.slavesByAddr.clear()
     this.currentSlave = null
     this.twi = null
+    this.lastSimMs = 0
   }
 
   // ── I²C slave registration & demux ─────────────────────────────────────
@@ -211,6 +218,7 @@ export class PeripheralBus {
    * pin store (which forwards to the AVR runner in AVR mode).
    */
   flushScheduledEdges(nowSimMs: number): void {
+    this.lastSimMs = nowSimMs
     if (this.scheduledEdges.length === 0 || !this.boardPinStore) return
     while (
       this.scheduledEdges.length > 0 &&
@@ -235,6 +243,7 @@ export class PeripheralBus {
 
   /** Periodic heartbeat (silence timeouts, housekeeping). */
   tick(simMs: number): void {
+    this.lastSimMs = simMs
     for (const p of this.peripherals.values()) p.onTick(simMs)
   }
 

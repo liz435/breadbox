@@ -12,6 +12,7 @@ import type {
 import { createDefaultBoardState, DEFAULT_BOARD_TARGET, resolveComponentPins } from "@dreamer/schemas";
 import { pinStateStore } from "@/simulator/pin-state-store";
 import { getComponentFootprint, areConnected } from "@/breadboard/breadboard-grid";
+import { sensorRay } from "@/simulator/ray-cast";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -310,14 +311,39 @@ export const boardMachine = setup({
     // ── Components (auto-snapshot) ──
 
     PLACE_COMPONENT: {
-      actions: assign(({ context, event }) => ({
-        ...pushHistory(context),
-        components: {
-          ...context.components,
-          [event.component.id]: event.component,
-        },
-        selectedId: event.component.id,
-      })),
+      actions: assign(({ context, event }) => {
+        const comp = event.component;
+        const base = {
+          ...pushHistory(context),
+          components: { ...context.components, [comp.id]: comp },
+          selectedId: comp.id,
+        };
+        // An ultrasonic sensor needs something to "see". Drop a box obstacle in
+        // front of it by default (along its beam, ~45cm out) so it reports a
+        // live distance immediately — no need to add one from the inspector.
+        if (comp.type === "ultrasonic_sensor") {
+          const ray = sensorRay(comp);
+          const cx = ray.ox + ray.dx * 90;
+          const cy = ray.oy + ray.dy * 90;
+          const obstacle: Obstacle = {
+            id: `obs_${comp.id}`,
+            shape: "box",
+            x1: cx - 30,
+            y1: cy - 20,
+            x2: cx + 30,
+            y2: cy + 20,
+            label: "",
+          };
+          return {
+            ...base,
+            environment: {
+              ...context.environment,
+              obstacles: { ...context.environment.obstacles, [obstacle.id]: obstacle },
+            },
+          };
+        }
+        return base;
+      }),
     },
 
     REMOVE_COMPONENT: {
@@ -340,10 +366,21 @@ export const boardMachine = setup({
           }
         }
 
+        // Clean up the default box obstacle auto-created for an ultrasonic
+        // sensor on placement — it shares the component's id (obs_<id>), so
+        // deleting the sensor removes its box too.
+        let environment = context.environment;
+        const obstacleId = `obs_${event.id}`;
+        if (environment.obstacles[obstacleId]) {
+          const { [obstacleId]: _removedObstacle, ...remainingObstacles } = environment.obstacles;
+          environment = { ...environment, obstacles: remainingObstacles };
+        }
+
         return {
           ...pushHistory(context),
           components: remainingComponents,
           wires: remainingWires,
+          environment,
           selectedId: context.selectedId === event.id ? null : context.selectedId,
         };
       }),

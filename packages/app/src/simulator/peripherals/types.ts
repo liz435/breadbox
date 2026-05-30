@@ -35,6 +35,7 @@ export type PeripheralState =
   | { kind: "dht"; signalPin: number | null; temperatureC: number; humidity: number }
   | { kind: "ir_receiver"; signalPin: number | null; lastCode: number | null; transmitting: boolean }
   | { kind: "oled"; width: number; height: number; on: boolean; inverted: boolean; framebuffer: number[] }
+  | { kind: "shift_register"; data: number | null; clock: number | null; latch: number | null; outputs: boolean[] }
   | { kind: "raw"; componentType: ComponentType }
 
 /**
@@ -75,6 +76,14 @@ export type PeripheralContext = {
    * timed responses (ultrasonic echo, DHT frame, IR NEC envelope).
    */
   scheduleEdge: (pin: number, value: 0 | 1, atSimMs: number) => void
+  /**
+   * The AVR's current simulated time (ms) — the point execution will resume
+   * from on the next run-loop step. Peripherals that emit a self-timed frame
+   * in response to an *external* event (not a pin edge), like the IR receiver
+   * reacting to a remote press, must base their `scheduleEdge` times on this
+   * so the frame unfolds in the future instead of collapsing into one flush.
+   */
+  nowSimMs: () => number
   /**
    * Register an I²C slave handler at `slaveAddr` (7-bit). Throws if the AVR
    * runner didn't wire TWI into the bus — peripherals that opt in to I²C
