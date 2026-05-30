@@ -16,6 +16,8 @@ import { snapshotAsPinStates } from "./pin-state-store"
 import { isBoardComponentType } from "@dreamer/schemas"
 import {
   analyzeCircuit,
+  hasCapacitor,
+  capacitorsAreAnimating,
   type CircuitAnalysis,
 } from "./circuit-solver"
 import { latestSimAnalysisRef } from "./simulation-loop"
@@ -41,6 +43,11 @@ export function useCircuitAnalysis(): {
   const analysisRef = useRef<CircuitAnalysis | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastRunRef = useRef(0)
+  // Wall-clock timestamp of the last analysis, used to step capacitor charge.
+  const lastAnalysisAtRef = useRef(0)
+  // Self-rescheduling timer that animates a stopped-board cap transient until
+  // it settles (then stops, so an idle cap costs nothing).
+  const capAnimTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const depsRef = useRef({ components, wires })
   depsRef.current = { components, wires }
@@ -51,16 +58,38 @@ export function useCircuitAnalysis(): {
     )
   }, [components])
 
+  // Boards with a capacitor need a higher update rate so charge/discharge
+  // transients animate smoothly rather than snapping between coarse frames.
+  const hasReactive = useMemo(() => hasCapacitor(components), [components])
+  const pollMs = hasReactive ? 33 : THROTTLE_MS
+
   const runAnalysis = useCallback(() => {
     lastRunRef.current = Date.now()
     timerRef.current = null
+    // Real elapsed time since the last analysis, used to advance capacitors.
+    const now = performance.now()
+    const dtSeconds = lastAnalysisAtRef.current
+      ? Math.min((now - lastAnalysisAtRef.current) / 1000, 0.25)
+      : 0
+    lastAnalysisAtRef.current = now
     const { components: c, wires: w } = depsRef.current
     try {
-      analysisRef.current = analyzeCircuit(c, w, snapshotAsPinStates())
+      analysisRef.current = analyzeCircuit(c, w, snapshotAsPinStates(), undefined, { dtSeconds })
     } catch {
       analysisRef.current = null
     }
     forceRender()
+
+    // Stopped mode only: if a capacitor is still mid-transient, keep stepping
+    // it on a timer so the charge/discharge animates. It stops itself once the
+    // cap settles; the next pin/structural/button change restarts it.
+    if (capAnimTimerRef.current) {
+      clearTimeout(capAnimTimerRef.current)
+      capAnimTimerRef.current = null
+    }
+    if (!latestSimAnalysisRef.current?.current && capacitorsAreAnimating()) {
+      capAnimTimerRef.current = setTimeout(runAnalysis, 33)
+    }
   }, [])
 
   // When simulation is running, read from its inline analysis result
@@ -74,10 +103,10 @@ export function useCircuitAnalysis(): {
         analysisRef.current = simResult
         forceRender()
       }
-    }, THROTTLE_MS)
+    }, pollMs)
 
     return () => clearInterval(id)
-  }, [])
+  }, [pollMs])
 
   // Re-run analysis whenever components, wires, or pin state changes.
   // Pin state inclusion is critical: button presses, switch flips, and
@@ -131,6 +160,10 @@ export function useCircuitAnalysis(): {
       if (timerRef.current !== null) {
         clearTimeout(timerRef.current)
         timerRef.current = null
+      }
+      if (capAnimTimerRef.current !== null) {
+        clearTimeout(capAnimTimerRef.current)
+        capAnimTimerRef.current = null
       }
     }
   }, [])

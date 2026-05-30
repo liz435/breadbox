@@ -2,23 +2,18 @@
 //
 // Holds the voltage across each capacitor *between* analysis frames.
 //
-// The capacitor itself is simulated by spicey's native `C` element using a
-// proper backward-Euler companion model, which produces the correct
-// exponential RC charge/discharge curve. The only thing spicey can't do on
-// its own is remember the charge from one `simulate()` call to the next — it
-// re-parses the netlist every frame and resets each capacitor to 0V.
+// A capacitor is modelled in the netlist as a DC voltage source held at the
+// value stored here (see the registry). Each frame the circuit solver reads
+// the cap's branch current, probes the surrounding circuit to find where the
+// cap is heading and how fast (Thevenin), and steps this stored voltage one
+// exponential step toward that target on a *watchable* display timescale —
+// see circuit-solver.ts → evolveCapacitorVoltages.
 //
-// So this module is the cross-frame memory: before each transient solve the
-// circuit solver seeds every capacitor's initial voltage from here
-// (`getCapVoltage`), and after the solve it writes the advanced voltage back
-// (`setCapVoltage`). That hand-off is what lets a cap hold its charge, keep
-// charging across frames, and discharge through a path when the supply drops.
-//
-// This file deliberately does NOT integrate anything itself — the previous
-// implementation hand-rolled a forward-Euler step with a 1V/frame clamp,
-// which charged linearly (not exponentially), ignored the series resistance,
-// and was numerically unstable for typical RC values. The real solver owns
-// the physics now; this is just a keyed store.
+// So this module is just the cross-frame memory for that evolving voltage:
+// `getCapVoltage` feeds the next netlist, `setCapVoltage` records the stepped
+// value. It deliberately does NOT integrate anything itself — the original
+// implementation hand-rolled a forward-Euler step with a 1V/frame clamp, which
+// charged linearly (not exponentially) and ignored the circuit entirely.
 
 /** Per-capacitor persistent state. */
 export type CapState = {

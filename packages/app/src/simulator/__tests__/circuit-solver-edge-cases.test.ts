@@ -440,28 +440,27 @@ describe("analyzeCircuit — capacitor netlist element", () => {
     expect(result.componentStates.has("cap1")).toBe(true)
   })
 
-  test("emits a real C element (not a voltage source) sized in microfarads", () => {
+  test("emits a voltage source held at the cap's stored voltage", () => {
+    // The cap is modelled as a DC source at its stored voltage; the solver
+    // probes its branch current to drive the watchable RC evolution.
     const result = analyzeCircuit(
       { cap1: makeCapacitor("cap1", 5, 0, 100) },
       {},
       createDefaultPinStates(),
     )
-    // A genuine capacitor element — `C_<id> nA nB 100u` — so spicey integrates
-    // it as a real RC. The old implementation faked it as a `V_<id>` source.
-    expect(result.netlist).toMatch(/\bC_cap1\b/)
-    expect(result.netlist).toContain("100u")
-    expect(result.netlist).not.toMatch(/\bV_cap1\b/)
+    expect(result.netlist).toMatch(/\bV_cap1\b/)
   })
 })
 
 // ── Capacitor — RC charge / discharge physics ─────────────────────────
 //
-// Circuit: Arduino pin 13 ── cap+ (5,0) ; cap− (7,0) ── GND.
-// The pin drives 5V through its 25Ω output resistance, so the cap charges
-// with τ = 25Ω × 100µF = 2.5ms. We advance the solver in 1ms windows
-// (capAdvanceSeconds) so charging spans several frames and the curve shape
-// is observable. cap+ and cap− sit on different breadboard rows → different
-// nets, so the element is a true two-node capacitor.
+// Circuit: Arduino pin 13 ── cap+ (5,0) ; cap− (7,0) ── GND. The pin drives
+// 5V through its 25Ω output resistance. cap+ and cap− sit on different
+// breadboard rows → different nets, so it's a true two-node capacitor.
+//
+// The cap's displayed voltage is stepped toward its target each call on a
+// watchable exponential timescale; `dtSeconds` is the real elapsed time used
+// to size that step. `getCapVoltage` returns the stepped value.
 
 describe("analyzeCircuit — capacitor RC physics", () => {
   beforeEach(() => {
@@ -477,16 +476,24 @@ describe("analyzeCircuit — capacitor RC physics", () => {
   })
 
   const HIGH = makePinStates([{ pin: 13, mode: "OUTPUT", digitalValue: 1 }])
-  const WINDOW = { capAdvanceSeconds: 0.001 }
+  const STEP = { dtSeconds: 0.1 }
+
+  /** Run one analysis frame and return the resulting stored cap voltage. */
+  function step(
+    components: Record<string, BoardComponent>,
+    wires: Record<string, Wire>,
+    pins: PinState[],
+    opts: { dtSeconds?: number } = STEP,
+  ): number {
+    analyzeCircuit(components, wires, pins, undefined, opts)
+    return getCapVoltage("cap1")
+  }
 
   test("charges toward the supply over successive frames", () => {
     const { components, wires } = chargingCircuit()
-    const v1 = analyzeCircuit(components, wires, HIGH, undefined, WINDOW)
-      .componentStates.get("cap1")?.voltage ?? 0
-    const v2 = analyzeCircuit(components, wires, HIGH, undefined, WINDOW)
-      .componentStates.get("cap1")?.voltage ?? 0
-    const v3 = analyzeCircuit(components, wires, HIGH, undefined, WINDOW)
-      .componentStates.get("cap1")?.voltage ?? 0
+    const v1 = step(components, wires, HIGH)
+    const v2 = step(components, wires, HIGH)
+    const v3 = step(components, wires, HIGH)
 
     expect(v1).toBeGreaterThan(0)
     expect(v2).toBeGreaterThan(v1)
@@ -501,8 +508,7 @@ describe("analyzeCircuit — capacitor RC physics", () => {
     let prev = 0
     const increments: number[] = []
     for (let i = 0; i < 4; i++) {
-      const v = analyzeCircuit(components, wires, HIGH, undefined, WINDOW)
-        .componentStates.get("cap1")?.voltage ?? 0
+      const v = step(components, wires, HIGH)
       increments.push(v - prev)
       prev = v
     }
@@ -511,39 +517,77 @@ describe("analyzeCircuit — capacitor RC physics", () => {
     expect(increments[2]).toBeGreaterThan(increments[3])
   })
 
-  test("holds its charge when the supply is removed", () => {
+  test("a fast transient is spread across many frames, not dumped in one", () => {
+    // Regression: with the real RC (τ = 25Ω·100µF = 2.5ms) the cap would
+    // settle inside a single ~0.1s frame and snap. The display timescale must
+    // keep it moving only a fraction of the way per frame.
     const { components, wires } = chargingCircuit()
-    // Charge up with the pin HIGH.
-    for (let i = 0; i < 8; i++) {
-      analyzeCircuit(components, wires, HIGH, undefined, WINDOW)
-    }
+    const v1 = step(components, wires, HIGH)
+    // One 0.1s frame must not get anywhere near the 5V rail.
+    expect(v1).toBeLessThan(3)
+    expect(v1).toBeGreaterThan(0)
+  })
+
+  test("holds its charge when the supply is removed (no discharge path)", () => {
+    const { components, wires } = chargingCircuit()
+    for (let i = 0; i < 10; i++) step(components, wires, HIGH)
     const charged = getCapVoltage("cap1")
     expect(charged).toBeGreaterThan(3)
 
-    // Pin goes high-impedance (UNSET): no source, no discharge path. The cap
-    // should retain essentially all of its charge across a full 0.2s frame.
+    // Pin goes high-impedance (UNSET): no source, no discharge path (only the
+    // 1GΩ solver bleed). Even across a long frame the cap should hold.
     const floating = makePinStates([{ pin: 13, mode: "UNSET" }])
-    analyzeCircuit(components, wires, floating)
-    expect(getCapVoltage("cap1")).toBeGreaterThan(charged * 0.95)
+    const held = step(components, wires, floating, { dtSeconds: 0.5 })
+    expect(held).toBeGreaterThan(charged * 0.95)
   })
 
-  test("discharges through a path when the pin is pulled LOW", () => {
+  test("discharges gradually through a path, not instantly", () => {
     const { components, wires } = chargingCircuit()
-    for (let i = 0; i < 8; i++) {
-      analyzeCircuit(components, wires, HIGH, undefined, WINDOW)
-    }
+    for (let i = 0; i < 10; i++) step(components, wires, HIGH)
     const charged = getCapVoltage("cap1")
     expect(charged).toBeGreaterThan(3)
 
     // Pin LOW drives cap+ to 0V through 25Ω → the cap discharges.
     const low = makePinStates([{ pin: 13, mode: "OUTPUT", digitalValue: 0 }])
-    const d1 = analyzeCircuit(components, wires, low, undefined, WINDOW)
-      .componentStates.get("cap1")?.voltage ?? 0
-    const d2 = analyzeCircuit(components, wires, low, undefined, WINDOW)
-      .componentStates.get("cap1")?.voltage ?? 0
+    const d1 = step(components, wires, low)
+    const d2 = step(components, wires, low)
 
     expect(d1).toBeLessThan(charged)
     expect(d2).toBeLessThan(d1)
+    // Crucially it does NOT collapse to ~0 in a single frame.
+    expect(d1).toBeGreaterThan(charged * 0.4)
+  })
+
+  test("LED across a discharging cap stays lit instead of snapping off", () => {
+    // The user-reported bug: discharging made the LED go instantly dark.
+    // LED in parallel with the cap: anode→cap+ net, cathode→cap− net.
+    const components: Record<string, BoardComponent> = {
+      cap1: makeCapacitor("cap1", 5, 0, 100),
+      led1: makeLed("led1", 10, 0),
+    }
+    const wires: Record<string, Wire> = {
+      wPwr: { id: "wPwr", fromRow: -999, fromCol: 13, toRow: 5, toCol: 0, color: "red" },
+      wGnd: { id: "wGnd", fromRow: -999, fromCol: -3, toRow: 7, toCol: 0, color: "black" },
+      wAnode: { id: "wAnode", fromRow: 10, fromCol: 0, toRow: 5, toCol: 0, color: "green" },
+      wCathode: { id: "wCathode", fromRow: 11, fromCol: 0, toRow: 7, toCol: 0, color: "green" },
+    }
+
+    // Charge with the pin HIGH; the LED should be lit.
+    for (let i = 0; i < 10; i++) analyzeCircuit(components, wires, HIGH, undefined, STEP)
+    const litBrightness = analyzeCircuit(components, wires, HIGH, undefined, STEP)
+      .componentStates.get("led1")?.brightness ?? 0
+    expect(litBrightness).toBeGreaterThan(0)
+
+    // Remove the supply: the cap discharges through the LED. After one frame
+    // the LED must still be lit (not snapped off), and the cap must still hold
+    // a meaningful fraction of its charge.
+    const floating = makePinStates([{ pin: 13, mode: "UNSET" }])
+    const chargeBefore = getCapVoltage("cap1")
+    const firstDischargeFrame = analyzeCircuit(components, wires, floating, undefined, STEP)
+    const ledAfter = firstDischargeFrame.componentStates.get("led1")?.brightness ?? 0
+
+    expect(ledAfter).toBeGreaterThan(0)
+    expect(getCapVoltage("cap1")).toBeGreaterThan(chargeBefore * 0.4)
   })
 })
 

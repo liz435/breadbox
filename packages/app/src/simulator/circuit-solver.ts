@@ -14,57 +14,106 @@ import { estimateDiodeCurrentMa, getLedDiodeModel, getRgbLedDiodeModel } from ".
 
 type ParsedCircuit = ReturnType<typeof parseNetlist>
 
-// ── Transient stepping for reactive elements ─────────────────────────
+// ── Capacitor charge/discharge (watchable-time RC) ───────────────────
 //
-// Capacitors and inductors only behave correctly inside a time-domain solve.
-// Each analysis call advances the transient by CAP_ADVANCE_SECONDS of
-// simulated time, integrated in CAP_SUBSTEPS backward-Euler steps (spicey's
-// native companion model — a true exponential RC curve). The analysis runs at
-// a ~200ms cadence (the simulation loop calls it every 12 frames ≈ 200ms; the
-// stopped-board hook throttles to 200ms), so a 0.2s advance per call makes
-// simulated time track wall-clock roughly 1:1 — a 100µF·10kΩ (τ=1s) cap
-// visibly settles over about a second of watching.
-const CAP_ADVANCE_SECONDS = 0.2
-const CAP_SUBSTEPS = 20
+// A capacitor is modelled in the netlist as a DC voltage source held at its
+// current stored voltage Vd (see the registry). Each frame we evolve Vd one
+// step toward the voltage it's heading for, following the correct exponential
+// RC shape — but on a *display* timescale so the transition is always
+// watchable instead of completing in a single ~200ms analysis frame.
+//
+// To find where the cap is heading and how fast, we probe the circuit it sees
+// with a two-point Thevenin extraction: solve at Vd and again at Vd+δ, read
+// the cap's branch current at each, and fit the line I(V):
+//   - Vth  (current = 0)         → the steady-state voltage the cap approaches
+//   - Rth = 1/|dI/dV|            → the real Thevenin resistance → τ = Rth·C
+// The displayed time constant is max(τ, FLOOR): a fast RC (small τ) is
+// stretched so it settles over ~5·FLOOR ≈ 1.5s, while a cap with no real
+// discharge path (huge τ) keeps its real time constant and simply holds.
+//
+// Because we re-probe every frame, a nonlinear load (an LED's exponential I-V)
+// is followed piecewise-linearly — the cap traces the true nonlinear curve,
+// just time-stretched.
+const CAP_DISPLAY_TAU_FLOOR = 0.3 // seconds; fast transients settle in ~5×this
+const CAP_PROBE_DELTA = 0.01 // volts; step for the two-point Thevenin probe
 
-/** SPICE element name the registry emits for a capacitor component. */
+/** SPICE element name the registry emits for a capacitor component (a V source). */
 function capElementName(componentId: string): string {
-  return `C_${componentId.replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 20)}`
+  return `V_${componentId.replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 20)}`
+}
+
+/** True if the board has any capacitor whose transient needs animating. */
+export function hasCapacitor(components: Record<string, BoardComponent>): boolean {
+  return Object.values(components).some((c) => c.type === "capacitor")
+}
+
+// Whether the most recent evolution actually moved a capacitor. Lets the
+// stopped-board hook stop polling once a transient settles instead of
+// re-analyzing forever.
+let capacitorsMovedLastStep = false
+const CAP_SETTLED_VOLTS = 1e-3
+
+/** True if the last analysis stepped a capacitor (a transient is in progress). */
+export function capacitorsAreAnimating(): boolean {
+  return capacitorsMovedLastStep
 }
 
 /**
- * Seed each capacitor's stored charge as the initial condition for this
- * solve. spicey resets vPrev to 0 on every parse, so without this the cap
- * would restart from 0V every frame and never hold a charge.
+ * Evolve every capacitor's displayed voltage one frame toward its steady-state
+ * target, on a watchable exponential timescale. Mutates the persistent store
+ * via setCapVoltage. `dtSeconds` is the real wall-clock time since the last
+ * evolution; with 0 (a one-shot analysis) nothing moves.
+ *
+ * `baseCurrent` reads a cap's branch current from the already-computed base
+ * solve; perturbation solves are run here against `circuit` (caps are V
+ * sources, so flipping `dc` and re-solving is cheap and gives exact currents).
  */
-function seedCapacitorVoltages(circuit: ParsedCircuit, comps: BoardComponent[]): void {
-  if (circuit.C.length === 0) return
+function evolveCapacitorVoltages(
+  circuit: ParsedCircuit,
+  comps: BoardComponent[],
+  dtSeconds: number,
+  baseCurrent: (elementName: string) => number,
+): void {
+  if (dtSeconds <= 0) return
+  capacitorsMovedLastStep = false
   for (const comp of comps) {
     if (comp.type !== "capacitor") continue
-    const cap = circuit.C.find((c) => c.name === capElementName(comp.id))
-    if (cap) cap.vPrev = getCapVoltage(comp.id)
-  }
-}
+    const name = capElementName(comp.id)
+    const source = circuit.V.find((v) => v.name === name)
+    if (!source) continue
 
-/** Write back the voltage each capacitor reached so the next frame resumes from it. */
-function persistCapacitorVoltages(circuit: ParsedCircuit, comps: BoardComponent[]): void {
-  if (circuit.C.length === 0) return
-  for (const comp of comps) {
-    if (comp.type !== "capacitor") continue
-    const cap = circuit.C.find((c) => c.name === capElementName(comp.id))
-    if (cap) setCapVoltage(comp.id, cap.vPrev)
-  }
-}
+    const vd = getCapVoltage(comp.id)
+    const capF = ((comp.properties.capacitance as number) ?? 100) * 1e-6
+    const i0 = baseCurrent(name)
 
-/**
- * Widen the transient window for boards with reactive elements so charge
- * visibly evolves. Purely resistive/diode circuits reach steady state
- * instantly, so they keep the netlist's tiny `.tran` window for speed.
- */
-function configureTransientWindow(circuit: ParsedCircuit, advanceSeconds: number): void {
-  if (circuit.C.length === 0 && circuit.L.length === 0) return
-  const tstop = Math.max(advanceSeconds, 1e-4)
-  circuit.analyses.tran = { dt: tstop / CAP_SUBSTEPS, tstop }
+    // Probe at Vd + δ to get the local slope dI/dV the cap sees.
+    const original = source.dc
+    source.dc = vd + CAP_PROBE_DELTA
+    let i1: number
+    try {
+      const probe = simulateTRAN(circuit)
+      const series = probe?.elementCurrents?.[name]
+      i1 = series && series.length > 0 ? series[series.length - 1] : i0
+    } catch {
+      source.dc = original
+      continue
+    }
+    source.dc = original
+
+    const slope = (i1 - i0) / CAP_PROBE_DELTA // dI/dV
+    if (!Number.isFinite(slope) || Math.abs(slope) < 1e-9) {
+      // No appreciable conduction path (or numerically open) → cap holds.
+      continue
+    }
+    const vth = vd - i0 / slope // terminal voltage where current is zero
+    const rth = 1 / Math.abs(slope)
+    const tauDisplay = Math.max(rth * capF, CAP_DISPLAY_TAU_FLOOR)
+    const next = vth + (vd - vth) * Math.exp(-dtSeconds / tauDisplay)
+    if (Number.isFinite(next)) {
+      if (Math.abs(next - vd) > CAP_SETTLED_VOLTS) capacitorsMovedLastStep = true
+      setCapVoltage(comp.id, next)
+    }
+  }
 }
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -111,7 +160,7 @@ export function analyzeCircuit(
   wires: Record<string, Wire>,
   pinStates: PinState[],
   shiftRegisterOutputs?: ShiftRegisterOutputs,
-  options?: { capAdvanceSeconds?: number },
+  options?: { dtSeconds?: number },
 ): CircuitAnalysis {
   const componentStates = new Map<string, ComponentElectricalState>()
   const currentPaths: CurrentPath[] = []
@@ -150,18 +199,14 @@ export function analyzeCircuit(
     }
   }
 
-  // Parse + run the transient solve directly (rather than spicey's all-in-one
-  // simulate()) so we can seed each capacitor's stored charge as its initial
-  // condition before integrating, and skip the unused AC pass.
+  // Parse + run the DC operating-point solve directly (rather than spicey's
+  // all-in-one simulate()) so we can keep the parsed circuit around for the
+  // per-capacitor Thevenin probes below, and skip the unused AC pass.
   let tran: ReturnType<typeof simulateTRAN>
+  let circuit: ParsedCircuit | null = null
   try {
-    const circuit = parseNetlist(netlist)
-    seedCapacitorVoltages(circuit, circuitComponents)
-    configureTransientWindow(circuit, options?.capAdvanceSeconds ?? CAP_ADVANCE_SECONDS)
+    circuit = parseNetlist(netlist)
     tran = simulateTRAN(circuit)
-    // Persist the voltage each capacitor reached so the next frame resumes
-    // from it (charge retention + continued charge/discharge across frames).
-    persistCapacitorVoltages(circuit, circuitComponents)
   } catch {
     // Simulation failed — mark all components as inactive. Stored capacitor
     // charge is left untouched, so a solver hiccup just holds the last value.
@@ -274,6 +319,13 @@ export function analyzeCircuit(
       const points = footprint.points.map((pt) => gridToPixel(pt))
       currentPaths.push({ fromNode: pair.nodeA, toNode: pair.nodeB, current: currentA, points })
     }
+  }
+
+  // Advance capacitor charge for the NEXT frame. The state reported above
+  // reflects the cap at its current displayed voltage; this steps that voltage
+  // toward its target on a watchable exponential timescale.
+  if (circuit) {
+    evolveCapacitorVoltages(circuit, circuitComponents, options?.dtSeconds ?? 0, getElementCurrent)
   }
 
   // Check for open circuits: if no component has current flowing

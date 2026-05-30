@@ -19,6 +19,7 @@
 import type React from "react"
 import { HOLE_SPACING } from "@/breadboard/breadboard-constants"
 import { buttonPressStore } from "@/simulator/button-press-store"
+import { getCapVoltage } from "@/simulator/capacitor-state"
 import { diodeModelLine, getLedDiodeModel, getRgbLedDiodeModel } from "@/simulator/diode-model"
 import { resolveComponentPins } from "@dreamer/schemas"
 import type { ComponentDefinition } from "./component-definition"
@@ -257,18 +258,19 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
         <line x1={12} y1={12} x2={12} y2={22} stroke="#ccc" strokeWidth={1.5} />
       </svg>
     ),
-    spicePrefix: "C",
+    spicePrefix: "V",
     buildNetlist: (comp, { footprint, resolveNode }) => {
       const nodeA = resolveNode(footprint.points[0])
       const nodeB = resolveNode(footprint.points[1])
-      // Real SPICE capacitor element. spicey integrates it with a
-      // backward-Euler companion model over the transient window, producing a
-      // true exponential charge/discharge curve. The circuit solver seeds its
-      // initial voltage from — and writes its final voltage back to —
-      // capacitor-state.ts so charge persists across analysis frames.
-      const capUf = (comp.properties.capacitance as number) ?? 100
+      // Model the capacitor as a DC voltage source held at its current stored
+      // voltage. The circuit solver reads the resulting branch current to probe
+      // the surrounding circuit (Thevenin) and steps the stored voltage toward
+      // its target on a watchable exponential timescale (see circuit-solver.ts
+      // → evolveCapacitorVoltages). The branch current also drives the charge/
+      // discharge current-path animation.
+      const storedV = getCapVoltage(comp.id)
       return {
-        lines: [`C_${sanitize(comp.id)} ${nodeA} ${nodeB} ${capUf}u`],
+        lines: [`V_${sanitize(comp.id)} ${nodeA} ${nodeB} ${storedV}`],
         nodeA,
         nodeB,
       }
