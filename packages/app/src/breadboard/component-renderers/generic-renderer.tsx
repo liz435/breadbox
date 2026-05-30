@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { MAX_ARDUINO_PIN, type BoardComponent, type PinState, type LibraryState, type Wire } from "@dreamer/schemas";
 import type { ComponentElectricalState } from "@/simulator/circuit-solver";
 import { areConnected, getComponentFootprint, gridToPixel } from "@/breadboard/breadboard-grid";
@@ -891,48 +891,63 @@ function UltrasonicSensorRenderer({ component, isSelected }: { component: BoardC
   const pinTop = pins[0];
   const pinBot = pins[3];
 
-  const distance = Math.max(2, Math.min(400, (component.properties.distance as number) ?? 50));
-  const ringColor = distance < 15 ? "#ef4444" : distance < 60 ? "#fbbf24" : "#22d3ee";
+  // NOTE: the sensing beam, measured distance, and any obstacles (boxes/walls)
+  // are NOT drawn here — they live in EnvironmentOverlay, which ray-casts the
+  // real environment. This renderer only draws the physical HC-SR04 module.
 
   // PCB body sits to the LEFT of the pin column.
-  const pcbW = 48;
-  const pcbH = (pinBot.y - pinTop.y) + 20;
+  const pcbW = 50;
+  const pcbH = (pinBot.y - pinTop.y) + 22;
   const pcbCx = pinTop.x - pcbW / 2 - 10;
   const pcbCy = (pinTop.y + pinBot.y) / 2;
   const pcbL = pcbCx - pcbW / 2;
   const pcbT = pcbCy - pcbH / 2;
 
-  // Two stacked transducer "eyes" — T on top, R below (vertical layout)
-  const eyeR = 8;
-  const eyeX = pcbCx - 2;
-  const eyeTy = pcbCy - eyeR - 3;
-  const eyeBy = pcbCy + eyeR + 3;
+  // Two stacked transducer cans — T (trigger) on top, R (echo) below.
+  const eyeR = 9.5;
+  const eyeX = pcbCx;
+  const eyeGap = eyeR + 4;
+  const eyeTy = pcbCy - eyeGap;
+  const eyeBy = pcbCy + eyeGap;
+  const meshAngles = [0, 45, 90, 135, 180, 225, 270, 315];
 
   const pcbGradId = `us-pcb-${component.id}`;
-  const eyeTGradId = `us-eyeT-${component.id}`;
-  const eyeBGradId = `us-eyeB-${component.id}`;
+  const bevelGradId = `us-bevel-${component.id}`;
+  const eyeGradId = `us-eye-${component.id}`;
+  const holeGradId = `us-hole-${component.id}`;
 
-  const pinNames = ["vcc", "trg", "ech", "gnd"];
+  // Proper pin names so PinLabel colour-codes them (red/amber/green/grey).
+  const pinNames = ["vcc", "trig", "echo", "gnd"];
+
+  const corners: Array<[number, number]> = [
+    [pcbL + 4, pcbT + 4],
+    [pcbL + pcbW - 4, pcbT + 4],
+    [pcbL + 4, pcbT + pcbH - 4],
+    [pcbL + pcbW - 4, pcbT + pcbH - 4],
+  ];
 
   return (
     <g>
       <defs>
         <linearGradient id={pcbGradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#1e40af" />
-          <stop offset="50%" stopColor="#1e3a8a" />
+          <stop offset="0%" stopColor="#2563eb" />
+          <stop offset="45%" stopColor="#1e40af" />
           <stop offset="100%" stopColor="#172554" />
         </linearGradient>
-        <radialGradient id={eyeTGradId} cx="35%" cy="35%" r="75%">
-          <stop offset="0%" stopColor="#e5e7eb" />
-          <stop offset="30%" stopColor="#9ca3af" />
-          <stop offset="70%" stopColor="#4b5563" />
-          <stop offset="100%" stopColor="#1f2937" />
+        <linearGradient id={bevelGradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#ffffff" stopOpacity={0.4} />
+          <stop offset="100%" stopColor="#ffffff" stopOpacity={0} />
+        </linearGradient>
+        <radialGradient id={eyeGradId} cx="36%" cy="32%" r="78%">
+          <stop offset="0%" stopColor="#f8fafc" />
+          <stop offset="32%" stopColor="#cbd5e1" />
+          <stop offset="68%" stopColor="#64748b" />
+          <stop offset="100%" stopColor="#1e293b" />
         </radialGradient>
-        <radialGradient id={eyeBGradId} cx="35%" cy="35%" r="75%">
-          <stop offset="0%" stopColor="#e5e7eb" />
-          <stop offset="30%" stopColor="#9ca3af" />
-          <stop offset="70%" stopColor="#4b5563" />
-          <stop offset="100%" stopColor="#1f2937" />
+        <radialGradient id={holeGradId} cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#0b1220" />
+          <stop offset="60%" stopColor="#0b1220" />
+          <stop offset="100%" stopColor="#b08d57" />
         </radialGradient>
       </defs>
 
@@ -954,91 +969,73 @@ function UltrasonicSensorRenderer({ component, isSelected }: { component: BoardC
       ))}
 
       {/* Drop shadow */}
-      <rect x={pcbL + 1} y={pcbT + 1.5} width={pcbW} height={pcbH} rx={2} fill="#00000060" />
+      <rect x={pcbL + 1} y={pcbT + 1.5} width={pcbW} height={pcbH} rx={3.5} fill="#00000055" />
 
       {/* PCB body */}
-      <rect x={pcbL} y={pcbT} width={pcbW} height={pcbH} rx={2}
+      <rect x={pcbL} y={pcbT} width={pcbW} height={pcbH} rx={3.5}
         fill={`url(#${pcbGradId})`}
         stroke={isSelected ? "#3b82f6" : "#0c1e4f"}
-        strokeWidth={isSelected ? 1.5 : 0.8} />
+        strokeWidth={isSelected ? 1.8 : 0.9} />
+      {/* Glossy top bevel + inset border for depth */}
+      <rect x={pcbL + 1.5} y={pcbT + 1.5} width={pcbW - 3} height={pcbH * 0.42} rx={2.5} fill={`url(#${bevelGradId})`} />
+      <rect x={pcbL + 2.5} y={pcbT + 2.5} width={pcbW - 5} height={pcbH - 5} rx={2.5} fill="none" stroke="#60a5fa" strokeWidth={0.4} opacity={0.35} />
 
-      {/* Corner solder pads */}
-      {[[pcbL + 2.5, pcbT + 2.5], [pcbL + pcbW - 2.5, pcbT + 2.5], [pcbL + 2.5, pcbT + pcbH - 2.5], [pcbL + pcbW - 2.5, pcbT + pcbH - 2.5]].map(([cx, cy], i) => (
-        <circle key={i} cx={cx} cy={cy} r={0.8} fill="#b08d57" opacity={0.7} />
-      ))}
-
-      {/* Silkscreen label — sideways on the right edge of the PCB */}
-      <text x={pcbL + pcbW - 4} y={pcbT + 5} textAnchor="end" fontSize={2.5}
-        fill="#93c5fd" fontFamily="monospace">HC-SR04</text>
-      <text x={pcbL + pcbW - 4} y={pcbT + 8.5} textAnchor="end" fontSize={2.2}
-        fill="#60a5fa" fontFamily="monospace">40kHz</text>
-
-      {/* Small crystal oscillator between the two eyes */}
-      <rect x={eyeX - 2} y={pcbCy - 1.5} width={4} height={3} rx={0.4}
-        fill="#9ca3af" stroke="#4b5563" strokeWidth={0.3} />
-
-      {/* === Top eye: TRIGGER (T) === */}
-      {/* Ping wave rings radiating out of the trigger eye to the LEFT */}
-      {[0, 1, 2].map(i => (
-        <circle
-          key={i}
-          cx={eyeX}
-          cy={eyeTy}
-          r={eyeR + 2}
-          fill="none"
-          stroke={ringColor}
-          strokeWidth={0.8}
-          opacity={0.5}
-        >
-          <animate attributeName="r" values={`${eyeR + 2};${eyeR + 14};${eyeR + 2}`} dur="2.5s" begin={`${i * 0.8}s`} repeatCount="indefinite" />
-          <animate attributeName="opacity" values="0.6;0;0.6" dur="2.5s" begin={`${i * 0.8}s`} repeatCount="indefinite" />
-        </circle>
-      ))}
-
-      <circle cx={eyeX} cy={eyeTy} r={eyeR}
-        fill={`url(#${eyeTGradId})`}
-        stroke="#0f172a" strokeWidth={0.6} />
-      <circle cx={eyeX} cy={eyeTy} r={eyeR - 1.5} fill="none" stroke="#1f2937" strokeWidth={0.4} />
-      <circle cx={eyeX} cy={eyeTy} r={eyeR - 3} fill="none" stroke="#1f2937" strokeWidth={0.3} opacity={0.7} />
-      <line x1={eyeX - eyeR + 1} y1={eyeTy} x2={eyeX + eyeR - 1} y2={eyeTy} stroke="#1f2937" strokeWidth={0.3} opacity={0.6} />
-      <line x1={eyeX} y1={eyeTy - eyeR + 1} x2={eyeX} y2={eyeTy + eyeR - 1} stroke="#1f2937" strokeWidth={0.3} opacity={0.6} />
-      <text x={eyeX + eyeR + 2} y={eyeTy + 1} fontSize={3} fill="#dbeafe" fontFamily="monospace" fontWeight="bold">T</text>
-
-      {/* === Bottom eye: ECHO (R) === */}
-      {/* Incoming echo dashed lines from the LEFT */}
-      {[0, 1].map(i => (
-        <g key={i} opacity={0.5}>
-          <line
-            x1={eyeX - eyeR - 12}
-            y1={eyeBy}
-            x2={eyeX - eyeR - 2}
-            y2={eyeBy}
-            stroke={ringColor}
-            strokeWidth={0.8}
-            strokeDasharray="1.5 1"
-          >
-            <animate attributeName="opacity" values="0;0.8;0" dur="2.5s" begin={`${0.8 + i * 0.8}s`} repeatCount="indefinite" />
-          </line>
+      {/* Plated corner mounting holes */}
+      {corners.map(([cx, cy], i) => (
+        <g key={i}>
+          <circle cx={cx} cy={cy} r={2.4} fill="none" stroke="#cd9b5a" strokeWidth={1} opacity={0.85} />
+          <circle cx={cx} cy={cy} r={1.4} fill={`url(#${holeGradId})`} />
         </g>
       ))}
 
-      <circle cx={eyeX} cy={eyeBy} r={eyeR}
-        fill={`url(#${eyeBGradId})`}
-        stroke="#0f172a" strokeWidth={0.6} />
-      <circle cx={eyeX} cy={eyeBy} r={eyeR - 1.5} fill="none" stroke="#1f2937" strokeWidth={0.4} />
-      <circle cx={eyeX} cy={eyeBy} r={eyeR - 3} fill="none" stroke="#1f2937" strokeWidth={0.3} opacity={0.7} />
-      <line x1={eyeX - eyeR + 1} y1={eyeBy} x2={eyeX + eyeR - 1} y2={eyeBy} stroke="#1f2937" strokeWidth={0.3} opacity={0.6} />
-      <line x1={eyeX} y1={eyeBy - eyeR + 1} x2={eyeX} y2={eyeBy + eyeR - 1} stroke="#1f2937" strokeWidth={0.3} opacity={0.6} />
-      <text x={eyeX + eyeR + 2} y={eyeBy + 1} fontSize={3} fill="#dbeafe" fontFamily="monospace" fontWeight="bold">R</text>
+      {/* Center crystal + tiny SMD details */}
+      <rect x={eyeX - 3} y={pcbCy - 2} width={6} height={4} rx={0.8} fill="#d4d4d8" stroke="#52525b" strokeWidth={0.4} />
+      <rect x={eyeX - 2.4} y={pcbCy - 1.4} width={4.8} height={2.8} rx={0.5} fill="none" stroke="#a1a1aa" strokeWidth={0.3} opacity={0.7} />
+      <rect x={pcbL + pcbW - 9} y={pcbCy - 6} width={3} height={2} rx={0.3} fill="#0f172a" opacity={0.7} />
+      <rect x={pcbL + pcbW - 9} y={pcbCy + 4} width={3} height={2} rx={0.3} fill="#0f172a" opacity={0.7} />
 
-      {/* Distance readout — above the PCB */}
-      <text x={pcbCx} y={pcbT - 3} textAnchor="middle" fontSize={4.2}
-        fill={ringColor} fontFamily="monospace" fontWeight="bold">
-        {distance} cm
-      </text>
+      {/* === Transducer cans (T = trigger, R = echo) === */}
+      {[{ cy: eyeTy, label: "T" }, { cy: eyeBy, label: "R" }].map(({ cy, label }) => (
+        <g key={label}>
+          {/* recessed shadow ring */}
+          <circle cx={eyeX} cy={cy} r={eyeR + 1} fill="#070d18" opacity={0.55} />
+          {/* metal can */}
+          <circle cx={eyeX} cy={cy} r={eyeR} fill={`url(#${eyeGradId})`} stroke="#0f172a" strokeWidth={0.8} />
+          {/* rim highlight */}
+          <circle cx={eyeX} cy={cy} r={eyeR - 0.9} fill="none" stroke="#f8fafc" strokeWidth={0.45} opacity={0.45} />
+          {/* mesh grille — concentric rings */}
+          <circle cx={eyeX} cy={cy} r={eyeR - 2.6} fill="none" stroke="#1f2937" strokeWidth={0.45} opacity={0.8} />
+          <circle cx={eyeX} cy={cy} r={eyeR - 4.6} fill="none" stroke="#1f2937" strokeWidth={0.4} opacity={0.7} />
+          {/* mesh grille — radial spokes */}
+          {meshAngles.map((deg) => {
+            const rad = (deg * Math.PI) / 180;
+            return (
+              <line
+                key={deg}
+                x1={eyeX + Math.cos(rad) * 1.5}
+                y1={cy + Math.sin(rad) * 1.5}
+                x2={eyeX + Math.cos(rad) * (eyeR - 1.5)}
+                y2={cy + Math.sin(rad) * (eyeR - 1.5)}
+                stroke="#1f2937"
+                strokeWidth={0.3}
+                opacity={0.45}
+              />
+            );
+          })}
+          {/* dark center + specular highlight */}
+          <circle cx={eyeX} cy={cy} r={1.6} fill="#111827" />
+          <ellipse cx={eyeX - 2.6} cy={cy - 2.8} rx={2.6} ry={1.7} fill="#ffffff" opacity={0.4} />
+          {/* T / R silkscreen, to the right of the can */}
+          <text x={eyeX + eyeR + 2.5} y={cy + 1.4} fontSize={4} fill="#dbeafe" fontFamily="monospace" fontWeight="bold">{label}</text>
+        </g>
+      ))}
+
+      {/* Silkscreen part number near the bottom */}
+      <text x={pcbCx} y={pcbT + pcbH - 4.5} textAnchor="middle" fontSize={4.2}
+        fill="#bfdbfe" fontFamily="monospace" fontWeight="bold" letterSpacing="0.4">HC-SR04</text>
 
       {/* Component name — below the PCB */}
-      <text x={pcbCx} y={pcbT + pcbH + 6} textAnchor="middle"
+      <text x={pcbCx} y={pcbT + pcbH + 7} textAnchor="middle"
         fontSize={LABEL_FONT_SIZE} fill="#888" fontFamily="monospace">
         {component.name}
       </text>
@@ -2029,6 +2026,70 @@ function RelayRenderer({ component, pinStates, isSelected }: {
   );
 }
 
+/**
+ * Drives a continuously-accumulating SVG rotation via requestAnimationFrame.
+ *
+ * SMIL <animateTransform> restarts its timeline from 0° whenever the `dur`
+ * attribute changes — and during spin-up the sketch nudges the PWM duty every
+ * ~30ms, so a SMIL-driven rotor visibly snaps back to zero on every step.
+ * Accumulating the angle in a ref instead means a speed change only alters how
+ * fast the angle grows; the rotor never jumps. The velocity also eases toward
+ * its target each frame, so the motor spins up smoothly rather than popping to
+ * full speed. Transforms are written directly to the DOM nodes to avoid a React
+ * re-render per frame.
+ */
+function useMotorSpin(
+  copperTargetVel: number,
+  ringTargetVel: number,
+  cx: number,
+  cy: number,
+  active: boolean,
+) {
+  const copperRef = useRef<SVGGElement>(null);
+  const ringRef = useRef<SVGCircleElement>(null);
+  const copperAngle = useRef(0);
+  const ringAngle = useRef(0);
+  const copperVel = useRef(0);
+  const ringVel = useRef(0);
+  // Targets refresh every render without restarting the rAF loop below.
+  const copperTarget = useRef(copperTargetVel);
+  const ringTarget = useRef(ringTargetVel);
+  copperTarget.current = copperTargetVel;
+  ringTarget.current = ringTargetVel;
+
+  useEffect(() => {
+    if (!active) return;
+    const SMOOTH = 3.5; // velocity easing rate (~0.3s spin-up time constant)
+    let raf = 0;
+    let last: number | null = null;
+    const tick = (t: number) => {
+      raf = requestAnimationFrame(tick);
+      if (last == null) {
+        last = t;
+        return;
+      }
+      const dt = Math.min(0.1, (t - last) / 1000); // clamp after background tabs
+      last = t;
+      const ease = Math.min(1, dt * SMOOTH);
+      copperVel.current += (copperTarget.current - copperVel.current) * ease;
+      ringVel.current += (ringTarget.current - ringVel.current) * ease;
+      copperAngle.current = (copperAngle.current + copperVel.current * dt) % 360;
+      ringAngle.current = (ringAngle.current + ringVel.current * dt) % 360;
+      copperRef.current?.setAttribute("transform", `rotate(${copperAngle.current.toFixed(2)} ${cx} ${cy})`);
+      ringRef.current?.setAttribute("transform", `rotate(${ringAngle.current.toFixed(2)} ${cx} ${cy})`);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(raf);
+      // Reset so the next spin-up always eases from rest, not the old speed.
+      copperVel.current = 0;
+      ringVel.current = 0;
+    };
+  }, [active, cx, cy]);
+
+  return { copperRef, ringRef };
+}
+
 function DcMotorRenderer({ component, pinStates, isSelected }: {
   component: BoardComponent;
   pinStates: PinState[];
@@ -2046,9 +2107,23 @@ function DcMotorRenderer({ component, pinStates, isSelected }: {
       : pinState.digitalValue
     : 0;
   const isSpinning = duty > 0.01;
-  // Period: 0.8s at full speed → 3s at 10% duty
-  const spinPeriod = isSpinning ? (0.8 + (1 - duty) * 2.2).toFixed(2) : "0";
-  const motionOpacity = 0.22 + Math.min(0.42, duty * 0.42);
+  // Period: 1.3s at full speed → 3.5s near stall. Kept deliberately slow — the
+  // windings have 3-fold symmetry, so a fast spin on a sharp repeating pattern
+  // strobes (wagon-wheel effect) and reads as jank. At ~1.3s/rev the spokes
+  // stay trackable on a 60fps display.
+  const spinPeriodNum = 1.3 + (1 - duty) * 2.2;
+  const spinPeriod = isSpinning ? spinPeriodNum.toFixed(2) : "0";
+  // Angular velocities (deg/s) fed to the rAF spin loop. The dashed ring runs
+  // a touch faster (shorter period) than the copper windings, as before.
+  const ringPeriod = Math.max(0.9, spinPeriodNum * 0.75);
+  const copperVel = isSpinning ? 360 / spinPeriodNum : 0;
+  const ringVel = isSpinning ? 360 / ringPeriod : 0;
+  const { copperRef, ringRef } = useMotorSpin(copperVel, ringVel, x, y, isSpinning);
+  // Brighten the static glow and fade the sharp spokes as speed rises, so a
+  // fast spin reads as a glowing disk ("too fast to see windings") instead of
+  // strobing spokes.
+  const motionOpacity = 0.25 + Math.min(0.5, duty * 0.5);
+  const windingOpacity = 0.92 - Math.min(0.5, duty * 0.5);
   const windingStroke = duty > 0.65 ? "#fde68a" : "#fbbf24";
 
   const caseGradId = `motor-case-${component.id}`;
@@ -2056,8 +2131,6 @@ function DcMotorRenderer({ component, pinStates, isSelected }: {
   const shaftGradId = `motor-shaft-${component.id}`;
   const motionGradId = `motor-motion-${component.id}`;
   const copperGradId = `motor-copper-${component.id}`;
-  const glowId = `motor-glow-${component.id}`;
-  const blurId = `motor-blur-${component.id}`;
 
   return (
     <g>
@@ -2091,20 +2164,6 @@ function DcMotorRenderer({ component, pinStates, isSelected }: {
           <stop offset="45%" stopColor="#fb923c" />
           <stop offset="100%" stopColor="#7c2d12" />
         </linearGradient>
-        {isSpinning && (
-          <>
-            <filter id={glowId} x="-100%" y="-100%" width="300%" height="300%">
-              <feGaussianBlur stdDeviation={1.15 + duty * 0.55} result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-            <filter id={blurId} x="-60%" y="-60%" width="220%" height="220%">
-              <feGaussianBlur stdDeviation={0.45 + duty * 0.55} />
-            </filter>
-          </>
-        )}
       </defs>
 
       {/* Drop shadow beneath body */}
@@ -2140,7 +2199,9 @@ function DcMotorRenderer({ component, pinStates, isSelected }: {
       {/* Inner recess — shows the rotor when viewed head-on */}
       <circle cx={x} cy={y} r={radius - 3} fill={`url(#${innerGradId})`} stroke="#0f172a" strokeWidth={0.4} />
 
-      {/* Rotor / armature: running state gets a blurred copper winding disk */}
+      {/* Rotor / armature: running state spins a copper winding disk over a
+          static glow gradient. No SVG filters here — re-rasterizing a blur on
+          the rotating group every frame is what made the spin-up janky. */}
       <g>
         {isSpinning ? (
           <>
@@ -2150,9 +2211,9 @@ function DcMotorRenderer({ component, pinStates, isSelected }: {
               r={radius - 3.4}
               fill={`url(#${motionGradId})`}
               opacity={motionOpacity}
-              filter={`url(#${blurId})`}
             />
             <circle
+              ref={ringRef}
               cx={x}
               cy={y}
               r={radius - 4}
@@ -2161,19 +2222,8 @@ function DcMotorRenderer({ component, pinStates, isSelected }: {
               strokeWidth={0.7}
               strokeDasharray="2 3"
               opacity={0.55}
-            >
-              <animateTransform
-                attributeName="transform"
-                attributeType="XML"
-                type="rotate"
-                from={`0 ${x} ${y}`}
-                to={`360 ${x} ${y}`}
-                dur={`${Math.max(0.55, Number(spinPeriod) * 0.75).toFixed(2)}s`}
-                repeatCount="indefinite"
-              />
-            </circle>
-            <g filter={`url(#${glowId})`}>
-              <g>
+            />
+            <g ref={copperRef}>
                 {[0, 120, 240].map((angle, i) => {
                   const rad = (angle * Math.PI) / 180;
                   const tip = radius - 4.2;
@@ -2192,7 +2242,7 @@ function DcMotorRenderer({ component, pinStates, isSelected }: {
                       stroke={windingStroke}
                       strokeWidth={2.2}
                       strokeLinecap="round"
-                      opacity={0.92}
+                      opacity={windingOpacity}
                     />
                   );
                 })}
@@ -2210,22 +2260,12 @@ function DcMotorRenderer({ component, pinStates, isSelected }: {
                       stroke="#fef3c7"
                       strokeWidth={0.8}
                       strokeLinecap="round"
-                      opacity={0.48}
+                      opacity={Math.min(0.48, windingOpacity)}
                     />
                   );
                 })}
                 <circle cx={x} cy={y} r={3} fill={`url(#${copperGradId})`} stroke="#fef3c7" strokeWidth={0.55} />
                 <circle cx={x} cy={y} r={1.1} fill="#111827" opacity={0.75} />
-                <animateTransform
-                  attributeName="transform"
-                  attributeType="XML"
-                  type="rotate"
-                  from={`0 ${x} ${y}`}
-                  to={`360 ${x} ${y}`}
-                  dur={`${spinPeriod}s`}
-                  repeatCount="indefinite"
-                />
-              </g>
             </g>
             {[0, 1, 2].map((i) => (
               <path

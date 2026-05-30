@@ -12,6 +12,7 @@ import { createAVRRunner, arduinoPinToPort, portToArduinoPin, type AVRRunner } f
 import { compileSketch } from "../avr-compiler"
 import { PinState } from "avr8js"
 import { pinStateStore, type PinStateStore } from "../pin-state-store"
+import { PwmTracker } from "../pwm-tracker"
 import { PeripheralBus, type PeripheralBoardInput } from "../peripherals/peripheral-bus"
 import { MAX_ARDUINO_PIN, type BoardTargetInfo } from "@dreamer/schemas"
 import type {
@@ -42,6 +43,14 @@ export function createAvrSketchRunner(
 
   // ── Peripheral bus (owned per-runner) ──────────────────────────────
   const peripheralBus = new PeripheralBus()
+
+  // ── PWM duty-cycle reconstruction ──────────────────────────────────
+  //
+  // avr8js bit-bangs analogWrite() pins HIGH/LOW at the timer frequency, so
+  // onPinChange only ever sees the instantaneous bit. This tracker averages
+  // the edge stream back into a duty cycle that we publish as isPwm/pwmValue,
+  // so a motor/LED reads a smooth level instead of a strobing digitalValue.
+  const pwmTracker = new PwmTracker()
 
   // ── AVR runner state ───────────────────────────────────────────────
   let avrRunner: AVRRunner | null = null
@@ -121,6 +130,9 @@ export function createAvrSketchRunner(
             digitalValue,
             mode: "OUTPUT",
           })
+          // Feed the edge to the PWM tracker so analogWrite() pins resolve to a
+          // duty cycle rather than a flapping HIGH/LOW. (flushPwm publishes it.)
+          pwmTracker.recordEdge(arduinoPin, digitalValue, runner.getCycleCount())
         } else {
           // Input pin: the sketch just called pinMode(..., INPUT | INPUT_PULLUP).
           // Mirror the mode into the store so UI components can react.
@@ -202,6 +214,22 @@ export function createAvrSketchRunner(
   }
 
   /**
+   * Publish reconstructed PWM duty cycles to the store. Called once per frame
+   * (after a chunk of execution) so isPwm/pwmValue reflect the averaged signal
+   * the renderer reads, instead of the last raw edge bit. writeFromSketch
+   * no-ops when nothing changed, so steady pins don't churn the store.
+   */
+  function flushPwm(): void {
+    if (!avrRunner) return
+    const cycle = avrRunner.getCycleCount()
+    for (const pin of pwmTracker.trackedPins()) {
+      const sample = pwmTracker.sample(pin, cycle)
+      if (!sample) continue
+      store.writeFromSketch(pin, { isPwm: sample.isPwm, pwmValue: sample.pwmValue })
+    }
+  }
+
+  /**
    * Execution is broken into SCHEDULER_STEP_CYCLES chunks so peripherals
    * that schedule future pin edges (UltrasonicPeripheral echo, DHT frame,
    * IR NEC envelope) fire at microsecond precision instead of whole-frame
@@ -217,6 +245,7 @@ export function createAvrSketchRunner(
       peripheralBus.flushScheduledEdges(simMs)
       remaining -= step
     }
+    flushPwm()
   }
 
   function runSetup(): void {
@@ -270,6 +299,7 @@ export function createAvrSketchRunner(
 
     peripheralBus.detachBoard()
     avrRunner?.reset()
+    pwmTracker.reset()
     store.setExternalPinSink(null)
     store.reset()
   }

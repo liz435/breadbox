@@ -905,10 +905,14 @@ function UltrasonicInspector({ component, onUpdate }: {
               type="button"
               className="rounded-md bg-secondary px-2 py-0.5 text-[11px] font-medium text-foreground/90 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
               onClick={() => {
-                const id = `obs_${Date.now()}`;
+                // Drop the box in front of the sensor (along its beam) so it
+                // lands in view, ~45cm out, rather than at a fixed corner.
+                const ray = sensorRay(component);
+                const cx = ray.ox + ray.dx * 90;
+                const cy = ray.oy + ray.dy * 90;
                 boardSend({
                   type: "ADD_OBSTACLE",
-                  obstacle: { id, shape: "box", x1: 200, y1: 100, x2: 260, y2: 140, label: "" },
+                  obstacle: { id: `obs_${Date.now()}`, shape: "box", x1: cx - 30, y1: cy - 20, x2: cx + 30, y2: cy + 20, label: "" },
                 });
               }}
             >
@@ -918,10 +922,15 @@ function UltrasonicInspector({ component, onUpdate }: {
               type="button"
               className="rounded-md bg-secondary px-2 py-0.5 text-[11px] font-medium text-foreground/90 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
               onClick={() => {
-                const id = `obs_${Date.now()}`;
+                // Drop the wall perpendicular to and across the beam, ~45cm out.
+                const ray = sensorRay(component);
+                const cx = ray.ox + ray.dx * 90;
+                const cy = ray.oy + ray.dy * 90;
+                const perpX = -ray.dy;
+                const perpY = ray.dx;
                 boardSend({
                   type: "ADD_OBSTACLE",
-                  obstacle: { id, shape: "wall", x1: 200, y1: 100, x2: 300, y2: 100, label: "" },
+                  obstacle: { id: `obs_${Date.now()}`, shape: "wall", x1: cx - perpX * 50, y1: cy - perpY * 50, x2: cx + perpX * 50, y2: cy + perpY * 50, label: "" },
                 });
               }}
             >
