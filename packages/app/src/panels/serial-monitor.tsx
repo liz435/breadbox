@@ -4,7 +4,7 @@ import { createLocalBoard, type LocalBoardConnection } from "@/simulator/local-b
 import { createWebSerialBoard } from "@/simulator/web-serial-board"
 import { useBoardConnection } from "@/simulator/use-board-connection"
 import { useCapabilities } from "@/project/use-capabilities"
-import { usePairedPort } from "@/simulator/web-serial-port-store"
+import { usePairedPort, formatPortLabel } from "@/simulator/web-serial-port-store"
 import { simulationRef } from "@/simulator/simulation-ref"
 import { cn } from "@/utils/classnames"
 
@@ -73,10 +73,16 @@ export function SerialMonitor() {
 
   // On hosted, the SerialMonitor talks WebSerial directly (no server USB
   // proxy). The "active port" is the paired one; on local it's the
-  // user-picked entry from the server's /api/boards list.
+  // user-picked entry from the server's /api/boards list. We use the
+  // shared `formatPortLabel` helper so a `getInfo()` that returns no
+  // VID/PID (common on CH340 clones and unbranded USB-CDC boards)
+  // shows "USB serial device" instead of "usb:????:????". The same
+  // label is what `web-serial-board.ts:getPortPath()` returns, which
+  // keeps the auto-connect effect's `getPortPath() !== activePort`
+  // mismatch check working correctly.
   const activePort = capabilities.hosted
     ? pairedPort
-      ? `usb:${pairedPort.getInfo().vendorId ?? "????"}:${pairedPort.getInfo().productId ?? "????"}`
+      ? formatPortLabel(pairedPort.getInfo())
       : null
     : selectedPort
 
