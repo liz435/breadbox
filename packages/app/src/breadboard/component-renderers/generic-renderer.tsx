@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { MAX_ARDUINO_PIN, type BoardComponent, type PinState, type LibraryState, type Wire } from "@dreamer/schemas";
 import type { ComponentElectricalState } from "@/simulator/circuit-solver";
 import { areConnected, getComponentFootprint, gridToPixel } from "@/breadboard/breadboard-grid";
+import { findArduinoPinForComponentPin } from "@/breadboard/component-pin-resolver";
 import { KNOB_RADIUS, GENERIC_BODY_WIDTH, GENERIC_BODY_HEIGHT, LABEL_FONT_SIZE, HOLE_SPACING } from "@/breadboard/breadboard-constants";
 import { PinLabel } from "./pin-label";
 import { OledCanvas } from "@/components/oled-canvas";
@@ -1822,9 +1823,10 @@ function SevenSegmentRenderer({ component, components, pinStates, wires, isSelec
   );
 }
 
-function RelayRenderer({ component, pinStates, isSelected }: {
+function RelayRenderer({ component, pinStates, wires, isSelected }: {
   component: BoardComponent;
   pinStates: PinState[];
+  wires?: Record<string, Wire>;
   isSelected: boolean;
 }) {
   // Vertical 3-pin layout: vcc / signal / gnd (row..row+2, col)
@@ -1843,8 +1845,11 @@ function RelayRenderer({ component, pinStates, isSelected }: {
   const x = pcbCx;
   const y = pcbT;
 
-  // Read signal pin state: HIGH = energized (active-high module)
-  const signalPin = component.pins.signal;
+  // Read signal pin state: HIGH = energized (active-high module).
+  // Saved boards keep component.pins.signal null and derive connections from
+  // wires, so resolve the driven Arduino pin from the wire graph (matching how
+  // the button resolves its input pin) rather than reading the always-null field.
+  const signalPin = findArduinoPinForComponentPin(component, ["signal", "out"], wires ?? {});
   const energized =
     signalPin != null && pinStates[signalPin]?.digitalValue === 1;
 
@@ -2090,16 +2095,18 @@ function useMotorSpin(
   return { copperRef, ringRef };
 }
 
-function DcMotorRenderer({ component, pinStates, isSelected }: {
+function DcMotorRenderer({ component, pinStates, wires, isSelected }: {
   component: BoardComponent;
   pinStates: PinState[];
+  wires?: Record<string, Wire>;
   isSelected: boolean;
 }) {
   const { x, y } = gridToPixel({ row: component.y, col: component.x });
   const radius = KNOB_RADIUS + 3;
 
-  // Read PWM or digital value from signal pin — duty cycle drives spin speed
-  const signalPin = component.pins.signal;
+  // Read PWM or digital value from signal pin — duty cycle drives spin speed.
+  // Resolve from wiring since saved boards keep component.pins.signal null.
+  const signalPin = findArduinoPinForComponentPin(component, ["signal", "out"], wires ?? {});
   const pinState = signalPin != null ? pinStates[signalPin] : undefined;
   const duty = pinState
     ? pinState.isPwm
@@ -2458,6 +2465,13 @@ function DhtSensorRenderer({ component, isSelected }: { component: BoardComponen
   );
 }
 
+// 74HC595 DIP-16 silkscreen labels, top → bottom on each side. Mirrors the
+// datasheet pinout encoded in component-pins.ts (resolveComponentPins).
+//   Left  (pins 1-8):  Q1..Q7, GND
+//   Right (pins 16-9): VCC, Q0, DS(data), /OE, ST(latch), SH(clock), /MR, Q7'
+const SR_LEFT_LABELS = ["Q1", "Q2", "Q3", "Q4", "Q5", "Q6", "Q7", "GND"] as const;
+const SR_RIGHT_LABELS = ["VCC", "Q0", "DS", "OE", "ST", "SH", "MR", "Q7'"] as const;
+
 function ShiftRegisterRenderer({ component, isSelected }: { component: BoardComponent; isSelected: boolean }) {
   // DIP-16 footprint: 8 pins left side (col 2), 8 pins right side (col 7)
   // Pins ordered: left side rows 0-7 from top, right side rows 7-0 (mirrored)
@@ -2577,22 +2591,23 @@ function ShiftRegisterRenderer({ component, isSelected }: { component: BoardComp
         TI  2023
       </text>
 
-      {/* Left-side pin index marks (1..8) */}
+      {/* Left-side pin labels (pins 1-8, top→bottom): Q1..Q7, GND */}
       {leftPins.map((pin, i) => (
         <text key={`ln-${i}`}
-          x={bodyL + 2.5} y={pin.y + 1.2}
-          textAnchor="start" fontSize={2.2}
-          fill="#666" fontFamily="monospace">
-          {i + 1}
+          x={bodyL + 2} y={pin.y + 1.1}
+          textAnchor="start" fontSize={2.1}
+          fill={i < 7 ? "#9ca3af" : "#666"} fontFamily="monospace">
+          {SR_LEFT_LABELS[i]}
         </text>
       ))}
-      {/* Right-side pin index marks (16..9) */}
+      {/* Right-side pin labels (pins 16-9, top→bottom): VCC, Q0, DS, OE, ST, SH, MR, Q7'.
+          rightPins is indexed bottom→top, so map back to the top→bottom slot. */}
       {rightPins.map((pin, i) => (
         <text key={`rn-${i}`}
-          x={bodyR - 2.5} y={pin.y + 1.2}
-          textAnchor="end" fontSize={2.2}
-          fill="#666" fontFamily="monospace">
-          {rowCount * 2 - i}
+          x={bodyR - 2} y={pin.y + 1.1}
+          textAnchor="end" fontSize={2.1}
+          fill={SR_RIGHT_LABELS[rowCount - 1 - i] === "Q0" ? "#9ca3af" : "#666"} fontFamily="monospace">
+          {SR_RIGHT_LABELS[rowCount - 1 - i]}
         </text>
       ))}
 
@@ -2799,9 +2814,9 @@ function GenericRendererInner({ component, components, pinStates, wires, isSelec
     case "pir_sensor":
       return <g opacity={dimOpacity}><PirRenderer component={component} isSelected={isSelected} /></g>;
     case "relay":
-      return <g opacity={dimOpacity}><RelayRenderer component={component} pinStates={pinStates} isSelected={isSelected} /></g>;
+      return <g opacity={dimOpacity}><RelayRenderer component={component} pinStates={pinStates} wires={wires} isSelected={isSelected} /></g>;
     case "dc_motor":
-      return <g opacity={dimOpacity}><DcMotorRenderer component={component} pinStates={pinStates} isSelected={isSelected} /></g>;
+      return <g opacity={dimOpacity}><DcMotorRenderer component={component} pinStates={pinStates} wires={wires} isSelected={isSelected} /></g>;
     case "seven_segment":
       return <SevenSegmentRenderer component={component} components={components} pinStates={pinStates} wires={wires} isSelected={isSelected} />;
     case "dht_sensor":

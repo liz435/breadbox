@@ -266,8 +266,21 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
       getBoardPinLayout(boardTarget).analogPins.map((p) => p.pin),
     )
 
+    // Surface 74HC595 parallel outputs to the circuit solver so its wired LEDs
+    // light up. The chip's Q0..Q7 are not Arduino pins, so the netlist builder
+    // can only drive them from the peripheral's latched byte.
+    const shiftRegisterOutputs = new Map<string, readonly boolean[]>()
+    for (const [id, s] of Object.entries(runner.getPeripheralBus().snapshot())) {
+      if (s.kind === "shift_register") shiftRegisterOutputs.set(id, s.outputs)
+    }
+
     try {
-      const result = analyzeCircuit(ctx.components, ctx.wires, snapshotAsPinStates(store))
+      const result = analyzeCircuit(
+        ctx.components,
+        ctx.wires,
+        snapshotAsPinStates(store),
+        shiftRegisterOutputs,
+      )
       analysisResultRef.current = result
 
       if (result.isValid) {

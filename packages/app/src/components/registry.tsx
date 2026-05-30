@@ -19,7 +19,6 @@
 import type React from "react"
 import { HOLE_SPACING } from "@/breadboard/breadboard-constants"
 import { buttonPressStore } from "@/simulator/button-press-store"
-import { getCapVoltage } from "@/simulator/capacitor-state"
 import { diodeModelLine, getLedDiodeModel, getRgbLedDiodeModel } from "@/simulator/diode-model"
 import { resolveComponentPins } from "@dreamer/schemas"
 import type { ComponentDefinition } from "./component-definition"
@@ -258,16 +257,18 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
         <line x1={12} y1={12} x2={12} y2={22} stroke="#ccc" strokeWidth={1.5} />
       </svg>
     ),
-    spicePrefix: "V",
+    spicePrefix: "C",
     buildNetlist: (comp, { footprint, resolveNode }) => {
       const nodeA = resolveNode(footprint.points[0])
       const nodeB = resolveNode(footprint.points[1])
-      // Model the capacitor as a voltage source at its current charge level.
-      // The circuit solver steps the voltage forward each frame using the
-      // resulting SPICE current (see capacitor-state.ts).
-      const storedV = getCapVoltage(comp.id)
+      // Real SPICE capacitor element. spicey integrates it with a
+      // backward-Euler companion model over the transient window, producing a
+      // true exponential charge/discharge curve. The circuit solver seeds its
+      // initial voltage from — and writes its final voltage back to —
+      // capacitor-state.ts so charge persists across analysis frames.
+      const capUf = (comp.properties.capacitance as number) ?? 100
       return {
-        lines: [`V_${sanitize(comp.id)} ${nodeA} ${nodeB} ${storedV}`],
+        lines: [`C_${sanitize(comp.id)} ${nodeA} ${nodeB} ${capUf}u`],
         nodeA,
         nodeB,
       }
@@ -1196,13 +1197,17 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     defaultPins: { data: null, clock: null, latch: null },
     defaultProperties: {},
     accentColor: "#8b5cf6",
-    footprint: (row, col) => {
+    footprint: (row) => {
+      // DIP-16, straddling the centre gap on fixed cols 2/7: 8 holes per side
+      // over 8 rows. `col` is intentionally ignored (the chip always spans the
+      // centre channel). Matches the 8-row pin map in component-pins.ts and the
+      // 8-row ShiftRegisterRenderer.
       const points = []
-      for (let r = 0; r < 4; r++) {
+      for (let r = 0; r < 8; r++) {
         points.push({ row: row + r, col: 2 })
         points.push({ row: row + r, col: 7 })
       }
-      return { points, width: 60 + HOLE_SPACING * 4, height: HOLE_SPACING * 4 }
+      return { points, width: 60 + HOLE_SPACING * 4, height: HOLE_SPACING * 8 }
     },
     paletteIcon: (
       // DIP-16 IC: black body, 8 silver legs per side, notch at top, part number text

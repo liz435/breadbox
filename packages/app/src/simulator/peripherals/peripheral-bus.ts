@@ -26,6 +26,7 @@ import { createDhtPeripheral } from "./dht"
 import { createIrReceiverPeripheral } from "./ir-receiver"
 import { createOledPeripheral } from "./ssd1306-oled"
 import { createNeoPixelPeripheral } from "./neopixel"
+import { createShiftRegisterPeripheral } from "./shift-register"
 
 const FACTORIES = new Map<ComponentType, PeripheralFactory>()
 
@@ -45,6 +46,7 @@ registerPeripheralFactory("dht_sensor", createDhtPeripheral)
 registerPeripheralFactory("ir_receiver", createIrReceiverPeripheral)
 registerPeripheralFactory("oled_display", createOledPeripheral)
 registerPeripheralFactory("neopixel", createNeoPixelPeripheral)
+registerPeripheralFactory("shift_register", createShiftRegisterPeripheral)
 
 export type PeripheralBoardInput = {
   components: Record<string, BoardComponent>

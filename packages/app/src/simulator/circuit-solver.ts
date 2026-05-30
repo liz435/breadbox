@@ -5,12 +5,67 @@
 // per-component electrical state for rendering.
 
 import { isBoardComponentType, type BoardComponent, type Wire, type PinState } from "@dreamer/schemas"
-import { simulate } from "spicey"
-import { buildNetlist } from "./netlist-builder"
+import { parseNetlist, simulateTRAN } from "spicey"
+import { buildNetlist, type ShiftRegisterOutputs } from "./netlist-builder"
 import { gridToPixel, getComponentFootprint } from "@/breadboard/breadboard-grid"
 import { getComponentDef } from "@/components/registry"
-import { stepCapVoltage } from "./capacitor-state"
+import { getCapVoltage, setCapVoltage } from "./capacitor-state"
 import { estimateDiodeCurrentMa, getLedDiodeModel, getRgbLedDiodeModel } from "./diode-model"
+
+type ParsedCircuit = ReturnType<typeof parseNetlist>
+
+// ── Transient stepping for reactive elements ─────────────────────────
+//
+// Capacitors and inductors only behave correctly inside a time-domain solve.
+// Each analysis call advances the transient by CAP_ADVANCE_SECONDS of
+// simulated time, integrated in CAP_SUBSTEPS backward-Euler steps (spicey's
+// native companion model — a true exponential RC curve). The analysis runs at
+// a ~200ms cadence (the simulation loop calls it every 12 frames ≈ 200ms; the
+// stopped-board hook throttles to 200ms), so a 0.2s advance per call makes
+// simulated time track wall-clock roughly 1:1 — a 100µF·10kΩ (τ=1s) cap
+// visibly settles over about a second of watching.
+const CAP_ADVANCE_SECONDS = 0.2
+const CAP_SUBSTEPS = 20
+
+/** SPICE element name the registry emits for a capacitor component. */
+function capElementName(componentId: string): string {
+  return `C_${componentId.replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 20)}`
+}
+
+/**
+ * Seed each capacitor's stored charge as the initial condition for this
+ * solve. spicey resets vPrev to 0 on every parse, so without this the cap
+ * would restart from 0V every frame and never hold a charge.
+ */
+function seedCapacitorVoltages(circuit: ParsedCircuit, comps: BoardComponent[]): void {
+  if (circuit.C.length === 0) return
+  for (const comp of comps) {
+    if (comp.type !== "capacitor") continue
+    const cap = circuit.C.find((c) => c.name === capElementName(comp.id))
+    if (cap) cap.vPrev = getCapVoltage(comp.id)
+  }
+}
+
+/** Write back the voltage each capacitor reached so the next frame resumes from it. */
+function persistCapacitorVoltages(circuit: ParsedCircuit, comps: BoardComponent[]): void {
+  if (circuit.C.length === 0) return
+  for (const comp of comps) {
+    if (comp.type !== "capacitor") continue
+    const cap = circuit.C.find((c) => c.name === capElementName(comp.id))
+    if (cap) setCapVoltage(comp.id, cap.vPrev)
+  }
+}
+
+/**
+ * Widen the transient window for boards with reactive elements so charge
+ * visibly evolves. Purely resistive/diode circuits reach steady state
+ * instantly, so they keep the netlist's tiny `.tran` window for speed.
+ */
+function configureTransientWindow(circuit: ParsedCircuit, advanceSeconds: number): void {
+  if (circuit.C.length === 0 && circuit.L.length === 0) return
+  const tstop = Math.max(advanceSeconds, 1e-4)
+  circuit.analyses.tran = { dt: tstop / CAP_SUBSTEPS, tstop }
+}
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -55,6 +110,8 @@ export function analyzeCircuit(
   components: Record<string, BoardComponent>,
   wires: Record<string, Wire>,
   pinStates: PinState[],
+  shiftRegisterOutputs?: ShiftRegisterOutputs,
+  options?: { capAdvanceSeconds?: number },
 ): CircuitAnalysis {
   const componentStates = new Map<string, ComponentElectricalState>()
   const currentPaths: CurrentPath[] = []
@@ -80,6 +137,7 @@ export function analyzeCircuit(
     components,
     wires,
     pinStates,
+    shiftRegisterOutputs,
   )
 
   if (netlist.trim().length === 0) {
@@ -92,12 +150,21 @@ export function analyzeCircuit(
     }
   }
 
-  // Run the simulation
-  let simResult: ReturnType<typeof simulate>
+  // Parse + run the transient solve directly (rather than spicey's all-in-one
+  // simulate()) so we can seed each capacitor's stored charge as its initial
+  // condition before integrating, and skip the unused AC pass.
+  let tran: ReturnType<typeof simulateTRAN>
   try {
-    simResult = simulate(netlist)
+    const circuit = parseNetlist(netlist)
+    seedCapacitorVoltages(circuit, circuitComponents)
+    configureTransientWindow(circuit, options?.capAdvanceSeconds ?? CAP_ADVANCE_SECONDS)
+    tran = simulateTRAN(circuit)
+    // Persist the voltage each capacitor reached so the next frame resumes
+    // from it (charge retention + continued charge/discharge across frames).
+    persistCapacitorVoltages(circuit, circuitComponents)
   } catch {
-    // Simulation failed — mark all components as inactive
+    // Simulation failed — mark all components as inactive. Stored capacitor
+    // charge is left untouched, so a solver hiccup just holds the last value.
     for (const comp of circuitComponents) {
       componentStates.set(comp.id, {
         componentId: comp.id,
@@ -116,9 +183,6 @@ export function analyzeCircuit(
       warnings,
     }
   }
-
-  const tran = simResult.tran
-  const circuit = simResult.circuit
 
   // Extract steady-state values (last time step)
   const nodeVoltages = tran?.nodeVoltages ?? {}
@@ -198,29 +262,6 @@ export function analyzeCircuit(
         }
 
     componentStates.set(comp.id, state)
-
-    // Step capacitor charge forward using the current from this frame.
-    // The cap is modeled as a voltage source in the netlist; the current
-    // SPICE computes tells us how fast it's charging or discharging.
-    // V_source current convention: positive = current flowing INTO the +
-    // terminal, which for a cap means DISCHARGING (voltage decreasing).
-    if (comp.type === "capacitor") {
-      const capUf = (comp.properties.capacitance as number) ?? 100
-      const capF = capUf * 1e-6
-      // SPICE voltage source current: negative = current flows from + to -
-      // through external circuit (charging the cap). We want:
-      //   charging (external current into cap +) → voltage increases
-      //   discharging (current out of cap +) → voltage decreases
-      // getElementCurrent returns the raw SPICE value; for a V source
-      // positive means current INTO the + terminal from the external circuit.
-      const rawCurrentA = getElementCurrent(elementName)
-      // dt = approximate frame interval. The circuit-analysis hook runs at
-      // ~200ms throttle; the simulation loop runs faster (~16ms). Use a
-      // conservative 50ms as a middle ground that produces visible charge/
-      // discharge behavior without oscillating.
-      const dt = 0.05
-      stepCapVoltage(comp.id, rawCurrentA, capF, dt)
-    }
 
     if (result?.warnings) {
       for (const w of result.warnings) {

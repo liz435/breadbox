@@ -137,6 +137,37 @@ describe("findArduinoPinForComponentPin", () => {
     expect(findArduinoPinForComponentPin(rgb, "blue", wires)).toBe(11)
   })
 
+  test("resolves relay signal from its wired row when pins.signal is null", () => {
+    // Regression: saved/wired boards keep pins.signal null and derive the
+    // connection from wires. The renderer must trace the wire to know which
+    // Arduino pin energizes the coil — otherwise the relay never animates.
+    const relay = makeComponent("relay", { signal: null })
+    const wires: Record<string, Wire> = {
+      // signal row is y+1 = 11, col = x = 3 (see resolveComponentPins("relay"))
+      sig: signalWire("sig", 7, 11, 3),
+    }
+
+    expect(findArduinoPinForComponentPin(relay, ["signal", "out"], wires)).toBe(7)
+  })
+
+  test("resolves relay signal from the inspector's explicit `out` alias", () => {
+    // The generic inspector writes the relay's pin to `out` (registry default),
+    // so the renderer must accept that alias too.
+    const relay = makeComponent("relay", { out: 5 })
+
+    expect(findArduinoPinForComponentPin(relay, ["signal", "out"], {})).toBe(5)
+  })
+
+  test("resolves DC motor signal from its wired row when pins.signal is null", () => {
+    const motor = makeComponent("dc_motor", { signal: null })
+    const wires: Record<string, Wire> = {
+      // signal row is y+1 = 11, col = x = 3 (see resolveComponentPins("dc_motor"))
+      sig: signalWire("sig", 9, 11, 3),
+    }
+
+    expect(findArduinoPinForComponentPin(motor, ["signal", "out"], wires)).toBe(9)
+  })
+
   test("resolves RGB LED channels when Arduino wires pass through center-gap resistors", () => {
     // RGB LED on the right side (col 7) — matches the ex-rgb-led.json example board.
     // Arduino signal wires land on the LEFT side (col 3) and each series resistor

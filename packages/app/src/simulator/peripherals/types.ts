@@ -35,6 +35,7 @@ export type PeripheralState =
   | { kind: "dht"; signalPin: number | null; temperatureC: number; humidity: number }
   | { kind: "ir_receiver"; signalPin: number | null; lastCode: number | null; transmitting: boolean }
   | { kind: "oled"; width: number; height: number; on: boolean; inverted: boolean; framebuffer: number[] }
+  | { kind: "shift_register"; data: number | null; clock: number | null; latch: number | null; outputs: boolean[] }
   | { kind: "raw"; componentType: ComponentType }
 
 /**

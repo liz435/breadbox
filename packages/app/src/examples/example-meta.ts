@@ -180,7 +180,7 @@ export const EXAMPLE_META: Record<string, ExampleMeta> = {
     category: "input",
   },
   "ex-shift-register": {
-    label: "Shift Register Counter",
+    label: "LED Chaser (595)",
     description: "Drive 8 LEDs through a 74HC595.",
     primaryType: "shift_register",
     category: "output",

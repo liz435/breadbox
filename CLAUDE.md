@@ -115,6 +115,26 @@ bun run typecheck       # TypeScript type checking (both packages)
 
 ---
 
+## Git Conventions
+
+- Never add Claude as co-author on commits. Do not include `Co-Authored-By: Claude` or `🤖 Generated with Claude Code` trailers in commit messages.
+- Before committing, verify only intended files are staged: run `git status` and explicitly review untracked files. Never `git add .` or `git add -A` without first listing what will be included.
+
+---
+
+## Definition of Done
+
+- After making code changes, always run typecheck and tests before declaring the task done or opening a PR. For TypeScript projects this means `tsc --noEmit` (or the project equivalent — `bun run typecheck` here) and the test command in `package.json`.
+
+---
+
+## Debugging
+
+- When the user reports something is broken, do NOT assume the fix location. First reproduce or trace the actual code path (server flags, env file location, hooks closures) before editing.
+- When fixing a bug, trace BOTH the create/new path AND the load/existing path. Many bugs live in persistence/hydration code that the create path doesn't touch.
+
+---
+
 ## TypeScript Standards
 
 - `strict: true` is assumed
