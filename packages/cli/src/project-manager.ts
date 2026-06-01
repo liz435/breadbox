@@ -1,12 +1,15 @@
 import { projectRepo } from "@dreamer/api/db/adapters/file/project-repo"
 import { boardTracker } from "@dreamer/api/db/board-state-tracker"
+import { CLI_LOCAL_USER_ID } from "@dreamer/api/supabase/env"
 import type { ProjectFile } from "@dreamer/schemas"
 
 // CLI is single-tenant; every project it reads or writes is owned by the
-// same synthetic "local" user that the auth middleware hands out in
-// local/dev mode. Kept in one place so a future multi-user CLI can
-// replace it without grepping the whole package.
-const LOCAL_OWNER_ID = "local"
+// canonical local user — CLI_LOCAL_USER_ID, the SAME id the auth middleware
+// hands out and the ownership migration stamps onto local projects. (The
+// legacy "local" literal is rewritten to this UUID on boot, so hardcoding it
+// here hid app-created projects from the CLI + MCP.) Kept in one place so a
+// future multi-user CLI can replace it without grepping the whole package.
+const LOCAL_OWNER_ID = CLI_LOCAL_USER_ID
 
 export type ProjectState = {
   projectId: string

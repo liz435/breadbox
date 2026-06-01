@@ -2,7 +2,14 @@
 // the stdio process. The current project id is the only mutable bit —
 // everything else (paths, ownership, primitives) is derived on each call.
 
-export const LOCAL_OWNER_ID = "local"
+import { CLI_LOCAL_USER_ID } from "@dreamer/api/supabase/env"
+
+// The MCP must read/write projects as the SAME owner the local app + CLI use,
+// or it sees a disjoint set of projects (the ownership migration stamps local
+// projects with CLI_LOCAL_USER_ID, not the legacy "local" literal). Using the
+// literal here made the MCP invisible to app-created projects. See the
+// owner-id split documented in the connect-claude work.
+export const LOCAL_OWNER_ID = CLI_LOCAL_USER_ID
 
 export type McpSession = {
   /** Currently selected project id, or null if unset. */

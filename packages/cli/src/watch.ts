@@ -1,9 +1,10 @@
 import { projectRepo } from "@dreamer/api/db/adapters/file/project-repo"
+import { CLI_LOCAL_USER_ID } from "@dreamer/api/supabase/env"
 import type { ProjectFile } from "@dreamer/schemas"
 import { compileSketch, flashSketch } from "./compile-flash"
 import type { ProjectState } from "./project-manager"
 
-const LOCAL_OWNER_ID = "local"
+const LOCAL_OWNER_ID = CLI_LOCAL_USER_ID
 
 const C = {
   reset: "\x1b[0m",

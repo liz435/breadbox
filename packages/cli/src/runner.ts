@@ -5,6 +5,7 @@ import { boardTracker } from "@dreamer/api/db/board-state-tracker"
 import { buildTieredMemory } from "@dreamer/api/agents/tiered-memory"
 import { resolveAgentSnapshotVersion } from "@dreamer/api/agents/version"
 import { createLogger } from "@dreamer/api/logger"
+import { CLI_LOCAL_USER_ID } from "@dreamer/api/supabase/env"
 import type { BoardOp } from "@dreamer/schemas"
 import type { ProjectState } from "./project-manager"
 import type { RenderCallbacks, TokenOverhead } from "./renderer"
@@ -12,7 +13,7 @@ import { ensureApiKey } from "./config"
 
 const log = createLogger("cli")
 
-const LOCAL_OWNER_ID = "local"
+const LOCAL_OWNER_ID = CLI_LOCAL_USER_ID
 
 export type RunResult = {
   text: string
