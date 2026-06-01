@@ -10,6 +10,8 @@ import { breadboardInteractionActor } from "@/breadboard/breadboard-interaction"
 import { useDockviewApi } from "@/store/dockview-context"
 import { simulationRef } from "@/simulator/simulation-ref"
 import { saveRef } from "@/project/save-ref"
+import { OPEN_CONNECT_CLAUDE_EVENT } from "@/components/connect-claude-dialog"
+import { useCapabilities } from "@/project/use-capabilities"
 
 // ── Command types ───────────────────────────────────────────────────────
 
@@ -54,7 +56,10 @@ const icons = {
 
 // ── Build command list ──────────────────────────────────────────────────
 
-function buildCommands(dockviewApi: ReturnType<typeof useDockviewApi>): Command[] {
+function buildCommands(
+  dockviewApi: ReturnType<typeof useDockviewApi>,
+  opts: { hosted: boolean },
+): Command[] {
   const commands: Command[] = []
 
   // Component placement commands
@@ -156,6 +161,22 @@ function buildCommands(dockviewApi: ReturnType<typeof useDockviewApi>): Command[
       window.dispatchEvent(new KeyboardEvent("keydown", { key: "?" }))
     },
   })
+  // The MCP server + live bridge are local-only (the bridge is disabled in
+  // hosted mode, and the `dreamer mcp` CLI runs on the user's machine), so
+  // only surface this where it can actually work.
+  if (!opts.hosted) {
+    commands.push({
+      id: "action:connect-claude",
+      label: "Connect Claude (MCP)",
+      description: "Drive this project from your own Claude",
+      category: "Actions",
+      icon: icons.action,
+      keywords: "claude mcp ai agent connect model context protocol assistant",
+      action: () => {
+        window.dispatchEvent(new CustomEvent(OPEN_CONNECT_CLAUDE_EVENT))
+      },
+    })
+  }
   commands.push({
     id: "action:pause",
     label: "Pause Sketch",
@@ -226,8 +247,12 @@ function CommandPaletteInner({ open, onClose }: CommandPaletteProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const dockviewApi = useDockviewApi()
+  const { capabilities } = useCapabilities()
 
-  const commands = useMemo(() => buildCommands(dockviewApi), [dockviewApi])
+  const commands = useMemo(
+    () => buildCommands(dockviewApi, { hosted: capabilities.hosted }),
+    [dockviewApi, capabilities.hosted],
+  )
 
   const results = useMemo(() => {
     if (!query.trim()) return commands

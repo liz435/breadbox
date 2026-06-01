@@ -20,6 +20,9 @@ where the project is heading.
   panels, chat integration.
 - [`CLI.md`](./CLI.md) — the `npx dreamer` binary: web UI manifest, API
   spawning, env-var opt-outs.
+- [`MCP.md`](./MCP.md) — connecting Claude / Cursor via the `dreamer mcp`
+  server: install, the connect commands, the live canvas bridge, tools +
+  resources reference.
 - [`INTERACTIONS.md`](./INTERACTIONS.md) — cross-system sequences:
   button-press → `digitalRead`, sensor inputs → pin store (and the ordering
   rule), undo/redo vs. agent ops. Read this after the subsystem docs when

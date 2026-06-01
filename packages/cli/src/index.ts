@@ -23,7 +23,7 @@ import { CLI_VERSION, PLATFORM } from "./version"
 import { installCrashReporter, listCrashes, readCrash, clearCrashes } from "./crash-reporter"
 import * as telemetry from "./telemetry"
 import * as selfUpdate from "./self-update"
-import { loadConfig, saveConfig, setApiKey, clearApiKey, ensureApiKey, ApiKeyMissingError } from "./config"
+import { loadConfig, saveConfig, getApiKey, setApiKey, clearApiKey, ensureApiKey, ApiKeyMissingError } from "./config"
 import { followLogFile } from "./log-follow"
 import { handleDiagramApply, handleDiagramValidate, DiagramCliError } from "./diagram-cli"
 import { recordCliErrorAndFlush } from "./telemetry-reporting"
@@ -283,11 +283,40 @@ async function dispatch(command: Command, projectId: string | null, sceneId: str
       // import time to pick cli vs supabase middleware.
       process.env.DREAMER_MODE = "cli"
       process.env.DREAMER_DEV_SKIP_AUTH = "1"
+      // Load the key from ~/.dreamer/config.json into the env BEFORE importing
+      // the API graph, so the Anthropic provider (which falls back to
+      // process.env in CLI mode) can use it. getApiKey() is non-interactive.
+      const headedKey = await getApiKey()
+      if (headedKey) process.env.ANTHROPIC_API_KEY = headedKey
       const state = await resolveState(projectId, sceneId)
       const { startHeadedMode } = await import("./headed")
       await startHeadedMode()
       await startRepl(state)
       return 0
+    }
+
+    case "serve": {
+      // Web UI + API only — no REPL. Used by the Tauri desktop shell
+      // (packages/desktop), which spawns this binary as a sidecar and
+      // renders the UI in a native window. Same single-tenant CLI mode as
+      // `headed`; DREAMER_NO_OPEN stops headed from popping a browser tab.
+      process.env.DREAMER_MODE = "cli"
+      process.env.DREAMER_DEV_SKIP_AUTH = "1"
+      process.env.DREAMER_NO_OPEN = "1"
+      // Load the key from config into the env before the API graph imports, so
+      // the provider can use it (see the `headed` case for the rationale). When
+      // absent, the in-app key dialog lets the user set it at runtime.
+      const serveKey = await getApiKey()
+      if (serveKey) process.env.ANTHROPIC_API_KEY = serveKey
+      await resolveState(projectId, sceneId)
+      const { startHeadedMode } = await import("./headed")
+      await startHeadedMode()
+      // Keep serving until the parent process kills us. We must NOT return:
+      // dispatch's caller calls process.exit() on return, which would tear
+      // down the servers. startHeadedMode's SIGINT/SIGTERM handlers own the
+      // clean shutdown path.
+      await new Promise<never>(() => {})
+      return 0 // unreachable; satisfies the Promise<number> signature
     }
 
     case "watch": {

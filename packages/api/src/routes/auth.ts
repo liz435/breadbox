@@ -19,6 +19,7 @@ import {
   IS_HOSTED_MODE,
   CLI_LOCAL_USER_ID,
 } from "../supabase/env"
+import { getApiKey } from "../config"
 import { createLogger } from "../logger"
 
 const log = createLogger("auth-routes")
@@ -149,9 +150,14 @@ export const authRoutes = new Elysia({ name: "auth-routes" })
   // mode synthesizes the fixed local user.
   .get("/api/auth/me", async ({ request, set }) => {
     if (!IS_HOSTED_MODE) {
+      // CLI/desktop: report whether an Anthropic key is available (env set at
+      // boot, or persisted in ~/.dreamer/config.json) so the UI can prompt for
+      // one when missing.
+      const hasApiKey = (await getApiKey()) !== null
       return {
         user: { userId: CLI_LOCAL_USER_ID, githubLogin: "local" },
         mode: "dev" as const,
+        hasApiKey,
       }
     }
 

@@ -39,6 +39,8 @@ export type CurrentUser = {
 export type AuthMeResponse = {
   user: CurrentUser | null
   mode: AuthMode
+  /** CLI/desktop only: whether an Anthropic API key is configured. */
+  hasApiKey?: boolean
 }
 
 const DEFAULT_RESPONSE: AuthMeResponse = { user: null, mode: "hosted" }
@@ -69,6 +71,7 @@ async function fetchAuthMe(): Promise<AuthMeResponse> {
     const parsed: AuthMeResponse = {
       user: data.user ?? null,
       mode,
+      hasApiKey: data.hasApiKey ?? false,
     }
     snapshotCache = parsed
     notify()
@@ -118,6 +121,7 @@ export function refreshCurrentUser(): Promise<AuthMeResponse> {
 export function useCurrentUser(): {
   user: CurrentUser | null
   mode: AuthMode
+  hasApiKey: boolean
   loading: boolean
 } {
   const snapshot = useSyncExternalStore(
@@ -127,10 +131,15 @@ export function useCurrentUser(): {
   )
 
   if (snapshot) {
-    return { user: snapshot.user, mode: snapshot.mode, loading: false }
+    return {
+      user: snapshot.user,
+      mode: snapshot.mode,
+      hasApiKey: snapshot.hasApiKey ?? false,
+      loading: false,
+    }
   }
 
-  return { user: null, mode: "hosted", loading: true }
+  return { user: null, mode: "hosted", hasApiKey: false, loading: true }
 }
 
 /**

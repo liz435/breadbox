@@ -18,10 +18,13 @@ import { chatRoutes, awaitPendingSummaries } from "./routes/chat";
 import { compileRoutes } from "./routes/compile";
 import { flashRoutes } from "./routes/flash";
 import { boardRoutes } from "./routes/boards";
+import { boardStreamRoutes } from "./routes/board-stream";
+import { mcpConnectRoutes } from "./routes/mcp-connect";
 import { evalRoutes } from "./routes/eval";
 import { libraryRoutes } from "./routes/libraries";
 import { capabilitiesRoutes } from "./routes/capabilities";
 import { authRoutes } from "./routes/auth";
+import { configRoutes } from "./routes/config";
 import { adminRoutes } from "./routes/admin";
 import { billingRoutes } from "./routes/billing";
 import { motionRoutes } from "./routes/motion";
@@ -93,6 +96,7 @@ const app = new Elysia()
   // request-context plugin reads it.
   .use(requestContextPlugin)
   .use(authRoutes)
+  .use(configRoutes)
   .use(adminRoutes)
   .use(billingRoutes)
   .use(projectRoutes)
@@ -101,6 +105,8 @@ const app = new Elysia()
   .use(compileRoutes)
   .use(flashRoutes)
   .use(boardRoutes)
+  .use(boardStreamRoutes)
+  .use(mcpConnectRoutes)
   .use(evalRoutes)
   .use(libraryRoutes)
   .use(capabilitiesRoutes)

@@ -66,6 +66,11 @@ export function startStaticWebUI(
 ): StaticWebUI {
   const server = Bun.serve({
     port,
+    // Loopback only: the embedded UI is a local/desktop surface and must not
+    // be reachable from the LAN. Matches the API's 127.0.0.1 bind, and keeps
+    // it consistent with headed.ts's port probe (which also probes 127.0.0.1)
+    // so "is this port free?" and "can I bind it?" agree.
+    hostname: "127.0.0.1",
     async fetch(req) {
       const url = new URL(req.url)
       let pathname = url.pathname

@@ -17,6 +17,7 @@ export type Command =
   | { kind: "projects" }
   | { kind: "scenes" }
   | { kind: "headed" }
+  | { kind: "serve" }
   | { kind: "watch"; port: string | null }
   | { kind: "config"; subcommand: "get" | "set" | "unset" | "path" | "list"; key?: string; value?: string }
   | { kind: "setup" }
@@ -54,7 +55,7 @@ export class CliParseError extends Error {
 
 const SUBCOMMANDS = [
   "repl", "run", "compile", "flash", "ports", "board", "sketch",
-  "projects", "scenes", "headed", "watch", "config", "setup",
+  "projects", "scenes", "headed", "serve", "watch", "config", "setup",
   "logs", "crash", "telemetry", "upgrade", "diagram", "mcp", "version", "help",
 ] as const
 
@@ -129,6 +130,7 @@ export function parseArgs(argv: string[]): CliArgs {
     case "projects":
     case "scenes":
     case "headed":
+    case "serve":
     case "setup":
     case "mcp":
     case "version":
@@ -254,6 +256,7 @@ Subcommands:
   projects                List all projects
   scenes                  List scenes in the current project
   headed                  Start REPL with the web UI attached
+  serve                   Serve the web UI + API only, no REPL (used by the desktop app)
   watch [--port <port>]   Auto-compile (and flash, if --port given) on sketch changes
   setup                   Install arduino-cli + AVR core + prompt for API key
   config <op> ...         Manage config (path|list|get|set|unset)

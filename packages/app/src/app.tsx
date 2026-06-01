@@ -2,6 +2,7 @@ import { useEffect, useCallback, useRef, useState, type ReactNode } from "react"
 import { Router, useRouter } from "@/router";
 import { CommandPalette } from "@/components/command-palette";
 import { ShortcutsDialog } from "@/components/shortcuts-dialog";
+import { ConnectClaudeDialog, OPEN_CONNECT_CLAUDE_EVENT } from "@/components/connect-claude-dialog";
 import { DocsRouter } from "@/docs/docs-router";
 import { LearnRouter } from "@/learn/learn-router";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -33,6 +34,7 @@ import { DockviewContext } from "./store/dockview-context";
 import { ProjectLoader } from "./project/project-loader";
 import { useGraphPersistence } from "./project/use-graph-persistence";
 import { useBoardPersistence } from "./project/use-board-persistence";
+import { useLiveBoardSync } from "./project/use-live-board-sync";
 import { restorePairedPort } from "./simulator/web-serial-port-store";
 import { SketchEditor } from "./editor/sketch-editor";
 import { SchematicPanel } from "./schematic/schematic-panel";
@@ -46,6 +48,7 @@ import {
 import { boardCatalog } from "./learn/board-catalog";
 import { decodeDiagramFromUrl, diagramToBoardState } from "@dreamer/schemas";
 import { useCurrentUser } from "./auth/use-current-user";
+import { ApiKeyDialog, OPEN_API_KEY_EVENT } from "./auth/api-key-dialog";
 import { LocalNoSessionScreen } from "./auth/local-no-session-screen";
 import { PreviewBanner } from "./auth/preview-banner";
 import { MotionEditorPage } from "./motion/motion-editor-page";
@@ -123,6 +126,9 @@ function AppInner() {
   const project = useProject();
   useGraphPersistence();
   const { saveNow } = useBoardPersistence();
+  // Live bridge: apply out-of-band board edits (e.g. from the `dreamer mcp`
+  // server while chatting with Claude) to the canvas in real time.
+  useLiveBoardSync();
 
   // Re-acquire any previously-granted WebSerial port so hosted users don't
   // have to re-pair their board on every reload. No-op outside Chromium /
@@ -134,6 +140,27 @@ function AppInner() {
   const boardHydratedForRef = useRef<string | null>(null);
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [connectClaudeOpen, setConnectClaudeOpen] = useState(false);
+
+  // CLI/desktop: prompt for an Anthropic API key when none is configured.
+  // `mode`/`hasApiKey` come from /api/auth/me (resolved by the time AppInner
+  // mounts, since AuthGate already gated on `loading`).
+  const { mode, hasApiKey } = useCurrentUser();
+  const [apiKeyOpen, setApiKeyOpen] = useState(mode === "dev" && !hasApiKey);
+
+  // Open the Connect-Claude dialog when the command palette dispatches its event.
+  useEffect(() => {
+    const open = () => setConnectClaudeOpen(true);
+    window.addEventListener(OPEN_CONNECT_CLAUDE_EVENT, open);
+    return () => window.removeEventListener(OPEN_CONNECT_CLAUDE_EVENT, open);
+  }, []);
+
+  // Re-open the API-key dialog when a chat request reports a missing key.
+  useEffect(() => {
+    const open = () => setApiKeyOpen(true);
+    window.addEventListener(OPEN_API_KEY_EVENT, open);
+    return () => window.removeEventListener(OPEN_API_KEY_EVENT, open);
+  }, []);
 
   // Hydrate board state on first render — and again after switchProject().
   //
@@ -478,6 +505,12 @@ function AppInner() {
       </div>
       <CommandPalette open={cmdPaletteOpen} onClose={() => setCmdPaletteOpen(false)} />
       <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      <ConnectClaudeDialog
+        open={connectClaudeOpen}
+        onClose={() => setConnectClaudeOpen(false)}
+        projectId={project.projectId}
+      />
+      <ApiKeyDialog open={apiKeyOpen} onClose={() => setApiKeyOpen(false)} />
     </DockviewContext.Provider>
   );
 }
