@@ -1,0 +1,28 @@
+[package]
+name = "dreamer-desktop"
+version = "0.1.0"
+description = "Dreamer desktop app"
+authors = ["Dreamer"]
+edition = "2021"
+rust-version = "1.77.2"
+
+# The Tauri CLI builds this library; `src/main.rs` is a thin shim that calls
+# into it (also lets the same code target mobile later).
+[lib]
+name = "dreamer_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+tauri-plugin-single-instance = "2"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
