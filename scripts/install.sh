@@ -17,7 +17,7 @@
 
 set -euo pipefail
 
-REPO="${DREAMER_REPO:-liz435/dreamer}"
+REPO="${DREAMER_REPO:-liz435/breadbox}"
 VERSION="${DREAMER_VERSION:-latest}"
 
 # Parse flags

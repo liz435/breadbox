@@ -7,13 +7,13 @@ Command-line interface for Dreamer — Arduino circuit builder. Drives the same 
 ### Prebuilt binary (recommended once releases are published)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/liz435/dreamer/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/liz435/breadbox/main/scripts/install.sh | bash
 ```
 
 Windows:
 
 ```powershell
-irm https://raw.githubusercontent.com/liz435/dreamer/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/liz435/breadbox/main/scripts/install.ps1 | iex
 ```
 
 Both scripts detect your platform, fetch the right binary from the latest GitHub release, verify its SHA256 (if a sidecar `.sha256` is published), and drop `dreamer` onto your PATH.

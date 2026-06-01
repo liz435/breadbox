@@ -15,7 +15,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 if (-not $Version) { $Version = 'latest' }
-if (-not $Repo)    { $Repo    = 'liz435/dreamer' }
+if (-not $Repo)    { $Repo    = 'liz435/breadbox' }
 if (-not $InstallDir) {
     $InstallDir = Join-Path $env:LOCALAPPDATA 'Programs\dreamer'
 }

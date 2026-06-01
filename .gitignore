@@ -1,6 +1,10 @@
 node_modules
 dist
+# Env files — ignore every variant, but keep the committed templates.
 .env
+.env.*
+!.env.example
+!**/.env.example
 bun.lock
 arduinoLLM
 .claude

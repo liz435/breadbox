@@ -16,7 +16,7 @@ import { createHash } from "crypto"
 import { CLI_VERSION, PLATFORM } from "./version"
 import { loadConfig, saveConfig } from "./config"
 
-const DEFAULT_REPO = "liz435/dreamer"
+const DEFAULT_REPO = "liz435/breadbox"
 
 type ReleaseAsset = { name: string; browser_download_url: string; size: number }
 type Release = { tag_name: string; assets: ReleaseAsset[]; html_url: string; body?: string }
