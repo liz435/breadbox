@@ -5,7 +5,6 @@
 // Host + Origin headers to defend against DNS-rebind attacks against
 // the bound loopback port.
 
-import { timingSafeEqual } from "node:crypto"
 import { Elysia } from "elysia"
 import { APP_ORIGIN } from "@dreamer/config"
 import type { AuthContext } from "./context"
@@ -28,53 +27,53 @@ function isAuthedApiPath(pathname: string): boolean {
   return false
 }
 
-const LOCAL_HOST_ALLOW = new Set<string>([
-  "localhost:4111",
-  "127.0.0.1:4111",
-  "localhost:4112",
-  "127.0.0.1:4112",
+// Loopback hostnames. We gate on the request's *hostname*, not on a fixed
+// host:port — because headed/serve mode binds an OS-assigned port whenever its
+// preferred one (3004 UI / 4112 API) is taken (e.g. an orphaned sidecar from a
+// prior launch). Pinning specific ports here would 403 every API call in that
+// fallback case. A DNS-rebind attacker still arrives with their own domain in
+// Host/Origin (e.g. "evil.com"), which is not loopback, so the rebind hole
+// stays closed.
+const LOOPBACK_HOSTNAMES = new Set<string>([
+  "localhost",
+  "127.0.0.1",
+  "::1",
+  "[::1]",
 ])
 
-function localOriginAllowlist(): Set<string> {
+// Non-loopback origins explicitly permitted: the configured APP_ORIGIN plus any
+// comma-separated extras from DREAMER_LOCAL_ORIGIN_ALLOWLIST. Loopback origins
+// are always allowed regardless of this set.
+function extraOriginAllowlist(): Set<string> {
   const extra = (process.env.DREAMER_LOCAL_ORIGIN_ALLOWLIST ?? "")
     .split(",")
     .map((s) => s.trim())
     .filter((s) => s.length > 0)
-  return new Set<string>([
-    APP_ORIGIN,
-    "http://localhost:3002",
-    "http://127.0.0.1:3002",
-    "http://localhost:3004",
-    "http://127.0.0.1:3004",
-    "http://localhost:4111",
-    "http://127.0.0.1:4111",
-    "http://localhost:4112",
-    "http://127.0.0.1:4112",
-    ...extra,
-  ])
+  return new Set<string>([APP_ORIGIN, ...extra])
 }
 
-function timingSafeStringEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) {
-    const buf = Buffer.from(a)
-    timingSafeEqual(buf, buf)
+// The Host header is "hostname" or "hostname:port" ("[::1]:4112" for IPv6).
+// Strip the port and check the hostname is loopback.
+function hostAllowed(host: string): boolean {
+  if (!host) return false
+  const hostname = host.startsWith("[")
+    ? host.slice(0, host.indexOf("]") + 1) // keep brackets: "[::1]"
+    : (host.split(":")[0] ?? "")
+  return LOOPBACK_HOSTNAMES.has(hostname.toLowerCase())
+}
+
+// Allow any loopback origin (any port); otherwise fall back to an exact match
+// against the configured non-loopback allowlist. originHeader may be a full
+// Referer URL, so we normalise to its origin before the allowlist check.
+function originAllowed(originHeader: string, extras: Set<string>): boolean {
+  let url: URL
+  try {
+    url = new URL(originHeader)
+  } catch {
     return false
   }
-  return timingSafeEqual(Buffer.from(a), Buffer.from(b))
-}
-
-function hostAllowed(host: string): boolean {
-  for (const allowed of LOCAL_HOST_ALLOW) {
-    if (timingSafeStringEqual(host, allowed)) return true
-  }
-  return false
-}
-
-function originAllowed(origin: string, allowlist: Set<string>): boolean {
-  for (const allowed of allowlist) {
-    if (timingSafeStringEqual(origin, allowed)) return true
-  }
-  return false
+  if (LOOPBACK_HOSTNAMES.has(url.hostname.toLowerCase())) return true
+  return extras.has(url.origin)
 }
 
 export const cliAuthPlugin = new Elysia({ name: "auth" }).derive(
@@ -96,18 +95,9 @@ export const cliAuthPlugin = new Elysia({ name: "auth" }).derive(
       set.status = 403
       throw new Error("host not allowed")
     }
-    if (originHeader) {
-      let originOnly: string
-      try {
-        originOnly = new URL(originHeader).origin
-      } catch {
-        set.status = 403
-        throw new Error("origin not allowed")
-      }
-      if (!originAllowed(originOnly, localOriginAllowlist())) {
-        set.status = 403
-        throw new Error("origin not allowed")
-      }
+    if (originHeader && !originAllowed(originHeader, extraOriginAllowlist())) {
+      set.status = 403
+      throw new Error("origin not allowed")
     }
 
     // CLI mode is single-tenant: every authenticated path returns the
