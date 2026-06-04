@@ -62,4 +62,22 @@ describe("buildExternalEditPrompt", () => {
     expect(prompt).toContain("arduino.GND");
     expect(prompt).toContain("<id>.<pin>");
   });
+
+  test("leaves a placeholder when no change is provided", () => {
+    expect(prompt).toContain("<describe the change you want here>");
+  });
+
+  test("bakes a provided change into the My change section", () => {
+    const withChange = buildExternalEditPrompt(SAMPLE, {
+      change: "add a push button on pin 2 that toggles the LED",
+    });
+    expect(withChange).toContain("add a push button on pin 2 that toggles the LED");
+    expect(withChange).not.toContain("<describe the change you want here>");
+  });
+
+  test("falls back to the placeholder for a blank/whitespace change", () => {
+    expect(buildExternalEditPrompt(SAMPLE, { change: "   " })).toContain(
+      "<describe the change you want here>",
+    );
+  });
 });

@@ -77,13 +77,28 @@ const VALIDATION_NOTES = `The circuit is validated on import. Never produce a st
   - MISSING_I2C_WIRING: an I²C part (e.g. OLED) with sda/scl left unwired
   - EMPTY_SKETCH: components placed but the sketch has no real code`;
 
+export type ExternalEditPromptOptions = {
+  /**
+   * The user's requested change, baked into the `## My change` section so the
+   * pasted prompt is ready to send as-is. When omitted/blank, a placeholder is
+   * left for the user to fill in inside the chat.
+   */
+  change?: string
+}
+
 /**
  * Build a self-contained Markdown prompt around a diagram JSON string so it can
  * be pasted into any external chat. `diagramJson` is embedded verbatim (it is
  * the document to edit), so pass whatever the user currently sees — typically
- * the pretty-printed Diagram Panel buffer.
+ * the pretty-printed Diagram Panel buffer. Pass `options.change` to pre-fill
+ * the requested edit.
  */
-export function buildExternalEditPrompt(diagramJson: string): string {
+export function buildExternalEditPrompt(
+  diagramJson: string,
+  options: ExternalEditPromptOptions = {},
+): string {
+  const change = options.change?.trim();
+  const changeBlock = change && change.length > 0 ? change : "<describe the change you want here>";
   return `# Edit this Breadbox circuit
 
 You are editing a Breadbox circuit, expressed as a \`${DIAGRAM_SCHEMA_V1}\` JSON document
@@ -94,7 +109,7 @@ document — no explanation, no markdown code fences, nothing else. It must be v
 \`${DIAGRAM_SCHEMA_V1}\` and follow the spec.
 
 ## My change
-<describe the change you want here>
+${changeBlock}
 
 ## Current diagram
 \`\`\`json
