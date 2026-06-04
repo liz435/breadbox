@@ -1,6 +1,6 @@
 # Architecture
 
-Dreamer is an Arduino-focused virtual breadboard. The user builds a circuit on
+Breadbox is an Arduino-focused virtual breadboard. The user builds a circuit on
 a browser canvas, writes/edits sketch code, and runs it in a cycle-accurate
 AVR emulator — optionally with help from an LLM agent that can place
 components, connect wires, and write the sketch.

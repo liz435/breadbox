@@ -4,8 +4,8 @@
 // replace the tokens.
 //
 // In the browser, a second lookup precedes the build-time default: if the
-// embedded web UI was served by the Dreamer standalone binary, the host
-// injected `<script>window.__DREAMER__ = { apiOrigin }</script>` into
+// embedded web UI was served by the Breadbox standalone binary, the host
+// injected `<script>window.__BREADBOX__ = { apiOrigin }</script>` into
 // index.html at serve time. That runtime value wins so users can run the
 // binary with a custom API_PORT without rebuilding the bundle.
 
@@ -14,7 +14,7 @@ export const API_PORT = Number(process.env.API_PORT ?? process.env.PORT ?? 4111)
 
 declare global {
   interface Window {
-    __DREAMER__?: {
+    __BREADBOX__?: {
       apiOrigin?: string
       appOrigin?: string
       /**
@@ -29,13 +29,13 @@ declare global {
 }
 
 const runtimeApiOrigin: string | undefined =
-  typeof window !== "undefined" ? window.__DREAMER__?.apiOrigin : undefined
+  typeof window !== "undefined" ? window.__BREADBOX__?.apiOrigin : undefined
 const runtimeAppOrigin: string | undefined =
-  typeof window !== "undefined" ? window.__DREAMER__?.appOrigin : undefined
+  typeof window !== "undefined" ? window.__BREADBOX__?.appOrigin : undefined
 
 export const APP_ORIGIN = runtimeAppOrigin ?? process.env.APP_ORIGIN ?? `http://localhost:${APP_PORT}`
 export const API_ORIGIN = runtimeApiOrigin ?? process.env.API_ORIGIN ?? `http://localhost:${API_PORT}`
 
 /** True when the CLI-embedded static server has explicitly requested AVR-only mode. */
 export const PREFER_AVR: boolean =
-  typeof window !== "undefined" ? window.__DREAMER__?.preferAvr === true : false
+  typeof window !== "undefined" ? window.__BREADBOX__?.preferAvr === true : false

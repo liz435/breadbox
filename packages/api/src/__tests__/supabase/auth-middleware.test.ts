@@ -14,7 +14,7 @@
 //   export SUPABASE_URL=http://127.0.0.1:54321
 //   export SUPABASE_ANON_KEY="<from supabase status output>"
 //   export SUPABASE_SERVICE_ROLE_KEY="<from supabase status output>"
-//   DREAMER_MODE=hosted bun test src/__tests__/supabase
+//   BREADBOX_MODE=hosted bun test src/__tests__/supabase
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { Elysia } from "elysia"
@@ -35,8 +35,8 @@ const describeOrSkip = HAS_SUPABASE ? describe : describe.skip
 // Force hosted mode so the auth-plugin selector resolves to the Supabase
 // middleware. Captured before any module that reads env loads.
 if (HAS_SUPABASE) {
-  process.env.DREAMER_MODE = "hosted"
-  process.env.DREAMER_HOSTED = "1"
+  process.env.BREADBOX_MODE = "hosted"
+  process.env.BREADBOX_HOSTED = "1"
 }
 
 // Dynamic imports so env mutations land before module evaluation.

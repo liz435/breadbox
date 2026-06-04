@@ -7,7 +7,7 @@
 
 import { z } from "zod"
 
-export const IS_HOSTED = process.env.DREAMER_HOSTED === "1"
+export const IS_HOSTED = process.env.BREADBOX_HOSTED === "1"
 
 // ── Env schemas ──────────────────────────────────────────────────────────
 
@@ -51,8 +51,8 @@ export const ADMIN_GITHUB_LOGINS: string[] = csvList.parse(
 )
 
 /** Dev-only shim: bypass auth when running `bun run dev` without the CLI bootstrap flow. */
-export const DREAMER_DEV_SKIP_AUTH: boolean = boolFlag.parse(
-  process.env.DREAMER_DEV_SKIP_AUTH,
+export const BREADBOX_DEV_SKIP_AUTH: boolean = boolFlag.parse(
+  process.env.BREADBOX_DEV_SKIP_AUTH,
 )
 
 /**
@@ -60,5 +60,5 @@ export const DREAMER_DEV_SKIP_AUTH: boolean = boolFlag.parse(
  * (Railway) deployments; `dreamer headed` sets `127.0.0.1` so the local
  * API is loopback-only and not reachable from the LAN.
  */
-export const DREAMER_BIND: string =
-  (process.env.DREAMER_BIND && process.env.DREAMER_BIND.trim()) || "0.0.0.0"
+export const BREADBOX_BIND: string =
+  (process.env.BREADBOX_BIND && process.env.BREADBOX_BIND.trim()) || "0.0.0.0"

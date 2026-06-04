@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Dreamer",
+  "productName": "Breadbox",
   "version": "0.1.0",
-  "identifier": "com.dreamer.desktop",
+  "identifier": "com.breadbox.desktop",
   "build": {
     "frontendDist": "../splash",
     "beforeDevCommand": "bun run prepare:sidecar",
@@ -12,7 +12,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Dreamer",
+        "title": "Breadbox",
         "width": 1280,
         "height": 832,
         "minWidth": 900,
@@ -33,7 +33,7 @@
     "targets": "all",
     "category": "DeveloperTool",
     "shortDescription": "AI Arduino circuit builder",
-    "longDescription": "Dreamer is an AI-assisted Arduino circuit builder. The desktop app runs the local server and renders the web UI in a native window.",
+    "longDescription": "Breadbox is an AI-assisted Arduino circuit builder. The desktop app runs the local server and renders the web UI in a native window.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -41,6 +41,6 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": ["binaries/dreamer", "binaries/arduino-cli"]
+    "externalBin": ["binaries/breadbox", "binaries/arduino-cli"]
   }
 }

@@ -56,7 +56,7 @@ export const boardRoutes = new Elysia()
         try {
           ws.send(JSON.stringify({
             type: "error",
-            error: "Serial ports are unavailable in hosted mode. Run the Dreamer CLI locally to connect a board.",
+            error: "Serial ports are unavailable in hosted mode. Run the Breadbox CLI locally to connect a board.",
           }))
           ws.close()
         } catch { /* already closed */ }

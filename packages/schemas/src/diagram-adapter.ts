@@ -50,6 +50,7 @@ import {
 import {
   diagramSchema,
   DIAGRAM_SCHEMA_V1,
+  DIAGRAM_SCHEMA_V1_LEGACY,
   type DiagramComponent,
   type DiagramWire,
   type DreamerDiagram,
@@ -231,6 +232,19 @@ function resolveEndpoint(
 
 export function diagramToBoardState(input: unknown): DiagramParseResult {
   const errors: DiagramError[] = [];
+
+  // Back-compat: normalize the pre-rebrand `dreamer-diagram-v1` literal to the
+  // current one so old exports / shared links still load. This is the single
+  // read chokepoint, so every caller (CLI, diagram panel, share links, agent
+  // tools) inherits the alias and the zod `z.literal` check downstream passes.
+  if (
+    typeof input === "object" &&
+    input !== null &&
+    "$schema" in input &&
+    (input as { $schema: unknown }).$schema === DIAGRAM_SCHEMA_V1_LEGACY
+  ) {
+    input = { ...(input as Record<string, unknown>), $schema: DIAGRAM_SCHEMA_V1 };
+  }
 
   // Explicit version gate — zod's literal check gives a less friendly message.
   if (

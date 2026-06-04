@@ -15,11 +15,11 @@ const modeSchema = z
  * Deploy mode. `cli` (default) uses file-based storage and bypasses auth;
  * `hosted` uses Supabase Auth + Postgres + Storage. Pinned at startup.
  */
-export const DREAMER_MODE: "cli" | "hosted" = modeSchema.parse(
-  process.env.DREAMER_MODE,
+export const BREADBOX_MODE: "cli" | "hosted" = modeSchema.parse(
+  process.env.BREADBOX_MODE,
 )
 
-export const IS_HOSTED_MODE = DREAMER_MODE === "hosted"
+export const IS_HOSTED_MODE = BREADBOX_MODE === "hosted"
 
 /**
  * Default user id used in CLI mode when auth is bypassed. Stable across
@@ -35,8 +35,8 @@ export const CLI_LOCAL_USER_ID = "00000000-0000-0000-0000-000000000001"
 function requireInHostedMode(value: string | undefined, key: string): string {
   if (IS_HOSTED_MODE && (value == null || value.length === 0)) {
     throw new Error(
-      `${key} is required in hosted mode (DREAMER_MODE=hosted). ` +
-        `Either set the env var, or run with DREAMER_MODE=cli.`,
+      `${key} is required in hosted mode (BREADBOX_MODE=hosted). ` +
+        `Either set the env var, or run with BREADBOX_MODE=cli.`,
     )
   }
   return value ?? ""

@@ -1,16 +1,16 @@
 // ── prepare-sidecar ──────────────────────────────────────────────────────
 //
-// Builds the single-file `dreamer` binary for THIS host and copies it into
+// Builds the single-file `breadbox` binary for THIS host and copies it into
 // the Tauri sidecar location, named with the Rust target triple Tauri
-// expects (`binaries/dreamer-<triple>`). Tauri's `externalBin: ["binaries/
-// dreamer"]` resolves that per-platform name at bundle time.
+// expects (`binaries/breadbox-<triple>`). Tauri's `externalBin: ["binaries/
+// breadbox"]` resolves that per-platform name at bundle time.
 //
 // Wired into tauri.conf.json:
 //   beforeDevCommand   → `bun run prepare:sidecar`         (build if missing)
 //   beforeBuildCommand → `bun run prepare:sidecar --force` (always rebuild)
 //
 // Steps: build the web UI bundle (so the binary serves the embedded UI →
-// `dreamer serve` runs in static mode), cross-compile the host binary, copy;
+// `breadbox serve` runs in static mode), cross-compile the host binary, copy;
 // then fetch the matching `arduino-cli` binary and stage it as a second
 // sidecar so the desktop app can compile/flash with no manual install
 // (mirrors how the Arduino IDE bundles arduino-cli). Compiler cores still
@@ -39,11 +39,11 @@ type Target = {
 }
 
 const TARGETS: Record<string, Target> = {
-  "darwin-arm64": { cliScript: "build:darwin-arm64", srcName: "dreamer-darwin-arm64", triple: "aarch64-apple-darwin", ext: "", arduinoAsset: `arduino-cli_${ARDUINO_CLI_VERSION}_macOS_ARM64.tar.gz` },
-  "darwin-x64": { cliScript: "build:darwin-x64", srcName: "dreamer-darwin-x64", triple: "x86_64-apple-darwin", ext: "", arduinoAsset: `arduino-cli_${ARDUINO_CLI_VERSION}_macOS_64bit.tar.gz` },
-  "linux-x64": { cliScript: "build:linux-x64", srcName: "dreamer-linux-x64", triple: "x86_64-unknown-linux-gnu", ext: "", arduinoAsset: `arduino-cli_${ARDUINO_CLI_VERSION}_Linux_64bit.tar.gz` },
-  "linux-arm64": { cliScript: "build:linux-arm64", srcName: "dreamer-linux-arm64", triple: "aarch64-unknown-linux-gnu", ext: "", arduinoAsset: `arduino-cli_${ARDUINO_CLI_VERSION}_Linux_ARM64.tar.gz` },
-  "win32-x64": { cliScript: "build:windows-x64", srcName: "dreamer-windows-x64.exe", triple: "x86_64-pc-windows-msvc", ext: ".exe", arduinoAsset: `arduino-cli_${ARDUINO_CLI_VERSION}_Windows_64bit.zip` },
+  "darwin-arm64": { cliScript: "build:darwin-arm64", srcName: "breadbox-darwin-arm64", triple: "aarch64-apple-darwin", ext: "", arduinoAsset: `arduino-cli_${ARDUINO_CLI_VERSION}_macOS_ARM64.tar.gz` },
+  "darwin-x64": { cliScript: "build:darwin-x64", srcName: "breadbox-darwin-x64", triple: "x86_64-apple-darwin", ext: "", arduinoAsset: `arduino-cli_${ARDUINO_CLI_VERSION}_macOS_64bit.tar.gz` },
+  "linux-x64": { cliScript: "build:linux-x64", srcName: "breadbox-linux-x64", triple: "x86_64-unknown-linux-gnu", ext: "", arduinoAsset: `arduino-cli_${ARDUINO_CLI_VERSION}_Linux_64bit.tar.gz` },
+  "linux-arm64": { cliScript: "build:linux-arm64", srcName: "breadbox-linux-arm64", triple: "aarch64-unknown-linux-gnu", ext: "", arduinoAsset: `arduino-cli_${ARDUINO_CLI_VERSION}_Linux_ARM64.tar.gz` },
+  "win32-x64": { cliScript: "build:windows-x64", srcName: "breadbox-windows-x64.exe", triple: "x86_64-pc-windows-msvc", ext: ".exe", arduinoAsset: `arduino-cli_${ARDUINO_CLI_VERSION}_Windows_64bit.zip` },
 }
 
 const host = `${process.platform}-${process.arch}`
@@ -55,7 +55,7 @@ if (!target) {
 }
 
 const binDir = resolve(DESKTOP_DIR, "src-tauri/binaries")
-const destPath = resolve(binDir, `dreamer-${target.triple}${target.ext}`)
+const destPath = resolve(binDir, `breadbox-${target.triple}${target.ext}`)
 const srcPath = resolve(REPO_ROOT, "packages/cli/dist", target.srcName)
 
 function run(cmd: string[], cwd: string): void {
@@ -69,14 +69,14 @@ function run(cmd: string[], cwd: string): void {
 
 mkdirSync(binDir, { recursive: true })
 
-// ── 1. dreamer sidecar (web UI + API + Bun runtime, single file) ──────────
+// ── 1. breadbox sidecar (web UI + API + Bun runtime, single file) ──────────
 if (existsSync(destPath) && !force) {
   console.log(`[prepare-sidecar] reusing ${destPath}`)
   console.log(`[prepare-sidecar] (pass --force, or run \`bun run prepare:sidecar --force\`, to rebuild)`)
 } else {
   // Production web UI + asset manifest → the binary serves the embedded UI.
   run(["bun", "run", "build:webui"], REPO_ROOT)
-  // Cross-compile the single-file dreamer binary for this host, then copy it
+  // Cross-compile the single-file breadbox binary for this host, then copy it
   // into the Tauri sidecar slot, named with the Rust target triple.
   run(["bun", "run", "--cwd", "packages/cli", target.cliScript], REPO_ROOT)
   if (!existsSync(srcPath)) {

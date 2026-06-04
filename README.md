@@ -1,7 +1,7 @@
-# Dreamer
+# Breadbox
 
 **An AI-assisted Arduino circuit builder and simulator.** Describe the circuit
-you want in plain language; Dreamer wires it on a breadboard, writes the sketch,
+you want in plain language; Breadbox wires it on a breadboard, writes the sketch,
 and simulates it — AVR and RP2040 — right in the browser. When you're happy,
 compile and flash to real hardware.
 
@@ -61,7 +61,7 @@ CLI deep-dives — start with [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
 
 ## Two modes
 
-Dreamer runs single-tenant by default and multi-tenant when hosted:
+Breadbox runs single-tenant by default and multi-tenant when hosted:
 
 - **CLI mode** (`DREAMER_MODE=cli`, the default) — file-based storage, auth
   bypassed, bring-your-own Anthropic key. This is what the CLI and desktop app

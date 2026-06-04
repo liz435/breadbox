@@ -1,6 +1,6 @@
 # @dreamer/cli
 
-Command-line interface for Dreamer — Arduino circuit builder. Drives the same agent, tools, compiler, and flasher as the web UI, plus a headed mode that launches the web UI alongside the REPL.
+Command-line interface for Breadbox — Arduino circuit builder. Drives the same agent, tools, compiler, and flasher as the web UI, plus a headed mode that launches the web UI alongside the REPL.
 
 ## Install
 

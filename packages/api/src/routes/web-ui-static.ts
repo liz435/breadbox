@@ -6,7 +6,7 @@
 // that reads from binary-embedded files — this module reads from disk.
 //
 // Runtime config injection: /index.html has a <script> tag added before
-// the bundle loads, setting window.__DREAMER__ so @dreamer/config picks
+// the bundle loads, setting window.__BREADBOX__ so @dreamer/config picks
 // up the right apiOrigin at run time. `apiOrigin: ""` means "same origin
 // as the page" — correct for Railway, where UI + API share a host.
 //
@@ -54,12 +54,12 @@ function resolveDistDir(): string {
 }
 
 /**
- * Inject `window.__DREAMER__` before any bundle <script>. `apiOrigin=""`
+ * Inject `window.__BREADBOX__` before any bundle <script>. `apiOrigin=""`
  * tells the client to hit the same origin as the page — the right choice
  * for single-container deploys where UI + API share a host.
  */
 function injectRuntimeConfig(html: string): string {
-  const script = `<script>window.__DREAMER__=${JSON.stringify({
+  const script = `<script>window.__BREADBOX__=${JSON.stringify({
     apiOrigin: "",
     appOrigin: "",
     preferAvr: true,
@@ -80,11 +80,11 @@ function injectRuntimeConfig(html: string): string {
  */
 export function createWebUiStatic() {
   // Explicit opt-out for API-only deployments that share the same Docker
-  // image. Set DREAMER_API_ONLY=1 on a Railway service (or similar) that
+  // image. Set BREADBOX_API_ONLY=1 on a Railway service (or similar) that
   // should never serve the frontend even though packages/app/dist/ is
   // baked into the image.
-  if (process.env.DREAMER_API_ONLY === "1") {
-    log.info("DREAMER_API_ONLY=1 — static web UI disabled")
+  if (process.env.BREADBOX_API_ONLY === "1") {
+    log.info("BREADBOX_API_ONLY=1 — static web UI disabled")
     return {
       plugin: new Elysia({ name: "web-ui-static-api-only" }),
       handleNotFound: () => undefined,

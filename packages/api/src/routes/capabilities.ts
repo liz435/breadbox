@@ -15,7 +15,7 @@ import { IS_HOSTED } from "../env"
 
 export type Capabilities = {
   /**
-   * DREAMER_HOSTED=1 deployments set this to signal that the backend is
+   * BREADBOX_HOSTED=1 deployments set this to signal that the backend is
    * shared/multi-tenant and library install/uninstall are disabled.
    * The UI hides install buttons, keeps the rest of the experience intact.
    */

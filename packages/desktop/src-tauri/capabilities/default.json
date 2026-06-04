@@ -1,13 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Core window permissions plus permission to launch the bundled `dreamer` server sidecar.",
+  "description": "Core window permissions plus permission to launch the bundled `breadbox` server sidecar.",
   "windows": ["main"],
   "permissions": [
     "core:default",
     {
       "identifier": "shell:allow-spawn",
-      "allow": [{ "name": "binaries/dreamer", "sidecar": true, "args": true }]
+      "allow": [{ "name": "binaries/breadbox", "sidecar": true, "args": true }]
     }
   ]
 }

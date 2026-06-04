@@ -1,4 +1,4 @@
-// MCP server entrypoint. `dreamer mcp [--project <id>]` spawns this;
+// MCP server entrypoint. `breadbox mcp [--project <id>]` spawns this;
 // it speaks JSON-RPC 2.0 over stdio as required by Claude Desktop and
 // other MCP clients.
 //
@@ -31,7 +31,7 @@ export async function runMcpServer(options: RunMcpOptions): Promise<void> {
 
   const server = new McpServer(
     {
-      name: "dreamer",
+      name: "breadbox",
       version: CLI_VERSION,
     },
     {
@@ -47,14 +47,14 @@ export async function runMcpServer(options: RunMcpOptions): Promise<void> {
   // Fixed resources.
   server.resource(
     "projects-index",
-    "dreamer://projects",
-    { description: "Index of every Dreamer project on disk." },
+    "breadbox://projects",
+    { description: "Index of every Breadbox project on disk." },
     async () => readProjectsIndex(),
   )
 
   server.resource(
     "wiring-guide",
-    "dreamer://wiring-guide",
+    "breadbox://wiring-guide",
     {
       description:
         "Static wiring reference: wire colours, rules, component footprints, pin names.",
@@ -67,12 +67,12 @@ export async function runMcpServer(options: RunMcpOptions): Promise<void> {
   // the on-disk projects dir and emits a diagram + sketch URI for each.
   server.resource(
     "project-diagram",
-    new ResourceTemplate("dreamer://projects/{projectId}", {
+    new ResourceTemplate("breadbox://projects/{projectId}", {
       list: async () => {
         const summaries = await projectRepo.listProjects(LOCAL_OWNER_ID)
         return {
           resources: summaries.map((s) => ({
-            uri: `dreamer://projects/${s.id}`,
+            uri: `breadbox://projects/${s.id}`,
             name: `diagram: ${s.name}`,
             mimeType: "application/json",
           })),
@@ -88,12 +88,12 @@ export async function runMcpServer(options: RunMcpOptions): Promise<void> {
 
   server.resource(
     "project-sketch",
-    new ResourceTemplate("dreamer://projects/{projectId}/sketch", {
+    new ResourceTemplate("breadbox://projects/{projectId}/sketch", {
       list: async () => {
         const summaries = await projectRepo.listProjects(LOCAL_OWNER_ID)
         return {
           resources: summaries.map((s) => ({
-            uri: `dreamer://projects/${s.id}/sketch`,
+            uri: `breadbox://projects/${s.id}/sketch`,
             name: `sketch: ${s.name}`,
             mimeType: "text/x-arduino",
           })),

@@ -16,7 +16,7 @@ export function generateDashboardHTML(): string {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Agent Debug — Dreamer</title>
+<title>Agent Debug — Breadbox</title>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"><\/script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}

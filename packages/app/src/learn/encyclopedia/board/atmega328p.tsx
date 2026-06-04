@@ -72,7 +72,7 @@ export function Atmega328pPage() {
         </p>
 
         <Note>
-          Dreamer's simulator runs your sketch on the host CPU, not
+          Breadbox's simulator runs your sketch on the host CPU, not
           on a real ATmega328P, so you won't hit those memory limits
           in the editor. The numbers here describe the physical chip
           you'll program when you leave the simulator.

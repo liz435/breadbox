@@ -31,7 +31,7 @@ import { motionRoutes } from "./routes/motion";
 import { createWebUiStatic } from "./routes/web-ui-static";
 import { stopWorker } from "./serial/serialport-bridge";
 import { APP_ORIGIN, API_PORT as _API_PORT } from "@dreamer/config";
-import { DREAMER_BIND, IS_HOSTED } from "./env";
+import { BREADBOX_BIND, IS_HOSTED } from "./env";
 
 const API_PORT = Number(process.env.PORT ?? _API_PORT);
 
@@ -120,9 +120,9 @@ const app = new Elysia()
     const url = new URL(request.url)
     return handleNotFound(url.pathname)
   })
-  .listen({ port: API_PORT, hostname: DREAMER_BIND });
+  .listen({ port: API_PORT, hostname: BREADBOX_BIND });
 
-log.info(`listening on http://${DREAMER_BIND}:${app.server?.port}${IS_HOSTED ? " (hosted, serving web UI)" : ""}`);
+log.info(`listening on http://${BREADBOX_BIND}:${app.server?.port}${IS_HOSTED ? " (hosted, serving web UI)" : ""}`);
 
 // ── Graceful shutdown ───────────────────────────────────────────────────────
 // Railway sends SIGTERM on redeploy with ~10s before SIGKILL. We stop

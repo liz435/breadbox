@@ -1,6 +1,6 @@
-# Dreamer Node Graph System
+# Breadbox Node Graph System
 
-The visual programming environment that powers Dreamer's game engine. Nodes represent game entities, behaviors, and data pipelines — connected via typed ports and evaluated in topological order each frame.
+The visual programming environment that powers Breadbox's game engine. Nodes represent game entities, behaviors, and data pipelines — connected via typed ports and evaluated in topological order each frame.
 
 ## Architecture Overview
 

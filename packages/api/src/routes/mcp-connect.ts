@@ -3,10 +3,10 @@
 // POST /api/mcp/connect   { projectId }
 //
 // Powers the in-app "Connect automatically" button: registers this project's
-// `dreamer mcp` server with the user's local Claude clients so they don't have
+// `breadbox mcp` server with the user's local Claude clients so they don't have
 // to run `claude mcp add` or hand-edit a config file.
 //
-//   - Claude Desktop: merges a `dreamer` entry into claude_desktop_config.json
+//   - Claude Desktop: merges a `breadbox` entry into claude_desktop_config.json
 //     (backing up any previous file). Requires a Claude Desktop restart to load.
 //   - Claude Code:     best-effort `claude mcp add` when the `claude` CLI is on
 //     PATH. Never fails the request — reported as a status.
@@ -30,27 +30,27 @@ type McpServerConfig = {
 }
 
 // Resolve the command Claude should run to launch the MCP server, pointed at
-// `projectId`. Correct across the three ways Dreamer runs:
-//   - compiled `dreamer` binary (installed CLI / desktop sidecar) → the exe
+// `projectId`. Correct across the three ways Breadbox runs:
+//   - compiled `breadbox` binary (installed CLI / desktop sidecar) → the exe
 //   - dev (`bun` against source)                                  → bun + CLI entry
-//   - otherwise                                                   → `dreamer` on PATH
+//   - otherwise                                                   → `breadbox` on PATH
 function resolveMcpServerConfig(projectId: string): McpServerConfig {
   const exe = process.execPath
   const projArgs = ["--project", projectId, "mcp"]
-  // Carry a non-default DREAMER_HOME through so the Claude-spawned MCP process
+  // Carry a non-default BREADBOX_HOME through so the Claude-spawned MCP process
   // reads the same project store the running app uses.
-  const env = process.env.DREAMER_HOME
-    ? { DREAMER_HOME: process.env.DREAMER_HOME }
+  const env = process.env.BREADBOX_HOME
+    ? { BREADBOX_HOME: process.env.BREADBOX_HOME }
     : undefined
 
-  if (basename(exe).toLowerCase().includes("dreamer")) {
+  if (basename(exe).toLowerCase().includes("breadbox")) {
     return { command: exe, args: projArgs, env }
   }
   const cliEntry = resolve(import.meta.dir, "../../../cli/src/index.ts")
   if (existsSync(cliEntry)) {
     return { command: exe, args: [cliEntry, ...projArgs], env }
   }
-  return { command: "dreamer", args: projArgs, env }
+  return { command: "breadbox", args: projArgs, env }
 }
 
 function claudeDesktopConfigPath(): string {
@@ -85,7 +85,7 @@ function writeClaudeDesktopConfig(server: McpServerConfig): DesktopResult {
     let backedUp = false
     if (existsSync(path)) {
       const raw = readFileSync(path, "utf8")
-      writeFileSync(`${path}.dreamer.bak`, raw)
+      writeFileSync(`${path}.breadbox.bak`, raw)
       backedUp = true
       try {
         const parsed: unknown = JSON.parse(raw)
@@ -99,7 +99,10 @@ function writeClaudeDesktopConfig(server: McpServerConfig): DesktopResult {
       config.mcpServers && typeof config.mcpServers === "object"
         ? (config.mcpServers as Record<string, unknown>)
         : {}
-    servers.dreamer = {
+    // Drop a pre-rebrand `dreamer` entry so re-connecting doesn't leave a stale
+    // server pointing at the old binary name.
+    delete servers.dreamer
+    servers.breadbox = {
       command: server.command,
       args: server.args,
       ...(server.env ? { env: server.env } : {}),
@@ -129,13 +132,16 @@ function addToClaudeCode(server: McpServerConfig): CodeResult {
 
   try {
     // Remove any existing entry first so re-connecting updates the project id
-    // (`claude mcp add` errors on a duplicate name). Harmless if absent.
-    Bun.spawnSync([claude, "mcp", "remove", "--scope", "user", "dreamer"], {
-      stdout: "pipe",
-      stderr: "pipe",
-    })
+    // (`claude mcp add` errors on a duplicate name). Harmless if absent. Also
+    // clears the pre-rebrand `dreamer` server name.
+    for (const name of ["breadbox", "dreamer"]) {
+      Bun.spawnSync([claude, "mcp", "remove", "--scope", "user", name], {
+        stdout: "pipe",
+        stderr: "pipe",
+      })
+    }
     const proc = Bun.spawnSync(
-      [claude, "mcp", "add", "--scope", "user", ...envArgs, "dreamer", "--", server.command, ...server.args],
+      [claude, "mcp", "add", "--scope", "user", ...envArgs, "breadbox", "--", server.command, ...server.args],
       { stdout: "pipe", stderr: "pipe" }
     )
     if (proc.exitCode === 0) return { status: "added" }
@@ -150,7 +156,7 @@ function addToClaudeCode(server: McpServerConfig): CodeResult {
 export const mcpConnectRoutes = new Elysia().post("/api/mcp/connect", ({ body, set }) => {
   if (IS_HOSTED) {
     set.status = 403
-    return { ok: false, error: "Auto-connect is only available when running Dreamer locally." }
+    return { ok: false, error: "Auto-connect is only available when running Breadbox locally." }
   }
 
   const projectId = (body as { projectId?: unknown } | null)?.projectId

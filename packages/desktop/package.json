@@ -2,7 +2,7 @@
   "name": "@dreamer/desktop",
   "private": true,
   "version": "0.1.0",
-  "description": "Dreamer desktop app — a native window around the local server + web UI (Tauri)",
+  "description": "Breadbox desktop app — a native window around the local server + web UI (Tauri)",
   "scripts": {
     "prepare:sidecar": "bun run scripts/prepare-sidecar.ts",
     "icons": "bash scripts/make-icons.sh",

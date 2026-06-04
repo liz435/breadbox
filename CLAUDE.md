@@ -1,4 +1,4 @@
-# Dreamer — Project Instructions
+# Breadbox — Project Instructions
 
 ## Package Manager
 Always use **bun** — never npm/npx/yarn.

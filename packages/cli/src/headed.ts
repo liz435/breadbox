@@ -49,7 +49,7 @@ function openBrowser(url: string): void {
 const API_PORT_PREF = Number(process.env.API_PORT ?? 4112)
 const APP_PORT_PREF = Number(process.env.APP_PORT ?? 3004)
 // Bind API to loopback so LAN peers and other local processes can't
-// reach /api/*. See `DREAMER_BIND` in packages/api/src/env.ts.
+// reach /api/*. See `BREADBOX_BIND` in packages/api/src/env.ts.
 const API_HOST = "127.0.0.1"
 
 // Probe a port on loopback: resolve to the actual bound port if free, or
@@ -86,10 +86,10 @@ async function getFreePort(preferred: number): Promise<number> {
  * Decide whether to serve the web UI from embedded static assets or by
  * spawning Vite. Standalone binaries have ASSET_COUNT > 0; dev-from-source
  * has ASSET_COUNT = 0 (no `vite build` run) or user forces dev mode with
- * DREAMER_HEADED_MODE=dev.
+ * BREADBOX_HEADED_MODE=dev.
  */
 function resolveHeadedMode(): "static" | "dev" {
-  const override = process.env.DREAMER_HEADED_MODE
+  const override = process.env.BREADBOX_HEADED_MODE
   if (override === "static" || override === "dev") return override
   return ASSET_COUNT > 0 ? "static" : "dev"
 }
@@ -192,23 +192,23 @@ export async function startHeadedMode(): Promise<void> {
   process.stdout.write(banner)
 
   // 4. Auto-open the browser unless we're in a headless env (CI,
-  //    non-TTY) or explicitly told not to. DREAMER_NO_OPEN=1 is set by the
+  //    non-TTY) or explicitly told not to. BREADBOX_NO_OPEN=1 is set by the
   //    Tauri desktop shell (packages/desktop), which spawns this binary as
   //    a sidecar and renders the UI in its own native window — opening a
   //    browser tab on top of that would be wrong. The open helpers are all
   //    fire-and-forget; a failed spawn just means the user copies the URL.
   const headless =
-    process.env.DREAMER_NO_OPEN === "1" ||
+    process.env.BREADBOX_NO_OPEN === "1" ||
     process.env.CI === "true" ||
     !process.stdout.isTTY
   if (!headless) openBrowser(appUrl)
 
-  // When running as the Tauri desktop sidecar (DREAMER_NO_OPEN=1), emit a
+  // When running as the Tauri desktop sidecar (BREADBOX_NO_OPEN=1), emit a
   // machine-readable marker so the native shell knows which URL to point its
   // window at — the port may be OS-assigned, not the 3004 default. One line,
   // easy to grep from the child's stdout.
-  if (process.env.DREAMER_NO_OPEN === "1") {
-    process.stdout.write(`DREAMER_URL ${appUrl}\n`)
+  if (process.env.BREADBOX_NO_OPEN === "1") {
+    process.stdout.write(`BREADBOX_URL ${appUrl}\n`)
   }
 
   // Clean up on exit. In dev mode we must kill Vite and wait for it to

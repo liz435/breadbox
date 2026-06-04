@@ -1,6 +1,6 @@
 # Agent Decision Tree
 
-How a single user prompt is routed through Dreamer's agent stack — from raw text to a board mutation.
+How a single user prompt is routed through Breadbox's agent stack — from raw text to a board mutation.
 
 ## High-level flow
 

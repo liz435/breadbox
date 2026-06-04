@@ -1,7 +1,7 @@
 // ── Storage adapter selector ────────────────────────────────────────────
 //
 // One module exporting `storage`, the unified `{ projects, agentRuns }`
-// repo bundle. Pinned at process start based on DREAMER_MODE — never
+// repo bundle. Pinned at process start based on BREADBOX_MODE — never
 // switches per-request. Both adapters ship in code permanently:
 //   • cli mode (default)  → file-based, `dataDir()` on disk
 //   • hosted mode         → Supabase Postgres + Supabase Storage

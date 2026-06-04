@@ -52,7 +52,7 @@ describe("validateDiagram — structural", () => {
 
   test("structural failure skips semantic checks", () => {
     const result = validateDiagram({
-      $schema: "dreamer-diagram-v99", // bad version
+      $schema: "breadbox-diagram-v99", // bad version
     });
     expect(result.ok).toBe(false);
     // Only structural errors, no semantic warnings

@@ -4,7 +4,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
 const APP_PORT = Number(process.env.APP_PORT ?? 3002)
-const API_PORT = Number(process.env.API_PORT ?? process.env.DREAMER_API_PORT ?? 4111)
+const API_PORT = Number(process.env.API_PORT ?? process.env.BREADBOX_API_PORT ?? 4111)
 const APP_ORIGIN = process.env.APP_ORIGIN ?? `http://localhost:${APP_PORT}`
 const API_ORIGIN = process.env.API_ORIGIN ?? process.env.VITE_API_ORIGIN ?? `http://localhost:${API_PORT}`
 
@@ -17,7 +17,7 @@ const API_ORIGIN = process.env.API_ORIGIN ?? process.env.VITE_API_ORIGIN ?? `htt
 // otherwise 403.
 //
 // `configureProxy` adds X-Forwarded-Host / -Proto so that hosted-mode
-// auth in dev (DREAMER_MODE=hosted) reconstructs the OAuth `redirect_uri`
+// auth in dev (BREADBOX_MODE=hosted) reconstructs the OAuth `redirect_uri`
 // as `http://localhost:3002/auth/callback` instead of
 // `http://127.0.0.1:4111/auth/callback`. Supabase's GitHub provider
 // requires the redirect_uri at exchange time to byte-match the one used

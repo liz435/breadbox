@@ -1,17 +1,17 @@
-# MCP Server — drive Dreamer from Claude
+# MCP Server — drive Breadbox from Claude
 
-Dreamer ships a [Model Context Protocol](https://modelcontextprotocol.io/) server
+Breadbox ships a [Model Context Protocol](https://modelcontextprotocol.io/) server
 (`dreamer mcp`) that lets **your own** Claude (Claude Code, Claude Desktop) or any
 MCP client place components, wire them up, and write the sketch for a project.
 
 The difference from a plain "generate me a circuit" tool: when the MCP edits a
-project, the change appears on your **open Dreamer canvas in real time** — no
+project, the change appears on your **open Breadbox canvas in real time** — no
 import, no reload. You keep the tab open and watch the board build itself.
 
 ```
 Claude (your client) ──tools──▶ dreamer mcp ──writes──▶ project file on disk
                                                               │ (version bump)
-   running Dreamer (dev server or desktop app) ── file-watch ─┘
+   running Breadbox (dev server or desktop app) ── file-watch ─┘
         └─ pushes the new board over WebSocket ─▶ your open tab updates live
 ```
 
@@ -80,7 +80,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`
 
 ## 3. Watch it build live
 
-1. Open the project in Dreamer (`bun run dev` → http://localhost:3000, the
+1. Open the project in Breadbox (`bun run dev` → http://localhost:3000, the
    `dreamer` CLI, or the desktop app). Note its project id.
 2. Connect Claude to that **same** id (§2).
 3. Chat with Claude — e.g. *"add an LED on pin 13 through a 220Ω resistor and

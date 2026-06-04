@@ -2,7 +2,7 @@
 //
 // Lets the user point their own Claude (Claude Desktop / Claude Code) at this
 // project's MCP server. Once registered, Claude can build the circuit and write
-// the sketch via the `dreamer mcp` tools, and — thanks to the live board-stream
+// the sketch via the `breadbox mcp` tools, and — thanks to the live board-stream
 // bridge (useLiveBoardSync) — the edits appear on this canvas in real time.
 //
 // "Connect automatically" calls the local API (POST /api/mcp/connect), which
@@ -10,12 +10,12 @@
 // Claude Code. Manual commands stay available as a fallback.
 //
 // Opened via the command palette ("Connect Claude (MCP)"), which dispatches a
-// `dreamer:open-connect-claude` window event that app.tsx listens for.
+// `breadbox:open-connect-claude` window event that app.tsx listens for.
 
 import React from "react"
 import { API_ORIGIN } from "@dreamer/config"
 
-export const OPEN_CONNECT_CLAUDE_EVENT = "dreamer:open-connect-claude"
+export const OPEN_CONNECT_CLAUDE_EVENT = "breadbox:open-connect-claude"
 
 type ConnectClaudeDialogProps = {
   open: boolean
@@ -159,7 +159,7 @@ function ConnectClaudeDialogInner({ open, onClose, projectId }: ConnectClaudeDia
         const msg =
           data?.error ??
           (res.status === 404
-            ? "Connect endpoint not found — restart your local Dreamer server (or the desktop app) so it picks up this feature."
+            ? "Connect endpoint not found — restart your local Breadbox server (or the desktop app) so it picks up this feature."
             : `Request failed (HTTP ${res.status}).`)
         setErrorMsg(msg)
         setPhase("error")
@@ -175,7 +175,7 @@ function ConnectClaudeDialogInner({ open, onClose, projectId }: ConnectClaudeDia
 
   if (!open) return null
 
-  const claudeCodeCmd = `claude mcp add dreamer -- dreamer --project ${projectId} mcp`
+  const claudeCodeCmd = `claude mcp add breadbox -- breadbox --project ${projectId} mcp`
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose}>
@@ -261,7 +261,7 @@ function ConnectClaudeDialogInner({ open, onClose, projectId }: ConnectClaudeDia
                   , then restart:
                 </p>
                 <CommandRow
-                  value={`"dreamer": { "command": "dreamer", "args": ["--project", "${projectId}", "mcp"] }`}
+                  value={`"breadbox": { "command": "breadbox", "args": ["--project", "${projectId}", "mcp"] }`}
                 />
               </div>
 
@@ -282,7 +282,7 @@ function ConnectClaudeDialogInner({ open, onClose, projectId }: ConnectClaudeDia
 
         {/* Footer */}
         <div className="border-t border-neutral-700 px-5 py-2 text-[10px] text-neutral-600">
-          Local only. Requires the <span className="text-neutral-400">dreamer</span> CLI (bundled with the desktop app).
+          Local only. Requires the <span className="text-neutral-400">breadbox</span> CLI (bundled with the desktop app).
         </div>
       </div>
     </div>

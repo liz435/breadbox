@@ -1,8 +1,8 @@
 # @dreamer/desktop
 
-A native desktop wrapper for Dreamer, built with [Tauri 2](https://tauri.app).
+A native desktop wrapper for Breadbox, built with [Tauri 2](https://tauri.app).
 It opens a real OS window (its own icon, Dock/Start-menu entry) and renders the
-existing Dreamer web UI inside it — no browser tab.
+existing Breadbox web UI inside it — no browser tab.
 
 ## How it works
 
@@ -21,7 +21,7 @@ the [`dreamer` CLI binary](../cli):
 │      │                                                               │
 │      │ 2. read the marker from stdout, navigate the window to <url>  │
 │      ▼                                                               │
-│   window shows the Dreamer UI (served by the sidecar)                │
+│   window shows the Breadbox UI (served by the sidecar)               │
 │                                                                      │
 │  3. on window close → kill the sidecar                               │
 └──────────────────────────────────────────────────────────────────────┘

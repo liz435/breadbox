@@ -15,7 +15,7 @@ import {
 import type { BoardOp } from "@dreamer/schemas";
 
 // Path resolution lives in ../paths.ts; called on each access so tests
-// that set DATA_DIR / DREAMER_HOME after this module is imported still work.
+// that set DATA_DIR / BREADBOX_HOME after this module is imported still work.
 
 function now(): string {
   return new Date().toISOString();

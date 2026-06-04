@@ -1,6 +1,6 @@
 // ── Self-update ─────────────────────────────────────────────────────────
 //
-// `dreamer upgrade` checks GitHub releases and swaps the binary in place.
+// `breadbox upgrade` checks GitHub releases and swaps the binary in place.
 //
 // Strategy:
 //   1. Detect installed source: Homebrew / Scoop / raw binary.
@@ -37,7 +37,7 @@ function platformAssetName(): string {
   const osPart = plat === "win32" ? "windows" : plat === "darwin" ? "darwin" : "linux"
   const archPart = arch === "arm64" ? "arm64" : "x64"
   const ext = osPart === "windows" ? ".exe" : ""
-  return `dreamer-${osPart}-${archPart}${ext}`
+  return `breadbox-${osPart}-${archPart}${ext}`
 }
 
 async function fetchLatestRelease(repo: string, channel: "stable" | "beta"): Promise<Release | null> {
@@ -45,7 +45,7 @@ async function fetchLatestRelease(repo: string, channel: "stable" | "beta"): Pro
     ? `https://api.github.com/repos/${repo}/releases`
     : `https://api.github.com/repos/${repo}/releases/latest`
   try {
-    const res = await fetch(url, { headers: { "User-Agent": `dreamer/${CLI_VERSION}` } })
+    const res = await fetch(url, { headers: { "User-Agent": `breadbox/${CLI_VERSION}` } })
     if (!res.ok) return null
     const json = await res.json() as Release | Release[]
     if (channel === "beta") {
@@ -76,7 +76,7 @@ function compareVersions(a: string, b: string): number {
 
 export async function checkForUpdate(): Promise<UpgradeCheck> {
   const config = await loadConfig()
-  const repo = process.env.DREAMER_REPO ?? DEFAULT_REPO
+  const repo = process.env.BREADBOX_REPO ?? DEFAULT_REPO
   const channel = config.updates?.channel ?? "stable"
 
   const release = await fetchLatestRelease(repo, channel)
@@ -105,15 +105,15 @@ export async function applyUpdate(downloadUrl: string): Promise<{ ok: boolean; m
   const kind = installKind(binaryPath)
 
   if (kind === "brew") {
-    return { ok: false, message: "Detected Homebrew install — run `brew upgrade dreamer` instead." }
+    return { ok: false, message: "Detected Homebrew install — run `brew upgrade breadbox` instead." }
   }
   if (kind === "scoop") {
-    return { ok: false, message: "Detected Scoop install — run `scoop update dreamer` instead." }
+    return { ok: false, message: "Detected Scoop install — run `scoop update breadbox` instead." }
   }
 
   try {
     // Download
-    const res = await fetch(downloadUrl, { headers: { "User-Agent": `dreamer/${CLI_VERSION}` } })
+    const res = await fetch(downloadUrl, { headers: { "User-Agent": `breadbox/${CLI_VERSION}` } })
     if (!res.ok) return { ok: false, message: `download failed (${res.status})` }
     const bytes = Buffer.from(await res.arrayBuffer())
 

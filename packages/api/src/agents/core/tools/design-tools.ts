@@ -51,7 +51,7 @@ Note: pass the diagram body directly ({ board, sketch, components, wires, ... })
       description: `Replace the entire board with a DreamerDiagram (DSL v1). Use for scratch generation or whole-project restructure.
 
 Tool-arg shape: { board?, sketch, components[], wires[], environment?, customLibraries? }
-  Do NOT include a "$schema" field in the tool args — it's injected automatically. (The canonical DSL seen in chat-displayed \`dreamer-diagram\` blocks and pasted payloads still carries "$schema": "dreamer-diagram-v1"; only the tool-input layer omits it.)
+  Do NOT include a "$schema" field in the tool args — it's injected automatically. (The canonical DSL seen in chat-displayed \`breadbox-diagram\` blocks and pasted payloads still carries "$schema": "breadbox-diagram-v1"; only the tool-input layer omits it.)
 
 Wire endpoints are strings — readable instead of grid coordinates:
   - "arduino.13", "arduino.A0", "arduino.GND", "arduino.5V", "arduino.3V3"

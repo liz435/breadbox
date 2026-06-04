@@ -1,10 +1,10 @@
-//! Dreamer desktop shell.
+//! Breadbox desktop shell.
 //!
-//! On launch we spawn the bundled `dreamer` binary (a Tauri *sidecar*) in
+//! On launch we spawn the bundled `breadbox` binary (a Tauri *sidecar*) in
 //! `serve` mode. It starts the Elysia API and serves the embedded web UI on
 //! loopback, preferring 3004/4112 but falling back to OS-assigned free ports
 //! if those are taken — so the app never collides with another process. The
-//! sidecar prints a `DREAMER_URL <url>` marker once it's ready; we read it
+//! sidecar prints a `BREADBOX_URL <url>` marker once it's ready; we read it
 //! from the child's stdout and point the window there. While it boots the
 //! window shows a bundled splash page. When the window closes we kill the
 //! sidecar.
@@ -20,7 +20,7 @@ use tauri::{Manager, WindowEvent};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
-const SERVER_FAILED_JS: &str = "document.body.innerHTML = '<p style=\"font-family:system-ui;color:#e5e7eb;padding:2rem\">Dreamer server did not start. Check the logs.</p>'";
+const SERVER_FAILED_JS: &str = "document.body.innerHTML = '<p style=\"font-family:system-ui;color:#e5e7eb;padding:2rem\">Breadbox server did not start. Check the logs.</p>'";
 
 /// Holds the running sidecar so we can kill it when the window closes.
 struct Sidecar(Mutex<Option<CommandChild>>);
@@ -43,31 +43,31 @@ pub fn run() {
             let handle = app.handle().clone();
             let navigated = Arc::new(AtomicBool::new(false));
 
-            // Spawn `dreamer serve`. DREAMER_NO_OPEN keeps the binary from
+            // Spawn `breadbox serve`. BREADBOX_NO_OPEN keeps the binary from
             // opening a browser tab — we render the UI in this window.
             let mut command = app
                 .shell()
-                .sidecar("dreamer")
-                .expect("`dreamer` sidecar missing — run `bun run prepare:sidecar`")
+                .sidecar("breadbox")
+                .expect("`breadbox` sidecar missing — run `bun run prepare:sidecar`")
                 .args(["serve"])
-                .env("DREAMER_NO_OPEN", "1");
+                .env("BREADBOX_NO_OPEN", "1");
 
             // Point the server at the bundled arduino-cli sidecar so compile/
             // flash work with no manual install. resolveArduinoCli (packages/
-            // api) checks DREAMER_ARDUINO_CLI first. If the binary is missing
+            // api) checks BREADBOX_ARDUINO_CLI first. If the binary is missing
             // (e.g. dev-from-source before prepare:sidecar runs) we leave it
             // unset and the resolver falls back to PATH / managed install.
             if let Some(arduino_cli) = bundled_arduino_cli() {
-                command = command.env("DREAMER_ARDUINO_CLI", arduino_cli.to_string_lossy().to_string());
+                command = command.env("BREADBOX_ARDUINO_CLI", arduino_cli.to_string_lossy().to_string());
             }
 
             let (mut rx, child) = command
                 .spawn()
-                .expect("failed to spawn the dreamer sidecar");
+                .expect("failed to spawn the breadbox sidecar");
 
             app.state::<Sidecar>().0.lock().unwrap().replace(child);
 
-            // Read sidecar output: log it, and watch for the `DREAMER_URL`
+            // Read sidecar output: log it, and watch for the `BREADBOX_URL`
             // marker carrying the (possibly OS-assigned) UI URL. When it
             // arrives, point the window there.
             let nav_stdout = navigated.clone();
@@ -77,7 +77,7 @@ pub fn run() {
                     match event {
                         CommandEvent::Stdout(bytes) => {
                             let chunk = String::from_utf8_lossy(&bytes);
-                            print!("[dreamer] {chunk}");
+                            print!("[breadbox] {chunk}");
                             if !nav_stdout.load(Ordering::SeqCst) {
                                 buf.push_str(&chunk);
                                 if let Some(url) = extract_marker_url(&buf) {
@@ -91,11 +91,11 @@ pub fn run() {
                             }
                         }
                         CommandEvent::Stderr(bytes) => {
-                            eprint!("[dreamer] {}", String::from_utf8_lossy(&bytes))
+                            eprint!("[breadbox] {}", String::from_utf8_lossy(&bytes))
                         }
-                        CommandEvent::Error(err) => eprintln!("[dreamer] error: {err}"),
+                        CommandEvent::Error(err) => eprintln!("[breadbox] error: {err}"),
                         CommandEvent::Terminated(payload) => {
-                            eprintln!("[dreamer] terminated: {payload:?}");
+                            eprintln!("[breadbox] terminated: {payload:?}");
                             if !nav_stdout.load(Ordering::SeqCst) {
                                 if let Some(window) = handle.get_webview_window("main") {
                                     let _ = window.eval(SERVER_FAILED_JS);
@@ -132,7 +132,7 @@ pub fn run() {
             }
         })
         .run(tauri::generate_context!())
-        .expect("error while running the Dreamer desktop app");
+        .expect("error while running the Breadbox desktop app");
 }
 
 /// Path to the bundled `arduino-cli` sidecar, if present. Tauri strips the
@@ -150,11 +150,11 @@ fn bundled_arduino_cli() -> Option<std::path::PathBuf> {
     }
 }
 
-/// Pull the URL out of a `DREAMER_URL <url>\n` marker line, but only once the
+/// Pull the URL out of a `BREADBOX_URL <url>\n` marker line, but only once the
 /// full line (including its trailing newline) is present in the buffer, so we
 /// never navigate to a truncated URL from a partial stdout chunk.
 fn extract_marker_url(buf: &str) -> Option<String> {
-    const MARKER: &str = "DREAMER_URL ";
+    const MARKER: &str = "BREADBOX_URL ";
     let start = buf.find(MARKER)? + MARKER.len();
     let rest = &buf[start..];
     let end = rest.find('\n')?;

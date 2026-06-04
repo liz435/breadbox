@@ -464,7 +464,7 @@ export const ENTRIES: readonly EncyclopediaEntry[] = [
     track: "programming",
     group: "Libraries",
     title: "Adafruit_SSD1306 library",
-    summary: "drawPixel, setCursor, print, display — the subset Dreamer implements.",
+    summary: "drawPixel, setCursor, print, display — the subset Breadbox implements.",
     status: "published",
   },
   {
@@ -524,10 +524,10 @@ export const ENTRIES: readonly EncyclopediaEntry[] = [
     status: "published",
   },
   {
-    slug: "dreamer-limits",
+    slug: "breadbox-limits",
     track: "programming",
     group: "Limits",
-    title: "What Dreamer can and can't run",
+    title: "What Breadbox can and can't run",
     summary: "The supported C++ subset, and what's rejected by design.",
     status: "published",
   },
@@ -786,7 +786,7 @@ export const ENTRIES: readonly EncyclopediaEntry[] = [
     track: "electronics",
     group: "Practical",
     title: "Safety around AC and high current",
-    summary: "Why Dreamer stops at 5 V DC — and why your first mains project shouldn't be solo.",
+    summary: "Why Breadbox stops at 5 V DC — and why your first mains project shouldn't be solo.",
     status: "published",
   },
 ] as const

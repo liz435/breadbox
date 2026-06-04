@@ -168,7 +168,7 @@ export function analyzeCircuit(run: RunFile): CircuitAnalysis {
   for (const comp of components.values()) {
     if (comp.type !== "resistor") continue
     const leadA = { row: comp.y, col: comp.x }
-    // Resistor footprint in Dreamer spans cols 3→6 (delta=3), not 3→7.
+    // Resistor footprint in Breadbox spans cols 3→6 (delta=3), not 3→7.
     const leadB = { row: comp.y, col: comp.x + 3 }
     const hasDirectLeadWire = wireArray.some((w) =>
       (w.toRow === leadA.row && w.toCol === leadA.col) ||

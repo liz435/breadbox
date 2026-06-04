@@ -115,7 +115,7 @@ export function BoardI2cPage() {
         </p>
 
         <Note>
-          Dreamer doesn't model I2C at the bit level. The SSD1306 and
+          Breadbox doesn't model I2C at the bit level. The SSD1306 and
           RTC peripherals it supports talk through a higher-level
           stub. If you're wiring a real Uno, follow this page.
         </Note>

@@ -5,7 +5,7 @@
 //
 // Why a store with explicit session lifecycle (instead of letting each
 // consumer call `port.open()` directly): the WebSerial API allows only one
-// open connection per port at a time. On hosted Dreamer both the Serial
+// open connection per port at a time. On hosted Breadbox both the Serial
 // Monitor (long-lived read at the user's baud) and the STK500 uploader
 // (short-lived session at 115200) need that single port. Routing both
 // through `openMonitorSession` / `openFlashSession` here keeps the

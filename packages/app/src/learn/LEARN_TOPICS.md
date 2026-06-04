@@ -245,7 +245,7 @@ actually implements. Mirror the shape of the component docs.
 - ✅ **Finite state machines for UI flows** — `/learn/reference/programming/ui-state-machines`
 - ✅ **Naming pins with const and enum** — `/learn/reference/programming/pin-naming`
 
-### "What Dreamer can and can't run"
+### "What Breadbox can and can't run"
 
 #### 🟢 Phase 1
 
@@ -267,7 +267,7 @@ and give workarounds where possible.
 ## Track 3 — Electronics Fundamentals
 
 Tightly scoped. Not a physics textbook — "enough electronics to build the
-circuits Dreamer simulates without burning things out."
+circuits Breadbox simulates without burning things out."
 
 ### Core concepts
 
@@ -465,7 +465,7 @@ Each page here should cross-link to its matching simulator component doc in
 
 **Phase 1** (the 🟢 items) is the minimum-viable expansion — about
 20 reference pages, a glossary with ~20 entries, the `<Term>` component,
-sidebar restructure, and 3 new lessons. Cohesive enough to ship as "Dreamer
+sidebar restructure, and 3 new lessons. Cohesive enough to ship as "Breadbox
 now has a real learning section."
 
 **Phase 2** (the 🟡 items) grows naturally as you write new lessons —

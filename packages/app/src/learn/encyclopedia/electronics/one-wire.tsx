@@ -69,7 +69,7 @@ export function OneWirePage() {
 
         <Note>
           The 4.7 kΩ pull-up between the data line and VCC is
-          not optional. Dreamer hides this when it models a
+          not optional. Breadbox hides this when it models a
           DHT sensor, but on real hardware the circuit simply
           does not work without it.
         </Note>

@@ -14,13 +14,13 @@ if (!(await Bun.file(`${distDir}/index.html`).exists())) {
   process.exit(1)
 }
 
-// Optional runtime override: if DREAMER_API_ORIGIN is set we inject
-// `window.__DREAMER__` into index.html so the frontend uses that origin
+// Optional runtime override: if BREADBOX_API_ORIGIN is set we inject
+// `window.__BREADBOX__` into index.html so the frontend uses that origin
 // instead of the value baked into the bundle at build time. Lets the same
 // `dist/` ship to staging/prod without a rebuild per API URL.
-const runtimeApiOrigin = process.env.DREAMER_API_ORIGIN ?? ""
+const runtimeApiOrigin = process.env.BREADBOX_API_ORIGIN ?? ""
 const runtimeInject = runtimeApiOrigin
-  ? `<script>window.__DREAMER__=${JSON.stringify({ apiOrigin: runtimeApiOrigin })};</script>`
+  ? `<script>window.__BREADBOX__=${JSON.stringify({ apiOrigin: runtimeApiOrigin })};</script>`
   : ""
 
 async function serveIndex(): Promise<Response> {

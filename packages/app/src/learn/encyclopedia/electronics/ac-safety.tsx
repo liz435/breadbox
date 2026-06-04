@@ -21,12 +21,12 @@ export function AcSafetyPage() {
     <LearnLayout>
       <PageTitle
         title="Safety around AC and high current"
-        subtitle="Dreamer stops at 5 V DC on purpose. Your first project switching mains voltage should not be a solo one."
+        subtitle="Breadbox stops at 5 V DC on purpose. Your first project switching mains voltage should not be a solo one."
       />
 
       <Section title="Why 5 V DC is friendly">
         <p className="text-sm leading-relaxed">
-          Everything you do in the Dreamer editor is a small
+          Everything you do in the Breadbox editor is a small
           amount of direct current at 5 V or less. At those
           voltages, your skin resistance is high enough that
           even if you touch a bare wire it's uncomfortable at

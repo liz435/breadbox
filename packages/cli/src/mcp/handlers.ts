@@ -44,7 +44,7 @@ async function loadDiagram(session: McpSession): Promise<{
   const diagram: DreamerDiagram = board
     ? boardStateToDiagram(board)
     : {
-        $schema: "dreamer-diagram-v1",
+        $schema: "breadbox-diagram-v1",
         board: "arduino_uno",
         sketch: "",
         components: [],

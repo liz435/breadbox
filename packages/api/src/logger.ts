@@ -2,16 +2,16 @@
 //
 // Two sinks:
 //   - stderr, human-readable with ANSI colors (always)
-//   - JSONL file at `~/.dreamer/logs/dreamer.log` (if enabled)
+//   - JSONL file at `~/.breadbox/logs/breadbox.log` (if enabled)
 //
-// Enable file sink by setting DREAMER_LOG_FILE=1 (default: off in dev,
+// Enable file sink by setting BREADBOX_LOG_FILE=1 (default: off in dev,
 // on in compiled binaries via a build-time define).
 //
-// Level filtering via DREAMER_LOG_LEVEL (debug|info|warn|error),
+// Level filtering via BREADBOX_LOG_LEVEL (debug|info|warn|error),
 // default "info".
 //
 // Rotation: file is rotated when it exceeds ~10MB. The previous file is
-// renamed to dreamer.log.1, older rotations .2, .3 up to .7. Oldest is
+// renamed to breadbox.log.1, older rotations .2, .3 up to .7. Oldest is
 // discarded. Rotation is best-effort — errors are swallowed so logging
 // never crashes the app.
 
@@ -52,13 +52,13 @@ function timestamp(): string {
 }
 
 function currentMinLevel(): number {
-  const env = (process.env.DREAMER_LOG_LEVEL ?? "info") as LogLevel;
+  const env = (process.env.BREADBOX_LOG_LEVEL ?? "info") as LogLevel;
   return LEVEL_ORDER[env] ?? LEVEL_ORDER.info;
 }
 
 function fileSinkEnabled(): boolean {
-  if (process.env.DREAMER_LOG_FILE === "0") return false;
-  if (process.env.DREAMER_LOG_FILE === "1") return true;
+  if (process.env.BREADBOX_LOG_FILE === "0") return false;
+  if (process.env.BREADBOX_LOG_FILE === "1") return true;
   // Default: enable in compiled binaries, disable in dev.
   // Bun sets `Bun.embeddedFiles` on compiled binaries; check that.
   try {
@@ -69,7 +69,7 @@ function fileSinkEnabled(): boolean {
   }
 }
 
-const LOG_FILE_NAME = "dreamer.log";
+const LOG_FILE_NAME = "breadbox.log";
 const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 const ROTATIONS = 7;
 

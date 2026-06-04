@@ -5,7 +5,7 @@
 // OS/arch. The only identifier is an anonymous installId (UUID) generated
 // at opt-in time.
 //
-// Transport: POST https://telemetry.dreamer.dev/v1/events with a JSON body.
+// Transport: POST https://telemetry.breadbox.dev/v1/events with a JSON body.
 // Failures are silently dropped — telemetry must never affect user actions.
 //
 // Events are batched in memory and flushed on exit or every 5 minutes,
@@ -15,7 +15,7 @@
 import { CLI_VERSION, PLATFORM } from "./version"
 import { loadConfig, saveConfig } from "./config"
 
-const DEFAULT_ENDPOINT = "https://telemetry.dreamer.dev/v1/events"
+const DEFAULT_ENDPOINT = "https://telemetry.breadbox.dev/v1/events"
 const FLUSH_INTERVAL_MS = 5 * 60 * 1000
 
 export type TelemetryEvent = {
@@ -83,7 +83,7 @@ export async function promptFirstRun(): Promise<boolean> {
   if (!process.stdin.isTTY) return false
 
   console.log("")
-  console.log("Dreamer can send anonymous usage data to help improve the tool.")
+  console.log("Breadbox can send anonymous usage data to help improve the tool.")
   console.log("We collect: CLI version, platform, subcommand run, error codes.")
   console.log("We never collect: prompts, project contents, API keys, file paths.")
   console.log("You can change this anytime with `dreamer telemetry enable|disable`.")
@@ -135,7 +135,7 @@ function ensureFlushHooks(): void {
 
 export async function flush(): Promise<void> {
   if (queue.length === 0) return
-  const endpoint = process.env.DREAMER_TELEMETRY_ENDPOINT ?? DEFAULT_ENDPOINT
+  const endpoint = process.env.BREADBOX_TELEMETRY_ENDPOINT ?? DEFAULT_ENDPOINT
   const batch = queue.splice(0, queue.length)
   try {
     await fetch(endpoint, {

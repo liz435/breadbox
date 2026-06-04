@@ -6,7 +6,7 @@
 //
 // Two modes:
 //
-//   • Hosted (DREAMER_HOSTED=1): we can't safely stamp a user onto an
+//   • Hosted (BREADBOX_HOSTED=1): we can't safely stamp a user onto an
 //     orphan project — there's no way to know whose project it was, and
 //     auto-assigning would be a tenant-takeover hazard on a shared Railway
 //     volume. Legacy files get moved into `projects/_legacy/` where they
@@ -61,13 +61,13 @@ const LEGACY_LOCAL_OWNER_ID = "local"
 
 export async function migrateOwnership(params?: {
   ownerIdForLocal?: string
-  /** Override for tests; defaults to DREAMER_HOSTED env check at call time. */
+  /** Override for tests; defaults to BREADBOX_HOSTED env check at call time. */
   hosted?: boolean
 }): Promise<OwnershipMigrationResult> {
   const ownerIdForLocal = params?.ownerIdForLocal ?? LEGACY_LOCAL_OWNER_ID
   // Read env at call time (not import time) so tests that flip the flag
   // between runs don't need module-cache tricks.
-  const isHosted = params?.hosted ?? process.env.DREAMER_HOSTED === "1"
+  const isHosted = params?.hosted ?? process.env.BREADBOX_HOSTED === "1"
   const mode: "hosted" | "local" = isHosted ? "hosted" : "local"
   const result: OwnershipMigrationResult = {
     mode,

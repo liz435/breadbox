@@ -1,4 +1,4 @@
-# Dreamer Docs
+# Breadbox Docs
 
 Documentation for the current code in this repository. These docs describe how
 things are actually built today, not the plans. The plan / roadmap documents

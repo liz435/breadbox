@@ -82,9 +82,9 @@ void setup() {
 }`} />
       </Section>
 
-      <Section title="What Dreamer supports">
+      <Section title="What Breadbox supports">
         <p className="text-sm leading-relaxed">
-          Dreamer's sketch editor is single-file today. You can't
+          Breadbox's sketch editor is single-file today. You can't
           split a project across multiple tabs in the simulator, so
           user <code>#include "..."</code> directives are not
           supported. Angle-bracket <code>#include &lt;...&gt;</code>{" "}
@@ -94,7 +94,7 @@ void setup() {
         </p>
 
         <Note>
-          Keep your Dreamer sketches single-file. When you move to a
+          Keep your Breadbox sketches single-file. When you move to a
           real Arduino IDE, splitting across tabs is a good
           refactor once one file passes a few hundred lines.
         </Note>
@@ -102,7 +102,7 @@ void setup() {
 
       <SeeAlso
         refs={[
-          "programming/dreamer-limits",
+          "programming/breadbox-limits",
           "programming/sketch-structure",
           "programming/classes",
         ]}

@@ -556,7 +556,7 @@ function AppOrDocs() {
 // directly from the hook's return, which is stable across renders.
 //
 // Mode semantics:
-//   - "dev":    bun run dev with DREAMER_DEV_SKIP_AUTH=1. Skip the gate
+//   - "dev":    bun run dev with BREADBOX_DEV_SKIP_AUTH=1. Skip the gate
 //               entirely — no login, no redirect.
 //   - "hosted": Railway deploy. Anonymous visitors see the full editor
 //               as a live-preview, with mutations blocked behind a

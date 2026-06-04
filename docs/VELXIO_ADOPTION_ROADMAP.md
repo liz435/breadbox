@@ -1,6 +1,6 @@
 # Velxio Feature Adoption Roadmap
 
-> Features to adopt from [Velxio](https://github.com/davidmonterocrespo24/velxio) that make Dreamer competitive across the full spectrum — beginners to advanced makers — without losing the instant-feedback + SPICE edge.
+> Features to adopt from [Velxio](https://github.com/davidmonterocrespo24/velxio) that make Breadbox competitive across the full spectrum — beginners to advanced makers — without losing the instant-feedback + SPICE edge.
 
 ## Our Edge (Extend, Don't Sacrifice)
 

@@ -1,4 +1,4 @@
--- Dreamer initial schema.
+-- Breadbox initial schema.
 --
 -- Identity: rely on Supabase's built-in auth.users — no public.users
 -- table. Profile fields come from the JWT (user_metadata).

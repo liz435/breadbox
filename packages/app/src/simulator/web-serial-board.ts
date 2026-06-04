@@ -3,7 +3,7 @@
 // Implements the same `LocalBoardConnection` shape that the Serial Monitor
 // already consumes from `local-board.ts`, but reads/writes through the
 // browser's WebSerial API via the paired-port store. Used on hosted
-// Dreamer, where the server has no USB for `local-board.ts` to proxy.
+// Breadbox, where the server has no USB for `local-board.ts` to proxy.
 //
 // Coordination with the flash path:
 //   - Both this board and the STK500 uploader share one `SerialPort` via

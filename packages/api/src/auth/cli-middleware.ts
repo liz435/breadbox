@@ -42,10 +42,10 @@ const LOOPBACK_HOSTNAMES = new Set<string>([
 ])
 
 // Non-loopback origins explicitly permitted: the configured APP_ORIGIN plus any
-// comma-separated extras from DREAMER_LOCAL_ORIGIN_ALLOWLIST. Loopback origins
+// comma-separated extras from BREADBOX_LOCAL_ORIGIN_ALLOWLIST. Loopback origins
 // are always allowed regardless of this set.
 function extraOriginAllowlist(): Set<string> {
-  const extra = (process.env.DREAMER_LOCAL_ORIGIN_ALLOWLIST ?? "")
+  const extra = (process.env.BREADBOX_LOCAL_ORIGIN_ALLOWLIST ?? "")
     .split(",")
     .map((s) => s.trim())
     .filter((s) => s.length > 0)

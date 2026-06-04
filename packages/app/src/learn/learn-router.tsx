@@ -109,6 +109,12 @@ function EncyclopediaNotFound({ track, slug }: { track: string; slug: string }) 
   )
 }
 
+// Pre-rebrand encyclopedia slug aliases, keyed by "<track>/<slug>". Keeps old
+// `/learn/reference/...` bookmarks/links resolving after a slug rename.
+const LEGACY_SLUG_ALIASES: Record<string, string> = {
+  "programming/dreamer-limits": "breadbox-limits",
+}
+
 /**
  * Try to match an encyclopedia route of the form
  * /learn/reference/<track>/<slug> and return its Page component, or null
@@ -119,7 +125,9 @@ function matchEncyclopediaRoute(
 ): { Page: React.ComponentType; track: string; slug: string } | null {
   const match = path.match(/^\/learn\/reference\/([^/]+)\/([^/]+)\/?$/)
   if (!match) return null
-  const [, track, slug] = match
+  const [, track, rawSlug] = match
+  // Resolve a legacy slug to its canonical one so old URLs keep working.
+  const slug = LEGACY_SLUG_ALIASES[`${track}/${rawSlug}`] ?? rawSlug
 
   const includePlanned =
     typeof window !== "undefined" &&

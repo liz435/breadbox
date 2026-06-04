@@ -2,7 +2,7 @@
 //
 // Concrete error classes with structured fields the route layer can map
 // to HTTP responses. The shape mirrors prospect's `Data.TaggedError`
-// pattern but uses plain classes — dreamer's API doesn't depend on
+// pattern but uses plain classes — breadbox's API doesn't depend on
 // Effect, and `instanceof` checks at the route boundary are enough.
 
 /**

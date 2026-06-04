@@ -1,4 +1,4 @@
-// MCP resource handlers for dreamer://* URIs. Registered on the McpServer
+// MCP resource handlers for breadbox://* URIs. Registered on the McpServer
 // in server.ts. Resources are read-only — mutations must go through tools.
 
 import { boardStateToDiagram } from "@dreamer/schemas"
@@ -23,7 +23,7 @@ export async function readProjectsIndex(): Promise<ReadResult> {
       createdAt: s.createdAt,
       updatedAt: s.updatedAt,
       hasContent: s.hasContent,
-      uri: `dreamer://projects/${s.id}`,
+      uri: `breadbox://projects/${s.id}`,
     })),
     null,
     2,
@@ -31,7 +31,7 @@ export async function readProjectsIndex(): Promise<ReadResult> {
   return {
     contents: [
       {
-        uri: "dreamer://projects",
+        uri: "breadbox://projects",
         mimeType: "application/json",
         text: body,
       },
@@ -50,7 +50,7 @@ export async function readProjectDiagram(
   const diagram = project.boardState
     ? boardStateToDiagram(project.boardState)
     : {
-        $schema: "dreamer-diagram-v1" as const,
+        $schema: "breadbox-diagram-v1" as const,
         board: "arduino_uno" as const,
         sketch: "",
         components: [],
@@ -92,7 +92,7 @@ export function readWiringGuide(): ReadResult {
   return {
     contents: [
       {
-        uri: "dreamer://wiring-guide",
+        uri: "breadbox://wiring-guide",
         mimeType: "text/markdown",
         text: WIRING_GUIDE_TEXT,
       },

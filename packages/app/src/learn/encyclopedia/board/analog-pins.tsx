@@ -112,7 +112,7 @@ export function AnalogPinsPage() {
           So if you run out of digital pins and don't need to read
           analog values, you can call{" "}
           <code className="text-gray-200">pinMode(A0, OUTPUT)</code>{" "}
-          and treat A0 as another digital line. Dreamer supports this
+          and treat A0 as another digital line. Breadbox supports this
           — the pin numbers 14–19 work everywhere 0–13 work.
         </p>
 

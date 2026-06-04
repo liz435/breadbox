@@ -2,16 +2,16 @@
   "name": "@dreamer/cli",
   "version": "0.0.1",
   "bin": {
-    "dreamer": "./src/index.ts"
+    "breadbox": "./src/index.ts"
   },
   "scripts": {
     "dev": "bun run src/index.ts",
-    "build": "bun build --compile src/index.ts --outfile dist/dreamer",
-    "build:darwin-arm64": "bun build --compile --target=bun-darwin-arm64 --define __DREAMER_VERSION__=\"\\\"$npm_package_version\\\"\" src/index.ts --outfile dist/dreamer-darwin-arm64",
-    "build:darwin-x64": "bun build --compile --target=bun-darwin-x64   --define __DREAMER_VERSION__=\"\\\"$npm_package_version\\\"\" src/index.ts --outfile dist/dreamer-darwin-x64",
-    "build:linux-arm64": "bun build --compile --target=bun-linux-arm64  --define __DREAMER_VERSION__=\"\\\"$npm_package_version\\\"\" src/index.ts --outfile dist/dreamer-linux-arm64",
-    "build:linux-x64": "bun build --compile --target=bun-linux-x64    --define __DREAMER_VERSION__=\"\\\"$npm_package_version\\\"\" src/index.ts --outfile dist/dreamer-linux-x64",
-    "build:windows-x64": "bun build --compile --target=bun-windows-x64  --define __DREAMER_VERSION__=\"\\\"$npm_package_version\\\"\" src/index.ts --outfile dist/dreamer-windows-x64.exe",
+    "build": "bun build --compile src/index.ts --outfile dist/breadbox",
+    "build:darwin-arm64": "bun build --compile --target=bun-darwin-arm64 --define __BREADBOX_VERSION__=\"\\\"$npm_package_version\\\"\" src/index.ts --outfile dist/breadbox-darwin-arm64",
+    "build:darwin-x64": "bun build --compile --target=bun-darwin-x64   --define __BREADBOX_VERSION__=\"\\\"$npm_package_version\\\"\" src/index.ts --outfile dist/breadbox-darwin-x64",
+    "build:linux-arm64": "bun build --compile --target=bun-linux-arm64  --define __BREADBOX_VERSION__=\"\\\"$npm_package_version\\\"\" src/index.ts --outfile dist/breadbox-linux-arm64",
+    "build:linux-x64": "bun build --compile --target=bun-linux-x64    --define __BREADBOX_VERSION__=\"\\\"$npm_package_version\\\"\" src/index.ts --outfile dist/breadbox-linux-x64",
+    "build:windows-x64": "bun build --compile --target=bun-windows-x64  --define __BREADBOX_VERSION__=\"\\\"$npm_package_version\\\"\" src/index.ts --outfile dist/breadbox-windows-x64.exe",
     "build:all": "bun run build:darwin-arm64 && bun run build:darwin-x64 && bun run build:linux-x64 && bun run build:linux-arm64 && bun run build:windows-x64",
     "typecheck": "bunx tsc --noEmit",
     "test": "bun test src"

@@ -1,4 +1,4 @@
-// Arduino Programming > Limits > What Dreamer can and can't run
+// Arduino Programming > Limits > What Breadbox can and can't run
 
 import {
   LearnLayout,
@@ -14,25 +14,25 @@ import {
 } from "../../encyclopedia-layout"
 import { ENTRIES } from "../../encyclopedia-catalog"
 
-export function DreamerLimitsPage() {
+export function BreadboxLimitsPage() {
   const entry = ENTRIES.find(
-    (e) => e.track === "programming" && e.slug === "dreamer-limits",
+    (e) => e.track === "programming" && e.slug === "breadbox-limits",
   )!
 
   return (
     <LearnLayout>
       <PageTitle
-        title="What Dreamer can and can't run"
-        subtitle="Dreamer runs a carefully chosen subset of Arduino C++. Here's the line."
+        title="What Breadbox can and can't run"
+        subtitle="Breadbox runs a carefully chosen subset of Arduino C++. Here's the line."
       />
 
-      <Figure caption="Two columns: what Dreamer runs (left) vs what the transpiler rejects (right).">
+      <Figure caption="Two columns: what Breadbox runs (left) vs what the transpiler rejects (right).">
         <SupportedVsNotDiagram />
       </Figure>
 
-      <Section title="How Dreamer runs your sketch">
+      <Section title="How Breadbox runs your sketch">
         <p className="text-sm leading-relaxed">
-          A real Arduino compiles your sketch to AVR machine code. Dreamer
+          A real Arduino compiles your sketch to AVR machine code. Breadbox
           instead transpiles the sketch to JavaScript, then runs it in a
           tiny interpreter inside the simulator. This works well for the
           "Arduino subset" most sketches actually use, but it means some
@@ -72,7 +72,7 @@ export function DreamerLimitsPage() {
         />
 
         <Warn>
-          If your sketch uses any of the above, Dreamer will show a
+          If your sketch uses any of the above, Breadbox will show a
           compile error rather than silently misbehave. Simplify the
           sketch or move the work into the supported subset.
         </Warn>
@@ -81,7 +81,7 @@ export function DreamerLimitsPage() {
       <Section title="Example: what to do instead">
         <p className="text-sm leading-relaxed">
           Suppose you wanted to use a pointer to walk through an array.
-          In Dreamer, use an index instead:
+          In Breadbox, use an index instead:
         </p>
 
         <CodeBlock code={`// REJECTED — pointers not supported
@@ -101,7 +101,7 @@ for (int i = 0; i < 4; i++) {
         <Note>
           This isn't a limitation of Arduino as a concept — real boards
           handle all of the above. It's a deliberate simplification of
-          the Dreamer simulator to keep the transpiler small and the
+          the Breadbox simulator to keep the transpiler small and the
           learning path focused.
         </Note>
       </Section>

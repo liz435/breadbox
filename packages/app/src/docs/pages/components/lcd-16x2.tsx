@@ -22,7 +22,7 @@ export function Lcd16x2Page() {
           ]}
         />
         <Note>
-          Dreamer uses 4-bit mode (only D4–D7). The full LCD also has VSS (GND), VDD (5V), V0 (contrast),
+          Breadbox uses 4-bit mode (only D4–D7). The full LCD also has VSS (GND), VDD (5V), V0 (contrast),
           RW (ground for write-only), and A/K (backlight) — these are handled externally in a real build.
         </Note>
       </Section>

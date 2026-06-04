@@ -5,7 +5,7 @@ export function ExtendingPage() {
     <DocsLayout>
       <PageTitle
         title="Adding Components"
-        subtitle="How to register a new component type so it works everywhere in Dreamer."
+        subtitle="How to register a new component type so it works everywhere in Breadbox."
       />
 
       <Section title="Overview">

@@ -127,7 +127,7 @@ async function handleConfig(cmd: Command & { kind: "config" }): Promise<number> 
 async function handleLogs(cmd: Command & { kind: "logs" }): Promise<number> {
   const logFile = cmd.runId
     ? join(logsDir(), `${cmd.runId}.log`)
-    : join(logsDir(), "dreamer.log")
+    : join(logsDir(), "breadbox.log")
   if (!existsSync(logFile)) {
     console.error(`No log file at ${logFile}`)
     return 1
@@ -198,7 +198,7 @@ async function handleTelemetry(cmd: Command & { kind: "telemetry" }): Promise<nu
 async function handleUpgrade(cmd: Command & { kind: "upgrade" }): Promise<number> {
   const check = await selfUpdate.checkForUpdate()
   if (check.status === "current") {
-    console.log(`dreamer ${check.version} is up to date.`)
+    console.log(`breadbox ${check.version} is up to date.`)
     return 0
   }
   if (check.status === "blocked") {
@@ -220,7 +220,7 @@ async function handleUpgrade(cmd: Command & { kind: "upgrade" }): Promise<number
 }
 
 async function handleSetup(): Promise<number> {
-  console.log("Setting up Dreamer...")
+  console.log("Setting up Breadbox...")
   console.log("")
   console.log("1. Installing arduino-cli...")
   try {
@@ -252,7 +252,7 @@ async function handleSetup(): Promise<number> {
   console.log("4. Telemetry preference...")
   await telemetry.promptFirstRun()
   console.log("")
-  console.log("\x1b[32mSetup complete.\x1b[0m Try `dreamer run \"add an LED on pin 13\"`.")
+  console.log("\x1b[32mSetup complete.\x1b[0m Try `breadbox run \"add an LED on pin 13\"`.")
   return 0
 }
 
@@ -267,7 +267,7 @@ async function dispatch(command: Command, projectId: string | null, sceneId: str
     }
 
     case "version": {
-      console.log(`dreamer ${CLI_VERSION} (${PLATFORM})`)
+      console.log(`breadbox ${CLI_VERSION} (${PLATFORM})`)
       return 0
     }
 
@@ -281,9 +281,9 @@ async function dispatch(command: Command, projectId: string | null, sceneId: str
       // CLI mode: single-tenant, file-backed, no Supabase. Pin these env
       // vars before the API modules import — auth-plugin reads them at
       // import time to pick cli vs supabase middleware.
-      process.env.DREAMER_MODE = "cli"
-      process.env.DREAMER_DEV_SKIP_AUTH = "1"
-      // Load the key from ~/.dreamer/config.json into the env BEFORE importing
+      process.env.BREADBOX_MODE = "cli"
+      process.env.BREADBOX_DEV_SKIP_AUTH = "1"
+      // Load the key from ~/.breadbox/config.json into the env BEFORE importing
       // the API graph, so the Anthropic provider (which falls back to
       // process.env in CLI mode) can use it. getApiKey() is non-interactive.
       const headedKey = await getApiKey()
@@ -299,10 +299,10 @@ async function dispatch(command: Command, projectId: string | null, sceneId: str
       // Web UI + API only — no REPL. Used by the Tauri desktop shell
       // (packages/desktop), which spawns this binary as a sidecar and
       // renders the UI in a native window. Same single-tenant CLI mode as
-      // `headed`; DREAMER_NO_OPEN stops headed from popping a browser tab.
-      process.env.DREAMER_MODE = "cli"
-      process.env.DREAMER_DEV_SKIP_AUTH = "1"
-      process.env.DREAMER_NO_OPEN = "1"
+      // `headed`; BREADBOX_NO_OPEN stops headed from popping a browser tab.
+      process.env.BREADBOX_MODE = "cli"
+      process.env.BREADBOX_DEV_SKIP_AUTH = "1"
+      process.env.BREADBOX_NO_OPEN = "1"
       // Load the key from config into the env before the API graph imports, so
       // the provider can use it (see the `headed` case for the rationale). When
       // absent, the in-app key dialog lets the user set it at runtime.
@@ -353,7 +353,7 @@ async function dispatch(command: Command, projectId: string | null, sceneId: str
     case "flash": {
       if (!command.port) {
         const ports = await listPorts()
-        console.error("Usage: dreamer flash <port>  (or --port <port>)")
+        console.error("Usage: breadbox flash <port>  (or --port <port>)")
         if (ports.length > 0) {
           console.error("Available ports:")
           for (const p of ports) console.error(`  ${p}`)

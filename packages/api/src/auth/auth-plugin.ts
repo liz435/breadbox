@@ -1,6 +1,6 @@
 // ── Auth plugin selector ────────────────────────────────────────────────
 //
-// Picks the active auth middleware once at startup based on DREAMER_MODE.
+// Picks the active auth middleware once at startup based on BREADBOX_MODE.
 // Both implementations populate the same { auth: AuthContext } shape,
 // so downstream routes never branch on mode.
 

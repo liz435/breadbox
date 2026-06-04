@@ -1,6 +1,6 @@
 // ── DreamerDiagram (DSL v1) ─────────────────────────────────────────────────
 //
-// A single-JSON interchange format for a complete Dreamer project —
+// A single-JSON interchange format for a complete Breadbox project —
 // components, wires, sketch, environment. Designed for LLM generation and
 // human authoring: components live in a stable-ordered array, wires reference
 // pins by readable strings (`arduino.13`, `led1.anode`, `psu1.+`) instead of
@@ -14,7 +14,17 @@ import { z } from "zod";
 import { boardTargetSchema } from "./board-targets";
 import { componentTypeSchema } from "./arduino";
 
-export const DIAGRAM_SCHEMA_V1 = "dreamer-diagram-v1" as const;
+export const DIAGRAM_SCHEMA_V1 = "breadbox-diagram-v1" as const;
+
+// Pre-rebrand alias. Old exported diagram files and already-shared URL links
+// carry `dreamer-diagram-v1`; we still accept and normalize it to the current
+// literal on read. Producers only ever emit DIAGRAM_SCHEMA_V1.
+export const DIAGRAM_SCHEMA_V1_LEGACY = "dreamer-diagram-v1" as const;
+
+/** True if `value` is the current diagram schema literal or its legacy alias. */
+export function isAcceptedDiagramSchema(value: unknown): boolean {
+  return value === DIAGRAM_SCHEMA_V1 || value === DIAGRAM_SCHEMA_V1_LEGACY;
+}
 
 // ── Sub-schemas ──────────────────────────────────────────────────────────
 

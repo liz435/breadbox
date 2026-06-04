@@ -23,8 +23,8 @@ const HAS_SUPABASE =
 const describeOrSkip = HAS_SUPABASE ? describe : describe.skip
 
 if (HAS_SUPABASE) {
-  process.env.DREAMER_MODE = "hosted"
-  process.env.DREAMER_HOSTED = "1"
+  process.env.BREADBOX_MODE = "hosted"
+  process.env.BREADBOX_HOSTED = "1"
   const { captureSupabaseServiceRoleKey } = await import("../../secrets")
   captureSupabaseServiceRoleKey(SUPABASE_SERVICE_ROLE_KEY)
 }

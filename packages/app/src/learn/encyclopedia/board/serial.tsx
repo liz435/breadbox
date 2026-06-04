@@ -40,7 +40,7 @@ export function SerialPage() {
 
       <Section title="The Serial Monitor">
         <p className="text-sm leading-relaxed">
-          The Arduino IDE (and Dreamer) ships with a{" "}
+          The Arduino IDE (and Breadbox) ships with a{" "}
           <strong className="text-gray-200">Serial Monitor</strong> — a
           little window that opens a serial connection to the board and
           prints everything it receives. When you click "Open Serial

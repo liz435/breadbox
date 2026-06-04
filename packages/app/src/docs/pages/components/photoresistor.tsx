@@ -88,7 +88,7 @@ void loop() {
             ["Type", "CdS photoresistor (LDR)"],
             ["Resistance in bright light", "1 kΩ – 10 kΩ"],
             ["Resistance in darkness", "1 MΩ – 10 MΩ"],
-            ["Simulated resistance (Dreamer)", "10 kΩ fixed"],
+            ["Simulated resistance (Breadbox)", "10 kΩ fixed"],
             ["Operating voltage", "Up to 150 V (safe at 5V)"],
             ["Response time", "~20 ms (rise), ~30 ms (fall)"],
             ["Spectral peak", "~560 nm (yellow-green)"],

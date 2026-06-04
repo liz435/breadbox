@@ -196,7 +196,7 @@ function HostedPairingBody({ pairedPort, pairedInfo }: HostedBodyProps) {
       <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-300">
         <span className="font-medium">WebSerial requires Chrome or Edge.</span>{" "}
         Open this app in a Chromium-based browser to flash a board, or
-        install the Dreamer CLI to use Safari/Firefox.
+        install the Breadbox CLI to use Safari/Firefox.
       </div>
     )
   }

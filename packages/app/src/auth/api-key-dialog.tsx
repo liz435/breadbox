@@ -70,7 +70,7 @@ export function ApiKeyDialog({ open, onClose }: ApiKeyDialogProps) {
           </div>
           <div className="space-y-4 px-5 py-4">
             <Dialog.Description className="text-xs leading-relaxed text-muted-foreground">
-              Dreamer's AI runs on your own Anthropic API key. It's stored locally at{" "}
+              Breadbox's AI runs on your own Anthropic API key. It's stored locally at{" "}
               <code className="text-foreground">~/.dreamer/config.json</code> and never
               leaves this machine except to call Anthropic.
             </Dialog.Description>

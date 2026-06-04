@@ -203,7 +203,7 @@ export const AGENT_CHANGELOG: Array<{
     version: "1.2.5",
     date: "2026-04-19",
     changes: [
-      "COMMON_PROMPT: removed the post-generation `dreamer-diagram` chat-block instruction. Agent must no longer echo diagram JSON in chat replies — describe results in plain language. Board UI is the source of truth; diagram payloads belong in tool calls only.",
+      "COMMON_PROMPT: removed the post-generation `breadbox-diagram` chat-block instruction. Agent must no longer echo diagram JSON in chat replies — describe results in plain language. Board UI is the source of truth; diagram payloads belong in tool calls only.",
       "BUILD_PROMPT: dropped the `$schema` chat-block reference from the validate_design/apply_design guidance and points at the new COMMON_PROMPT rule.",
     ],
   },
@@ -211,9 +211,9 @@ export const AGENT_CHANGELOG: Array<{
     version: "1.2.4",
     date: "2026-04-19",
     changes: [
-      "validate_design / apply_design: tool-input schema now omits the DSL's `$schema` field. Anthropic rejects tool JSON Schemas whose property keys start with `$` (pattern `^[a-zA-Z0-9_.-]{1,64}$`), so every chat request was failing with a 400 before hitting the model. Handlers re-attach `$schema: 'dreamer-diagram-v1'` internally before validation.",
+      "validate_design / apply_design: tool-input schema now omits the DSL's `$schema` field. Anthropic rejects tool JSON Schemas whose property keys start with `$` (pattern `^[a-zA-Z0-9_.-]{1,64}$`), so every chat request was failing with a 400 before hitting the model. Handlers re-attach `$schema: 'breadbox-diagram-v1'` internally before validation.",
       "Added regression test (`tool-input-schema-keys.test.ts`) that JSON-schema-converts every core tool's inputSchema and asserts every property key is Anthropic-compatible.",
-      "BUILD/EDIT prompts: tool-args example + guidance updated to drop `$schema` when calling validate_design/apply_design. Chat-displayed `dreamer-diagram` blocks still carry `$schema` (user-facing DSL contract unchanged).",
+      "BUILD/EDIT prompts: tool-args example + guidance updated to drop `$schema` when calling validate_design/apply_design. Chat-displayed `breadbox-diagram` blocks still carry `$schema` (user-facing DSL contract unchanged).",
     ],
   },
   {
@@ -222,7 +222,7 @@ export const AGENT_CHANGELOG: Array<{
     changes: [
       "BUILD_PROMPT: added apply_design example (LED blink in DSL form) alongside the existing propose_circuit example so the model can contrast the two whole-circuit paths.",
       "BUILD_PROMPT: added validate_design → apply_design workflow — call validate_design first, fix issues, then commit with apply_design.",
-      "COMMON_PROMPT: after any successful whole-circuit generation (propose_circuit OR apply_design), agent must emit a fenced `dreamer-diagram` code block with the resulting diagram so users can save/share/re-apply.",
+      "COMMON_PROMPT: after any successful whole-circuit generation (propose_circuit OR apply_design), agent must emit a fenced `breadbox-diagram` code block with the resulting diagram so users can save/share/re-apply.",
       "apply_design: now returns obstacleCount in its response so the model can acknowledge environment payload made it through.",
       "validator: added MISSING_I2C_WIRING semantic check — flags OLED displays whose sda/scl pins aren't wired to the board's SDA/SCL pins (Uno A4/A5).",
       "CLI: added `dreamer diagram validate <file>` and `dreamer diagram apply <file> --project <project-file>` subcommands for headless diagram workflows.",
@@ -341,7 +341,7 @@ export const AGENT_CHANGELOG: Array<{
     changes: [
       "propose_circuit now runs a final electrical validation gate and fails fast on power-budget errors instead of returning a successful build.",
       "Series-intermediate placement now avoids reusing breadboard bus rows that collide with existing unrelated component pins (prevents button/segment net collisions).",
-      "Eval resistor lead check aligned with Dreamer resistor footprint (3/6 columns) to reduce false-positive unconnected resistor issues.",
+      "Eval resistor lead check aligned with Breadbox resistor footprint (3/6 columns) to reduce false-positive unconnected resistor issues.",
     ],
   },
   {

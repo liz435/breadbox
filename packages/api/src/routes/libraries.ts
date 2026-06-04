@@ -59,7 +59,7 @@ export const libraryRoutes = new Elysia()
     if (IS_HOSTED) {
       set.status = 403
       return {
-        error: "Hosted mode — library search is disabled. Run the Dreamer CLI locally to browse the full library index.",
+        error: "Hosted mode — library search is disabled. Run the Breadbox CLI locally to browse the full library index.",
       }
     }
     const q = typeof query.q === "string" ? query.q : ""
@@ -80,7 +80,7 @@ export const libraryRoutes = new Elysia()
       set.status = 403
       return {
         success: false,
-        error: "Hosted mode — libraries are pre-installed. Run the Dreamer CLI locally for the full library index.",
+        error: "Hosted mode — libraries are pre-installed. Run the Breadbox CLI locally for the full library index.",
       }
     }
     const parsed = installRequestSchema.safeParse(body)
@@ -103,7 +103,7 @@ export const libraryRoutes = new Elysia()
       set.status = 403
       return {
         success: false,
-        error: "Hosted mode — library set is fixed. Run the Dreamer CLI locally to manage libraries.",
+        error: "Hosted mode — library set is fixed. Run the Breadbox CLI locally to manage libraries.",
       }
     }
     const parsed = uninstallRequestSchema.safeParse(body)
