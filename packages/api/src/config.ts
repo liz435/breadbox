@@ -22,6 +22,7 @@ import { chmod, mkdir, rename, writeFile } from "fs/promises"
 import { existsSync } from "fs"
 import { z } from "zod"
 import { configPath, dreamerHome } from "./paths"
+import { getAnthropicApiKey } from "./secrets"
 
 export const configSchema = z.object({
   anthropic: z.object({
@@ -65,8 +66,20 @@ export async function saveConfig(next: Config): Promise<void> {
 }
 
 export async function getApiKey(): Promise<string | null> {
+  // 1. process.env — populated in CLI/headed mode (no secret lockdown) and
+  //    when a key is set at runtime via the in-app dialog (routes/config.ts).
   const envKey = process.env.ANTHROPIC_API_KEY
   if (envKey && envKey.trim() !== "") return envKey
+  // 2. Captured secret — the API server (packages/api/src/index.ts) runs
+  //    bootstrap-secrets, which moves ANTHROPIC_API_KEY out of process.env
+  //    into the secrets module before any route loads. Without this branch
+  //    getApiKey() would never see a boot-time env key in that path (the
+  //    `bun run dev` / e2e server), so /api/auth/me reports hasApiKey=false
+  //    even when a key is set. In CLI/headed mode the capture never runs and
+  //    this is "".
+  const captured = getAnthropicApiKey()
+  if (captured.trim() !== "") return captured
+  // 3. Persisted config (~/.dreamer/config.json).
   const config = await loadConfig()
   return config.anthropic?.apiKey ?? null
 }
