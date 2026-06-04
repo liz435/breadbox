@@ -12,6 +12,7 @@ import { simulationRef } from "@/simulator/simulation-ref"
 import { saveRef } from "@/project/save-ref"
 import { OPEN_CONNECT_CLAUDE_EVENT } from "@/components/connect-claude-dialog"
 import { useCapabilities } from "@/project/use-capabilities"
+import { VIEW_PANELS, showPanel } from "@/store/view-panels"
 
 // ── Command types ───────────────────────────────────────────────────────
 
@@ -93,27 +94,11 @@ function buildCommands(
     },
   })
 
-  // Panel toggles. `component` is the dockview component key (defaults to id),
-  // and `defaultPosition` is used when the panel doesn't already exist in the
-  // current layout — addPanel creates it with that position.
-  const panels: Array<{
-    id: string
-    label: string
-    component?: string
-    defaultPosition?: { referencePanel: string; direction: "right" | "left" | "above" | "below" | "within" }
-  }> = [
-    { id: "breadboard", label: "Breadboard" },
-    { id: "sketchEditor", label: "Sketch Editor" },
-    { id: "schematic", label: "Schematic" },
-    { id: "inspector", label: "Inspector" },
-    { id: "electricalReport", label: "Electrical Report" },
-    { id: "serialMonitor", label: "Serial Monitor" },
-    { id: "pinInspector", label: "Pin Inspector" },
-    { id: "projectFiles", label: "Project Files" },
-    { id: "libraryManager", label: "Libraries" },
-    { id: "oledDisplay", label: "OLED Display", defaultPosition: { referencePanel: "breadboard", direction: "right" } },
-  ]
-  for (const p of panels) {
+  // Panel toggles — driven by the shared VIEW_PANELS registry so the palette,
+  // the top tab strip, and the native macOS View menu stay in sync. showPanel
+  // focuses the panel, or creates it from its default position if it isn't in
+  // the current layout.
+  for (const p of VIEW_PANELS) {
     commands.push({
       id: `panel:${p.id}`,
       label: `Show ${p.label}`,
@@ -121,21 +106,7 @@ function buildCommands(
       category: "Panels",
       icon: icons.panel,
       keywords: `panel view open toggle ${p.id}`,
-      action: () => {
-        if (!dockviewApi) return
-        const existing = dockviewApi.getPanel(p.id)
-        if (existing) {
-          existing.api.setActive()
-          return
-        }
-        // Panel not in the current layout — create it on the fly.
-        dockviewApi.addPanel({
-          id: p.id,
-          component: p.component ?? p.id,
-          title: p.label,
-          position: p.defaultPosition,
-        })
-      },
+      action: () => showPanel(dockviewApi, p.id),
     })
   }
 

@@ -3,6 +3,9 @@
   "identifier": "default",
   "description": "Core window permissions plus permission to launch the bundled `breadbox` server sidecar.",
   "windows": ["main"],
+  "remote": {
+    "urls": ["http://localhost:*", "http://127.0.0.1:*"]
+  },
   "permissions": [
     "core:default",
     {

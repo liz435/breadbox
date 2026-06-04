@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useRef, useState, type ReactNode } from "react";
 import { Router, useRouter } from "@/router";
 import { CommandPalette } from "@/components/command-palette";
+import { ViewTabStrip } from "@/components/view-tab-strip";
 import { ShortcutsDialog } from "@/components/shortcuts-dialog";
 import { ConnectClaudeDialog, OPEN_CONNECT_CLAUDE_EVENT } from "@/components/connect-claude-dialog";
 import { DocsRouter } from "@/docs/docs-router";
@@ -31,6 +32,8 @@ import { useGraph } from "./store/graph-context";
 import { useBoard } from "./store/board-context";
 import { AppProviders } from "./app-providers";
 import { DockviewContext } from "./store/dockview-context";
+import { useViewMenuCommands } from "./store/use-view-menu-commands";
+import { useViewMenuSync } from "./store/use-view-menu-sync";
 import { ProjectLoader } from "./project/project-loader";
 import { useGraphPersistence } from "./project/use-graph-persistence";
 import { useBoardPersistence } from "./project/use-board-persistence";
@@ -135,6 +138,16 @@ function AppInner() {
   // when no permission has been granted yet.
   useEffect(() => { void restorePairedPort(); }, []);
   const dockviewApiRef = useRef<DockviewApi | null>(null);
+  // The same API as the ref, mirrored into state so the view tab strip and the
+  // native-menu bridge re-render/re-subscribe once Dockview is ready (a ref
+  // mutation alone wouldn't trigger that).
+  const [dockviewApi, setDockviewApi] = useState<DockviewApi | null>(null);
+  // Route native macOS View-menu commands to the Dockview API. No-op in a
+  // plain browser, where the menu event never fires.
+  useViewMenuCommands(dockviewApi);
+  // Mirror which view panels are open onto the native View-menu checkmarks.
+  // No-op outside the desktop shell.
+  useViewMenuSync(dockviewApi);
   // Track which projectId we have already hydrated for. switchProject() now
   // re-runs hydration cleanly without leaking state from the previous project.
   const boardHydratedForRef = useRef<string | null>(null);
@@ -363,6 +376,7 @@ function AppInner() {
   const onReady = useCallback((event: DockviewReadyEvent) => {
     const api = event.api;
     dockviewApiRef.current = api;
+    setDockviewApi(api);
 
     // Clear stale layouts from before Arduino simulator conversion.
     // The old layout references "canvas" and missing panels — force a fresh default.
@@ -483,21 +497,24 @@ function AppInner() {
 
   return (
     <DockviewContext.Provider value={dockviewApiRef}>
-      {/* Dockview fills the viewport. The BottomToolbar is a floating
-          overlay anchored bottom-center — it carries its own card chrome
-          (border + bg-card + shadow) rather than a full-width strip, so
-          the underlying panels bleed to the edges instead of reserving a
-          persistent ~56px dark row that read as visual distraction in AI
-          mode. pointer-events-none on the overlay keeps the canvas fully
-          draggable through empty space around the pill; the card itself
-          re-enables pointer-events for interaction. */}
-      <div className="relative w-full h-full">
-        <div className="absolute inset-0 dockview-theme-abyss">
-          <DockviewReact
-            onReady={onReady}
-            components={components}
-            className="h-full"
-          />
+      {/* Column layout: the view tab strip sits on top; Dockview fills the
+          rest. The BottomToolbar is a floating overlay anchored bottom-center
+          — it carries its own card chrome (border + bg-card + shadow) rather
+          than a full-width strip, so the underlying panels bleed to the edges
+          instead of reserving a persistent ~56px dark row that read as visual
+          distraction in AI mode. pointer-events-none on the overlay keeps the
+          canvas fully draggable through empty space around the pill; the card
+          itself re-enables pointer-events for interaction. */}
+      <div className="relative flex h-full w-full flex-col">
+        <ViewTabStrip api={dockviewApi} />
+        <div className="relative min-h-0 flex-1">
+          <div className="absolute inset-0 dockview-theme-abyss">
+            <DockviewReact
+              onReady={onReady}
+              components={components}
+              className="h-full"
+            />
+          </div>
         </div>
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10">
           <BottomToolbar />
