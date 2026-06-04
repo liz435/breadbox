@@ -7,7 +7,9 @@ dist
 !**/.env.example
 bun.lock
 arduinoLLM
-.claude
+# Local Claude Code state stays out of git, but the shared project skills are tracked.
+.claude/*
+!.claude/skills/
 
 # Generated per-build — see scripts/generate-asset-manifest.ts
 packages/cli/src/web-ui-manifest.generated.ts
