@@ -90,8 +90,8 @@ export function installCrashReporter(): void {
       // Note: console.error because stderr is unbuffered; reader gets it
       // before the process exits.
       console.error(
-        `\n\x1b[31mDreamer crashed.\x1b[0m Crash report written to ${path}\n` +
-        `Please include it if filing a bug at https://github.com/liz435/dreamer/issues\n`,
+        `\n\x1b[31mBreadbox crashed.\x1b[0m Crash report written to ${path}\n` +
+        `Please include it if filing a bug at https://github.com/liz435/breadbox/issues\n`,
       )
     }
   }

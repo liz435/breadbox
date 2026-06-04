@@ -1,4 +1,4 @@
-# Dreamer Rendering Pipeline
+# Breadbox Rendering Pipeline
 
 The real-time, multi-threaded pipeline that takes a node graph and produces a playable game at 60 FPS.
 

@@ -344,7 +344,7 @@ function LibraryBrowserInner() {
                     // pill. Tooltip tells the user where to get it.
                     <span
                       className="flex items-center gap-1 rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] text-zinc-500"
-                      title="Not pre-installed on this hosted Dreamer. Download the Dreamer CLI to install arbitrary libraries."
+                      title="Not pre-installed on this hosted Breadbox. Download the Breadbox CLI to install arbitrary libraries."
                     >
                       <Lock className="size-2.5" /> CLI only
                     </span>

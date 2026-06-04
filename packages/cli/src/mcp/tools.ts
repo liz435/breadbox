@@ -59,7 +59,7 @@ export function registerTools(server: McpServer, session: McpSession) {
   server.registerTool(
     "list_projects",
     {
-      description: "List every Dreamer project on disk under the current DREAMER_HOME.",
+      description: "List every Breadbox project on disk under the current BREADBOX_HOME.",
       inputSchema: {},
     },
     async () => wrap(() => listProjects()),

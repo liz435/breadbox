@@ -1,9 +1,16 @@
 node_modules
 dist
+.DS_Store
+# Env files — ignore every variant, but keep the committed templates.
 .env
+.env.*
+!.env.example
+!**/.env.example
 bun.lock
 arduinoLLM
-.claude
+# Local Claude Code state stays out of git, but the shared project skills are tracked.
+.claude/*
+!.claude/skills/
 
 # Generated per-build — see scripts/generate-asset-manifest.ts
 packages/cli/src/web-ui-manifest.generated.ts
@@ -20,6 +27,17 @@ packages/api/data/runs/*.json
 packages/api/data/threads/*.json
 packages/api/data/tests/*.json
 packages/api/data/audit/
+
+# Motion + character runtime media/state (see packages/api/src/paths.ts) —
+# user-generated uploads and session output, recreated on boot if missing.
+packages/api/data/motion-artifacts/
+packages/api/data/motion-projects/*.json
+packages/api/data/motion-jobs/*.json
+packages/api/data/character-assets/
+packages/api/data/character-sessions/*.json
+
+# Local CLI auth token — per-machine, must never be committed.
+packages/api/data/local-token
 
 
 # Playwright e2e

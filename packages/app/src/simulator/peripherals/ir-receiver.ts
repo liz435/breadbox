@@ -114,7 +114,12 @@ export class IrReceiverPeripheral implements Peripheral<IrStateShape> {
     this.lastCode = u32
     this.transmitting = true
 
-    const startMs = startAtSimMs ?? 0 // Caller may not know sim time; scheduler uses ≤nowSimMs so 0 fires immediately.
+    // Base the frame on the AVR's *current* sim time (the resume point), not 0.
+    // The scheduler fires every edge with atSimMs ≤ nowSimMs in one flush, so a
+    // frame anchored at 0 mid-run collapses into a single instant — the real
+    // IRremote library then sees no pulse widths and never decodes. Anchoring
+    // at nowSimMs lets the ~68ms NEC envelope unfold across future run steps.
+    const startMs = startAtSimMs ?? this.ctx.nowSimMs()
     let t = startMs
 
     // Leader.

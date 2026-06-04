@@ -5,7 +5,7 @@
 //
 // Why a store with explicit session lifecycle (instead of letting each
 // consumer call `port.open()` directly): the WebSerial API allows only one
-// open connection per port at a time. On hosted Dreamer both the Serial
+// open connection per port at a time. On hosted Breadbox both the Serial
 // Monitor (long-lived read at the user's baud) and the STK500 uploader
 // (short-lived session at 115200) need that single port. Routing both
 // through `openMonitorSession` / `openFlashSession` here keeps the
@@ -22,6 +22,31 @@
 import { useSyncExternalStore } from "react"
 import "./web-serial-types"
 import type { SerialPort, SerialPortInfo } from "./web-serial-types"
+
+// ── Display label for a paired SerialPort ─────────────────────────────────
+//
+// Chromium's `port.getInfo()` returns the device's USB VID/PID *when known*
+// — but for plenty of USB-CDC devices (CH340 clones, generic Arduino-
+// compatible boards, anything talking over a USB hub that elides the
+// descriptors) both fields come back undefined. Showing "usb:????:????"
+// to users was confusing; this helper picks the right label for what we
+// actually know:
+//
+//   - both VID and PID known  →  "USB 2341:0043"   (lowercase hex, padded)
+//   - either missing          →  "USB serial device"
+//
+// Known vendor hints could be folded in later (e.g. Arduino LLC 0x2341,
+// CH340 0x1a86, FTDI 0x0403) to print "Arduino Uno" / "CH340 clone". Out
+// of scope here — the immediate goal is to stop showing `????` to users.
+export function formatPortLabel(info: SerialPortInfo | null | undefined): string {
+  if (!info) return "No board paired"
+  const { vendorId, productId } = info
+  if (vendorId !== undefined && productId !== undefined) {
+    const hex = (n: number) => n.toString(16).padStart(4, "0")
+    return `USB ${hex(vendorId)}:${hex(productId)}`
+  }
+  return "USB serial device"
+}
 
 export type SessionKind = "monitor" | "flash" | null
 

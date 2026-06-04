@@ -96,7 +96,7 @@ export function LoginScreen({ className }: LoginScreenProps = {}) {
     >
       <div className="flex w-full max-w-sm flex-col items-center gap-8 px-6 py-12 text-center">
         <div className="flex flex-col items-center gap-3">
-          <h1 className="text-3xl font-semibold tracking-tight">Dreamer</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Breadbox</h1>
           <p className="text-sm text-neutral-400">
             Sign in to access your projects.
           </p>

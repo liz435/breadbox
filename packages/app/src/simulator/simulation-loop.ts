@@ -7,7 +7,7 @@ import React, { useCallback, useEffect, useRef } from "react"
 import { useMachine } from "@xstate/react"
 import { simulationMachine } from "./simulation-machine"
 import { createSketchRunner, type SketchRunner, type SketchRunnerCallbacks } from "./runners"
-import { analyzeCircuit, type CircuitAnalysis } from "./circuit-solver"
+import { analyzeCircuit, hasCapacitor, type CircuitAnalysis } from "./circuit-solver"
 import { snapshotAsPinStates } from "./pin-state-store"
 import { applySensorInputs, resetSensorBuses } from "./sensor-inputs"
 import { RunTokenGate } from "./run-token-gate"
@@ -247,6 +247,13 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
   const analysisResultRef = useRef<CircuitAnalysis | null>(null)
   latestSimAnalysisRef.current = analysisResultRef
 
+  // Wall-clock timestamp of the last inline analysis, used to advance
+  // capacitor charge/discharge in real time. Also tracks whether the board
+  // currently has a capacitor so the tick loop can analyze it more often
+  // (reactive transients need a higher update rate to animate smoothly).
+  const lastInlineAtRef = useRef(0)
+  const hasReactiveRef = useRef(false)
+
   /** Run circuit analysis and feed analog voltages into the pin store. */
   function runInlineAnalysis() {
     const ctx = boardActor.getSnapshot().context
@@ -266,8 +273,32 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
       getBoardPinLayout(boardTarget).analogPins.map((p) => p.pin),
     )
 
+    // Surface 74HC595 parallel outputs to the circuit solver so its wired LEDs
+    // light up. The chip's Q0..Q7 are not Arduino pins, so the netlist builder
+    // can only drive them from the peripheral's latched byte.
+    const shiftRegisterOutputs = new Map<string, readonly boolean[]>()
+    for (const [id, s] of Object.entries(runner.getPeripheralBus().snapshot())) {
+      if (s.kind === "shift_register") shiftRegisterOutputs.set(id, s.outputs)
+    }
+
+    // Real elapsed time since the last analysis, used to step capacitor
+    // charge. Clamped so a stall (tab backgrounded, breakpoint) can't make a
+    // cap lurch; first frame gets 0 (no step).
+    hasReactiveRef.current = hasCapacitor(ctx.components)
+    const now = performance.now()
+    const dtSeconds = lastInlineAtRef.current
+      ? Math.min((now - lastInlineAtRef.current) / 1000, 0.25)
+      : 0
+    lastInlineAtRef.current = now
+
     try {
-      const result = analyzeCircuit(ctx.components, ctx.wires, snapshotAsPinStates(store))
+      const result = analyzeCircuit(
+        ctx.components,
+        ctx.wires,
+        snapshotAsPinStates(store),
+        shiftRegisterOutputs,
+        { dtSeconds },
+      )
       analysisResultRef.current = result
 
       if (result.isValid) {
@@ -327,6 +358,8 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     cancelLoop()
 
     let frameCount = 0
+    // Fresh run: drop any stale analysis timestamp so the first cap step is 0.
+    lastInlineAtRef.current = 0
 
     function tick() {
       const runner = runnerRef.current
@@ -334,9 +367,12 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
 
       frameCount++
 
-      // Run circuit analysis every 12 frames (~5 times/sec at 60fps)
-      // Also run on the very first frame so analog values are seeded
-      if (frameCount === 1 || frameCount % 12 === 0) {
+      // Run circuit analysis every 12 frames (~5 times/sec at 60fps). Boards
+      // with a capacitor analyze every 2 frames (~30/sec) so charge/discharge
+      // transients animate smoothly instead of snapping. Also run on the very
+      // first frame so analog values are seeded.
+      const interval = hasReactiveRef.current ? 2 : 12
+      if (frameCount === 1 || frameCount % interval === 0) {
         runInlineAnalysis()
       }
 

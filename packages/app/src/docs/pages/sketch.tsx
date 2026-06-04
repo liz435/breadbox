@@ -13,7 +13,7 @@ export function SketchPage() {
         <p className="text-sm text-gray-300 leading-relaxed mb-2">
           The <strong className="text-gray-200">Examples</strong> button sits to the right of Run/Stop
           in the toolbar. It opens a popover listing 21 ready-made example boards — one for every
-          component type Dreamer supports. Each example includes a complete breadboard layout, wiring,
+          component type Breadbox supports. Each example includes a complete breadboard layout, wiring,
           and a working sketch.
         </p>
         <Table
@@ -34,7 +34,7 @@ export function SketchPage() {
 
       <Section title="Auto-generation">
         <p className="text-sm text-gray-300 leading-relaxed">
-          When the sketch is empty or still contains the auto-generated boilerplate, Dreamer
+          When the sketch is empty or still contains the auto-generated boilerplate, Breadbox
           regenerates it every time the board changes. Once you manually edit the code, auto-generation
           stops — your edits are preserved.
         </p>

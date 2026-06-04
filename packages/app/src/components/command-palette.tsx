@@ -10,6 +10,9 @@ import { breadboardInteractionActor } from "@/breadboard/breadboard-interaction"
 import { useDockviewApi } from "@/store/dockview-context"
 import { simulationRef } from "@/simulator/simulation-ref"
 import { saveRef } from "@/project/save-ref"
+import { OPEN_CONNECT_CLAUDE_EVENT } from "@/components/connect-claude-dialog"
+import { useCapabilities } from "@/project/use-capabilities"
+import { VIEW_PANELS, showPanel } from "@/store/view-panels"
 
 // ── Command types ───────────────────────────────────────────────────────
 
@@ -54,7 +57,10 @@ const icons = {
 
 // ── Build command list ──────────────────────────────────────────────────
 
-function buildCommands(dockviewApi: ReturnType<typeof useDockviewApi>): Command[] {
+function buildCommands(
+  dockviewApi: ReturnType<typeof useDockviewApi>,
+  opts: { hosted: boolean },
+): Command[] {
   const commands: Command[] = []
 
   // Component placement commands
@@ -88,27 +94,11 @@ function buildCommands(dockviewApi: ReturnType<typeof useDockviewApi>): Command[
     },
   })
 
-  // Panel toggles. `component` is the dockview component key (defaults to id),
-  // and `defaultPosition` is used when the panel doesn't already exist in the
-  // current layout — addPanel creates it with that position.
-  const panels: Array<{
-    id: string
-    label: string
-    component?: string
-    defaultPosition?: { referencePanel: string; direction: "right" | "left" | "above" | "below" | "within" }
-  }> = [
-    { id: "breadboard", label: "Breadboard" },
-    { id: "sketchEditor", label: "Sketch Editor" },
-    { id: "schematic", label: "Schematic" },
-    { id: "inspector", label: "Inspector" },
-    { id: "electricalReport", label: "Electrical Report" },
-    { id: "serialMonitor", label: "Serial Monitor" },
-    { id: "pinInspector", label: "Pin Inspector" },
-    { id: "projectFiles", label: "Project Files" },
-    { id: "libraryManager", label: "Libraries" },
-    { id: "oledDisplay", label: "OLED Display", defaultPosition: { referencePanel: "breadboard", direction: "right" } },
-  ]
-  for (const p of panels) {
+  // Panel toggles — driven by the shared VIEW_PANELS registry so the palette,
+  // the top tab strip, and the native macOS View menu stay in sync. showPanel
+  // focuses the panel, or creates it from its default position if it isn't in
+  // the current layout.
+  for (const p of VIEW_PANELS) {
     commands.push({
       id: `panel:${p.id}`,
       label: `Show ${p.label}`,
@@ -116,21 +106,7 @@ function buildCommands(dockviewApi: ReturnType<typeof useDockviewApi>): Command[
       category: "Panels",
       icon: icons.panel,
       keywords: `panel view open toggle ${p.id}`,
-      action: () => {
-        if (!dockviewApi) return
-        const existing = dockviewApi.getPanel(p.id)
-        if (existing) {
-          existing.api.setActive()
-          return
-        }
-        // Panel not in the current layout — create it on the fly.
-        dockviewApi.addPanel({
-          id: p.id,
-          component: p.component ?? p.id,
-          title: p.label,
-          position: p.defaultPosition,
-        })
-      },
+      action: () => showPanel(dockviewApi, p.id),
     })
   }
 
@@ -156,6 +132,22 @@ function buildCommands(dockviewApi: ReturnType<typeof useDockviewApi>): Command[
       window.dispatchEvent(new KeyboardEvent("keydown", { key: "?" }))
     },
   })
+  // The MCP server + live bridge are local-only (the bridge is disabled in
+  // hosted mode, and the `dreamer mcp` CLI runs on the user's machine), so
+  // only surface this where it can actually work.
+  if (!opts.hosted) {
+    commands.push({
+      id: "action:connect-claude",
+      label: "Connect Claude (MCP)",
+      description: "Drive this project from your own Claude",
+      category: "Actions",
+      icon: icons.action,
+      keywords: "claude mcp ai agent connect model context protocol assistant",
+      action: () => {
+        window.dispatchEvent(new CustomEvent(OPEN_CONNECT_CLAUDE_EVENT))
+      },
+    })
+  }
   commands.push({
     id: "action:pause",
     label: "Pause Sketch",
@@ -226,8 +218,12 @@ function CommandPaletteInner({ open, onClose }: CommandPaletteProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const dockviewApi = useDockviewApi()
+  const { capabilities } = useCapabilities()
 
-  const commands = useMemo(() => buildCommands(dockviewApi), [dockviewApi])
+  const commands = useMemo(
+    () => buildCommands(dockviewApi, { hosted: capabilities.hosted }),
+    [dockviewApi, capabilities.hosted],
+  )
 
   const results = useMemo(() => {
     if (!query.trim()) return commands

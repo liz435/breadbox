@@ -52,7 +52,7 @@ import { SerialApiPage } from "./encyclopedia/programming/serial-api"
 // Programming — Libraries, Patterns, Limits
 import { ServoLibraryPage } from "./encyclopedia/programming/servo-library"
 import { NonBlockingTimingPage } from "./encyclopedia/programming/non-blocking-timing"
-import { DreamerLimitsPage } from "./encyclopedia/programming/dreamer-limits"
+import { BreadboxLimitsPage } from "./encyclopedia/programming/breadbox-limits"
 // Electronics — Core concepts
 import { VoltageCurrentResistancePage } from "./encyclopedia/electronics/voltage-current-resistance"
 import { OhmsLawPage } from "./encyclopedia/electronics/ohms-law"
@@ -169,7 +169,7 @@ const PAGES: Record<PageKey, React.ComponentType> = {
   "programming/serial-api": SerialApiPage,
   "programming/servo-library": ServoLibraryPage,
   "programming/non-blocking-timing": NonBlockingTimingPage,
-  "programming/dreamer-limits": DreamerLimitsPage,
+  "programming/breadbox-limits": BreadboxLimitsPage,
   // Electronics
   "electronics/voltage-current-resistance": VoltageCurrentResistancePage,
   "electronics/ohms-law": OhmsLawPage,

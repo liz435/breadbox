@@ -1,7 +1,7 @@
 # ── ComfyUI sidecar for RIFE frame interpolation ──────────────────────────
 #
 # Deploys as a second Railway service in the same project.
-# The Dreamer API reaches it over Railway's private network:
+# The Breadbox API reaches it over Railway's private network:
 #   COMFYUI_URL=http://comfyui.railway.internal:8188
 #
 # Recommended Railway env on the ComfyUI service:

@@ -67,6 +67,7 @@ export const componentTypeSchema = z.enum([
   "dc_motor",
   "dht_sensor",
   "ir_receiver",
+  "ir_remote",
   "shift_register",
   "oled_display",
   "power_supply",

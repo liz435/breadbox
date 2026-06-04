@@ -90,15 +90,19 @@ function subscribe(onStoreChange: () => void): () => void {
 }
 
 /**
- * Invalidate the cached wallet so the next render re-fetches. Call
- * after a successful agent run (the balance just dropped) or after a
- * 402 (the user's perception of their balance is wrong).
+ * Re-fetch the wallet. Call after a successful agent run (the balance
+ * just dropped) or after a 402 (the user's perception of their balance
+ * is wrong).
+ *
+ * We deliberately keep `snapshotCache` (the previously-fetched balance)
+ * in place while the new value loads instead of blanking it. That keeps
+ * the CreditChip mounted showing the old total, so when the new total
+ * arrives the RollingNumber reels animate from old → new rather than
+ * flickering through the loading placeholder and snapping to the result.
  */
 export function refreshWallet(): Promise<WalletResponse> {
   promiseCache = null
-  snapshotCache = null
   const next = ensureFetch()
-  notify()
   return next
 }
 

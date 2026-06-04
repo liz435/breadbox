@@ -4,8 +4,8 @@
       "id": "sr-1",
       "type": "shift_register",
       "name": "74HC595",
-      "x": 7,
-      "y": 5,
+      "x": 2,
+      "y": 1,
       "rotation": 0,
       "pins": {
         "data": null,
@@ -40,68 +40,552 @@
       "parentId": null,
       "worldX": -300,
       "worldY": 0
+    },
+    "r-0": {
+      "id": "r-0",
+      "type": "resistor",
+      "name": "R0",
+      "x": 3,
+      "y": 10,
+      "rotation": 0,
+      "pins": {
+        "a": null,
+        "b": null
+      },
+      "properties": {
+        "resistance": 220
+      },
+      "parentId": "breadboard-1"
+    },
+    "led-0": {
+      "id": "led-0",
+      "type": "led",
+      "name": "LED Q0",
+      "x": 8,
+      "y": 10,
+      "rotation": 0,
+      "pins": {
+        "anode": null,
+        "cathode": null
+      },
+      "properties": {
+        "color": "#ef4444"
+      },
+      "parentId": "breadboard-1"
+    },
+    "r-1": {
+      "id": "r-1",
+      "type": "resistor",
+      "name": "R1",
+      "x": 3,
+      "y": 12,
+      "rotation": 0,
+      "pins": {
+        "a": null,
+        "b": null
+      },
+      "properties": {
+        "resistance": 220
+      },
+      "parentId": "breadboard-1"
+    },
+    "led-1": {
+      "id": "led-1",
+      "type": "led",
+      "name": "LED Q1",
+      "x": 8,
+      "y": 12,
+      "rotation": 0,
+      "pins": {
+        "anode": null,
+        "cathode": null
+      },
+      "properties": {
+        "color": "#f97316"
+      },
+      "parentId": "breadboard-1"
+    },
+    "r-2": {
+      "id": "r-2",
+      "type": "resistor",
+      "name": "R2",
+      "x": 3,
+      "y": 14,
+      "rotation": 0,
+      "pins": {
+        "a": null,
+        "b": null
+      },
+      "properties": {
+        "resistance": 220
+      },
+      "parentId": "breadboard-1"
+    },
+    "led-2": {
+      "id": "led-2",
+      "type": "led",
+      "name": "LED Q2",
+      "x": 8,
+      "y": 14,
+      "rotation": 0,
+      "pins": {
+        "anode": null,
+        "cathode": null
+      },
+      "properties": {
+        "color": "#eab308"
+      },
+      "parentId": "breadboard-1"
+    },
+    "r-3": {
+      "id": "r-3",
+      "type": "resistor",
+      "name": "R3",
+      "x": 3,
+      "y": 16,
+      "rotation": 0,
+      "pins": {
+        "a": null,
+        "b": null
+      },
+      "properties": {
+        "resistance": 220
+      },
+      "parentId": "breadboard-1"
+    },
+    "led-3": {
+      "id": "led-3",
+      "type": "led",
+      "name": "LED Q3",
+      "x": 8,
+      "y": 16,
+      "rotation": 0,
+      "pins": {
+        "anode": null,
+        "cathode": null
+      },
+      "properties": {
+        "color": "#22c55e"
+      },
+      "parentId": "breadboard-1"
+    },
+    "r-4": {
+      "id": "r-4",
+      "type": "resistor",
+      "name": "R4",
+      "x": 3,
+      "y": 18,
+      "rotation": 0,
+      "pins": {
+        "a": null,
+        "b": null
+      },
+      "properties": {
+        "resistance": 220
+      },
+      "parentId": "breadboard-1"
+    },
+    "led-4": {
+      "id": "led-4",
+      "type": "led",
+      "name": "LED Q4",
+      "x": 8,
+      "y": 18,
+      "rotation": 0,
+      "pins": {
+        "anode": null,
+        "cathode": null
+      },
+      "properties": {
+        "color": "#06b6d4"
+      },
+      "parentId": "breadboard-1"
+    },
+    "r-5": {
+      "id": "r-5",
+      "type": "resistor",
+      "name": "R5",
+      "x": 3,
+      "y": 20,
+      "rotation": 0,
+      "pins": {
+        "a": null,
+        "b": null
+      },
+      "properties": {
+        "resistance": 220
+      },
+      "parentId": "breadboard-1"
+    },
+    "led-5": {
+      "id": "led-5",
+      "type": "led",
+      "name": "LED Q5",
+      "x": 8,
+      "y": 20,
+      "rotation": 0,
+      "pins": {
+        "anode": null,
+        "cathode": null
+      },
+      "properties": {
+        "color": "#3b82f6"
+      },
+      "parentId": "breadboard-1"
+    },
+    "r-6": {
+      "id": "r-6",
+      "type": "resistor",
+      "name": "R6",
+      "x": 3,
+      "y": 22,
+      "rotation": 0,
+      "pins": {
+        "a": null,
+        "b": null
+      },
+      "properties": {
+        "resistance": 220
+      },
+      "parentId": "breadboard-1"
+    },
+    "led-6": {
+      "id": "led-6",
+      "type": "led",
+      "name": "LED Q6",
+      "x": 8,
+      "y": 22,
+      "rotation": 0,
+      "pins": {
+        "anode": null,
+        "cathode": null
+      },
+      "properties": {
+        "color": "#8b5cf6"
+      },
+      "parentId": "breadboard-1"
+    },
+    "r-7": {
+      "id": "r-7",
+      "type": "resistor",
+      "name": "R7",
+      "x": 3,
+      "y": 24,
+      "rotation": 0,
+      "pins": {
+        "a": null,
+        "b": null
+      },
+      "properties": {
+        "resistance": 220
+      },
+      "parentId": "breadboard-1"
+    },
+    "led-7": {
+      "id": "led-7",
+      "type": "led",
+      "name": "LED Q7",
+      "x": 8,
+      "y": 24,
+      "rotation": 0,
+      "pins": {
+        "anode": null,
+        "cathode": null
+      },
+      "properties": {
+        "color": "#ec4899"
+      },
+      "parentId": "breadboard-1"
     }
   },
   "wires": {
-    "wire-d8-data": {
-      "id": "wire-d8-data",
+    "w-vcc": {
+      "id": "w-vcc",
+      "fromRow": -999,
+      "fromCol": -1,
+      "toRow": 1,
+      "toCol": 9,
+      "color": "#ef4444",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "5v",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_1_right"
+    },
+    "w-mr": {
+      "id": "w-mr",
+      "fromRow": -999,
+      "fromCol": -1,
+      "toRow": 7,
+      "toCol": 9,
+      "color": "#ef4444",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "5v",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_7_right"
+    },
+    "w-oe": {
+      "id": "w-oe",
+      "fromRow": -999,
+      "fromCol": -3,
+      "toRow": 4,
+      "toCol": 9,
+      "color": "#1a1a1a",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "gnd",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_4_right"
+    },
+    "w-gnd": {
+      "id": "w-gnd",
+      "fromRow": -999,
+      "fromCol": -3,
+      "toRow": 8,
+      "toCol": 0,
+      "color": "#1a1a1a",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "gnd",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_8_left"
+    },
+    "w-data": {
+      "id": "w-data",
       "fromRow": -999,
       "fromCol": 8,
-      "toRow": 5,
-      "toCol": 7,
+      "toRow": 3,
+      "toCol": 9,
       "color": "#fbbf24",
       "fromBoardId": "arduino-1",
       "fromStrip": "d8",
       "toBoardId": "breadboard-1",
+      "toStrip": "term_3_right"
+    },
+    "w-latch": {
+      "id": "w-latch",
+      "fromRow": -999,
+      "fromCol": 12,
+      "toRow": 5,
+      "toCol": 9,
+      "color": "#22c55e",
+      "fromBoardId": "arduino-1",
+      "fromStrip": "d12",
+      "toBoardId": "breadboard-1",
       "toStrip": "term_5_right"
     },
-    "wire-d11-clock": {
-      "id": "wire-d11-clock",
+    "w-clock": {
+      "id": "w-clock",
       "fromRow": -999,
       "fromCol": 11,
       "toRow": 6,
-      "toCol": 7,
+      "toCol": 9,
       "color": "#3b82f6",
       "fromBoardId": "arduino-1",
       "fromStrip": "d11",
       "toBoardId": "breadboard-1",
       "toStrip": "term_6_right"
     },
-    "wire-d12-latch": {
-      "id": "wire-d12-latch",
-      "fromRow": -999,
-      "fromCol": 12,
-      "toRow": 7,
-      "toCol": 7,
-      "color": "#22c55e",
-      "fromBoardId": "arduino-1",
-      "fromStrip": "d12",
+    "w-fan-0": {
+      "id": "w-fan-0",
+      "fromRow": 2,
+      "fromCol": 9,
+      "toRow": 10,
+      "toCol": 0,
+      "color": "#a78bfa",
+      "fromBoardId": "breadboard-1",
+      "fromStrip": "term_2_right",
       "toBoardId": "breadboard-1",
-      "toStrip": "term_7_right"
+      "toStrip": "term_10_left"
     },
-    "wire-5v": {
-      "id": "wire-5v",
-      "fromRow": -999,
-      "fromCol": -1,
-      "toRow": 8,
-      "toCol": 7,
-      "color": "#ef4444",
-      "fromBoardId": "arduino-1",
-      "fromStrip": "5v",
+    "w-cath-0": {
+      "id": "w-cath-0",
+      "fromRow": 11,
+      "fromCol": 9,
+      "toRow": 11,
+      "toCol": 11,
+      "color": "#64748b",
+      "fromBoardId": "breadboard-1",
+      "fromStrip": "term_11_right",
       "toBoardId": "breadboard-1",
-      "toStrip": "term_8_right"
+      "toStrip": "pwr_bot_neg_l"
     },
-    "wire-gnd": {
-      "id": "wire-gnd",
+    "w-fan-1": {
+      "id": "w-fan-1",
+      "fromRow": 1,
+      "fromCol": 0,
+      "toRow": 12,
+      "toCol": 0,
+      "color": "#a78bfa",
+      "fromBoardId": "breadboard-1",
+      "fromStrip": "term_1_left",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_12_left"
+    },
+    "w-cath-1": {
+      "id": "w-cath-1",
+      "fromRow": 13,
+      "fromCol": 9,
+      "toRow": 13,
+      "toCol": 11,
+      "color": "#64748b",
+      "fromBoardId": "breadboard-1",
+      "fromStrip": "term_13_right",
+      "toBoardId": "breadboard-1",
+      "toStrip": "pwr_bot_neg_l"
+    },
+    "w-fan-2": {
+      "id": "w-fan-2",
+      "fromRow": 2,
+      "fromCol": 0,
+      "toRow": 14,
+      "toCol": 0,
+      "color": "#a78bfa",
+      "fromBoardId": "breadboard-1",
+      "fromStrip": "term_2_left",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_14_left"
+    },
+    "w-cath-2": {
+      "id": "w-cath-2",
+      "fromRow": 15,
+      "fromCol": 9,
+      "toRow": 15,
+      "toCol": 11,
+      "color": "#64748b",
+      "fromBoardId": "breadboard-1",
+      "fromStrip": "term_15_right",
+      "toBoardId": "breadboard-1",
+      "toStrip": "pwr_bot_neg_r"
+    },
+    "w-fan-3": {
+      "id": "w-fan-3",
+      "fromRow": 3,
+      "fromCol": 0,
+      "toRow": 16,
+      "toCol": 0,
+      "color": "#a78bfa",
+      "fromBoardId": "breadboard-1",
+      "fromStrip": "term_3_left",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_16_left"
+    },
+    "w-cath-3": {
+      "id": "w-cath-3",
+      "fromRow": 17,
+      "fromCol": 9,
+      "toRow": 17,
+      "toCol": 11,
+      "color": "#64748b",
+      "fromBoardId": "breadboard-1",
+      "fromStrip": "term_17_right",
+      "toBoardId": "breadboard-1",
+      "toStrip": "pwr_bot_neg_r"
+    },
+    "w-fan-4": {
+      "id": "w-fan-4",
+      "fromRow": 4,
+      "fromCol": 0,
+      "toRow": 18,
+      "toCol": 0,
+      "color": "#a78bfa",
+      "fromBoardId": "breadboard-1",
+      "fromStrip": "term_4_left",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_18_left"
+    },
+    "w-cath-4": {
+      "id": "w-cath-4",
+      "fromRow": 19,
+      "fromCol": 9,
+      "toRow": 19,
+      "toCol": 11,
+      "color": "#64748b",
+      "fromBoardId": "breadboard-1",
+      "fromStrip": "term_19_right",
+      "toBoardId": "breadboard-1",
+      "toStrip": "pwr_bot_neg_r"
+    },
+    "w-fan-5": {
+      "id": "w-fan-5",
+      "fromRow": 5,
+      "fromCol": 0,
+      "toRow": 20,
+      "toCol": 0,
+      "color": "#a78bfa",
+      "fromBoardId": "breadboard-1",
+      "fromStrip": "term_5_left",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_20_left"
+    },
+    "w-cath-5": {
+      "id": "w-cath-5",
+      "fromRow": 21,
+      "fromCol": 9,
+      "toRow": 21,
+      "toCol": 11,
+      "color": "#64748b",
+      "fromBoardId": "breadboard-1",
+      "fromStrip": "term_21_right",
+      "toBoardId": "breadboard-1",
+      "toStrip": "pwr_bot_neg_r"
+    },
+    "w-fan-6": {
+      "id": "w-fan-6",
+      "fromRow": 6,
+      "fromCol": 0,
+      "toRow": 22,
+      "toCol": 0,
+      "color": "#a78bfa",
+      "fromBoardId": "breadboard-1",
+      "fromStrip": "term_6_left",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_22_left"
+    },
+    "w-cath-6": {
+      "id": "w-cath-6",
+      "fromRow": 23,
+      "fromCol": 9,
+      "toRow": 23,
+      "toCol": 11,
+      "color": "#64748b",
+      "fromBoardId": "breadboard-1",
+      "fromStrip": "term_23_right",
+      "toBoardId": "breadboard-1",
+      "toStrip": "pwr_bot_neg_r"
+    },
+    "w-fan-7": {
+      "id": "w-fan-7",
+      "fromRow": 7,
+      "fromCol": 0,
+      "toRow": 24,
+      "toCol": 0,
+      "color": "#a78bfa",
+      "fromBoardId": "breadboard-1",
+      "fromStrip": "term_7_left",
+      "toBoardId": "breadboard-1",
+      "toStrip": "term_24_left"
+    },
+    "w-cath-7": {
+      "id": "w-cath-7",
+      "fromRow": 25,
+      "fromCol": 9,
+      "toRow": 25,
+      "toCol": 11,
+      "color": "#64748b",
+      "fromBoardId": "breadboard-1",
+      "fromStrip": "term_25_right",
+      "toBoardId": "breadboard-1",
+      "toStrip": "pwr_bot_neg_r"
+    },
+    "w-rail-gnd": {
+      "id": "w-rail-gnd",
       "fromRow": -999,
       "fromCol": -3,
-      "toRow": 9,
-      "toCol": 7,
+      "toRow": 2,
+      "toCol": 11,
       "color": "#1a1a1a",
       "fromBoardId": "arduino-1",
       "fromStrip": "gnd",
       "toBoardId": "breadboard-1",
-      "toStrip": "term_9_right"
+      "toStrip": "pwr_bot_neg_l"
     }
   },
   "libraryState": {
@@ -110,6 +594,6 @@
     "serialBaud": 0
   },
   "serialOutput": [],
-  "sketchCode": "// Example: Shift Register LED Chaser\n// Use a 74HC595 to chase LEDs with shiftOut.\n\nint dataPin = 8;\nint clockPin = 11;\nint latchPin = 12;\n\nvoid setup() {\n  pinMode(dataPin, OUTPUT);\n  pinMode(clockPin, OUTPUT);\n  pinMode(latchPin, OUTPUT);\n}\n\nvoid loop() {\n  for (int i = 0; i < 8; i++) {\n    byte pattern = 1 << i;\n    digitalWrite(latchPin, LOW);\n    shiftOut(dataPin, clockPin, MSBFIRST, pattern);\n    digitalWrite(latchPin, HIGH);\n    delay(200);\n  }\n}\n",
+  "sketchCode": "// Example: Shift Register LED Chaser\n// A 74HC595 turns 3 Arduino pins into 8 outputs. shiftOut() clocks one byte\n// into the chip; the latch pin copies it to the output pins Q0..Q7.\n\nint dataPin = 8;   // DS   (pin 14)\nint clockPin = 11;  // SHCP (pin 11)\nint latchPin = 12;  // STCP (pin 12)\n\nvoid setup() {\n  pinMode(dataPin, OUTPUT);\n  pinMode(clockPin, OUTPUT);\n  pinMode(latchPin, OUTPUT);\n}\n\nvoid loop() {\n  for (int i = 0; i < 8; i++) {\n    byte pattern = 1 << i;            // light one LED at a time\n    digitalWrite(latchPin, LOW);\n    shiftOut(dataPin, clockPin, MSBFIRST, pattern);\n    digitalWrite(latchPin, HIGH);     // latch → Q0..Q7 update\n    delay(200);\n  }\n}\n",
   "customLibraries": {}
 }

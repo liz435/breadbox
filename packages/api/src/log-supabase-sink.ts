@@ -1,7 +1,7 @@
 // ── Supabase log sink ───────────────────────────────────────────────────
 //
 // Third sink for the runtime logger, alongside stderr and the local
-// JSONL file. Active only when DREAMER_MODE=hosted; otherwise every
+// JSONL file. Active only when BREADBOX_MODE=hosted; otherwise every
 // entry path is a no-op and the function returns immediately.
 //
 // Design constraints (from PR3 plan, Q16):
@@ -18,10 +18,10 @@
 //      in the fresh active buffer. The buffer is bounded — drop-oldest
 //      on overflow with a stderr warning at most once per minute.
 //
-//   3. Level-gated. DREAMER_LOG_SUPABASE_LEVEL (default `warn`)
+//   3. Level-gated. BREADBOX_LOG_SUPABASE_LEVEL (default `warn`)
 //      determines the floor. Read once at module load — flipping the
 //      env at runtime requires a restart, which matches every other
-//      Dreamer config knob.
+//      Breadbox config knob.
 //
 //   4. Redacted. Every payload passes through redactSensitive before
 //      it enters the buffer, so even an in-memory crash dump doesn't
@@ -57,9 +57,9 @@ function parseFloor(raw: string): LogLevel {
 }
 
 // Cached at module load — runtime env mutation isn't a supported feature
-// (matches every other DREAMER_* knob). Tests that need to flip the level
+// (matches every other BREADBOX_* knob). Tests that need to flip the level
 // use `_logSinkInternals.setFloor`.
-let floor: LogLevel = parseFloor(process.env.DREAMER_LOG_SUPABASE_LEVEL ?? "warn")
+let floor: LogLevel = parseFloor(process.env.BREADBOX_LOG_SUPABASE_LEVEL ?? "warn")
 
 const BUFFER_LIMIT = 200
 const FLUSH_INTERVAL_MS = 1_000

@@ -141,7 +141,7 @@ export const flashRoutes = new Elysia().use(authPlugin).post("/api/flash", async
   // succeed and avrdude would blow up on a non-existent port.
   if (IS_HOSTED) {
     set.status = 403
-    return { error: "Flashing is unavailable in hosted mode. Run the Dreamer CLI locally to upload to a board." }
+    return { error: "Flashing is unavailable in hosted mode. Run the Breadbox CLI locally to upload to a board." }
   }
   const parsed = flashRequestSchema.safeParse(body)
   if (!parsed.success) {
@@ -205,7 +205,7 @@ export const flashRoutes = new Elysia().use(authPlugin).post("/api/flash", async
     try {
       let arduinoCli: string
       try {
-        arduinoCli = await resolveArduinoCli({ install: process.env.DREAMER_AUTO_INSTALL === "1" })
+        arduinoCli = await resolveArduinoCli({ install: process.env.BREADBOX_AUTO_INSTALL === "1" })
         await ensureArduinoCliCore(coreFamilyForFqbn(fqbn), writer)
       } catch (err) {
         if (err instanceof ArduinoCliMissingError) {

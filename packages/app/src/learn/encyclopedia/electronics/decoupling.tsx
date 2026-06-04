@@ -97,7 +97,7 @@ export function DecouplingPage() {
         </p>
 
         <Note>
-          Dreamer does not model transient noise, so an IC
+          Breadbox does not model transient noise, so an IC
           without a decoupling cap behaves identically to one
           with. On real hardware, add the cap anyway — it's the
           cheapest insurance in electronics.

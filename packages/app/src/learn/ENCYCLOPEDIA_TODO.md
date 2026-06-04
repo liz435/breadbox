@@ -323,7 +323,7 @@ appears in the sidebar with working links, every page renders its
 - **Arduino API** — the functions you'll actually call
 - **Libraries** — the classes the simulator ships
 - **Patterns** — idioms that separate beginner from intermediate
-- **Limits** — what Dreamer can and can't run
+- **Limits** — what Breadbox can and can't run
 
 ### C++ essentials
 
@@ -362,7 +362,7 @@ appears in the sidebar with working links, every page renders its
 
 ### Limits
 
-- [x] **`/learn/reference/programming/dreamer-limits`** — What Dreamer
+- [x] **`/learn/reference/programming/dreamer-limits`** — What Breadbox
   can and can't run
   - Pointers and references rejected by design, no `malloc`/`new`, no
     register access, partial multi-file support, no templates.

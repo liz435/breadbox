@@ -13,6 +13,7 @@ import { API_ORIGIN } from "@dreamer/config"
 import { resolveFetchOptions } from "@/project/api-client"
 import { toast } from "@/components/ui/toast"
 import { refreshWallet } from "@/billing/use-wallet"
+import { OPEN_API_KEY_EVENT } from "@/auth/api-key-dialog"
 
 async function fetchThreadMessages(threadId: string): Promise<UIMessage[]> {
   try {
@@ -191,6 +192,16 @@ export function useChatMessages(options: UseChatMessagesOptions = {}): UseChatMe
             { duration: 6000 },
           )
         }
+      }
+    },
+    onError(error) {
+      // The chat route returns 428 {"error":"no_api_key"} in CLI/desktop mode
+      // when no Anthropic key is configured; the AI SDK surfaces that body as
+      // the error message. Open the key dialog rather than leaving a bare
+      // error in the chat.
+      const message = error instanceof Error ? error.message : String(error)
+      if (message.includes("no_api_key")) {
+        window.dispatchEvent(new Event(OPEN_API_KEY_EVENT))
       }
     },
   })

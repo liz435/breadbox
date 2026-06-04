@@ -3,7 +3,7 @@
 // Implements the same `LocalBoardConnection` shape that the Serial Monitor
 // already consumes from `local-board.ts`, but reads/writes through the
 // browser's WebSerial API via the paired-port store. Used on hosted
-// Dreamer, where the server has no USB for `local-board.ts` to proxy.
+// Breadbox, where the server has no USB for `local-board.ts` to proxy.
 //
 // Coordination with the flash path:
 //   - Both this board and the STK500 uploader share one `SerialPort` via
@@ -19,6 +19,7 @@ import type { LocalBoardConnection, LocalBoardCallbacks } from "./local-board"
 import {
   openMonitorSession,
   getPairedPortState,
+  formatPortLabel,
   type MonitorSession,
 } from "./web-serial-port-store"
 import { getUploadState } from "@/toolbar/upload-status-store"
@@ -138,10 +139,13 @@ export function createWebSerialBoard(callbacks: LocalBoardCallbacks): LocalBoard
   function getPortPath(): string | null {
     const { info } = getPairedPortState()
     if (!info) return null
-    // Synthetic "path" so the existing SerialMonitor port-change effect
-    // (which compares board.getPortPath() to the desired port string) can
-    // detect a port swap.
-    return `usb:${info.vendorId ?? "????"}:${info.productId ?? "????"}`
+    // Synthetic "path" so the SerialMonitor's port-change effect (which
+    // compares board.getPortPath() to the desired port string) can detect
+    // a port swap. Re-uses the shared formatter so a `getInfo()` that
+    // returns no VID/PID — common on CH340 clones and unbranded USB-CDC
+    // devices — degrades to "USB serial device" instead of showing
+    // `usb:????:????` in the UI.
+    return formatPortLabel(info)
   }
 
   return {

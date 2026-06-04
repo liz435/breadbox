@@ -22,7 +22,7 @@ export function ClassesPage() {
     <LearnLayout>
       <PageTitle
         title="Classes (read-only)"
-        subtitle="You don't write your own classes in a Dreamer sketch — you use the ones the libraries ship with."
+        subtitle="You don't write your own classes in a Breadbox sketch — you use the ones the libraries ship with."
       />
 
       <Figure caption="A Servo object bundles state and exposes methods — you call them through the dot operator.">
@@ -77,9 +77,9 @@ void setup() {
 }`} />
       </Section>
 
-      <Section title="What Dreamer does not support">
+      <Section title="What Breadbox does not support">
         <p className="text-sm leading-relaxed">
-          You can use the library classes that ship with Dreamer,
+          You can use the library classes that ship with Breadbox,
           but you can't write your own. The transpiler rejects
           <code>class</code> declarations in sketch code. If you
           want to group related state, use a <code>struct</code>{" "}
@@ -90,14 +90,14 @@ void setup() {
 
         <Warn>
           No <code>new</code>, no <code>malloc</code>, and no
-          pointers — all three are rejected by Dreamer's transpiler.
+          pointers — all three are rejected by Breadbox's transpiler.
           Library classes are always declared as globals, never
           dynamically allocated.
         </Warn>
 
         <Note>
           The supported library list grows over time. When in doubt,
-          check the "What Dreamer can and can't run" page.
+          check the "What Breadbox can and can't run" page.
         </Note>
       </Section>
 
@@ -105,7 +105,7 @@ void setup() {
         refs={[
           "programming/servo-library",
           "programming/liquidcrystal-library",
-          "programming/dreamer-limits",
+          "programming/breadbox-limits",
           "programming/structs",
         ]}
       />

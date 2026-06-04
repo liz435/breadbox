@@ -1,6 +1,6 @@
 // Subcommand-based CLI dispatcher.
 //
-// Syntax: dreamer [--project <id>] [--scene <id>] <subcommand> [args...]
+// Syntax: breadbox [--project <id>] [--scene <id>] <subcommand> [args...]
 //
 // Global flags may appear anywhere; they're consumed first. The first
 // remaining positional is the subcommand; everything after is subcommand-
@@ -17,6 +17,7 @@ export type Command =
   | { kind: "projects" }
   | { kind: "scenes" }
   | { kind: "headed" }
+  | { kind: "serve" }
   | { kind: "watch"; port: string | null }
   | { kind: "config"; subcommand: "get" | "set" | "unset" | "path" | "list"; key?: string; value?: string }
   | { kind: "setup" }
@@ -54,7 +55,7 @@ export class CliParseError extends Error {
 
 const SUBCOMMANDS = [
   "repl", "run", "compile", "flash", "ports", "board", "sketch",
-  "projects", "scenes", "headed", "watch", "config", "setup",
+  "projects", "scenes", "headed", "serve", "watch", "config", "setup",
   "logs", "crash", "telemetry", "upgrade", "diagram", "mcp", "version", "help",
 ] as const
 
@@ -116,7 +117,7 @@ export function parseArgs(argv: string[]): CliArgs {
   if (subcommand === null) return { command: { kind: "repl" }, projectId, sceneId }
   if (!isSubcommand(subcommand)) {
     throw new CliParseError(
-      `Unknown subcommand: ${subcommand}. Run \`dreamer help\` for usage.`,
+      `Unknown subcommand: ${subcommand}. Run \`breadbox help\` for usage.`,
     )
   }
 
@@ -129,6 +130,7 @@ export function parseArgs(argv: string[]): CliArgs {
     case "projects":
     case "scenes":
     case "headed":
+    case "serve":
     case "setup":
     case "mcp":
     case "version":
@@ -138,7 +140,7 @@ export function parseArgs(argv: string[]): CliArgs {
     case "run": {
       const prompt = rest.join(" ").trim()
       if (!prompt) {
-        throw new CliParseError(`\`dreamer run\` requires a prompt. Example: dreamer run "add an LED on pin 13"`)
+        throw new CliParseError(`\`breadbox run\` requires a prompt. Example: breadbox run "add an LED on pin 13"`)
       }
       return { command: { kind: "run", prompt }, projectId, sceneId }
     }
@@ -166,7 +168,7 @@ export function parseArgs(argv: string[]): CliArgs {
       if (sub === "unset" && rest[1]) {
         return { command: { kind: "config", subcommand: "unset", key: rest[1] }, projectId, sceneId }
       }
-      throw new CliParseError(`Usage: dreamer config [path|list|get <key>|set <key> <value>|unset <key>]`)
+      throw new CliParseError(`Usage: breadbox config [path|list|get <key>|set <key> <value>|unset <key>]`)
     }
 
     case "logs": {
@@ -179,7 +181,7 @@ export function parseArgs(argv: string[]): CliArgs {
       if (sub === "list") return { command: { kind: "crash", subcommand: "list" }, projectId, sceneId }
       if (sub === "view" && rest[1]) return { command: { kind: "crash", subcommand: "view", arg: rest[1] }, projectId, sceneId }
       if (sub === "clear") return { command: { kind: "crash", subcommand: "clear" }, projectId, sceneId }
-      throw new CliParseError(`Usage: dreamer crash [list|view <file>|clear]`)
+      throw new CliParseError(`Usage: breadbox crash [list|view <file>|clear]`)
     }
 
     case "telemetry": {
@@ -187,7 +189,7 @@ export function parseArgs(argv: string[]): CliArgs {
       if (sub === "enable" || sub === "disable" || sub === "status" || sub === "preview") {
         return { command: { kind: "telemetry", subcommand: sub }, projectId, sceneId }
       }
-      throw new CliParseError(`Usage: dreamer telemetry [enable|disable|status|preview]`)
+      throw new CliParseError(`Usage: breadbox telemetry [enable|disable|status|preview]`)
     }
 
     case "upgrade": {
@@ -197,13 +199,13 @@ export function parseArgs(argv: string[]): CliArgs {
 
     case "diagram": {
       // Syntax:
-      //   dreamer diagram validate <file.json>
-      //   dreamer diagram apply <file.json> <project-file.json>
+      //   breadbox diagram validate <file.json>
+      //   breadbox diagram apply <file.json> <project-file.json>
       const sub = rest[0]
       if (sub === "validate") {
         const file = rest[1]
         if (!file) {
-          throw new CliParseError(`Usage: dreamer diagram validate <file.json>`)
+          throw new CliParseError(`Usage: breadbox diagram validate <file.json>`)
         }
         return {
           command: { kind: "diagram", subcommand: "validate", file },
@@ -216,7 +218,7 @@ export function parseArgs(argv: string[]): CliArgs {
         const projectFile = rest[2]
         if (!file || !projectFile) {
           throw new CliParseError(
-            `Usage: dreamer diagram apply <diagram.json> <project-file.json>`,
+            `Usage: breadbox diagram apply <diagram.json> <project-file.json>`,
           )
         }
         return {
@@ -231,17 +233,17 @@ export function parseArgs(argv: string[]): CliArgs {
         }
       }
       throw new CliParseError(
-        `Usage: dreamer diagram [validate <file>|apply <diagram> <project-file>]`,
+        `Usage: breadbox diagram [validate <file>|apply <diagram> <project-file>]`,
       )
     }
   }
 }
 
 export const HELP_TEXT = `
-dreamer — Arduino circuit builder CLI
+breadbox — Arduino circuit builder CLI
 
 Usage:
-  dreamer [options] <subcommand> [args...]
+  breadbox [options] <subcommand> [args...]
 
 Subcommands:
   repl                    Start interactive REPL (default)
@@ -254,6 +256,7 @@ Subcommands:
   projects                List all projects
   scenes                  List scenes in the current project
   headed                  Start REPL with the web UI attached
+  serve                   Serve the web UI + API only, no REPL (used by the desktop app)
   watch [--port <port>]   Auto-compile (and flash, if --port given) on sketch changes
   setup                   Install arduino-cli + AVR core + prompt for API key
   config <op> ...         Manage config (path|list|get|set|unset)

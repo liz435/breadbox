@@ -1,5 +1,6 @@
-import { describe, test, expect, mock, spyOn } from "bun:test"
+import { describe, test, expect, mock, spyOn, beforeEach } from "bun:test"
 import { analyzeCircuit } from "../circuit-solver"
+import { getCapVoltage, resetAllCapVoltages } from "../capacitor-state"
 import type { BoardComponent, Wire, PinState } from "@dreamer/schemas"
 import { createDefaultPinStates } from "@dreamer/schemas"
 import * as spicey from "spicey"
@@ -70,9 +71,9 @@ function makeWire(
 // ── Simulation crash recovery ─────────────────────────────────────────
 
 describe("analyzeCircuit — simulation crash recovery", () => {
-  test("when simulate() throws, all components are marked inactive with isActive=false", () => {
-    // Force a crash by mocking simulate to throw
-    const simulateSpy = spyOn(spicey, "simulate").mockImplementation(() => {
+  test("when the transient solve throws, all components are marked inactive with isActive=false", () => {
+    // Force a crash by mocking the transient solver to throw
+    const simulateSpy = spyOn(spicey, "simulateTRAN").mockImplementation(() => {
       throw new Error("Singular matrix (real)")
     })
 
@@ -102,7 +103,7 @@ describe("analyzeCircuit — simulation crash recovery", () => {
   })
 
   test("crash recovery still includes all component IDs in componentStates map", () => {
-    const simulateSpy = spyOn(spicey, "simulate").mockImplementation(() => {
+    const simulateSpy = spyOn(spicey, "simulateTRAN").mockImplementation(() => {
       throw new Error("Solver diverged")
     })
 
@@ -122,7 +123,7 @@ describe("analyzeCircuit — simulation crash recovery", () => {
   })
 
   test("crash recovery returns the generated netlist (for debugging)", () => {
-    const simulateSpy = spyOn(spicey, "simulate").mockImplementation(() => {
+    const simulateSpy = spyOn(spicey, "simulateTRAN").mockImplementation(() => {
       throw new Error("Parse error")
     })
 
@@ -414,29 +415,179 @@ describe("analyzeCircuit — multiple components", () => {
   })
 })
 
-// ── Capacitor current sign convention ────────────────────────────────
+// ── Capacitor — real SPICE C element ─────────────────────────────────
 
-describe("analyzeCircuit — capacitor current sign convention", () => {
+function makeCapacitor(id: string, row: number, col: number, uF = 100): BoardComponent {
+  return {
+    id,
+    type: "capacitor",
+    name: `CAP ${id}`,
+    x: col,
+    y: row,
+    rotation: 0,
+    pins: { a: null, b: null },
+    properties: { capacitance: uF },
+  }
+}
+
+describe("analyzeCircuit — capacitor netlist element", () => {
   test("capacitor component has its state tracked in componentStates", () => {
-    const capacitor: BoardComponent = {
-      id: "cap1",
-      type: "capacitor",
-      name: "CAP",
-      x: 0,
-      y: 5,
-      rotation: 0,
-      pins: { a: null, b: null },
-      properties: { capacitance: 100 },
-    }
-
     const result = analyzeCircuit(
-      { cap1: capacitor },
+      { cap1: makeCapacitor("cap1", 5, 0) },
       {},
       createDefaultPinStates(),
     )
-
-    // Capacitor should be processed — state may be inactive but must exist
     expect(result.componentStates.has("cap1")).toBe(true)
+  })
+
+  test("emits a voltage source held at the cap's stored voltage", () => {
+    // The cap is modelled as a DC source at its stored voltage; the solver
+    // probes its branch current to drive the watchable RC evolution.
+    const result = analyzeCircuit(
+      { cap1: makeCapacitor("cap1", 5, 0, 100) },
+      {},
+      createDefaultPinStates(),
+    )
+    expect(result.netlist).toMatch(/\bV_cap1\b/)
+  })
+})
+
+// ── Capacitor — RC charge / discharge physics ─────────────────────────
+//
+// Circuit: Arduino pin 13 ── cap+ (5,0) ; cap− (7,0) ── GND. The pin drives
+// 5V through its 25Ω output resistance. cap+ and cap− sit on different
+// breadboard rows → different nets, so it's a true two-node capacitor.
+//
+// The cap's displayed voltage is stepped toward its target each call on a
+// watchable exponential timescale; `dtSeconds` is the real elapsed time used
+// to size that step. `getCapVoltage` returns the stepped value.
+
+describe("analyzeCircuit — capacitor RC physics", () => {
+  beforeEach(() => {
+    resetAllCapVoltages()
+  })
+
+  const chargingCircuit = () => ({
+    components: { cap1: makeCapacitor("cap1", 5, 0, 100) },
+    wires: {
+      wPwr: { id: "wPwr", fromRow: -999, fromCol: 13, toRow: 5, toCol: 0, color: "red" },
+      wGnd: { id: "wGnd", fromRow: -999, fromCol: -3, toRow: 7, toCol: 0, color: "black" },
+    } as Record<string, Wire>,
+  })
+
+  const HIGH = makePinStates([{ pin: 13, mode: "OUTPUT", digitalValue: 1 }])
+  const STEP = { dtSeconds: 0.1 }
+
+  /** Run one analysis frame and return the resulting stored cap voltage. */
+  function step(
+    components: Record<string, BoardComponent>,
+    wires: Record<string, Wire>,
+    pins: PinState[],
+    opts: { dtSeconds?: number } = STEP,
+  ): number {
+    analyzeCircuit(components, wires, pins, undefined, opts)
+    return getCapVoltage("cap1")
+  }
+
+  test("charges toward the supply over successive frames", () => {
+    const { components, wires } = chargingCircuit()
+    const v1 = step(components, wires, HIGH)
+    const v2 = step(components, wires, HIGH)
+    const v3 = step(components, wires, HIGH)
+
+    expect(v1).toBeGreaterThan(0)
+    expect(v2).toBeGreaterThan(v1)
+    expect(v3).toBeGreaterThan(v2)
+    expect(v3).toBeLessThanOrEqual(5.01) // never overshoots the rail
+  })
+
+  test("charging curve is concave (exponential), NOT linear", () => {
+    // The old linear-clamp model rose by a fixed step each frame. A real RC
+    // charge rises fast then slows: each increment is smaller than the last.
+    const { components, wires } = chargingCircuit()
+    let prev = 0
+    const increments: number[] = []
+    for (let i = 0; i < 4; i++) {
+      const v = step(components, wires, HIGH)
+      increments.push(v - prev)
+      prev = v
+    }
+    expect(increments[0]).toBeGreaterThan(increments[1])
+    expect(increments[1]).toBeGreaterThan(increments[2])
+    expect(increments[2]).toBeGreaterThan(increments[3])
+  })
+
+  test("a fast transient is spread across many frames, not dumped in one", () => {
+    // Regression: with the real RC (τ = 25Ω·100µF = 2.5ms) the cap would
+    // settle inside a single ~0.1s frame and snap. The display timescale must
+    // keep it moving only a fraction of the way per frame.
+    const { components, wires } = chargingCircuit()
+    const v1 = step(components, wires, HIGH)
+    // One 0.1s frame must not get anywhere near the 5V rail.
+    expect(v1).toBeLessThan(3)
+    expect(v1).toBeGreaterThan(0)
+  })
+
+  test("holds its charge when the supply is removed (no discharge path)", () => {
+    const { components, wires } = chargingCircuit()
+    for (let i = 0; i < 10; i++) step(components, wires, HIGH)
+    const charged = getCapVoltage("cap1")
+    expect(charged).toBeGreaterThan(3)
+
+    // Pin goes high-impedance (UNSET): no source, no discharge path (only the
+    // 1GΩ solver bleed). Even across a long frame the cap should hold.
+    const floating = makePinStates([{ pin: 13, mode: "UNSET" }])
+    const held = step(components, wires, floating, { dtSeconds: 0.5 })
+    expect(held).toBeGreaterThan(charged * 0.95)
+  })
+
+  test("discharges gradually through a path, not instantly", () => {
+    const { components, wires } = chargingCircuit()
+    for (let i = 0; i < 10; i++) step(components, wires, HIGH)
+    const charged = getCapVoltage("cap1")
+    expect(charged).toBeGreaterThan(3)
+
+    // Pin LOW drives cap+ to 0V through 25Ω → the cap discharges.
+    const low = makePinStates([{ pin: 13, mode: "OUTPUT", digitalValue: 0 }])
+    const d1 = step(components, wires, low)
+    const d2 = step(components, wires, low)
+
+    expect(d1).toBeLessThan(charged)
+    expect(d2).toBeLessThan(d1)
+    // Crucially it does NOT collapse to ~0 in a single frame.
+    expect(d1).toBeGreaterThan(charged * 0.4)
+  })
+
+  test("LED across a discharging cap stays lit instead of snapping off", () => {
+    // The user-reported bug: discharging made the LED go instantly dark.
+    // LED in parallel with the cap: anode→cap+ net, cathode→cap− net.
+    const components: Record<string, BoardComponent> = {
+      cap1: makeCapacitor("cap1", 5, 0, 100),
+      led1: makeLed("led1", 10, 0),
+    }
+    const wires: Record<string, Wire> = {
+      wPwr: { id: "wPwr", fromRow: -999, fromCol: 13, toRow: 5, toCol: 0, color: "red" },
+      wGnd: { id: "wGnd", fromRow: -999, fromCol: -3, toRow: 7, toCol: 0, color: "black" },
+      wAnode: { id: "wAnode", fromRow: 10, fromCol: 0, toRow: 5, toCol: 0, color: "green" },
+      wCathode: { id: "wCathode", fromRow: 11, fromCol: 0, toRow: 7, toCol: 0, color: "green" },
+    }
+
+    // Charge with the pin HIGH; the LED should be lit.
+    for (let i = 0; i < 10; i++) analyzeCircuit(components, wires, HIGH, undefined, STEP)
+    const litBrightness = analyzeCircuit(components, wires, HIGH, undefined, STEP)
+      .componentStates.get("led1")?.brightness ?? 0
+    expect(litBrightness).toBeGreaterThan(0)
+
+    // Remove the supply: the cap discharges through the LED. After one frame
+    // the LED must still be lit (not snapped off), and the cap must still hold
+    // a meaningful fraction of its charge.
+    const floating = makePinStates([{ pin: 13, mode: "UNSET" }])
+    const chargeBefore = getCapVoltage("cap1")
+    const firstDischargeFrame = analyzeCircuit(components, wires, floating, undefined, STEP)
+    const ledAfter = firstDischargeFrame.componentStates.get("led1")?.brightness ?? 0
+
+    expect(ledAfter).toBeGreaterThan(0)
+    expect(getCapVoltage("cap1")).toBeGreaterThan(chargeBefore * 0.4)
   })
 })
 

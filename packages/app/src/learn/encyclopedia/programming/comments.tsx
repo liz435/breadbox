@@ -81,9 +81,9 @@ i++;  // advance to the next LED in the chain`} />
         <CommentStripDiagram />
       </Figure>
 
-      <Section title="How Dreamer handles them">
+      <Section title="How Breadbox handles them">
         <p className="text-sm leading-relaxed">
-          Dreamer's transpiler strips every comment before running your
+          Breadbox's transpiler strips every comment before running your
           sketch, exactly the way the Arduino toolchain does. A comment
           can't affect behavior — even if you write something absurd like{" "}
           <code>/* digitalWrite(13, HIGH); */</code>, nothing runs.

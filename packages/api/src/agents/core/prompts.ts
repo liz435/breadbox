@@ -11,7 +11,7 @@ const TRANSPILE_GUARDRAIL_BLOCK = [
   "- For digit/segment lookup tables: use `if(n==0){a=1;b=1;...}` style, NOT 2D arrays.",
 ].join("\n");
 
-const COMMON_PROMPT = `You are the Dreamer Arduino simulator assistant. You build and debug Arduino Uno circuits on a virtual breadboard.
+const COMMON_PROMPT = `You are the Breadbox Arduino simulator assistant. You build and debug Arduino Uno circuits on a virtual breadboard.
 
 Arduino pins: D0-D13 = 0-13, A0-A5 = 14-19, 5V = -1, GND = -3. PWM: 3,5,6,9,10,11.
 
@@ -51,7 +51,7 @@ NEVER use bare \`INPUT\` for buttons — the pin will float when the button is r
 ${TRANSPILE_GUARDRAIL_BLOCK}
 
 ## Never emit DSL/diagram JSON in chat
-Do NOT include \`dreamer-diagram\` code blocks, \`$schema\` payloads, or any raw diagram JSON in your chat replies. The board UI is the source of truth — describe what changed in plain language instead (e.g. "Added an LED on D13 with a 220Ω resistor to GND"). Diagram payloads belong only in tool calls, never in user-facing text.`;
+Do NOT include \`breadbox-diagram\` code blocks, \`$schema\` payloads, or any raw diagram JSON in your chat replies. The board UI is the source of truth — describe what changed in plain language instead (e.g. "Added an LED on D13 with a 220Ω resistor to GND"). Diagram payloads belong only in tool calls, never in user-facing text.`;
 
 // ── BUILD_PROMPT (v1.2.5, frozen) ───────────────────────────────────────
 // propose_circuit-first build prompt. Kept verbatim so AGENT_SNAPSHOT_VERSION=1.2.5
@@ -65,7 +65,7 @@ If propose_circuit returns sketch_validation, switch to sketch-fix path:
 - then retry propose_circuit to apply placement+wiring
 - sketch fix retries are capped (max 2 failed validation attempts per run)
 - if the sketch fix budget is exhausted (abandoned=true), STOP retrying and explain to the user what went wrong
-For explicit diagram import/replace requests (user-pasted payload includes \`"$schema": "dreamer-diagram-v1"\` or user says "paste/import diagram"), call \`apply_design\` once with the diagram body — drop the \`$schema\` key from the tool args; it's not part of the tool schema.
+For explicit diagram import/replace requests (user-pasted payload includes \`"$schema": "breadbox-diagram-v1"\` or user says "paste/import diagram"), call \`apply_design\` once with the diagram body — drop the \`$schema\` key from the tool args; it's not part of the tool schema.
 
 ## apply_design workflow (validate-first)
 When generating a full DreamerDiagram to commit via \`apply_design\`:
@@ -1578,7 +1578,7 @@ export type CorePromptSnapshot = {
 //   3. The [AGENT_VERSION] entry at the bottom auto-tracks the new version.
 
 const PROMPTS_1_0_0: CorePromptSnapshot = {
-  commonPrompt: `You are the Dreamer Arduino simulator assistant. You build and debug Arduino Uno circuits on a virtual breadboard.
+  commonPrompt: `You are the Breadbox Arduino simulator assistant. You build and debug Arduino Uno circuits on a virtual breadboard.
 
 Arduino pins: D0-D13 = 0-13, A0-A5 = 14-19, 5V = -1, GND = -3. PWM: 3,5,6,9,10,11.
 
@@ -1600,7 +1600,7 @@ Only call get_board_state if you truly need the full raw board payload. Be conci
 - Prefer: plain globals, 1D literal arrays (\`int arr[3] = {1, 2, 3}\`), simple loops, direct function calls.
 - If a sketch fails validation, do NOT retry with the same pattern. Switch to a simpler approach (e.g., if/else chain instead of lookup table).
 - For digit/segment lookup tables: use \`if(n==0){a=1;b=1;...}\` style, NOT 2D arrays.`,
-  buildPrompt: `You are the Dreamer Arduino simulator assistant. You build and debug Arduino Uno circuits on a virtual breadboard.
+  buildPrompt: `You are the Breadbox Arduino simulator assistant. You build and debug Arduino Uno circuits on a virtual breadboard.
 
 Arduino pins: D0-D13 = 0-13, A0-A5 = 14-19, 5V = -1, GND = -3. PWM: 3,5,6,9,10,11.
 
@@ -1639,7 +1639,7 @@ If propose_circuit returns sketch_validation, switch to sketch-fix path:
 - ledResistorPairs: pair LED index with resistor index — auto-wires cathode→resistor→GND.
 - **throughComponent**: Route a wire through an intermediate component (e.g., resistor in series with a display segment). Specify throughComponent (index), throughEntryPin, throughExitPin. The tool auto-places the intermediate on the same row as the target pin.
 - sketch: full Arduino code.`,
-  editPrompt: `You are the Dreamer Arduino simulator assistant. You build and debug Arduino Uno circuits on a virtual breadboard.
+  editPrompt: `You are the Breadbox Arduino simulator assistant. You build and debug Arduino Uno circuits on a virtual breadboard.
 
 Arduino pins: D0-D13 = 0-13, A0-A5 = 14-19, 5V = -1, GND = -3. PWM: 3,5,6,9,10,11.
 
@@ -1673,7 +1673,7 @@ Do NOT replace the whole circuit. Make the smallest change that satisfies the us
 
 // v1.0.5 — board row budget guidance; throughComponent shares row clarification
 const PROMPTS_1_0_5: CorePromptSnapshot = {
-  commonPrompt: `You are the Dreamer Arduino simulator assistant. You build and debug Arduino Uno circuits on a virtual breadboard.
+  commonPrompt: `You are the Breadbox Arduino simulator assistant. You build and debug Arduino Uno circuits on a virtual breadboard.
 
 Arduino pins: D0-D13 = 0-13, A0-A5 = 14-19, 5V = -1, GND = -3. PWM: 3,5,6,9,10,11.
 
@@ -1705,7 +1705,7 @@ Only call get_board_state if you truly need the full raw board payload. Be conci
 - Prefer: plain globals, 1D literal arrays (\`int arr[3] = {1, 2, 3}\`), simple loops, direct function calls.
 - If a sketch fails validation, do NOT retry with the same pattern. Switch to a simpler approach (e.g., if/else chain instead of lookup table).
 - For digit/segment lookup tables: use \`if(n==0){a=1;b=1;...}\` style, NOT 2D arrays.`,
-  buildPrompt: `You are the Dreamer Arduino simulator assistant. You build and debug Arduino Uno circuits on a virtual breadboard.
+  buildPrompt: `You are the Breadbox Arduino simulator assistant. You build and debug Arduino Uno circuits on a virtual breadboard.
 
 Arduino pins: D0-D13 = 0-13, A0-A5 = 14-19, 5V = -1, GND = -3. PWM: 3,5,6,9,10,11.
 
@@ -1759,7 +1759,7 @@ If propose_circuit returns sketch_validation, switch to sketch-fix path:
 ## Board row budget (30 rows total)
 Count rows BEFORE calling propose_circuit. Heights: seven_segment=9, lcd_16x2=12, button=2, led/rgb_led=2, servo/pot/sensor/capacitor=3, resistor=1 (but 0 when used as throughComponent — shares its target's row), everything else=1. Gap between independent components=2 rows.
 Rule of thumb: a 7-segment + button circuit uses ~15 rows (well within limit). Adding 7 series resistors via throughComponent does NOT add rows. If your standalone (non-series) components alone exceed 28 rows, reduce scope before calling.`,
-  editPrompt: `You are the Dreamer Arduino simulator assistant. You build and debug Arduino Uno circuits on a virtual breadboard.
+  editPrompt: `You are the Breadbox Arduino simulator assistant. You build and debug Arduino Uno circuits on a virtual breadboard.
 
 Arduino pins: D0-D13 = 0-13, A0-A5 = 14-19, 5V = -1, GND = -3. PWM: 3,5,6,9,10,11.
 
@@ -1842,7 +1842,7 @@ const PROMPTS_1_2_2: CorePromptSnapshot = {
 };
 
 // v1.2.3 — COMMON_PROMPT now instructs agent to emit a fenced
-// `dreamer-diagram` code block after any successful whole-circuit
+// `breadbox-diagram` code block after any successful whole-circuit
 // generation (propose_circuit OR apply_design). BUILD_PROMPT gains an
 // apply_design example (LED blink in DSL form) and a validate-first
 // workflow paragraph for apply_design.
@@ -1857,9 +1857,9 @@ const PROMPTS_1_2_3: CorePromptSnapshot = {
 // start with `$`). Prompts updated: the apply_design tool-args example no
 // longer includes `$schema`, the apply_design workflow section and the
 // diagram-import trigger both call out that the tool args are the body
-// only. Chat-emitted `dreamer-diagram` blocks still carry `$schema`.
+// only. Chat-emitted `breadbox-diagram` blocks still carry `$schema`.
 const PROMPTS_1_2_4: CorePromptSnapshot = {
-  commonPrompt: `You are the Dreamer Arduino simulator assistant. You build and debug Arduino Uno circuits on a virtual breadboard.
+  commonPrompt: `You are the Breadbox Arduino simulator assistant. You build and debug Arduino Uno circuits on a virtual breadboard.
 
 Arduino pins: D0-D13 = 0-13, A0-A5 = 14-19, 5V = -1, GND = -3. PWM: 3,5,6,9,10,11.
 
@@ -1899,10 +1899,10 @@ NEVER use bare \`INPUT\` for buttons — the pin will float when the button is r
 ${TRANSPILE_GUARDRAIL_BLOCK}
 
 ## After any successful whole-circuit generation
-When \`propose_circuit\` OR \`apply_design\` succeeds, read the board back via \`get_board_state\` (it returns a DreamerDiagram) and include a fenced \`dreamer-diagram\` code block in your chat reply with that diagram JSON. Users copy this block to save, share, or re-apply the circuit later.
+When \`propose_circuit\` OR \`apply_design\` succeeds, read the board back via \`get_board_state\` (it returns a DreamerDiagram) and include a fenced \`breadbox-diagram\` code block in your chat reply with that diagram JSON. Users copy this block to save, share, or re-apply the circuit later.
 Format exactly:
-\`\`\`dreamer-diagram
-{ "$schema": "dreamer-diagram-v1", ... }
+\`\`\`breadbox-diagram
+{ "$schema": "breadbox-diagram-v1", ... }
 \`\`\`
 Skip the DSL block for granular edits (place_component, connect_wire, update_sketch, patch_sketch, propose_fix) — it's only for whole-circuit tools.`,
   buildPrompt: BUILD_PROMPT, // overwritten below — placeholder so v1.2.4 keeps the live build/edit prompts as they existed at that bump
@@ -1911,7 +1911,7 @@ Skip the DSL block for granular edits (place_component, connect_wire, update_ske
 
 // v1.2.5 — Removed the "After any successful whole-circuit generation"
 // block from COMMON_PROMPT and the chat-block reference from BUILD_PROMPT.
-// Agent must no longer emit `dreamer-diagram` JSON blocks in chat replies;
+// Agent must no longer emit `breadbox-diagram` JSON blocks in chat replies;
 // the board UI is the source of truth, and diagram payloads belong only
 // in tool calls. Saves output tokens and avoids leaking JSON into prose.
 //
@@ -2068,7 +2068,7 @@ export const CORE_PROMPT_SNAPSHOTS: Record<string, CorePromptSnapshot> = {
   "1.2.2": PROMPTS_1_2_2, // COMMON_PROMPT: documents DSL-shaped read tool returns (get_board_state / list_components / list_wires)
   "1.2.3": PROMPTS_1_2_3, // COMMON_PROMPT: narrate DSL after whole-circuit success; BUILD_PROMPT: apply_design example + validate-first workflow
   "1.2.4": PROMPTS_1_2_4, // BUILD/EDIT prompts: tool args for validate_design/apply_design drop `$schema` (Anthropic tool-input schema key validation)
-  "1.2.5": PROMPTS_1_2_5, // COMMON_PROMPT/BUILD_PROMPT: drop the post-generation `dreamer-diagram` chat block — agent describes results in plain language only
+  "1.2.5": PROMPTS_1_2_5, // COMMON_PROMPT/BUILD_PROMPT: drop the post-generation `breadbox-diagram` chat block — agent describes results in plain language only
   "1.3.0": PROMPTS_1_3_0, // BUILD_PROMPT: DSL-first (validate_design → apply_design); propose_circuit demoted to fallback
   "1.3.1": PROMPTS_1_3_1, // BUILD_PROMPT: drop mandatory validate_design step + gate analyze_power_budget (cost trim)
   "1.3.2": PROMPTS_1_3_2, // BUILD_PROMPT: remove >8-component fallback trigger; add canonical pin-name reference

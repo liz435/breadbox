@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# ── Dreamer CLI installer ──────────────────────────────────────────────
+# ── Breadbox CLI installer ──────────────────────────────────────────────
 #
-# Downloads the latest prebuilt `dreamer` binary from GitHub Releases
+# Downloads the latest prebuilt `breadbox` binary from GitHub Releases
 # for the current platform and installs it to a directory on PATH.
 #
 # Usage:
-#   curl -fsSL https://dreamer.dev/install.sh | bash
-#   curl -fsSL https://dreamer.dev/install.sh | bash -s -- --version v0.2.0
-#   curl -fsSL https://dreamer.dev/install.sh | DREAMER_INSTALL_DIR=~/bin bash
+#   curl -fsSL https://breadbox.dev/install.sh | bash
+#   curl -fsSL https://breadbox.dev/install.sh | bash -s -- --version v0.2.0
+#   curl -fsSL https://breadbox.dev/install.sh | BREADBOX_INSTALL_DIR=~/bin bash
 #
 # Exit codes:
 #   0  success
@@ -17,8 +17,8 @@
 
 set -euo pipefail
 
-REPO="${DREAMER_REPO:-liz435/dreamer}"
-VERSION="${DREAMER_VERSION:-latest}"
+REPO="${BREADBOX_REPO:-liz435/breadbox}"
+VERSION="${BREADBOX_VERSION:-latest}"
 
 # Parse flags
 while [[ $# -gt 0 ]]; do
@@ -46,7 +46,7 @@ case "$ARCH" in
   *) echo "Unsupported arch: $ARCH" >&2; exit 1 ;;
 esac
 
-ASSET="dreamer-${OS}-${ARCH}"
+ASSET="breadbox-${OS}-${ARCH}"
 
 # ── Version resolution ────────────────────────────────────────────────
 if [[ "$VERSION" == "latest" ]]; then
@@ -67,23 +67,23 @@ TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 
 echo "Downloading $ASSET @ $TAG ..."
-curl -fsSL "$URL" -o "$TMPDIR/dreamer.tar.gz" \
+curl -fsSL "$URL" -o "$TMPDIR/breadbox.tar.gz" \
   || { echo "Download failed: $URL" >&2; exit 2; }
 
 # Verify checksum if sidecar exists (best-effort; skip if not published)
-if curl -fsSL "$SHA_URL" -o "$TMPDIR/dreamer.tar.gz.sha256" 2>/dev/null; then
-  EXPECTED="$(awk '{print $1}' "$TMPDIR/dreamer.tar.gz.sha256")"
-  ACTUAL="$(shasum -a 256 "$TMPDIR/dreamer.tar.gz" | awk '{print $1}')"
+if curl -fsSL "$SHA_URL" -o "$TMPDIR/breadbox.tar.gz.sha256" 2>/dev/null; then
+  EXPECTED="$(awk '{print $1}' "$TMPDIR/breadbox.tar.gz.sha256")"
+  ACTUAL="$(shasum -a 256 "$TMPDIR/breadbox.tar.gz" | awk '{print $1}')"
   if [[ "$EXPECTED" != "$ACTUAL" ]]; then
     echo "Checksum mismatch! expected=$EXPECTED actual=$ACTUAL" >&2
     exit 2
   fi
 fi
 
-tar -xzf "$TMPDIR/dreamer.tar.gz" -C "$TMPDIR"
+tar -xzf "$TMPDIR/breadbox.tar.gz" -C "$TMPDIR"
 
 # ── Install destination ───────────────────────────────────────────────
-INSTALL_DIR="${DREAMER_INSTALL_DIR:-}"
+INSTALL_DIR="${BREADBOX_INSTALL_DIR:-}"
 if [[ -z "$INSTALL_DIR" ]]; then
   if [[ -w "/usr/local/bin" ]]; then
     INSTALL_DIR="/usr/local/bin"
@@ -94,15 +94,15 @@ if [[ -z "$INSTALL_DIR" ]]; then
 fi
 
 BINARY="$TMPDIR/$ASSET"
-[[ -f "$BINARY" ]] || BINARY="$TMPDIR/dreamer"  # fallback if tarball top-level is named plainly
+[[ -f "$BINARY" ]] || BINARY="$TMPDIR/breadbox"  # fallback if tarball top-level is named plainly
 [[ -f "$BINARY" ]] || { echo "Binary not found inside tarball" >&2; exit 3; }
 
 chmod +x "$BINARY"
-install -m 755 "$BINARY" "$INSTALL_DIR/dreamer" \
-  || { echo "Install to $INSTALL_DIR failed (try with sudo or set DREAMER_INSTALL_DIR)" >&2; exit 3; }
+install -m 755 "$BINARY" "$INSTALL_DIR/breadbox" \
+  || { echo "Install to $INSTALL_DIR failed (try with sudo or set BREADBOX_INSTALL_DIR)" >&2; exit 3; }
 
 echo ""
-echo "✓ dreamer $TAG installed to $INSTALL_DIR/dreamer"
+echo "✓ breadbox $TAG installed to $INSTALL_DIR/breadbox"
 case ":$PATH:" in
   *":$INSTALL_DIR:"*) : ;;
   *) echo "⚠  $INSTALL_DIR is not on your PATH. Add this to your shell rc:"
@@ -110,6 +110,6 @@ case ":$PATH:" in
 esac
 echo ""
 echo "Next steps:"
-echo "  dreamer help                  # see commands"
-echo "  dreamer setup                 # install arduino-cli + AVR core"
-echo "  dreamer run \"add an LED\"      # your first circuit"
+echo "  breadbox help                  # see commands"
+echo "  breadbox setup                 # install arduino-cli + AVR core"
+echo "  breadbox run \"add an LED\"      # your first circuit"

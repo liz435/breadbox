@@ -23,7 +23,7 @@ import { CLI_VERSION, PLATFORM } from "./version"
 import { installCrashReporter, listCrashes, readCrash, clearCrashes } from "./crash-reporter"
 import * as telemetry from "./telemetry"
 import * as selfUpdate from "./self-update"
-import { loadConfig, saveConfig, setApiKey, clearApiKey, ensureApiKey, ApiKeyMissingError } from "./config"
+import { loadConfig, saveConfig, getApiKey, setApiKey, clearApiKey, ensureApiKey, ApiKeyMissingError } from "./config"
 import { followLogFile } from "./log-follow"
 import { handleDiagramApply, handleDiagramValidate, DiagramCliError } from "./diagram-cli"
 import { recordCliErrorAndFlush } from "./telemetry-reporting"
@@ -127,7 +127,7 @@ async function handleConfig(cmd: Command & { kind: "config" }): Promise<number> 
 async function handleLogs(cmd: Command & { kind: "logs" }): Promise<number> {
   const logFile = cmd.runId
     ? join(logsDir(), `${cmd.runId}.log`)
-    : join(logsDir(), "dreamer.log")
+    : join(logsDir(), "breadbox.log")
   if (!existsSync(logFile)) {
     console.error(`No log file at ${logFile}`)
     return 1
@@ -198,7 +198,7 @@ async function handleTelemetry(cmd: Command & { kind: "telemetry" }): Promise<nu
 async function handleUpgrade(cmd: Command & { kind: "upgrade" }): Promise<number> {
   const check = await selfUpdate.checkForUpdate()
   if (check.status === "current") {
-    console.log(`dreamer ${check.version} is up to date.`)
+    console.log(`breadbox ${check.version} is up to date.`)
     return 0
   }
   if (check.status === "blocked") {
@@ -220,7 +220,7 @@ async function handleUpgrade(cmd: Command & { kind: "upgrade" }): Promise<number
 }
 
 async function handleSetup(): Promise<number> {
-  console.log("Setting up Dreamer...")
+  console.log("Setting up Breadbox...")
   console.log("")
   console.log("1. Installing arduino-cli...")
   try {
@@ -252,7 +252,7 @@ async function handleSetup(): Promise<number> {
   console.log("4. Telemetry preference...")
   await telemetry.promptFirstRun()
   console.log("")
-  console.log("\x1b[32mSetup complete.\x1b[0m Try `dreamer run \"add an LED on pin 13\"`.")
+  console.log("\x1b[32mSetup complete.\x1b[0m Try `breadbox run \"add an LED on pin 13\"`.")
   return 0
 }
 
@@ -267,7 +267,7 @@ async function dispatch(command: Command, projectId: string | null, sceneId: str
     }
 
     case "version": {
-      console.log(`dreamer ${CLI_VERSION} (${PLATFORM})`)
+      console.log(`breadbox ${CLI_VERSION} (${PLATFORM})`)
       return 0
     }
 
@@ -281,13 +281,42 @@ async function dispatch(command: Command, projectId: string | null, sceneId: str
       // CLI mode: single-tenant, file-backed, no Supabase. Pin these env
       // vars before the API modules import — auth-plugin reads them at
       // import time to pick cli vs supabase middleware.
-      process.env.DREAMER_MODE = "cli"
-      process.env.DREAMER_DEV_SKIP_AUTH = "1"
+      process.env.BREADBOX_MODE = "cli"
+      process.env.BREADBOX_DEV_SKIP_AUTH = "1"
+      // Load the key from ~/.breadbox/config.json into the env BEFORE importing
+      // the API graph, so the Anthropic provider (which falls back to
+      // process.env in CLI mode) can use it. getApiKey() is non-interactive.
+      const headedKey = await getApiKey()
+      if (headedKey) process.env.ANTHROPIC_API_KEY = headedKey
       const state = await resolveState(projectId, sceneId)
       const { startHeadedMode } = await import("./headed")
       await startHeadedMode()
       await startRepl(state)
       return 0
+    }
+
+    case "serve": {
+      // Web UI + API only — no REPL. Used by the Tauri desktop shell
+      // (packages/desktop), which spawns this binary as a sidecar and
+      // renders the UI in a native window. Same single-tenant CLI mode as
+      // `headed`; BREADBOX_NO_OPEN stops headed from popping a browser tab.
+      process.env.BREADBOX_MODE = "cli"
+      process.env.BREADBOX_DEV_SKIP_AUTH = "1"
+      process.env.BREADBOX_NO_OPEN = "1"
+      // Load the key from config into the env before the API graph imports, so
+      // the provider can use it (see the `headed` case for the rationale). When
+      // absent, the in-app key dialog lets the user set it at runtime.
+      const serveKey = await getApiKey()
+      if (serveKey) process.env.ANTHROPIC_API_KEY = serveKey
+      await resolveState(projectId, sceneId)
+      const { startHeadedMode } = await import("./headed")
+      await startHeadedMode()
+      // Keep serving until the parent process kills us. We must NOT return:
+      // dispatch's caller calls process.exit() on return, which would tear
+      // down the servers. startHeadedMode's SIGINT/SIGTERM handlers own the
+      // clean shutdown path.
+      await new Promise<never>(() => {})
+      return 0 // unreachable; satisfies the Promise<number> signature
     }
 
     case "watch": {
@@ -324,7 +353,7 @@ async function dispatch(command: Command, projectId: string | null, sceneId: str
     case "flash": {
       if (!command.port) {
         const ports = await listPorts()
-        console.error("Usage: dreamer flash <port>  (or --port <port>)")
+        console.error("Usage: breadbox flash <port>  (or --port <port>)")
         if (ports.length > 0) {
           console.error("Available ports:")
           for (const p of ports) console.error(`  ${p}`)

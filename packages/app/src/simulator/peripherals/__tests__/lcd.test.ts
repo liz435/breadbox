@@ -67,6 +67,7 @@ function makeCtx(component: BoardComponent, wires: Record<string, Wire>): Periph
     pinStore: {} as PeripheralContext["pinStore"],
     trace: () => {},
     scheduleEdge: () => {},
+    nowSimMs: () => 0,
     attachTwi: () => () => {},
   }
 }

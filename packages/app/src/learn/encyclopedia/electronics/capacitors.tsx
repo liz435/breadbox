@@ -101,11 +101,11 @@ export function CapacitorsPage() {
         </Figure>
 
         <Note>
-          Dreamer models capacitors as{" "}
+          Breadbox models capacitors as{" "}
           <em className="text-gray-200">visual-only</em>: they show
           up in the schematic and your netlist parses them, but the
           simulator doesn't run transient analysis, so they have no
-          runtime behavior. Their job in a Dreamer sketch is
+          runtime behavior. Their job in a Breadbox sketch is
           documentation — when you build the circuit for real, put
           them in.
         </Note>

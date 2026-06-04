@@ -1,4 +1,4 @@
-# Dreamer — Changelog
+# Breadbox — Changelog
 
 ## Phase 1: Foundation — Graph Schemas & State
 

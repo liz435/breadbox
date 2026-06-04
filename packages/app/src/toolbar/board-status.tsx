@@ -24,6 +24,7 @@ import {
   pairPort,
   unpairPort,
   usePairedPort,
+  formatPortLabel,
 } from "@/simulator/web-serial-port-store"
 import { cn } from "@/utils/classnames"
 
@@ -195,7 +196,7 @@ function HostedPairingBody({ pairedPort, pairedInfo }: HostedBodyProps) {
       <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-300">
         <span className="font-medium">WebSerial requires Chrome or Edge.</span>{" "}
         Open this app in a Chromium-based browser to flash a board, or
-        install the Dreamer CLI to use Safari/Firefox.
+        install the Breadbox CLI to use Safari/Firefox.
       </div>
     )
   }
@@ -220,10 +221,7 @@ function HostedPairingBody({ pairedPort, pairedInfo }: HostedBodyProps) {
     )
   }
 
-  const vidPid =
-    pairedInfo?.vendorId !== undefined && pairedInfo?.productId !== undefined
-      ? `${pairedInfo.vendorId.toString(16).padStart(4, "0")}:${pairedInfo.productId.toString(16).padStart(4, "0")}`
-      : "USB device"
+  const vidPid = formatPortLabel(pairedInfo)
 
   return (
     <>

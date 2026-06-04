@@ -18,17 +18,20 @@ import { chatRoutes, awaitPendingSummaries } from "./routes/chat";
 import { compileRoutes } from "./routes/compile";
 import { flashRoutes } from "./routes/flash";
 import { boardRoutes } from "./routes/boards";
+import { boardStreamRoutes } from "./routes/board-stream";
+import { mcpConnectRoutes } from "./routes/mcp-connect";
 import { evalRoutes } from "./routes/eval";
 import { libraryRoutes } from "./routes/libraries";
 import { capabilitiesRoutes } from "./routes/capabilities";
 import { authRoutes } from "./routes/auth";
+import { configRoutes } from "./routes/config";
 import { adminRoutes } from "./routes/admin";
 import { billingRoutes } from "./routes/billing";
 import { motionRoutes } from "./routes/motion";
 import { createWebUiStatic } from "./routes/web-ui-static";
 import { stopWorker } from "./serial/serialport-bridge";
 import { APP_ORIGIN, API_PORT as _API_PORT } from "@dreamer/config";
-import { DREAMER_BIND, IS_HOSTED } from "./env";
+import { BREADBOX_BIND, IS_HOSTED } from "./env";
 
 const API_PORT = Number(process.env.PORT ?? _API_PORT);
 
@@ -93,6 +96,7 @@ const app = new Elysia()
   // request-context plugin reads it.
   .use(requestContextPlugin)
   .use(authRoutes)
+  .use(configRoutes)
   .use(adminRoutes)
   .use(billingRoutes)
   .use(projectRoutes)
@@ -101,6 +105,8 @@ const app = new Elysia()
   .use(compileRoutes)
   .use(flashRoutes)
   .use(boardRoutes)
+  .use(boardStreamRoutes)
+  .use(mcpConnectRoutes)
   .use(evalRoutes)
   .use(libraryRoutes)
   .use(capabilitiesRoutes)
@@ -114,9 +120,9 @@ const app = new Elysia()
     const url = new URL(request.url)
     return handleNotFound(url.pathname)
   })
-  .listen({ port: API_PORT, hostname: DREAMER_BIND });
+  .listen({ port: API_PORT, hostname: BREADBOX_BIND });
 
-log.info(`listening on http://${DREAMER_BIND}:${app.server?.port}${IS_HOSTED ? " (hosted, serving web UI)" : ""}`);
+log.info(`listening on http://${BREADBOX_BIND}:${app.server?.port}${IS_HOSTED ? " (hosted, serving web UI)" : ""}`);
 
 // ── Graceful shutdown ───────────────────────────────────────────────────────
 // Railway sends SIGTERM on redeploy with ~10s before SIGKILL. We stop

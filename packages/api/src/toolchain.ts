@@ -5,11 +5,11 @@
 // download to `~/.dreamer/bin/`.
 //
 // Resolution order for arduino-cli:
-//   1. $DREAMER_ARDUINO_CLI env var (explicit override) — used as-is.
-//   2. $DREAMER_HOME/bin/arduino-cli if it exists — managed install.
+//   1. $BREADBOX_ARDUINO_CLI env var (explicit override) — used as-is.
+//   2. $BREADBOX_HOME/bin/arduino-cli if it exists — managed install.
 //   3. `which arduino-cli` on PATH — system install (Homebrew, apt, etc.).
 //   4. If opts.install !== false: prompt + run arduino-cli's official
-//      installer into $DREAMER_HOME/bin, then return that path.
+//      installer into $BREADBOX_HOME/bin, then return that path.
 //   5. Throw ArduinoCliMissingError.
 
 import { existsSync } from "fs";
@@ -110,7 +110,7 @@ function promptYesNo(question: string, defaultYes: boolean): Promise<boolean> {
   return new Promise((resolve) => {
     if (!process.stdin.isTTY) {
       // Non-interactive shell — respect env override, else decline.
-      resolve(process.env.DREAMER_AUTO_INSTALL === "1");
+      resolve(process.env.BREADBOX_AUTO_INSTALL === "1");
       return;
     }
     const suffix = defaultYes ? "[Y/n]" : "[y/N]";
@@ -137,11 +137,11 @@ export async function resolveArduinoCli(
   const { install = true } = opts;
 
   // 1. Explicit override
-  const override = process.env.DREAMER_ARDUINO_CLI;
+  const override = process.env.BREADBOX_ARDUINO_CLI;
   if (override) {
     if (!existsSync(override)) {
       throw new ArduinoCliMissingError(
-        `DREAMER_ARDUINO_CLI set to ${override} but no file found there`,
+        `BREADBOX_ARDUINO_CLI set to ${override} but no file found there`,
       );
     }
     return override;
@@ -158,7 +158,7 @@ export async function resolveArduinoCli(
   // 4. Prompt + install
   if (!install) {
     throw new ArduinoCliMissingError(
-      `arduino-cli not found (checked $DREAMER_ARDUINO_CLI, ${managed}, and PATH)`,
+      `arduino-cli not found (checked $BREADBOX_ARDUINO_CLI, ${managed}, and PATH)`,
     );
   }
 

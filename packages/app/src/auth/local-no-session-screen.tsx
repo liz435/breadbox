@@ -1,6 +1,6 @@
 // ── LocalNoSessionScreen ─────────────────────────────────────────────────
 //
-// Shown when the app is running under a CLI-local Dreamer (`dreamer
+// Shown when the app is running under a CLI-local Breadbox (`dreamer
 // headed`) but the browser has no valid `dreamer_local` cookie — either
 // because the user opened the URL directly, the session expired, or the
 // CLI was restarted. We can't kick off OAuth (there's no GitHub flow in
@@ -29,7 +29,7 @@ export function LocalNoSessionScreen({
             No active session
           </h1>
           <p className="text-sm text-neutral-400">
-            This Dreamer instance is running locally from the CLI. To
+            This Breadbox instance is running locally from the CLI. To
             authorize your browser, restart the CLI in your terminal
             and open the URL it prints:
           </p>

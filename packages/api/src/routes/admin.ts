@@ -3,7 +3,7 @@
 // POST /api/admin/claim-project
 //
 // In hosted mode the ownership migration moves legacy (unowned) projects
-// into `$DREAMER_HOME/projects/_legacy/{id}.json` where they are
+// into `$BREADBOX_HOME/projects/_legacy/{id}.json` where they are
 // invisible to listing. An admin — identified by `ADMIN_GITHUB_LOGINS`
 // and authenticated via the ordinary session cookie — assigns each one
 // to a user and moves it back into the active dir.

@@ -86,7 +86,7 @@ bool pressed(Button b) {
           fields but can't mutate the caller's copy. If you need to
           update <code>lastState</code> and <code>lastChange</code>{" "}
           inside the helper, keep those updates in the caller and
-          return the new state instead — Dreamer's transpiler does
+          return the new state instead — Breadbox's transpiler does
           not support reference parameters.
         </Note>
       </Section>

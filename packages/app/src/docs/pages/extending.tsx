@@ -5,7 +5,7 @@ export function ExtendingPage() {
     <DocsLayout>
       <PageTitle
         title="Adding Components"
-        subtitle="How to register a new component type so it works everywhere in Dreamer."
+        subtitle="How to register a new component type so it works everywhere in Breadbox."
       />
 
       <Section title="Overview">
@@ -276,7 +276,7 @@ function MySensorInspector({ component, onUpdate }) {
             ["ultrasonic_sensor", "component.properties.distance (Inspector slider)", "ultrasonicDistanceBus → pulseIn(echoPin, HIGH)"],
             ["pir_sensor", "component.properties.motion (Inspector toggle)", "store.writeExternal → digitalRead(pin)"],
             ["dht_sensor", "component.properties.temperature / humidity", "dhtSensorBus → DHTClass.readTemperature/Humidity"],
-            ["ir_receiver", "component.properties.pendingCode + pendingCodeAt", "irReceiverBus → IRrecvClass.decode"],
+            ["ir_receiver", "Inspector 'Send' / IR Remote button", "IrReceiverPeripheral.sendCode → NEC pin edges → IrReceiver.decode()"],
           ]}
         />
         <p className="text-sm text-gray-400 mt-3 mb-2">
@@ -291,8 +291,8 @@ function MySensorInspector({ component, onUpdate }) {
           <strong>Per-pin busses:</strong> for sensors that are polled by a library class or by
           <code>pulseIn</code> rather than <code>analogRead</code>, export a module-level{" "}
           <code>Map&lt;pin, value&gt;</code> from sensor-inputs and read from it in the matching
-          stdlib class. The existing <code>ultrasonicDistanceBus</code>, <code>dhtSensorBus</code>,
-          and <code>irReceiverBus</code> are the templates.
+          stdlib class. The existing <code>ultrasonicDistanceBus</code> and <code>dhtSensorBus</code>{" "}
+          are the templates.
         </p>
         <Warn>
           Any bus you add must be cleared in <code>resetSensorBuses()</code> — simulation-loop

@@ -4,13 +4,13 @@ export function OverviewPage() {
   return (
     <DocsLayout>
       <PageTitle
-        title="Dreamer"
+        title="Breadbox"
         subtitle="An Arduino circuit simulator and visual programming environment."
       />
 
-      <Section title="What is Dreamer?">
+      <Section title="What is Breadbox?">
         <p className="text-sm text-gray-300 leading-relaxed">
-          Dreamer is a browser-based Arduino simulator. You place components on a virtual breadboard,
+          Breadbox is a browser-based Arduino simulator. You place components on a virtual breadboard,
           wire them to an Arduino Uno, run real SPICE circuit analysis to see voltages and currents,
           write and execute Arduino sketches in the browser, and use a visual node-graph for programming logic.
           An AI agent can help you design circuits, place components, and write code.
@@ -80,7 +80,7 @@ export function OverviewPage() {
 
       <Section title="Auto-generated Sketch">
         <p className="text-sm text-gray-400 mb-2">
-          When the sketch is empty or contains only auto-generated code, Dreamer regenerates it whenever you
+          When the sketch is empty or contains only auto-generated code, Breadbox regenerates it whenever you
           change the board layout. Once you manually edit the sketch, auto-generation stops.
         </p>
         <CodeBlock code={`// Auto-generated from board layout

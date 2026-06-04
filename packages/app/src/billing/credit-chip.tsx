@@ -5,14 +5,20 @@
 //
 //   loading              → "·" placeholder so layout doesn't jump
 //   unlimited (CLI/dev)  → not rendered (no chip; saves space)
-//   credits              → "N credits" pill, color-tinted by remaining
-//                          balance to nudge before the 402
+//   credits              → coin glyph + odometer balance, color-tinted by
+//                          remaining balance to nudge before the 402
+//
+// The balance uses RollingNumber: after a run the wallet refetches and the
+// digits scroll down to the new total. Tone (red/amber/normal) tints both
+// the coin and the digits so a low balance reads at a glance.
 //
 // No interactivity in v1 — clicking goes nowhere because there's no
 // purchase flow yet. When paid tiers arrive this becomes a button that
 // opens the buy-credits modal.
 
+import { Coins } from "lucide-react"
 import { cn } from "@/utils/classnames"
+import { RollingNumber } from "./rolling-number"
 import { useWallet } from "./use-wallet"
 
 const pillBase =
@@ -42,11 +48,17 @@ export function CreditChip() {
 
   return (
     <div
-      className={cn(pillBase, "font-medium", tone)}
-      aria-label={`${balancePosted} credits remaining`}
+      className={cn(pillBase, tone)}
+      aria-label={`${balancePosted.toLocaleString()} credits remaining`}
     >
-      <span>{balancePosted.toLocaleString()}</span>
-      <span className="text-muted-foreground">credits</span>
+      <Coins className="size-3.5 shrink-0 opacity-80" aria-hidden />
+      <RollingNumber
+        value={balancePosted}
+        className="font-semibold tracking-tight"
+      />
+      <span className="text-[11px] font-medium text-muted-foreground">
+        credits
+      </span>
     </div>
   )
 }

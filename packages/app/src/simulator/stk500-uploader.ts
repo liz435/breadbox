@@ -1,7 +1,7 @@
 // ── STK500v1 Uploader over WebSerial ──────────────────────────────────────
 //
 // In-browser implementation of the avrdude/STK500v1 upload protocol used by
-// the Arduino Uno bootloader (Optiboot). Hosted Dreamer has no USB on the
+// the Arduino Uno bootloader (Optiboot). Hosted Breadbox has no USB on the
 // server, so the browser must drive the upload directly. We deliberately
 // don't depend on `stk500-v1` or `avrgirl-arduino`: both are node-flavored,
 // pull in a serialport polyfill, and fight Vite's tree-shaking. Six

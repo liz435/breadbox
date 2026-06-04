@@ -101,7 +101,7 @@ void loop() {
         </p>
 
         <Note>
-          The Dreamer simulator recognizes both{" "}
+          The Breadbox simulator recognizes both{" "}
           <code>LED_BUILTIN</code> and the literal <code>13</code>.
           The existing{" "}
           <a href="/learn/blink-led" className="text-emerald-400 hover:underline">

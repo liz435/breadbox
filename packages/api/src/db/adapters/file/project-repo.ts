@@ -92,6 +92,21 @@ async function readProjectRaw(projectId: string): Promise<ProjectFile | null> {
   return parsed.data;
 }
 
+// ── Owner-agnostic board read (for the live board-stream watcher) ────────
+//
+// The board-stream poller (routes/board-stream.ts) runs server-side and must
+// observe writes made by any process — notably the `dreamer mcp` server, which
+// stamps ownerId "local" — regardless of the canonical owner, so it bypasses
+// the ownership filter. Read-only: returns just the current version + board
+// state, or null when the project (or its board) doesn't exist.
+export async function readBoardStateForWatch(
+  projectId: string
+): Promise<{ version: number; boardState: NonNullable<ProjectFile["boardState"]> } | null> {
+  const project = await readProjectRaw(projectId);
+  if (!project || !project.boardState) return null;
+  return { version: project.project.version, boardState: project.boardState };
+}
+
 /** Returns true iff the project is owned by `ownerId`. Logs on mismatch. */
 function ownsProject(project: ProjectFile, ownerId: string): boolean {
   if (project.project.ownerId === ownerId) return true;

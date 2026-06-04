@@ -106,7 +106,7 @@ describe("read handlers", () => {
     const p = await makeProject("Empty")
     const session = createSession(p.project.id)
     const diagram = await getBoardState(session)
-    expect(diagram.$schema).toBe("dreamer-diagram-v1")
+    expect(diagram.$schema).toBe("breadbox-diagram-v1")
     expect(diagram.board).toBe("arduino_uno")
     expect(diagram.components).toEqual([])
     expect(diagram.wires).toEqual([])

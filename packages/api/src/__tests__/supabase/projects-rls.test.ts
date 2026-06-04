@@ -23,8 +23,8 @@ const HAS_SUPABASE =
 const describeOrSkip = HAS_SUPABASE ? describe : describe.skip
 
 if (HAS_SUPABASE) {
-  process.env.DREAMER_MODE = "hosted"
-  process.env.DREAMER_HOSTED = "1"
+  process.env.BREADBOX_MODE = "hosted"
+  process.env.BREADBOX_HOSTED = "1"
   // Capture the service-role key into secrets.ts before any repo loads.
   // bootstrap-secrets normally does this on server start; here we mimic.
   const { captureSupabaseServiceRoleKey } = await import("../../secrets")

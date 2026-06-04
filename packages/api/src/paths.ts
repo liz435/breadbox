@@ -3,24 +3,25 @@
 // Two layers:
 //
 // 1. Data home (`dreamerHome()`) — per-project state: projects, runs,
-//    threads, tests, logs, crashes, config. Follows DATA_DIR / DREAMER_HOME
+//    threads, tests, logs, crashes, config. Follows DATA_DIR / BREADBOX_HOME
 //    / dev-mode fallback to in-repo `packages/api/data/`. Dev and prod
-//    differ here so working from source doesn't pollute `~/.dreamer/`.
+//    differ here so working from source doesn't pollute `~/.breadbox/`.
 //
 // 2. Machine home (`dreamerMachineHome()`) — machine-scoped caches that
 //    should be shared across dev and prod runs: the managed arduino-cli
 //    binary, AVR core stamp, other downloaded tooling. Always defaults to
-//    `~/.dreamer/` so a single install services every repo checkout.
+//    `~/.breadbox/` so a single install services every repo checkout.
 //
 // Precedence for data home (highest first):
 //   1. DATA_DIR env var — legacy, used by tests to isolate to tmpdirs.
-//   2. DREAMER_HOME env var — canonical override.
+//   2. BREADBOX_HOME env var — canonical override.
 //   3. In-repo `packages/api/data/` if running from source.
-//   4. `~/.dreamer/` — default for installed binaries.
+//   4. `~/.breadbox/` — default for installed binaries (falls back to a
+//      pre-rebrand `~/.dreamer/` when it already exists).
 //
 // Precedence for machine home (highest first):
-//   1. DREAMER_MACHINE_HOME env var.
-//   2. `~/.dreamer/` — always.
+//   1. BREADBOX_MACHINE_HOME env var.
+//   2. `~/.breadbox/` — always (with the same `~/.dreamer/` fallback).
 
 import { homedir } from "os";
 import { existsSync } from "fs";
@@ -35,16 +36,27 @@ const isRunningFromSource = (() => {
   }
 })();
 
+// Default per-user home directory. Prefers `~/.breadbox`, but falls back to a
+// pre-rebrand `~/.dreamer` when it already exists so an existing install's
+// projects/config aren't orphaned by the rename. New installs use `~/.breadbox`.
+function defaultUserHome(): string {
+  const current = join(homedir(), ".breadbox");
+  if (existsSync(current)) return current;
+  const legacy = join(homedir(), ".dreamer");
+  if (existsSync(legacy)) return legacy;
+  return current;
+}
+
 export function dreamerHome(): string {
   if (process.env.DATA_DIR) return process.env.DATA_DIR;
-  if (process.env.DREAMER_HOME) return process.env.DREAMER_HOME;
+  if (process.env.BREADBOX_HOME) return process.env.BREADBOX_HOME;
   if (isRunningFromSource) return IN_REPO_DATA_DIR;
-  return join(homedir(), ".dreamer");
+  return defaultUserHome();
 }
 
 export function dreamerMachineHome(): string {
-  if (process.env.DREAMER_MACHINE_HOME) return process.env.DREAMER_MACHINE_HOME;
-  return join(homedir(), ".dreamer");
+  if (process.env.BREADBOX_MACHINE_HOME) return process.env.BREADBOX_MACHINE_HOME;
+  return defaultUserHome();
 }
 
 // ── Data-home paths (per-project state) ──────────────────────────────────

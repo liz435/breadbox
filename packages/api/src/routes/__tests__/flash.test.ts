@@ -87,7 +87,7 @@ describe("port allowlist predicate", () => {
 describe("POST /api/flash — route rejects before subprocess spawn", () => {
   // Both 400 (our allowlist) and 403 (hosted gate) are acceptable:
   // both guarantee no arduino-cli spawn. Sibling test files set
-  // DREAMER_HOSTED globally so env may already be cached hosted.
+  // BREADBOX_HOSTED globally so env may already be cached hosted.
   const acceptable = new Set([400, 403])
 
   test("rejects /dev/sda", async () => {

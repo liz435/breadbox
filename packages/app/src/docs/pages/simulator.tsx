@@ -11,7 +11,7 @@ export function SimulatorPage() {
 
       <Section title="How it works">
         <p className="text-sm text-gray-300 leading-relaxed">
-          Dreamer uses SPICE netlist analysis (via the <code>spicey</code> library) to solve the
+          Breadbox uses SPICE netlist analysis (via the <code>spicey</code> library) to solve the
           electrical circuit. Every time you add a component, change a wire, or update a pin
           assignment, the solver runs after a 250ms debounce. It computes voltage, current, and
           power for each component in the circuit.

@@ -21,6 +21,8 @@ import { boardTracker } from "../db/board-state-tracker";
 import { createTrace, startSpan, closeTrace, serializeTrace } from "../agents/trace";
 import { resolveAgentSnapshotVersion } from "../agents/version";
 import { createLogger } from "../logger";
+import { IS_HOSTED_MODE } from "../supabase/env";
+import { getApiKey } from "../config";
 import type { AuthContext } from "../auth/context";
 import { authPlugin } from "../auth/auth-plugin";
 import { requireRateLimit, RateLimitError } from "../auth/rate-limit";
@@ -156,6 +158,14 @@ export const chatRoutes = new Elysia().use(authPlugin).post("/api/chat", async (
       return { error: "insufficient credits", available: err.available };
     }
     throw err;
+  }
+
+  // CLI/desktop pre-flight: fail fast with a discriminable signal when no
+  // Anthropic key is configured, so the UI can open the key dialog instead
+  // of surfacing an opaque 401 mid-stream. Hosted always has a server key.
+  if (!IS_HOSTED_MODE && (await getApiKey()) === null) {
+    set.status = 428;
+    return { error: "no_api_key" };
   }
 
   const id = ++requestId;

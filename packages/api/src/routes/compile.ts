@@ -245,7 +245,7 @@ export const compileRoutes = new Elysia().use(authPlugin).post("/api/compile", a
     try {
       let arduinoCli: string
       try {
-        arduinoCli = await resolveArduinoCli({ install: process.env.DREAMER_AUTO_INSTALL === "1" })
+        arduinoCli = await resolveArduinoCli({ install: process.env.BREADBOX_AUTO_INSTALL === "1" })
         await ensureArduinoCliCore(coreFamilyForFqbn(fqbn), writer)
       } catch (err) {
         if (err instanceof ArduinoCliMissingError) {

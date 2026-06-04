@@ -1,0 +1,20 @@
+{
+  "name": "@dreamer/desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Breadbox desktop app — a native window around the local server + web UI (Tauri)",
+  "scripts": {
+    "prepare:sidecar": "bun run scripts/prepare-sidecar.ts",
+    "icons": "bash scripts/make-icons.sh",
+    "dev": "tauri dev",
+    "dev:fresh": "bun run prepare:sidecar --force && tauri dev",
+    "build": "tauri build",
+    "tauri": "tauri",
+    "typecheck": "bunx tsc --noEmit"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "@types/bun": "latest",
+    "typescript": "^5.7.0"
+  }
+}

@@ -262,9 +262,12 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     buildNetlist: (comp, { footprint, resolveNode }) => {
       const nodeA = resolveNode(footprint.points[0])
       const nodeB = resolveNode(footprint.points[1])
-      // Model the capacitor as a voltage source at its current charge level.
-      // The circuit solver steps the voltage forward each frame using the
-      // resulting SPICE current (see capacitor-state.ts).
+      // Model the capacitor as a DC voltage source held at its current stored
+      // voltage. The circuit solver reads the resulting branch current to probe
+      // the surrounding circuit (Thevenin) and steps the stored voltage toward
+      // its target on a watchable exponential timescale (see circuit-solver.ts
+      // → evolveCapacitorVoltages). The branch current also drives the charge/
+      // discharge current-path animation.
       const storedV = getCapVoltage(comp.id)
       return {
         lines: [`V_${sanitize(comp.id)} ${nodeA} ${nodeB} ${storedV}`],
@@ -1165,26 +1168,62 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     ),
     buildNetlist: () => null,
     generateSketch: (comp) => {
-      const pin = comp.pins.signal
+      const pin = comp.pins.signal ?? comp.pins.out
       if (pin == null) return null
+      // IRremote 4.x: the receive timer ISR only services the global
+      // `IrReceiver` object, so a custom `IRrecv` instance never decodes.
       return {
         globalLines: [
           `#include <IRremote.h>`,
-          `IRrecv irrecv(${pin});`,
-          `decode_results results;`,
         ],
         setupLines: [
-          `  irrecv.enableIRIn(); // ${comp.name}`,
+          `  IrReceiver.begin(${pin}); // ${comp.name}`,
         ],
         loopLines: [
-          `  if (irrecv.decode(&results)) { // ${comp.name}`,
-          `    Serial.println(results.value, HEX);`,
-          `    irrecv.resume();`,
+          `  if (IrReceiver.decode()) { // ${comp.name}`,
+          `    Serial.println(IrReceiver.decodedIRData.decodedRawData, HEX);`,
+          `    IrReceiver.resume();`,
           `  }`,
         ],
         hasPin: true,
       }
     },
+  },
+
+  // ── IR Remote ───────────────────────────────────────────────────────
+  //
+  // A virtual handheld remote. It's wireless — it occupies no breadboard
+  // holes and has no pins or netlist. Clicking a button beams an NEC code to
+  // every IR receiver on the board via irRemoteStore (see ir-remote-renderer
+  // + sensor-inputs.writeIrReceiver). Position comes from x/y; the empty
+  // footprint keeps it from blocking holes wherever it's dropped.
+  {
+    type: "ir_remote",
+    category: "input",
+    description: "Virtual IR remote — click a button to beam a code to any IR receiver",
+    label: "IR Remote",
+    defaultPins: {},
+    defaultProperties: {},
+    accentColor: "#dc2626",
+    footprint: () => ({
+      points: [],
+      width: HOLE_SPACING * 5,
+      height: HOLE_SPACING * 9,
+    }),
+    paletteIcon: (
+      <svg viewBox="0 0 24 24" width={20} height={20}>
+        <rect x={7} y={2} width={10} height={20} rx={3} fill="#1f2937" stroke="#4b5563" strokeWidth={0.8} />
+        <circle cx={12} cy={5} r={1.2} fill="#dc2626" />
+        <circle cx={9.5} cy={9} r={1} fill="#9ca3af" />
+        <circle cx={14.5} cy={9} r={1} fill="#9ca3af" />
+        <circle cx={9.5} cy={12.5} r={1} fill="#9ca3af" />
+        <circle cx={14.5} cy={12.5} r={1} fill="#9ca3af" />
+        <circle cx={9.5} cy={16} r={1} fill="#9ca3af" />
+        <circle cx={14.5} cy={16} r={1} fill="#9ca3af" />
+      </svg>
+    ),
+    buildNetlist: () => null,
+    generateSketch: () => null,
   },
 
   // ── Shift Register (74HC595) ────────────────────────────────────────
@@ -1196,13 +1235,17 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
     defaultPins: { data: null, clock: null, latch: null },
     defaultProperties: {},
     accentColor: "#8b5cf6",
-    footprint: (row, col) => {
+    footprint: (row) => {
+      // DIP-16, straddling the centre gap on fixed cols 2/7: 8 holes per side
+      // over 8 rows. `col` is intentionally ignored (the chip always spans the
+      // centre channel). Matches the 8-row pin map in component-pins.ts and the
+      // 8-row ShiftRegisterRenderer.
       const points = []
-      for (let r = 0; r < 4; r++) {
+      for (let r = 0; r < 8; r++) {
         points.push({ row: row + r, col: 2 })
         points.push({ row: row + r, col: 7 })
       }
-      return { points, width: 60 + HOLE_SPACING * 4, height: HOLE_SPACING * 4 }
+      return { points, width: 60 + HOLE_SPACING * 4, height: HOLE_SPACING * 8 }
     },
     paletteIcon: (
       // DIP-16 IC: black body, 8 silver legs per side, notch at top, part number text

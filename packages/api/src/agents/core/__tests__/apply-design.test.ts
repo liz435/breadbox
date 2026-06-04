@@ -68,7 +68,7 @@ describe("apply_design", () => {
     });
 
     const diagram: DreamerDiagramInput = {
-      $schema: "dreamer-diagram-v1",
+      $schema: "breadbox-diagram-v1",
       board: "arduino_mega_2560",
       sketch: "void setup() {}\nvoid loop() {}\n",
       components: [

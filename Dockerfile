@@ -1,4 +1,4 @@
-# ── Dreamer hosted-mode Docker image ──────────────────────────────────────
+# ── Breadbox hosted-mode Docker image ──────────────────────────────────────
 # build-trigger: 2026-05-25 api redeploy after lockfile fix
 #
 # Target: Railway (or any container host). Builds a self-contained image
@@ -6,9 +6,9 @@
 #   - Bun runtime
 #   - arduino-cli + AVR core pre-installed to ~/.dreamer/bin/
 #   - ~25 curated third-party Arduino libraries pre-baked
-#   - The Dreamer API + built web UI, served on port 4111
+#   - The Breadbox API + built web UI, served on port 4111
 #
-# The DREAMER_HOSTED=1 env below tells the API to:
+# The BREADBOX_HOSTED=1 env below tells the API to:
 #   - Return 403 from /api/libraries/install and /api/libraries/uninstall
 #   - Skip auto-install on missing-header compile errors
 #   - Advertise `hosted: true` via /api/capabilities so the UI hides
@@ -49,12 +49,12 @@ RUN apt-get update \
 
 WORKDIR /app
 
-# Install arduino-cli to the Dreamer-managed location. The API's toolchain
+# Install arduino-cli to the Breadbox-managed location. The API's toolchain
 # resolver looks there first, falls back to PATH.
-ENV DREAMER_MACHINE_HOME=/root/.dreamer
-RUN mkdir -p ${DREAMER_MACHINE_HOME}/bin ${DREAMER_MACHINE_HOME}/cache \
+ENV BREADBOX_MACHINE_HOME=/root/.dreamer
+RUN mkdir -p ${BREADBOX_MACHINE_HOME}/bin ${BREADBOX_MACHINE_HOME}/cache \
   && curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh \
-     | BINDIR=${DREAMER_MACHINE_HOME}/bin sh
+     | BINDIR=${BREADBOX_MACHINE_HOME}/bin sh
 
 # Install arduino cores. Each stamp file matches the naming scheme that
 # packages/api/src/toolchain.ts checks (`arduino-cli-core-<family>.stamp`,
@@ -63,19 +63,19 @@ RUN mkdir -p ${DREAMER_MACHINE_HOME}/bin ${DREAMER_MACHINE_HOME}/cache \
 # Register the Earle Philhower rp2040:rp2040 community core's board-manager
 # URL up front so `core install rp2040:rp2040` succeeds without the user
 # having to pass `--additional-urls` on every call.
-RUN ${DREAMER_MACHINE_HOME}/bin/arduino-cli config init --overwrite \
-  && ${DREAMER_MACHINE_HOME}/bin/arduino-cli config add \
+RUN ${BREADBOX_MACHINE_HOME}/bin/arduino-cli config init --overwrite \
+  && ${BREADBOX_MACHINE_HOME}/bin/arduino-cli config add \
        board_manager.additional_urls \
        https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json \
-  && ${DREAMER_MACHINE_HOME}/bin/arduino-cli core update-index \
-  && ${DREAMER_MACHINE_HOME}/bin/arduino-cli core install arduino:avr \
-  && echo "pre-baked" > ${DREAMER_MACHINE_HOME}/cache/arduino-cli-core-arduino-avr.stamp
+  && ${BREADBOX_MACHINE_HOME}/bin/arduino-cli core update-index \
+  && ${BREADBOX_MACHINE_HOME}/bin/arduino-cli core install arduino:avr \
+  && echo "pre-baked" > ${BREADBOX_MACHINE_HOME}/cache/arduino-cli-core-arduino-avr.stamp
 
 # Install the Raspberry Pi Pico core (~500MB — toolchain + picotool + gcc-
 # arm-none-eabi). Separate RUN so the AVR install above stays a stable
 # cache layer when the Pico core is bumped.
-RUN ${DREAMER_MACHINE_HOME}/bin/arduino-cli core install rp2040:rp2040 \
-  && echo "pre-baked" > ${DREAMER_MACHINE_HOME}/cache/arduino-cli-core-rp2040-rp2040.stamp
+RUN ${BREADBOX_MACHINE_HOME}/bin/arduino-cli core install rp2040:rp2040 \
+  && echo "pre-baked" > ${BREADBOX_MACHINE_HOME}/cache/arduino-cli-core-rp2040-rp2040.stamp
 
 # ── Pre-bake the curated library set ──────────────────────────────────
 # Grouped into batches so Docker layer caching stays useful if we later
@@ -87,7 +87,7 @@ RUN ${DREAMER_MACHINE_HOME}/bin/arduino-cli core install rp2040:rp2040 \
 #   docker exec <container> /root/.dreamer/bin/arduino-cli lib list
 
 # Core sensors + displays (most common beginner libs)
-RUN ${DREAMER_MACHINE_HOME}/bin/arduino-cli lib install \
+RUN ${BREADBOX_MACHINE_HOME}/bin/arduino-cli lib install \
   "Servo" \
   "Adafruit NeoPixel" \
   "DHT sensor library" \
@@ -96,14 +96,14 @@ RUN ${DREAMER_MACHINE_HOME}/bin/arduino-cli lib install \
   "Adafruit Unified Sensor"
 
 # Data + comms
-RUN ${DREAMER_MACHINE_HOME}/bin/arduino-cli lib install \
+RUN ${BREADBOX_MACHINE_HOME}/bin/arduino-cli lib install \
   "ArduinoJson" \
   "PubSubClient" \
   "OneWire" \
   "DallasTemperature"
 
 # Displays, input, timing
-RUN ${DREAMER_MACHINE_HOME}/bin/arduino-cli lib install \
+RUN ${BREADBOX_MACHINE_HOME}/bin/arduino-cli lib install \
   "LiquidCrystal I2C" \
   "IRremote" \
   "Keypad" \
@@ -111,7 +111,7 @@ RUN ${DREAMER_MACHINE_HOME}/bin/arduino-cli lib install \
   "FastLED"
 
 # Distance + motion
-RUN ${DREAMER_MACHINE_HOME}/bin/arduino-cli lib install \
+RUN ${BREADBOX_MACHINE_HOME}/bin/arduino-cli lib install \
   "NewPing" \
   "Ultrasonic" \
   "AccelStepper" \
@@ -125,7 +125,7 @@ COPY --from=build /app/packages ./packages
 
 # Where project data (runs, threads, projects, config) is stored. Railway
 # mounts persistent volumes here if the user wants state to survive deploys.
-ENV DREAMER_HOME=/data
+ENV BREADBOX_HOME=/data
 RUN mkdir -p /data
 
 # Persist the machine-home so dreamerMachineHome() at runtime resolves to the
@@ -139,12 +139,12 @@ RUN mkdir -p /data
 # /root/.dreamer in the hosting platform (Railway, Fly, etc.). The volume
 # keeps the cores + stamps across deploys; without one, a cache-busted
 # image layer will trigger a full re-download on first compile.
-ENV DREAMER_MACHINE_HOME=/root/.dreamer
+ENV BREADBOX_MACHINE_HOME=/root/.dreamer
 
 # Hosted-mode flags read by the API + injected UI capabilities.
-ENV DREAMER_HOSTED=1
-ENV DREAMER_AUTO_INSTALL=0
-ENV DREAMER_LOG_FILE=0
+ENV BREADBOX_HOSTED=1
+ENV BREADBOX_AUTO_INSTALL=0
+ENV BREADBOX_LOG_FILE=0
 ENV NODE_ENV=production
 
 EXPOSE 4111

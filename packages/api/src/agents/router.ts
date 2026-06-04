@@ -80,7 +80,7 @@ const DEBUG_TRIGGERS =
 const QUESTION_TRIGGERS =
   /^(?:what|how|why|when|where|can\s+you|is\s+there|should\s+i|do\s+i|would\s+(?:this|it))\b/i;
 const DIAGRAM_IMPORT_TRIGGERS =
-  /\$schema\s*:\s*["']dreamer-diagram-v\d+["']|\b(?:paste|import)\s+(?:a\s+)?diagram\b|\bdreamer-diagram\b/i;
+  /\$schema\s*:\s*["'](?:breadbox|dreamer)-diagram-v\d+["']|\b(?:paste|import)\s+(?:a\s+)?diagram\b|\b(?:breadbox|dreamer)-diagram\b/i;
 
 function detectRequestType(prompt: string): RequestType {
   const p = prompt.toLowerCase().trim();

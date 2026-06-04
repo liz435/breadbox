@@ -88,7 +88,7 @@ noTone(8);`} />
             ["Operating voltage", "3 – 5 V"],
             ["Impedance", "~30 Ω at resonant frequency"],
             ["Resonant frequency", "~4 kHz (peak volume)"],
-            ["Audible range in Dreamer", "No audio — visual animation only"],
+            ["Audible range in Breadbox", "No audio — visual animation only"],
             ["Max current", "~30 mA"],
             ["No resistor needed", "Internal impedance limits current at 5V"],
           ]}

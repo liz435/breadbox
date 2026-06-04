@@ -1,8 +1,8 @@
-# Supabase local dev config. Generated for the Dreamer monorepo.
+# Supabase local dev config. Generated for the Breadbox monorepo.
 # Override anything per-developer via env. Production targets a hosted
 # Supabase Cloud project; this file only governs `bunx supabase start`.
 
-project_id = "dreamer"
+project_id = "breadbox"
 
 [api]
 enabled = true

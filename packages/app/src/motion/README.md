@@ -1,12 +1,12 @@
 # Motion Editor Implementation
 
-This folder contains Dreamer's motion editor frontend. It is served inside the main Dreamer app at:
+This folder contains Breadbox's motion editor frontend. It is served inside the main Breadbox app at:
 
 ```text
 /motion
 ```
 
-The Dreamer IDE remains at `/editor`. The motion editor is an adjacent product surface using the same Vite frontend, Bun/Elysia API, auth-aware fetch conventions, Dockerfile, and Railway deployment path.
+The Breadbox IDE remains at `/editor`. The motion editor is an adjacent product surface using the same Vite frontend, Bun/Elysia API, auth-aware fetch conventions, Dockerfile, and Railway deployment path.
 
 ## Current Product Shape
 
@@ -169,7 +169,7 @@ The local target-frame render duplicates/transforms the selected source region o
 
 ## ComfyUI Motion Pipeline
 
-ComfyUI is now integrated as a progressive motion backend, not a replacement for the Dreamer editor. Dreamer still owns upload, S/T selection, prompt compilation, storage, polling, retiming, stitching, and error states.
+ComfyUI is now integrated as a progressive motion backend, not a replacement for the Breadbox editor. Breadbox still owns upload, S/T selection, prompt compilation, storage, polling, retiming, stitching, and error states.
 
 The sidebar exposes a seven-step ComfyUI pipeline status:
 
@@ -243,9 +243,9 @@ Those workflow hooks are status-aware placeholders right now. The current Docker
 
 Hosted prep must return before the Railway app proxy times out. `COMFYUI_REQUEST_TIMEOUT_MS` caps individual ComfyUI HTTP calls, and `COMFYUI_PREP_TIMEOUT_MS` caps the cheap preview poll. A permanent `403` from ComfyUI now fails the preview status immediately instead of retrying until the app request becomes a hosted `502`.
 
-For Railway, prefer the private service URL from the Dreamer API service to the ComfyUI service. Do not use the browser-facing public ComfyUI URL for `COMFYUI_URL` unless you intentionally expose and authenticate it. If the public ComfyUI URL returns `403`, the API will also see `403` unless `COMFYUI_URL` is changed to the private Railway hostname or the required auth header is set with `COMFYUI_AUTH_HEADER`.
+For Railway, prefer the private service URL from the Breadbox API service to the ComfyUI service. Do not use the browser-facing public ComfyUI URL for `COMFYUI_URL` unless you intentionally expose and authenticate it. If the public ComfyUI URL returns `403`, the API will also see `403` unless `COMFYUI_URL` is changed to the private Railway hostname or the required auth header is set with `COMFYUI_AUTH_HEADER`.
 
-A browser-facing Railway `502 Application failed to respond` on the ComfyUI URL means Railway cannot reach the sidecar process. Check that the ComfyUI service logs show `[comfyui] Starting ComfyUI on [::]:8188`, that the service variable `PORT` is `8188`, and that any public domain target port is also `8188`. The Dreamer app does not need ComfyUI to be public; `/motion` only needs the API server to reach `COMFYUI_URL` from inside Railway.
+A browser-facing Railway `502 Application failed to respond` on the ComfyUI URL means Railway cannot reach the sidecar process. Check that the ComfyUI service logs show `[comfyui] Starting ComfyUI on [::]:8188`, that the service variable `PORT` is `8188`, and that any public domain target port is also `8188`. The Breadbox app does not need ComfyUI to be public; `/motion` only needs the API server to reach `COMFYUI_URL` from inside Railway.
 
 
 ## Veo Configuration
@@ -281,7 +281,7 @@ Text-only fallback is off by default because the motion editor needs source/targ
 
 ## Storage
 
-Motion data uses Dreamer's existing data-home pattern in `packages/api/src/paths.ts`.
+Motion data uses Breadbox's existing data-home pattern in `packages/api/src/paths.ts`.
 
 In local source mode, files are written under:
 
@@ -305,7 +305,7 @@ Attach a persistent Railway volume to `/data` if uploaded videos and generated a
 
 ## Railway Notes
 
-Serve this as part of the existing Dreamer deployment:
+Serve this as part of the existing Breadbox deployment:
 
 ```text
 https://app.cyx.solutions/motion

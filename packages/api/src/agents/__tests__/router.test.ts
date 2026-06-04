@@ -46,7 +46,7 @@ describe("routeRequest diagram import intent", () => {
   test("routes to build mode on empty board", () => {
     const board = createDefaultBoardState();
     const decision = routeRequest({
-      prompt: 'paste this diagram {"$schema":"dreamer-diagram-v1","components":[],"wires":[]}',
+      prompt: 'paste this diagram {"$schema":"breadbox-diagram-v1","components":[],"wires":[]}',
       project: makeProject(board),
       priorRuns: [],
     });
@@ -69,7 +69,7 @@ describe("routeRequest diagram import intent", () => {
     };
 
     const decision = routeRequest({
-      prompt: "import diagram payload with $schema: \"dreamer-diagram-v1\"",
+      prompt: "import diagram payload with $schema: \"breadbox-diagram-v1\"",
       project: makeProject(board),
       priorRuns: [],
     });

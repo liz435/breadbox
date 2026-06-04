@@ -198,7 +198,7 @@ describe("diagram-adapter — minimal blink import", () => {
     // the endpoint pair. Without this, post-stream electrical checks see
     // a phantom grid cell at row -999 and reject the diagram.
     const diagram = {
-      $schema: "dreamer-diagram-v1" as const,
+      $schema: "breadbox-diagram-v1" as const,
       board: "arduino_uno" as const,
       components: [
         { id: "btn1", type: "button", at: [3, 5], rotation: 0, properties: {} },
@@ -235,14 +235,35 @@ describe("diagram-adapter — minimal blink import", () => {
 describe("diagram-adapter — error surface", () => {
   test("unknown $schema version is rejected with a clear message", () => {
     const result = diagramToBoardState({
-      $schema: "dreamer-diagram-v99",
+      $schema: "breadbox-diagram-v99",
       components: [],
       wires: [],
     });
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.errors[0].path).toBe("$schema");
-    expect(result.errors[0].message).toContain("dreamer-diagram-v99");
+    expect(result.errors[0].message).toContain("breadbox-diagram-v99");
+  });
+
+  test("legacy `dreamer-diagram-v1` $schema is accepted (back-compat)", () => {
+    const legacy = diagramToBoardState({
+      $schema: "dreamer-diagram-v1",
+      board: "arduino_uno",
+      sketch: "",
+      components: [],
+      wires: [],
+    });
+    const current = diagramToBoardState({
+      $schema: DIAGRAM_SCHEMA_V1,
+      board: "arduino_uno",
+      sketch: "",
+      components: [],
+      wires: [],
+    });
+    expect(legacy.ok).toBe(true);
+    expect(current.ok).toBe(true);
+    if (!legacy.ok || !current.ok) return;
+    expect(legacy.boardState).toEqual(current.boardState);
   });
 
   test("pin-name typo produces a fuzzy suggestion", () => {

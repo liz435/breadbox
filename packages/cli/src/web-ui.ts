@@ -6,7 +6,7 @@
 //
 // Responsibilities:
 //   - Look up request path in the asset manifest.
-//   - For index.html, inject a <script> tag that sets window.__DREAMER__
+//   - For index.html, inject a <script> tag that sets window.__BREADBOX__
 //     before the app bundle loads, so @dreamer/config picks up the actual
 //     API origin (port chosen at runtime).
 //   - Send static files directly from their embedded paths.
@@ -48,7 +48,7 @@ function injectRuntimeConfig(html: string, apiOrigin: string, appOrigin: string)
   // eliminates the transpile/avr divergence bug class. Only the CLI-served
   // UI sets this; the standalone web app keeps its transpile fallback.
   const config = { apiOrigin, appOrigin, preferAvr: true }
-  const script = `<script>window.__DREAMER__=${JSON.stringify(config)};</script>`
+  const script = `<script>window.__BREADBOX__=${JSON.stringify(config)};</script>`
   if (html.includes("<head>")) return html.replace("<head>", `<head>${script}`)
   if (html.includes("<html>")) return html.replace("<html>", `<html><head>${script}</head>`)
   return script + html
@@ -66,6 +66,11 @@ export function startStaticWebUI(
 ): StaticWebUI {
   const server = Bun.serve({
     port,
+    // Loopback only: the embedded UI is a local/desktop surface and must not
+    // be reachable from the LAN. Matches the API's 127.0.0.1 bind, and keeps
+    // it consistent with headed.ts's port probe (which also probes 127.0.0.1)
+    // so "is this port free?" and "can I bind it?" agree.
+    hostname: "127.0.0.1",
     async fetch(req) {
       const url = new URL(req.url)
       let pathname = url.pathname

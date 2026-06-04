@@ -67,7 +67,7 @@ void loop() {
       <Section title="Required libraries">
         <p className="text-sm text-gray-300 leading-relaxed">
           The SSD1306 display requires two libraries: <code>Wire.h</code> (built-in I2C) and <code>Adafruit_SSD1306.h</code>.
-          Both are built-in in Dreamer's transpile mode — no installation needed.
+          Both are built-in in Breadbox's transpile mode — no installation needed.
         </p>
       </Section>
 

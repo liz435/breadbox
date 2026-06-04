@@ -43,7 +43,7 @@ export function SchematicSymbolsPage() {
           both mental models, and this page teaches the first one.
         </p>
         <Note>
-          Every symbol below is rendered by Dreamer's own{" "}
+          Every symbol below is rendered by Breadbox's own{" "}
           <code className="text-gray-200">&lt;Schematic&gt;</code>{" "}
           component. If a symbol ever looks broken, it'll break here
           first, which is why this page doubles as a visual regression

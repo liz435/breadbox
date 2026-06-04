@@ -19,7 +19,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from 
 import { join } from "node:path"
 import { EXAMPLE_META } from "../packages/app/src/examples/example-meta"
 
-const API_BASE = process.env.DREAMER_API_BASE ?? "http://localhost:4111"
+const API_BASE = process.env.BREADBOX_API_BASE ?? "http://localhost:4111"
 const BOARDS_DIR = join(import.meta.dir, "..", "packages", "app", "src", "examples", "boards")
 const FIXTURES_DIR = join(BOARDS_DIR, "fixtures")
 

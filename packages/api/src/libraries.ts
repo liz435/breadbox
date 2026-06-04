@@ -269,8 +269,8 @@ export function extractMissingHeader(output: string): string | null {
  *   4. Otherwise give up — the compile retry should surface the original
  *      error to the user.
  *
- * Gated by DREAMER_AUTO_INSTALL_LIBS env: anything other than "0" enables.
- * Also disabled entirely in hosted mode (DREAMER_HOSTED=1) — hosted
+ * Gated by BREADBOX_AUTO_INSTALL_LIBS env: anything other than "0" enables.
+ * Also disabled entirely in hosted mode (BREADBOX_HOSTED=1) — hosted
  * deployments ship a fixed set of pre-installed libraries and don't allow
  * user-triggered installs.
  */
@@ -278,10 +278,10 @@ export async function attemptAutoInstall(
   headerBase: string,
 ): Promise<{ installed: string } | { reason: string }> {
   if (IS_HOSTED) {
-    return { reason: `"${headerBase}" is not pre-installed on this hosted Dreamer. Run the Dreamer CLI locally to use additional libraries.` }
+    return { reason: `"${headerBase}" is not pre-installed on this hosted Breadbox. Run the Breadbox CLI locally to use additional libraries.` }
   }
-  if (process.env.DREAMER_AUTO_INSTALL_LIBS === "0") {
-    return { reason: "DREAMER_AUTO_INSTALL_LIBS=0" }
+  if (process.env.BREADBOX_AUTO_INSTALL_LIBS === "0") {
+    return { reason: "BREADBOX_AUTO_INSTALL_LIBS=0" }
   }
 
   const candidates = await searchLibraries(headerBase)

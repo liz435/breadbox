@@ -1,19 +1,19 @@
 # @dreamer/cli
 
-Command-line interface for Dreamer — Arduino circuit builder. Drives the same agent, tools, compiler, and flasher as the web UI, plus a headed mode that launches the web UI alongside the REPL.
+Command-line interface for Breadbox — Arduino circuit builder. Drives the same agent, tools, compiler, and flasher as the web UI, plus a headed mode that launches the web UI alongside the REPL.
 
 ## Install
 
 ### Prebuilt binary (recommended once releases are published)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/liz435/dreamer/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/liz435/breadbox/main/scripts/install.sh | bash
 ```
 
 Windows:
 
 ```powershell
-irm https://raw.githubusercontent.com/liz435/dreamer/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/liz435/breadbox/main/scripts/install.ps1 | iex
 ```
 
 Both scripts detect your platform, fetch the right binary from the latest GitHub release, verify its SHA256 (if a sidecar `.sha256` is published), and drop `dreamer` onto your PATH.

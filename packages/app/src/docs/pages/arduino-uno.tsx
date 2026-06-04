@@ -5,7 +5,7 @@ export function ArduinoUnoPage() {
     <DocsLayout>
       <PageTitle
         title="Board Targets"
-        subtitle="Dreamer supports Uno, Nano, and Mega board targets with board-specific visuals and pin placement."
+        subtitle="Breadbox supports Uno, Nano, and Mega board targets with board-specific visuals and pin placement."
       />
 
       <Section title="Supported Boards">
@@ -19,7 +19,7 @@ export function ArduinoUnoPage() {
         />
       </Section>
 
-      <Section title="Pin Mapping in Dreamer">
+      <Section title="Pin Mapping in Breadbox">
         <Table
           headers={["Category", "Fully simulated pins", "Visual-only pins"]}
           rows={[

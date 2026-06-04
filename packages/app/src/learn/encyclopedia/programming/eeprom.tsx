@@ -98,7 +98,7 @@ void loop() {
         </p>
 
         <Warn>
-          Dreamer's simulator does not persist EEPROM across
+          Breadbox's simulator does not persist EEPROM across
           reloads — treat it as a volatile scratch space in the
           editor. On a real Uno, it survives everything except a
           chip erase.

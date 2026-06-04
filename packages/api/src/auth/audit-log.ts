@@ -1,9 +1,9 @@
 // ── Audit log ───────────────────────────────────────────────────────────
 //
-// Two backends, picked by DREAMER_MODE:
+// Two backends, picked by BREADBOX_MODE:
 //
 //   • CLI (default): append-only JSONL rotated per calendar day under
-//     `$DREAMER_HOME/audit/{YYYY-MM-DD}.jsonl`. Operator handles
+//     `$BREADBOX_HOME/audit/{YYYY-MM-DD}.jsonl`. Operator handles
 //     rotation/archival.
 //
 //   • Hosted: one row per event in `public.audit_events`. Indexed on
@@ -93,7 +93,7 @@ function auditFilePath(ts: number): string {
 // ── Directory init ────────────────────────────────────────────────────
 //
 // `mkdir -p` is a cheap syscall (µs-scale) when the dir already exists,
-// and DREAMER_HOME can change between test runs via DATA_DIR. We run
+// and BREADBOX_HOME can change between test runs via DATA_DIR. We run
 // it unconditionally before each append rather than memoizing — a
 // memoized promise would be bound to whichever path was resolved
 // first, making tests that switch DATA_DIR flake on append.

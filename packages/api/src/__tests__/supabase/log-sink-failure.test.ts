@@ -8,7 +8,7 @@
 //
 // Lives in __tests__/supabase/ and is gated on the same env flags as the
 // integration tests, even though the test itself MOCKS the admin client
-// (no real Supabase calls). Reason: we mutate DREAMER_MODE=hosted to
+// (no real Supabase calls). Reason: we mutate BREADBOX_MODE=hosted to
 // drive the sink, and that mutation is captured at module-init in
 // supabase/env.ts — if we ran this in the default test path, the env
 // would leak into other test files that import storage/audit modules and
@@ -29,9 +29,9 @@ const HAS_SUPABASE =
 const describeOrSkip = HAS_SUPABASE ? describe : describe.skip
 
 if (HAS_SUPABASE) {
-  process.env.DREAMER_MODE = "hosted"
-  process.env.DREAMER_HOSTED = "1"
-  process.env.DREAMER_LOG_SUPABASE_LEVEL = "warn"
+  process.env.BREADBOX_MODE = "hosted"
+  process.env.BREADBOX_HOSTED = "1"
+  process.env.BREADBOX_LOG_SUPABASE_LEVEL = "warn"
   const { captureSupabaseServiceRoleKey } = await import("../../secrets")
   captureSupabaseServiceRoleKey(SUPABASE_SERVICE_ROLE_KEY)
 }

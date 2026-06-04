@@ -1,4 +1,4 @@
-# ── Dockerignore for hosted-mode Dreamer image ───────────────────────────
+# ── Dockerignore for hosted-mode Breadbox image ───────────────────────────
 #
 # Keep the build context small: we only need source + lockfile + scripts.
 # Everything generated, cached, or binary-built is reproduced inside the

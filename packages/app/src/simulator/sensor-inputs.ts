@@ -34,6 +34,7 @@
 
 import type { BoardComponent, Wire, Environment } from "@dreamer/schemas"
 import type { PinStateStore } from "./pin-state-store"
+import { irRemoteStore } from "./ir-remote-store"
 import { findInputPinForComponent, findArduinoPinForComponentPin } from "@/breadboard/component-pin-resolver"
 import {
   sensorRay,
@@ -59,12 +60,6 @@ export const ultrasonicDistanceBus = new Map<number, number>()
 export const dhtSensorBus = new Map<number, { temperatureC: number; humidity: number }>()
 
 /**
- * Pending IR code per signal pin, with an expiry timestamp in ms since epoch.
- * Read by `IRrecvClass.decode()`, cleared once consumed or once expired.
- */
-export const irReceiverBus = new Map<number, { code: number; expiresAt: number }>()
-
-/**
  * Trigger pin for each ultrasonic sensor keyed by echo pin.
  * Used by `pulseIn()` to validate the sketch sent a trigger pulse.
  */
@@ -75,13 +70,17 @@ export const ultrasonicTriggerPinBus = new Map<number, number>()
  *  don't fire twice for the same user click. */
 const irLastPendingAt = new Map<string, number>()
 
+/** Tracks the last virtual-remote broadcast `seq` delivered to each
+ *  IrReceiverPeripheral so a remote press fires exactly once per receiver. */
+const irLastBroadcastSeq = new Map<string, number>()
+
 /** Clear all sensor busses — called on simulation reset/stop. */
 export function resetSensorBuses(): void {
   ultrasonicDistanceBus.clear()
   dhtSensorBus.clear()
-  irReceiverBus.clear()
   ultrasonicTriggerPinBus.clear()
   irLastPendingAt.clear()
+  irLastBroadcastSeq.clear()
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -251,22 +250,14 @@ function writeDht(
 
 /**
  * IR receiver: detect a newly-stamped `pendingCode` (hex string) from the
- * inspector and fire a NEC frame on the IrReceiverPeripheral. The legacy
- * `irReceiverBus` stays populated as a safety net.
+ * inspector and fire a NEC frame on the IrReceiverPeripheral.
  */
 function writeIrReceiver(
   comp: BoardComponent,
-  wires: Record<string, Wire>,
   bus?: import("./peripherals/peripheral-bus").PeripheralBus,
 ): void {
-  const pin = resolveNamedPin(comp, "signal", wires)
   const pendingCode = comp.properties.pendingCode as string | undefined
   const pendingAt = comp.properties.pendingCodeAt as number | undefined
-
-  if (pendingCode && pendingAt != null && pin != null) {
-    const expiresAt = pendingAt + 250
-    irReceiverBus.set(pin, { code: parseInt(pendingCode, 16) || 0, expiresAt })
-  }
 
   // Peripheral path — edge-triggered on a new pendingAt timestamp.
   const peripheral = bus?.get(comp.id)
@@ -281,6 +272,18 @@ function writeIrReceiver(
       irLastPendingAt.set(comp.id, pendingAt)
       const code = parseInt(pendingCode, 16) || 0
       ;(peripheral as { sendCode: (code: number) => void }).sendCode(code)
+    }
+
+    // Virtual IR remote path — fire the latest wireless broadcast once per
+    // press. The first time we see this receiver we arm the cursor to the
+    // current seq so a code beamed before the sketch started doesn't replay.
+    const beam = irRemoteStore.getSnapshot()
+    const seenSeq = irLastBroadcastSeq.get(comp.id)
+    if (seenSeq === undefined) {
+      irLastBroadcastSeq.set(comp.id, beam.seq)
+    } else if (beam.seq > seenSeq && beam.code !== 0) {
+      irLastBroadcastSeq.set(comp.id, beam.seq)
+      ;(peripheral as { sendCode: (code: number) => void }).sendCode(beam.code)
     }
   }
 }
@@ -319,7 +322,7 @@ export function applySensorInputs(
         writeDht(comp, wires, bus)
         break
       case "ir_receiver":
-        writeIrReceiver(comp, wires, bus)
+        writeIrReceiver(comp, bus)
         break
       default:
         break
