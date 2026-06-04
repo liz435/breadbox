@@ -16,9 +16,10 @@
 //   • Inline structured errors with JSON-paths and fuzzy suggestions.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Copy, Download, Check, RotateCw, Upload, ShieldCheck, Link2 } from "lucide-react"
+import { Copy, Download, Check, RotateCw, Upload, ShieldCheck, Link2, Sparkles } from "lucide-react"
 import {
   boardStateToDiagram,
+  buildExternalEditPrompt,
   encodeDiagramForUrl,
   validateDiagram,
   type DiagramIssue,
@@ -40,12 +41,25 @@ function formatDiagram(state: ReturnType<typeof useBoard>["state"]): string {
   return JSON.stringify(boardStateToDiagram(state), null, 2)
 }
 
+/**
+ * Strip a surrounding Markdown code fence if present. External chats often
+ * wrap a returned diagram in ```json … ``` despite being asked not to; peel it
+ * so the round-trip (Copy AI prompt → edit in chat → paste back → Apply) works
+ * without manual cleanup. No-op when the text isn't fenced.
+ */
+function stripCodeFence(raw: string): string {
+  const trimmed = raw.trim()
+  if (!trimmed.startsWith("```")) return raw
+  return trimmed.replace(/^```[^\n]*\n/, "").replace(/\n?```\s*$/, "")
+}
+
 export function DiagramPanel() {
   const { state: boardState, send } = useBoard()
   const [text, setText] = useState(() => formatDiagram(boardState))
   const [dirty, setDirty] = useState(false)
   const [status, setStatus] = useState<PanelStatus>({ kind: "idle" })
   const [copied, setCopied] = useState(false)
+  const [copiedAi, setCopiedAi] = useState(false)
   const [shared, setShared] = useState(false)
 
   // Live-sync from the board whenever it changes — unless the user has
@@ -73,7 +87,7 @@ export function DiagramPanel() {
   const parseAndValidate = useCallback(() => {
     let parsed: unknown
     try {
-      parsed = JSON.parse(text)
+      parsed = JSON.parse(stripCodeFence(text))
     } catch (err) {
       setStatus({
         kind: "json-error",
@@ -150,6 +164,21 @@ export function DiagramPanel() {
       // Clipboard unavailable — fall back to selection
       const ta = document.getElementById("diagram-panel-textarea") as HTMLTextAreaElement | null
       ta?.select()
+    }
+  }, [text])
+
+  const handleCopyForAi = useCallback(async () => {
+    // Bundle the current buffer with an auto-generated format spec so the user
+    // can paste it into any external chat (no API key / MCP needed) and get a
+    // valid edited diagram back to Apply here.
+    const prompt = buildExternalEditPrompt(text)
+    try {
+      await navigator.clipboard.writeText(prompt)
+      setCopiedAi(true)
+      setTimeout(() => setCopiedAi(false), 1500)
+      toast.success("AI edit prompt copied — paste it into any chat (ChatGPT, Claude, …), then paste the result back here.")
+    } catch {
+      toast.error("Could not copy to clipboard — select the textarea and copy manually.")
     }
   }, [text])
 
@@ -256,6 +285,11 @@ export function DiagramPanel() {
           label="Copy as JSON"
           onClick={handleCopy}
           icon={copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+        />
+        <IconButton
+          label="Copy AI edit prompt (diagram + spec for any chat)"
+          onClick={handleCopyForAi}
+          icon={copiedAi ? <Check className="size-3" /> : <Sparkles className="size-3" />}
         />
         <IconButton
           label="Download as .json"
