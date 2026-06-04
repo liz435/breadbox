@@ -240,12 +240,10 @@ export function DiagramPanel() {
   return (
     <div className="flex h-full w-full flex-col bg-[#1a1a1a] text-xs text-zinc-200">
       {/* Toolbar */}
-      <header className="flex shrink-0 items-center gap-1.5 border-b border-neutral-700 px-3 py-1.5">
+      <header className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-neutral-700 px-3 py-1.5">
         <span className="font-mono text-[10px] uppercase tracking-wider text-neutral-500">
           Diagram
         </span>
-
-        <div className="flex-1" />
 
         {/* Status pill */}
         {dirty ? (
@@ -279,54 +277,56 @@ export function DiagramPanel() {
           </span>
         )}
 
-        <div className="w-2" />
+        {/* Actions — pushed right on wide panels; wrap to their own row(s)
+            instead of clipping the (critical) Validate/Apply when narrow. */}
+        <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+          <IconButton
+            label="Copy as JSON"
+            onClick={handleCopy}
+            icon={copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+          />
+          <IconButton
+            label="Copy AI edit prompt (diagram + spec for any chat)"
+            onClick={handleCopyForAi}
+            icon={copiedAi ? <Check className="size-3" /> : <Sparkles className="size-3" />}
+          />
+          <IconButton
+            label="Download as .json"
+            onClick={handleDownload}
+            icon={<Download className="size-3" />}
+          />
+          <IconButton
+            label="Copy shareable link"
+            onClick={handleShareLink}
+            icon={shared ? <Check className="size-3" /> : <Link2 className="size-3" />}
+          />
+          <IconButton
+            label="Reset to current board"
+            onClick={handleResetToBoard}
+            icon={<RotateCw className="size-3" />}
+            disabled={!dirty}
+          />
 
-        <IconButton
-          label="Copy as JSON"
-          onClick={handleCopy}
-          icon={copied ? <Check className="size-3" /> : <Copy className="size-3" />}
-        />
-        <IconButton
-          label="Copy AI edit prompt (diagram + spec for any chat)"
-          onClick={handleCopyForAi}
-          icon={copiedAi ? <Check className="size-3" /> : <Sparkles className="size-3" />}
-        />
-        <IconButton
-          label="Download as .json"
-          onClick={handleDownload}
-          icon={<Download className="size-3" />}
-        />
-        <IconButton
-          label="Copy shareable link"
-          onClick={handleShareLink}
-          icon={shared ? <Check className="size-3" /> : <Link2 className="size-3" />}
-        />
-        <IconButton
-          label="Reset to current board"
-          onClick={handleResetToBoard}
-          icon={<RotateCw className="size-3" />}
-          disabled={!dirty}
-        />
+          <button
+            type="button"
+            onClick={handleValidate}
+            disabled={!text.trim()}
+            className="ml-1 flex items-center gap-1 rounded border border-neutral-600 bg-neutral-800 px-2 py-1 text-[11px] font-medium text-neutral-200 transition-colors hover:bg-neutral-700 disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-transparent disabled:text-zinc-500"
+          >
+            <ShieldCheck className="size-3" />
+            Validate
+          </button>
 
-        <button
-          type="button"
-          onClick={handleValidate}
-          disabled={!text.trim()}
-          className="ml-1 flex items-center gap-1 rounded border border-neutral-600 bg-neutral-800 px-2 py-1 text-[11px] font-medium text-neutral-200 transition-colors hover:bg-neutral-700 disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-transparent disabled:text-zinc-500"
-        >
-          <ShieldCheck className="size-3" />
-          Validate
-        </button>
-
-        <button
-          type="button"
-          onClick={handleApply}
-          className="flex items-center gap-1 rounded bg-blue-600 px-2 py-1 text-[11px] font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-neutral-700 disabled:text-zinc-500"
-          disabled={!text.trim()}
-        >
-          <Upload className="size-3" />
-          Apply
-        </button>
+          <button
+            type="button"
+            onClick={handleApply}
+            className="flex items-center gap-1 rounded bg-blue-600 px-2 py-1 text-[11px] font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-neutral-700 disabled:text-zinc-500"
+            disabled={!text.trim()}
+          >
+            <Upload className="size-3" />
+            Apply
+          </button>
+        </div>
       </header>
 
       {/* Textarea */}
