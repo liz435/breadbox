@@ -258,6 +258,10 @@ export {
   type DecodeResult,
 } from "./diagram-url";
 
+export {
+  buildExternalEditPrompt,
+} from "./diagram-prompt";
+
 // ── Circuit Program IR ─────────────────────────────────────────────────────
 
 export {

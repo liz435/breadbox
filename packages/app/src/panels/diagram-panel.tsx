@@ -1,33 +1,37 @@
 // ── Diagram Panel ─────────────────────────────────────────────────────────
 //
-// A live-synced view of the current board as a DreamerDiagram (DSL v1) JSON.
-// Pair with the sketch editor: sketch is your code, diagram is your wiring +
-// components as a portable, editable text document.
+// Two ways to edit the board as a DreamerDiagram (DSL v1):
 //
-// Features:
-//   • Live sync — textarea mirrors the current board whenever it changes,
-//     unless the user has unsaved edits (dirty flag).
-//   • Edit in place — type in the textarea to modify components, wires,
-//     sketch, or environment. Apply validates + replaces the board.
-//   • Paste — paste a DSL JSON from elsewhere, hit Apply.
-//   • Copy / Download — export the current diagram to the clipboard or as
-//     a .json file.
-//   • Reset — discard pending edits, resync from the live board.
-//   • Inline structured errors with JSON-paths and fuzzy suggestions.
+//   • AI edit (default) — a guided round-trip with any external chat, no
+//     Anthropic API key / MCP / Claude Code needed. The user types the change
+//     they want; we bake it into a prompt (diagram + auto-generated spec) for
+//     them to copy into ChatGPT/Claude, then they paste the reply back and
+//     Apply. The raw DSL is never shown — it rides along inside the prompt.
+//
+//   • Raw JSON (toggle) — the live-synced DSL document for power users:
+//     edit/paste JSON directly, Copy / Download / Share, Validate, Apply.
+//
+// Both paths share the same validate → apply pipeline (structural errors block;
+// semantic warnings surface but don't), and both tolerate a surrounding
+// ```json code fence on paste since chats love to add one.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Copy, Download, Check, RotateCw, Upload, ShieldCheck, Link2 } from "lucide-react"
+import { Copy, Download, Check, RotateCw, Upload, ShieldCheck, Link2, Sparkles, Braces } from "lucide-react"
 import {
   boardStateToDiagram,
+  buildExternalEditPrompt,
   encodeDiagramForUrl,
   validateDiagram,
   type DiagramIssue,
+  type DiagramValidation,
 } from "@dreamer/schemas"
 import { useBoard } from "@/store/board-context"
 import { simulationRef } from "@/simulator/simulation-ref"
 import { resetAllCapVoltages } from "@/simulator/capacitor-state"
 import { toast } from "@/components/ui/toast"
 import { cn } from "@/utils/classnames"
+
+type PanelMode = "ai" | "raw"
 
 type PanelStatus =
   | { kind: "idle" }
@@ -40,17 +44,37 @@ function formatDiagram(state: ReturnType<typeof useBoard>["state"]): string {
   return JSON.stringify(boardStateToDiagram(state), null, 2)
 }
 
+/**
+ * Strip a surrounding Markdown code fence if present. External chats often
+ * wrap a returned diagram in ```json … ``` despite being asked not to; peel it
+ * so the round-trip works without manual cleanup. No-op when not fenced.
+ */
+function stripCodeFence(raw: string): string {
+  const trimmed = raw.trim()
+  if (!trimmed.startsWith("```")) return raw
+  return trimmed.replace(/^```[^\n]*\n/, "").replace(/\n?```\s*$/, "")
+}
+
 export function DiagramPanel() {
   const { state: boardState, send } = useBoard()
+  const [mode, setMode] = useState<PanelMode>("ai")
+
+  // Raw-JSON mode state.
   const [text, setText] = useState(() => formatDiagram(boardState))
   const [dirty, setDirty] = useState(false)
   const [status, setStatus] = useState<PanelStatus>({ kind: "idle" })
   const [copied, setCopied] = useState(false)
   const [shared, setShared] = useState(false)
 
-  // Live-sync from the board whenever it changes — unless the user has
-  // unsaved edits. Store a stable serialization as the diff anchor so we
-  // don't clobber the textarea on no-op board updates.
+  // AI-edit mode state.
+  const [changeText, setChangeText] = useState("")
+  const [replyText, setReplyText] = useState("")
+  const [aiStatus, setAiStatus] = useState<PanelStatus>({ kind: "idle" })
+  const [copiedPrompt, setCopiedPrompt] = useState(false)
+
+  // Live-sync the raw buffer from the board whenever it changes — unless the
+  // user has unsaved raw edits. Store a stable serialization as the diff anchor
+  // so we don't clobber the textarea on no-op board updates.
   const lastSyncedBoardJsonRef = useRef<string>(text)
   useEffect(() => {
     if (dirty) return
@@ -62,76 +86,95 @@ export function DiagramPanel() {
     }
   }, [boardState, dirty])
 
+  // ── Shared validate → apply pipeline ─────────────────────────────────────
+
+  /** Parse (fence-tolerant) + validate `source`. On parse failure, set the
+   *  given status to `json-error` and return null. */
+  const runValidate = useCallback(
+    (source: string, set: (s: PanelStatus) => void): DiagramValidation | null => {
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(stripCodeFence(source))
+      } catch (err) {
+        // Common slip: pasting the *prompt* (Markdown, starts with "#") into the
+        // reply box instead of the chat's JSON answer. Detect and explain it.
+        const looksLikePrompt = stripCodeFence(source).trim().startsWith("#")
+        const message = looksLikePrompt
+          ? "That's the prompt, not the reply. Paste the prompt into a chat (ChatGPT, Claude, …), send it, then paste the JSON it answers with here."
+          : err instanceof Error
+            ? err.message
+            : "Invalid JSON"
+        set({ kind: "json-error", message })
+        toast.error(
+          looksLikePrompt
+            ? "That's the prompt — paste the chat's JSON reply here instead."
+            : `Couldn't read that as JSON — ${message}. Paste only the JSON the chat returned.`,
+        )
+        return null
+      }
+      return validateDiagram(parsed)
+    },
+    [],
+  )
+
+  /** Validate then swap the board. Structural errors block (and surface in the
+   *  status); semantic warnings don't. Returns true when the board was applied. */
+  const applyDiagram = useCallback(
+    (source: string, set: (s: PanelStatus) => void): boolean => {
+      const result = runValidate(source, set)
+      if (!result) return false
+
+      const hasStructuralError = result.issues.some(
+        (i) => i.category === "structural" && i.severity === "error",
+      )
+      if (!result.ok || hasStructuralError || !result.boardState) {
+        set({ kind: "issues", issues: result.issues })
+        const errorCount = result.issues.filter((i) => i.severity === "error").length
+        toast.error(
+          errorCount > 0
+            ? `Can't apply — ${errorCount} error${errorCount === 1 ? "" : "s"} in the diagram. See details below.`
+            : "Can't apply — the diagram didn't validate. See details below.",
+        )
+        return false
+      }
+
+      const nextState = result.boardState
+      simulationRef.current?.stop()
+      resetAllCapVoltages()
+      send({ type: "RESET_PINS" } as never)
+      send({ type: "LOAD_BOARD", state: nextState } as never)
+
+      const componentCount = Object.keys(nextState.components).length
+      const wireCount = Object.keys(nextState.wires).length
+      toast.success(
+        `Diagram applied — ${componentCount} component${componentCount === 1 ? "" : "s"}, ${wireCount} wire${wireCount === 1 ? "" : "s"}.`,
+        { duration: 8000, action: { label: "Undo", onClick: () => send({ type: "UNDO" } as never) } },
+      )
+
+      // Keep semantic warnings visible after apply so the user still sees them.
+      if (result.issues.length > 0) set({ kind: "validated", at: Date.now(), issues: result.issues })
+      else set({ kind: "applied", at: Date.now() })
+      return true
+    },
+    [runValidate, send],
+  )
+
+  // ── Raw-JSON mode handlers ───────────────────────────────────────────────
+
   const handleTextChange = useCallback((value: string) => {
     setText(value)
     setDirty(true)
     setStatus({ kind: "idle" })
   }, [])
 
-  /** Run validateDiagram on the current textarea; return the validation
-   *  (or null when JSON fails to parse, with `kind:"json-error"` status set). */
-  const parseAndValidate = useCallback(() => {
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(text)
-    } catch (err) {
-      setStatus({
-        kind: "json-error",
-        message: err instanceof Error ? err.message : "Invalid JSON",
-      })
-      return null
-    }
-    return validateDiagram(parsed)
-  }, [text])
+  const handleValidateRaw = useCallback(() => {
+    const result = runValidate(text, setStatus)
+    if (result) setStatus({ kind: "validated", at: Date.now(), issues: result.issues })
+  }, [runValidate, text])
 
-  const handleValidate = useCallback(() => {
-    const result = parseAndValidate()
-    if (!result) return
-    setStatus({ kind: "validated", at: Date.now(), issues: result.issues })
-  }, [parseAndValidate])
-
-  const handleApply = useCallback(() => {
-    const result = parseAndValidate()
-    if (!result) return
-
-    // Block apply on any structural error. Semantic warnings don't block —
-    // they surface as a non-blocking issues panel after apply.
-    const hasStructuralError = result.issues.some(
-      (i) => i.category === "structural" && i.severity === "error",
-    )
-    if (!result.ok || hasStructuralError) {
-      setStatus({ kind: "issues", issues: result.issues })
-      return
-    }
-
-    // Stop simulation, reset transient state, swap the board.
-    simulationRef.current?.stop()
-    resetAllCapVoltages()
-    send({ type: "RESET_PINS" } as never)
-    send({ type: "LOAD_BOARD", state: result.boardState! } as never)
-
-    const nextState = result.boardState!
-    const componentCount = Object.keys(nextState.components).length
-    const wireCount = Object.keys(nextState.wires).length
-    toast.success(
-      `Diagram applied — ${componentCount} component${componentCount === 1 ? "" : "s"}, ${wireCount} wire${wireCount === 1 ? "" : "s"}.`,
-      {
-        duration: 8000,
-        action: {
-          label: "Undo",
-          onClick: () => send({ type: "UNDO" } as never),
-        },
-      },
-    )
-
-    setDirty(false)
-    // Keep semantic warnings visible after apply so the user still sees them.
-    if (result.issues.length > 0) {
-      setStatus({ kind: "validated", at: Date.now(), issues: result.issues })
-    } else {
-      setStatus({ kind: "applied", at: Date.now() })
-    }
-  }, [parseAndValidate, send])
+  const handleApplyRaw = useCallback(() => {
+    if (applyDiagram(text, setStatus)) setDirty(false)
+  }, [applyDiagram, text])
 
   const handleResetToBoard = useCallback(() => {
     const next = formatDiagram(boardState)
@@ -147,27 +190,22 @@ export function DiagramPanel() {
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
     } catch {
-      // Clipboard unavailable — fall back to selection
       const ta = document.getElementById("diagram-panel-textarea") as HTMLTextAreaElement | null
       ta?.select()
     }
   }, [text])
 
   const handleShareLink = useCallback(async () => {
-    // Encode the live board — not the textarea buffer — so a share link
-    // always reflects what the user sees on the canvas. A user can still
-    // copy-and-paste the JSON for unsaved edits; share links are for the
-    // applied circuit.
+    // Encode the live board — not the textarea buffer — so a share link always
+    // reflects what's on the canvas.
     const encoded = encodeDiagramForUrl(boardStateToDiagram(boardState))
     const url = new URL(window.location.href)
-    // Drop hash + any existing diagram param so we produce a clean link.
     url.hash = ""
     url.searchParams.delete("diagram")
     url.searchParams.delete("learn")
     url.searchParams.set("diagram", encoded)
-    const shareUrl = url.toString()
     try {
-      await navigator.clipboard.writeText(shareUrl)
+      await navigator.clipboard.writeText(url.toString())
       setShared(true)
       setTimeout(() => setShared(false), 1500)
       toast.success("Share link copied to clipboard.")
@@ -188,42 +226,64 @@ export function DiagramPanel() {
     URL.revokeObjectURL(url)
   }, [text])
 
+  // ── AI-edit mode handlers ────────────────────────────────────────────────
+
+  const handleCopyPrompt = useCallback(async () => {
+    // Build from the live board so the prompt reflects the canvas, and bake the
+    // user's requested change into the prompt so it's ready to send as-is.
+    const prompt = buildExternalEditPrompt(formatDiagram(boardState), { change: changeText })
+    try {
+      await navigator.clipboard.writeText(prompt)
+      setCopiedPrompt(true)
+      setTimeout(() => setCopiedPrompt(false), 1500)
+      toast.success("Prompt copied — paste it into ChatGPT, Claude, … and send, then paste the reply below.")
+    } catch {
+      toast.error("Could not copy to clipboard.")
+    }
+  }, [boardState, changeText])
+
+  const handleValidateReply = useCallback(() => {
+    const result = runValidate(replyText, setAiStatus)
+    if (result) setAiStatus({ kind: "validated", at: Date.now(), issues: result.issues })
+  }, [runValidate, replyText])
+
+  const handleApplyReply = useCallback(() => {
+    applyDiagram(replyText, setAiStatus)
+  }, [applyDiagram, replyText])
+
+  // ── Derived (active-mode) status for the toolbar pill ────────────────────
+
+  const activeStatus = mode === "raw" ? status : aiStatus
+  const activeDirty = mode === "raw" ? dirty : false
+
   const appliedAgo = useMemo(() => {
-    if (status.kind !== "applied") return null
-    const diff = Date.now() - status.at
-    if (diff < 2_000) return "applied"
-    return null
-  }, [status])
+    if (activeStatus.kind !== "applied") return null
+    return Date.now() - activeStatus.at < 2_000 ? "applied" : null
+  }, [activeStatus])
 
   const issueCounts = useMemo(() => {
     const issues =
-      status.kind === "issues"
-        ? status.issues
-        : status.kind === "validated"
-          ? status.issues
-          : []
+      activeStatus.kind === "issues" || activeStatus.kind === "validated" ? activeStatus.issues : []
     return {
       errors: issues.filter((i) => i.severity === "error").length,
       warnings: issues.filter((i) => i.severity === "warning").length,
     }
-  }, [status])
+  }, [activeStatus])
 
   return (
     <div className="flex h-full w-full flex-col bg-[#1a1a1a] text-xs text-zinc-200">
       {/* Toolbar */}
-      <header className="flex shrink-0 items-center gap-1.5 border-b border-neutral-700 px-3 py-1.5">
+      <header className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-neutral-700 px-3 py-1.5">
         <span className="font-mono text-[10px] uppercase tracking-wider text-neutral-500">
           Diagram
         </span>
 
-        <div className="flex-1" />
-
-        {/* Status pill */}
-        {dirty ? (
+        {/* Status pill — reflects the active mode */}
+        {activeDirty ? (
           <span className="rounded-full bg-amber-900/40 px-1.5 py-0.5 text-[10px] text-amber-300">
             unsaved edits
           </span>
-        ) : status.kind === "issues" || status.kind === "validated" ? (
+        ) : activeStatus.kind === "issues" || activeStatus.kind === "validated" ? (
           <span
             className={cn(
               "rounded-full px-1.5 py-0.5 text-[10px]",
@@ -244,101 +304,238 @@ export function DiagramPanel() {
           <span className="rounded-full bg-emerald-900/40 px-1.5 py-0.5 text-[10px] text-emerald-300">
             ✓ applied
           </span>
-        ) : (
+        ) : mode === "raw" ? (
           <span className="rounded-full bg-neutral-800 px-1.5 py-0.5 text-[10px] text-neutral-500">
             synced with board
           </span>
-        )}
+        ) : null}
 
-        <div className="w-2" />
-
-        <IconButton
-          label="Copy as JSON"
-          onClick={handleCopy}
-          icon={copied ? <Check className="size-3" /> : <Copy className="size-3" />}
-        />
-        <IconButton
-          label="Download as .json"
-          onClick={handleDownload}
-          icon={<Download className="size-3" />}
-        />
-        <IconButton
-          label="Copy shareable link"
-          onClick={handleShareLink}
-          icon={shared ? <Check className="size-3" /> : <Link2 className="size-3" />}
-        />
-        <IconButton
-          label="Reset to current board"
-          onClick={handleResetToBoard}
-          icon={<RotateCw className="size-3" />}
-          disabled={!dirty}
-        />
-
-        <button
-          type="button"
-          onClick={handleValidate}
-          disabled={!text.trim()}
-          className="ml-1 flex items-center gap-1 rounded border border-neutral-600 bg-neutral-800 px-2 py-1 text-[11px] font-medium text-neutral-200 transition-colors hover:bg-neutral-700 disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-transparent disabled:text-zinc-500"
-        >
-          <ShieldCheck className="size-3" />
-          Validate
-        </button>
-
-        <button
-          type="button"
-          onClick={handleApply}
-          className="flex items-center gap-1 rounded bg-blue-600 px-2 py-1 text-[11px] font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-neutral-700 disabled:text-zinc-500"
-          disabled={!text.trim()}
-        >
-          <Upload className="size-3" />
-          Apply
-        </button>
-      </header>
-
-      {/* Textarea */}
-      <div className="flex min-h-0 flex-1 flex-col">
-        <textarea
-          id="diagram-panel-textarea"
-          value={text}
-          onChange={(e) => handleTextChange(e.target.value)}
-          spellCheck={false}
-          className="min-h-0 flex-1 resize-none border-0 bg-neutral-950 p-3 font-mono text-[11px] leading-relaxed text-zinc-200 outline-none placeholder:text-zinc-600 focus:ring-0"
-          placeholder="Paste a DreamerDiagram JSON here, or edit the live board state above."
-        />
-
-        {/* JSON parse ribbon */}
-        {status.kind === "json-error" && (
-          <div className="shrink-0 border-t border-red-700/60 bg-red-900/20 px-3 py-2 text-[11px] text-red-300">
-            <span className="font-semibold">JSON parse error:</span> {status.message}
-          </div>
-        )}
-
-        {/* Issues list — validation result, grouped by severity */}
-        {(status.kind === "issues" || status.kind === "validated") &&
-          status.issues.length > 0 && (
-            <div className="max-h-56 shrink-0 overflow-y-auto border-t border-neutral-700 bg-neutral-950/60 px-3 py-2 text-[11px]">
-              <IssueGroup
-                label="Errors"
-                issues={status.issues.filter((i) => i.severity === "error")}
-                tone="error"
+        {/* Actions — pushed right; wrap to their own row(s) instead of clipping
+            when the panel is narrow. Raw-mode actions only show in raw mode. */}
+        <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+          {mode === "raw" && (
+            <>
+              <IconButton
+                label="Copy as JSON"
+                onClick={handleCopy}
+                icon={copied ? <Check className="size-3" /> : <Copy className="size-3" />}
               />
-              <IssueGroup
-                label="Warnings"
-                issues={status.issues.filter((i) => i.severity === "warning")}
-                tone="warning"
+              <IconButton
+                label="Download as .json"
+                onClick={handleDownload}
+                icon={<Download className="size-3" />}
               />
-            </div>
+              <IconButton
+                label="Copy shareable link"
+                onClick={handleShareLink}
+                icon={shared ? <Check className="size-3" /> : <Link2 className="size-3" />}
+              />
+              <IconButton
+                label="Reset to current board"
+                onClick={handleResetToBoard}
+                icon={<RotateCw className="size-3" />}
+                disabled={!dirty}
+              />
+              <button
+                type="button"
+                onClick={handleValidateRaw}
+                disabled={!text.trim()}
+                className="ml-1 flex items-center gap-1 rounded border border-neutral-600 bg-neutral-800 px-2 py-1 text-[11px] font-medium text-neutral-200 transition-colors hover:bg-neutral-700 disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-transparent disabled:text-zinc-500"
+              >
+                <ShieldCheck className="size-3" />
+                Validate
+              </button>
+              <button
+                type="button"
+                onClick={handleApplyRaw}
+                disabled={!text.trim()}
+                className="flex items-center gap-1 rounded bg-blue-600 px-2 py-1 text-[11px] font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-neutral-700 disabled:text-zinc-500"
+              >
+                <Upload className="size-3" />
+                Apply
+              </button>
+            </>
           )}
 
-        {/* Validated-clean confirmation */}
-        {status.kind === "validated" && status.issues.length === 0 && (
-          <div className="shrink-0 border-t border-emerald-700/60 bg-emerald-900/20 px-3 py-2 text-[11px] text-emerald-300">
-            <span className="font-semibold">✓ All checks passed.</span> Safe to apply.
-          </div>
-        )}
-      </div>
+          {/* Mode toggle — always available */}
+          <button
+            type="button"
+            onClick={() => setMode((m) => (m === "ai" ? "raw" : "ai"))}
+            title={mode === "ai" ? "Show the raw DSL JSON" : "Back to AI edit"}
+            className="ml-1 flex items-center gap-1 rounded border border-neutral-700 bg-neutral-800/60 px-2 py-1 text-[11px] font-medium text-neutral-300 transition-colors hover:bg-neutral-700"
+          >
+            {mode === "ai" ? (
+              <>
+                <Braces className="size-3" />
+                Raw JSON
+              </>
+            ) : (
+              <>
+                <Sparkles className="size-3" />
+                AI edit
+              </>
+            )}
+          </button>
+        </div>
+      </header>
+
+      {mode === "ai" ? (
+        <AiEditView
+          changeText={changeText}
+          onChangeChange={setChangeText}
+          onCopyPrompt={handleCopyPrompt}
+          copiedPrompt={copiedPrompt}
+          replyText={replyText}
+          onChangeReply={setReplyText}
+          onValidate={handleValidateReply}
+          onApply={handleApplyReply}
+          status={aiStatus}
+        />
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <textarea
+            id="diagram-panel-textarea"
+            value={text}
+            onChange={(e) => handleTextChange(e.target.value)}
+            spellCheck={false}
+            aria-label="DreamerDiagram JSON"
+            className="min-h-0 flex-1 resize-none border-0 bg-neutral-950 p-3 font-mono text-[11px] leading-relaxed text-zinc-200 outline-none placeholder:text-zinc-600 focus:ring-0"
+            placeholder="Paste a DreamerDiagram JSON here, or edit the live board state."
+          />
+          <StatusFooter status={status} bleed />
+        </div>
+      )}
     </div>
   )
+}
+
+function AiEditView({
+  changeText,
+  onChangeChange,
+  onCopyPrompt,
+  copiedPrompt,
+  replyText,
+  onChangeReply,
+  onValidate,
+  onApply,
+  status,
+}: {
+  changeText: string
+  onChangeChange: (value: string) => void
+  onCopyPrompt: () => void
+  copiedPrompt: boolean
+  replyText: string
+  onChangeReply: (value: string) => void
+  onValidate: () => void
+  onApply: () => void
+  status: PanelStatus
+}) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-3">
+      {/* Step 1 — describe the change */}
+      <section className="flex shrink-0 flex-col gap-1.5">
+        <h3 className="text-[11px] font-semibold text-neutral-300">1 · Describe your change</h3>
+        <textarea
+          value={changeText}
+          onChange={(e) => onChangeChange(e.target.value)}
+          rows={3}
+          aria-label="Describe the change you want"
+          placeholder={'e.g. "add a push button on pin 2 that toggles an LED on pin 13"'}
+          className="resize-none rounded border border-neutral-700 bg-neutral-950 p-2 text-[12px] leading-relaxed text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-neutral-500"
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={onCopyPrompt}
+            disabled={!changeText.trim()}
+            className="flex items-center gap-1 rounded bg-blue-600 px-2 py-1 text-[11px] font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-neutral-700 disabled:text-zinc-500"
+          >
+            {copiedPrompt ? <Check className="size-3" /> : <Sparkles className="size-3" />}
+            {copiedPrompt ? "Copied!" : "Copy AI prompt"}
+          </button>
+          <span className="text-[10px] text-neutral-500">
+            then paste it into ChatGPT, Claude, … and send.
+          </span>
+        </div>
+      </section>
+
+      {/* Step 2 — paste the reply. The textarea is bounded + resizable (not
+          flex-1) so the buttons and result footer below always stay visible. */}
+      <section className="flex shrink-0 flex-col gap-1.5">
+        <h3 className="text-[11px] font-semibold text-neutral-300">2 · Paste the AI&apos;s reply</h3>
+        <textarea
+          value={replyText}
+          onChange={(e) => onChangeReply(e.target.value)}
+          spellCheck={false}
+          aria-label="Paste the AI's reply"
+          placeholder="Paste the JSON the chat gave you here — a ```json code fence is fine."
+          className="min-h-[10rem] resize-y rounded border border-neutral-700 bg-neutral-950 p-2 font-mono text-[11px] leading-relaxed text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-neutral-500"
+        />
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={onValidate}
+            disabled={!replyText.trim()}
+            className="flex items-center gap-1 rounded border border-neutral-600 bg-neutral-800 px-2 py-1 text-[11px] font-medium text-neutral-200 transition-colors hover:bg-neutral-700 disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-transparent disabled:text-zinc-500"
+          >
+            <ShieldCheck className="size-3" />
+            Validate
+          </button>
+          <button
+            type="button"
+            onClick={onApply}
+            disabled={!replyText.trim()}
+            className="flex items-center gap-1 rounded bg-blue-600 px-2 py-1 text-[11px] font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-neutral-700 disabled:text-zinc-500"
+          >
+            <Upload className="size-3" />
+            Apply
+          </button>
+        </div>
+        <StatusFooter status={status} />
+      </section>
+    </div>
+  )
+}
+
+function StatusFooter({ status, bleed = false }: { status: PanelStatus; bleed?: boolean }) {
+  const base = bleed
+    ? "shrink-0 border-t px-3 py-2 text-[11px]"
+    : "rounded border px-3 py-2 text-[11px]"
+
+  if (status.kind === "json-error") {
+    return (
+      <div className={cn(base, "border-red-700/60 bg-red-900/20 text-red-300")}>
+        <span className="font-semibold">JSON parse error:</span> {status.message}
+      </div>
+    )
+  }
+
+  if ((status.kind === "issues" || status.kind === "validated") && status.issues.length > 0) {
+    return (
+      <div className={cn(base, "max-h-56 overflow-y-auto border-neutral-700 bg-neutral-950/60")}>
+        <IssueGroup
+          label="Errors"
+          issues={status.issues.filter((i) => i.severity === "error")}
+          tone="error"
+        />
+        <IssueGroup
+          label="Warnings"
+          issues={status.issues.filter((i) => i.severity === "warning")}
+          tone="warning"
+        />
+      </div>
+    )
+  }
+
+  if (status.kind === "validated" && status.issues.length === 0) {
+    return (
+      <div className={cn(base, "border-emerald-700/60 bg-emerald-900/20 text-emerald-300")}>
+        <span className="font-semibold">✓ All checks passed.</span> Safe to apply.
+      </div>
+    )
+  }
+
+  return null
 }
 
 function IssueGroup({
