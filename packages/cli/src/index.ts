@@ -308,7 +308,13 @@ async function dispatch(command: Command, projectId: string | null, sceneId: str
       // absent, the in-app key dialog lets the user set it at runtime.
       const serveKey = await getApiKey()
       if (serveKey) process.env.ANTHROPIC_API_KEY = serveKey
-      await resolveState(projectId, sceneId)
+      // Only resolve a project when one was explicitly requested via
+      // --project. Do NOT auto-create on a bare `serve`: the Tauri desktop
+      // shell always launches without --project, so calling createProject()
+      // here minted a throwaway empty "CLI Project" on EVERY launch. The web
+      // UI's ProjectLoader owns picking the project to open (saved id → fetch,
+      // else create exactly one on genuine first run).
+      if (projectId) await resolveState(projectId, sceneId)
       const { startHeadedMode } = await import("./headed")
       await startHeadedMode()
       // Keep serving until the parent process kills us. We must NOT return:
