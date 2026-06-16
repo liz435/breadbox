@@ -1,12 +1,11 @@
 // ── Workspace modes ─────────────────────────────────────────────────────
 //
-// Four task-focused presets that drive which Dockview panels are open, so the
+// Three task-focused presets that drive which Dockview panels are open, so the
 // layout always matches what you're doing. Switching a mode opens that mode's
 // tab set and closes the rest:
 //
 //   • build     — Components, Canvas, Sketch/Libraries, Schematic, Inspector
-//   • simulate  — Canvas, Sketch, Serial Monitor, Pin Inspector, OLED
-//   • debug     — Debugger, Sketch, Canvas, Serial Monitor, Pin Inspector
+//   • debug     — Breadboard/Serial, Sketch, Pin Inspector/Debugger
 //   • freeform  — unconstrained; never force-closes, remembers your layout
 //
 // The mode buttons live in edit-toolbar.tsx. This module owns the (persisted)
@@ -18,7 +17,7 @@ import { useSyncExternalStore } from "react"
 import type { DockviewApi, IDockviewPanel } from "dockview-react"
 import { VIEW_PANELS, type ViewPanelDirection } from "./view-panels"
 
-export type WorkspaceMode = "build" | "simulate" | "debug" | "freeform"
+export type WorkspaceMode = "build" | "debug" | "freeform"
 
 export type WorkspaceModeMeta = {
   id: WorkspaceMode
@@ -34,14 +33,9 @@ export const WORKSPACE_MODES: WorkspaceModeMeta[] = [
     hint: "Components, canvas, sketch/libraries, schematic & inspector",
   },
   {
-    id: "simulate",
-    label: "Simulate",
-    hint: "Canvas, sketch, serial, pin inspector & OLED",
-  },
-  {
     id: "debug",
     label: "Debug",
-    hint: "Debugger, sketch, canvas, serial & pin inspector",
+    hint: "Breadboard/serial, sketch, pin inspector & debugger",
   },
   {
     id: "freeform",
@@ -80,23 +74,17 @@ const MODE_SPECS: Record<Exclude<WorkspaceMode, "freeform">, ModeSpec> = {
       { id: "inspector", position: { referenceId: "schematic", direction: "below" } },
     ],
   },
-  simulate: {
-    primary: "breadboard",
-    panels: [
-      { id: "breadboard" },
-      { id: "sketchEditor", position: { referenceId: "breadboard", direction: "right" } },
-      { id: "oledDisplay", position: { referenceId: "sketchEditor", direction: "right" } },
-      { id: "pinInspector", position: { referenceId: "oledDisplay", direction: "below" } },
-      { id: "serialMonitor", position: { referenceId: "breadboard", direction: "below" } },
-    ],
-  },
+  // Left column: Breadboard over Serial Monitor. Middle: Sketch, full height.
+  // Right column: Pin Inspector over Debugger. Columns are built left→right
+  // first, then each is split vertically (so the splits land in the right
+  // column, not the middle).
   debug: {
     primary: "debugger",
     panels: [
       { id: "breadboard" },
       { id: "sketchEditor", position: { referenceId: "breadboard", direction: "right" } },
       { id: "pinInspector", position: { referenceId: "sketchEditor", direction: "right" } },
-      { id: "debugger", position: { referenceId: "sketchEditor", direction: "below" } },
+      { id: "debugger", position: { referenceId: "pinInspector", direction: "below" } },
       { id: "serialMonitor", position: { referenceId: "breadboard", direction: "below" } },
     ],
   },
@@ -104,7 +92,7 @@ const MODE_SPECS: Record<Exclude<WorkspaceMode, "freeform">, ModeSpec> = {
 
 /** Which modes show the Serial Monitor — used to clear the unread serial dot. */
 export function modeShowsSerial(mode: WorkspaceMode): boolean {
-  return mode === "simulate" || mode === "debug"
+  return mode === "debug"
 }
 
 function panelMeta(id: string): { component: string; title: string } {
@@ -149,12 +137,7 @@ const FREEFORM_KEY = "dreamer:workspace-freeform-layout"
 type LayoutJSON = ReturnType<DockviewApi["toJSON"]>
 
 function isWorkspaceMode(value: string | null): value is WorkspaceMode {
-  return (
-    value === "build" ||
-    value === "simulate" ||
-    value === "debug" ||
-    value === "freeform"
-  )
+  return value === "build" || value === "debug" || value === "freeform"
 }
 
 function readStoredMode(): WorkspaceMode {
@@ -209,7 +192,7 @@ function readFreeformLayout(): LayoutJSON | null {
 /**
  * Switch to `target` and reshape the Dockview layout to match.
  *
- * Structured modes (build/simulate/debug) enforce their exact tab set, opening
+ * Structured modes (build/debug) enforce their exact tab set, opening
  * their panels and closing everything else while keeping the size of any panel
  * shared with the previous mode. Re-selecting the active structured mode rebuilds
  * its default layout (a handy "reset this view" affordance).

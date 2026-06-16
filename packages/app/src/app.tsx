@@ -392,7 +392,7 @@ function AppInner() {
 
     // Clear stale layouts from before Arduino simulator conversion.
     // The old layout references "canvas" and missing panels — force a fresh default.
-    const LAYOUT_VERSION = "arduino-sim-v16";
+    const LAYOUT_VERSION = "arduino-sim-v17";
     const saved = localStorage.getItem(LAYOUT_STORAGE_KEY);
     const savedVersion = localStorage.getItem(LAYOUT_STORAGE_KEY + ":version");
     if (saved && savedVersion === LAYOUT_VERSION) {
@@ -478,7 +478,7 @@ function AppInner() {
       debounceRef.current = setTimeout(() => {
         const layout = api.toJSON();
         localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout));
-        localStorage.setItem(LAYOUT_STORAGE_KEY + ":version", "arduino-sim-v16");
+        localStorage.setItem(LAYOUT_STORAGE_KEY + ":version", "arduino-sim-v17");
       }, 300);
     });
   }

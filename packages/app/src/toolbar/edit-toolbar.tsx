@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
-import { Activity, BookOpen, Bug, Blocks, LayoutDashboard, type LucideIcon } from "lucide-react"
+import { BookOpen, Bug, Blocks, LayoutDashboard, type LucideIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { useDockviewApi } from "@/store/dockview-context"
@@ -26,7 +26,6 @@ const TOOL_ACTIVE =
 
 const MODE_ICONS: Record<WorkspaceMode, LucideIcon> = {
   build: Blocks,
-  simulate: Activity,
   debug: Bug,
   freeform: LayoutDashboard,
 }
@@ -64,8 +63,8 @@ export function EditToolbar() {
         {WORKSPACE_MODES.map((m) => {
           const Icon = MODE_ICONS[m.id]
           const active = mode === m.id
-          // Serial lives in Simulate (and Debug); surface new output there.
-          const showUnread = m.id === "simulate" && serialUnread && !active
+          // Serial lives in Debug; surface new output on that button.
+          const showUnread = m.id === "debug" && serialUnread && !active
           return (
             <Tooltip key={m.id}>
               <TooltipTrigger
