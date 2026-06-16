@@ -37,14 +37,23 @@ export function registerPluginModule(factory: unknown): LoadPluginResult {
 }
 
 /**
- * Dynamically import a plugin module served same-origin by the sidecar and
- * register it. Not unit-tested (needs a live server); exercised by the
- * authoring flow in a later slice.
+ * Fetch a plugin module from the sidecar and register it. The module text is
+ * fetched (CORS-safe) and imported from a same-origin blob URL, so a
+ * cross-origin API (desktop serves UI and API on different origins) doesn't
+ * trip ES-module CORS. Browser-only; not unit-tested.
  */
 export async function loadPluginFromUrl(url: string): Promise<LoadPluginResult> {
   try {
-    const mod = await import(/* @vite-ignore */ url)
-    return registerPluginModule(mod.default)
+    const res = await fetch(url)
+    if (!res.ok) return { ok: false, error: `Failed to fetch module (HTTP ${res.status})` }
+    const js = await res.text()
+    const blobUrl = URL.createObjectURL(new Blob([js], { type: "text/javascript" }))
+    try {
+      const mod = await import(/* @vite-ignore */ blobUrl)
+      return registerPluginModule(mod.default)
+    } finally {
+      URL.revokeObjectURL(blobUrl)
+    }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }

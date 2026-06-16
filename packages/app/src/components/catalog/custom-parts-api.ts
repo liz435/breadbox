@@ -5,7 +5,12 @@
 // dynamically re-import the transpiled module so the change is live in the
 // palette and simulator immediately (no reload). The import URL is cache-busted
 // so the browser fetches the new version rather than a cached module.
+//
+// All requests go through API_ORIGIN — in the desktop the UI and API are served
+// on different origins, so relative URLs would hit the static UI server, not
+// the API.
 
+import { API_ORIGIN } from "@dreamer/config"
 import { loadPluginFromUrl } from "@/components/catalog/load-plugin"
 import { unregisterCustom } from "@/components/catalog/custom-store"
 
@@ -14,7 +19,7 @@ export type SaveResult = { ok: true } | { ok: false; error: string }
 
 export async function listCustomParts(): Promise<CustomPartSummary[]> {
   try {
-    const res = await fetch("/api/custom-parts")
+    const res = await fetch(`${API_ORIGIN}/api/custom-parts`)
     if (!res.ok) return []
     const data = (await res.json()) as { parts: CustomPartSummary[] }
     return data.parts
@@ -24,14 +29,14 @@ export async function listCustomParts(): Promise<CustomPartSummary[]> {
 }
 
 export async function fetchCustomPartSource(id: string): Promise<string | null> {
-  const res = await fetch(`/api/custom-parts/${id}/source`)
+  const res = await fetch(`${API_ORIGIN}/api/custom-parts/${id}/source`)
   if (!res.ok) return null
   const data = (await res.json()) as { source: string }
   return data.source
 }
 
 export async function saveCustomPartSource(id: string, source: string): Promise<SaveResult> {
-  const res = await fetch("/api/custom-parts", {
+  const res = await fetch(`${API_ORIGIN}/api/custom-parts`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ id, source }),
@@ -55,13 +60,13 @@ export async function saveCustomPartSource(id: string, source: string): Promise<
 export async function saveAndReload(id: string, source: string): Promise<SaveResult> {
   const saved = await saveCustomPartSource(id, source)
   if (!saved.ok) return saved
-  const loaded = await loadPluginFromUrl(`/api/custom-parts/${id}/module.js?v=${Date.now()}`)
+  const loaded = await loadPluginFromUrl(`${API_ORIGIN}/api/custom-parts/${id}/module.js?v=${Date.now()}`)
   return loaded.ok ? { ok: true } : { ok: false, error: loaded.error }
 }
 
 /** Delete a part's file and unregister it from the runtime overlay. */
 export async function removeCustomPart(id: string): Promise<boolean> {
-  const res = await fetch(`/api/custom-parts/${id}`, { method: "DELETE" })
+  const res = await fetch(`${API_ORIGIN}/api/custom-parts/${id}`, { method: "DELETE" })
   if (res.ok) unregisterCustom(`custom:${id}`)
   return res.ok
 }

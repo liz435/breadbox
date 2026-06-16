@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test"
+import { API_ORIGIN } from "@dreamer/config"
 import {
   extractPartId,
   fetchCustomPartSource,
@@ -65,7 +66,7 @@ describe("custom-parts API client", () => {
     })
     const res = await saveCustomPartSource("foo", "const x = 1")
     expect(res).toEqual({ ok: true })
-    expect(capturedUrl).toBe("/api/custom-parts")
+    expect(capturedUrl).toBe(`${API_ORIGIN}/api/custom-parts`)
     expect(JSON.parse(capturedBody)).toEqual({ id: "foo", source: "const x = 1" })
   })
 
