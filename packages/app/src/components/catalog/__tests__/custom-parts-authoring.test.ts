@@ -53,13 +53,15 @@ describe("custom-parts API client", () => {
     expect(await fetchCustomPartSource("a")).toBe("SRC")
   })
 
+  const JSON_HEADERS = { "content-type": "application/json" }
+
   test("saveCustomPartSource posts id+source and reports success", async () => {
     let capturedUrl = ""
     let capturedBody = ""
     mockFetch((url, init) => {
       capturedUrl = url
       capturedBody = String(init?.body ?? "")
-      return new Response(JSON.stringify({ ok: true, id: "foo" }), { status: 200 })
+      return new Response(JSON.stringify({ ok: true, id: "foo" }), { status: 200, headers: JSON_HEADERS })
     })
     const res = await saveCustomPartSource("foo", "const x = 1")
     expect(res).toEqual({ ok: true })
@@ -68,8 +70,18 @@ describe("custom-parts API client", () => {
   })
 
   test("saveCustomPartSource surfaces server errors", async () => {
-    mockFetch(() => new Response(JSON.stringify({ ok: false, error: "boom" }), { status: 422 }))
+    mockFetch(() => new Response(JSON.stringify({ ok: false, error: "boom" }), { status: 422, headers: JSON_HEADERS }))
     expect(await saveCustomPartSource("foo", "x")).toEqual({ ok: false, error: "boom" })
+  })
+
+  test("saveCustomPartSource detects the SPA fallback (route missing → HTML 200)", async () => {
+    mockFetch(() => new Response("<!doctype html><html></html>", {
+      status: 200,
+      headers: { "content-type": "text/html" },
+    }))
+    const res = await saveCustomPartSource("foo", "x")
+    expect(res.ok).toBe(false)
+    expect(res.ok === false && res.error).toContain("rebuild the desktop sidecar")
   })
 
   test("removeCustomPart deletes the file and unregisters the type", async () => {

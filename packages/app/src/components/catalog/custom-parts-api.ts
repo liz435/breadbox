@@ -36,6 +36,16 @@ export async function saveCustomPartSource(id: string, source: string): Promise<
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ id, source }),
   })
+  // A non-JSON body means the request fell through to the SPA static handler —
+  // i.e. the custom-parts route isn't in the running server. The desktop
+  // sidecar binary predates it; rebuild with `bun run desktop:dev:fresh`.
+  const contentType = res.headers.get("content-type") ?? ""
+  if (!contentType.includes("application/json")) {
+    return {
+      ok: false,
+      error: "Custom-parts API not found — rebuild the desktop sidecar (bun run desktop:dev:fresh).",
+    }
+  }
   const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string }
   if (res.ok && data.ok) return { ok: true }
   return { ok: false, error: data.error ?? `Save failed (HTTP ${res.status})` }
