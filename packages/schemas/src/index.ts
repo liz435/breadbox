@@ -251,6 +251,14 @@ export {
 } from "./design";
 
 export {
+  customComponentDslSchema,
+  dslElementSchema,
+  type CustomComponentDsl,
+  type DslElement,
+} from "./custom-component-dsl";
+export { evaluateExpression } from "./expr-eval";
+
+export {
   diagramToBoardState,
   boardStateToDiagram,
   type DiagramParseResult,
