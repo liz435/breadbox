@@ -22,6 +22,7 @@ import { boardStreamRoutes } from "./routes/board-stream";
 import { mcpConnectRoutes } from "./routes/mcp-connect";
 import { evalRoutes } from "./routes/eval";
 import { libraryRoutes } from "./routes/libraries";
+import { customPartsRoutes } from "./routes/custom-parts";
 import { capabilitiesRoutes } from "./routes/capabilities";
 import { authRoutes } from "./routes/auth";
 import { configRoutes } from "./routes/config";
@@ -109,6 +110,7 @@ const app = new Elysia()
   .use(mcpConnectRoutes)
   .use(evalRoutes)
   .use(libraryRoutes)
+  .use(customPartsRoutes)
   .use(capabilitiesRoutes)
   .use(motionRoutes)
   .use(staticWebUi)

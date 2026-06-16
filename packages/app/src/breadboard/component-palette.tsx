@@ -1,11 +1,12 @@
 import React, { useMemo } from "react";
 import { Tooltip } from "@base-ui/react/tooltip";
-import type { ComponentType } from "@dreamer/schemas";
+import type { PlaceableComponentType } from "@dreamer/schemas";
 import { breadboardInteractionActor } from "./breadboard-interaction";
-import { COMPONENT_REGISTRY } from "@/components/registry";
+import type { ComponentDefinition } from "@/components/component-definition";
+import { useComponentCatalog } from "@/components/catalog/use-component-catalog";
 
 type PaletteItem = {
-  type: ComponentType;
+  type: PlaceableComponentType;
   label: string;
   icon: React.ReactNode;
   category: string;
@@ -39,16 +40,19 @@ const WIRE_PALETTE_ITEM: PaletteItem = {
   ),
 };
 
-const ALL_ITEMS: PaletteItem[] = [
-  ...COMPONENT_REGISTRY.map(def => ({
-    type: def.type as ComponentType,
-    label: def.label,
-    icon: def.paletteIcon,
-    category: def.category ?? "other",
-    description: def.description,
-  })),
-  WIRE_PALETTE_ITEM,
-];
+function buildItems(catalog: ComponentDefinition[]): PaletteItem[] {
+  return [
+    ...catalog.map((def) => ({
+      // Registry/catalog types are always valid placeable types.
+      type: def.type as PlaceableComponentType,
+      label: def.label,
+      icon: def.paletteIcon,
+      category: def.category ?? "other",
+      description: def.description,
+    })),
+    WIRE_PALETTE_ITEM,
+  ];
+}
 
 function handleItemClick(item: PaletteItem) {
   if (item.action === "wire") {
@@ -106,20 +110,22 @@ function PaletteItemButton({
 const MemoizedPaletteItem = React.memo(PaletteItemButton);
 
 function ComponentPaletteInner() {
-  // Group by category
+  const catalog = useComponentCatalog();
+
+  // Group by category (rebuilds when a custom part is registered/removed).
   const grouped = useMemo(() => {
     const groups = new Map<string, PaletteItem[]>();
-    for (const item of ALL_ITEMS) {
+    for (const item of buildItems(catalog)) {
       const cat = item.category;
       if (!groups.has(cat)) groups.set(cat, []);
-      groups.get(cat)!.push(item);
+      groups.get(cat)?.push(item);
     }
     // Sort groups by CATEGORY_ORDER
     const order = ["board", ...CATEGORY_ORDER, "wire"];
     return [...groups.entries()].sort(
       (a, b) => order.indexOf(a[0]) - order.indexOf(b[0]),
     );
-  }, []);
+  }, [catalog]);
 
   return (
     <Tooltip.Provider delay={400}>

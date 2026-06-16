@@ -11,9 +11,10 @@
 //   4. Optionally add a dedicated renderer in component-renderers/ and inspector in panels/
 //      (both fall back gracefully if omitted)
 
-import type { ReactNode } from "react"
+import type { ComponentType, ReactNode } from "react"
 import type { BoardComponent, PinState } from "@dreamer/schemas"
 import type { ComponentFootprint, GridPoint } from "@/breadboard/breadboard-grid"
+import type { ComponentRendererProps } from "@/breadboard/component-renderers/renderer-types"
 import type { SchematicSymbolType } from "@/schematic/schematic-symbols"
 
 // ── Sketch generation ─────────────────────────────────────────────────────
@@ -127,6 +128,14 @@ export type ComponentDefinition = {
 
   /** Color used for occupied-hole indicators on the breadboard canvas */
   accentColor?: string
+
+  /**
+   * Optional dedicated renderer. Built-ins are wired via the renderer index's
+   * RENDERER_MAP (kept out of the registry to avoid a build-time import cycle);
+   * custom components loaded at runtime carry their renderer here instead.
+   * Falls back to GenericRenderer when omitted.
+   */
+  renderer?: ComponentType<ComponentRendererProps>
 
   // ── Palette ───────────────────────────────────────────────────────────
 

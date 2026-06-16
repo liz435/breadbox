@@ -12,7 +12,7 @@
 
 import { z } from "zod";
 import { boardTargetSchema } from "./board-targets";
-import { componentTypeSchema } from "./arduino";
+import { placeableComponentTypeSchema } from "./arduino";
 
 export const DIAGRAM_SCHEMA_V1 = "breadbox-diagram-v1" as const;
 
@@ -41,7 +41,7 @@ export const diagramComponentSchema = z.object({
       (id) => id.toLowerCase() !== "arduino" && id.toLowerCase() !== "grid",
       { message: "component id must not be 'arduino' or 'grid' (reserved)" },
     ),
-  type: componentTypeSchema,
+  type: placeableComponentTypeSchema,
   /** `[x, y]` grid coords. Omits `0, 0` default so absent == at-origin. */
   at: z.tuple([z.number().int(), z.number().int()]),
   rotation: z.number().default(0),

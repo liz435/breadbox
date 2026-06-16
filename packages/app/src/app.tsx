@@ -25,6 +25,7 @@ import { BreadboardPanel } from "./breadboard/breadboard-panel";
 import { SerialMonitor } from "./panels/serial-monitor";
 import { PinInspector } from "./panels/pin-inspector";
 import { DebuggerPanel } from "./panels/debugger-panel";
+import { CustomPartsPanel } from "./panels/custom-parts-panel";
 import { DiagramPanel } from "./panels/diagram-panel";
 import { OledDisplayPanel } from "./panels/oled-display-panel";
 
@@ -41,6 +42,7 @@ import { useGraphPersistence } from "./project/use-graph-persistence";
 import { useBoardPersistence } from "./project/use-board-persistence";
 import { useLiveBoardSync } from "./project/use-live-board-sync";
 import { restorePairedPort } from "./simulator/web-serial-port-store";
+import { loadAllCustomParts } from "@/components/catalog/custom-parts-loader";
 import { SketchEditor } from "./editor/sketch-editor";
 import { SchematicPanel } from "./schematic/schematic-panel";
 import { LibraryManager } from "./editor/library-manager";
@@ -112,6 +114,10 @@ function DebuggerDockPanel(_props: IDockviewPanelProps) {
   return <ErrorBoundary name="Debugger"><DebuggerPanel /></ErrorBoundary>;
 }
 
+function CustomPartsDockPanel(_props: IDockviewPanelProps) {
+  return <ErrorBoundary name="Custom Parts"><CustomPartsPanel /></ErrorBoundary>;
+}
+
 const components = {
   projectFiles: ProjectFilesPanel,
   breadboard: BreadboardDockPanel,
@@ -127,6 +133,7 @@ const components = {
   diagram: DiagramEditorPanel,
   oledDisplay: OledDockPanel,
   debugger: DebuggerDockPanel,
+  customParts: CustomPartsDockPanel,
 };
 
 function AppInner() {
@@ -144,6 +151,10 @@ function AppInner() {
   // have to re-pair their board on every reload. No-op outside Chromium /
   // when no permission has been granted yet.
   useEffect(() => { void restorePairedPort(); }, []);
+
+  // Load user-authored custom components from the sidecar once on boot so they
+  // appear in the palette and simulate like built-ins.
+  useEffect(() => { void loadAllCustomParts(); }, []);
   const dockviewApiRef = useRef<DockviewApi | null>(null);
   // The same API as the ref, mirrored into state so the view tab strip and the
   // native-menu bridge re-render/re-subscribe once Dockview is ready (a ref
