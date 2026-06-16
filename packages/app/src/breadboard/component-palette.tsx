@@ -1,14 +1,11 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useMemo } from "react";
 import { Tooltip } from "@base-ui/react/tooltip";
 import { Plus, Pencil } from "lucide-react";
 import { isCustomComponentType, type PlaceableComponentType } from "@dreamer/schemas";
 import { breadboardInteractionActor } from "./breadboard-interaction";
 import type { ComponentDefinition } from "@/components/component-definition";
 import { useComponentCatalog } from "@/components/catalog/use-component-catalog";
-import { requestCustomPartEditor, type CustomPartEditTarget } from "@/components/catalog/custom-parts-editor-store";
-import { useDockviewApi } from "@/store/dockview-context";
-import { showPanel } from "@/store/view-panels";
-import { cn } from "@/utils/classnames";
+import { openCustomPartEditor } from "@/components/catalog/custom-parts-editor-store";
 
 type PaletteItem = {
   type: PlaceableComponentType;
@@ -147,15 +144,6 @@ const MemoizedPaletteItem = React.memo(PaletteItemButton);
 
 function ComponentPaletteInner() {
   const catalog = useComponentCatalog();
-  const api = useDockviewApi();
-
-  const openEditor = useCallback(
-    (target: CustomPartEditTarget) => {
-      requestCustomPartEditor(target);
-      showPanel(api, "customParts");
-    },
-    [api],
-  );
 
   // Group by category (rebuilds when a custom part is registered/removed).
   const grouped = useMemo(() => {
@@ -201,7 +189,7 @@ function ComponentPaletteInner() {
                 {category === "custom" && (
                   <button
                     type="button"
-                    onClick={() => openEditor({ kind: "new" })}
+                    onClick={() => openCustomPartEditor({ kind: "new" })}
                     title="New custom part"
                     className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:outline-none"
                   >
@@ -212,7 +200,7 @@ function ComponentPaletteInner() {
               {category === "custom" && items.length === 0 && (
                 <button
                   type="button"
-                  onClick={() => openEditor({ kind: "new" })}
+                  onClick={() => openCustomPartEditor({ kind: "new" })}
                   className="flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
                   <Plus className="size-3.5" /> New custom part
@@ -224,7 +212,7 @@ function ComponentPaletteInner() {
                   item={item}
                   onEdit={
                     item.isCustom
-                      ? () => openEditor({ kind: "edit", id: customIdFromType(item.type) })
+                      ? () => openCustomPartEditor({ kind: "edit", id: customIdFromType(item.type) })
                       : undefined
                   }
                 />

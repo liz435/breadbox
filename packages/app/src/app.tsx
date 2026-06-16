@@ -25,7 +25,6 @@ import { BreadboardPanel } from "./breadboard/breadboard-panel";
 import { SerialMonitor } from "./panels/serial-monitor";
 import { PinInspector } from "./panels/pin-inspector";
 import { DebuggerPanel } from "./panels/debugger-panel";
-import { CustomPartsPanel } from "./panels/custom-parts-panel";
 import { DiagramPanel } from "./panels/diagram-panel";
 import { OledDisplayPanel } from "./panels/oled-display-panel";
 
@@ -114,10 +113,6 @@ function DebuggerDockPanel(_props: IDockviewPanelProps) {
   return <ErrorBoundary name="Debugger"><DebuggerPanel /></ErrorBoundary>;
 }
 
-function CustomPartsDockPanel(_props: IDockviewPanelProps) {
-  return <ErrorBoundary name="Custom Parts"><CustomPartsPanel /></ErrorBoundary>;
-}
-
 const components = {
   projectFiles: ProjectFilesPanel,
   breadboard: BreadboardDockPanel,
@@ -133,7 +128,6 @@ const components = {
   diagram: DiagramEditorPanel,
   oledDisplay: OledDockPanel,
   debugger: DebuggerDockPanel,
-  customParts: CustomPartsDockPanel,
 };
 
 function AppInner() {

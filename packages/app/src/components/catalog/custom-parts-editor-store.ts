@@ -1,33 +1,45 @@
-// ── Custom Parts editor target ──────────────────────────────────────────────
+// ── Custom Parts editor state ───────────────────────────────────────────────
 //
-// A tiny channel from the palette (and anywhere else) to the Custom Parts
-// panel: "open the editor on a new part" or "open this existing part". The
-// palette sets the target and focuses the panel; the panel consumes it on
-// mount (if it was just opened) and reacts to later requests via subscribe.
+// Drives the inline custom-part editor that lives *inside* the component panel
+// (project-panel) — not a separate dockview tab. The palette opens it (New /
+// Edit), the panel renders it reactively, and a Back button closes it.
+
+import { useSyncExternalStore } from "react"
 
 export type CustomPartEditTarget = { kind: "new" } | { kind: "edit"; id: string }
+export type CustomPartEditorState = { open: boolean; target: CustomPartEditTarget | null }
 
-let pending: CustomPartEditTarget | null = null
-const listeners = new Set<(target: CustomPartEditTarget) => void>()
+let state: CustomPartEditorState = { open: false, target: null }
+const listeners = new Set<() => void>()
 
-/** Request the editor open on a target. Notifies a live panel; otherwise queued. */
-export function requestCustomPartEditor(target: CustomPartEditTarget): void {
-  pending = target
-  for (const listener of listeners) listener(target)
+function emit(): void {
+  for (const listener of listeners) listener()
 }
 
-/** Consume a target queued before the panel mounted (returns it once). */
-export function takeCustomPartTarget(): CustomPartEditTarget | null {
-  const target = pending
-  pending = null
-  return target
+/** Open the inline editor on a target (a new part, or an existing one to edit). */
+export function openCustomPartEditor(target: CustomPartEditTarget): void {
+  state = { open: true, target }
+  emit()
 }
 
-export function subscribeCustomPartEditor(
-  listener: (target: CustomPartEditTarget) => void,
-): () => void {
+/** Close the inline editor (return the component panel to the palette). */
+export function closeCustomPartEditor(): void {
+  if (!state.open) return
+  state = { open: false, target: null }
+  emit()
+}
+
+function getState(): CustomPartEditorState {
+  return state
+}
+
+function subscribe(listener: () => void): () => void {
   listeners.add(listener)
   return () => {
     listeners.delete(listener)
   }
+}
+
+export function useCustomPartEditor(): CustomPartEditorState {
+  return useSyncExternalStore(subscribe, getState, getState)
 }
