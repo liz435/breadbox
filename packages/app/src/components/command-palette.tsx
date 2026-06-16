@@ -4,8 +4,9 @@
 // running actions, and navigating the app. Opens with Cmd+K / Ctrl+K.
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from "react"
-import type { ComponentType } from "@dreamer/schemas"
+import type { PlaceableComponentType } from "@dreamer/schemas"
 import { COMPONENT_REGISTRY } from "@/components/registry"
+import { getCustomSnapshot } from "@/components/catalog/custom-store"
 import { breadboardInteractionActor } from "@/breadboard/breadboard-interaction"
 import { useDockviewApi } from "@/store/dockview-context"
 import { simulationRef } from "@/simulator/simulation-ref"
@@ -63,8 +64,8 @@ function buildCommands(
 ): Command[] {
   const commands: Command[] = []
 
-  // Component placement commands
-  for (const def of COMPONENT_REGISTRY) {
+  // Component placement commands — built-ins plus runtime-registered custom parts.
+  for (const def of [...COMPONENT_REGISTRY, ...getCustomSnapshot()]) {
     commands.push({
       id: `place:${def.type}`,
       label: `Place ${def.label}`,
@@ -75,7 +76,7 @@ function buildCommands(
       action: () => {
         breadboardInteractionActor.send({
           type: "START_PLACE",
-          componentType: def.type as ComponentType,
+          componentType: def.type as PlaceableComponentType,
         })
       },
     })

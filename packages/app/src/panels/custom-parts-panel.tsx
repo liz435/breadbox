@@ -18,6 +18,11 @@ import {
   removeCustomPart,
   saveAndReload,
 } from "@/components/catalog/custom-parts-api"
+import {
+  subscribeCustomPartEditor,
+  takeCustomPartTarget,
+  type CustomPartEditTarget,
+} from "@/components/catalog/custom-parts-editor-store"
 
 type Status = { kind: "idle" | "saving" | "error" | "saved"; message?: string }
 
@@ -76,6 +81,21 @@ export function CustomPartsPanel() {
     setStatus({ kind: "idle" })
     void refresh()
   }, [selectedId, refresh])
+
+  // React to "new part" / "edit this part" requests from the palette.
+  const applyTarget = useCallback(
+    (target: CustomPartEditTarget) => {
+      if (target.kind === "new") newPart()
+      else void openPart(target.id)
+    },
+    [newPart, openPart],
+  )
+
+  useEffect(() => {
+    const initial = takeCustomPartTarget()
+    if (initial) applyTarget(initial)
+    return subscribeCustomPartEditor(applyTarget)
+  }, [applyTarget])
 
   return (
     <div className="flex h-full bg-card">

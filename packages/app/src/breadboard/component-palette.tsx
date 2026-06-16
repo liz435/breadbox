@@ -1,9 +1,14 @@
-import React, { useMemo } from "react";
+import React, { useCallback, useMemo } from "react";
 import { Tooltip } from "@base-ui/react/tooltip";
-import type { PlaceableComponentType } from "@dreamer/schemas";
+import { Plus, Pencil } from "lucide-react";
+import { isCustomComponentType, type PlaceableComponentType } from "@dreamer/schemas";
 import { breadboardInteractionActor } from "./breadboard-interaction";
 import type { ComponentDefinition } from "@/components/component-definition";
 import { useComponentCatalog } from "@/components/catalog/use-component-catalog";
+import { requestCustomPartEditor, type CustomPartEditTarget } from "@/components/catalog/custom-parts-editor-store";
+import { useDockviewApi } from "@/store/dockview-context";
+import { showPanel } from "@/store/view-panels";
+import { cn } from "@/utils/classnames";
 
 type PaletteItem = {
   type: PlaceableComponentType;
@@ -12,6 +17,7 @@ type PaletteItem = {
   category: string;
   description?: string;
   action?: "place" | "wire";
+  isCustom?: boolean;
 };
 
 const CATEGORY_ORDER = ["output", "input", "passive", "display", "other"] as const;
@@ -22,8 +28,11 @@ const CATEGORY_LABELS: Record<string, string> = {
   passive: "Passive",
   display: "Display",
   other: "Other",
+  custom: "Custom",
   wire: "Wiring",
 };
+// Custom always shows (even empty) so authoring is discoverable from the palette.
+const GROUP_ORDER = ["board", ...CATEGORY_ORDER, "custom", "wire"];
 
 const WIRE_PALETTE_ITEM: PaletteItem = {
   type: "wire",
@@ -42,16 +51,25 @@ const WIRE_PALETTE_ITEM: PaletteItem = {
 
 function buildItems(catalog: ComponentDefinition[]): PaletteItem[] {
   return [
-    ...catalog.map((def) => ({
-      // Registry/catalog types are always valid placeable types.
-      type: def.type as PlaceableComponentType,
-      label: def.label,
-      icon: def.paletteIcon,
-      category: def.category ?? "other",
-      description: def.description,
-    })),
+    ...catalog.map((def) => {
+      const isCustom = isCustomComponentType(def.type);
+      return {
+        // Registry/catalog types are always valid placeable types.
+        type: def.type as PlaceableComponentType,
+        label: def.label,
+        icon: def.paletteIcon,
+        // Group all custom parts together rather than by their declared category.
+        category: isCustom ? "custom" : def.category ?? "other",
+        description: def.description,
+        isCustom,
+      };
+    }),
     WIRE_PALETTE_ITEM,
   ];
+}
+
+function customIdFromType(type: string): string {
+  return type.replace(/^custom:/, "");
 }
 
 function handleItemClick(item: PaletteItem) {
@@ -73,8 +91,10 @@ const TOOLTIP_POPUP_CLASS =
 
 function PaletteItemButton({
   item,
+  onEdit,
 }: {
   item: PaletteItem;
+  onEdit?: () => void;
 }) {
   const button = (
     <button
@@ -89,11 +109,7 @@ function PaletteItemButton({
     </button>
   );
 
-  if (!item.description) {
-    return button;
-  }
-
-  return (
+  const place = item.description ? (
     <Tooltip.Root>
       <Tooltip.Trigger render={button} />
       <Tooltip.Portal>
@@ -104,6 +120,25 @@ function PaletteItemButton({
         </Tooltip.Positioner>
       </Tooltip.Portal>
     </Tooltip.Root>
+  ) : (
+    button
+  );
+
+  if (!onEdit) return place;
+
+  // Custom parts: place button + a hover Edit affordance.
+  return (
+    <div className="group flex items-center gap-0.5">
+      <div className="min-w-0 flex-1">{place}</div>
+      <button
+        type="button"
+        onClick={onEdit}
+        title="Edit part"
+        className="flex-shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none group-hover:opacity-100"
+      >
+        <Pencil className="size-3" />
+      </button>
+    </div>
   );
 }
 
@@ -111,19 +146,26 @@ const MemoizedPaletteItem = React.memo(PaletteItemButton);
 
 function ComponentPaletteInner() {
   const catalog = useComponentCatalog();
+  const api = useDockviewApi();
+
+  const openEditor = useCallback(
+    (target: CustomPartEditTarget) => {
+      requestCustomPartEditor(target);
+      showPanel(api, "customParts");
+    },
+    [api],
+  );
 
   // Group by category (rebuilds when a custom part is registered/removed).
   const grouped = useMemo(() => {
     const groups = new Map<string, PaletteItem[]>();
     for (const item of buildItems(catalog)) {
-      const cat = item.category;
-      if (!groups.has(cat)) groups.set(cat, []);
-      groups.get(cat)?.push(item);
+      if (!groups.has(item.category)) groups.set(item.category, []);
+      groups.get(item.category)?.push(item);
     }
-    // Sort groups by CATEGORY_ORDER
-    const order = ["board", ...CATEGORY_ORDER, "wire"];
+    if (!groups.has("custom")) groups.set("custom", []);
     return [...groups.entries()].sort(
-      (a, b) => order.indexOf(a[0]) - order.indexOf(b[0]),
+      (a, b) => GROUP_ORDER.indexOf(a[0]) - GROUP_ORDER.indexOf(b[0]),
     );
   }, [catalog]);
 
@@ -151,13 +193,39 @@ function ComponentPaletteInner() {
         <div className="flex-1 overflow-y-auto px-2 py-2">
           {grouped.map(([category, items]) => (
             <div key={category} className="mt-2 first:mt-0">
-              <h3 className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {CATEGORY_LABELS[category] ?? category}
-              </h3>
+              <div className="mb-1 flex items-center justify-between px-1">
+                <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {CATEGORY_LABELS[category] ?? category}
+                </h3>
+                {category === "custom" && (
+                  <button
+                    type="button"
+                    onClick={() => openEditor({ kind: "new" })}
+                    title="New custom part"
+                    className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:outline-none"
+                  >
+                    <Plus className="size-3.5" />
+                  </button>
+                )}
+              </div>
+              {category === "custom" && items.length === 0 && (
+                <button
+                  type="button"
+                  onClick={() => openEditor({ kind: "new" })}
+                  className="flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                >
+                  <Plus className="size-3.5" /> New custom part
+                </button>
+              )}
               {items.map((item) => (
                 <MemoizedPaletteItem
                   key={item.type}
                   item={item}
+                  onEdit={
+                    item.isCustom
+                      ? () => openEditor({ kind: "edit", id: customIdFromType(item.type) })
+                      : undefined
+                  }
                 />
               ))}
             </div>
