@@ -4,7 +4,7 @@
 // layout always matches what you're doing. Switching a mode opens that mode's
 // tab set and closes the rest:
 //
-//   • build     — Components, Canvas, Sketch, Inspector, Schematic
+//   • build     — Components, Canvas, Sketch/Libraries, Schematic, Inspector
 //   • simulate  — Canvas, Sketch, Serial Monitor, Pin Inspector, OLED
 //   • debug     — Debugger, Sketch, Canvas, Serial Monitor, Pin Inspector
 //   • freeform  — unconstrained; never force-closes, remembers your layout
@@ -31,7 +31,7 @@ export const WORKSPACE_MODES: WorkspaceModeMeta[] = [
   {
     id: "build",
     label: "Build",
-    hint: "Components, canvas, sketch, inspector & schematic",
+    hint: "Components, canvas, sketch/libraries, schematic & inspector",
   },
   {
     id: "simulate",
@@ -72,8 +72,9 @@ const MODE_SPECS: Record<Exclude<WorkspaceMode, "freeform">, ModeSpec> = {
       { id: "projectFiles" },
       { id: "breadboard", position: { referenceId: "projectFiles", direction: "right" } },
       { id: "sketchEditor", position: { referenceId: "breadboard", direction: "right" } },
-      { id: "schematic", position: { referenceId: "sketchEditor", direction: "within" } },
-      { id: "inspector", position: { referenceId: "sketchEditor", direction: "right" } },
+      { id: "libraryManager", position: { referenceId: "sketchEditor", direction: "within" } },
+      { id: "schematic", position: { referenceId: "sketchEditor", direction: "right" } },
+      { id: "inspector", position: { referenceId: "schematic", direction: "below" } },
     ],
   },
   simulate: {
