@@ -33,9 +33,9 @@ function ZoomControls({
   const btnBase =
     "flex h-8 w-8 items-center justify-center rounded-md text-lg font-bold border shadow-md";
   const btnNormal =
-    "bg-zinc-800 text-zinc-300 hover:bg-zinc-700 active:bg-zinc-600 border-zinc-700";
+    "bg-secondary text-foreground hover:bg-muted active:bg-accent border-border";
   const btnActive =
-    "bg-zinc-600 text-white border-zinc-500 ring-1 ring-zinc-400";
+    "bg-accent text-accent-foreground border-border ring-1 ring-ring";
 
   return (
     <div className="absolute bottom-3 right-3 flex flex-col gap-1">

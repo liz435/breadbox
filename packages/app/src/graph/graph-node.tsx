@@ -42,8 +42,8 @@ export function GraphNode({
       data-node-id={node.id}
       className={cn(
         "absolute rounded-lg overflow-hidden shadow-lg select-none",
-        "bg-neutral-900 border",
-        isSelected ? "border-blue-500" : "border-neutral-700"
+        "bg-card border",
+        isSelected ? "border-blue-500" : "border-border"
       )}
       style={{
         left: node.x,

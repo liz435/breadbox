@@ -18,15 +18,15 @@ export function PinInspector() {
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-card">
-      <div className="border-b border-zinc-700 px-3 py-1.5">
-        <span className="text-xs font-semibold text-zinc-300">
+      <div className="border-b border-border px-3 py-1.5">
+        <span className="text-xs font-semibold text-foreground">
           Pin Inspector
         </span>
       </div>
       <div className="flex-1 overflow-y-auto">
         <table className="w-full text-[11px]">
           <thead>
-            <tr className="border-b border-zinc-800 text-zinc-500">
+            <tr className="border-b border-border text-muted-foreground">
               <th className="px-2 py-1 text-left font-medium">Pin</th>
               <th className="px-2 py-1 text-left font-medium">Mode</th>
               <th className="px-2 py-1 text-center font-medium">Digital</th>
@@ -44,19 +44,19 @@ export function PinInspector() {
               return (
                 <tr
                   key={pin}
-                  className="border-b border-zinc-800/50 hover:bg-zinc-800/30"
+                  className="border-b border-border/50 hover:bg-secondary/30"
                 >
-                  <td className="px-2 py-0.5 font-mono text-zinc-300">
+                  <td className="px-2 py-0.5 font-mono text-foreground">
                     {label}
                   </td>
-                  <td className="px-2 py-0.5 text-zinc-500">
+                  <td className="px-2 py-0.5 text-muted-foreground">
                     {ps.mode === "UNSET" ? "-" : ps.mode}
                   </td>
                   <td className="px-2 py-0.5 text-center">
                     <span
                       className={cn(
                         "font-mono",
-                        isHigh ? "text-green-400" : "text-zinc-600"
+                        isHigh ? "text-green-400" : "text-muted-foreground"
                       )}
                     >
                       {isHigh ? "HIGH" : "LOW"}
@@ -68,11 +68,11 @@ export function PinInspector() {
                         PWM {ps.pwmValue}
                       </span>
                     ) : isAnalogPin ? (
-                      <span className="font-mono text-zinc-500">
+                      <span className="font-mono text-muted-foreground">
                         {ps.analogValue}
                       </span>
                     ) : (
-                      <span className="text-zinc-700">-</span>
+                      <span className="text-muted-foreground">-</span>
                     )}
                   </td>
                 </tr>

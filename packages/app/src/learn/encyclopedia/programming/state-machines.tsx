@@ -190,7 +190,7 @@ function TrafficStateDiagram() {
 
   return (
     <div className="flex flex-col items-center gap-3">
-      <div className="w-full overflow-auto rounded border border-neutral-800 bg-[#0f0f0f] px-4 py-3">
+      <div className="w-full overflow-auto rounded border border-border bg-[#0f0f0f] px-4 py-3">
         <div className="flex justify-center">
           <svg
             viewBox={`0 0 ${w} ${h}`}
@@ -285,7 +285,7 @@ function TrafficStateDiagram() {
       <button
         type="button"
         onClick={handleToggle}
-        className="rounded-md border border-neutral-700 bg-neutral-800 px-4 py-1.5 text-xs font-medium text-neutral-200 hover:bg-neutral-700 transition-colors"
+        className="rounded-md border border-border bg-secondary px-4 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors"
       >
         {running ? "Stop" : "Run FSM"}
       </button>

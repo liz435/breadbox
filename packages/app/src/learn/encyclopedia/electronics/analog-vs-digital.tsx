@@ -26,10 +26,10 @@ export function AnalogVsDigitalPage() {
 
       <Section title="Two ways to carry information">
         <p className="text-sm leading-relaxed">
-          An <em className="text-gray-200">analog</em> signal is a
+          An <em className="text-foreground">analog</em> signal is a
           voltage that can take any value within some range — a
           temperature sensor might output 0.24 V, or 0.247 V, or
-          2.999 V. A <em className="text-gray-200">digital</em>{" "}
+          2.999 V. A <em className="text-foreground">digital</em>{" "}
           signal only takes two values that the chip agrees to call
           HIGH (roughly 5 V on the Uno) and LOW (roughly 0 V).
           Anything in between is ambiguous and gets snapped to the
@@ -45,7 +45,7 @@ export function AnalogVsDigitalPage() {
           bits wide, which means it maps the 0–5 V range onto the
           integers from 0 to 1023 — 1024 discrete steps total. Each
           step represents a voltage of about{" "}
-          <code className="text-gray-200">5 V / 1024 ≈ 4.9 mV</code>
+          <code className="text-foreground">5 V / 1024 ≈ 4.9 mV</code>
           . A reading of 512 means "somewhere between 2.495 V and
           2.500 V" — you can't tell the two apart.
         </p>

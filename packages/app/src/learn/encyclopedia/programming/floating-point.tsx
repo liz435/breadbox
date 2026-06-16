@@ -31,9 +31,9 @@ export function FloatingPointPage() {
           <Term k="floating-point" /> numbers hold values with a
           fractional part — <code>3.14</code>, <code>-0.5</code>,{" "}
           <code>1.0e6</code>. On a desktop compiler a{" "}
-          <code className="text-gray-200">double</code> is 64 bits and
-          a <code className="text-gray-200">float</code> is 32. On the
-          Uno's AVR chip, <em className="text-gray-200">both</em> are
+          <code className="text-foreground">double</code> is 64 bits and
+          a <code className="text-foreground">float</code> is 32. On the
+          Uno's AVR chip, <em className="text-foreground">both</em> are
           32 bits — writing <code>double</code> doesn't buy you any
           extra precision.
         </p>
@@ -77,7 +77,7 @@ double pi2 = 3.14159265;  // same size, same precision on AVR`} />
 
         <Note>
           Need more range than <code>long</code> but integer
-          arithmetic? Use <em className="text-gray-200">fixed-point</em>:
+          arithmetic? Use <em className="text-foreground">fixed-point</em>:
           store your value as "hundredths of a volt" in a plain{" "}
           <code>long</code>, and only divide by 100 when it's time to
           print.

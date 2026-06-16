@@ -190,6 +190,64 @@ function semanticIssues(state: BoardState): DiagramIssue[] {
     }
   }
 
+  // True when `p` is an actual ground sink: an Arduino GND pin, a PSU negative
+  // anchor, or a breadboard GND rail.
+  function isGroundSink(p: { row: number; col: number }): boolean {
+    if (p.row === -999 && (p.col === -3 || p.col === -4 || p.col === -6)) return true;
+    if (psuNegPoints.has(`${p.row},${p.col}`)) return true;
+    if (gndRailCols.has(p.col)) return true;
+    return false;
+  }
+
+  // Series-passable two-terminal parts: DC ground flows THROUGH them, so an LED
+  // whose cathode reaches GND *through a resistor* is grounded. We deliberately
+  // do NOT pass through the LED/diode/capacitor itself — only purely resistive
+  // parts. Each link maps one terminal's grid point to the other's.
+  const SERIES_PASSABLE = new Set(["resistor", "photoresistor"]);
+  const seriesLinks: Array<{
+    a: { row: number; col: number };
+    b: { row: number; col: number };
+  }> = [];
+  for (const comp of simComponents) {
+    if (!SERIES_PASSABLE.has(comp.type)) continue;
+    const [a, b] = Object.values(resolveComponentPins(comp.type, comp.y, comp.x, comp.properties));
+    if (a && b) seriesLinks.push({ a, b });
+  }
+
+  // Does `start` reach a ground sink by following wires (bus-aware) and passing
+  // through series resistors? Bounded BFS; guards against cycles. This is what
+  // makes the canonical Arduino-pin → LED → resistor → GND wiring count as
+  // grounded instead of falsely flagging MISSING_GROUND.
+  function reachesGround(start: { row: number; col: number }): boolean {
+    const seen = new Set<string>();
+    const queue: Array<{ row: number; col: number }> = [start];
+    const key = (p: { row: number; col: number }) => `${p.row},${p.col}`;
+    let guard = 0;
+    while (queue.length > 0 && guard < 4000) {
+      guard++;
+      const p = queue.shift();
+      if (!p) break;
+      if (seen.has(key(p))) continue;
+      seen.add(key(p));
+      if (isGroundSink(p)) return true;
+      // Any wire touching p (on its breadboard side) makes the other end reachable.
+      for (const w of wires) {
+        if (w.fromRow !== -999 && sameBus({ row: w.fromRow, col: w.fromCol }, p)) {
+          queue.push({ row: w.toRow, col: w.toCol });
+        }
+        if (sameBus({ row: w.toRow, col: w.toCol }, p)) {
+          queue.push({ row: w.fromRow, col: w.fromCol });
+        }
+      }
+      // Landing on one terminal of a series resistor reaches the other terminal.
+      for (const link of seriesLinks) {
+        if (sameBus(p, link.a)) queue.push(link.b);
+        if (sameBus(p, link.b)) queue.push(link.a);
+      }
+    }
+    return false;
+  }
+
   for (const comp of simComponents) {
     const pins = resolveComponentPins(comp.type, comp.y, comp.x, comp.properties);
     const groundPinKey = Object.keys(pins).find((k) =>
@@ -199,23 +257,7 @@ function semanticIssues(state: BoardState): DiagramIssue[] {
     const gnd = pins[groundPinKey];
     if (!gnd) continue;
 
-    const connectedToGround = wires.some((w) => {
-      const fromIsPin = w.fromRow !== -999 && sameBus({ row: w.fromRow, col: w.fromCol }, gnd);
-      const toIsPin = sameBus({ row: w.toRow, col: w.toCol }, gnd);
-      if (!fromIsPin && !toIsPin) return false;
-      const other = fromIsPin
-        ? { row: w.toRow, col: w.toCol }
-        : { row: w.fromRow, col: w.fromCol };
-      // Arduino GND pins: fromRow === -999 AND col in {-3, -4, -6}
-      if (other.row === -999 && (other.col === -3 || other.col === -4 || other.col === -6)) {
-        return true;
-      }
-      // DSL-style PSU negative anchor (psu.-)
-      if (psuNegPoints.has(`${other.row},${other.col}`)) return true;
-      // Raw breadboard GND rail (col 10 = right negative, col -1 = left negative)
-      if (gndRailCols.has(other.col)) return true;
-      return false;
-    });
+    const connectedToGround = reachesGround(gnd);
 
     if (!connectedToGround) {
       // Only flag if there IS at least one wire touching the gnd pin —

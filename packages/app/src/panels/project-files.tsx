@@ -192,7 +192,7 @@ const ASSET_ICONS: Record<string, React.ReactNode> = {
   shader: <FileCode className="size-3 text-orange-400" />,
   audio: <Music className="size-3 text-purple-400" />,
   video: <Film className="size-3 text-pink-400" />,
-  text: <FileText className="size-3 text-neutral-400" />,
+  text: <FileText className="size-3 text-muted-foreground" />,
   font: <Type className="size-3 text-teal-400" />,
   material: <Box className="size-3 text-indigo-400" />,
 }

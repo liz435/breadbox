@@ -26,7 +26,7 @@ export function SeriesParallelPage() {
 
       <Section title="Series: one path for current">
         <p className="text-sm leading-relaxed">
-          In a <strong className="text-gray-200">series</strong> circuit,
+          In a <strong className="text-foreground">series</strong> circuit,
           components sit end-to-end on a single wire. Whatever current
           leaves the supply passes through every component in turn —
           there's nowhere else for it to go. Each component drops some
@@ -34,7 +34,7 @@ export function SeriesParallelPage() {
         </p>
 
         <p className="text-sm leading-relaxed mt-2">
-          <em className="text-gray-200">Same current everywhere. Voltages add.</em>
+          <em className="text-foreground">Same current everywhere. Voltages add.</em>
         </p>
 
         <p className="text-sm leading-relaxed mt-2">
@@ -44,14 +44,14 @@ export function SeriesParallelPage() {
 
       <Section title="Parallel: multiple paths">
         <p className="text-sm leading-relaxed">
-          In a <strong className="text-gray-200">parallel</strong>{" "}
+          In a <strong className="text-foreground">parallel</strong>{" "}
           circuit, components share the same two endpoints — current
           splits between them. Each branch sees the full supply voltage,
           but only carries its share of the total current.
         </p>
 
         <p className="text-sm leading-relaxed mt-2">
-          <em className="text-gray-200">Same voltage across each branch. Currents add.</em>
+          <em className="text-foreground">Same voltage across each branch. Currents add.</em>
         </p>
 
         <p className="text-sm leading-relaxed mt-2">
@@ -94,12 +94,12 @@ export function SeriesParallelPage() {
       <Section title="When you use each">
         <ul className="mt-2 space-y-2 text-sm leading-relaxed">
           <li>
-            <strong className="text-gray-200">Series:</strong> current
+            <strong className="text-foreground">Series:</strong> current
             limiting (resistor + LED), voltage dividers, daisy-chained
             batteries.
           </li>
           <li>
-            <strong className="text-gray-200">Parallel:</strong>{" "}
+            <strong className="text-foreground">Parallel:</strong>{" "}
             independent devices on the same rail (multiple LEDs from
             one 5 V supply), batteries in parallel for more capacity,
             fan-out from a single pin.

@@ -40,7 +40,7 @@ export function ShortsPage() {
           Ohm's law says <code>I = V / R</code>. If R is practically
           zero, I gets very large — limited only by how much current the
           supply can deliver. That current has to flow{" "}
-          <em className="text-gray-200">through something</em>: usually
+          <em className="text-foreground">through something</em>: usually
           the thin traces in the Arduino, the USB cable, or the voltage
           regulator. Whatever it flows through heats up fast.
         </p>
@@ -69,17 +69,17 @@ export function ShortsPage() {
       <Section title="Sneakier ways to make one">
         <ul className="mt-2 space-y-2 text-sm leading-relaxed">
           <li>
-            Setting <strong className="text-gray-200">one pin HIGH
+            Setting <strong className="text-foreground">one pin HIGH
             and another LOW</strong> and wiring them together — the
             two output drivers fight each other.
           </li>
           <li>
-            Wiring an LED with <strong className="text-gray-200">no
+            Wiring an LED with <strong className="text-foreground">no
             current-limiting resistor</strong>. The LED itself has very
             low resistance once it turns on and acts like a short.
           </li>
           <li>
-            Letting a <strong className="text-gray-200">bare wire</strong>{" "}
+            Letting a <strong className="text-foreground">bare wire</strong>{" "}
             fall across two rails. Stranded wire is especially good at
             this because stray strands bridge gaps.
           </li>

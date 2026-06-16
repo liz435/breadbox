@@ -16,9 +16,9 @@ export function PhotoresistorLesson() {
         <p className="text-sm leading-relaxed">
           A photoresistor (LDR) paired with a fixed <Term k="resistor" /> in a{" "}
           <Term k="voltage-divider" /> configuration, connected to analog pin{" "}
-          <code className="text-gray-200">A0</code>. The sketch reads the light level
+          <code className="text-foreground">A0</code>. The sketch reads the light level
           every 500 ms and prints the raw <Term k="adc">ADC</Term> value to{" "}
-          <code className="text-gray-200">Serial</code>.
+          <code className="text-foreground">Serial</code>.
         </p>
       </Section>
 
@@ -39,15 +39,15 @@ export function PhotoresistorLesson() {
           (high reading). In dim light the resistance is high, pulling A0 closer to GND
           (low reading).{" "}
           <Term k="analog-read">
-            <code className="text-gray-200">analogRead(A0)</code>
+            <code className="text-foreground">analogRead(A0)</code>
           </Term>{" "}
           converts that 0–5 V range to 0–1023.
         </p>
         <p className="text-sm leading-relaxed">
-          The <code className="text-gray-200">Serial.print()</code> calls in{" "}
-          <code className="text-gray-200">loop()</code> send the value over USB so you
+          The <code className="text-foreground">Serial.print()</code> calls in{" "}
+          <code className="text-foreground">loop()</code> send the value over USB so you
           can monitor it in real time. The baud rate set in{" "}
-          <code className="text-gray-200">Serial.begin(9600)</code> must match the Serial
+          <code className="text-foreground">Serial.begin(9600)</code> must match the Serial
           monitor's speed.
         </p>
       </Section>

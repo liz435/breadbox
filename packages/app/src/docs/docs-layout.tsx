@@ -29,7 +29,7 @@ export function Badge({
 
 export function CodeBlock({ code, lang = "cpp" }: { code: string; lang?: string }) {
   return (
-    <pre className="rounded-md bg-[#111] border border-[#2a2a2a] p-3 text-xs font-mono text-gray-300 overflow-x-auto whitespace-pre-wrap leading-relaxed">
+    <pre className="rounded-md bg-card border border-border p-3 text-xs font-mono text-foreground overflow-x-auto whitespace-pre-wrap leading-relaxed">
       <code className={`language-${lang}`}>{highlight(code, lang)}</code>
     </pre>
   )
@@ -43,12 +43,12 @@ export function Table({
   rows: (string | ReactNode)[][]
 }) {
   return (
-    <div className="overflow-x-auto rounded-md border border-[#2a2a2a]">
+    <div className="overflow-x-auto rounded-md border border-border">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-[#2a2a2a] bg-[#141414]">
+          <tr className="border-b border-border bg-card">
             {headers.map((h) => (
-              <th key={h} className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+              <th key={h} className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 {h}
               </th>
             ))}
@@ -56,9 +56,9 @@ export function Table({
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={i} className={cn("border-b border-[#1e1e1e]", i % 2 === 0 ? "bg-[#0f0f0f]" : "bg-[#111]")}>
+            <tr key={i} className={cn("border-b border-border", i % 2 === 0 ? "bg-card" : "bg-card")}>
               {row.map((cell, j) => (
-                <td key={j} className="px-3 py-2 text-gray-300 align-top">
+                <td key={j} className="px-3 py-2 text-foreground align-top">
                   {cell}
                 </td>
               ))}
@@ -73,7 +73,7 @@ export function Table({
 export function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="mb-8">
-      <h2 className="text-base font-semibold text-gray-200 mb-3 pb-2 border-b border-[#2a2a2a]">{title}</h2>
+      <h2 className="text-base font-semibold text-foreground mb-3 pb-2 border-b border-border">{title}</h2>
       <div className="space-y-3">{children}</div>
     </section>
   )
@@ -165,7 +165,7 @@ function NavLink({ item }: { item: NavItem }) {
         "w-full text-left px-2 py-1 rounded text-sm transition-colors",
         isActive
           ? "text-blue-400 bg-blue-500/10"
-          : "text-gray-400 hover:text-gray-200 hover:bg-white/5",
+          : "text-muted-foreground hover:text-foreground hover:bg-white/5",
       )}
     >
       {item.label}
@@ -177,14 +177,14 @@ function Sidebar() {
   const { navigate } = useRouter()
 
   return (
-    <aside className="w-56 flex-shrink-0 border-r border-[#2a2a2a] bg-[#0d0d0d] flex flex-col">
+    <aside className="w-56 flex-shrink-0 border-r border-border bg-card flex flex-col">
       {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-[#2a2a2a]">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
         <BookOpen className="size-4 text-blue-400 flex-shrink-0" />
-        <span className="text-sm font-semibold text-gray-200">Docs</span>
+        <span className="text-sm font-semibold text-foreground">Docs</span>
         <button
           onClick={() => navigate("/editor")}
-          className="ml-auto text-gray-500 hover:text-gray-300 transition-colors"
+          className="ml-auto text-muted-foreground hover:text-foreground transition-colors"
           title="Back to editor"
         >
           <ChevronLeft className="size-4" />
@@ -195,7 +195,7 @@ function Sidebar() {
       <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
         {NAV.map((group) => (
           <div key={group.title}>
-            <p className="px-2 mb-1 text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <p className="px-2 mb-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">
               {group.title}
             </p>
             <div className="space-y-0.5">
@@ -214,7 +214,7 @@ function Sidebar() {
 
 export function DocsLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex h-full w-full bg-[#0f0f0f] text-gray-300 overflow-hidden">
+    <div className="flex h-full w-full bg-card text-foreground overflow-hidden">
       <Sidebar />
       <main className="flex-1 overflow-y-auto px-8 py-8 max-w-3xl">
         {children}
@@ -235,10 +235,10 @@ export function PageTitle({
   return (
     <div className="mb-8">
       <div className="flex items-center gap-3 mb-1">
-        <h1 className="text-2xl font-bold text-gray-100">{title}</h1>
+        <h1 className="text-2xl font-bold text-foreground">{title}</h1>
         {badge}
       </div>
-      {subtitle && <p className="text-gray-400 text-sm">{subtitle}</p>}
+      {subtitle && <p className="text-muted-foreground text-sm">{subtitle}</p>}
     </div>
   )
 }

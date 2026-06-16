@@ -10,7 +10,7 @@ export function GraphPage() {
       />
 
       <Section title="Overview">
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           The Graph panel lets you connect blocks (nodes) to build Arduino logic visually. Nodes
           represent Arduino functions like <code>digitalWrite</code>, <code>analogRead</code>,
           <code>delay</code>, and control flow like <code>if/else</code>. You connect ports with edges
@@ -23,10 +23,10 @@ export function GraphPage() {
       </Section>
 
       <Section title="Adding nodes">
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           Right-click the graph canvas (or use the search palette) to add a node. Type to fuzzy-search
           by name or keyword. Connect ports by dragging from an output port to an input port.
-          Delete nodes with <kbd className="bg-[#222] px-1 rounded text-xs">Delete</kbd> or <kbd className="bg-[#222] px-1 rounded text-xs">Backspace</kbd>.
+          Delete nodes with <kbd className="bg-secondary px-1 rounded text-xs">Delete</kbd> or <kbd className="bg-secondary px-1 rounded text-xs">Backspace</kbd>.
         </p>
       </Section>
 

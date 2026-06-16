@@ -1,9 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import { buildExternalEditPrompt } from "../diagram-prompt";
+import {
+  buildExternalEditPrompt,
+  buildFixRequestPrompt,
+  WORKED_EXAMPLE_DIAGRAM,
+} from "../diagram-prompt";
 import { DIAGRAM_SCHEMA_V1 } from "../design";
 import { BOARD_TARGETS } from "../board-targets";
 import { componentTypeSchema, isBoardComponentType } from "../arduino";
 import { getComponentPinNames } from "../component-pins";
+import { validateDiagram } from "../diagram-validator";
 
 const SAMPLE = JSON.stringify(
   {
@@ -79,5 +84,58 @@ describe("buildExternalEditPrompt", () => {
     expect(buildExternalEditPrompt(SAMPLE, { change: "   " })).toContain(
       "<describe the change you want here>",
     );
+  });
+
+  test("includes the enriched guidance sections", () => {
+    expect(prompt).toContain("transpiler-safe"); // sketch guardrails
+    expect(prompt).toContain("Breadboard layout"); // footprint/grid rules
+    expect(prompt).toContain("Pin-name gotchas"); // common-mistake warnings
+    expect(prompt).toContain("PWM-capable"); // Arduino pin table
+    expect(prompt).toContain("Worked example"); // few-shot example
+    expect(prompt).toContain("self-check"); // pre-reply checklist
+  });
+
+  test("embeds the worked example diagram", () => {
+    expect(prompt).toContain('"id": "led1"');
+    expect(prompt).toContain('"id": "r1"');
+  });
+});
+
+describe("buildFixRequestPrompt", () => {
+  const issues = validateDiagram({
+    $schema: DIAGRAM_SCHEMA_V1,
+    board: "arduino_uno",
+    sketch: "void setup(){} void loop(){}",
+    components: [{ id: "led1", type: "led", at: [5, 5], properties: {} }],
+    wires: [],
+  }).issues;
+
+  test("lists each issue with code, path, and message", () => {
+    const prompt = buildFixRequestPrompt(SAMPLE, issues);
+    expect(issues.length).toBeGreaterThan(0);
+    for (const issue of issues) {
+      expect(prompt).toContain(issue.code);
+      expect(prompt).toContain(issue.message);
+    }
+  });
+
+  test("embeds the diagram to fix and asks for JSON only", () => {
+    const prompt = buildFixRequestPrompt(SAMPLE, issues);
+    expect(prompt).toContain(SAMPLE);
+    expect(prompt.toLowerCase()).toContain("only");
+    expect(prompt).toContain(DIAGRAM_SCHEMA_V1);
+  });
+
+  test("handles an empty issue list gracefully", () => {
+    expect(() => buildFixRequestPrompt(SAMPLE, [])).not.toThrow();
+    expect(buildFixRequestPrompt(SAMPLE, [])).toContain("Fix this Breadbox circuit");
+  });
+});
+
+describe("WORKED_EXAMPLE_DIAGRAM", () => {
+  test("validates clean — no errors or warnings (so the shipped example never lies)", () => {
+    const result = validateDiagram(WORKED_EXAMPLE_DIAGRAM);
+    expect(result.ok).toBe(true);
+    expect(result.issues).toEqual([]);
   });
 });

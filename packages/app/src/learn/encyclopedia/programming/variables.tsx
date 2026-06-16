@@ -28,7 +28,7 @@ export function VariablesPage() {
       <Section title="Declaring a variable">
         <p className="text-sm leading-relaxed">
           A variable declaration is{" "}
-          <em className="text-gray-200">type name = value;</em>. The type
+          <em className="text-foreground">type name = value;</em>. The type
           comes first, the name second, and the optional initial value
           third.
         </p>
@@ -74,13 +74,13 @@ const int LED_PIN = 13;`} />
         </p>
         <ul className="mt-2 space-y-2 text-sm leading-relaxed">
           <li>
-            <strong className="text-gray-200">const</strong> makes a
+            <strong className="text-foreground">const</strong> makes a
             variable read-only. The compiler rejects any attempt to change
             it. Use this for pin numbers, limits, and other values that
             should never vary: <code>const int LED_PIN = 13;</code>
           </li>
           <li>
-            <strong className="text-gray-200">unsigned</strong> removes
+            <strong className="text-foreground">unsigned</strong> removes
             the sign bit, doubling the positive range. Useful when you
             know a value can't go negative — counters, indices, durations.
           </li>
@@ -89,7 +89,7 @@ const int LED_PIN = 13;`} />
 
       <Section title="Initialization matters">
         <p className="text-sm leading-relaxed">
-          Local variables in C++ are <strong className="text-gray-200">not</strong>{" "}
+          Local variables in C++ are <strong className="text-foreground">not</strong>{" "}
           automatically zeroed. An uninitialized <code>int</code> inside a
           function contains whatever bytes happened to be in that memory
           slot. Always give locals a starting value:

@@ -19,7 +19,7 @@ export function LocalNoSessionScreen({
   return (
     <div
       className={cn(
-        "flex h-full min-h-screen w-full items-center justify-center bg-neutral-950 text-neutral-100",
+        "flex h-full min-h-screen w-full items-center justify-center bg-background text-foreground",
         className,
       )}
     >
@@ -28,18 +28,18 @@ export function LocalNoSessionScreen({
           <h1 className="text-2xl font-semibold tracking-tight">
             No active session
           </h1>
-          <p className="text-sm text-neutral-400">
+          <p className="text-sm text-muted-foreground">
             This Breadbox instance is running locally from the CLI. To
             authorize your browser, restart the CLI in your terminal
             and open the URL it prints:
           </p>
         </div>
 
-        <pre className="w-full overflow-x-auto rounded-md border border-neutral-800 bg-neutral-900 px-4 py-3 font-mono text-xs text-neutral-200">
+        <pre className="w-full overflow-x-auto rounded-md border border-border bg-card px-4 py-3 font-mono text-xs text-foreground">
           <code>dreamer headed</code>
         </pre>
 
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-muted-foreground">
           The CLI prints a one-time URL. Clicking it drops a cookie that
           authorizes this browser for 30 days.
         </p>

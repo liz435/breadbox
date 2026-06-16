@@ -11,6 +11,7 @@ import { analyzeCircuit, hasCapacitor, type CircuitAnalysis } from "./circuit-so
 import { snapshotAsPinStates } from "./pin-state-store"
 import { applySensorInputs, resetSensorBuses } from "./sensor-inputs"
 import { RunTokenGate } from "./run-token-gate"
+import { debugStateStore } from "./debug-state-store"
 import { getBoardPinLayout, getComponentFootprint, areConnected } from "@/breadboard/breadboard-grid"
 import { BoardContext } from "@/store/board-context"
 import { BOARD_TARGETS, DEFAULT_BOARD_TARGET, isBoardComponentType, type LibraryState, type ServoState } from "@dreamer/schemas"
@@ -33,6 +34,15 @@ export type SimulationActions = {
   stop: () => void
   sendSerialInput: (text: string) => void
   runner: SketchRunner | null
+  // ── Debug control ──
+  /** Push the debug store's current breakpoint lines into the active runner. */
+  applyBreakpoints: () => void
+  /** Resume free-run from a breakpoint halt. */
+  continueRun: () => void
+  /** Single-step one instruction. */
+  stepInto: () => void
+  /** Step until the source line changes (best-effort). */
+  stepOver: () => void
 }
 
 type SimulationHookOptions = {
@@ -387,6 +397,15 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
       // Reconcile Web Audio with the buzzer peripheral state.
       syncAudioFromBus()
 
+      // Breakpoint halt: capture the machine snapshot, flip to paused, and
+      // STOP scheduling — the rAF stays frozen until continue/step. (Audio
+      // keeps its last state; the next continue resumes the loop.)
+      if (runner.debug?.wasHalted()) {
+        debugStateStore.setHalt(runner.debug.snapshot())
+        send({ type: "BREAKPOINT_HIT" })
+        return
+      }
+
       // Yield to React every 4th frame
       if (frameCount % 4 === 0) {
         rafRef.current = setTimeout(() => {
@@ -452,6 +471,20 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
           pinStore: runner.getPinStore(),
         })
         send({ type: "COMPILE_SUCCESS" })
+
+        // Debugger: advertise what this runner supports and arm any
+        // breakpoints the user set before pressing Play.
+        const dbg = runner.debug
+        debugStateStore.setCapabilities({
+          canDebug: Boolean(dbg),
+          hasLineTable: dbg?.hasLineTable ?? false,
+        })
+        if (dbg) {
+          const armed = dbg.setBreakpointLines(debugStateStore.getBreakpointLines())
+          debugStateStore.setArmed(armed)
+        }
+        debugStateStore.setStatus("running")
+
         runner.runSetup()
         startLoop()
       })
@@ -461,13 +494,63 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
 
   const pause = useCallback(() => {
     cancelLoop()
+    // Capture state at the pause point so the Debugger panel is populated even
+    // for a manual pause (not just breakpoint halts). Safe: the rAF is between
+    // frames, so the runner sits at a frame boundary.
+    const dbg = runnerRef.current?.debug
+    if (dbg) debugStateStore.setHalt(dbg.snapshot())
     send({ type: "PAUSE" })
   }, [send, cancelLoop])
 
   const resume = useCallback(() => {
+    const dbg = runnerRef.current?.debug
+    if (dbg) dbg.continue()
+    debugStateStore.clearHalt()
+    debugStateStore.setStatus("running")
     send({ type: "RESUME" })
     startLoop()
   }, [send, startLoop])
+
+  // ── Debug control ──────────────────────────────────────────────────────
+
+  /** Push the debug store's breakpoint lines into the live runner. */
+  const applyBreakpoints = useCallback(() => {
+    const dbg = runnerRef.current?.debug
+    if (!dbg) return
+    const armed = dbg.setBreakpointLines(debugStateStore.getBreakpointLines())
+    debugStateStore.setArmed(armed)
+  }, [])
+
+  /** Resume free-run after a breakpoint halt. */
+  const continueRun = useCallback(() => {
+    const dbg = runnerRef.current?.debug
+    if (!dbg) return
+    dbg.continue()
+    debugStateStore.clearHalt()
+    debugStateStore.setStatus("running")
+    send({ type: "CONTINUE" })
+    startLoop()
+  }, [send, startLoop])
+
+  /** Advance one instruction and re-snapshot, staying paused. */
+  const stepInto = useCallback(() => {
+    const dbg = runnerRef.current?.debug
+    if (!dbg) return
+    dbg.stepInstruction()
+    debugStateStore.setHalt(dbg.snapshot())
+    syncLibraryState()
+    send({ type: "STEP" })
+  }, [send, syncLibraryState])
+
+  /** Advance until the source line changes and re-snapshot, staying paused. */
+  const stepOver = useCallback(() => {
+    const dbg = runnerRef.current?.debug
+    if (!dbg) return
+    dbg.stepLine()
+    debugStateStore.setHalt(dbg.snapshot())
+    syncLibraryState()
+    send({ type: "STEP" })
+  }, [send, syncLibraryState])
 
   const stop = useCallback(() => {
     // Invalidate any in-flight compile callbacks for prior runs.
@@ -481,6 +564,8 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     analysisResultRef.current = null
     // Clear sensor input busses so stale values don't leak into the next run.
     resetSensorBuses()
+    // Drop debugger run-state (keeps breakpoints for the next run).
+    debugStateStore.reset()
     send({ type: "STOP" })
   }, [send, cancelLoop, boardActor])
 
@@ -511,5 +596,9 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     stop,
     sendSerialInput,
     runner: runnerRef.current,
+    applyBreakpoints,
+    continueRun,
+    stepInto,
+    stepOver,
   }
 }

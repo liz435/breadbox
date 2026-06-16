@@ -31,8 +31,8 @@ export function OledDisplayPanel() {
 
   if (oledIds.length === 0) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-zinc-950 p-6">
-        <p className="max-w-md text-center text-sm text-zinc-500">
+      <div className="flex h-full w-full items-center justify-center bg-background p-6">
+        <p className="max-w-md text-center text-sm text-muted-foreground">
           No OLED display detected. Add an SSD1306 component to the breadboard
           and run a sketch that uses Adafruit_SSD1306.
         </p>
@@ -41,9 +41,9 @@ export function OledDisplayPanel() {
   }
 
   return (
-    <div className="flex h-full w-full flex-col bg-zinc-950">
+    <div className="flex h-full w-full flex-col bg-background">
       {oledIds.length > 1 && (
-        <div className="flex shrink-0 gap-1 border-b border-zinc-800 px-3 py-2">
+        <div className="flex shrink-0 gap-1 border-b border-border px-3 py-2">
           {oledIds.map((id) => (
             <button
               key={id}
@@ -53,7 +53,7 @@ export function OledDisplayPanel() {
                 "rounded-md px-2.5 py-1 font-mono text-xs transition-colors",
                 effectiveSelected === id
                   ? "bg-cyan-900/50 text-cyan-300 ring-1 ring-cyan-700/60"
-                  : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200",
+                  : "text-muted-foreground hover:bg-card hover:text-foreground",
               )}
             >
               {namesById[id]}
@@ -62,12 +62,12 @@ export function OledDisplayPanel() {
         </div>
       )}
       <div className="flex flex-1 items-center justify-center overflow-hidden p-4">
-        <div className="rounded-md border border-zinc-800 bg-black p-4 shadow-inner">
+        <div className="rounded-md border border-border bg-black p-4 shadow-inner">
           <OledCanvas state={selected} cssWidth={512} cssHeight={256} />
         </div>
       </div>
       {selected && (
-        <div className="shrink-0 border-t border-zinc-800 px-3 py-1.5 font-mono text-[10px] text-zinc-500">
+        <div className="shrink-0 border-t border-border px-3 py-1.5 font-mono text-[10px] text-muted-foreground">
           {selected.width}×{selected.height} • {selected.on ? "ON" : "OFF"}
           {selected.inverted ? " • INVERTED" : ""}
         </div>

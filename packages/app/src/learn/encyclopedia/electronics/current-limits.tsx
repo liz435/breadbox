@@ -67,7 +67,7 @@ export function CurrentLimitsPage() {
           pin. A small buzzer? Fine. A servo's signal line? Fine —
           the servo takes its own power from the 5 V rail, not the
           pin. Anything that actually{" "}
-          <em className="text-gray-200">does</em> something
+          <em className="text-foreground">does</em> something
           physical — a motor, a relay coil, a bright LED strip — is
           almost certainly over 20 mA and needs a transistor,
           MOSFET, or motor driver between it and the Arduino.

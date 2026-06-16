@@ -31,11 +31,11 @@ export function GlobalVsLocalPage() {
       <Section title="Locals live and die with the function">
         <p className="text-sm leading-relaxed">
           A variable declared inside a function is{" "}
-          <em className="text-gray-200">local</em>. It's created fresh
+          <em className="text-foreground">local</em>. It's created fresh
           every time the function runs and vanishes the instant the
           function returns. That's exactly what you want for scratch
           values inside a calculation — and exactly what you{" "}
-          <em className="text-gray-200">don't</em> want for anything
+          <em className="text-foreground">don't</em> want for anything
           that has to remember its value across calls.
         </p>
       </Section>
@@ -44,7 +44,7 @@ export function GlobalVsLocalPage() {
         <p className="text-sm leading-relaxed">
           Here's a sketch that tries to count loop iterations and print
           every tenth one. It prints nothing, because{" "}
-          <code className="text-gray-200">count</code> is reset to 0 on
+          <code className="text-foreground">count</code> is reset to 0 on
           every call:
         </p>
 

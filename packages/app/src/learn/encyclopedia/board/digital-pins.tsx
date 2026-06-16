@@ -31,7 +31,7 @@ export function DigitalPinsPage() {
         <p className="text-sm leading-relaxed">
           The top edge of the Uno has a single long header with 14
           digital pins, labeled <code>D0</code> through <code>D13</code>.
-          Each one is a <strong className="text-gray-200">bidirectional
+          Each one is a <strong className="text-foreground">bidirectional
           digital I/O line</strong>: the sketch can either drive it HIGH
           (5 V) or LOW (0 V) as an output, or read its current state as
           an input.
@@ -117,20 +117,20 @@ export function DigitalPinsPage() {
 
         <ul className="mt-2 space-y-2 text-sm leading-relaxed">
           <li>
-            <strong className="text-gray-200">OUTPUT</strong> — the
+            <strong className="text-foreground">OUTPUT</strong> — the
             sketch drives the pin. <Term k="digital-write">digitalWrite()</Term>
             {" "}switches it between 0 V and 5 V. Use this for LEDs,
             relays, buzzers, servo control lines.
           </li>
           <li>
-            <strong className="text-gray-200">INPUT</strong> — the
+            <strong className="text-foreground">INPUT</strong> — the
             sketch reads the pin. The pin is high-impedance (it doesn't
             source or sink significant current) and floats to whatever
             voltage the attached circuit drives it to. Use this when
             the circuit already has a pull-up or pull-down resistor.
           </li>
           <li>
-            <strong className="text-gray-200">INPUT_PULLUP</strong> —
+            <strong className="text-foreground">INPUT_PULLUP</strong> —
             like INPUT, but the chip enables its internal ~20 kΩ{" "}
             <Term k="pull-up">pull-up resistor</Term> so the pin reads
             HIGH by default. The canonical button wiring: switch goes
@@ -152,7 +152,7 @@ export function DigitalPinsPage() {
         <p className="text-sm leading-relaxed">
           On a real Arduino Uno, the digital header is at the top of
           the board and is labeled{" "}
-          <code className="text-gray-200">DIGITAL (PWM ~)</code>. Each
+          <code className="text-foreground">DIGITAL (PWM ~)</code>. Each
           pin's label is printed on the silkscreen:
         </p>
 
@@ -165,9 +165,9 @@ export function DigitalPinsPage() {
         <p className="text-sm leading-relaxed mt-3">
           There are also two extra pins on the digital header that
           aren't in the D0–D13 range:{" "}
-          <code className="text-gray-200">GND</code> (another ground,
+          <code className="text-foreground">GND</code> (another ground,
           convenient for breadboard layouts) and{" "}
-          <code className="text-gray-200">AREF</code> (analog voltage
+          <code className="text-foreground">AREF</code> (analog voltage
           reference, rarely used — ignore unless you're tuning the
           ADC).
         </p>

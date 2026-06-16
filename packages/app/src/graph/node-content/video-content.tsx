@@ -35,17 +35,17 @@ export function VideoContent({ node }: VideoContentProps) {
   return (
     <div className="px-2 py-1">
       {fileName ? (
-        <div className="text-[10px] text-neutral-300 truncate mb-1">
+        <div className="text-[10px] text-foreground truncate mb-1">
           {fileName}
         </div>
       ) : (
-        <div className="text-[10px] text-neutral-500 italic mb-1">
+        <div className="text-[10px] text-muted-foreground italic mb-1">
           No video file
         </div>
       )}
 
       {uri ? (
-        <div className="relative rounded border border-neutral-700 overflow-hidden bg-neutral-950">
+        <div className="relative rounded border border-border overflow-hidden bg-background">
           <video
             ref={videoRef}
             src={uri}
@@ -69,9 +69,9 @@ export function VideoContent({ node }: VideoContentProps) {
           </button>
         </div>
       ) : (
-        <div className="h-12 bg-neutral-950 rounded border border-neutral-700 flex items-center justify-center">
+        <div className="h-12 bg-background rounded border border-border flex items-center justify-center">
           <svg
-            className="w-6 h-6 text-neutral-600"
+            className="w-6 h-6 text-muted-foreground"
             viewBox="0 0 24 24"
             fill="currentColor"
           >
@@ -80,7 +80,7 @@ export function VideoContent({ node }: VideoContentProps) {
         </div>
       )}
 
-      <div className="flex justify-between mt-1 text-[9px] text-neutral-500">
+      <div className="flex justify-between mt-1 text-[9px] text-muted-foreground">
         <span>{rate}x</span>
         {loop && <span>Loop</span>}
       </div>

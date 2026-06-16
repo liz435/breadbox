@@ -76,9 +76,9 @@ export function PwmPage() {
 
       <Section title="Using analogWrite()">
         <p className="text-sm leading-relaxed">
-          Call <code className="text-gray-200">analogWrite(pin, value)</code>{" "}
+          Call <code className="text-foreground">analogWrite(pin, value)</code>{" "}
           where <code>value</code> is 0 (always LOW) to 255 (always HIGH).
-          You do <strong className="text-gray-200">not</strong> need to call{" "}
+          You do <strong className="text-foreground">not</strong> need to call{" "}
           <code>pinMode(pin, OUTPUT)</code> first — <code>analogWrite</code>{" "}
           sets the pin to output mode automatically.
         </p>
@@ -121,16 +121,16 @@ function DutyCycleExplorer() {
   const pct = Math.round(duty * 100)
 
   return (
-    <div className="rounded-md border border-neutral-800 bg-[#0d0d0d] p-4 space-y-4">
+    <div className="rounded-md border border-border bg-card p-4 space-y-4">
       {/* Slider */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
-          <label htmlFor={sliderId} className="text-sm text-gray-300">
+          <label htmlFor={sliderId} className="text-sm text-foreground">
             analogWrite value
           </label>
-          <span className="font-mono text-sm text-gray-200 tabular-nums">{value} / 255</span>
+          <span className="font-mono text-sm text-foreground tabular-nums">{value} / 255</span>
         </div>
-        <div className="relative h-2 rounded-full bg-neutral-800">
+        <div className="relative h-2 rounded-full bg-secondary">
           <div
             className="absolute inset-y-0 left-0 rounded-full bg-blue-500/60"
             style={{ width: `${(value / 255) * 100}%` }}
@@ -148,7 +148,7 @@ function DutyCycleExplorer() {
             aria-valuetext={`${value} — ${pct}% duty cycle, ${vAvg} V average`}
           />
         </div>
-        <div className="flex justify-between text-[10px] text-neutral-500 font-mono">
+        <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
           <span>0 (always LOW)</span>
           <span>255 (always HIGH)</span>
         </div>
@@ -163,7 +163,7 @@ function DutyCycleExplorer() {
 
       {/* Waveform visualization */}
       <div>
-        <p className="text-[11px] text-neutral-500 mb-2 uppercase tracking-wider font-semibold">
+        <p className="text-[11px] text-muted-foreground mb-2 uppercase tracking-wider font-semibold">
           Waveform (4 cycles shown)
         </p>
         <PwmWaveform duty={duty} />
@@ -174,8 +174,8 @@ function DutyCycleExplorer() {
 
 function StatBox({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <div className="rounded border border-neutral-800 bg-neutral-900 px-3 py-2 text-center">
-      <p className="text-[10px] text-neutral-500 mb-1">{label}</p>
+    <div className="rounded border border-border bg-card px-3 py-2 text-center">
+      <p className="text-[10px] text-muted-foreground mb-1">{label}</p>
       <p className={`font-mono text-base font-semibold ${color}`}>{value}</p>
     </div>
   )
@@ -232,7 +232,7 @@ function PwmWaveform({ duty }: { duty: number }) {
   const points = allPoints.map(([x, y]) => `${x.toFixed(1)},${y}`).join(" ")
 
   return (
-    <div className="flex justify-center rounded border border-neutral-800 bg-neutral-900 py-2">
+    <div className="flex justify-center rounded border border-border bg-card py-2">
       <svg
         viewBox={`0 0 ${w} ${h + 16}`}
         width={w}

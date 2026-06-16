@@ -10,12 +10,12 @@ export function AgentEvalPage() {
       />
 
       <Section title="Dashboard">
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           The eval dashboard is served by the API server at:
         </p>
         <CodeBlock code="http://localhost:4111/api/eval/dashboard" />
-        <p className="text-sm text-gray-400 mt-2">
-          Click <strong className="text-gray-300">Refresh</strong> to evaluate all runs in <code>data/runs/</code>.
+        <p className="text-sm text-muted-foreground mt-2">
+          Click <strong className="text-foreground">Refresh</strong> to evaluate all runs in <code>data/runs/</code>.
           Results are written to <code>data/tests/</code> with one JSON file per run plus a <code>summary.json</code>.
         </p>
       </Section>
@@ -33,7 +33,7 @@ export function AgentEvalPage() {
       </Section>
 
       <Section title="Path trace">
-        <p className="text-sm text-gray-300 leading-relaxed mb-2">
+        <p className="text-sm text-foreground leading-relaxed mb-2">
           Every tool call is recorded in order with full input and output. The trace shows the
           agent's decision path from start to finish.
         </p>
@@ -48,7 +48,7 @@ Step 3: [TOOL CALL]   place_component({type: "led", x: 2, y: 5})   ← RETRY
 Step 4: [TOOL RESULT] ✓ {componentId: "abc-123"}
 Step 5: [TOOL CALL]   wire_component_to_pin({componentId: "fake-id"})
 Step 6: [TOOL RESULT] ✗ {error: "Component not found"}              ← HALLUCINATION`} />
-        <p className="text-sm text-gray-400 mt-2">
+        <p className="text-sm text-muted-foreground mt-2">
           The dashboard color-codes steps: green for success, red for errors, orange for hallucinations.
           Retries are detected when the same tool is called again after an error.
         </p>
@@ -118,7 +118,7 @@ Step 6: [TOOL RESULT] ✗ {error: "Component not found"}              ← HALLUC
       </Section>
 
       <Section title="Auto-eval">
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           Every agent run is automatically evaluated when it completes. The eval is written to{" "}
           <code>data/tests/&#123;runId&#125;.json</code> as a fire-and-forget background task. No
           manual refresh needed for new runs — just open the dashboard.

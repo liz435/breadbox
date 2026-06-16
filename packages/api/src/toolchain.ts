@@ -325,3 +325,73 @@ export function coreFamilyForFqbn(fqbn: string): CoreFamily {
   if (fqbn.startsWith("rp2040:")) return "rp2040:rp2040";
   return "arduino:avr";
 }
+
+// ── Debug toolchain (avr-objdump for DWARF line tables) ───────────────────
+
+/** Ask arduino-cli where it keeps installed cores/tools. */
+async function arduinoCliDataDir(arduinoCli: string): Promise<string | null> {
+  const direct = await runCapture(
+    [arduinoCli, "config", "get", "directories.data"],
+    WHICH_TIMEOUT_MS,
+  );
+  if (direct.code === 0) {
+    const p = direct.stdout.trim();
+    if (p) return p;
+  }
+  const dump = await runCapture(
+    [arduinoCli, "config", "dump", "--format", "json"],
+    WHICH_TIMEOUT_MS,
+  );
+  if (dump.code === 0) {
+    try {
+      const cfg = JSON.parse(dump.stdout) as {
+        directories?: { data?: string };
+        config?: { directories?: { data?: string } };
+      };
+      return cfg.directories?.data ?? cfg.config?.directories?.data ?? null;
+    } catch {
+      /* fall through */
+    }
+  }
+  return null;
+}
+
+/**
+ * Locate the `avr-objdump` that ships with the installed `arduino:avr` core
+ * (used to read DWARF line info from the compiled ELF). Resolution order:
+ *   1. $BREADBOX_AVR_OBJDUMP override.
+ *   2. The avr-gcc toolchain bundled under arduino-cli's data dir.
+ *   3. `which avr-objdump` on PATH.
+ * Returns null when none is found — callers degrade to address-only debugging.
+ */
+export async function resolveAvrObjdump(arduinoCli: string): Promise<string | null> {
+  const exe = process.platform === "win32" ? "avr-objdump.exe" : "avr-objdump";
+
+  const override = process.env.BREADBOX_AVR_OBJDUMP;
+  if (override) return existsSync(override) ? override : null;
+
+  try {
+    const dataDir = await arduinoCliDataDir(arduinoCli);
+    if (dataDir) {
+      const glob = new Bun.Glob(`packages/arduino/tools/avr-gcc/*/bin/${exe}`);
+      const matches: string[] = [];
+      for await (const m of glob.scan({ cwd: dataDir, absolute: true })) {
+        matches.push(m);
+      }
+      if (matches.length > 0) {
+        // Multiple toolchain versions is rare; pick the lexically-highest dir.
+        matches.sort();
+        return matches[matches.length - 1];
+      }
+    }
+  } catch {
+    /* fall through to PATH */
+  }
+
+  const onPath = await runCapture(["which", exe], WHICH_TIMEOUT_MS);
+  if (onPath.code === 0) {
+    const p = onPath.stdout.trim();
+    if (p) return p;
+  }
+  return null;
+}

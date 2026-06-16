@@ -9,7 +9,7 @@ export function OverviewPage() {
       />
 
       <Section title="What is Breadbox?">
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           Breadbox is a browser-based Arduino simulator. You place components on a virtual breadboard,
           wire them to an Arduino Uno, run real SPICE circuit analysis to see voltages and currents,
           write and execute Arduino sketches in the browser, and use a visual node-graph for programming logic.
@@ -59,27 +59,27 @@ export function OverviewPage() {
       </Section>
 
       <Section title="Workflow">
-        <ol className="list-decimal list-inside space-y-2 text-sm text-gray-300 leading-relaxed">
-          <li>Open the <strong className="text-gray-200">Breadboard</strong> panel and pick a component from the palette (search by name or category), or press <strong className="text-gray-200">⌘K</strong> to use the command palette.</li>
-          <li>Click to place the component. Press <strong className="text-gray-200">R</strong> to rotate before placing. Drag to reposition.</li>
+        <ol className="list-decimal list-inside space-y-2 text-sm text-foreground leading-relaxed">
+          <li>Open the <strong className="text-foreground">Breadboard</strong> panel and pick a component from the palette (search by name or category), or press <strong className="text-foreground">⌘K</strong> to use the command palette.</li>
+          <li>Click to place the component. Press <strong className="text-foreground">R</strong> to rotate before placing. Drag to reposition.</li>
           <li>Draw wires between component legs and the Arduino power/ground rails. Select a wire and drag its endpoint handles to adjust.</li>
-          <li>The <strong className="text-gray-200">Circuit Simulator</strong> runs automatically — LEDs glow, the schematic updates.</li>
-          <li>Open the <strong className="text-gray-200">Sketch Editor</strong> — a boilerplate sketch is auto-generated. Edit it freely, or click <strong className="text-gray-200">Examples</strong> to load a pre-built board with a working sketch.</li>
-          <li>Click <strong className="text-gray-200">Run</strong> to compile and execute the sketch in the browser. Serial output appears in the Serial Monitor.</li>
-          <li>Use the <strong className="text-gray-200">AI Agent</strong> (bottom toolbar, sparkle icon) to ask for help at any step.</li>
+          <li>The <strong className="text-foreground">Circuit Simulator</strong> runs automatically — LEDs glow, the schematic updates.</li>
+          <li>Open the <strong className="text-foreground">Sketch Editor</strong> — a boilerplate sketch is auto-generated. Edit it freely, or click <strong className="text-foreground">Examples</strong> to load a pre-built board with a working sketch.</li>
+          <li>Click <strong className="text-foreground">Run</strong> to compile and execute the sketch in the browser. Serial output appears in the Serial Monitor.</li>
+          <li>Use the <strong className="text-foreground">AI Agent</strong> (bottom toolbar, sparkle icon) to ask for help at any step.</li>
         </ol>
       </Section>
 
       <Section title="Saving">
-        <p className="text-sm text-gray-300 leading-relaxed">
-          Projects auto-save after 2 seconds of inactivity. Press <strong className="text-gray-200">⌘S / Ctrl+S</strong> to save
+        <p className="text-sm text-foreground leading-relaxed">
+          Projects auto-save after 2 seconds of inactivity. Press <strong className="text-foreground">⌘S / Ctrl+S</strong> to save
           immediately — the Project icon in the toolbar flashes green to confirm. Components, wires, sketch code,
           and graph state are all persisted.
         </p>
       </Section>
 
       <Section title="Auto-generated Sketch">
-        <p className="text-sm text-gray-400 mb-2">
+        <p className="text-sm text-muted-foreground mb-2">
           When the sketch is empty or contains only auto-generated code, Breadbox regenerates it whenever you
           change the board layout. Once you manually edit the sketch, auto-generation stops.
         </p>
@@ -99,7 +99,7 @@ void loop() {
       </Section>
 
       <Section title="Serial Monitor">
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           The Serial Monitor displays output from <code>Serial.print()</code> and accepts input for <code>Serial.read()</code>.
           It works with both the in-browser simulation and real Arduino hardware via the Web Serial API (Chrome/Edge).
         </p>

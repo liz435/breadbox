@@ -51,12 +51,12 @@ function ModeToggle({
           onModeChange(newValue[0] as ToolbarMode)
         }
       }}
-      className="border-none gap-0"
+      className="gap-0 rounded-xl border-none bg-secondary/40"
     >
-      <Toggle value="edit" size="sm" className="rounded-r-none">
+      <Toggle value="edit" size="sm" className="size-9 rounded-r-none">
         <Pencil className="size-3.5" />
       </Toggle>
-      <Toggle value="ai" size="sm" className="rounded-l-none">
+      <Toggle value="ai" size="sm" className="size-9 rounded-l-none">
         <Sparkles className="size-3.5" />
       </Toggle>
     </ToggleGroup>
@@ -123,17 +123,17 @@ export function BottomToolbar() {
       <div className="relative flex items-center justify-center px-4 pb-3">
         <TooltipProvider delay={400}>
           {mode === "edit" ? (
-            <div className="pointer-events-auto flex h-10 w-fit items-center gap-2 rounded-lg border border-border bg-card px-2 shadow-sm">
+            <div className="pointer-events-auto flex h-13 w-fit items-center gap-1.5 rounded-2xl border border-border/70 bg-card/90 px-2.5 shadow-[0_12px_40px_-10px_rgba(60,40,10,0.28)] ring-1 ring-black/[0.03] backdrop-blur-xl">
               <ModeToggle mode={mode} onModeChange={setMode} />
-              <Separator orientation="vertical" className="h-6" />
+              <Separator orientation="vertical" className="h-7 bg-border/60" />
               <EditToolbar />
-              <Separator orientation="vertical" className="h-6" />
+              <Separator orientation="vertical" className="h-7 bg-border/60" />
               <PlayControls sim={sim} />
-              {/* Status + Board share one bordered shell so the pair reads
-                  as a single status surface instead of a pill next to a
+              {/* Status + Board share one recessed "well" so the pair reads
+                  as a single inset status surface instead of a pill next to a
                   loose icon. Border + background live here; StatusDisplay
                   + BoardStatus shed their own container chrome. */}
-              <div className="flex h-7 items-center gap-1 rounded-md border border-border/60 bg-background/40 pl-2.5 pr-1">
+              <div className="flex h-8 items-center gap-1 rounded-xl border border-border/50 bg-background/60 pl-2.5 pr-1 shadow-inner">
                 <StatusDisplay sim={sim} />
                 <BoardStatus />
               </div>

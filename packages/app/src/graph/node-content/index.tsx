@@ -8,7 +8,7 @@ type NodeContentProps = {
 export function NodeContent({ node }: NodeContentProps) {
   const label = NODE_TYPE_LABELS[node.type as GraphNodeType] ?? node.type;
   return (
-    <div className="px-2 py-1 text-[10px] text-neutral-400 truncate">
+    <div className="px-2 py-1 text-[10px] text-muted-foreground truncate">
       {label}
     </div>
   );

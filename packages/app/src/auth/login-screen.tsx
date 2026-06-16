@@ -90,14 +90,14 @@ export function LoginScreen({ className }: LoginScreenProps = {}) {
   return (
     <div
       className={cn(
-        "flex h-full min-h-screen w-full items-center justify-center bg-neutral-950 text-neutral-100",
+        "flex h-full min-h-screen w-full items-center justify-center bg-background text-foreground",
         className,
       )}
     >
       <div className="flex w-full max-w-sm flex-col items-center gap-8 px-6 py-12 text-center">
         <div className="flex flex-col items-center gap-3">
           <h1 className="text-3xl font-semibold tracking-tight">Breadbox</h1>
-          <p className="text-sm text-neutral-400">
+          <p className="text-sm text-muted-foreground">
             Sign in to access your projects.
           </p>
         </div>
@@ -128,7 +128,7 @@ export function LoginScreen({ className }: LoginScreenProps = {}) {
           )}
         </a>
 
-        <p className="text-xs text-neutral-600">
+        <p className="text-xs text-muted-foreground">
           We only read your GitHub username and email to create your
           account.
         </p>

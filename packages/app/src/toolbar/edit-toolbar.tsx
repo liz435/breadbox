@@ -52,6 +52,13 @@ const savedLayouts = new Map<string, unknown>()
 
 // ── Toolbar ──────────────────────────────────────────────────────────────
 
+// Shared juicy styling for the icon tools: rounded, springy press, and a
+// bold amber fill when the tool's panel is open (mirrors the Toggle's
+// data-[pressed] look so the whole bar reads as one system).
+const TOOL_BTN = "size-9 rounded-xl transition-all duration-150 active:scale-90"
+const TOOL_ACTIVE =
+  "bg-primary text-primary-foreground shadow-sm shadow-primary/40 hover:bg-primary/90 hover:text-primary-foreground"
+
 function togglePanel(api: ReturnType<typeof useDockviewApi>, panelId: string, component: string, title: string, refPanel?: string) {
   if (!api) return
   const existing = api.getPanel(panelId)
@@ -221,8 +228,9 @@ export function EditToolbar() {
               size="icon"
               onClick={handleProject}
               className={cn(
-                projectOpen && "bg-neutral-700/60",
-                saveFlash && "bg-emerald-500/30 text-emerald-400 transition-colors duration-300",
+                TOOL_BTN,
+                projectOpen && TOOL_ACTIVE,
+                saveFlash && "bg-emerald-500/30 text-emerald-400",
               )}
             />
           }
@@ -240,7 +248,7 @@ export function EditToolbar() {
               variant="ghost"
               size="icon"
               onClick={handleSerialMonitor}
-              className={cn("relative", serialOpen && "bg-neutral-700/60")}
+              className={cn(TOOL_BTN, "relative", serialOpen && TOOL_ACTIVE)}
             />
           }
         >
@@ -260,7 +268,7 @@ export function EditToolbar() {
               variant="ghost"
               size="icon"
               onClick={handleSketch}
-              className={cn(sketchOpen && "bg-neutral-700/60")}
+              className={cn(TOOL_BTN, sketchOpen && TOOL_ACTIVE)}
             />
           }
         >
@@ -277,7 +285,7 @@ export function EditToolbar() {
               variant="ghost"
               size="icon"
               onClick={handleInspector}
-              className={cn((inspectorOpen || electricalOpen) && "bg-neutral-700/60")}
+              className={cn(TOOL_BTN, (inspectorOpen || electricalOpen) && TOOL_ACTIVE)}
             />
           }
         >
@@ -294,6 +302,7 @@ export function EditToolbar() {
               variant="ghost"
               size="icon"
               onClick={() => navigate("/documentation")}
+              className={TOOL_BTN}
             />
           }
         >

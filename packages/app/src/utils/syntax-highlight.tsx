@@ -23,17 +23,18 @@ type Rule = { type: TokenType; re: RegExp }
 
 type Token = { type: TokenType; value: string }
 
+// Gruvbox Light — matches the sketch editor's parchment theme.
 const COLOR_CLASS: Record<TokenType, string> = {
-  comment: "text-[#6a9955] italic",
-  string: "text-[#ce9178]",
-  number: "text-[#b5cea8]",
-  keyword: "text-[#c586c0]",
-  type: "text-[#4ec9b0]",
-  constant: "text-[#569cd6]",
-  function: "text-[#dcdcaa]",
-  preprocessor: "text-[#9cdcfe]",
-  punctuation: "text-gray-500",
-  operator: "text-[#d4d4d4]",
+  comment: "text-[#928374] italic",
+  string: "text-[#79740e]",
+  number: "text-[#8f3f71]",
+  keyword: "text-[#9d0006]",
+  type: "text-[#b57614]",
+  constant: "text-[#8f3f71]",
+  function: "text-[#076678]",
+  preprocessor: "text-[#427b58]",
+  punctuation: "text-muted-foreground",
+  operator: "text-[#af3a03]",
   text: "",
 }
 

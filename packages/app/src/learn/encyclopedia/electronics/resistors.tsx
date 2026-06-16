@@ -83,7 +83,7 @@ export function ResistorsPage() {
           — 12 values per decade, enough for 5% tolerance parts:
         </p>
 
-        <p className="mt-2 text-sm leading-relaxed font-mono text-gray-200">
+        <p className="mt-2 text-sm leading-relaxed font-mono text-foreground">
           1.0, 1.2, 1.5, 1.8, 2.2, 2.7, 3.3, 3.9, 4.7, 5.6, 6.8, 8.2
         </p>
 

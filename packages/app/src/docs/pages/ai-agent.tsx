@@ -10,8 +10,8 @@ export function AiAgentPage() {
       />
 
       <Section title="How to use">
-        <p className="text-sm text-gray-300 leading-relaxed">
-          Click the <strong className="text-gray-200">sparkle icon</strong> (✦) in the bottom toolbar
+        <p className="text-sm text-foreground leading-relaxed">
+          Click the <strong className="text-foreground">sparkle icon</strong> (✦) in the bottom toolbar
           to switch to AI mode. Type a request in natural language and press Enter. The agent reads
           your board state, places components, draws wires, and updates the sketch — all in one step.
         </p>
@@ -74,7 +74,7 @@ export function AiAgentPage() {
       </Section>
 
       <Section title="Templates (instant, zero cost)">
-        <p className="text-sm text-gray-300 leading-relaxed mb-2">
+        <p className="text-sm text-foreground leading-relaxed mb-2">
           These patterns are detected by keyword matching before the AI agent runs. They execute
           deterministic circuit builders that place components with correct wiring and working sketch code.
         </p>
@@ -97,7 +97,7 @@ export function AiAgentPage() {
       </Section>
 
       <Section title="propose_circuit (recommended for new circuits)">
-        <p className="text-sm text-gray-300 leading-relaxed mb-2">
+        <p className="text-sm text-foreground leading-relaxed mb-2">
           The agent describes components and wires by type and array index — the tool handles
           positioning, ID generation, and validation automatically. No hallucinated IDs possible.
         </p>
@@ -115,7 +115,7 @@ export function AiAgentPage() {
   ],
   "sketch": "void setup() { ... }"
 }`} />
-        <p className="text-sm text-gray-400 mt-2">
+        <p className="text-sm text-muted-foreground mt-2">
           Components are referenced by array index (0, 1, 2...), not by ID. The tool auto-positions
           them on the breadboard, wires LED cathodes through resistors to GND, and validates everything
           before placing.
@@ -123,7 +123,7 @@ export function AiAgentPage() {
       </Section>
 
       <Section title="Agent eval dashboard">
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           Every agent run is automatically evaluated for accuracy, efficiency, circuit quality, and
           completeness. Results are stored in <code>data/tests/</code> alongside the run data.
         </p>

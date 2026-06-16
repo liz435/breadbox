@@ -257,17 +257,17 @@ export function SerialMonitor() {
 
     return (
       <div key={index} className={isInput ? "text-blue-400" : undefined}>
-        {tsStr && <span className="text-zinc-600 mr-2">[{tsStr}]</span>}
+        {tsStr && <span className="text-muted-foreground mr-2">[{tsStr}]</span>}
         {entry.text}
       </div>
     )
   }
 
   return (
-    <div className="flex h-full w-full flex-col bg-zinc-900 font-mono text-sm">
+    <div className="flex h-full w-full flex-col bg-card font-mono text-sm">
       {/* Header bar */}
-      <div className="flex items-center justify-between border-b border-zinc-700 px-3 py-1.5 gap-2">
-        <span className="text-xs font-semibold text-zinc-300 shrink-0">
+      <div className="flex items-center justify-between border-b border-border px-3 py-1.5 gap-2">
+        <span className="text-xs font-semibold text-foreground shrink-0">
           Serial Monitor
         </span>
 
@@ -287,7 +287,7 @@ export function SerialMonitor() {
             >
               <span className="size-1.5 rounded-full bg-emerald-400" />
               {activePort ?? "Connected"}
-              <span className="text-zinc-500">
+              <span className="text-muted-foreground">
                 · {baudRate} baud · {boardBytesReceived}B rx
               </span>
             </span>
@@ -298,14 +298,14 @@ export function SerialMonitor() {
             >
               <span className="size-1.5 rounded-full bg-amber-300/80" />
               Board disconnected
-              <span className="text-zinc-500">· click Connect →</span>
+              <span className="text-muted-foreground">· click Connect →</span>
             </span>
           ) : simMode === "avr" ? (
-            <span className="text-[10px] text-zinc-500">
+            <span className="text-[10px] text-muted-foreground">
               Simulated AVR{simBaudRate > 0 ? ` · ${simBaudRate} baud` : ""}
             </span>
           ) : (
-            <span className="text-[10px] text-zinc-500">not initialized</span>
+            <span className="text-[10px] text-muted-foreground">not initialized</span>
           )}
 
           {/* Baud mismatch hint — if the sketch declares Serial.begin(N)
@@ -336,7 +336,7 @@ export function SerialMonitor() {
                 userPickedBaud.current = true
                 setBaudRate(Number(e.target.value))
               }}
-              className="bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 text-[10px] text-zinc-300 outline-none"
+              className="bg-secondary border border-border rounded px-1.5 py-0.5 text-[10px] text-foreground outline-none"
             >
               {BAUD_RATES.map((r) => (
                 <option key={r} value={r}>{r} baud</option>
@@ -366,7 +366,7 @@ export function SerialMonitor() {
             onClick={() => setAutoscroll((v) => !v)}
             className={cn(
               "rounded px-2 py-0.5 text-[10px] transition-colors",
-              autoscroll ? "text-zinc-200 bg-zinc-700" : "text-zinc-500 hover:bg-zinc-800",
+              autoscroll ? "text-foreground bg-muted" : "text-muted-foreground hover:bg-secondary",
             )}
           >
             Autoscroll
@@ -378,7 +378,7 @@ export function SerialMonitor() {
             onClick={() => setShowTimestamps((v) => !v)}
             className={cn(
               "rounded px-2 py-0.5 text-[10px] transition-colors",
-              showTimestamps ? "text-zinc-200 bg-zinc-700" : "text-zinc-500 hover:bg-zinc-800",
+              showTimestamps ? "text-foreground bg-muted" : "text-muted-foreground hover:bg-secondary",
             )}
           >
             Timestamps
@@ -387,7 +387,7 @@ export function SerialMonitor() {
           {/* Clear */}
           <button
             type="button"
-            className="rounded px-2 py-0.5 text-[10px] text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-zinc-200"
+            className="rounded px-2 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             onClick={() => send({ type: "CLEAR_SERIAL" })}
           >
             Clear
@@ -398,7 +398,7 @@ export function SerialMonitor() {
           <div
             role="radiogroup"
             aria-label="Serial source"
-            className="ml-1 flex overflow-hidden rounded border border-zinc-700"
+            className="ml-1 flex overflow-hidden rounded border border-border"
           >
             {(["simulator", "board", "both"] as const).map((opt) => (
               <button
@@ -417,8 +417,8 @@ export function SerialMonitor() {
                 className={cn(
                   "px-2 py-0.5 text-[10px] transition-colors",
                   sourceFilter === opt
-                    ? "bg-zinc-700 text-zinc-200"
-                    : "text-zinc-500 hover:bg-zinc-800",
+                    ? "bg-muted text-foreground"
+                    : "text-muted-foreground hover:bg-secondary",
                 )}
               >
                 {SOURCE_LABELS[opt]}
@@ -429,10 +429,10 @@ export function SerialMonitor() {
       </div>
 
       {/* Input — sits directly under the header for quick access */}
-      <div className="flex border-b border-zinc-700">
+      <div className="flex border-b border-border">
         <input
           type="text"
-          className="flex-1 bg-zinc-800 px-3 py-1.5 text-xs text-green-300 placeholder-zinc-600 outline-none"
+          className="flex-1 bg-secondary px-3 py-1.5 text-xs text-green-300 placeholder:text-muted-foreground outline-none"
           placeholder="Type message and press Enter to send…"
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -441,7 +441,7 @@ export function SerialMonitor() {
         <select
           value={lineEnding}
           onChange={(e) => setLineEnding(e.target.value as LineEnding)}
-          className="bg-zinc-800 border-l border-zinc-700 px-2 py-1.5 text-[10px] text-zinc-400 outline-none"
+          className="bg-secondary border-l border-border px-2 py-1.5 text-[10px] text-muted-foreground outline-none"
         >
           {(Object.entries(LINE_ENDING_LABELS) as [LineEnding, string][]).map(([value, label]) => (
             <option key={value} value={value}>{label}</option>
@@ -449,7 +449,7 @@ export function SerialMonitor() {
         </select>
         <button
           type="button"
-          className="border-l border-zinc-700 px-3 py-1.5 text-[10px] text-zinc-300 hover:bg-zinc-700 transition-colors"
+          className="border-l border-border px-3 py-1.5 text-[10px] text-foreground hover:bg-muted transition-colors"
           onClick={handleSend}
         >
           Send
@@ -462,7 +462,7 @@ export function SerialMonitor() {
         className="flex-1 overflow-y-auto whitespace-pre-wrap px-3 py-2 text-green-400"
       >
         {visibleSerial.length === 0 ? (
-          <span className="text-zinc-600 italic">
+          <span className="text-muted-foreground italic">
             {sourceFilter === "board" && activePort && !serialConnected
               ? "No board output yet. Click Connect (top right) to start reading from the paired port — the read loop only runs while connected."
               : sourceFilter === "board" && !activePort

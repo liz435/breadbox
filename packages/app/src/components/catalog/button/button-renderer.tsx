@@ -7,7 +7,7 @@ import { buttonPressStore, useButtonPressed } from "@/simulator/button-press-sto
 import { usePinState } from "@/simulator/use-pin-state";
 import { useBoardSelector } from "@/store/board-context";
 import { analyzeButtonWiring } from "@/breadboard/component-pin-resolver";
-import { PinLabel } from "./pin-label";
+import { PinLabel } from "@/breadboard/component-renderers/pin-label";
 
 type ButtonRendererProps = {
   component: BoardComponent;

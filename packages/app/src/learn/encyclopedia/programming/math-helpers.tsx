@@ -43,7 +43,7 @@ export function MathHelpersPage() {
 
       <Section title="map() — the one you'll use constantly">
         <p className="text-sm leading-relaxed">
-          <code className="text-gray-200">
+          <code className="text-foreground">
             map(value, fromLow, fromHigh, toLow, toHigh)
           </code>{" "}
           linearly rescales a number. The two ranges don't have to be

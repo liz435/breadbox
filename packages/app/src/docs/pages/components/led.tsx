@@ -61,7 +61,7 @@ void loop() {
       </Section>
 
       <Section title="Typical wiring">
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           Arduino pin → 220 Ω resistor → LED anode → LED cathode → GND
         </p>
         <Note>
@@ -82,17 +82,17 @@ void loop() {
             ["Orange", "1.8 – 2.2 V", "20 mA", "590 – 620 nm"],
           ]}
         />
-        <p className="text-sm text-gray-400 mt-2">
+        <p className="text-sm text-muted-foreground mt-2">
           Resistor formula: R = (Vsupply − Vf) / Idesired
-          &nbsp;→ e.g. (5V − 2.0V) / 0.01A = <strong className="text-gray-300">300 Ω</strong> (use 330 Ω standard).
+          &nbsp;→ e.g. (5V − 2.0V) / 0.01A = <strong className="text-foreground">300 Ω</strong> (use 330 Ω standard).
         </p>
       </Section>
 
       <Section title="Example board">
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           A ready-made example board with a LED is available in the sketch editor.
-          Click the <strong className="text-gray-200">Examples</strong> button in the toolbar
-          (right of Run/Stop) and select <strong className="text-gray-200">"Blink LED"</strong> to
+          Click the <strong className="text-foreground">Examples</strong> button in the toolbar
+          (right of Run/Stop) and select <strong className="text-foreground">"Blink LED"</strong> to
           load a complete circuit with a working sketch.
         </p>
       </Section>

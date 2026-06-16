@@ -27,9 +27,9 @@ export function NumericLimitsPage() {
 
       <Section title="The AVR type ranges">
         <p className="text-sm leading-relaxed">
-          On the Uno's AVR chip, <code className="text-gray-200">int</code>{" "}
+          On the Uno's AVR chip, <code className="text-foreground">int</code>{" "}
           is only 16 bits — half the size of{" "}
-          <code className="text-gray-200">int</code> on your laptop.
+          <code className="text-foreground">int</code> on your laptop.
           That's small enough that everyday counters can actually run
           out of room, so it's worth knowing the numbers:
         </p>
@@ -70,7 +70,7 @@ u++;
 
       <Section title="The classic millis() rollover">
         <p className="text-sm leading-relaxed">
-          <code className="text-gray-200">millis()</code> returns an{" "}
+          <code className="text-foreground">millis()</code> returns an{" "}
           <code>unsigned long</code>. It counts up from zero and rolls
           back to zero after about 49.7 days. Sketches that compare
           timestamps with subtraction —{" "}

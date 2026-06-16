@@ -194,6 +194,46 @@ describe("validateDiagram — semantic: missing ground", () => {
     );
     expect(result.issues.filter((i) => i.code === "MISSING_GROUND")).toHaveLength(0);
   });
+
+  test("LED cathode grounded THROUGH a series resistor passes (no false MISSING_GROUND)", () => {
+    const result = validateDiagram(
+      makeDiagram({
+        sketch:
+          "void setup(){pinMode(13,OUTPUT);}\nvoid loop(){digitalWrite(13,HIGH);delay(500);digitalWrite(13,LOW);delay(500);}",
+        components: [
+          { id: "led1", type: "led", at: [5, 7], rotation: 0, properties: {} },
+          { id: "r1", type: "resistor", at: [5, 3], rotation: 0, properties: {} },
+        ],
+        wires: [
+          { from: "arduino.13", to: "led1.anode" },
+          { from: "led1.cathode", to: "r1.b" },
+          { from: "r1.a", to: "arduino.GND" },
+        ],
+      }),
+    );
+    expect(result.issues.filter((i) => i.code === "MISSING_GROUND")).toHaveLength(0);
+  });
+
+  test("LED cathode through a resistor that does NOT reach ground still warns", () => {
+    const result = validateDiagram(
+      makeDiagram({
+        sketch:
+          "void setup(){pinMode(13,OUTPUT);}\nvoid loop(){digitalWrite(13,HIGH);delay(500);digitalWrite(13,LOW);delay(500);}",
+        components: [
+          { id: "led1", type: "led", at: [5, 7], rotation: 0, properties: {} },
+          { id: "r1", type: "resistor", at: [5, 3], rotation: 0, properties: {} },
+        ],
+        wires: [
+          { from: "arduino.13", to: "led1.anode" },
+          { from: "led1.cathode", to: "r1.b" },
+          // r1.a is intentionally left unwired — no path to ground.
+        ],
+      }),
+    );
+    const warn = result.issues.find((i) => i.code === "MISSING_GROUND");
+    expect(warn).toBeDefined();
+    expect(warn?.message).toContain("led1");
+  });
 });
 
 describe("validateDiagram — semantic: missing I²C wiring", () => {

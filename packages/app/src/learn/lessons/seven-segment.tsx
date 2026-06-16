@@ -34,16 +34,16 @@ export function SevenSegmentLesson() {
           A 7-segment display is seven individual{" "}
           <Term k="led">LEDs</Term> arranged in an "8" shape, labeled a through g. The
           sketch stores a <Term k="array">byte array</Term> called{" "}
-          <code className="text-gray-200">digits[]</code> where each entry encodes which
+          <code className="text-foreground">digits[]</code> where each entry encodes which
           segments to light for that digit. For example, the digit "1" lights segments b
-          and c, so its byte is <code className="text-gray-200">0x06</code> (bits 1 and
+          and c, so its byte is <code className="text-foreground">0x06</code> (bits 1 and
           2 set).
         </p>
         <p className="text-sm leading-relaxed">
-          The helper function <code className="text-gray-200">showDigit(d)</code> loops
+          The helper function <code className="text-foreground">showDigit(d)</code> loops
           through all 7 segment pins and uses bitwise AND to extract each bit from the
           pattern byte, then writes that bit to the corresponding pin. One for-loop, seven
-          <code className="text-gray-200"> digitalWrite()</code> calls per digit update.
+          <code className="text-foreground"> digitalWrite()</code> calls per digit update.
         </p>
       </Section>
 

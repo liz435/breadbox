@@ -32,17 +32,17 @@ export function VoltageCurrentResistancePage() {
 
         <ul className="mt-2 space-y-2 text-sm leading-relaxed">
           <li>
-            <strong className="text-gray-200">Voltage</strong> is the
+            <strong className="text-foreground">Voltage</strong> is the
             water pressure — how hard the water is pushing on the pipe
             walls. Higher voltage, harder push.
           </li>
           <li>
-            <strong className="text-gray-200">Current</strong> is how
+            <strong className="text-foreground">Current</strong> is how
             much water is flowing past a point per second — the actual
             volume moving through the pipe.
           </li>
           <li>
-            <strong className="text-gray-200">Resistance</strong> is how
+            <strong className="text-foreground">Resistance</strong> is how
             narrow the pipe is. A pinched pipe lets less water through
             even if the pressure stays the same.
           </li>

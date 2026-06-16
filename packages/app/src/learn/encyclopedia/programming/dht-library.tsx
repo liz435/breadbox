@@ -26,7 +26,7 @@ export function DhtLibraryPage() {
 
       <Section title="Construct and begin">
         <p className="text-sm leading-relaxed">
-          Adafruit's <code className="text-gray-200">DHT</code>{" "}
+          Adafruit's <code className="text-foreground">DHT</code>{" "}
           library drives the DHT11, DHT21, and DHT22 sensors over a
           single data wire. Pass the pin number and the sensor type
           to the constructor, then call <code>begin()</code> in{" "}
@@ -50,10 +50,10 @@ void setup() {
 
       <Section title="Reading temperature and humidity">
         <p className="text-sm leading-relaxed">
-          <code className="text-gray-200">readTemperature()</code>{" "}
+          <code className="text-foreground">readTemperature()</code>{" "}
           returns degrees Celsius by default; pass <code>true</code>{" "}
           for Fahrenheit.{" "}
-          <code className="text-gray-200">readHumidity()</code>{" "}
+          <code className="text-foreground">readHumidity()</code>{" "}
           returns relative humidity as a percent. Both return{" "}
           <code>NAN</code> if the read failed — always check before
           using the value.

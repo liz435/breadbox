@@ -86,7 +86,7 @@ void loop() {
       <Section title="Scope">
         <p className="text-sm leading-relaxed">
           Parameters and variables declared inside a function are{" "}
-          <strong className="text-gray-200">local</strong> — they only
+          <strong className="text-foreground">local</strong> — they only
           exist while the function is running. Once it returns, they're
           gone. If you want a value to persist between calls, store it in
           a global variable or a <code>static</code> local.

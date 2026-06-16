@@ -31,13 +31,13 @@ export function WiresPage() {
 
         <ul className="mt-2 space-y-2 text-sm leading-relaxed">
           <li>
-            <strong className="text-gray-200">Solid core</strong> is a
+            <strong className="text-foreground">Solid core</strong> is a
             single stiff strand of copper. It holds its shape, plugs
             cleanly into breadboard holes, and is the right choice for
             anything that lives on a breadboard.
           </li>
           <li>
-            <strong className="text-gray-200">Stranded</strong> is made
+            <strong className="text-foreground">Stranded</strong> is made
             of dozens of thin strands bundled inside the insulation. It
             bends easily and won't snap after repeated flexing, but
             it's hard to push into a breadboard hole and a stray strand
@@ -85,16 +85,16 @@ export function WiresPage() {
       <Section title="Jumper types">
         <ul className="mt-2 space-y-2 text-sm leading-relaxed">
           <li>
-            <strong className="text-gray-200">Male-to-male (M/M)</strong>{" "}
+            <strong className="text-foreground">Male-to-male (M/M)</strong>{" "}
             — the everyday breadboard jumper. Both ends are pins.
           </li>
           <li>
-            <strong className="text-gray-200">Male-to-female (M/F)</strong>{" "}
+            <strong className="text-foreground">Male-to-female (M/F)</strong>{" "}
             — for connecting breadboards to modules that have female
             header sockets.
           </li>
           <li>
-            <strong className="text-gray-200">Female-to-female (F/F)</strong>{" "}
+            <strong className="text-foreground">Female-to-female (F/F)</strong>{" "}
             — for pin-to-pin on module headers, no breadboard involved.
           </li>
         </ul>

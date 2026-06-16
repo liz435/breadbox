@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import type { ComponentRendererProps } from "./index";
+import type { ComponentRendererProps } from "@/breadboard/component-renderers/renderer-types";
 import {
   ROWS,
   COLS,
@@ -14,7 +14,7 @@ import {
   POWER_RAIL_HEIGHT,
   RAIL_OFFSET,
   gridToPixel,
-} from "../breadboard-grid";
+} from "@/breadboard/breadboard-grid";
 
 /**
  * Renderer for `breadboard_full` components.

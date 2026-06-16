@@ -317,13 +317,13 @@ function CommandPaletteInner({ open, onClose }: CommandPaletteProps) {
 
       {/* Palette */}
       <div
-        className="relative w-full max-w-lg overflow-hidden rounded-xl border border-neutral-700 bg-neutral-900 shadow-2xl"
+        className="relative w-full max-w-lg overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
         {/* Input */}
-        <div className="flex items-center gap-2 border-b border-neutral-700 px-4 py-3">
-          <svg viewBox="0 0 16 16" width={16} height={16} className="flex-shrink-0 text-neutral-500">
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+          <svg viewBox="0 0 16 16" width={16} height={16} className="flex-shrink-0 text-muted-foreground">
             <circle cx={7} cy={7} r={5} fill="none" stroke="currentColor" strokeWidth={1.5} />
             <line x1={11} y1={11} x2={14} y2={14} stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" />
           </svg>
@@ -333,9 +333,9 @@ function CommandPaletteInner({ open, onClose }: CommandPaletteProps) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Type a command..."
-            className="flex-1 bg-transparent text-sm text-neutral-200 placeholder:text-neutral-500 outline-none"
+            className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
           />
-          <kbd className="rounded border border-neutral-600 bg-neutral-800 px-1.5 py-0.5 text-[10px] text-neutral-400">
+          <kbd className="rounded border border-border bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">
             ESC
           </kbd>
         </div>
@@ -343,13 +343,13 @@ function CommandPaletteInner({ open, onClose }: CommandPaletteProps) {
         {/* Results */}
         <div ref={listRef} className="max-h-[50vh] overflow-y-auto py-1">
           {results.length === 0 && (
-            <p className="px-4 py-6 text-center text-sm text-neutral-500">
+            <p className="px-4 py-6 text-center text-sm text-muted-foreground">
               No results for "{query}"
             </p>
           )}
           {grouped.map(({ category, items }) => (
             <div key={category}>
-              <div className="px-4 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+              <div className="px-4 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 {category}
               </div>
               {items.map(({ cmd, index }) => (
@@ -359,7 +359,7 @@ function CommandPaletteInner({ open, onClose }: CommandPaletteProps) {
                   className={`flex w-full items-center gap-3 px-4 py-2 text-left text-sm ${
                     index === selectedIndex
                       ? "bg-blue-600/20 text-blue-300"
-                      : "text-neutral-300 hover:bg-neutral-800"
+                      : "text-foreground hover:bg-secondary"
                   }`}
                   onMouseEnter={() => setSelectedIndex(index)}
                   onClick={() => executeCommand(cmd)}
@@ -368,7 +368,7 @@ function CommandPaletteInner({ open, onClose }: CommandPaletteProps) {
                   <span className="flex flex-col min-w-0">
                     <span className="truncate">{cmd.label}</span>
                     {cmd.description && (
-                      <span className="truncate text-xs text-neutral-500">{cmd.description}</span>
+                      <span className="truncate text-xs text-muted-foreground">{cmd.description}</span>
                     )}
                   </span>
                 </button>
@@ -378,10 +378,10 @@ function CommandPaletteInner({ open, onClose }: CommandPaletteProps) {
         </div>
 
         {/* Footer hint */}
-        <div className="flex items-center gap-3 border-t border-neutral-700 px-4 py-2 text-[10px] text-neutral-500">
-          <span><kbd className="rounded border border-neutral-600 bg-neutral-800 px-1 py-0.5">↑↓</kbd> navigate</span>
-          <span><kbd className="rounded border border-neutral-600 bg-neutral-800 px-1 py-0.5">↵</kbd> select</span>
-          <span><kbd className="rounded border border-neutral-600 bg-neutral-800 px-1 py-0.5">esc</kbd> close</span>
+        <div className="flex items-center gap-3 border-t border-border px-4 py-2 text-[10px] text-muted-foreground">
+          <span><kbd className="rounded border border-border bg-secondary px-1 py-0.5">↑↓</kbd> navigate</span>
+          <span><kbd className="rounded border border-border bg-secondary px-1 py-0.5">↵</kbd> select</span>
+          <span><kbd className="rounded border border-border bg-secondary px-1 py-0.5">esc</kbd> close</span>
         </div>
       </div>
     </div>

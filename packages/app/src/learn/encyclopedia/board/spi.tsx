@@ -66,7 +66,7 @@ export function BoardSpiPage() {
           each one its own SS line on a different digital pin. Pull
           the chosen one LOW, clock the bytes, then release it HIGH
           before talking to the next. D10 is only the{" "}
-          <em className="text-gray-200">default</em> SS — any spare
+          <em className="text-foreground">default</em> SS — any spare
           digital pin works.
         </p>
 

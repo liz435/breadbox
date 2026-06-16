@@ -9,7 +9,7 @@ export function ExtendingPage() {
       />
 
       <Section title="Overview">
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           All component behaviour is defined in one place:{" "}
           <code>packages/app/src/components/registry.tsx</code>. A single{" "}
           <code>ComponentDefinition</code> object per component type drives the breadboard footprint,
@@ -25,21 +25,21 @@ export function ExtendingPage() {
       </Section>
 
       <Section title="Step 1 — Add the type to the schema">
-        <p className="text-sm text-gray-400 mb-2">
+        <p className="text-sm text-muted-foreground mb-2">
           File: <code>packages/schemas/src/arduino.ts</code>
         </p>
         <CodeBlock code={`export const componentTypeSchema = z.enum([
   // ... existing types ...
   "my_sensor",   // ← add your type here
 ])`} lang="ts" />
-        <p className="text-sm text-gray-400 mt-2">
+        <p className="text-sm text-muted-foreground mt-2">
           This is the only place the type string is declared authoritatively. TypeScript will
           enforce it everywhere via <code>ComponentType</code>.
         </p>
       </Section>
 
       <Section title="Step 2 — Add the pin map">
-        <p className="text-sm text-gray-400 mb-2">
+        <p className="text-sm text-muted-foreground mb-2">
           File: <code>packages/schemas/src/component-pins.ts</code>
         </p>
         <CodeBlock code={`const PIN_NAMES: Record<string, string[]> = {
@@ -57,14 +57,14 @@ export function resolveComponentPins(type: string, row: number, col: number) {
       }
   }
 }`} lang="ts" />
-        <p className="text-sm text-gray-400 mt-2">
+        <p className="text-sm text-muted-foreground mt-2">
           This map is shared by the breadboard, diagram adapter, validators, schematics,
           and runtime pin resolution, so it should match the footprint used by the registry.
         </p>
       </Section>
 
       <Section title="Step 3 — Add a definition to the registry">
-        <p className="text-sm text-gray-400 mb-2">
+        <p className="text-sm text-muted-foreground mb-2">
           File: <code>packages/app/src/components/registry.tsx</code> — add one object to{" "}
           <code>COMPONENT_REGISTRY</code>.
         </p>
@@ -138,7 +138,7 @@ export function resolveComponentPins(type: string, row: number, col: number) {
       </Section>
 
       <Section title="Step 4 — Optional: custom renderer">
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           If the generic grey rectangle isn't enough visually, create a renderer in{" "}
           <code>packages/app/src/breadboard/component-renderers/</code> and register it in{" "}
           <code>component-renderers/index.tsx</code>:
@@ -161,7 +161,7 @@ my_sensor: MySensorRenderer,`} lang="tsx" />
       </Section>
 
       <Section title="Step 5 — Optional: custom inspector">
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           For type-specific property editors, add a small component and a conditional render in{" "}
           <code>packages/app/src/panels/inspector.tsx</code>. If you skip this, all pins are
           shown via the generic pin inspector.
@@ -190,7 +190,7 @@ function MySensorInspector({ component, onUpdate }) {
       </Section>
 
       <Section title="Step 6 — Add a docs page (recommended)">
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           Copy an existing page from{" "}
           <code>packages/app/src/docs/pages/components/</code>, fill in the fields, then
           register it in <code>docs-layout.tsx</code> (NAV array) and{" "}
@@ -262,7 +262,7 @@ function MySensorInspector({ component, onUpdate }) {
       </Section>
 
       <Section title="Environment-driven sensors (sensor-inputs.ts)">
-        <p className="text-sm text-gray-300 leading-relaxed mb-2">
+        <p className="text-sm text-foreground leading-relaxed mb-2">
           Some components model physics the SPICE solver cannot handle: light on a photoresistor,
           distance to an ultrasonic wall, a PIR trip, DHT temperature/humidity, an IR remote button
           press. These components live outside SPICE and are driven by{" "}
@@ -279,7 +279,7 @@ function MySensorInspector({ component, onUpdate }) {
             ["ir_receiver", "Inspector 'Send' / IR Remote button", "IrReceiverPeripheral.sendCode → NEC pin edges → IrReceiver.decode()"],
           ]}
         />
-        <p className="text-sm text-gray-400 mt-3 mb-2">
+        <p className="text-sm text-muted-foreground mt-3 mb-2">
           <strong>When to use sensor-inputs vs SPICE:</strong> if the reading isn't primarily
           electrical (light, distance, humidity, RF codes), wire it through sensor-inputs instead
           of growing the netlist. Put inspector state in <code>component.properties</code>, add a
@@ -287,7 +287,7 @@ function MySensorInspector({ component, onUpdate }) {
           <code>applySensorInputs()</code>. The tick loop calls it right after the circuit solver
           so sensor values win over any stale SPICE-computed voltage on the same pin.
         </p>
-        <p className="text-sm text-gray-400 mb-2">
+        <p className="text-sm text-muted-foreground mb-2">
           <strong>Per-pin busses:</strong> for sensors that are polled by a library class or by
           <code>pulseIn</code> rather than <code>analogRead</code>, export a module-level{" "}
           <code>Map&lt;pin, value&gt;</code> from sensor-inputs and read from it in the matching
@@ -326,7 +326,7 @@ export function applySensorInputs(components, wires, store): void {
       </Section>
 
       <Section title="Arduino library system">
-        <p className="text-sm text-gray-300 leading-relaxed mb-2">
+        <p className="text-sm text-foreground leading-relaxed mb-2">
           Arduino libraries are provided as built-in JavaScript classes and objects injected into the
           sketch execution scope. They are defined in{" "}
           <code>packages/app/src/simulator/arduino-stdlib.ts</code>.
@@ -342,18 +342,18 @@ export function applySensorInputs(components, wires, store): void {
             ["Stepper", "StepperClass — setSpeed, step", "position, speed, pin states"],
           ]}
         />
-        <p className="text-sm text-gray-400 mt-3 mb-2">
+        <p className="text-sm text-muted-foreground mt-3 mb-2">
           <strong>Adding a built-in library (developer):</strong> Add a class or object in{" "}
           <code>arduino-stdlib.ts</code>, export it in the return object, and add its header to{" "}
           <code>KNOWN_LIBRARIES</code> in <code>arduino-transpiler.ts</code>.
         </p>
-        <p className="text-sm text-gray-400 mb-2">
+        <p className="text-sm text-muted-foreground mb-2">
           <strong>Adding a custom library (user):</strong> Open the Libraries tab, click +, name it
           (e.g. <code>MyUtils.h</code>), and write C++ code. Use{" "}
           <code>#include &quot;MyUtils.h&quot;</code> (double quotes) in your sketch. Custom libraries
           are stored per-project and auto-saved.
         </p>
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           The transpiler supports a restricted C++ subset including simple class and struct
           definitions, PascalCase class instantiation (<code>Servo motor;</code>), and all standard
           Arduino functions. Pointers, templates, and namespaces are not supported.

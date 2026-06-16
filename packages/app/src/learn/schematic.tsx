@@ -67,14 +67,14 @@ function Root({ cols, rows, title, children }: SchematicRootProps) {
   return (
     <div className="my-4 flex flex-col items-center">
       {title && (
-        <p className="mb-2 text-xs font-medium uppercase tracking-wider text-gray-500">
+        <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
           {title}
         </p>
       )}
       {/* Outer wrapper is full-width so the border looks like a frame.
           Inner flex centers the fixed-size SVG inside that frame. */}
       <div
-        className="w-full overflow-auto rounded border border-neutral-800 bg-[#0f0f0f] px-6 py-4"
+        className="w-full overflow-auto rounded border border-border bg-[#0f0f0f] px-6 py-4"
       >
         <div className="flex justify-center">
           <svg
@@ -970,7 +970,7 @@ export function Figure({
     <figure className="my-6">
       {children}
       {caption && (
-        <figcaption className="mt-1 text-center text-xs text-gray-500">
+        <figcaption className="mt-1 text-center text-xs text-muted-foreground">
           {caption}
         </figcaption>
       )}

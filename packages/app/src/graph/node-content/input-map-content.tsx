@@ -34,8 +34,8 @@ export function InputMapContent({ node }: InputMapContentProps) {
           key={action.name}
           className="flex items-center justify-between text-[9px] py-0.5"
         >
-          <span className="text-neutral-300 truncate">{action.name}</span>
-          <span className="text-neutral-500 font-mono ml-1">
+          <span className="text-foreground truncate">{action.name}</span>
+          <span className="text-muted-foreground font-mono ml-1">
             {action.keys.slice(0, 2).join("/")}
           </span>
         </div>

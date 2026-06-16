@@ -77,7 +77,7 @@ export function GraphMinimap() {
     <svg
       width={MINIMAP_W}
       height={MINIMAP_H}
-      className="bg-neutral-900/80 border border-neutral-700 rounded cursor-pointer"
+      className="bg-card/80 border border-border rounded cursor-pointer"
       onClick={handleClick}
     >
       {/* Edges */}

@@ -33,7 +33,7 @@ export function PowerPage() {
           and follows a one-line formula:
         </p>
 
-        <p className="my-3 text-center text-lg font-mono text-gray-100">
+        <p className="my-3 text-center text-lg font-mono text-foreground">
           P = V × I
         </p>
 
@@ -68,7 +68,7 @@ export function PowerPage() {
       <Section title="Resistor power ratings">
         <p className="text-sm leading-relaxed">
           The small axial resistors in an Arduino kit are typically
-          rated for <strong className="text-gray-200">¼ watt</strong>.
+          rated for <strong className="text-foreground">¼ watt</strong>.
           That's plenty for low-voltage hobby work — even a 5 V supply
           through a 100 Ω resistor only dissipates 0.25 W, right at the
           limit. Keep well under the rating for safety.

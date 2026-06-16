@@ -14,8 +14,8 @@ export function DhtSensorLesson() {
 
       <Section title="What you'll build">
         <p className="text-sm leading-relaxed">
-          A DHT11 sensor wired to pin <code className="text-gray-200">D2</code>. The
-          sketch uses the <code className="text-gray-200">DHT</code> library to read
+          A DHT11 sensor wired to pin <code className="text-foreground">D2</code>. The
+          sketch uses the <code className="text-foreground">DHT</code> library to read
           temperature in Celsius and relative humidity, then prints both to Serial once
           per loop.
         </p>
@@ -36,15 +36,15 @@ export function DhtSensorLesson() {
           master (Arduino) pulls the data line LOW for at least 18 ms to wake the
           sensor, then releases it. The sensor responds with a start signal and then
           sends 40 bits: 16 bits of humidity data, 16 bits of temperature data, and an
-          8-bit checksum. The <code className="text-gray-200">DHT</code> library handles
+          8-bit checksum. The <code className="text-foreground">DHT</code> library handles
           all of that timing on your behalf.
         </p>
         <p className="text-sm leading-relaxed">
-          <code className="text-gray-200">dht.readTemperature()</code> and{" "}
-          <code className="text-gray-200">dht.readHumidity()</code> return{" "}
+          <code className="text-foreground">dht.readTemperature()</code> and{" "}
+          <code className="text-foreground">dht.readHumidity()</code> return{" "}
           <Term k="floating-point">float</Term> values, or{" "}
-          <code className="text-gray-200">NaN</code> if the read fails (checksum error or
-          no response). A real sketch should check for <code className="text-gray-200">isnan()</code>{" "}
+          <code className="text-foreground">NaN</code> if the read fails (checksum error or
+          no response). A real sketch should check for <code className="text-foreground">isnan()</code>{" "}
           before printing.
         </p>
       </Section>

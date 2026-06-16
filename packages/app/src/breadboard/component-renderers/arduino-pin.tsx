@@ -176,7 +176,7 @@ function ArduinoPinInner({ pin, isWiring, onStartWire }: ArduinoPinProps) {
         textAnchor={labelPos.anchor}
         dominantBaseline="middle"
         fontSize={5}
-        fill="#ffffff"
+        style={{ fill: "var(--foreground)" }}
         fontFamily="monospace"
         pointerEvents="none"
       >

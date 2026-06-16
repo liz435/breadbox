@@ -60,7 +60,7 @@ export function CapacitorsPage() {
           Ceramic capacitors (usually nF and small µF values) are
           non-polarized — orient them any way you like. Electrolytic
           capacitors (the cylindrical ones, typically ≥1 µF) are{" "}
-          <em className="text-gray-200">polarized</em>: the longer
+          <em className="text-foreground">polarized</em>: the longer
           lead is positive, and the can has a stripe marking the
           negative lead. Reverse them and they can fail dramatically.
         </p>
@@ -75,8 +75,8 @@ export function CapacitorsPage() {
       <Section title="The decoupling cap">
         <p className="text-sm leading-relaxed">
           The single most common Arduino-world capacitor use is{" "}
-          <em className="text-gray-200">decoupling</em>: one{" "}
-          <code className="text-gray-200">0.1 µF</code> ceramic cap
+          <em className="text-foreground">decoupling</em>: one{" "}
+          <code className="text-foreground">0.1 µF</code> ceramic cap
           between VCC and GND, placed physically close to every IC.
           It acts as a tiny local reservoir that absorbs the fast
           current spikes a chip draws when its outputs switch,
@@ -102,7 +102,7 @@ export function CapacitorsPage() {
 
         <Note>
           Breadbox models capacitors as{" "}
-          <em className="text-gray-200">visual-only</em>: they show
+          <em className="text-foreground">visual-only</em>: they show
           up in the schematic and your netlist parses them, but the
           simulator doesn't run transient analysis, so they have no
           runtime behavior. Their job in a Breadbox sketch is

@@ -54,16 +54,16 @@ export function OnboardLedPage() {
           Two reasons, one practical and one historical.
         </p>
         <p className="text-sm leading-relaxed">
-          <strong className="text-gray-200">Practical:</strong> when
+          <strong className="text-foreground">Practical:</strong> when
           you're bringing up a new board or debugging a flaky cable,
           you need the simplest possible "the CPU is alive and my
           sketch is running" signal. The onboard LED gives you that
-          with <em className="text-gray-200">zero wiring</em>. Upload
+          with <em className="text-foreground">zero wiring</em>. Upload
           a blink sketch, see the light pulse, and you know your USB
           driver, your toolchain, and your ATmega are all healthy.
         </p>
         <p className="text-sm leading-relaxed">
-          <strong className="text-gray-200">Historical:</strong>{" "}
+          <strong className="text-foreground">Historical:</strong>{" "}
           "Blink" is the traditional first Arduino program — and has
           been since the original 2005 boards. Every Arduino from the
           NG through the Uno through modern variants keeps the pin 13
@@ -114,22 +114,22 @@ void loop() {
       <Section title="Gotchas">
         <ul className="space-y-2 text-sm leading-relaxed">
           <li>
-            <strong className="text-gray-200">Pin 13 is shared.</strong>{" "}
+            <strong className="text-foreground">Pin 13 is shared.</strong>{" "}
             The onboard LED and the header pin are the{" "}
-            <em className="text-gray-200">same pin</em>. If you wire a
+            <em className="text-foreground">same pin</em>. If you wire a
             second LED to the header, both LEDs will light in lock-
             step. If you wire a sensor to the header, the onboard LED
             will flicker as the sensor changes state, which can be
             surprising if you didn't expect it.
           </li>
           <li>
-            <strong className="text-gray-200">Don't use pin 13 as an input.</strong>{" "}
+            <strong className="text-foreground">Don't use pin 13 as an input.</strong>{" "}
             The onboard LED+resistor weakly pull the pin toward
             ground, which skews readings from switches and sensors. If
             you need another digital input, pick any other pin.
           </li>
           <li>
-            <strong className="text-gray-200">Pin 13 is also SCK.</strong>{" "}
+            <strong className="text-foreground">Pin 13 is also SCK.</strong>{" "}
             The Uno's hardware SPI routes the clock signal to pin 13.
             If you're using SPI (microSD card readers, OLED displays
             with SPI interface, etc.) the onboard LED will flicker

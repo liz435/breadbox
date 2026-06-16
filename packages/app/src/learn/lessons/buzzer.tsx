@@ -14,11 +14,11 @@ export function BuzzerLesson() {
 
       <Section title="What you'll build">
         <p className="text-sm leading-relaxed">
-          A piezo buzzer on pin <code className="text-gray-200">D8</code> that plays a
+          A piezo buzzer on pin <code className="text-foreground">D8</code> that plays a
           three-note melody — C4, E4, and G4 — repeating continuously. No library is
           needed; Arduino's built-in{" "}
           <Term k="tone">
-            <code className="text-gray-200">tone()</code>
+            <code className="text-foreground">tone()</code>
           </Term>{" "}
           function does the work.
         </p>
@@ -34,19 +34,19 @@ export function BuzzerLesson() {
 
       <Section title="How it works">
         <p className="text-sm leading-relaxed">
-          <code className="text-gray-200">tone(pin, frequency)</code> tells the Arduino
+          <code className="text-foreground">tone(pin, frequency)</code> tells the Arduino
           to produce a square wave at the given frequency in Hz on the specified pin. The
           buzzer converts that electrical oscillation into sound. The three notes in the
           sketch use standard musical frequencies: 262 Hz (C4), 330 Hz (E4), 392 Hz (G4).
         </p>
         <p className="text-sm leading-relaxed">
-          Each <code className="text-gray-200">tone()</code> call is followed by a{" "}
+          Each <code className="text-foreground">tone()</code> call is followed by a{" "}
           <Term k="delay">
-            <code className="text-gray-200">delay(500)</code>
+            <code className="text-foreground">delay(500)</code>
           </Term>{" "}
           to let the note ring, and then{" "}
-          <code className="text-gray-200">noTone(pin)</code> stops it before the next note
-          starts. The final <code className="text-gray-200">delay(1000)</code> creates a
+          <code className="text-foreground">noTone(pin)</code> stops it before the next note
+          starts. The final <code className="text-foreground">delay(1000)</code> creates a
           rest between melody repetitions.
         </p>
       </Section>

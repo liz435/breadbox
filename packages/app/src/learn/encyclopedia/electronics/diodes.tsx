@@ -29,11 +29,11 @@ export function DiodesPage() {
       <Section title="Forward vs reverse">
         <p className="text-sm leading-relaxed">
           A <Term k="diode" /> has two terminals:{" "}
-          <em className="text-gray-200">anode</em> (+) and{" "}
-          <em className="text-gray-200">cathode</em> (−, marked by
+          <em className="text-foreground">anode</em> (+) and{" "}
+          <em className="text-foreground">cathode</em> (−, marked by
           the band on the body). Put the anode at a higher voltage
           than the cathode and current flows — the diode is{" "}
-          <em className="text-gray-200">forward-biased</em>. Reverse
+          <em className="text-foreground">forward-biased</em>. Reverse
           the voltage and almost no current flows (until you exceed
           its reverse breakdown voltage, which you shouldn't).
         </p>
@@ -79,7 +79,7 @@ export function DiodesPage() {
           destroy whatever was driving it. Place a diode across the
           coil, cathode to +V, anode to the switched side, and that
           spike has somewhere to go. The classic name is{" "}
-          <em className="text-gray-200">flyback diode</em> (also
+          <em className="text-foreground">flyback diode</em> (also
           "kickback diode" or "freewheeling diode"). A 1N4001 across
           a 5 V relay coil is the canonical example.
         </p>

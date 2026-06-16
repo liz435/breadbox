@@ -64,7 +64,7 @@ void loop() {
       <Section title="One tone at a time">
         <p className="text-sm leading-relaxed">
           Under the hood <code>tone()</code> uses{" "}
-          <em className="text-gray-200">Timer 2</em> on the Uno. Only
+          <em className="text-foreground">Timer 2</em> on the Uno. Only
           one pin can be generating a tone at any given moment — calling{" "}
           <code>tone()</code> on a different pin before calling{" "}
           <code>noTone()</code> cancels the first one. You cannot play

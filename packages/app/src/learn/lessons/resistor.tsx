@@ -15,7 +15,7 @@ export function ResistorLesson() {
       <Section title="What you'll build">
         <p className="text-sm leading-relaxed">
           A blinking <Term k="led" /> on pin{" "}
-          <code className="text-gray-200">D13</code> with a 330{"\u03a9"}{" "}
+          <code className="text-foreground">D13</code> with a 330{"\u03a9"}{" "}
           <Term k="resistor">current-limiting resistor</Term> in series. This is the
           same circuit as Lesson 1, but the lesson focuses on the resistor's role rather
           than the sketch.
@@ -46,7 +46,7 @@ export function ResistorLesson() {
           A typical LED is brightest and safe between 10 and 20 mA. To target 15 mA with
           a red LED (Vf ≈ 2 V) on a 5 V supply:
         </p>
-        <p className="text-sm leading-relaxed font-mono text-gray-200">
+        <p className="text-sm leading-relaxed font-mono text-foreground">
           R = (5 V - 2 V) / 0.015 A = 200{"\u03a9"}
         </p>
         <p className="text-sm leading-relaxed">

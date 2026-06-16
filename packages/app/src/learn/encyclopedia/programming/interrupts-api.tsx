@@ -28,7 +28,7 @@ export function InterruptsApiPage() {
       <Section title="The three functions">
         <p className="text-sm leading-relaxed">
           An interrupt lets the hardware call a function — the{" "}
-          <em className="text-gray-200">ISR</em>, or interrupt service
+          <em className="text-foreground">ISR</em>, or interrupt service
           routine — the instant a pin changes, regardless of what your
           sketch is doing. On the Uno, only pins 2 and 3 support
           external interrupts.
@@ -77,7 +77,7 @@ void loop() {
       <Section title="Rules of ISRs">
         <p className="text-sm leading-relaxed">
           Any variable an ISR and the main loop both touch{" "}
-          <em className="text-gray-200">must</em> be declared{" "}
+          <em className="text-foreground">must</em> be declared{" "}
           <code>volatile</code>, or the compiler may cache it in a
           register and miss updates. Keep ISRs short — no{" "}
           <code>delay()</code>, no <code>Serial.print()</code>, no

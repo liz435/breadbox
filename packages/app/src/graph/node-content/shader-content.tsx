@@ -23,15 +23,15 @@ export function ShaderContent({ node, onDataChange }: ShaderContentProps) {
   return (
     <div className="px-2 py-1">
       <div className="flex items-center justify-between mb-1">
-        <span className="text-[9px] uppercase tracking-wider text-neutral-500">
+        <span className="text-[9px] uppercase tracking-wider text-muted-foreground">
           {language}
         </span>
-        <span className="text-[9px] text-neutral-600">
+        <span className="text-[9px] text-muted-foreground">
           {lines.length} lines
         </span>
       </div>
       <textarea
-        className="w-full bg-neutral-950 text-[10px] text-green-400 font-mono p-1.5 rounded border border-neutral-700 resize-none outline-none focus:border-violet-500"
+        className="w-full bg-background text-[10px] text-green-400 font-mono p-1.5 rounded border border-border resize-none outline-none focus:border-violet-500"
         rows={4}
         value={code}
         onChange={handleChange}

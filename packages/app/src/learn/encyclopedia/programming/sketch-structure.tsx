@@ -27,9 +27,9 @@ export function SketchStructurePage() {
       <Section title="The shape of a sketch">
         <p className="text-sm leading-relaxed">
           Every Arduino sketch has exactly the same skeleton: a{" "}
-          <code className="text-gray-200">setup()</code> function that runs
+          <code className="text-foreground">setup()</code> function that runs
           once when the board powers on, and a{" "}
-          <code className="text-gray-200">loop()</code> function that runs
+          <code className="text-foreground">loop()</code> function that runs
           over and over forever. That's it. The Arduino core provides the{" "}
           <code>main()</code> function for you behind the scenes.
         </p>
@@ -49,8 +49,8 @@ void loop() {
 
         <p className="text-sm leading-relaxed">
           You can see it running here —{" "}
-          <code className="text-gray-200">setup()</code> configures pin 13,
-          and <code className="text-gray-200">loop()</code> toggles it
+          <code className="text-foreground">setup()</code> configures pin 13,
+          and <code className="text-foreground">loop()</code> toggles it
           forever.
         </p>
 

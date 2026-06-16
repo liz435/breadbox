@@ -3,7 +3,7 @@ import type { BoardComponent, PinState } from "@dreamer/schemas";
 import type { ComponentElectricalState } from "@/simulator/circuit-solver";
 import { gridToPixel } from "@/breadboard/breadboard-grid";
 import { LABEL_FONT_SIZE } from "@/breadboard/breadboard-constants";
-import { PinLabel } from "./pin-label";
+import { PinLabel } from "@/breadboard/component-renderers/pin-label";
 
 type CapacitorRendererProps = {
   component: BoardComponent;

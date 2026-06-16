@@ -34,14 +34,24 @@ type McpServerConfig = {
 //   - compiled `breadbox` binary (installed CLI / desktop sidecar) → the exe
 //   - dev (`bun` against source)                                  → bun + CLI entry
 //   - otherwise                                                   → `breadbox` on PATH
-function resolveMcpServerConfig(projectId: string): McpServerConfig {
+export function resolveMcpServerConfig(projectId: string): McpServerConfig {
   const exe = process.execPath
   const projArgs = ["--project", projectId, "mcp"]
-  // Carry a non-default BREADBOX_HOME through so the Claude-spawned MCP process
-  // reads the same project store the running app uses.
-  const env = process.env.BREADBOX_HOME
-    ? { BREADBOX_HOME: process.env.BREADBOX_HOME }
-    : undefined
+  // Forward only an EXPLICIT data-home override (canonical BREADBOX_HOME, or the
+  // test-only DATA_DIR which dreamerHome() ranks higher) so a Claude-spawned MCP
+  // reads the same *custom* store the running app uses.
+  //
+  // We deliberately do NOT pin the DEFAULT resolution (~/.breadbox | legacy
+  // ~/.dreamer | in-repo packages/api/data). The MCP command we register is the
+  // same *kind* of binary as this app — a compiled app emits a compiled-binary
+  // command, a from-source app emits a `bun …/cli/src/index.ts` command — so the
+  // spawned process re-derives the identical default home on its own at launch.
+  // Baking the resolved absolute path into Claude's config would freeze it and
+  // drift if the home later migrates (legacy ~/.dreamer → ~/.breadbox, a data
+  // move, a new release) — wrong for a distributed/installed app, where the path
+  // must stay machine-derived, not snapshot at connect time.
+  const explicitHome = process.env.DATA_DIR ?? process.env.BREADBOX_HOME
+  const env = explicitHome ? { BREADBOX_HOME: explicitHome } : undefined
 
   if (basename(exe).toLowerCase().includes("breadbox")) {
     return { command: exe, args: projArgs, env }

@@ -1,0 +1,68 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- orange-themed app tile -->
+    <linearGradient id="tileBg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffb145"/>
+      <stop offset="1" stop-color="#ef5a0c"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.32" cy="0.24" r="0.85">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.28"/>
+      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- warm toasted body -->
+    <linearGradient id="toastFill" x1="0" y1="320" x2="0" y2="772" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffd79a"/>
+      <stop offset="1" stop-color="#f7b765"/>
+    </linearGradient>
+
+    <linearGradient id="butter" x1="0" y1="-52" x2="0" y2="52" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffd24a"/>
+      <stop offset="1" stop-color="#ffae1c"/>
+    </linearGradient>
+
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#7a2c00" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+
+  <!-- rounded-square app tile -->
+  <rect x="64" y="64" width="896" height="896" rx="216" fill="url(#tileBg)"/>
+  <rect x="64" y="64" width="896" height="896" rx="216" fill="url(#glow)"/>
+
+  <!-- whole toast tilted for a goofy, off-kilter feel -->
+  <g transform="rotate(-5 512 540)" filter="url(#softShadow)">
+    <!-- lopsided, hand-drawn toast silhouette with a bold burnt-crust outline -->
+    <path d="M 286 752
+             C 272 686, 268 600, 276 522
+             C 286 414, 346 322, 420 330
+             C 456 334, 470 368, 506 362
+             C 540 356, 556 320, 612 330
+             C 686 342, 742 432, 748 540
+             C 752 624, 746 696, 736 754
+             C 720 770, 690 772, 660 766
+             C 540 758, 420 760, 348 766
+             C 318 770, 298 768, 286 752 Z"
+          fill="url(#toastFill)" stroke="#9a4e14" stroke-width="17"
+          stroke-linejoin="round"/>
+
+    <!-- toasted char patches near the edges (texture, not a face) -->
+    <ellipse cx="372" cy="392" rx="44" ry="27" fill="#b25e1a" opacity="0.16" transform="rotate(-22 372 392)"/>
+    <ellipse cx="676" cy="676" rx="50" ry="30" fill="#b25e1a" opacity="0.16" transform="rotate(24 676 676)"/>
+
+    <!-- scattered crumb holes -->
+    <ellipse cx="430" cy="556" rx="15" ry="11" fill="#e09b46" opacity="0.6"/>
+    <ellipse cx="520" cy="628" rx="10" ry="14" fill="#e09b46" opacity="0.6"/>
+    <ellipse cx="596" cy="560" rx="13" ry="10" fill="#e09b46" opacity="0.6"/>
+    <ellipse cx="466" cy="664" rx="8"  ry="8"  fill="#e09b46" opacity="0.6"/>
+    <ellipse cx="624" cy="654" rx="9"  ry="12" fill="#e09b46" opacity="0.6"/>
+    <ellipse cx="388" cy="636" rx="7"  ry="9"  fill="#e09b46" opacity="0.6"/>
+
+    <!-- pat of butter sliding off at a jaunty angle -->
+    <g transform="translate(520 392) rotate(11)">
+      <rect x="-74" y="-52" width="148" height="104" rx="24"
+            fill="url(#butter)" stroke="#9a4e14" stroke-width="15" stroke-linejoin="round"/>
+      <rect x="-50" y="-34" width="50" height="16" rx="8" fill="#fff0bf" opacity="0.85"/>
+    </g>
+  </g>
+</svg>

@@ -30,7 +30,7 @@ export function NeoPixelLibraryPage() {
           The constructor takes the number of pixels, the data pin,
           and the color order / timing flags. Almost every common
           strip wants{" "}
-          <code className="text-gray-200">NEO_GRB + NEO_KHZ800</code>.
+          <code className="text-foreground">NEO_GRB + NEO_KHZ800</code>.
           Call <code>begin()</code> once in <code>setup()</code> to
           initialize the pin.
         </p>
@@ -56,12 +56,12 @@ void setup() {
       <Section title="Setting pixels and show()">
         <p className="text-sm leading-relaxed">
           Changes you make with{" "}
-          <code className="text-gray-200">setPixelColor(i, r, g, b)</code>
+          <code className="text-foreground">setPixelColor(i, r, g, b)</code>
           ,{" "}
-          <code className="text-gray-200">fill()</code>, or{" "}
-          <code className="text-gray-200">clear()</code> only update
+          <code className="text-foreground">fill()</code>, or{" "}
+          <code className="text-foreground">clear()</code> only update
           an in-memory buffer.{" "}
-          <em className="text-gray-200">Nothing happens on the strip
+          <em className="text-foreground">Nothing happens on the strip
           until you call <code>show()</code>.</em> That's the step
           that actually clocks the data out to the LEDs.
         </p>

@@ -21,7 +21,7 @@ export function PlannedPage() {
         </p>
         <Note>
           Track progress in{" "}
-          <code className="text-gray-200">
+          <code className="text-foreground">
             packages/app/src/learn/ENCYCLOPEDIA_TODO.md
           </code>
           .

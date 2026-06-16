@@ -16,7 +16,7 @@ export function ShiftRegisterLesson() {
         <p className="text-sm leading-relaxed">
           A 74HC595 shift register wired to three Arduino pins (data, clock, latch) and
           driving eight LEDs. The sketch uses{" "}
-          <code className="text-gray-200">shiftOut()</code> to send one byte at a time,
+          <code className="text-foreground">shiftOut()</code> to send one byte at a time,
           chasing a single lit LED across all eight outputs.
         </p>
       </Section>
@@ -51,9 +51,9 @@ export function ShiftRegisterLesson() {
         </ul>
         <p className="text-sm leading-relaxed">
           The built-in{" "}
-          <code className="text-gray-200">shiftOut(dataPin, clockPin, MSBFIRST, byte)</code>{" "}
+          <code className="text-foreground">shiftOut(dataPin, clockPin, MSBFIRST, byte)</code>{" "}
           function handles bit-banging the data and clock lines. Pulling latch LOW before
-          <code className="text-gray-200"> shiftOut()</code> and HIGH after it is the
+          <code className="text-foreground"> shiftOut()</code> and HIGH after it is the
           standard latch sequence.
         </p>
       </Section>

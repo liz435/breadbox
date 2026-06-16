@@ -56,7 +56,7 @@ export function TimersPage() {
 
       <Section title="Why delay() blocks">
         <p className="text-sm leading-relaxed">
-          When you call <code className="text-gray-200">delay(1000)</code>,
+          When you call <code className="text-foreground">delay(1000)</code>,
           the Arduino core reads the current <code>millis()</code> value
           and then sits in a tight loop, doing nothing, until{" "}
           <code>millis()</code> has advanced by 1000. During that time your
@@ -80,7 +80,7 @@ export function TimersPage() {
 
       <Section title="Why millis() doesn't block">
         <p className="text-sm leading-relaxed">
-          <code className="text-gray-200">millis()</code> just reads
+          <code className="text-foreground">millis()</code> just reads
           Timer 0's overflow count and returns it. The timer overflows
           roughly every millisecond (the Arduino core sets up a prescaler
           so this works out). Reading a counter is instant — no waiting,

@@ -81,9 +81,9 @@ export function TransistorsPage() {
         <p className="text-sm leading-relaxed">
           Not every MOSFET turns fully on with 5 V on its gate.
           The datasheet lists a parameter called{" "}
-          <em className="text-gray-200">VGS(th)</em>, the gate
+          <em className="text-foreground">VGS(th)</em>, the gate
           threshold, and another called
-          <em className="text-gray-200">RDS(on)</em>, the
+          <em className="text-foreground">RDS(on)</em>, the
           drain-source resistance when fully on — measured at a
           specific gate voltage. For Arduino duty, look for a
           part that specifies RDS(on) at VGS = 4.5 V. Anything

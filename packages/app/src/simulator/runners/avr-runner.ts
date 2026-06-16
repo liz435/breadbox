@@ -14,9 +14,17 @@ import { PinState } from "avr8js"
 import { pinStateStore, type PinStateStore } from "../pin-state-store"
 import { PwmTracker } from "../pwm-tracker"
 import { PeripheralBus, type PeripheralBoardInput } from "../peripherals/peripheral-bus"
-import { MAX_ARDUINO_PIN, type BoardTargetInfo } from "@dreamer/schemas"
+import {
+  MAX_ARDUINO_PIN,
+  breakpointAddressForLine,
+  lineForAddress,
+  type BoardTargetInfo,
+  type LineTableEntry,
+} from "@dreamer/schemas"
 import type {
   CustomLibraryMap,
+  DebugController,
+  DebugSnapshot,
   PinSnapshot,
   RunnerKind,
   SketchRunner,
@@ -32,6 +40,11 @@ const AVR_CYCLES_PER_FRAME = Math.round(16_000_000 / 60)
 // 70µs), and NEC IR (562µs minimum). Coarser resolution would corrupt DHT
 // bit reads near the HIGH-duration threshold.
 const SCHEDULER_STEP_CYCLES = 160
+
+// Upper bound on instructions a single "step line" advances before giving up,
+// so a line containing delay()/a busy loop can't hang the UI. The user just
+// steps again. Generous enough to cross any normal statement.
+const STEP_LINE_MAX_INSTRUCTIONS = 200_000
 
 export function createAvrSketchRunner(
   target: BoardTargetInfo,
@@ -54,6 +67,13 @@ export function createAvrSketchRunner(
 
   // ── AVR runner state ───────────────────────────────────────────────
   let avrRunner: AVRRunner | null = null
+
+  // ── Debug state ────────────────────────────────────────────────────
+  // Source-line table from the last compile (empty ⇒ address-only debug).
+  let lineTable: LineTableEntry[] = []
+  // Set when the last executeChunked stopped on a breakpoint; read by the
+  // simulation loop via debug.wasHalted(), cleared on continue/step/reset.
+  let halted = false
 
   function getMillis(): number {
     if (!avrRunner) return 0
@@ -208,6 +228,9 @@ export function createAvrSketchRunner(
       sketchSizeRef.current = { ...result.sizeInfo, source: "actual", ts: Date.now() }
     }
 
+    // Capture the debugger's source-line map (absent ⇒ address-only debug).
+    lineTable = result.lineTable ?? []
+
     avrRunner = createAVRRunnerInstance()
     avrRunner.load(result.hex)
     return { success: true }
@@ -240,10 +263,16 @@ export function createAvrSketchRunner(
     let remaining = totalCycles
     while (remaining > 0) {
       const step = Math.min(SCHEDULER_STEP_CYCLES, remaining)
-      avrRunner.execute(step)
+      const didHalt = avrRunner.execute(step)
       const simMs = (avrRunner.getCycleCount() / avrRunner.getFrequencyHz()) * 1000
       peripheralBus.flushScheduledEdges(simMs)
       remaining -= step
+      if (didHalt) {
+        // Hit a breakpoint mid-frame — stop here; the simulation loop reads
+        // debug.wasHalted() and freezes the rAF until continue/step.
+        halted = true
+        break
+      }
     }
     flushPwm()
   }
@@ -302,6 +331,92 @@ export function createAvrSketchRunner(
     pwmTracker.reset()
     store.setExternalPinSink(null)
     store.reset()
+    halted = false
+  }
+
+  // ── Debug controller ────────────────────────────────────────────────────
+  //
+  // Wraps the low-level avr8js breakpoint/step primitives with source-line
+  // mapping (via the compile line table) and peripheral/serial flushing so a
+  // step or halt leaves the canvas + Serial Monitor consistent.
+
+  /**
+   * Flush peripherals, PWM and buffered serial after a manual step so the UI
+   * reflects the post-step state without waiting for the next frame.
+   */
+  function flushAfterStep(): void {
+    if (!avrRunner) return
+    const simMs = (avrRunner.getCycleCount() / avrRunner.getFrequencyHz()) * 1000
+    peripheralBus.flushScheduledEdges(simMs)
+    flushPwm()
+    flushAvrSerial()
+  }
+
+  function takeSnapshot(): DebugSnapshot {
+    if (!avrRunner) {
+      return { pc: 0, line: null, registers: new Uint8Array(32), sram: new Uint8Array(0), sp: 0, cycles: 0 }
+    }
+    const data = avrRunner.getDataSpace()
+    const pc = avrRunner.getPc()
+    return {
+      pc,
+      line: lineTable.length > 0 ? lineForAddress(lineTable, pc) : null,
+      registers: data.slice(0, 32),
+      sram: data.slice(0x100),
+      sp: avrRunner.getSp(),
+      cycles: avrRunner.getCycleCount(),
+    }
+  }
+
+  const debug: DebugController = {
+    get hasLineTable() {
+      return lineTable.length > 0
+    },
+    setBreakpointLines(lines) {
+      const armed: number[] = []
+      const addresses: number[] = []
+      for (const line of lines) {
+        const address = breakpointAddressForLine(lineTable, line)
+        if (address !== null) {
+          addresses.push(address)
+          armed.push(line)
+        }
+      }
+      avrRunner?.setBreakpoints(addresses)
+      return armed
+    },
+    continue() {
+      halted = false
+      avrRunner?.prepareResume()
+    },
+    stepInstruction() {
+      halted = false
+      if (!avrRunner) return
+      avrRunner.step()
+      flushAfterStep()
+    },
+    stepLine() {
+      halted = false
+      if (!avrRunner) return
+      if (lineTable.length === 0) {
+        avrRunner.step()
+        flushAfterStep()
+        return
+      }
+      const startLine = lineForAddress(lineTable, avrRunner.getPc())
+      for (let i = 0; i < STEP_LINE_MAX_INSTRUCTIONS; i++) {
+        avrRunner.step()
+        const line = lineForAddress(lineTable, avrRunner.getPc())
+        if (line !== null && line !== startLine) break
+      }
+      flushAfterStep()
+    },
+    wasHalted() {
+      return halted
+    },
+    snapshot() {
+      return takeSnapshot()
+    },
   }
 
   function isDelaying(): boolean {
@@ -333,6 +448,7 @@ export function createAvrSketchRunner(
   return {
     kind,
     fqbn,
+    debug,
     loadSketchAsync,
     runSetup,
     runLoopIteration,

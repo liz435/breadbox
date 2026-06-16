@@ -48,16 +48,16 @@ export function PrevNextFooter({
   if (!prev && !next) return null
 
   return (
-    <div className="mt-12 flex items-stretch justify-between gap-4 border-t border-[#2a2a2a] pt-6">
+    <div className="mt-12 flex items-stretch justify-between gap-4 border-t border-border pt-6">
       {prev ? (
         <button
           type="button"
           onClick={() => navigate(encyclopediaPath(prev))}
-          className="group flex flex-1 items-center gap-3 rounded-md border border-[#2a2a2a] bg-[#141414] px-4 py-3 text-left text-sm text-gray-300 transition-colors hover:border-blue-500/40 hover:bg-blue-500/5 hover:text-blue-300"
+          className="group flex flex-1 items-center gap-3 rounded-md border border-border bg-card px-4 py-3 text-left text-sm text-foreground transition-colors hover:border-blue-500/40 hover:bg-blue-500/5 hover:text-blue-300"
         >
           <ArrowLeft className="size-4 flex-shrink-0 group-hover:-translate-x-0.5 transition-transform" />
           <span className="flex flex-col items-start">
-            <span className="text-[10px] uppercase tracking-wider text-gray-500">
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
               Previous
             </span>
             <span className="font-medium leading-tight">{prev.title}</span>
@@ -70,10 +70,10 @@ export function PrevNextFooter({
         <button
           type="button"
           onClick={() => navigate(encyclopediaPath(next))}
-          className="group flex flex-1 items-center justify-end gap-3 rounded-md border border-[#2a2a2a] bg-[#141414] px-4 py-3 text-right text-sm text-gray-300 transition-colors hover:border-blue-500/40 hover:bg-blue-500/5 hover:text-blue-300"
+          className="group flex flex-1 items-center justify-end gap-3 rounded-md border border-border bg-card px-4 py-3 text-right text-sm text-foreground transition-colors hover:border-blue-500/40 hover:bg-blue-500/5 hover:text-blue-300"
         >
           <span className="flex flex-col items-end">
-            <span className="text-[10px] uppercase tracking-wider text-gray-500">
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
               Next
             </span>
             <span className="font-medium leading-tight">{next.title}</span>
@@ -117,8 +117,8 @@ export function SeeAlso({ refs }: { refs: readonly SeeAlsoRef[] }) {
   if (resolved.length === 0) return null
 
   return (
-    <aside className="mt-10 rounded-md border border-[#2a2a2a] bg-[#141414] p-4">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+    <aside className="mt-10 rounded-md border border-border bg-card p-4">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         See also
       </p>
       <ul className="space-y-1">
@@ -128,10 +128,10 @@ export function SeeAlso({ refs }: { refs: readonly SeeAlsoRef[] }) {
               type="button"
               onClick={() => navigate(encyclopediaPath(entry))}
               className={cn(
-                "w-full text-left text-sm text-gray-300 hover:text-blue-300 transition-colors",
+                "w-full text-left text-sm text-foreground hover:text-blue-300 transition-colors",
               )}
             >
-              <span className="text-[10px] uppercase tracking-wider text-gray-500 mr-2">
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground mr-2">
                 {entry.track}
               </span>
               {entry.title}

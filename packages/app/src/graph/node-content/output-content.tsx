@@ -11,16 +11,16 @@ export function OutputContent({ node }: OutputContentProps) {
   const bg = (node.data.background as string) ?? "#000000";
 
   return (
-    <div className="px-3 py-2 text-[10px] text-neutral-400 space-y-1">
+    <div className="px-3 py-2 text-[10px] text-muted-foreground space-y-1">
       <div className="flex items-center gap-1.5">
         <span
-          className="w-3 h-3 rounded border border-neutral-600"
+          className="w-3 h-3 rounded border border-border"
           style={{ backgroundColor: bg }}
         />
         <span>Render Output</span>
       </div>
       {resolution && (
-        <div className="text-neutral-500">
+        <div className="text-muted-foreground">
           {resolution.width}&times;{resolution.height}
         </div>
       )}

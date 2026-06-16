@@ -170,7 +170,7 @@ export function MotionPromptPanel({
 
         <Button
           type="button"
-          className="mt-2 h-8 w-full gap-1.5 rounded-md bg-white text-xs font-medium text-black hover:bg-white/90 disabled:opacity-30"
+          className="mt-2 h-8 w-full gap-1.5 rounded-md bg-primary text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-30"
           disabled={disabled || generateDisabled || generating}
           onClick={() => onGenerate()}
         >

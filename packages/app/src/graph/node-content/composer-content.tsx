@@ -6,7 +6,7 @@ type ComposerContentProps = {
 
 export function ComposerContent({ node: _node }: ComposerContentProps) {
   return (
-    <div className="px-3 py-2 text-[10px] text-neutral-400">
+    <div className="px-3 py-2 text-[10px] text-muted-foreground">
       <span>Scene Composer</span>
     </div>
   );

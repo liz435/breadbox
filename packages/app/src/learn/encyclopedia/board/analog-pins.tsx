@@ -30,12 +30,12 @@ export function AnalogPinsPage() {
       <Section title="What 'analog' means here">
         <p className="text-sm leading-relaxed">
           The analog pins on the Uno connect to a{" "}
-          <strong className="text-gray-200">10-bit ADC</strong>{" "}
+          <strong className="text-foreground">10-bit ADC</strong>{" "}
           (analog-to-digital converter). When your sketch calls{" "}
           <Term k="analog-read">analogRead(A0)</Term>, the chip samples
           the voltage on that pin and hands back a number from{" "}
-          <code className="text-gray-200">0</code> to{" "}
-          <code className="text-gray-200">1023</code> that tells you
+          <code className="text-foreground">0</code> to{" "}
+          <code className="text-foreground">1023</code> that tells you
           where in the 0–5 V range it sat.
         </p>
 
@@ -60,7 +60,7 @@ export function AnalogPinsPage() {
       <Section title="The typical use case">
         <p className="text-sm leading-relaxed">
           Analog pins shine when you have a sensor whose output{" "}
-          <em className="text-gray-200">varies continuously</em> —
+          <em className="text-foreground">varies continuously</em> —
           a potentiometer wiper, a photoresistor in a voltage divider,
           a TMP36 temperature sensor. The sensor delivers a voltage
           that's a function of the thing you're measuring, and{" "}
@@ -84,7 +84,7 @@ export function AnalogPinsPage() {
           Turning the pot shifts the wiper up or down its resistance
           track, changing the voltage at A0 from somewhere between 0
           and 5 V.{" "}
-          <code className="text-gray-200">analogRead(A0)</code>{" "}
+          <code className="text-foreground">analogRead(A0)</code>{" "}
           returns a value that tracks it linearly.
         </p>
       </Section>
@@ -111,7 +111,7 @@ export function AnalogPinsPage() {
         <p className="text-sm leading-relaxed">
           So if you run out of digital pins and don't need to read
           analog values, you can call{" "}
-          <code className="text-gray-200">pinMode(A0, OUTPUT)</code>{" "}
+          <code className="text-foreground">pinMode(A0, OUTPUT)</code>{" "}
           and treat A0 as another digital line. Breadbox supports this
           — the pin numbers 14–19 work everywhere 0–13 work.
         </p>
@@ -127,7 +127,7 @@ export function AnalogPinsPage() {
       <Section title="Not an output — analogRead only">
         <p className="text-sm leading-relaxed">
           Important: the analog pins are{" "}
-          <strong className="text-gray-200">input only</strong> in the
+          <strong className="text-foreground">input only</strong> in the
           analog sense. The Uno doesn't have a real DAC, so you can't
           write an arbitrary voltage to them. If you want analog-like
           output — a dimmed LED, a servo, a motor at half speed — you
@@ -165,13 +165,13 @@ function AdcVisualizer() {
   const pct = voltage / 5
 
   return (
-    <div className="mt-4 rounded-md border border-neutral-800 bg-[#0d0d0d] p-4 space-y-4">
+    <div className="mt-4 rounded-md border border-border bg-card p-4 space-y-4">
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
-          <label htmlFor={sliderId} className="text-sm text-gray-300">Input voltage on A0</label>
-          <span className="font-mono text-sm text-gray-200 tabular-nums">{voltage.toFixed(2)} V</span>
+          <label htmlFor={sliderId} className="text-sm text-foreground">Input voltage on A0</label>
+          <span className="font-mono text-sm text-foreground tabular-nums">{voltage.toFixed(2)} V</span>
         </div>
-        <div className="relative h-2 rounded-full bg-neutral-800">
+        <div className="relative h-2 rounded-full bg-secondary">
           <div
             className="absolute inset-y-0 left-0 rounded-full bg-blue-500/60"
             style={{ width: `${pct * 100}%` }}
@@ -189,7 +189,7 @@ function AdcVisualizer() {
             aria-valuetext={`${voltage.toFixed(2)} volts, analogRead returns ${adcValue}`}
           />
         </div>
-        <div className="flex justify-between text-[10px] text-neutral-500 font-mono">
+        <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
           <span>0 V</span>
           <span>5 V</span>
         </div>
@@ -197,20 +197,20 @@ function AdcVisualizer() {
 
       {/* Result */}
       <div className="flex gap-3">
-        <div className="flex-1 rounded border border-neutral-700 bg-neutral-900 p-3 text-center">
-          <p className="text-[10px] text-neutral-500 mb-1">analogRead() returns</p>
+        <div className="flex-1 rounded border border-border bg-card p-3 text-center">
+          <p className="text-[10px] text-muted-foreground mb-1">analogRead() returns</p>
           <p className="font-mono text-2xl font-bold text-blue-400">{adcValue}</p>
         </div>
-        <div className="flex-1 rounded border border-neutral-700 bg-neutral-900 p-3 text-center">
-          <p className="text-[10px] text-neutral-500 mb-1">Resolution step</p>
-          <p className="font-mono text-sm text-neutral-300 pt-1.5">≈ {(5 / 1023 * 1000).toFixed(1)} mV / step</p>
+        <div className="flex-1 rounded border border-border bg-card p-3 text-center">
+          <p className="text-[10px] text-muted-foreground mb-1">Resolution step</p>
+          <p className="font-mono text-sm text-foreground pt-1.5">≈ {(5 / 1023 * 1000).toFixed(1)} mV / step</p>
         </div>
       </div>
 
       {/* 10-bit scale bar */}
       <div aria-hidden>
-        <p className="text-[10px] text-neutral-500 mb-1 uppercase tracking-wider">0–1023 scale</p>
-        <div className="relative h-4 rounded bg-neutral-800 overflow-hidden">
+        <p className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wider">0–1023 scale</p>
+        <div className="relative h-4 rounded bg-secondary overflow-hidden">
           <div
             className="absolute inset-y-0 left-0 bg-blue-500/40 transition-all duration-75"
             style={{ width: `${(adcValue / 1023) * 100}%` }}
@@ -220,7 +220,7 @@ function AdcVisualizer() {
             style={{ left: `${(adcValue / 1023) * 100}%` }}
           />
         </div>
-        <div className="flex justify-between text-[10px] text-neutral-600 font-mono mt-0.5">
+        <div className="flex justify-between text-[10px] text-muted-foreground font-mono mt-0.5">
           <span>0</span>
           <span>512</span>
           <span>1023</span>

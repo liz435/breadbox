@@ -4,7 +4,7 @@ import type { ComponentElectricalState } from "@/simulator/circuit-solver";
 import { gridToPixel } from "@/breadboard/breadboard-grid";
 import { LED_DOME_RADIUS, LEG_WIDTH, LABEL_FONT_SIZE, ANNOTATION_FONT_SIZE } from "@/breadboard/breadboard-constants";
 import { REALISTIC_LED_LIGHTING_PILOT } from "@/breadboard/lighting-pilot";
-import { PinLabel } from "./pin-label";
+import { PinLabel } from "@/breadboard/component-renderers/pin-label";
 
 type LedRendererProps = {
   component: BoardComponent;

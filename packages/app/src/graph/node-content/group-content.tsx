@@ -11,7 +11,7 @@ export function GroupContent({ node }: GroupContentProps) {
 
   return (
     <div className="px-2 py-1">
-      <div className="text-[10px] text-neutral-500">
+      <div className="text-[10px] text-muted-foreground">
         {childIds.length === 0
           ? "Empty group"
           : `${childIds.length} node${childIds.length === 1 ? "" : "s"}`}

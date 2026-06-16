@@ -30,7 +30,7 @@ export function PotentiometersPage() {
           A <Term k="potentiometer" /> is a resistor with a sliding
           contact. The two outer terminals connect to the full
           resistance; the middle terminal (the{" "}
-          <em className="text-gray-200">wiper</em>) taps somewhere
+          <em className="text-foreground">wiper</em>) taps somewhere
           along it. Wire the outer terminals to 5 V and ground, and
           the wiper becomes a{" "}
           <Term k="voltage-divider">voltage divider</Term> output
@@ -54,11 +54,11 @@ export function PotentiometersPage() {
 
       <Section title="Linear vs logarithmic taper">
         <p className="text-sm leading-relaxed">
-          A <em className="text-gray-200">linear</em> pot's
+          A <em className="text-foreground">linear</em> pot's
           resistance changes in direct proportion to the rotation —
           halfway round is half the resistance. That's what you want
           for analog sensing, dimmers, and general-purpose tweaking.
-          A <em className="text-gray-200">logarithmic</em> (audio)
+          A <em className="text-foreground">logarithmic</em> (audio)
           pot curves to match how humans perceive loudness; use it
           for volume controls and almost nothing else.
         </p>
@@ -70,7 +70,7 @@ export function PotentiometersPage() {
           give you a linear fader; breadboard-friendly trimpots are
           tiny squares you tweak with a screwdriver. Typical values
           for Arduino work are{" "}
-          <em className="text-gray-200">10 kΩ</em>. That's high
+          <em className="text-foreground">10 kΩ</em>. That's high
           enough to waste negligible current (about 0.5 mA across
           the whole element at 5 V) and low enough that the wiper's
           output impedance doesn't upset the ADC.
