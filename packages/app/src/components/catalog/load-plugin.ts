@@ -6,8 +6,10 @@
 // adds the runtime dynamic-import step used by the authoring flow: the sidecar
 // serves the transpiled module same-origin, so import() needs no unsafe-eval.
 
+import { customComponentDslSchema } from "@dreamer/schemas"
 import type { ComponentDefinition } from "@/components/component-definition"
 import { createPluginHost, type CustomComponentModule } from "@/components/catalog/plugin-host"
+import { dslToComponentDefinition } from "@/components/catalog/dsl-to-definition"
 import { registerCustom } from "@/components/catalog/custom-store"
 
 export type LoadPluginResult =
@@ -29,6 +31,33 @@ export function registerPluginModule(factory: unknown): LoadPluginResult {
     if (!def || typeof def.type !== "string" || !def.type.startsWith("custom:")) {
       return { ok: false, error: "Plugin factory must return a component with a custom: type" }
     }
+    registerCustom(def)
+    return { ok: true, def }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+/**
+ * Parse a DSL part's JSON source, compile it to a definition, and register it.
+ * Pure and synchronous — the DSL counterpart to registerPluginModule.
+ */
+export function registerDslPart(source: string): LoadPluginResult {
+  let data: unknown
+  try {
+    data = JSON.parse(source)
+  } catch {
+    return { ok: false, error: "DSL part must be valid JSON" }
+  }
+  const parsed = customComponentDslSchema.safeParse(data)
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
+    }
+  }
+  try {
+    const def = dslToComponentDefinition(parsed.data)
     registerCustom(def)
     return { ok: true, def }
   } catch (err) {

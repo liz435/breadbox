@@ -1,15 +1,14 @@
 // ── Custom Parts bootstrap ─────────────────────────────────────────────────
 //
-// Fetches the list of user-authored custom parts from the sidecar and
-// dynamically imports each transpiled module, registering it into the runtime
-// overlay so it's available in the palette and simulator. The modules are
-// served same-origin by the sidecar, so import() needs no special CSP. Errors
-// in one part don't block the others.
+// On boot, fetch the user's custom parts and register each into the runtime
+// overlay so they appear in the palette and simulate like built-ins. Code parts
+// are dynamically imported; DSL parts are fetched and interpreted. Errors in one
+// part don't block the others.
 
 import { API_ORIGIN } from "@dreamer/config"
-import { loadPluginFromUrl } from "@/components/catalog/load-plugin"
+import { loadPluginFromUrl, registerDslPart, type LoadPluginResult } from "@/components/catalog/load-plugin"
 
-type CustomPartList = { parts: Array<{ id: string }> }
+type CustomPartList = { parts: Array<{ id: string; format: "code" | "dsl" }> }
 
 export async function loadAllCustomParts(): Promise<void> {
   let list: CustomPartList
@@ -24,7 +23,18 @@ export async function loadAllCustomParts(): Promise<void> {
 
   await Promise.all(
     list.parts.map(async (part) => {
-      const result = await loadPluginFromUrl(`${API_ORIGIN}/api/custom-parts/${part.id}/module.js`)
+      let result: LoadPluginResult
+      if (part.format === "code") {
+        result = await loadPluginFromUrl(`${API_ORIGIN}/api/custom-parts/${part.id}/module.js`)
+      } else {
+        try {
+          const res = await fetch(`${API_ORIGIN}/api/custom-parts/${part.id}/source`)
+          const data = res.ok ? ((await res.json()) as { source: string }) : null
+          result = data ? registerDslPart(data.source) : { ok: false, error: `HTTP ${res.status}` }
+        } catch (err) {
+          result = { ok: false, error: err instanceof Error ? err.message : String(err) }
+        }
+      }
       if (!result.ok) {
         console.error(`Custom part "${part.id}" failed to load: ${result.error}`)
       }

@@ -17,8 +17,8 @@ import { Elysia } from "elysia";
 import { z } from "zod";
 import {
   deleteCustomPart,
+  getCustomPart,
   getCustomPartModule,
-  getCustomPartSource,
   listCustomParts,
   saveCustomPart,
 } from "../custom-parts";
@@ -29,6 +29,7 @@ const log = createLogger("custom-parts");
 
 const saveBodySchema = z.object({
   id: z.string().regex(/^[a-z0-9-]+$/, "id must be kebab-case"),
+  format: z.enum(["code", "dsl"]).default("code"),
   source: z.string().min(1),
 });
 
@@ -44,12 +45,12 @@ export const customPartsRoutes = new Elysia()
       set.status = 403;
       return { error: "Custom parts are desktop-only" };
     }
-    const source = await getCustomPartSource(params.id);
-    if (source == null) {
+    const part = await getCustomPart(params.id);
+    if (part == null) {
       set.status = 404;
       return { error: "not found" };
     }
-    return { id: params.id, source };
+    return { id: params.id, source: part.source, format: part.format };
   })
 
   .get("/api/custom-parts/:id/module.js", async ({ params, set }) => {
@@ -83,8 +84,8 @@ export const customPartsRoutes = new Elysia()
       return { ok: false, error: parsed.error.issues.map((i) => i.message).join(", ") };
     }
     try {
-      await saveCustomPart(parsed.data.id, parsed.data.source);
-      log.info(`saved custom part ${parsed.data.id}`);
+      await saveCustomPart(parsed.data.id, parsed.data.format, parsed.data.source);
+      log.info(`saved custom part ${parsed.data.id} (${parsed.data.format})`);
       return { ok: true, id: parsed.data.id };
     } catch (err) {
       set.status = 422;

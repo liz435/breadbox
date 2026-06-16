@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { Tooltip } from "@base-ui/react/tooltip";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, Code2 } from "lucide-react";
 import { isCustomComponentType, type PlaceableComponentType } from "@dreamer/schemas";
 import { breadboardInteractionActor } from "./breadboard-interaction";
 import type { ComponentDefinition } from "@/components/component-definition";
@@ -187,20 +187,30 @@ function ComponentPaletteInner() {
                   {CATEGORY_LABELS[category] ?? category}
                 </h3>
                 {category === "custom" && (
-                  <button
-                    type="button"
-                    onClick={() => openCustomPartEditor({ kind: "new" })}
-                    title="New custom part"
-                    className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:outline-none"
-                  >
-                    <Plus className="size-3.5" />
-                  </button>
+                  <div className="flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      onClick={() => openCustomPartEditor({ kind: "new", format: "code" })}
+                      title="New part (code)"
+                      className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:outline-none"
+                    >
+                      <Code2 className="size-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openCustomPartEditor({ kind: "new", format: "dsl" })}
+                      title="New part (DSL)"
+                      className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:outline-none"
+                    >
+                      <Plus className="size-3.5" />
+                    </button>
+                  </div>
                 )}
               </div>
               {category === "custom" && items.length === 0 && (
                 <button
                   type="button"
-                  onClick={() => openCustomPartEditor({ kind: "new" })}
+                  onClick={() => openCustomPartEditor({ kind: "new", format: "dsl" })}
                   className="flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
                   <Plus className="size-3.5" /> New custom part
