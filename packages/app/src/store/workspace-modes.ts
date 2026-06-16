@@ -68,9 +68,12 @@ type ModeSpec = {
 const MODE_SPECS: Record<Exclude<WorkspaceMode, "freeform">, ModeSpec> = {
   build: {
     primary: "sketchEditor",
+    // Breadboard is the root (it's in every structured mode, so it persists
+    // across switches and never gets re-added into the active group). Project
+    // Files anchors to its left so the two always stay separate columns.
     panels: [
-      { id: "projectFiles" },
-      { id: "breadboard", position: { referenceId: "projectFiles", direction: "right" } },
+      { id: "breadboard" },
+      { id: "projectFiles", position: { referenceId: "breadboard", direction: "left" } },
       { id: "sketchEditor", position: { referenceId: "breadboard", direction: "right" } },
       { id: "libraryManager", position: { referenceId: "sketchEditor", direction: "within" } },
       { id: "schematic", position: { referenceId: "sketchEditor", direction: "right" } },
