@@ -6,7 +6,7 @@
 //
 //   • build     — Components, Canvas, Sketch/Libraries, Schematic, Inspector
 //   • debug     — Breadboard/Serial, Sketch, Pin Inspector/Debugger
-//   • freeform  — unconstrained; never force-closes, remembers your layout
+//   • freeform  — every panel at once by default, then remembers your layout
 //
 // The mode buttons live in edit-toolbar.tsx. This module owns the (persisted)
 // mode state and the layout transform applied on each switch. Panel metadata
@@ -49,6 +49,9 @@ export const WORKSPACE_MODES: WorkspaceModeMeta[] = [
 type ModePanel = {
   id: string
   position?: { referenceId: string; direction: ViewPanelDirection }
+  /** Raise this panel to the front of its tab group once the layout is built.
+   *  Needed when a group has several tabs and a specific one should show. */
+  active?: boolean
 }
 
 type ModeSpec = {
@@ -90,6 +93,26 @@ const MODE_SPECS: Record<Exclude<WorkspaceMode, "freeform">, ModeSpec> = {
   },
 }
 
+// Freeform's first-run starting point: every working panel on screen at once.
+// Four columns built left→right, then the outer two split vertically and the
+// tabbed groups raise their default tab:
+//   Project Files | Breadboard / Serial | Sketch+Libraries | (Inspector+Schematic) / (Pin Inspector+Debugger+Diagram)
+const FREEFORM_DEFAULT: ModeSpec = {
+  primary: "breadboard",
+  panels: [
+    { id: "breadboard" },
+    { id: "projectFiles", position: { referenceId: "breadboard", direction: "left" } },
+    { id: "sketchEditor", position: { referenceId: "breadboard", direction: "right" }, active: true },
+    { id: "libraryManager", position: { referenceId: "sketchEditor", direction: "within" } },
+    { id: "inspector", position: { referenceId: "sketchEditor", direction: "right" }, active: true },
+    { id: "schematic", position: { referenceId: "inspector", direction: "within" } },
+    { id: "pinInspector", position: { referenceId: "inspector", direction: "below" }, active: true },
+    { id: "debugger", position: { referenceId: "pinInspector", direction: "within" } },
+    { id: "diagram", position: { referenceId: "pinInspector", direction: "within" } },
+    { id: "serialMonitor", position: { referenceId: "breadboard", direction: "below" } },
+  ],
+}
+
 /** Which modes show the Serial Monitor — used to clear the unread serial dot. */
 export function modeShowsSerial(mode: WorkspaceMode): boolean {
   return mode === "debug"
@@ -126,13 +149,38 @@ function buildModeLayout(api: DockviewApi, spec: ModeSpec): void {
     })
   }
 
+  // Adding a tab "within" a group makes it the active tab, so raise each
+  // explicitly-flagged panel to fix groups that should default to a different
+  // tab. Focus `primary` last so it ends up the globally-active panel.
+  for (const p of spec.panels) {
+    if (p.active) api.getPanel(p.id)?.api.setActive()
+  }
   api.getPanel(spec.primary)?.api.setActive()
+}
+
+/** Freeform's starting layout when there's no saved arrangement yet. Cleared
+ *  and rebuilt from scratch so the result is exact regardless of the mode we
+ *  came from (buildModeLayout alone leaves shared panels in their old spots).
+ *  Once the user rearranges and leaves freeform, their snapshot takes over. */
+function buildFreeformDefault(api: DockviewApi): void {
+  api.clear()
+  buildModeLayout(api, FREEFORM_DEFAULT)
+
+  // Approximate the four-column proportions; vertical splits keep Dockview's
+  // default ~50/50. The user can resize freely — freeform remembers it.
+  const w = api.width
+  api.getPanel("projectFiles")?.api.setSize({ width: w * 0.15 })
+  api.getPanel("breadboard")?.api.setSize({ width: w * 0.34 })
+  api.getPanel("sketchEditor")?.api.setSize({ width: w * 0.26 })
+  api.getPanel("inspector")?.api.setSize({ width: w * 0.25 })
 }
 
 // ── Persisted mode state ─────────────────────────────────────────────────
 
 const MODE_KEY = "dreamer:workspace-mode"
-const FREEFORM_KEY = "dreamer:workspace-freeform-layout"
+// Suffix bumped (v2) so pre-default snapshots are ignored and the new freeform
+// default shows on next entry.
+const FREEFORM_KEY = "dreamer:workspace-freeform-layout-v2"
 
 type LayoutJSON = ReturnType<DockviewApi["toJSON"]>
 
@@ -197,10 +245,9 @@ function readFreeformLayout(): LayoutJSON | null {
  * shared with the previous mode. Re-selecting the active structured mode rebuilds
  * its default layout (a handy "reset this view" affordance).
  *
- * Freeform never force-closes: it restores your last freeform arrangement if
- * there is one, otherwise leaves the current layout as the starting point.
- * Leaving freeform snapshots it first, so the next visit comes back to the same
- * place.
+ * Freeform restores your last freeform arrangement if there is one; on the
+ * first visit it builds a default "everything open" layout instead. Leaving
+ * freeform snapshots it first, so the next visit comes back to the same place.
  */
 export function applyWorkspaceMode(
   api: DockviewApi | null,
@@ -222,10 +269,11 @@ export function applyWorkspaceMode(
       try {
         api.fromJSON(saved)
       } catch {
-        /* corrupt snapshot — keep whatever is currently open */
+        buildFreeformDefault(api) // corrupt snapshot → fall back to the default
       }
+    } else {
+      buildFreeformDefault(api) // first visit → lay out every panel at once
     }
-    // No saved layout → leave the current tabs as the freeform starting point.
   } else {
     buildModeLayout(api, MODE_SPECS[target])
   }
