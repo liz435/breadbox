@@ -387,7 +387,7 @@ function AppInner() {
 
     // Clear stale layouts from before Arduino simulator conversion.
     // The old layout references "canvas" and missing panels — force a fresh default.
-    const LAYOUT_VERSION = "arduino-sim-v14";
+    const LAYOUT_VERSION = "arduino-sim-v15";
     const saved = localStorage.getItem(LAYOUT_STORAGE_KEY);
     const savedVersion = localStorage.getItem(LAYOUT_STORAGE_KEY + ":version");
     if (saved && savedVersion === LAYOUT_VERSION) {
@@ -403,14 +403,17 @@ function AppInner() {
       localStorage.removeItem(LAYOUT_STORAGE_KEY);
     }
 
-    // Default layout: Project | Breadboard | Sketch | Inspector
-    //                                      | Serial  |        | Pin Inspector
+    // Default layout = the Build workspace mode's tab set, so the initial
+    // view matches the Build button that's highlighted on first load:
+    //   Components | Canvas | Sketch / Schematic | Inspector
+    // Other panels (Serial, Pin Inspector, Diagram, Libraries) appear when you
+    // switch into Simulate / Debug or open them from the tab strip.
     const totalWidth = api.width;
 
     const projectFilesPanel = api.addPanel({
       id: "projectFiles",
       component: "projectFiles",
-      title: "Project",
+      title: "Components",
     });
 
     const canvasPanel = api.addPanel({
@@ -420,7 +423,7 @@ function AppInner() {
       position: { referencePanel: projectFilesPanel, direction: "right" },
     });
 
-    // Sketch editor in the third column
+    // Sketch editor in the third column, with Schematic as a sibling tab.
     const sketchPanel = api.addPanel({
       id: "sketchEditor",
       component: "sketchEditor",
@@ -435,13 +438,6 @@ function AppInner() {
       position: { referencePanel: sketchPanel, direction: "within" },
     });
 
-    api.addPanel({
-      id: "libraryManager",
-      component: "libraryManager",
-      title: "Libraries",
-      position: { referencePanel: sketchPanel, direction: "within" },
-    });
-
     sketchPanel.api.setActive();
 
     // Inspector in the fourth column (right)
@@ -452,39 +448,10 @@ function AppInner() {
       position: { referencePanel: sketchPanel, direction: "right" },
     });
 
-    // Diagram as a secondary tab in the Inspector group
-    api.addPanel({
-      id: "diagram",
-      component: "diagram",
-      title: "Diagram",
-      position: { referencePanel: inspectorPanel, direction: "within" },
-    });
-
-    inspectorPanel.api.setActive();
-
-    // Pin Inspector below Inspector
-    api.addPanel({
-      id: "pinInspector",
-      component: "pinInspector",
-      title: "Pin Inspector",
-      position: { referencePanel: inspectorPanel, direction: "below" },
-    });
-
-    // Serial Monitor below breadboard (aligns with code output in sketch)
-    const serialPanel = api.addPanel({
-      id: "serialMonitor",
-      component: "serialMonitor",
-      title: "Serial Monitor",
-      position: { referencePanel: canvasPanel, direction: "below" },
-    });
-
     projectFilesPanel.api.setSize({ width: totalWidth * 0.14 });
     canvasPanel.api.setSize({ width: totalWidth * 0.45 });
-    sketchPanel.api.setSize({ width: totalWidth * 0.18 });
+    sketchPanel.api.setSize({ width: totalWidth * 0.21 });
     inspectorPanel.api.setSize({ width: totalWidth * 0.20 });
-
-    const totalHeight = api.height;
-    serialPanel.api.setSize({ height: totalHeight * 0.30 });
 
     setupPersistence(api);
   }, []);
@@ -497,7 +464,7 @@ function AppInner() {
       debounceRef.current = setTimeout(() => {
         const layout = api.toJSON();
         localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout));
-        localStorage.setItem(LAYOUT_STORAGE_KEY + ":version", "arduino-sim-v14");
+        localStorage.setItem(LAYOUT_STORAGE_KEY + ":version", "arduino-sim-v15");
       }, 300);
     });
   }
