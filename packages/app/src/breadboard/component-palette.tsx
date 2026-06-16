@@ -31,8 +31,9 @@ const CATEGORY_LABELS: Record<string, string> = {
   custom: "Custom",
   wire: "Wiring",
 };
-// Custom always shows (even empty) so authoring is discoverable from the palette.
-const GROUP_ORDER = ["board", ...CATEGORY_ORDER, "custom", "wire"];
+// Custom is pinned to the top (and always shows, even empty) so user-authored
+// parts and authoring are the most prominent thing in the palette.
+const GROUP_ORDER = ["custom", "board", ...CATEGORY_ORDER, "wire"];
 
 const WIRE_PALETTE_ITEM: PaletteItem = {
   type: "wire",
