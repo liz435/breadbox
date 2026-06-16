@@ -38,6 +38,9 @@ export function CodeEditor({ value, onChange }: CodeEditorProps) {
           indentOnInput(),
           syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
           cpp(),
+          // Wrap long lines so the editor stays within the panel and reflows
+          // when it's resized, instead of overflowing off the right edge.
+          EditorView.lineWrapping,
           keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
           EditorView.updateListener.of((update) => {
             if (update.docChanged) onChangeRef.current(update.state.doc.toString())
@@ -67,5 +70,7 @@ export function CodeEditor({ value, onChange }: CodeEditorProps) {
     }
   }, [value])
 
-  return <div ref={hostRef} className="h-full w-full overflow-hidden" />
+  // Absolutely fill the (relative) parent so CodeMirror gets a definite size
+  // and reflows on resize, rather than growing to its content width.
+  return <div ref={hostRef} className="absolute inset-0 overflow-hidden" />
 }
