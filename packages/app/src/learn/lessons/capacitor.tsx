@@ -17,7 +17,7 @@ export function CapacitorLesson() {
           A circuit where pin 7 charges a <Term k="capacitor" /> through a 1 k{"\u03a9"}{" "}
           <Term k="resistor" />. The LED sits in parallel with the capacitor, glowing brightly
           when the cap is full and fading slowly as it discharges — no{" "}
-          <code className="text-gray-200">analogWrite()</code> required.
+          <code className="text-foreground">analogWrite()</code> required.
         </p>
       </Section>
 
@@ -32,8 +32,8 @@ export function CapacitorLesson() {
 
       <Section title="How it works">
         <p className="text-sm leading-relaxed">
-          In <code className="text-gray-200">setup()</code>, pin 7 is declared an output.
-          The <code className="text-gray-200">loop()</code> writes HIGH, waits for the
+          In <code className="text-foreground">setup()</code>, pin 7 is declared an output.
+          The <code className="text-foreground">loop()</code> writes HIGH, waits for the
           capacitor to charge fully, then writes LOW and waits for it to discharge. While
           charging, the voltage across the cap (and LED) rises toward 5 V. After the pin
           drops to LOW, the cap releases its stored charge back through the LED, which
@@ -45,7 +45,7 @@ export function CapacitorLesson() {
         <p className="text-sm leading-relaxed">
           A <Term k="capacitor" /> stores charge proportional to voltage (Q = C × V) and
           releases it exponentially over time. The time constant{" "}
-          <span className="font-mono text-gray-200">{"\u03c4"} = R × C</span> tells you
+          <span className="font-mono text-foreground">{"\u03c4"} = R × C</span> tells you
           how quickly that happens — after one time constant the voltage has dropped to about
           37% of its starting value. The gentle fade you see is this RC discharge playing
           out in real time, not software dimming.

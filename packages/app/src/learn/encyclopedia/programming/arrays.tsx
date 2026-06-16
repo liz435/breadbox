@@ -45,8 +45,8 @@ const int NUM_LEDS = 3;`} />
       <Section title="Indexing from zero">
         <p className="text-sm leading-relaxed">
           Array elements are numbered starting from{" "}
-          <em className="text-gray-200">0</em>, not 1. The last valid
-          index is always <code className="text-gray-200">length − 1</code>
+          <em className="text-foreground">0</em>, not 1. The last valid
+          index is always <code className="text-foreground">length − 1</code>
           . Reading or writing past the end is a classic bug — C++ will
           happily clobber whatever memory is next door.
         </p>
@@ -63,7 +63,7 @@ int last  = ledPins[2];   // 11
       <Section title="Iterating with a for loop">
         <p className="text-sm leading-relaxed">
           The reason arrays exist is so you can treat a group of things
-          uniformly. A <code className="text-gray-200">for</code> loop
+          uniformly. A <code className="text-foreground">for</code> loop
           walks the indices, letting one block of code cover every
           element:
         </p>

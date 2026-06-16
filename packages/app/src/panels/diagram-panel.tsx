@@ -18,8 +18,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Copy, Download, Check, RotateCw, Upload, ShieldCheck, Link2, Sparkles, Braces } from "lucide-react"
 import {
+  autoPlaceDiagram,
   boardStateToDiagram,
   buildExternalEditPrompt,
+  buildFixRequestPrompt,
   encodeDiagramForUrl,
   validateDiagram,
   type DiagramIssue,
@@ -71,6 +73,9 @@ export function DiagramPanel() {
   const [replyText, setReplyText] = useState("")
   const [aiStatus, setAiStatus] = useState<PanelStatus>({ kind: "idle" })
   const [copiedPrompt, setCopiedPrompt] = useState(false)
+  // Re-place pasted components onto clean rows on apply (safe because the prompt
+  // mandates explicit wires; undoable). Opt-out for hand-tuned layouts.
+  const [autoArrange, setAutoArrange] = useState(true)
 
   // Live-sync the raw buffer from the board whenever it changes — unless the
   // user has unsaved raw edits. Store a stable serialization as the diff anchor
@@ -88,13 +93,12 @@ export function DiagramPanel() {
 
   // ── Shared validate → apply pipeline ─────────────────────────────────────
 
-  /** Parse (fence-tolerant) + validate `source`. On parse failure, set the
-   *  given status to `json-error` and return null. */
-  const runValidate = useCallback(
-    (source: string, set: (s: PanelStatus) => void): DiagramValidation | null => {
-      let parsed: unknown
+  /** Parse `source` (fence-tolerant) into a JSON value. On failure, set the
+   *  given status to `json-error`, toast, and return null. */
+  const parseDiagramSource = useCallback(
+    (source: string, set: (s: PanelStatus) => void): { value: unknown } | null => {
       try {
-        parsed = JSON.parse(stripCodeFence(source))
+        return { value: JSON.parse(stripCodeFence(source)) }
       } catch (err) {
         // Common slip: pasting the *prompt* (Markdown, starts with "#") into the
         // reply box instead of the chat's JSON answer. Detect and explain it.
@@ -112,17 +116,29 @@ export function DiagramPanel() {
         )
         return null
       }
-      return validateDiagram(parsed)
     },
     [],
   )
 
+  /** Parse + validate `source`. Returns null on a parse failure. */
+  const runValidate = useCallback(
+    (source: string, set: (s: PanelStatus) => void): DiagramValidation | null => {
+      const parsed = parseDiagramSource(source, set)
+      if (!parsed) return null
+      return validateDiagram(parsed.value)
+    },
+    [parseDiagramSource],
+  )
+
   /** Validate then swap the board. Structural errors block (and surface in the
-   *  status); semantic warnings don't. Returns true when the board was applied. */
+   *  status); semantic warnings don't. When `autoArrange` is set, components are
+   *  re-placed onto clean rows before validation. Returns true when applied. */
   const applyDiagram = useCallback(
-    (source: string, set: (s: PanelStatus) => void): boolean => {
-      const result = runValidate(source, set)
-      if (!result) return false
+    (source: string, set: (s: PanelStatus) => void, autoArrange = false): boolean => {
+      const parsed = parseDiagramSource(source, set)
+      if (!parsed) return false
+      const input = autoArrange ? autoPlaceDiagram(parsed.value) : parsed.value
+      const result = validateDiagram(input)
 
       const hasStructuralError = result.issues.some(
         (i) => i.category === "structural" && i.severity === "error",
@@ -156,7 +172,7 @@ export function DiagramPanel() {
       else set({ kind: "applied", at: Date.now() })
       return true
     },
-    [runValidate, send],
+    [parseDiagramSource, send],
   )
 
   // ── Raw-JSON mode handlers ───────────────────────────────────────────────
@@ -248,8 +264,20 @@ export function DiagramPanel() {
   }, [runValidate, replyText])
 
   const handleApplyReply = useCallback(() => {
-    applyDiagram(replyText, setAiStatus)
-  }, [applyDiagram, replyText])
+    applyDiagram(replyText, setAiStatus, autoArrange)
+  }, [applyDiagram, replyText, autoArrange])
+
+  // Bundle the rejected diagram + its validator issues into a follow-up prompt
+  // the user pastes back into the same chat — the manual validate→fix loop.
+  const copyFixRequest = useCallback(async (source: string, issues: DiagramIssue[]) => {
+    const prompt = buildFixRequestPrompt(stripCodeFence(source).trim(), issues)
+    try {
+      await navigator.clipboard.writeText(prompt)
+      toast.success("Fix request copied — paste it back into the same chat to get a corrected diagram.")
+    } catch {
+      toast.error("Could not copy to clipboard.")
+    }
+  }, [])
 
   // ── Derived (active-mode) status for the toolbar pill ────────────────────
 
@@ -271,10 +299,10 @@ export function DiagramPanel() {
   }, [activeStatus])
 
   return (
-    <div className="flex h-full w-full flex-col bg-[#1a1a1a] text-xs text-zinc-200">
+    <div className="flex h-full w-full flex-col bg-background text-xs text-foreground">
       {/* Toolbar */}
-      <header className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-neutral-700 px-3 py-1.5">
-        <span className="font-mono text-[10px] uppercase tracking-wider text-neutral-500">
+      <header className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border px-3 py-1.5">
+        <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
           Diagram
         </span>
 
@@ -305,7 +333,7 @@ export function DiagramPanel() {
             ✓ applied
           </span>
         ) : mode === "raw" ? (
-          <span className="rounded-full bg-neutral-800 px-1.5 py-0.5 text-[10px] text-neutral-500">
+          <span className="rounded-full bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">
             synced with board
           </span>
         ) : null}
@@ -340,7 +368,7 @@ export function DiagramPanel() {
                 type="button"
                 onClick={handleValidateRaw}
                 disabled={!text.trim()}
-                className="ml-1 flex items-center gap-1 rounded border border-neutral-600 bg-neutral-800 px-2 py-1 text-[11px] font-medium text-neutral-200 transition-colors hover:bg-neutral-700 disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-transparent disabled:text-zinc-500"
+                className="ml-1 flex items-center gap-1 rounded border border-border bg-secondary px-2 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:border-border disabled:bg-transparent disabled:text-muted-foreground"
               >
                 <ShieldCheck className="size-3" />
                 Validate
@@ -349,7 +377,7 @@ export function DiagramPanel() {
                 type="button"
                 onClick={handleApplyRaw}
                 disabled={!text.trim()}
-                className="flex items-center gap-1 rounded bg-blue-600 px-2 py-1 text-[11px] font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-neutral-700 disabled:text-zinc-500"
+                className="flex items-center gap-1 rounded bg-blue-600 px-2 py-1 text-[11px] font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
               >
                 <Upload className="size-3" />
                 Apply
@@ -362,7 +390,7 @@ export function DiagramPanel() {
             type="button"
             onClick={() => setMode((m) => (m === "ai" ? "raw" : "ai"))}
             title={mode === "ai" ? "Show the raw DSL JSON" : "Back to AI edit"}
-            className="ml-1 flex items-center gap-1 rounded border border-neutral-700 bg-neutral-800/60 px-2 py-1 text-[11px] font-medium text-neutral-300 transition-colors hover:bg-neutral-700"
+            className="ml-1 flex items-center gap-1 rounded border border-border bg-secondary/60 px-2 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-muted"
           >
             {mode === "ai" ? (
               <>
@@ -389,6 +417,9 @@ export function DiagramPanel() {
           onChangeReply={setReplyText}
           onValidate={handleValidateReply}
           onApply={handleApplyReply}
+          onCopyFix={(issues) => copyFixRequest(replyText, issues)}
+          autoArrange={autoArrange}
+          onToggleAutoArrange={setAutoArrange}
           status={aiStatus}
         />
       ) : (
@@ -399,10 +430,10 @@ export function DiagramPanel() {
             onChange={(e) => handleTextChange(e.target.value)}
             spellCheck={false}
             aria-label="DreamerDiagram JSON"
-            className="min-h-0 flex-1 resize-none border-0 bg-neutral-950 p-3 font-mono text-[11px] leading-relaxed text-zinc-200 outline-none placeholder:text-zinc-600 focus:ring-0"
+            className="min-h-0 flex-1 resize-none border-0 bg-background p-3 font-mono text-[11px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground focus:ring-0"
             placeholder="Paste a DreamerDiagram JSON here, or edit the live board state."
           />
-          <StatusFooter status={status} bleed />
+          <StatusFooter status={status} bleed onCopyFix={(issues) => copyFixRequest(text, issues)} />
         </div>
       )}
     </div>
@@ -418,6 +449,9 @@ function AiEditView({
   onChangeReply,
   onValidate,
   onApply,
+  onCopyFix,
+  autoArrange,
+  onToggleAutoArrange,
   status,
 }: {
   changeText: string
@@ -428,32 +462,35 @@ function AiEditView({
   onChangeReply: (value: string) => void
   onValidate: () => void
   onApply: () => void
+  onCopyFix: (issues: DiagramIssue[]) => void
+  autoArrange: boolean
+  onToggleAutoArrange: (value: boolean) => void
   status: PanelStatus
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-3">
       {/* Step 1 — describe the change */}
       <section className="flex shrink-0 flex-col gap-1.5">
-        <h3 className="text-[11px] font-semibold text-neutral-300">1 · Describe your change</h3>
+        <h3 className="text-[11px] font-semibold text-foreground">1 · Describe your change</h3>
         <textarea
           value={changeText}
           onChange={(e) => onChangeChange(e.target.value)}
           rows={3}
           aria-label="Describe the change you want"
           placeholder={'e.g. "add a push button on pin 2 that toggles an LED on pin 13"'}
-          className="resize-none rounded border border-neutral-700 bg-neutral-950 p-2 text-[12px] leading-relaxed text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-neutral-500"
+          className="resize-none rounded border border-border bg-background p-2 text-[12px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground focus:border-border"
         />
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={onCopyPrompt}
             disabled={!changeText.trim()}
-            className="flex items-center gap-1 rounded bg-blue-600 px-2 py-1 text-[11px] font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-neutral-700 disabled:text-zinc-500"
+            className="flex items-center gap-1 rounded bg-blue-600 px-2 py-1 text-[11px] font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
           >
             {copiedPrompt ? <Check className="size-3" /> : <Sparkles className="size-3" />}
             {copiedPrompt ? "Copied!" : "Copy AI prompt"}
           </button>
-          <span className="text-[10px] text-neutral-500">
+          <span className="text-[10px] text-muted-foreground">
             then paste it into ChatGPT, Claude, … and send.
           </span>
         </div>
@@ -462,21 +499,21 @@ function AiEditView({
       {/* Step 2 — paste the reply. The textarea is bounded + resizable (not
           flex-1) so the buttons and result footer below always stay visible. */}
       <section className="flex shrink-0 flex-col gap-1.5">
-        <h3 className="text-[11px] font-semibold text-neutral-300">2 · Paste the AI&apos;s reply</h3>
+        <h3 className="text-[11px] font-semibold text-foreground">2 · Paste the AI&apos;s reply</h3>
         <textarea
           value={replyText}
           onChange={(e) => onChangeReply(e.target.value)}
           spellCheck={false}
           aria-label="Paste the AI's reply"
           placeholder="Paste the JSON the chat gave you here — a ```json code fence is fine."
-          className="min-h-[10rem] resize-y rounded border border-neutral-700 bg-neutral-950 p-2 font-mono text-[11px] leading-relaxed text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-neutral-500"
+          className="min-h-[10rem] resize-y rounded border border-border bg-background p-2 font-mono text-[11px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground focus:border-border"
         />
         <div className="flex flex-wrap items-center gap-1.5">
           <button
             type="button"
             onClick={onValidate}
             disabled={!replyText.trim()}
-            className="flex items-center gap-1 rounded border border-neutral-600 bg-neutral-800 px-2 py-1 text-[11px] font-medium text-neutral-200 transition-colors hover:bg-neutral-700 disabled:cursor-not-allowed disabled:border-neutral-700 disabled:bg-transparent disabled:text-zinc-500"
+            className="flex items-center gap-1 rounded border border-border bg-secondary px-2 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:border-border disabled:bg-transparent disabled:text-muted-foreground"
           >
             <ShieldCheck className="size-3" />
             Validate
@@ -485,19 +522,39 @@ function AiEditView({
             type="button"
             onClick={onApply}
             disabled={!replyText.trim()}
-            className="flex items-center gap-1 rounded bg-blue-600 px-2 py-1 text-[11px] font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-neutral-700 disabled:text-zinc-500"
+            className="flex items-center gap-1 rounded bg-blue-600 px-2 py-1 text-[11px] font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
           >
             <Upload className="size-3" />
             Apply
           </button>
+          <label
+            className="flex cursor-pointer items-center gap-1 text-[10px] text-muted-foreground select-none"
+            title="Re-arrange components onto clean, non-overlapping rows when applying (undoable). Turn off to keep the pasted coordinates."
+          >
+            <input
+              type="checkbox"
+              checked={autoArrange}
+              onChange={(e) => onToggleAutoArrange(e.target.checked)}
+              className="size-3 accent-blue-600"
+            />
+            Auto-arrange parts
+          </label>
         </div>
-        <StatusFooter status={status} />
+        <StatusFooter status={status} onCopyFix={onCopyFix} />
       </section>
     </div>
   )
 }
 
-function StatusFooter({ status, bleed = false }: { status: PanelStatus; bleed?: boolean }) {
+function StatusFooter({
+  status,
+  bleed = false,
+  onCopyFix,
+}: {
+  status: PanelStatus
+  bleed?: boolean
+  onCopyFix?: (issues: DiagramIssue[]) => void
+}) {
   const base = bleed
     ? "shrink-0 border-t px-3 py-2 text-[11px]"
     : "rounded border px-3 py-2 text-[11px]"
@@ -511,8 +568,27 @@ function StatusFooter({ status, bleed = false }: { status: PanelStatus; bleed?: 
   }
 
   if ((status.kind === "issues" || status.kind === "validated") && status.issues.length > 0) {
+    const hasErrors = status.issues.some((i) => i.severity === "error")
     return (
-      <div className={cn(base, "max-h-56 overflow-y-auto border-neutral-700 bg-neutral-950/60")}>
+      <div className={cn(base, "max-h-56 overflow-y-auto border-border bg-background/60")}>
+        {onCopyFix && (
+          <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[10px] text-muted-foreground">
+              {hasErrors
+                ? "Won't apply until these are fixed."
+                : "Applied — these are warnings."}
+            </span>
+            <button
+              type="button"
+              onClick={() => onCopyFix(status.issues)}
+              title="Copy a follow-up prompt that lists these issues for the chat to fix"
+              className="flex items-center gap-1 rounded border border-border bg-secondary px-2 py-0.5 text-[10px] font-medium text-foreground transition-colors hover:bg-muted"
+            >
+              <Sparkles className="size-3" />
+              Copy fix request
+            </button>
+          </div>
+        )}
         <IssueGroup
           label="Errors"
           issues={status.issues.filter((i) => i.severity === "error")}
@@ -603,9 +679,9 @@ function IconButton({
       title={label}
       aria-label={label}
       className={cn(
-        "flex items-center gap-1 rounded p-1 text-neutral-400 transition-colors",
-        "hover:bg-neutral-800 hover:text-neutral-200",
-        "disabled:cursor-not-allowed disabled:text-neutral-600 disabled:hover:bg-transparent",
+        "flex items-center gap-1 rounded p-1 text-muted-foreground transition-colors",
+        "hover:bg-secondary hover:text-foreground",
+        "disabled:cursor-not-allowed disabled:text-muted-foreground disabled:hover:bg-transparent",
       )}
     >
       {icon}

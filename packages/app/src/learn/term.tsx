@@ -52,9 +52,9 @@ export function Term({ k, children }: TermProps) {
       />
       <Popover.Portal>
         <Popover.Positioner sideOffset={6} align="start">
-          <Popover.Popup className="z-50 max-w-xs rounded-md border border-neutral-700 bg-neutral-900 p-3 text-xs leading-relaxed text-neutral-200 shadow-xl outline-none">
-            <p className="mb-1 font-semibold text-neutral-100">{entry.label}</p>
-            <p className="text-neutral-300">{entry.blurb}</p>
+          <Popover.Popup className="z-50 max-w-xs rounded-md border border-border bg-card p-3 text-xs leading-relaxed text-foreground shadow-xl outline-none">
+            <p className="mb-1 font-semibold text-foreground">{entry.label}</p>
+            <p className="text-foreground">{entry.blurb}</p>
             {entry.href && (
               <button
                 type="button"

@@ -27,7 +27,7 @@ export function GroundPage() {
 
       <Section title="Voltage is always relative">
         <p className="text-sm leading-relaxed">
-          A voltage is a <em className="text-gray-200">difference</em>{" "}
+          A voltage is a <em className="text-foreground">difference</em>{" "}
           between two points. When you say "this pin is at 5 V" you
           really mean "this pin is 5 V higher than <Term k="ground">
           ground</Term>." There's no absolute voltage — voltage always

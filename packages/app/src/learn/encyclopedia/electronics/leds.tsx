@@ -42,15 +42,15 @@ export function LedsPage() {
 
       <Section title="Polarity">
         <p className="text-sm leading-relaxed">
-          LEDs are polarized — the <strong className="text-gray-200">anode</strong>{" "}
-          (positive) and <strong className="text-gray-200">cathode</strong>{" "}
+          LEDs are polarized — the <strong className="text-foreground">anode</strong>{" "}
+          (positive) and <strong className="text-foreground">cathode</strong>{" "}
           (negative) legs are not interchangeable. On a through-hole
           LED you can tell them apart two ways:
         </p>
 
         <ul className="mt-2 space-y-1 text-sm leading-relaxed">
-          <li>The <strong className="text-gray-200">longer lead</strong> is the anode (+).</li>
-          <li>The <strong className="text-gray-200">flat edge</strong> on the plastic rim marks the cathode (−).</li>
+          <li>The <strong className="text-foreground">longer lead</strong> is the anode (+).</li>
+          <li>The <strong className="text-foreground">flat edge</strong> on the plastic rim marks the cathode (−).</li>
         </ul>
 
         <Note>
@@ -75,7 +75,7 @@ export function LedsPage() {
           LED on 5 V drawing ~15 mA:
         </p>
 
-        <p className="mt-2 text-sm leading-relaxed font-mono text-gray-200">
+        <p className="mt-2 text-sm leading-relaxed font-mono text-foreground">
           R = (5 − 2) V / 0.015 A = 200 Ω
         </p>
 
@@ -142,14 +142,14 @@ function LedColorTable() {
   const rExact = vDrop / iTarget
 
   return (
-    <div className="mt-3 rounded-md border border-neutral-800 overflow-hidden">
+    <div className="mt-3 rounded-md border border-border overflow-hidden">
       <table className="w-full text-sm" role="table">
         <thead>
-          <tr className="bg-neutral-900 text-left">
-            <th scope="col" className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-500 w-8" aria-label="Color swatch" />
-            <th scope="col" className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">Color</th>
-            <th scope="col" className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">Typical Vf</th>
-            <th scope="col" className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">Typical current</th>
+          <tr className="bg-card text-left">
+            <th scope="col" className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground w-8" aria-label="Color swatch" />
+            <th scope="col" className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Color</th>
+            <th scope="col" className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Typical Vf</th>
+            <th scope="col" className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Typical current</th>
           </tr>
         </thead>
         <tbody>
@@ -159,10 +159,10 @@ function LedColorTable() {
               <tr
                 key={v.color}
                 className={cn(
-                  "cursor-pointer border-t border-neutral-800 transition-colors",
+                  "cursor-pointer border-t border-border transition-colors",
                   isActive
-                    ? "bg-neutral-700/40"
-                    : "hover:bg-neutral-800/60",
+                    ? "bg-muted/40"
+                    : "hover:bg-secondary/60",
                 )}
                 onClick={() => setSelected(v.color)}
                 aria-selected={isActive}
@@ -170,14 +170,14 @@ function LedColorTable() {
               >
                 <td className="px-3 py-2">
                   <span
-                    className="inline-block w-3 h-3 rounded-full ring-1 ring-neutral-700"
+                    className="inline-block w-3 h-3 rounded-full ring-1 ring-ring"
                     style={{ background: v.swatch }}
                     aria-hidden
                   />
                 </td>
-                <td className="px-3 py-2 text-gray-300 font-medium">{v.color}</td>
-                <td className="px-3 py-2 font-mono text-gray-300">~{v.vf.toFixed(1)} V</td>
-                <td className="px-3 py-2 font-mono text-gray-400">{v.typical}</td>
+                <td className="px-3 py-2 text-foreground font-medium">{v.color}</td>
+                <td className="px-3 py-2 font-mono text-foreground">~{v.vf.toFixed(1)} V</td>
+                <td className="px-3 py-2 font-mono text-muted-foreground">{v.typical}</td>
               </tr>
             )
           })}
@@ -185,18 +185,18 @@ function LedColorTable() {
       </table>
 
       {/* Derived resistor calculation for selected row */}
-      <div className="border-t border-neutral-700 bg-neutral-900 px-4 py-3">
-        <p className="text-[11px] text-neutral-500 mb-1 uppercase tracking-wider font-semibold">
+      <div className="border-t border-border bg-card px-4 py-3">
+        <p className="text-[11px] text-muted-foreground mb-1 uppercase tracking-wider font-semibold">
           Resistor for <span style={{ color: active.swatch }}>{active.color}</span> LED on 5 V at 15 mA
         </p>
-        <p className="font-mono text-sm text-gray-300">
+        <p className="font-mono text-sm text-foreground">
           R = (5 − {active.vf.toFixed(1)}) V / 0.015 A
           {" = "}
           <span className="text-emerald-400 font-semibold">{Math.round(rExact)} Ω</span>
           {" "}→ use{" "}
           <span className="text-emerald-300">{nearestStandard(rExact)} Ω</span>
         </p>
-        <p className="text-[11px] text-neutral-500 mt-1">Click a row to recalculate for that LED color.</p>
+        <p className="text-[11px] text-muted-foreground mt-1">Click a row to recalculate for that LED color.</p>
       </div>
     </div>
   )

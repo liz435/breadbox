@@ -3,7 +3,7 @@ import type { BoardComponent, PinState, Wire } from "@dreamer/schemas";
 import { gridToPixel } from "@/breadboard/breadboard-grid";
 import { LED_DOME_RADIUS, LEG_WIDTH, LABEL_FONT_SIZE } from "@/breadboard/breadboard-constants";
 import { findArduinoPinForComponentPin } from "@/breadboard/component-pin-resolver";
-import { PinLabel } from "./pin-label";
+import { PinLabel } from "@/breadboard/component-renderers/pin-label";
 
 // ── RGB LED renderer ──────────────────────────────────────────────────────
 //

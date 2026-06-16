@@ -14,7 +14,7 @@ export function RelayLesson() {
 
       <Section title="What you'll build">
         <p className="text-sm leading-relaxed">
-          A 5 V relay module wired to pin <code className="text-gray-200">D7</code>. The
+          A 5 V relay module wired to pin <code className="text-foreground">D7</code>. The
           sketch alternates between HIGH and LOW every 2 seconds, toggling the relay's
           coil and clicking its mechanical contacts open and closed.
         </p>

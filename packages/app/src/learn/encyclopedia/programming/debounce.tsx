@@ -86,7 +86,7 @@ void loop() {
 }`} />
 
         <Note>
-          Fire your action on the <em className="text-gray-200">edge</em>{" "}
+          Fire your action on the <em className="text-foreground">edge</em>{" "}
           (when <code>stable</code> changes), not while it's LOW. Otherwise
           holding the button down counts as multiple presses.
         </Note>
@@ -175,7 +175,7 @@ function DebounceInteractive() {
   }
 
   return (
-    <div className="flex flex-col items-center gap-3 rounded border border-neutral-800 bg-[#0f0f0f] p-4">
+    <div className="flex flex-col items-center gap-3 rounded border border-border bg-[#0f0f0f] p-4">
       <DebounceWaveCanvas events={events} debounced={debounced} nowT={nowT} />
 
       <div className="flex items-center gap-6">
@@ -183,8 +183,8 @@ function DebounceInteractive() {
           type="button"
           onClick={handlePress}
           className={cn(
-            "rounded-md border border-neutral-700 bg-neutral-800 px-5 py-2 text-sm font-medium text-neutral-200",
-            "hover:bg-neutral-700 active:scale-95 transition-all select-none",
+            "rounded-md border border-border bg-secondary px-5 py-2 text-sm font-medium text-foreground",
+            "hover:bg-muted active:scale-95 transition-all select-none",
           )}
         >
           Press button

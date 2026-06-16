@@ -28,11 +28,11 @@ export function StringsPage() {
       <Section title="Two flavors: String and char[]">
         <p className="text-sm leading-relaxed">
           Arduino C++ gives you two ways to hold text. The{" "}
-          <code className="text-gray-200">String</code> class is the
+          <code className="text-foreground">String</code> class is the
           friendly one: it grows and shrinks on demand, concatenates
           with <code>+</code>, and lives on the heap. A raw{" "}
-          <code className="text-gray-200">char[]</code> (also called a{" "}
-          <em className="text-gray-200">C string</em>) is a fixed-size
+          <code className="text-foreground">char[]</code> (also called a{" "}
+          <em className="text-foreground">C string</em>) is a fixed-size
           array of characters ending in a <code>'\0'</code> byte; it
           lives wherever you put it and never resizes.
         </p>
@@ -58,7 +58,7 @@ Serial.println(label);`} />
           concatenate, or reassign a <code>String</code>, its allocator
           grabs a new chunk of heap and frees the old one. Over time
           the free space gets chopped into small gaps — classic{" "}
-          <em className="text-gray-200">heap fragmentation</em> — and
+          <em className="text-foreground">heap fragmentation</em> — and
           the sketch slowly runs out of usable memory and starts
           misbehaving in mysterious ways.
         </p>
@@ -74,11 +74,11 @@ Serial.println(label);`} />
 
       <Section title="When to pick which">
         <p className="text-sm leading-relaxed">
-          Reach for <code className="text-gray-200">String</code> when
+          Reach for <code className="text-foreground">String</code> when
           you're prototyping, when the sketch is short-lived, or when
           the text-handling code would be painful to write with raw
           buffers (lots of concatenation, substring extraction, etc.).
-          Reach for <code className="text-gray-200">char[]</code> when
+          Reach for <code className="text-foreground">char[]</code> when
           the sketch has to run reliably for a long time, when memory
           is tight, or when you're passing a string to a library that
           expects a classic C string.

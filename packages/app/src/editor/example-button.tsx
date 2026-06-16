@@ -77,7 +77,7 @@ export function ExampleButton() {
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger
         data-testid="example-button"
-        className="flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium text-neutral-300 hover:bg-neutral-700 transition-colors"
+        className="flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted transition-colors"
       >
         <svg viewBox="0 0 16 16" className="size-3 fill-current">
           <path d="M2 2a1 1 0 011-1h6l4 4v8a1 1 0 01-1 1H3a1 1 0 01-1-1V2zm7 0v3h3L9 2zM5 8h6v1H5V8zm0 2h4v1H5v-1z" />
@@ -92,16 +92,16 @@ export function ExampleButton() {
 
       <Popover.Portal>
         <Popover.Positioner side="bottom" sideOffset={8} align="end">
-          <Popover.Popup className="z-50 flex w-72 max-h-96 flex-col overflow-hidden rounded-lg border border-neutral-700 bg-[#1a1a1a] shadow-xl outline-none">
+          <Popover.Popup className="z-50 flex w-72 max-h-96 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-xl outline-none">
             {/* Tab header */}
-            <div className="flex shrink-0 border-b border-neutral-700">
+            <div className="flex shrink-0 border-b border-border">
               <button
                 type="button"
                 onClick={() => setTab("builtin")}
                 className={`flex-1 px-3 py-1.5 text-xs font-medium ${
                   tab === "builtin"
-                    ? "border-b-2 border-blue-500 text-zinc-200"
-                    : "text-zinc-500 hover:text-zinc-300"
+                    ? "border-b-2 border-blue-500 text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 Built-in
@@ -111,13 +111,13 @@ export function ExampleButton() {
                 onClick={() => setTab("library")}
                 className={`flex flex-1 items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium ${
                   tab === "library"
-                    ? "border-b-2 border-blue-500 text-zinc-200"
-                    : "text-zinc-500 hover:text-zinc-300"
+                    ? "border-b-2 border-blue-500 text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 Custom Libraries
                 {libraryGroups.length > 0 && (
-                  <span className="rounded-full bg-neutral-700 px-1.5 text-[10px] leading-tight text-zinc-300">
+                  <span className="rounded-full bg-muted px-1.5 text-[10px] leading-tight text-foreground">
                     {libraryGroups.reduce((n, g) => n + g.items.length, 0)}
                   </span>
                 )}
@@ -171,7 +171,7 @@ function SectionHeader({
   leading?: React.ReactNode
 }) {
   return (
-    <p className="mb-1 flex items-center gap-1.5 px-2 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+    <p className="mb-1 flex items-center gap-1.5 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
       {leading}
       <span>{children}</span>
     </p>
@@ -181,11 +181,11 @@ function SectionHeader({
 function EmptyLibraryState() {
   return (
     <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
-      <Package className="size-6 text-neutral-600" />
-      <p className="text-xs font-medium text-neutral-300">
+      <Package className="size-6 text-muted-foreground" />
+      <p className="text-xs font-medium text-foreground">
         No library examples
       </p>
-      <p className="text-[11px] leading-tight text-neutral-500">
+      <p className="text-[11px] leading-tight text-muted-foreground">
         Custom libraries with example sketches will appear here.
       </p>
     </div>
@@ -205,7 +205,7 @@ function GroupedList({
     <div className="space-y-2">
       {groups.map(({ category, items }) => (
         <div key={category}>
-          <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider text-neutral-600">
+          <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             {category}
           </p>
           <ExampleList examples={items} onLoad={onLoad} />
@@ -245,18 +245,18 @@ function ExampleRow({
       type="button"
       onClick={() => onLoad(example)}
       data-testid={`example-row-${example.key}`}
-      className="flex w-full items-start gap-2 rounded px-2 py-1.5 text-left transition-colors hover:bg-neutral-700"
+      className="flex w-full items-start gap-2 rounded px-2 py-1.5 text-left transition-colors hover:bg-muted"
     >
       <div className="min-w-0 flex-1">
-        <span className="block truncate text-xs font-medium text-neutral-200">
+        <span className="block truncate text-xs font-medium text-foreground">
           {example.label}
         </span>
-        <span className="block text-[11px] leading-tight text-neutral-500">
+        <span className="block text-[11px] leading-tight text-muted-foreground">
           {example.description}
         </span>
       </div>
       {libraryBadge && (
-        <span className="shrink-0 rounded border border-neutral-700/60 bg-neutral-800 px-1.5 py-0.5 font-mono text-[10px] text-neutral-400">
+        <span className="shrink-0 rounded border border-border/60 bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
           {libraryBadge}
         </span>
       )}

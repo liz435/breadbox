@@ -110,17 +110,17 @@ export function AudioContent({ node }: AudioContentProps) {
   return (
     <div className="px-2 py-1">
       {fileName ? (
-        <div className="text-[10px] text-neutral-300 truncate mb-1">
+        <div className="text-[10px] text-foreground truncate mb-1">
           {fileName}
         </div>
       ) : (
-        <div className="text-[10px] text-neutral-500 italic mb-1">
+        <div className="text-[10px] text-muted-foreground italic mb-1">
           No audio file
         </div>
       )}
 
       {/* Waveform / progress bar */}
-      <div className="h-6 bg-neutral-950 rounded border border-neutral-700 flex items-center px-1 gap-1 relative overflow-hidden">
+      <div className="h-6 bg-background rounded border border-border flex items-center px-1 gap-1 relative overflow-hidden">
         {/* Progress fill */}
         {uri && (
           <div
@@ -151,7 +151,7 @@ export function AudioContent({ node }: AudioContentProps) {
             {isPlaying ? (
               <button
                 type="button"
-                className="p-0.5 rounded hover:bg-neutral-700 text-neutral-300 transition-colors"
+                className="p-0.5 rounded hover:bg-muted text-foreground transition-colors"
                 onClick={handlePause}
               >
                 <Pause className="size-3" />
@@ -159,7 +159,7 @@ export function AudioContent({ node }: AudioContentProps) {
             ) : (
               <button
                 type="button"
-                className="p-0.5 rounded hover:bg-neutral-700 text-neutral-300 transition-colors"
+                className="p-0.5 rounded hover:bg-muted text-foreground transition-colors"
                 onClick={handlePlay}
               >
                 <Play className="size-3" />
@@ -167,20 +167,20 @@ export function AudioContent({ node }: AudioContentProps) {
             )}
             <button
               type="button"
-              className="p-0.5 rounded hover:bg-neutral-700 text-neutral-300 transition-colors"
+              className="p-0.5 rounded hover:bg-muted text-foreground transition-colors"
               onClick={handleStop}
             >
               <Square className="size-2.5" />
             </button>
             {duration > 0 && (
-              <span className="text-[9px] text-neutral-500 ml-auto">
+              <span className="text-[9px] text-muted-foreground ml-auto">
                 {formatTime(progress)}/{formatTime(duration)}
               </span>
             )}
           </>
         )}
         {!uri && (
-          <div className="flex justify-between flex-1 text-[9px] text-neutral-500">
+          <div className="flex justify-between flex-1 text-[9px] text-muted-foreground">
             <span>Vol: {Math.round(volume * 100)}%</span>
             {loop && <span>Loop</span>}
           </div>

@@ -14,10 +14,10 @@ export function NeopixelLesson() {
 
       <Section title="What you'll build">
         <p className="text-sm leading-relaxed">
-          An 8-LED WS2812 NeoPixel strip on pin <code className="text-gray-200">D6</code>.
+          An 8-LED WS2812 NeoPixel strip on pin <code className="text-foreground">D6</code>.
           The sketch cycles through the color wheel one pixel at a time, creating a
           rainbow chase effect using the{" "}
-          <code className="text-gray-200">Adafruit_NeoPixel</code> library.
+          <code className="text-foreground">Adafruit_NeoPixel</code> library.
         </p>
       </Section>
 
@@ -25,7 +25,7 @@ export function NeopixelLesson() {
         <BreadboardEmbed board="21-neopixel" panels={["code"]} height={460} />
         <Note>
           Press <strong>Play</strong>. The eight NeoPixels chase through the rainbow.
-          Try changing <code className="text-gray-200">NUM_LEDS</code> or the hue step
+          Try changing <code className="text-foreground">NUM_LEDS</code> or the hue step
           in the sketch.
         </Note>
       </Section>
@@ -39,10 +39,10 @@ export function NeopixelLesson() {
           is independent color control of every pixel using one pin.
         </p>
         <p className="text-sm leading-relaxed">
-          <code className="text-gray-200">strip.ColorHSV()</code> generates a 32-bit
+          <code className="text-foreground">strip.ColorHSV()</code> generates a 32-bit
           color from a hue angle (0–65535), saturation, and value. The sketch increments
           the hue per pixel to spread the rainbow, and calls{" "}
-          <code className="text-gray-200">strip.show()</code> once to latch all colors to
+          <code className="text-foreground">strip.show()</code> once to latch all colors to
           the strip simultaneously.
         </p>
       </Section>

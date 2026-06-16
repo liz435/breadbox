@@ -95,14 +95,14 @@ function EncyclopediaNotFound({ track, slug }: { track: string; slug: string }) 
           <li>The slug in the URL has a typo.</li>
           <li>
             The track is wrong (must be one of{" "}
-            <code className="text-gray-200">board</code>,{" "}
-            <code className="text-gray-200">programming</code>, or{" "}
-            <code className="text-gray-200">electronics</code>).
+            <code className="text-foreground">board</code>,{" "}
+            <code className="text-foreground">programming</code>, or{" "}
+            <code className="text-foreground">electronics</code>).
           </li>
         </ul>
         <Note>
           To see planned-but-unwritten pages, append{" "}
-          <code className="text-gray-200">?showPlanned=1</code> to the URL.
+          <code className="text-foreground">?showPlanned=1</code> to the URL.
         </Note>
       </Section>
     </LearnLayout>

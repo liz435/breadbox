@@ -23,7 +23,7 @@ export function ViewTabStrip({ api }: ViewTabStripProps) {
     <div
       role="tablist"
       aria-label="Views"
-      className="flex h-9 shrink-0 items-stretch gap-1 overflow-x-auto border-b border-neutral-800 bg-neutral-950 px-2"
+      className="flex h-9 shrink-0 items-stretch gap-1 overflow-x-auto border-b border-border bg-background px-2"
     >
       {tabs.map((view) => {
         const active = view.id === activeId;
@@ -38,7 +38,7 @@ export function ViewTabStrip({ api }: ViewTabStripProps) {
               "-mb-px whitespace-nowrap border-b-2 px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
               active
                 ? "border-blue-500 text-blue-300"
-                : "border-transparent text-neutral-400 hover:text-neutral-200",
+                : "border-transparent text-muted-foreground hover:text-foreground",
             )}
           >
             {view.label}

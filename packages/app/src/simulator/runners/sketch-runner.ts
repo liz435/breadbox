@@ -36,9 +36,58 @@ export type PinSnapshot = {
   mode: number
 }
 
+// ── Debug-control surface ───────────────────────────────────────────────────
+//
+// Optional per-runner debugger. Only chip emulators with full state
+// observability implement it (avr8js today); rp2040/compile-only leave
+// `SketchRunner.debug` undefined and the UI disables debug controls.
+
+/** Machine state captured at a halt (breakpoint / step / pause). */
+export type DebugSnapshot = {
+  /** Program counter (WORD address; same unit as the line table). */
+  pc: number
+  /** Source line for `pc`, or null when no line table maps it. */
+  line: number | null
+  /** General-purpose registers R0–R31. */
+  registers: Uint8Array
+  /** SRAM contents (from data-space 0x100 upward). */
+  sram: Uint8Array
+  /** Stack pointer. */
+  sp: number
+  /** Cycle count since reset. */
+  cycles: number
+}
+
+export interface DebugController {
+  /** True when a source-line table is available (source vs address-only). */
+  readonly hasLineTable: boolean
+  /**
+   * Arm breakpoints by SOURCE LINE. Lines with no generated code are dropped;
+   * returns the subset that actually armed so the UI can mark bound vs unbound.
+   */
+  setBreakpointLines(lines: readonly number[]): number[]
+  /** Resume free-run after a halt (steps past the parked instruction first). */
+  continue(): void
+  /** Execute exactly one instruction. */
+  stepInstruction(): void
+  /** Run until the current source line changes (best-effort; capped). */
+  stepLine(): void
+  /** Whether the last run-loop iteration stopped on a breakpoint. */
+  wasHalted(): boolean
+  /** Capture current machine state — call right after a halt. */
+  snapshot(): DebugSnapshot
+}
+
 export interface SketchRunner {
   readonly kind: RunnerKind
   readonly fqbn: string
+
+  /**
+   * Execution-control debugger, present only on runners with full state
+   * observability (AVR/avr8js). Undefined ⇒ the runner can't be debugged and
+   * the UI hides/disables debug controls for it.
+   */
+  readonly debug?: DebugController
 
   loadSketchAsync(
     code: string,

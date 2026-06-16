@@ -31,7 +31,7 @@ export function SerialPage() {
           The Uno's USB port does two jobs. It powers the board, and it
           carries a serial connection between the ATmega328P and your
           computer. Any text your sketch prints with{" "}
-          <code className="text-gray-200">Serial.print()</code> shows up
+          <code className="text-foreground">Serial.print()</code> shows up
           in a console on your computer, and anything you type back gets
           delivered to the sketch. This is the main way you debug and
           interact with a running Arduino.
@@ -41,7 +41,7 @@ export function SerialPage() {
       <Section title="The Serial Monitor">
         <p className="text-sm leading-relaxed">
           The Arduino IDE (and Breadbox) ships with a{" "}
-          <strong className="text-gray-200">Serial Monitor</strong> — a
+          <strong className="text-foreground">Serial Monitor</strong> — a
           little window that opens a serial connection to the board and
           prints everything it receives. When you click "Open Serial
           Monitor," the sketch typically resets so any <code>setup()</code>{" "}
@@ -53,7 +53,7 @@ export function SerialPage() {
         <p className="text-sm leading-relaxed">
           "Baud" is the speed of the serial link in bits per second. Both
           sides must agree. In your sketch you pick a baud rate with{" "}
-          <code className="text-gray-200">Serial.begin(9600)</code>; in
+          <code className="text-foreground">Serial.begin(9600)</code>; in
           the Serial Monitor, pick the same number from the dropdown.
           Common values:
         </p>

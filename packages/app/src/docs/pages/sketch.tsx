@@ -10,8 +10,8 @@ export function SketchPage() {
       />
 
       <Section title="Example boards">
-        <p className="text-sm text-gray-300 leading-relaxed mb-2">
-          The <strong className="text-gray-200">Examples</strong> button sits to the right of Run/Stop
+        <p className="text-sm text-foreground leading-relaxed mb-2">
+          The <strong className="text-foreground">Examples</strong> button sits to the right of Run/Stop
           in the toolbar. It opens a popover listing 21 ready-made example boards — one for every
           component type Breadbox supports. Each example includes a complete breadboard layout, wiring,
           and a working sketch.
@@ -33,7 +33,7 @@ export function SketchPage() {
       </Section>
 
       <Section title="Auto-generation">
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           When the sketch is empty or still contains the auto-generated boilerplate, Breadbox
           regenerates it every time the board changes. Once you manually edit the code, auto-generation
           stops — your edits are preserved.
@@ -45,7 +45,7 @@ export function SketchPage() {
       </Section>
 
       <Section title="Execution">
-        <p className="text-sm text-gray-300 leading-relaxed mb-2">
+        <p className="text-sm text-foreground leading-relaxed mb-2">
           Click <strong>Compile & Run</strong> (or use the play button in the toolbar) to execute
           your sketch in the browser. The transpiler converts your Arduino C++ to JavaScript and
           runs <code>setup()</code> once, then <code>loop()</code> at ~60 fps.
@@ -86,7 +86,7 @@ export function SketchPage() {
       </Section>
 
       <Section title="Custom libraries">
-        <p className="text-sm text-gray-300 leading-relaxed mb-2">
+        <p className="text-sm text-foreground leading-relaxed mb-2">
           You can add your own libraries via the <strong>Libraries</strong> tab (next to Sketch/Graph/Schematic).
           Custom libraries are written in the same C++ subset the transpiler supports.
         </p>

@@ -24,7 +24,7 @@ export function MathContent({ node, onDataChange }: MathContentProps) {
   return (
     <div className="px-2 py-1">
       <select
-        className="w-full bg-neutral-950 text-[11px] text-neutral-200 px-1.5 py-1 rounded border border-neutral-700 outline-none focus:border-neutral-500"
+        className="w-full bg-background text-[11px] text-foreground px-1.5 py-1 rounded border border-border outline-none focus:border-border"
         value={operation}
         onChange={handleChange}
         onMouseDown={(e) => e.stopPropagation()}

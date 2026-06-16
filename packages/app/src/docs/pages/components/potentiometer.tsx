@@ -52,7 +52,7 @@ export function PotentiometerPage() {
       </Section>
 
       <Section title="Auto-generated sketch code">
-        <p className="text-sm text-gray-400 mb-2">
+        <p className="text-sm text-muted-foreground mb-2">
           Only a comment is generated — no active sketch code.
         </p>
         <CodeBlock code={`// Pot1 on analog pin A0
@@ -85,17 +85,17 @@ analogWrite(9, brightness);`} />
             ["Output formula", "Vout = Vin × (position / 100)"],
           ]}
         />
-        <p className="text-sm text-gray-400 mt-2">
-          Voltage divider formula: <strong className="text-gray-300">Vout = Vin × R₂ / (R₁ + R₂)</strong>
+        <p className="text-sm text-muted-foreground mt-2">
+          Voltage divider formula: <strong className="text-foreground">Vout = Vin × R₂ / (R₁ + R₂)</strong>
           where R₁ + R₂ = total resistance (10 kΩ) and the wiper splits them.
         </p>
       </Section>
 
       <Section title="Example board">
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           A ready-made example board with a potentiometer is available in the sketch editor.
-          Click the <strong className="text-gray-200">Examples</strong> button in the toolbar
-          (right of Run/Stop) and select <strong className="text-gray-200">"Pot → LED Brightness"</strong> to
+          Click the <strong className="text-foreground">Examples</strong> button in the toolbar
+          (right of Run/Stop) and select <strong className="text-foreground">"Pot → LED Brightness"</strong> to
           load a complete circuit with a working sketch.
         </p>
       </Section>

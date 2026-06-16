@@ -3,25 +3,27 @@
 @plugin "@tailwindcss/typography";
 
 :root {
-  --background: oklch(14.5% 0 0);
-  --foreground: oklch(98.5% 0 0);
-  --card: oklch(20.5% 0 0);
-  --card-foreground: oklch(98.5% 0 0);
-  --popover: oklch(20.5% 0 0);
-  --popover-foreground: oklch(98.5% 0 0);
-  --primary: oklch(98.5% 0 0);
-  --primary-foreground: oklch(14.5% 0 0);
-  --secondary: oklch(26.9% 0 0);
-  --secondary-foreground: oklch(97% 0 0);
-  --muted: oklch(26.9% 0 0);
-  --muted-foreground: oklch(70.8% 0 0);
-  --accent: oklch(37.1% 0 0);
-  --accent-foreground: oklch(98.5% 0 0);
-  --destructive: oklch(63.7% 0.237 25.331);
-  --destructive-foreground: oklch(98.5% 0 0);
-  --border: oklch(37.1% 0 0);
-  --input: oklch(26.9% 0 0);
-  --ring: oklch(55.6% 0 0);
+  /* Aged paper — soft warm sepia light theme. Hue ~70–85 (amber/yellow),
+     low chroma for a gentle, faded, nostalgic feel. */
+  --background: oklch(93% 0.025 85); /* cream page */
+  --foreground: oklch(32% 0.03 70); /* soft brown ink */
+  --card: oklch(90.5% 0.03 85); /* warm-white panel */
+  --card-foreground: oklch(32% 0.03 70);
+  --popover: oklch(92% 0.03 85);
+  --popover-foreground: oklch(32% 0.03 70);
+  --primary: oklch(72% 0.15 75); /* amber */
+  --primary-foreground: oklch(26% 0.04 60); /* espresso text on amber */
+  --secondary: oklch(86.5% 0.035 82); /* soft tan surface */
+  --secondary-foreground: oklch(32% 0.03 70);
+  --muted: oklch(87.5% 0.03 82);
+  --muted-foreground: oklch(50% 0.035 70); /* faded brown, secondary text */
+  --accent: oklch(84% 0.05 80); /* warm hover/active surface */
+  --accent-foreground: oklch(30% 0.04 65);
+  --destructive: oklch(58% 0.18 28); /* warmed, slightly muted red */
+  --destructive-foreground: oklch(97% 0.01 85);
+  --border: oklch(82% 0.03 80); /* tan */
+  --input: oklch(82% 0.03 80);
+  --ring: oklch(72% 0.15 75); /* amber focus ring */
   --radius: 0.25rem;
 }
 
@@ -114,32 +116,34 @@ body,
   display: block;
 }
 
-/* Dockview overrides to match theme */
-.dockview-theme-abyss .dv-dockview {
+/* Dockview overrides to match the aged-paper theme.
+   Base theme is dockview-theme-light; we tint its tokens to our sepia palette.
+   The doubled `.dockview-theme-light.dockview-theme-light` selector raises
+   specificity above the library defaults so the tint always wins. */
+.dockview-theme-light .dv-dockview {
   height: 100%;
 }
-.dockview-theme-abyss {
-  --dv-background-color: var(--background);
-  --dv-paneview-header-border-color: var(--border);
+.dockview-theme-light.dockview-theme-light {
+  --dv-group-view-background-color: var(--background);
   --dv-tabs-and-actions-container-background-color: var(--card);
   --dv-activegroup-visiblepanel-tab-background-color: var(--background);
   --dv-activegroup-hiddenpanel-tab-background-color: var(--card);
   --dv-inactivegroup-visiblepanel-tab-background-color: var(--card);
-  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--card);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--secondary);
   --dv-tab-divider-color: var(--border);
   --dv-activegroup-visiblepanel-tab-color: var(--foreground);
   --dv-activegroup-hiddenpanel-tab-color: var(--muted-foreground);
   --dv-inactivegroup-visiblepanel-tab-color: var(--muted-foreground);
   --dv-inactivegroup-hiddenpanel-tab-color: var(--muted-foreground);
   --dv-separator-border: var(--border);
-  --dv-group-view-background-color: var(--background);
+  --dv-paneview-header-border-color: var(--border);
   --dv-activegroup-visiblepanel-tab-border-bottom-color: transparent;
   --dv-active-title-color: var(--foreground);
   --dv-focus-border: var(--border);
-  --dv-color-abyss-accent: var(--border);
-  --dv-paneview-active-outline-color: var(--border);
+  --dv-paneview-active-outline-color: var(--ring);
   --dv-active-sash-color: var(--border);
-  --dv-drag-over-border: 2px solid var(--border);
-  --dv-drag-over-background-color: rgba(255, 255, 255, 0.05);
+  --dv-scrollbar-background-color: var(--border);
+  --dv-drag-over-border: 2px solid var(--ring);
+  --dv-drag-over-background-color: rgba(60, 40, 10, 0.06);
   --dv-drag-over-border-color: var(--border);
 }

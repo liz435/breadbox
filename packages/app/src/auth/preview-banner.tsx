@@ -17,14 +17,14 @@ export function PreviewBanner({ className }: PreviewBannerProps = {}) {
   return (
     <div
       className={cn(
-        "pointer-events-auto fixed right-3 top-3 z-50 flex items-center gap-3 rounded-full border border-white/10 bg-neutral-900/85 py-1.5 pl-4 pr-1.5 text-xs text-neutral-200 shadow-lg backdrop-blur",
+        "pointer-events-auto fixed right-3 top-3 z-50 flex items-center gap-3 rounded-full border border-white/10 bg-card/85 py-1.5 pl-4 pr-1.5 text-xs text-foreground shadow-lg backdrop-blur",
         className,
       )}
     >
-      <span className="hidden sm:inline text-neutral-400">
+      <span className="hidden sm:inline text-muted-foreground">
         Preview — changes aren't saved
       </span>
-      <span className="sm:hidden text-neutral-400">Preview</span>
+      <span className="sm:hidden text-muted-foreground">Preview</span>
       <button
         type="button"
         onClick={redirectToSignIn}

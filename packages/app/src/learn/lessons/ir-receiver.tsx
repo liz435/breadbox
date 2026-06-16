@@ -15,7 +15,7 @@ export function IrReceiverLesson() {
       <Section title="What you'll build">
         <p className="text-sm leading-relaxed">
           A TSOP-type IR receiver module on pin{" "}
-          <code className="text-gray-200">D11</code> that decodes incoming IR pulses and
+          <code className="text-foreground">D11</code> that decodes incoming IR pulses and
           prints the 32-bit hex code to Serial. Works with most consumer remote controls
           using the NEC, Sony, or RC5 protocols.
         </p>
@@ -33,14 +33,14 @@ export function IrReceiverLesson() {
         <p className="text-sm leading-relaxed">
           IR remotes transmit data by switching a 38 kHz carrier on and off in precise
           patterns. The TSOP demodulator strips the carrier and outputs clean LOW pulses
-          to the Arduino. The <code className="text-gray-200">IRremote</code> library
+          to the Arduino. The <code className="text-foreground">IRremote</code> library
           measures those pulse widths with a hardware timer interrupt and decodes them
           into a 32-bit code.
         </p>
         <p className="text-sm leading-relaxed">
           After a successful decode, the sketch prints the value in hex with{" "}
-          <code className="text-gray-200">Serial.println(results.value, HEX)</code> and
-          calls <code className="text-gray-200">irrecv.resume()</code> to prepare the
+          <code className="text-foreground">Serial.println(results.value, HEX)</code> and
+          calls <code className="text-foreground">irrecv.resume()</code> to prepare the
           library to receive the next code. Without that resume call, the receiver stays
           blocked on the first result.
         </p>

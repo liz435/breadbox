@@ -8,6 +8,8 @@ import { setup, assign } from "xstate"
 export type SimulationContext = {
   errorMessage: string | null
   tickInterval: number | null // requestAnimationFrame id
+  /** Why the sim is in `paused` — distinguishes a user pause from a breakpoint. */
+  pausedReason: "user" | "breakpoint" | null
 }
 
 export type SimulationEvent =
@@ -19,6 +21,10 @@ export type SimulationEvent =
   | { type: "COMPILE_ERROR"; message: string }
   | { type: "RUNTIME_ERROR"; message: string }
   | { type: "TICK" }
+  // ── Debug control ──
+  | { type: "BREAKPOINT_HIT" } // running → paused (parked at a breakpoint)
+  | { type: "STEP" } // internal to paused: advanced one step, stay paused
+  | { type: "CONTINUE" } // paused → running (resume free-run)
 
 export const simulationMachine = setup({
   types: {
@@ -31,10 +37,11 @@ export const simulationMachine = setup({
   context: {
     errorMessage: null,
     tickInterval: null,
+    pausedReason: null,
   },
   states: {
     stopped: {
-      entry: assign({ errorMessage: null, tickInterval: null }),
+      entry: assign({ errorMessage: null, tickInterval: null, pausedReason: null }),
       on: {
         PLAY: { target: "compiling" },
       },
@@ -52,8 +59,10 @@ export const simulationMachine = setup({
       },
     },
     running: {
+      entry: assign({ pausedReason: null }),
       on: {
-        PAUSE: { target: "paused" },
+        PAUSE: { target: "paused", actions: assign({ pausedReason: "user" }) },
+        BREAKPOINT_HIT: { target: "paused", actions: assign({ pausedReason: "breakpoint" }) },
         STOP: { target: "stopped" },
         RUNTIME_ERROR: {
           target: "error",
@@ -67,6 +76,8 @@ export const simulationMachine = setup({
     paused: {
       on: {
         RESUME: { target: "running" },
+        CONTINUE: { target: "running" },
+        STEP: {}, // stays paused; the loop advanced one step out-of-band
         STOP: { target: "stopped" },
       },
     },

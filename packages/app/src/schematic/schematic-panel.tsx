@@ -101,8 +101,8 @@ function SchematicPanelInner() {
 
   if (!hasComponents) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-zinc-900">
-        <p className="text-sm text-zinc-500">
+      <div className="flex h-full w-full items-center justify-center bg-card">
+        <p className="text-sm text-muted-foreground">
           Place components on the breadboard to see the schematic
         </p>
       </div>
@@ -112,13 +112,13 @@ function SchematicPanelInner() {
   const btnBase =
     "flex h-8 w-8 items-center justify-center rounded-md text-lg font-bold border shadow-md"
   const btnNormal =
-    "bg-zinc-800 text-zinc-300 hover:bg-zinc-700 active:bg-zinc-600 border-zinc-700"
+    "bg-secondary text-foreground hover:bg-muted active:bg-accent border-border"
 
   return (
-    <div className="relative flex h-full w-full overflow-hidden bg-zinc-900">
+    <div className="relative flex h-full w-full overflow-hidden bg-card">
       {/* Title overlay */}
       <div className="pointer-events-none absolute left-3 top-3 z-10">
-        <span className="text-xs font-medium text-zinc-500">Schematic</span>
+        <span className="text-xs font-medium text-muted-foreground">Schematic</span>
       </div>
 
       {/* SVG canvas with zoom/pan */}

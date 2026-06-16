@@ -229,8 +229,8 @@ function LibraryBrowserInner() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
-        <div className="size-4 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-300" />
-        <span className="ml-2 text-xs text-zinc-500">Loading library index...</span>
+        <div className="size-4 animate-spin rounded-full border-2 border-border border-t-zinc-300" />
+        <span className="ml-2 text-xs text-muted-foreground">Loading library index...</span>
       </div>
     )
   }
@@ -239,7 +239,7 @@ function LibraryBrowserInner() {
     return (
       <div className="px-3 py-4 text-center">
         <p className="text-xs text-red-400">{error}</p>
-        <p className="text-[10px] text-zinc-600 mt-1">Check your internet connection.</p>
+        <p className="text-[10px] text-muted-foreground mt-1">Check your internet connection.</p>
       </div>
     )
   }
@@ -247,22 +247,22 @@ function LibraryBrowserInner() {
   return (
     <div className="flex h-full flex-col">
       {/* Search */}
-      <div className="flex items-center gap-2 border-b border-neutral-700 px-3 py-1.5">
-        <Search className="size-3.5 text-zinc-500 shrink-0" />
+      <div className="flex items-center gap-2 border-b border-border px-3 py-1.5">
+        <Search className="size-3.5 text-muted-foreground shrink-0" />
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search Arduino libraries..."
-          className="flex-1 bg-transparent text-xs text-zinc-200 placeholder-zinc-600 outline-none"
+          className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none"
         />
-        <span className="text-[10px] text-zinc-600">{libraries.length.toLocaleString()} libs</span>
+        <span className="text-[10px] text-muted-foreground">{libraries.length.toLocaleString()} libs</span>
       </div>
 
       {/* Results */}
       <div className="flex-1 overflow-y-auto">
         {filtered.length === 0 && (
-          <p className="px-3 py-4 text-center text-xs text-zinc-600">
+          <p className="px-3 py-4 text-center text-xs text-muted-foreground">
             No libraries match &quot;{search}&quot;
           </p>
         )}
@@ -275,13 +275,13 @@ function LibraryBrowserInner() {
           return (
             <div
               key={lib.name}
-              className="border-b border-neutral-800 px-3 py-2 hover:bg-neutral-800/50"
+              className="border-b border-border px-3 py-2 hover:bg-secondary/50"
             >
               <div className="flex items-start gap-2">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-medium text-zinc-200 truncate">{lib.name}</span>
-                    <span className="text-[10px] text-zinc-600">v{lib.version}</span>
+                    <span className="text-xs font-medium text-foreground truncate">{lib.name}</span>
+                    <span className="text-[10px] text-muted-foreground">v{lib.version}</span>
                     {isBuiltIn && (
                       <span className="rounded bg-emerald-900/40 px-1.5 py-0.5 text-[9px] font-medium text-emerald-400">
                         Built-in
@@ -293,10 +293,10 @@ function LibraryBrowserInner() {
                       </span>
                     )}
                   </div>
-                  <p className="text-[10px] text-zinc-500 mt-0.5 line-clamp-2">{lib.sentence}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{lib.sentence}</p>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[9px] text-zinc-600">{lib.author}</span>
-                    <span className="text-[9px] text-zinc-700">{lib.category}</span>
+                    <span className="text-[9px] text-muted-foreground">{lib.author}</span>
+                    <span className="text-[9px] text-muted-foreground">{lib.category}</span>
                   </div>
                   {installError && (
                     <p className="text-[10px] text-red-400 mt-1 flex items-start gap-1">
@@ -313,11 +313,11 @@ function LibraryBrowserInner() {
                       <Check className="size-3" />
                     </span>
                   ) : currentInstall === "installing" ? (
-                    <span className="flex items-center gap-0.5 text-[10px] text-zinc-400" title="Installing…">
+                    <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground" title="Installing…">
                       <Loader2 className="size-3 animate-spin" />
                     </span>
                   ) : currentInstall === "uninstalling" ? (
-                    <span className="flex items-center gap-0.5 text-[10px] text-zinc-400" title="Uninstalling…">
+                    <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground" title="Uninstalling…">
                       <Loader2 className="size-3 animate-spin" />
                     </span>
                   ) : isInstalled ? (
@@ -343,7 +343,7 @@ function LibraryBrowserInner() {
                     // Hosted + not in the pre-baked set → static "CLI only"
                     // pill. Tooltip tells the user where to get it.
                     <span
-                      className="flex items-center gap-1 rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] text-zinc-500"
+                      className="flex items-center gap-1 rounded bg-secondary px-1.5 py-0.5 text-[9px] text-muted-foreground"
                       title="Not pre-installed on this hosted Breadbox. Download the Breadbox CLI to install arbitrary libraries."
                     >
                       <Lock className="size-2.5" /> CLI only
@@ -352,7 +352,7 @@ function LibraryBrowserInner() {
                     <button
                       type="button"
                       onClick={() => void handleInstall(lib)}
-                      className="rounded p-1 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300"
+                      className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                       title={`Install ${lib.name} via arduino-cli`}
                     >
                       <Download className="size-3" />
@@ -363,7 +363,7 @@ function LibraryBrowserInner() {
                       href={lib.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="rounded p-1 text-zinc-600 hover:bg-zinc-700 hover:text-zinc-400"
+                      className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-muted-foreground"
                       title="View on GitHub"
                     >
                       <ExternalLink className="size-3" />

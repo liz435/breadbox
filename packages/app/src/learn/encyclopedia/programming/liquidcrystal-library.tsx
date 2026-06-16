@@ -26,7 +26,7 @@ export function LiquidCrystalLibraryPage() {
 
       <Section title="Construct and begin">
         <p className="text-sm leading-relaxed">
-          The stock <code className="text-gray-200">LiquidCrystal</code>{" "}
+          The stock <code className="text-foreground">LiquidCrystal</code>{" "}
           library ships with the Arduino IDE and talks to the almost-
           universal HD44780 character LCD in 4-bit mode. You pass the
           six pin numbers to the constructor, then tell the library
@@ -52,12 +52,12 @@ void loop() {}`} />
 
       <Section title="Moving the cursor and printing">
         <p className="text-sm leading-relaxed">
-          <code className="text-gray-200">setCursor(col, row)</code>{" "}
+          <code className="text-foreground">setCursor(col, row)</code>{" "}
           positions the next character. Both arguments are zero-based —
           the top-left is <code>(0, 0)</code>.{" "}
-          <code className="text-gray-200">print()</code> writes any
+          <code className="text-foreground">print()</code> writes any
           value <code>Serial.print()</code> could handle, and{" "}
-          <code className="text-gray-200">clear()</code> wipes the
+          <code className="text-foreground">clear()</code> wipes the
           screen and returns the cursor to the top-left.
         </p>
 

@@ -29,7 +29,7 @@ export function BeginnerMistakesPage() {
         <p className="text-sm leading-relaxed">
           LEDs only conduct one way. Wire one in backwards and the
           circuit sits quietly doing nothing — no smoke, but no light
-          either. The <strong className="text-gray-200">longer lead</strong>{" "}
+          either. The <strong className="text-foreground">longer lead</strong>{" "}
           is the anode and goes to the positive side.
         </p>
 

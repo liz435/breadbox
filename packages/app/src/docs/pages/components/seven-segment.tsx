@@ -100,17 +100,17 @@ void showDigit(int digit) {
             ["Character height", "0.56 inch (14.2 mm) typical"],
           ]}
         />
-        <p className="text-sm text-gray-400 mt-2">
+        <p className="text-sm text-muted-foreground mt-2">
           Common-anode variants exist — wire cathodes to Arduino pins and anode to 5V through resistors.
           Logic is inverted (LOW = on).
         </p>
       </Section>
 
       <Section title="Example board">
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           A ready-made example board with a 7-segment display is available in the sketch editor.
-          Click the <strong className="text-gray-200">Examples</strong> button in the toolbar
-          (right of Run/Stop) and select <strong className="text-gray-200">"7-Segment Counter"</strong> to
+          Click the <strong className="text-foreground">Examples</strong> button in the toolbar
+          (right of Run/Stop) and select <strong className="text-foreground">"7-Segment Counter"</strong> to
           load a complete circuit with a working sketch.
         </p>
       </Section>

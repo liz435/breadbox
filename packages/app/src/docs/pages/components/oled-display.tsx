@@ -65,17 +65,17 @@ void loop() {
       </Section>
 
       <Section title="Required libraries">
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           The SSD1306 display requires two libraries: <code>Wire.h</code> (built-in I2C) and <code>Adafruit_SSD1306.h</code>.
           Both are built-in in Breadbox's transpile mode — no installation needed.
         </p>
       </Section>
 
       <Section title="Example board">
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           A ready-made example board with a OLED display is available in the sketch editor.
-          Click the <strong className="text-gray-200">Examples</strong> button in the toolbar
-          (right of Run/Stop) and select <strong className="text-gray-200">"OLED Hello World"</strong> to
+          Click the <strong className="text-foreground">Examples</strong> button in the toolbar
+          (right of Run/Stop) and select <strong className="text-foreground">"OLED Hello World"</strong> to
           load a complete circuit with a working sketch.
         </p>
       </Section>

@@ -38,6 +38,7 @@ import { highlightSelectionMatches, searchKeymap } from "@codemirror/search"
 import { tags as t } from "@lezer/highlight"
 import { arduinoCompletionSource } from "./arduino-completions"
 import { arduinoLinter } from "./arduino-linter"
+import { debugExtension } from "./debug-extension"
 import { useBoard } from "@/store/board-context"
 import { simulationRef } from "@/simulator/simulation-ref"
 import { saveRef, editorContentRef } from "@/project/save-ref"
@@ -47,108 +48,108 @@ import { resetAllCapVoltages } from "@/simulator/capacitor-state"
 import { useElectricalReport } from "@/electrical/power-budget"
 import { DEFAULT_BOARD_TARGET } from "@dreamer/schemas"
 
-// ── 1. Syntax Highlighting Colors (VS Code Dark+ inspired) ─────────────────
+// ── 1. Syntax Highlighting Colors (Gruvbox Light — warm parchment) ─────────
 
 const highlightColors = HighlightStyle.define([
-  { tag: t.keyword, color: "#569cd6" },
-  { tag: t.controlKeyword, color: "#c586c0" },
-  { tag: t.definitionKeyword, color: "#569cd6" },
-  { tag: t.modifier, color: "#569cd6" },
-  { tag: t.typeName, color: "#4ec9b0" },
-  { tag: t.className, color: "#4ec9b0" },
-  { tag: [t.function(t.variableName), t.function(t.definition(t.variableName))], color: "#dcdcaa" },
-  { tag: t.variableName, color: "#9cdcfe" },
-  { tag: t.definition(t.variableName), color: "#9cdcfe" },
-  { tag: t.propertyName, color: "#9cdcfe" },
-  { tag: [t.number, t.integer, t.float], color: "#b5cea8" },
-  { tag: t.string, color: "#ce9178" },
-  { tag: t.character, color: "#ce9178" },
-  { tag: t.bool, color: "#569cd6" },
-  { tag: t.null, color: "#569cd6" },
-  { tag: [t.lineComment, t.blockComment], color: "#6a9955", fontStyle: "italic" },
-  { tag: t.operator, color: "#d4d4d4" },
-  { tag: t.punctuation, color: "#d4d4d4" },
-  { tag: t.bracket, color: "#ffd700" },
-  { tag: t.macroName, color: "#bd63c5" },
-  { tag: t.meta, color: "#c586c0" },
-  { tag: t.invalid, color: "#f44747" },
+  { tag: t.keyword, color: "#9d0006" }, // faded red
+  { tag: t.controlKeyword, color: "#9d0006" },
+  { tag: t.definitionKeyword, color: "#9d0006" },
+  { tag: t.modifier, color: "#9d0006" },
+  { tag: t.typeName, color: "#b57614" }, // ochre
+  { tag: t.className, color: "#b57614" },
+  { tag: [t.function(t.variableName), t.function(t.definition(t.variableName))], color: "#076678" }, // blue
+  { tag: t.variableName, color: "#3c3836" }, // ink
+  { tag: t.definition(t.variableName), color: "#3c3836" },
+  { tag: t.propertyName, color: "#076678" },
+  { tag: [t.number, t.integer, t.float], color: "#8f3f71" }, // purple
+  { tag: t.string, color: "#79740e" }, // olive green
+  { tag: t.character, color: "#79740e" },
+  { tag: t.bool, color: "#8f3f71" },
+  { tag: t.null, color: "#8f3f71" },
+  { tag: [t.lineComment, t.blockComment], color: "#928374", fontStyle: "italic" }, // warm gray
+  { tag: t.operator, color: "#af3a03" }, // burnt orange
+  { tag: t.punctuation, color: "#5f5650" },
+  { tag: t.bracket, color: "#b57614" }, // ochre
+  { tag: t.macroName, color: "#427b58" }, // aqua
+  { tag: t.meta, color: "#af3a03" },
+  { tag: t.invalid, color: "#cc241d" },
 ])
 
 // ── 10. Theme Polish ────────────────────────────────────────────────────────
 
-const darkTheme = EditorView.theme(
+const editorTheme = EditorView.theme(
   {
     "&": {
-      backgroundColor: "#1e1e1e",
-      color: "#d4d4d4",
+      backgroundColor: "#f7efd8", // warm parchment
+      color: "#3c3836", // dark ink
       height: "100%",
     },
     ".cm-content": {
-      caretColor: "#aeafad",
+      caretColor: "#3c3836",
       fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
       fontSize: "13px",
       lineHeight: "1.6",
     },
     ".cm-cursor": {
-      borderLeftColor: "#aeafad",
+      borderLeftColor: "#3c3836",
       borderLeftWidth: "2px",
     },
     "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": {
-      backgroundColor: "#264f78",
+      backgroundColor: "#ebdbb2",
     },
     ".cm-gutters": {
-      backgroundColor: "#1e1e1e",
-      color: "#858585",
+      backgroundColor: "#f7efd8",
+      color: "#a89984",
       border: "none",
       paddingRight: "4px",
     },
     ".cm-activeLineGutter": {
-      backgroundColor: "#2a2d2e",
-      color: "#c6c6c6",
+      backgroundColor: "#efe2bd",
+      color: "#7c6f64",
     },
     ".cm-activeLine": {
-      backgroundColor: "#2a2d2e44",
+      backgroundColor: "#efe2bd66",
     },
     // Matching brackets
     ".cm-matchingBracket": {
-      backgroundColor: "#3a3d4166",
-      outline: "1px solid #888",
+      backgroundColor: "#d5c4a166",
+      outline: "1px solid #b57614",
     },
     // Fold gutter
     ".cm-foldGutter .cm-gutterElement": {
-      color: "#555",
+      color: "#bdae93",
       cursor: "pointer",
       fontSize: "12px",
       lineHeight: "1.6",
       padding: "0 2px",
     },
     ".cm-foldGutter .cm-gutterElement:hover": {
-      color: "#ccc",
+      color: "#7c6f64",
     },
     // Selection match highlights
     ".cm-selectionMatch": {
-      backgroundColor: "#515c6a40",
+      backgroundColor: "#d5c4a180",
       borderRadius: "2px",
     },
     // Search panel
     ".cm-panels": {
-      backgroundColor: "#252526",
-      color: "#d4d4d4",
+      backgroundColor: "#efe2bd",
+      color: "#3c3836",
     },
     ".cm-searchMatch": {
-      backgroundColor: "#515c6a80",
-      outline: "1px solid #74879f50",
+      backgroundColor: "#e9d8a6",
+      outline: "1px solid #b5761450",
     },
     ".cm-searchMatch.cm-searchMatch-selected": {
-      backgroundColor: "#613214",
+      backgroundColor: "#d79921",
     },
     // Tooltip & autocomplete
     ".cm-tooltip": {
-      backgroundColor: "#252526",
-      color: "#d4d4d4",
-      border: "1px solid #454545",
+      backgroundColor: "#f2e5bc",
+      color: "#3c3836",
+      border: "1px solid #d5c4a1",
       borderRadius: "3px",
-      boxShadow: "0 2px 8px rgba(0,0,0,0.5)",
+      boxShadow: "0 2px 8px rgba(60,40,10,0.18)",
     },
     ".cm-tooltip-autocomplete": {
       "& > ul": {
@@ -160,12 +161,12 @@ const darkTheme = EditorView.theme(
         padding: "2px 8px",
       },
       "& > ul > li[aria-selected]": {
-        backgroundColor: "#04395e",
-        color: "#fff",
+        backgroundColor: "#d79921",
+        color: "#3c3836",
       },
     },
     ".cm-completionDetail": {
-      color: "#888",
+      color: "#928374",
       fontStyle: "italic",
       marginLeft: "8px",
     },
@@ -177,10 +178,10 @@ const darkTheme = EditorView.theme(
     // Scrollbar
     ".cm-scroller": {
       scrollbarWidth: "thin",
-      scrollbarColor: "#4e4e4e #1e1e1e",
+      scrollbarColor: "#d5c4a1 #f7efd8",
     },
   },
-  { dark: true },
+  { dark: false },
 )
 
 const OUTPUT_HEIGHT_STORAGE_KEY = "dreamer:sketch-output-height"
@@ -296,6 +297,7 @@ function SketchEditorInner() {
       doc: lastCodeRef.current,
       extensions: [
         // ── Gutter ──
+        debugExtension(),                 // Breakpoint gutter + current-line highlight
         lineNumbers(),
         foldGutter(),                     // 3. Code folding
         lintGutter(),                     // 8. Lint gutter
@@ -349,7 +351,7 @@ function SketchEditorInner() {
         ]),
 
         // ── Theme ──
-        darkTheme,
+        editorTheme,
 
         // ── Misc ──
         updateListener,
@@ -399,10 +401,6 @@ function SketchEditorInner() {
     sim.play(code)
   }, [electrical.hasErrors, sim, boardState.sketchCode])
 
-  const handlePause = useCallback(() => {
-    sim.pause()
-  }, [sim])
-
   const handleStop = useCallback(() => {
     sim.stop()
     resetAllCapVoltages()
@@ -412,7 +410,6 @@ function SketchEditorInner() {
   const isRunning = sim.status === "running"
   const isPaused = sim.status === "paused"
   const isCompiling = sim.status === "compiling"
-  const isStopped = sim.status === "stopped"
   const electricalErrors = electrical.issues.filter((i) => i.severity === "error")
   const outputHasErrors = Boolean(sim.error || transpileErr || electricalErrors.length > 0)
 
@@ -463,18 +460,18 @@ function SketchEditorInner() {
   }, [])
 
   return (
-    <div className="flex h-full w-full flex-col bg-[#1e1e1e]">
+    <div className="flex h-full w-full flex-col bg-card">
       {/* Toolbar */}
-      <div className="flex items-center gap-1.5 border-b border-neutral-700 px-3 py-1.5">
-        {/* Play / Pause */}
+      <div className="flex items-center gap-1.5 border-b border-border px-3 py-1.5">
+        {/* Play / Stop toggle — one button: Run when stopped, Stop while running */}
         {isRunning ? (
           <button
             type="button"
-            onClick={handlePause}
-            className="flex items-center gap-1.5 rounded bg-yellow-600/80 px-2.5 py-1 text-xs font-medium text-white hover:bg-yellow-500/80"
+            onClick={handleStop}
+            className="flex items-center gap-1.5 rounded bg-red-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-red-500"
           >
-            <svg viewBox="0 0 16 16" className="size-3 fill-current"><rect x={3} y={2} width={4} height={12} rx={1} /><rect x={9} y={2} width={4} height={12} rx={1} /></svg>
-            Pause
+            <svg viewBox="0 0 16 16" className="size-3 fill-current"><rect x={2} y={2} width={12} height={12} rx={2} /></svg>
+            Stop
           </button>
         ) : (
           <button
@@ -496,17 +493,6 @@ function SketchEditorInner() {
             )}
           </button>
         )}
-
-        {/* Stop */}
-        <button
-          type="button"
-          onClick={handleStop}
-          disabled={isStopped}
-          className="flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium text-neutral-300 hover:bg-neutral-700 disabled:opacity-30"
-        >
-          <svg viewBox="0 0 16 16" className="size-3 fill-current"><rect x={2} y={2} width={12} height={12} rx={2} /></svg>
-          Stop
-        </button>
 
         {/* Status */}
         {isPaused && (
@@ -542,24 +528,24 @@ function SketchEditorInner() {
       </div>
 
       {/* Code output window */}
-      <div className="border-t border-neutral-700 bg-[#161616]" style={{ height: `${outputHeight}px` }}>
+      <div className="border-t border-border bg-background" style={{ height: `${outputHeight}px` }}>
         <div
           onPointerDown={handleResizeStart}
-          className="h-1 cursor-row-resize bg-neutral-800 hover:bg-neutral-700"
+          className="h-1 cursor-row-resize bg-secondary hover:bg-muted"
           title="Drag to resize output panel"
         />
-        <div className="flex items-center justify-between border-b border-neutral-800 px-3 py-1.5">
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-300">Code Output</span>
+        <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-foreground">Code Output</span>
           <div className="flex items-center gap-3">
             {outputHasErrors ? (
               <span className="text-[10px] text-red-400">errors</span>
             ) : (
-              <span className="text-[10px] text-neutral-500">no errors</span>
+              <span className="text-[10px] text-muted-foreground">no errors</span>
             )}
             <button
               type="button"
               onClick={handleToggleOutputSize}
-              className="rounded px-1.5 py-0.5 text-[10px] text-neutral-300 hover:bg-neutral-700"
+              className="rounded px-1.5 py-0.5 text-[10px] text-foreground hover:bg-muted"
             >
               {outputHeight < OUTPUT_EXPANDED_HEIGHT ? "Expand" : "Default"}
             </button>
@@ -570,12 +556,12 @@ function SketchEditorInner() {
           className="h-[calc(100%-29px)] overflow-auto whitespace-pre-wrap break-words px-3 py-2 font-mono text-[11px] leading-5"
         >
           {!outputHasErrors && buildLog.length === 0 && (
-            <div className="text-neutral-500">Build and runtime messages will appear here.</div>
+            <div className="text-muted-foreground">Build and runtime messages will appear here.</div>
           )}
 
           {transpileErr && (
             <div className="text-red-400">
-              <span className="text-neutral-600">{formatTs(transpileErr.ts)}</span>{" "}
+              <span className="text-muted-foreground">{formatTs(transpileErr.ts)}</span>{" "}
               <span className="text-red-300">[TRANSPILER]</span>{" "}
               {`line ${transpileErr.error.line}: ${transpileErr.error.message}`}
             </div>
@@ -583,7 +569,7 @@ function SketchEditorInner() {
 
           {sim.error && (
             <div className="text-red-400">
-              <span className="text-neutral-600">{formatTs(stampFor(`sim:${sim.error}`))}</span>{" "}
+              <span className="text-muted-foreground">{formatTs(stampFor(`sim:${sim.error}`))}</span>{" "}
               <span className="text-red-300">[SIMULATION]</span>{" "}
               {sim.error}
             </div>
@@ -593,7 +579,7 @@ function SketchEditorInner() {
             const key = `${issue.code}-${issue.componentId ?? ""}-${issue.pin ?? ""}`
             return (
               <div key={key} className="text-red-400">
-                <span className="text-neutral-600">{formatTs(stampFor(`electrical:${key}`))}</span>{" "}
+                <span className="text-muted-foreground">{formatTs(stampFor(`electrical:${key}`))}</span>{" "}
                 <span className="text-red-300">[ELECTRICAL]</span>{" "}
                 {issue.message}
               </div>
@@ -604,13 +590,13 @@ function SketchEditorInner() {
 
           {/* Live arduino-cli / avrdude log (Arduino IDE "Output" pane). */}
           {buildLog.length > 0 && (
-            <div className="mt-1 space-y-0 text-neutral-300">
+            <div className="mt-1 space-y-0 text-foreground">
               {buildLog.map((entry, i) => (
                 <div key={`${entry.ts}-${i}`}>
-                  <span className="text-neutral-600">{formatTsMs(entry.ts)}</span>{" "}
+                  <span className="text-muted-foreground">{formatTsMs(entry.ts)}</span>{" "}
                   <span
                     className={
-                      entry.tag === "upload" ? "text-cyan-400" : "text-neutral-500"
+                      entry.tag === "upload" ? "text-cyan-400" : "text-muted-foreground"
                     }
                   >
                     {entry.tag === "upload" ? "[UPLOAD]" : "[COMPILER]"}

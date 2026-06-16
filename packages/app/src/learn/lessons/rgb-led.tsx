@@ -24,7 +24,7 @@ export function RgbLedLesson() {
         <BreadboardEmbed board="04-rgb-led" panels={["code"]} height={440} />
         <Note>
           Press <strong>Play</strong> and watch the LED step through red, green, and blue.
-          Try editing the <code className="text-gray-200">analogWrite</code> values to blend
+          Try editing the <code className="text-foreground">analogWrite</code> values to blend
           intermediate colors.
         </Note>
       </Section>
@@ -34,16 +34,16 @@ export function RgbLedLesson() {
           An RGB LED packages three LEDs — red, green, and blue — into one housing, sharing a
           single common-cathode pin tied to ground. The sketch calls{" "}
           <Term k="analog-write">
-            <code className="text-gray-200">analogWrite(pin, value)</code>
+            <code className="text-foreground">analogWrite(pin, value)</code>
           </Term>{" "}
-          on each color pin. A value of <code className="text-gray-200">255</code> drives that
-          channel at full brightness; <code className="text-gray-200">0</code> turns it off.
+          on each color pin. A value of <code className="text-foreground">255</code> drives that
+          channel at full brightness; <code className="text-foreground">0</code> turns it off.
         </p>
         <p className="text-sm leading-relaxed">
           Red, green, and blue are connected to pins 9, 10, and 11 — all{" "}
           <Term k="pwm">PWM-capable pins</Term> on the Uno. The{" "}
-          <code className="text-gray-200">setup()</code> function declares each as an
-          output, and <code className="text-gray-200">loop()</code> steps through the three
+          <code className="text-foreground">setup()</code> function declares each as an
+          output, and <code className="text-foreground">loop()</code> steps through the three
           solid colors with one-second pauses.
         </p>
       </Section>

@@ -187,7 +187,7 @@ function PowerHeaderDiagram() {
   const h = padT + pinH + 44
 
   return (
-    <div className="my-4 flex justify-center rounded border border-neutral-800 bg-[#0f0f0f] px-6 py-4">
+    <div className="my-4 flex justify-center rounded border border-border bg-[#0f0f0f] px-6 py-4">
       <svg
         viewBox={`0 0 ${w} ${h}`}
         width={w}

@@ -499,7 +499,7 @@ export function GraphCanvas() {
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full overflow-hidden bg-neutral-950"
+      className="relative w-full h-full overflow-hidden bg-background"
       onMouseDown={handleCanvasMouseDown}
       onContextMenu={(e) => e.preventDefault()}
       onDragOver={handleDragOver}
@@ -579,7 +579,7 @@ export function GraphCanvas() {
       </div>
 
       {/* Status bar */}
-      <div className="absolute bottom-2 left-2 text-[10px] text-neutral-500 select-none pointer-events-none">
+      <div className="absolute bottom-2 left-2 text-[10px] text-muted-foreground select-none pointer-events-none">
         {Object.keys(state.nodes).length} nodes &middot;{" "}
         {Object.keys(state.edges).length} edges &middot;{" "}
         {Math.round(camera.zoom * 100)}%

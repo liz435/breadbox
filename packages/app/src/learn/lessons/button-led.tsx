@@ -13,10 +13,10 @@ export function ButtonLedLesson() {
       <Section title="What you'll build">
         <p className="text-sm leading-relaxed">
           A <Term k="button">push-button</Term> wired to pin{" "}
-          <span className="text-gray-200 font-mono">D2</span>{" "}
+          <span className="text-foreground font-mono">D2</span>{" "}
           with Arduino's built-in <Term k="pull-up">pull-up resistor</Term>,
           plus an <Term k="led" /> on pin{" "}
-          <span className="text-gray-200 font-mono">D13</span> that turns on whenever
+          <span className="text-foreground font-mono">D13</span> that turns on whenever
           the button is held down.
         </p>
       </Section>
@@ -35,7 +35,7 @@ export function ButtonLedLesson() {
           LOW unpredictably. To avoid this, every Arduino pin has an internal
           pull-up resistor you can enable with{" "}
           <Term k="input-pullup">
-            <code className="text-gray-200">pinMode(2, INPUT_PULLUP)</code>
+            <code className="text-foreground">pinMode(2, INPUT_PULLUP)</code>
           </Term>
           . When enabled, the pin sits at HIGH by default.
         </p>
@@ -48,9 +48,9 @@ export function ButtonLedLesson() {
           <li><strong>Pressed:</strong> pin 2 reads LOW (pulled down by the button to GND)</li>
         </ul>
         <p className="text-sm leading-relaxed">
-          This is why the <code className="text-gray-200">loop()</code> checks{" "}
+          This is why the <code className="text-foreground">loop()</code> checks{" "}
           <Term k="digital-read">
-            <code className="text-gray-200">if (digitalRead(2) == LOW)</code>
+            <code className="text-foreground">if (digitalRead(2) == LOW)</code>
           </Term>
           {" "}— LOW means pressed.
         </p>
@@ -58,7 +58,7 @@ export function ButtonLedLesson() {
 
       <Section title="Why it's polled in the loop">
         <p className="text-sm leading-relaxed">
-          The Arduino keeps running <code className="text-gray-200">loop()</code>{" "}
+          The Arduino keeps running <code className="text-foreground">loop()</code>{" "}
           thousands of times per second. Each time through, it checks the button state
           and updates the LED. This "poll-and-react" pattern is the simplest way to
           handle inputs, and it's plenty fast for human interaction.

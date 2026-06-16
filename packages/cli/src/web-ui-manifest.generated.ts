@@ -5,16 +5,16 @@
 // behavior is correct; silencing the type-check noise here.
 
 import asset__assets_arduino_uno_board_DBpS0kIP_svg from "../../app/dist/assets/arduino-uno-board-DBpS0kIP.svg" with { type: "file" }
+import asset__assets_index_BHOQ5juE_js from "../../app/dist/assets/index-BHOQ5juE.js" with { type: "file" }
+import asset__assets_index_BRopuUP4_css from "../../app/dist/assets/index-BRopuUP4.css" with { type: "file" }
 import asset__assets_index_CCUjAQjo_js from "../../app/dist/assets/index-CCUjAQjo.js" with { type: "file" }
-import asset__assets_index_Cqm3muKK_js from "../../app/dist/assets/index-Cqm3muKK.js" with { type: "file" }
-import asset__assets_index_hZ_TcWkf_css from "../../app/dist/assets/index-hZ_TcWkf.css" with { type: "file" }
 import asset__index_html from "../../app/dist/index.html" with { type: "file" }
 
 export const EMBEDDED_ASSETS: Record<string, string> = {
   "/assets/arduino-uno-board-DBpS0kIP.svg": asset__assets_arduino_uno_board_DBpS0kIP_svg as unknown as string,
+  "/assets/index-BHOQ5juE.js": asset__assets_index_BHOQ5juE_js as unknown as string,
+  "/assets/index-BRopuUP4.css": asset__assets_index_BRopuUP4_css as unknown as string,
   "/assets/index-CCUjAQjo.js": asset__assets_index_CCUjAQjo_js as unknown as string,
-  "/assets/index-Cqm3muKK.js": asset__assets_index_Cqm3muKK_js as unknown as string,
-  "/assets/index-hZ_TcWkf.css": asset__assets_index_hZ_TcWkf_css as unknown as string,
   "/index.html": asset__index_html as unknown as string,
   "/": asset__index_html as unknown as string,
 }

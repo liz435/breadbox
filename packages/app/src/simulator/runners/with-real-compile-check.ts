@@ -85,6 +85,9 @@ export function withRealCompileCheck(
     get fqbn() {
       return inner.fqbn
     },
+    get debug() {
+      return inner.debug
+    },
     loadSketchAsync: (code, customLibraries, options) =>
       load(code, { ...options, customLibraries }),
     runSetup: () => inner.runSetup(),

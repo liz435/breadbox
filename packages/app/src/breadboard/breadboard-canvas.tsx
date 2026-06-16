@@ -32,7 +32,7 @@ import { screenToBoard, fitBbox } from "./breadboard-camera";
 import { breadboardInteractionActor } from "./breadboard-interaction";
 import { simulationRef } from "@/simulator/simulation-ref";
 import { ComponentRenderer } from "./component-renderers/index";
-import { BreadboardDefs } from "./component-renderers/breadboard-renderer";
+import { BreadboardDefs } from "@/components/catalog/breadboard-full/breadboard-renderer";
 import { WireRenderer } from "./component-renderers/wire-renderer";
 import { ArduinoUnoBoard } from "./component-renderers/arduino-uno-renderer";
 import { ArduinoAltBoard } from "./component-renderers/arduino-alt-board-renderer";
@@ -1207,7 +1207,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
   return (
     <svg
       ref={svgRef}
-      className={`h-full w-full bg-neutral-900 ${cursorClass}`}
+      className={`h-full w-full bg-card ${cursorClass}`}
       onWheel={camera.handleWheel}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}

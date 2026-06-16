@@ -46,25 +46,25 @@ export function ShieldHeadersPage() {
       <Section title="Pin-to-strip cheat sheet">
         <ul className="space-y-2 text-sm leading-relaxed">
           <li>
-            <strong className="text-gray-200">Top-left strip</strong>{" "}
+            <strong className="text-foreground">Top-left strip</strong>{" "}
             (8 pins): <code>D8</code>–<code>D13</code> plus{" "}
             <code>GND</code> and <code>AREF</code>. The onboard LED
             sits just below pin 13 on this strip.
           </li>
           <li>
-            <strong className="text-gray-200">Top-right strip</strong>{" "}
+            <strong className="text-foreground">Top-right strip</strong>{" "}
             (8 pins): <code>D0</code>–<code>D7</code>. Pins 0 and 1
             are on the far-right end (closest to the USB-serial
             chip).
           </li>
           <li>
-            <strong className="text-gray-200">Bottom-left strip</strong>{" "}
+            <strong className="text-foreground">Bottom-left strip</strong>{" "}
             (8 pins): <code>IOREF</code>, <code>RESET</code>,{" "}
             <code>3V3</code>, <code>5V</code>, <code>GND</code>,{" "}
             <code>GND</code>, <code>VIN</code>, plus one unused pin.
           </li>
           <li>
-            <strong className="text-gray-200">Bottom-right strip</strong>{" "}
+            <strong className="text-foreground">Bottom-right strip</strong>{" "}
             (6 pins): <code>A0</code> through <code>A5</code>. The
             I²C bus (A4 = SDA, A5 = SCL) is at the right end of this
             strip.
@@ -84,7 +84,7 @@ export function ShieldHeadersPage() {
       <Section title="Practical layout tips">
         <ul className="space-y-2 text-sm leading-relaxed">
           <li>
-            <strong className="text-gray-200">Power and sensors on one side, signals on the other.</strong>{" "}
+            <strong className="text-foreground">Power and sensors on one side, signals on the other.</strong>{" "}
             Put the Arduino on the left of your breadboard with the
             bottom headers facing down. Run 5V and GND to the power
             rails from the bottom-left strip, and connect analog
@@ -93,13 +93,13 @@ export function ShieldHeadersPage() {
             wires don't cross over your power rails.
           </li>
           <li>
-            <strong className="text-gray-200">Avoid D0 and D1 if you can.</strong>{" "}
+            <strong className="text-foreground">Avoid D0 and D1 if you can.</strong>{" "}
             They're physically convenient (at the end of the strip)
             but they're shared with USB serial. Pick D2 or higher for
             actual wiring whenever possible.
           </li>
           <li>
-            <strong className="text-gray-200">Group PWM pins.</strong>{" "}
+            <strong className="text-foreground">Group PWM pins.</strong>{" "}
             The PWM-capable pins are scattered (3, 5, 6, 9, 10, 11).
             If you need three PWM outputs — say, an RGB LED — use
             9, 10, 11 together; they're adjacent on the top-left
@@ -136,7 +136,7 @@ function PinHeaderMap() {
 
   return (
     <figure className="my-6">
-      <div className="flex justify-center rounded border border-neutral-800 bg-[#0f0f0f] px-6 py-4">
+      <div className="flex justify-center rounded border border-border bg-[#0f0f0f] px-6 py-4">
         <svg
           viewBox="0 0 480 280"
           width={480}
@@ -232,7 +232,7 @@ function PinHeaderMap() {
           </text>
         </svg>
       </div>
-      <figcaption className="mt-1 text-center text-xs text-gray-500">
+      <figcaption className="mt-1 text-center text-xs text-muted-foreground">
         Top-down layout of the Uno's header strips. Labels read
         left-to-right from the strip's left end.
       </figcaption>

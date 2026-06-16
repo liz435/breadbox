@@ -99,11 +99,11 @@ function EmbedFrame({
 }) {
   return (
     <div
-      className="relative overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900"
+      className="relative overflow-hidden rounded-lg border border-border bg-card"
       style={{ height }}
     >
       {title != null && (
-        <div className="absolute left-3 top-3 z-10 rounded bg-neutral-950/70 px-2 py-0.5 text-[11px] font-medium text-neutral-300 backdrop-blur">
+        <div className="absolute left-3 top-3 z-10 rounded bg-background/70 px-2 py-0.5 text-[11px] font-medium text-foreground backdrop-blur">
           {title}
         </div>
       )}
@@ -115,9 +115,9 @@ function EmbedFrame({
 function EmbedErrorState({ board }: { board: string | BoardState }) {
   const key = typeof board === "string" ? board : "(inline board)"
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-neutral-400">
-      <p className="text-sm">Board not found: <code className="text-neutral-300">{key}</code></p>
-      <p className="text-xs text-neutral-500">
+    <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground">
+      <p className="text-sm">Board not found: <code className="text-foreground">{key}</code></p>
+      <p className="text-xs text-muted-foreground">
         Add the JSON to packages/app/src/learn/boards/ and rebuild.
       </p>
     </div>
@@ -185,15 +185,15 @@ function EmbedInner({ boardState, panels, autoRun, boardKey, hideOpenInIde }: Em
 
       {/* Side panels */}
       {hasSidePanels && (
-        <div className="flex w-80 flex-shrink-0 flex-col border-l border-neutral-800 bg-neutral-950">
+        <div className="flex w-80 flex-shrink-0 flex-col border-l border-border bg-background">
           {showCode && <CodeViewPanel sketchCode={boardState.sketchCode} />}
           {showSchematic && (
-            <div className="flex-1 min-h-0 border-t border-neutral-800 first:border-t-0">
+            <div className="flex-1 min-h-0 border-t border-border first:border-t-0">
               <SchematicPanel />
             </div>
           )}
           {showSerial && (
-            <div className="flex-1 min-h-0 border-t border-neutral-800 first:border-t-0">
+            <div className="flex-1 min-h-0 border-t border-border first:border-t-0">
               <SerialViewPanel />
             </div>
           )}
@@ -218,7 +218,7 @@ function EmbedControls({ status, onPlay, onPause, onStop, openInIdeHref }: Contr
   const isPaused = status === "paused"
 
   return (
-    <div className="absolute bottom-3 left-3 z-10 flex items-center gap-1 rounded-md border border-neutral-700 bg-neutral-900/90 p-1 shadow-lg backdrop-blur">
+    <div className="absolute bottom-3 left-3 z-10 flex items-center gap-1 rounded-md border border-border bg-card/90 p-1 shadow-lg backdrop-blur">
       {!isRunning && (
         <button
           type="button"
@@ -235,7 +235,7 @@ function EmbedControls({ status, onPlay, onPause, onStop, openInIdeHref }: Contr
           <button
             type="button"
             onClick={onPause}
-            className="flex h-7 items-center gap-1 rounded bg-neutral-700 px-2 text-xs font-medium text-neutral-200 hover:bg-neutral-600"
+            className="flex h-7 items-center gap-1 rounded bg-muted px-2 text-xs font-medium text-foreground hover:bg-accent"
             title="Pause"
           >
             <PauseIcon />
@@ -244,7 +244,7 @@ function EmbedControls({ status, onPlay, onPause, onStop, openInIdeHref }: Contr
           <button
             type="button"
             onClick={onStop}
-            className="flex h-7 items-center gap-1 rounded bg-neutral-700 px-2 text-xs font-medium text-neutral-200 hover:bg-neutral-600"
+            className="flex h-7 items-center gap-1 rounded bg-muted px-2 text-xs font-medium text-foreground hover:bg-accent"
             title="Stop"
           >
             <StopIcon />
@@ -253,7 +253,7 @@ function EmbedControls({ status, onPlay, onPause, onStop, openInIdeHref }: Contr
         </>
       )}
       {status === "compiling" && (
-        <span className="px-2 text-xs text-neutral-400">Compiling…</span>
+        <span className="px-2 text-xs text-muted-foreground">Compiling…</span>
       )}
       {status === "error" && (
         <span className="px-2 text-xs text-red-400">Error</span>
@@ -263,7 +263,7 @@ function EmbedControls({ status, onPlay, onPause, onStop, openInIdeHref }: Contr
           href={openInIdeHref}
           target="_blank"
           rel="noopener noreferrer"
-          className="ml-1 flex h-7 items-center rounded border border-neutral-700 px-2 text-xs font-medium text-neutral-300 hover:bg-neutral-800"
+          className="ml-1 flex h-7 items-center rounded border border-border px-2 text-xs font-medium text-foreground hover:bg-secondary"
           title="Open this circuit in the full editor"
         >
           Open in IDE →
@@ -301,10 +301,10 @@ function StopIcon() {
 function CodeViewPanel({ sketchCode }: { sketchCode: string }) {
   return (
     <div className="flex flex-1 min-h-0 flex-col">
-      <div className="border-b border-neutral-800 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+      <div className="border-b border-border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
         Sketch
       </div>
-      <pre className="flex-1 overflow-auto px-3 py-2 text-[11px] leading-[1.5] text-neutral-300 font-mono">
+      <pre className="flex-1 overflow-auto px-3 py-2 text-[11px] leading-[1.5] text-foreground font-mono">
         <code className="language-cpp">{highlight(sketchCode, "cpp")}</code>
       </pre>
     </div>
@@ -331,7 +331,7 @@ function SerialViewPanel() {
 
   return (
     <div className="flex flex-1 min-h-0 flex-col">
-      <div className="border-b border-neutral-800 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+      <div className="border-b border-border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
         Serial Monitor
       </div>
       <pre
@@ -339,7 +339,7 @@ function SerialViewPanel() {
         className="flex-1 overflow-auto px-3 py-2 text-[11px] leading-[1.4] text-emerald-300 font-mono whitespace-pre-wrap"
       >
         {lines.length === 0 ? (
-          <span className="text-neutral-600">No output yet.</span>
+          <span className="text-muted-foreground">No output yet.</span>
         ) : (
           lines.join("")
         )}

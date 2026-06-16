@@ -15,8 +15,8 @@ export function PirSensorLesson() {
       <Section title="What you'll build">
         <p className="text-sm leading-relaxed">
           A PIR (passive infrared) motion sensor wired to pin{" "}
-          <code className="text-gray-200">D2</code> and an{" "}
-          <Term k="led" /> on <code className="text-gray-200">D13</code>. When the
+          <code className="text-foreground">D2</code> and an{" "}
+          <Term k="led" /> on <code className="text-foreground">D13</code>. When the
           sensor detects movement, the LED lights and a message is printed to Serial.
         </p>
       </Section>
@@ -35,9 +35,9 @@ export function PirSensorLesson() {
           infrared radiation from a moving warm body. The sketch configures pin 2 as an
           input and reads it with{" "}
           <Term k="digital-read">
-            <code className="text-gray-200">digitalRead(pirPin)</code>
+            <code className="text-foreground">digitalRead(pirPin)</code>
           </Term>{" "}
-          each time through <code className="text-gray-200">loop()</code>. If the reading
+          each time through <code className="text-foreground">loop()</code>. If the reading
           is HIGH, it turns the LED on and prints a message; if LOW, it turns the LED off.
         </p>
       </Section>

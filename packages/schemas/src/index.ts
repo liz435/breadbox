@@ -120,6 +120,15 @@ export {
 } from "./board-pins";
 
 export {
+  lineTableEntrySchema,
+  type LineTableEntry,
+  lineTableSchema,
+  type LineTable,
+  breakpointAddressForLine,
+  lineForAddress,
+} from "./line-table";
+
+export {
   boardComponentTypeSchema,
   type BoardComponentType,
   mcuBoardTypeSchema,
@@ -260,7 +269,15 @@ export {
 
 export {
   buildExternalEditPrompt,
+  buildFixRequestPrompt,
+  WORKED_EXAMPLE_DIAGRAM,
+  type ExternalEditPromptOptions,
 } from "./diagram-prompt";
+
+export {
+  autoPlaceComponents,
+  autoPlaceDiagram,
+} from "./auto-placement";
 
 // ── Circuit Program IR ─────────────────────────────────────────────────────
 

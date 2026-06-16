@@ -1,29 +1,26 @@
 import React from "react";
-import type { BoardComponent, PinState, ComponentType, LibraryState, Wire } from "@dreamer/schemas";
-import type { ComponentElectricalState } from "@/simulator/circuit-solver";
-import { LedRenderer } from "./led-renderer";
-import { RgbLedRenderer } from "./rgb-led-renderer";
-import { ButtonRenderer } from "./button-renderer";
-import { ResistorRenderer } from "./resistor-renderer";
-import { CapacitorRenderer } from "./capacitor-renderer";
-import { IcRenderer } from "./ic-renderer";
-import { ServoRenderer } from "./servo-renderer";
-import { PowerSupplyRenderer } from "./power-supply-renderer";
-import { MultimeterRenderer } from "./multimeter-renderer";
-import { IrRemoteRenderer } from "./ir-remote-renderer";
+import type { ComponentType } from "@dreamer/schemas";
 import { GenericRenderer } from "./generic-renderer";
-import { BreadboardRenderer } from "./breadboard-renderer";
-import { PerfboardRenderer } from "./perfboard-renderer";
+import type { ComponentRendererProps } from "./renderer-types";
+// Per-component renderers are colocated with their definitions in catalog/<type>/.
+// This map wires component type → renderer; types without a dedicated renderer
+// fall back to the shared GenericRenderer below. (Kept out of the catalog/manager
+// so the registry stays free of renderer imports — renderers pull in
+// breadboard-grid, which imports the registry, which would form a cycle.)
+import { LedRenderer } from "@/components/catalog/led/led-renderer";
+import { RgbLedRenderer } from "@/components/catalog/rgb-led/rgb-led-renderer";
+import { ButtonRenderer } from "@/components/catalog/button/button-renderer";
+import { ResistorRenderer } from "@/components/catalog/resistor/resistor-renderer";
+import { CapacitorRenderer } from "@/components/catalog/capacitor/capacitor-renderer";
+import { IcRenderer } from "@/components/catalog/ic/ic-renderer";
+import { ServoRenderer } from "@/components/catalog/servo/servo-renderer";
+import { PowerSupplyRenderer } from "@/components/catalog/power-supply/power-supply-renderer";
+import { MultimeterRenderer } from "@/components/catalog/multimeter/multimeter-renderer";
+import { IrRemoteRenderer } from "@/components/catalog/ir-remote/ir-remote-renderer";
+import { BreadboardRenderer } from "@/components/catalog/breadboard-full/breadboard-renderer";
+import { PerfboardRenderer } from "@/components/catalog/perfboard-generic/perfboard-renderer";
 
-export type ComponentRendererProps = {
-  component: BoardComponent;
-  components?: BoardComponent[];
-  pinStates: PinState[];
-  wires?: Record<string, Wire>;
-  isSelected: boolean;
-  electricalState?: ComponentElectricalState;
-  libraryState?: LibraryState;
-};
+export type { ComponentRendererProps } from "./renderer-types";
 
 const RENDERER_MAP: Record<
   string,

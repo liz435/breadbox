@@ -87,24 +87,24 @@ void loop() {
 
         <ul className="mt-3 space-y-2 text-sm leading-relaxed">
           <li>
-            <code className="text-gray-200">attach(pin)</code> — tell the
+            <code className="text-foreground">attach(pin)</code> — tell the
             library which pin the signal wire is on. Call it once in{" "}
             <code>setup()</code>.
           </li>
           <li>
-            <code className="text-gray-200">write(angle)</code> — move
+            <code className="text-foreground">write(angle)</code> — move
             the servo to a target angle between 0 and 180 degrees.
           </li>
           <li>
-            <code className="text-gray-200">read()</code> — returns the
+            <code className="text-foreground">read()</code> — returns the
             last value written.
           </li>
           <li>
-            <code className="text-gray-200">attached()</code> — true if
+            <code className="text-foreground">attached()</code> — true if
             attach() was called and detach() hasn't been.
           </li>
           <li>
-            <code className="text-gray-200">detach()</code> — release
+            <code className="text-foreground">detach()</code> — release
             the pin and stop sending pulses. Useful to stop a servo from
             twitching and save a little power.
           </li>

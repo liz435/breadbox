@@ -20,14 +20,14 @@ export function CodePreview() {
       <button
         type="button"
         onClick={toggleOpen}
-        className="rounded bg-neutral-800 px-2 py-1 text-[10px] font-medium text-neutral-300 hover:bg-neutral-700 border border-neutral-700"
+        className="rounded bg-secondary px-2 py-1 text-[10px] font-medium text-foreground hover:bg-muted border border-border"
       >
         {isOpen ? "Hide Code" : "Show Code"}
       </button>
 
       {isOpen && (
-        <div className="mt-1 w-[360px] max-h-[300px] overflow-auto rounded border border-neutral-700 bg-neutral-900 p-3 shadow-lg">
-          <pre className="text-[11px] leading-relaxed text-neutral-300 font-mono whitespace-pre-wrap">
+        <div className="mt-1 w-[360px] max-h-[300px] overflow-auto rounded border border-border bg-card p-3 shadow-lg">
+          <pre className="text-[11px] leading-relaxed text-foreground font-mono whitespace-pre-wrap">
             {code}
           </pre>
         </div>

@@ -28,7 +28,7 @@ export function PullUpsPage() {
       <Section title="Floating inputs are random noise">
         <p className="text-sm leading-relaxed">
           A digital input pin with nothing connected to it is{" "}
-          <em className="text-gray-200">floating</em>. Its voltage
+          <em className="text-foreground">floating</em>. Its voltage
           drifts with stray capacitance, nearby wires, even the
           weather — <code>digitalRead()</code> will return a
           mishmash of HIGH and LOW depending on what happened last.

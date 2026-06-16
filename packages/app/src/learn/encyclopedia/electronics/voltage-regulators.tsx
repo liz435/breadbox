@@ -41,7 +41,7 @@ export function VoltageRegulatorsPage() {
       <Section title="Linear vs switching">
         <p className="text-sm leading-relaxed">
           There are two architectures in common use on a hobby
-          bench. A <em className="text-gray-200">linear</em>{" "}
+          bench. A <em className="text-foreground">linear</em>{" "}
           regulator is the simple one: it behaves like a smart
           variable resistor that burns the extra voltage as heat.
           The 7805 (5 V) and the LM1117 (adjustable or fixed
@@ -52,7 +52,7 @@ export function VoltageRegulatorsPage() {
         </p>
 
         <p className="text-sm leading-relaxed">
-          A <em className="text-gray-200">switching</em>{" "}
+          A <em className="text-foreground">switching</em>{" "}
           regulator — often a <em>buck converter</em> for
           step-down duty — chops the input on and off at high
           frequency and filters the result with an inductor and

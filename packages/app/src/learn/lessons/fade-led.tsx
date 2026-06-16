@@ -13,7 +13,7 @@ export function FadeLedLesson() {
       <Section title="What you'll build">
         <p className="text-sm leading-relaxed">
           An <Term k="led" /> on pin{" "}
-          <span className="text-gray-200 font-mono">D9</span> that fades
+          <span className="text-foreground font-mono">D9</span> that fades
           up from off to full brightness, then fades back down, over and over. Unlike
           the previous lesson where pin 13 was either fully on or fully off, this
           lesson uses <Term k="pwm">PWM</Term> (pulse-width modulation) to make
@@ -40,20 +40,20 @@ export function FadeLedLesson() {
         </p>
         <p className="text-sm leading-relaxed">
           <Term k="analog-write">
-            <code className="text-gray-200">analogWrite(pin, value)</code>
+            <code className="text-foreground">analogWrite(pin, value)</code>
           </Term>{" "}
-          takes a value from <code className="text-gray-200">0</code> (always off)
-          to <code className="text-gray-200">255</code> (always on). Anything in
+          takes a value from <code className="text-foreground">0</code> (always off)
+          to <code className="text-foreground">255</code> (always on). Anything in
           between produces a proportionally bright output.
         </p>
       </Section>
 
       <Section title="Not every pin supports PWM">
         <p className="text-sm leading-relaxed">
-          On the Arduino Uno, only pins <span className="font-mono text-gray-200">3, 5, 6, 9, 10,</span>{" "}
-          and <span className="font-mono text-gray-200">11</span> support{" "}
-          <code className="text-gray-200">analogWrite()</code>. These are the ones
-          marked with a <span className="text-gray-200 font-mono">~</span> on a real
+          On the Arduino Uno, only pins <span className="font-mono text-foreground">3, 5, 6, 9, 10,</span>{" "}
+          and <span className="font-mono text-foreground">11</span> support{" "}
+          <code className="text-foreground">analogWrite()</code>. These are the ones
+          marked with a <span className="text-foreground font-mono">~</span> on a real
           board. We're using pin 9 here — try changing it to pin 8 in the editor and
           watch the LED snap instead of fade.
         </p>
@@ -61,16 +61,16 @@ export function FadeLedLesson() {
 
       <Section title="The fade algorithm">
         <p className="text-sm leading-relaxed">
-          The sketch keeps two variables: <code className="text-gray-200">brightness</code>{" "}
-          (current PWM value) and <code className="text-gray-200">fadeAmount</code>{" "}
+          The sketch keeps two variables: <code className="text-foreground">brightness</code>{" "}
+          (current PWM value) and <code className="text-foreground">fadeAmount</code>{" "}
           (how much to change it each loop). Each iteration:
         </p>
         <ol className="text-sm leading-relaxed list-decimal pl-5 space-y-1">
           <li>Write the current brightness to pin 9.</li>
-          <li>Add <code className="text-gray-200">fadeAmount</code> to{" "}
-            <code className="text-gray-200">brightness</code>.</li>
+          <li>Add <code className="text-foreground">fadeAmount</code> to{" "}
+            <code className="text-foreground">brightness</code>.</li>
           <li>When brightness hits either end (0 or 255), flip the sign of{" "}
-            <code className="text-gray-200">fadeAmount</code> so it starts going
+            <code className="text-foreground">fadeAmount</code> so it starts going
             back the other way.</li>
           <li>Delay 30 ms before the next update.</li>
         </ol>

@@ -1,5 +1,5 @@
 import { useCallback, useRef } from "react"
-import { Play, Pause, Square, Cpu, Upload, Zap, AlertCircle } from "lucide-react"
+import { Play, Square, Cpu, Upload, Zap, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { BOARD_TARGETS, DEFAULT_BOARD_TARGET, type BoardTarget } from "@dreamer/schemas"
@@ -31,7 +31,7 @@ export function PlayControls({ sim }: PlayControlsProps) {
   const electrical = useElectricalReport()
   const upload = useUploadState()
 
-  const { status, play, pause, resume, stop } = sim
+  const { status, play, resume, stop } = sim
 
   const sketchCodeRef = useRef(state.sketchCode)
   sketchCodeRef.current = state.sketchCode
@@ -65,10 +65,6 @@ export function PlayControls({ sim }: PlayControlsProps) {
       }
     }
   }, [electrical.hasErrors, status, play, resume, dockviewApi, boardSend])
-
-  const handlePause = useCallback(() => {
-    pause()
-  }, [pause])
 
   const handleStop = useCallback(() => {
     stop()
@@ -222,7 +218,6 @@ export function PlayControls({ sim }: PlayControlsProps) {
   const isRunning = status === "running"
   const isPaused = status === "paused"
   const isCompiling = status === "compiling"
-  const isStopped = status === "stopped"
   const electricalBlockReason = electrical.issues.find((issue) => issue.severity === "error")?.message
 
   const uploadInProgress =
@@ -251,17 +246,17 @@ export function PlayControls({ sim }: PlayControlsProps) {
 
   return (
     <div className="flex items-center gap-1">
-      {/* Compile + Play button */}
+      {/* Play / Stop toggle — one button: Play when stopped, Stop while running */}
       {isRunning ? (
         <Tooltip>
           <TooltipTrigger
             render={
-              <Button variant="ghost" size="icon" onClick={handlePause} />
+              <Button variant="ghost" size="icon" onClick={handleStop} className="size-9 rounded-xl transition-all duration-150 active:scale-90" />
             }
           >
-            <Pause className="size-3.5 text-yellow-400" />
+            <Square className="size-3.5 text-red-400" />
           </TooltipTrigger>
-          <TooltipContent>Pause</TooltipContent>
+          <TooltipContent>Stop</TooltipContent>
         </Tooltip>
       ) : (
         <Tooltip>
@@ -272,6 +267,7 @@ export function PlayControls({ sim }: PlayControlsProps) {
                 size="icon"
                 onClick={handlePlay}
                 disabled={isCompiling || electrical.hasErrors}
+                className="size-9 rounded-xl transition-all duration-150 active:scale-90"
               />
             }
           >
@@ -294,28 +290,6 @@ export function PlayControls({ sim }: PlayControlsProps) {
         </Tooltip>
       )}
 
-      {/* Stop button */}
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleStop}
-              disabled={isStopped}
-            />
-          }
-        >
-          <Square
-            className={cn(
-              "size-3.5",
-              isStopped ? "text-zinc-600" : "text-red-400",
-            )}
-          />
-        </TooltipTrigger>
-        <TooltipContent>Stop</TooltipContent>
-      </Tooltip>
-
       {/* USB / port picker was rendered here historically; moved to the
           right-edge status cluster (next to StatusDisplay) in
           bottom-toolbar.tsx so the board + status read as one unit. */}
@@ -332,6 +306,7 @@ export function PlayControls({ sim }: PlayControlsProps) {
                 size="icon"
                 onClick={handleUpload}
                 disabled={electrical.hasErrors || uploadInProgress || !canUpload}
+                className="size-9 rounded-xl transition-all duration-150 active:scale-90"
               />
             }
           >

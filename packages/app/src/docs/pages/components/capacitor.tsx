@@ -74,17 +74,17 @@ export function CapacitorPage() {
             ["Temperature stability", "Poor", "Good (C0G/NP0) to moderate (X7R)"],
           ]}
         />
-        <p className="text-sm text-gray-400 mt-2">
-          Charge formula: <strong className="text-gray-300">Q = C × V</strong> &nbsp;|&nbsp;
-          RC time constant: <strong className="text-gray-300">τ = R × C</strong>
+        <p className="text-sm text-muted-foreground mt-2">
+          Charge formula: <strong className="text-foreground">Q = C × V</strong> &nbsp;|&nbsp;
+          RC time constant: <strong className="text-foreground">τ = R × C</strong>
         </p>
       </Section>
 
       <Section title="Example board">
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           A ready-made example board with a capacitor is available in the sketch editor.
-          Click the <strong className="text-gray-200">Examples</strong> button in the toolbar
-          (right of Run/Stop) and select <strong className="text-gray-200">"Capacitor Blink"</strong> to
+          Click the <strong className="text-foreground">Examples</strong> button in the toolbar
+          (right of Run/Stop) and select <strong className="text-foreground">"Capacitor Blink"</strong> to
           load a complete circuit with a working sketch.
         </p>
       </Section>

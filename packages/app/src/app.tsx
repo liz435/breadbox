@@ -10,6 +10,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { ToastContainer, toast } from "@/components/ui/toast";
 import {
   DockviewReact,
+  themeLight,
   type DockviewReadyEvent,
   type DockviewApi,
   type IDockviewPanelProps,
@@ -23,6 +24,7 @@ import { ViewportPanel } from "./viewport/viewport-panel";
 import { BreadboardPanel } from "./breadboard/breadboard-panel";
 import { SerialMonitor } from "./panels/serial-monitor";
 import { PinInspector } from "./panels/pin-inspector";
+import { DebuggerPanel } from "./panels/debugger-panel";
 import { DiagramPanel } from "./panels/diagram-panel";
 import { OledDisplayPanel } from "./panels/oled-display-panel";
 
@@ -106,6 +108,10 @@ function OledDockPanel(_props: IDockviewPanelProps) {
   return <ErrorBoundary name="OLED Display"><OledDisplayPanel /></ErrorBoundary>;
 }
 
+function DebuggerDockPanel(_props: IDockviewPanelProps) {
+  return <ErrorBoundary name="Debugger"><DebuggerPanel /></ErrorBoundary>;
+}
+
 const components = {
   projectFiles: ProjectFilesPanel,
   breadboard: BreadboardDockPanel,
@@ -120,6 +126,7 @@ const components = {
   libraryManager: LibraryManagerPanel,
   diagram: DiagramEditorPanel,
   oledDisplay: OledDockPanel,
+  debugger: DebuggerDockPanel,
 };
 
 function AppInner() {
@@ -508,10 +515,11 @@ function AppInner() {
       <div className="relative flex h-full w-full flex-col">
         <ViewTabStrip api={dockviewApi} />
         <div className="relative min-h-0 flex-1">
-          <div className="absolute inset-0 dockview-theme-abyss">
+          <div className="absolute inset-0 dockview-theme-light">
             <DockviewReact
               onReady={onReady}
               components={components}
+              theme={themeLight}
               className="h-full"
             />
           </div>

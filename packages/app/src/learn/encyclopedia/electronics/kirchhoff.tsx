@@ -28,9 +28,9 @@ export function KirchhoffPage() {
       <Section title="The current law (KCL)">
         <p className="text-sm leading-relaxed">
           <Term k="kirchhoff">Kirchhoff's current law</Term> says the
-          current flowing <em className="text-gray-200">into</em> any
+          current flowing <em className="text-foreground">into</em> any
           junction equals the current flowing{" "}
-          <em className="text-gray-200">out</em>. Electrons don't pile
+          <em className="text-foreground">out</em>. Electrons don't pile
           up at a node — whatever comes in has to leave through one
           of the other wires.
         </p>

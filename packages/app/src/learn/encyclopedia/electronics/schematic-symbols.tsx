@@ -36,15 +36,15 @@ export function SchematicSymbolsPage() {
       <Section title="Why schematics?">
         <p className="text-sm leading-relaxed">
           A schematic shows a circuit's{" "}
-          <em className="text-gray-200">electrical structure</em> — what is
+          <em className="text-foreground">electrical structure</em> — what is
           connected to what — without committing to where the parts sit on
           a real board. A breadboard view shows you{" "}
-          <em className="text-gray-200">physical placement</em>. You need
+          <em className="text-foreground">physical placement</em>. You need
           both mental models, and this page teaches the first one.
         </p>
         <Note>
           Every symbol below is rendered by Breadbox's own{" "}
-          <code className="text-gray-200">&lt;Schematic&gt;</code>{" "}
+          <code className="text-foreground">&lt;Schematic&gt;</code>{" "}
           component. If a symbol ever looks broken, it'll break here
           first, which is why this page doubles as a visual regression
           target.
@@ -54,7 +54,7 @@ export function SchematicSymbolsPage() {
       <Section title="Wires and junctions">
         <p className="text-sm leading-relaxed">
           Wires connect components. A solid line is a conductor. A{" "}
-          <em className="text-gray-200">junction dot</em> where three or
+          <em className="text-foreground">junction dot</em> where three or
           more wires meet means they are electrically joined; if there's
           no dot, the wires are crossing over without touching.
         </p>
@@ -74,9 +74,9 @@ export function SchematicSymbolsPage() {
       <Section title="Power and ground">
         <p className="text-sm leading-relaxed">
           Rather than drawing wires all the way back to a battery, a{" "}
-          <em className="text-gray-200">Vcc</em> stub marks "this point is
+          <em className="text-foreground">Vcc</em> stub marks "this point is
           at the supply voltage" and a{" "}
-          <em className="text-gray-200">ground</em> symbol marks "this
+          <em className="text-foreground">ground</em> symbol marks "this
           point is at 0 V." Any two points with the same power or ground
           symbol are implicitly connected.
         </p>

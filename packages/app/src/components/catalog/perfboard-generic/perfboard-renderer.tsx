@@ -1,5 +1,5 @@
 import React from "react";
-import type { ComponentRendererProps } from "./index";
+import type { ComponentRendererProps } from "@/breadboard/component-renderers/renderer-types";
 
 /**
  * Stub renderer for perfboard_generic components. Returns null pending the

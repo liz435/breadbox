@@ -59,13 +59,13 @@ const ICONS = {
   board: <Compass className="size-3.5 text-blue-400" />,
   programming: <BookOpen className="size-3.5 text-purple-400" />,
   electronics: <BookOpen className="size-3.5 text-amber-400" />,
-  glossary: <FileText className="size-3.5 text-gray-400" />,
+  glossary: <FileText className="size-3.5 text-muted-foreground" />,
   action: (
     <svg
       viewBox="0 0 16 16"
       width={14}
       height={14}
-      className="text-neutral-400"
+      className="text-muted-foreground"
       aria-hidden="true"
       focusable="false"
     >
@@ -302,17 +302,17 @@ function LearnCommandPaletteInner({ open, onClose }: LearnCommandPaletteProps) {
 
       {/* Palette */}
       <div
-        className="relative w-full max-w-lg overflow-hidden rounded-xl border border-neutral-700 bg-neutral-900 shadow-2xl"
+        className="relative w-full max-w-lg overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
         {/* Input */}
-        <div className="flex items-center gap-2 border-b border-neutral-700 px-4 py-3">
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
           <svg
             viewBox="0 0 16 16"
             width={16}
             height={16}
-            className="flex-shrink-0 text-neutral-500"
+            className="flex-shrink-0 text-muted-foreground"
             aria-hidden="true"
             focusable="false"
           >
@@ -340,9 +340,9 @@ function LearnCommandPaletteInner({ open, onClose }: LearnCommandPaletteProps) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search lessons, reference pages, and terms..."
-            className="flex-1 bg-transparent text-sm text-neutral-200 placeholder:text-neutral-500 outline-none"
+            className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
           />
-          <kbd className="rounded border border-neutral-600 bg-neutral-800 px-1.5 py-0.5 text-[10px] text-neutral-400">
+          <kbd className="rounded border border-border bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">
             ESC
           </kbd>
         </div>
@@ -350,13 +350,13 @@ function LearnCommandPaletteInner({ open, onClose }: LearnCommandPaletteProps) {
         {/* Results */}
         <div ref={listRef} className="max-h-[50vh] overflow-y-auto py-1">
           {results.length === 0 && (
-            <p className="px-4 py-6 text-center text-sm text-neutral-500">
+            <p className="px-4 py-6 text-center text-sm text-muted-foreground">
               No results for &quot;{query}&quot;
             </p>
           )}
           {grouped.map(({ category, items }) => (
             <div key={category}>
-              <div className="px-4 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+              <div className="px-4 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 {category}
               </div>
               {items.map(({ cmd, index }) => (
@@ -367,7 +367,7 @@ function LearnCommandPaletteInner({ open, onClose }: LearnCommandPaletteProps) {
                   className={`flex w-full items-center gap-3 px-4 py-2 text-left text-sm ${
                     index === selectedIndex
                       ? "bg-emerald-600/20 text-emerald-200"
-                      : "text-neutral-300 hover:bg-neutral-800"
+                      : "text-foreground hover:bg-secondary"
                   }`}
                   onMouseEnter={() => setSelectedIndex(index)}
                   onClick={() => executeCommand(cmd)}
@@ -376,7 +376,7 @@ function LearnCommandPaletteInner({ open, onClose }: LearnCommandPaletteProps) {
                   <span className="flex min-w-0 flex-col">
                     <span className="truncate">{cmd.label}</span>
                     {cmd.description && (
-                      <span className="truncate text-xs text-neutral-500">
+                      <span className="truncate text-xs text-muted-foreground">
                         {cmd.description}
                       </span>
                     )}
@@ -388,21 +388,21 @@ function LearnCommandPaletteInner({ open, onClose }: LearnCommandPaletteProps) {
         </div>
 
         {/* Footer hint */}
-        <div className="flex items-center gap-3 border-t border-neutral-700 px-4 py-2 text-[10px] text-neutral-500">
+        <div className="flex items-center gap-3 border-t border-border px-4 py-2 text-[10px] text-muted-foreground">
           <span>
-            <kbd className="rounded border border-neutral-600 bg-neutral-800 px-1 py-0.5">
+            <kbd className="rounded border border-border bg-secondary px-1 py-0.5">
               ↑↓
             </kbd>{" "}
             navigate
           </span>
           <span>
-            <kbd className="rounded border border-neutral-600 bg-neutral-800 px-1 py-0.5">
+            <kbd className="rounded border border-border bg-secondary px-1 py-0.5">
               ↵
             </kbd>{" "}
             select
           </span>
           <span>
-            <kbd className="rounded border border-neutral-600 bg-neutral-800 px-1 py-0.5">
+            <kbd className="rounded border border-border bg-secondary px-1 py-0.5">
               esc
             </kbd>{" "}
             close

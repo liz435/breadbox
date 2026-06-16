@@ -36,7 +36,7 @@ export function SpriteContent({ node, onDataChange }: SpriteContentProps) {
   return (
     <div className="px-2 py-1">
       {uri ? (
-        <div className="rounded border border-neutral-700 overflow-hidden bg-neutral-950 flex items-center justify-center">
+        <div className="rounded border border-border overflow-hidden bg-background flex items-center justify-center">
           <img
             src={uri}
             alt={fileName ?? "Sprite"}
@@ -48,16 +48,16 @@ export function SpriteContent({ node, onDataChange }: SpriteContentProps) {
       ) : (
         <div className="flex items-center gap-2">
           <div
-            className="w-8 h-8 rounded border border-neutral-600 shrink-0"
+            className="w-8 h-8 rounded border border-border shrink-0"
             style={{ backgroundColor: tint }}
           />
           <div className="min-w-0 flex-1">
             {fileName && (
-              <div className="text-[10px] text-neutral-400 truncate">
+              <div className="text-[10px] text-muted-foreground truncate">
                 {fileName}
               </div>
             )}
-            <div className="text-[10px] text-neutral-500">
+            <div className="text-[10px] text-muted-foreground">
               {typeof node.data.width === "number" ? node.data.width : 64}
               &times;
               {typeof node.data.height === "number" ? node.data.height : 64}
@@ -66,7 +66,7 @@ export function SpriteContent({ node, onDataChange }: SpriteContentProps) {
         </div>
       )}
       {uri && fileName && (
-        <div className="text-[9px] text-neutral-500 mt-1 truncate">
+        <div className="text-[9px] text-muted-foreground mt-1 truncate">
           {fileName}
         </div>
       )}
@@ -82,13 +82,13 @@ export function SpriteContent({ node, onDataChange }: SpriteContentProps) {
           >
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400/70" />
             Script ({script.split("\n").length} lines)
-            <span className="text-neutral-600 ml-auto">
+            <span className="text-muted-foreground ml-auto">
               {showEditor ? "▼" : "▶"}
             </span>
           </button>
           {showEditor && (
             <textarea
-              className="w-full mt-1 bg-neutral-950 text-[10px] text-emerald-400 font-mono p-1.5 rounded border border-neutral-700 resize-none outline-none focus:border-emerald-500"
+              className="w-full mt-1 bg-background text-[10px] text-emerald-400 font-mono p-1.5 rounded border border-border resize-none outline-none focus:border-emerald-500"
               rows={6}
               value={script}
               onChange={handleScriptChange}
@@ -101,7 +101,7 @@ export function SpriteContent({ node, onDataChange }: SpriteContentProps) {
       ) : (
         <button
           type="button"
-          className="mt-1 text-[9px] text-neutral-500 hover:text-emerald-400/70 transition-colors flex items-center gap-1"
+          className="mt-1 text-[9px] text-muted-foreground hover:text-emerald-400/70 transition-colors flex items-center gap-1"
           onClick={handleAddScript}
           onMouseDown={(e) => e.stopPropagation()}
         >

@@ -56,7 +56,7 @@ function CopyButton({ value }: { value: string }) {
     <button
       type="button"
       onClick={copy}
-      className="shrink-0 rounded border border-neutral-600 bg-neutral-800 px-2 py-1 text-[11px] font-medium text-neutral-300 hover:bg-neutral-700"
+      className="shrink-0 rounded border border-border bg-secondary px-2 py-1 text-[11px] font-medium text-foreground hover:bg-muted"
     >
       {copied ? "Copied" : "Copy"}
     </button>
@@ -65,7 +65,7 @@ function CopyButton({ value }: { value: string }) {
 
 function CommandRow({ value }: { value: string }) {
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2">
+    <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2">
       <code className="flex-1 overflow-x-auto whitespace-nowrap text-xs text-emerald-300">
         {value}
       </code>
@@ -75,7 +75,7 @@ function CommandRow({ value }: { value: string }) {
 }
 
 function StatusLine({ tone, text }: { tone: "ok" | "warn" | "bad"; text: string }) {
-  const color = tone === "ok" ? "text-emerald-400" : tone === "warn" ? "text-neutral-400" : "text-red-400"
+  const color = tone === "ok" ? "text-emerald-400" : tone === "warn" ? "text-muted-foreground" : "text-red-400"
   const mark = tone === "ok" ? "✓" : tone === "warn" ? "•" : "✕"
   return (
     <p className={`text-xs ${color}`}>
@@ -184,16 +184,16 @@ function ConnectClaudeDialogInner({ open, onClose, projectId }: ConnectClaudeDia
 
       {/* Dialog */}
       <div
-        className="relative w-full max-w-lg rounded-xl border border-neutral-700 bg-neutral-900 shadow-2xl"
+        className="relative w-full max-w-lg rounded-xl border border-border bg-card shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-neutral-700 px-5 py-3">
-          <h2 className="text-sm font-semibold text-neutral-200">Connect Claude (MCP)</h2>
+        <div className="flex items-center justify-between border-b border-border px-5 py-3">
+          <h2 className="text-sm font-semibold text-foreground">Connect Claude (MCP)</h2>
           <button
             type="button"
             onClick={onClose}
-            className="rounded p-1 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-300"
+            className="rounded p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
           >
             <svg viewBox="0 0 16 16" width={14} height={14}>
               <line x1={4} y1={4} x2={12} y2={12} stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" />
@@ -204,7 +204,7 @@ function ConnectClaudeDialogInner({ open, onClose, projectId }: ConnectClaudeDia
 
         {/* Content */}
         <div className="max-h-[70vh] space-y-4 overflow-y-auto px-5 py-4">
-          <p className="text-xs leading-relaxed text-neutral-400">
+          <p className="text-xs leading-relaxed text-muted-foreground">
             Point your own Claude at this project and it can place components, wire
             them up, and write the sketch — the changes appear on this canvas live.
           </p>
@@ -223,7 +223,7 @@ function ConnectClaudeDialogInner({ open, onClose, projectId }: ConnectClaudeDia
             {phase === "error" && errorMsg && <p className="text-xs text-red-400">{errorMsg}</p>}
 
             {phase === "done" && result && (
-              <div className="space-y-1 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2">
+              <div className="space-y-1 rounded-lg border border-border bg-background px-3 py-2">
                 {desktopLine(result.claudeDesktop)}
                 {codeLine(result.claudeCode)}
                 {result.needsRestart && (
@@ -237,25 +237,25 @@ function ConnectClaudeDialogInner({ open, onClose, projectId }: ConnectClaudeDia
 
           {/* Manual fallback */}
           <details className="group">
-            <summary className="cursor-pointer text-[10px] font-semibold uppercase tracking-wider text-neutral-500 hover:text-neutral-400">
+            <summary className="cursor-pointer text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-muted-foreground">
               Or set it up manually
             </summary>
 
             <div className="mt-3 space-y-4">
               <div className="space-y-1.5">
-                <h3 className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+                <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Claude Code (CLI)
                 </h3>
                 <CommandRow value={claudeCodeCmd} />
               </div>
 
               <div className="space-y-1.5">
-                <h3 className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+                <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Claude Desktop
                 </h3>
-                <p className="text-xs text-neutral-400">
+                <p className="text-xs text-muted-foreground">
                   Add to{" "}
-                  <code className="text-neutral-300">
+                  <code className="text-foreground">
                     ~/Library/Application Support/Claude/claude_desktop_config.json
                   </code>
                   , then restart:
@@ -266,7 +266,7 @@ function ConnectClaudeDialogInner({ open, onClose, projectId }: ConnectClaudeDia
               </div>
 
               <div className="space-y-1.5">
-                <h3 className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+                <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Active project
                 </h3>
                 <CommandRow value={projectId} />
@@ -274,15 +274,15 @@ function ConnectClaudeDialogInner({ open, onClose, projectId }: ConnectClaudeDia
             </div>
           </details>
 
-          <p className="text-[11px] leading-relaxed text-neutral-500">
+          <p className="text-[11px] leading-relaxed text-muted-foreground">
             Then just chat with Claude — e.g. “add an LED on pin 13 and blink it.”
             Keep this tab open to watch the board build itself.
           </p>
         </div>
 
         {/* Footer */}
-        <div className="border-t border-neutral-700 px-5 py-2 text-[10px] text-neutral-600">
-          Local only. Requires the <span className="text-neutral-400">breadbox</span> CLI (bundled with the desktop app).
+        <div className="border-t border-border px-5 py-2 text-[10px] text-muted-foreground">
+          Local only. Requires the <span className="text-muted-foreground">breadbox</span> CLI (bundled with the desktop app).
         </div>
       </div>
     </div>

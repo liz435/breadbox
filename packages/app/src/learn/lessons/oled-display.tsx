@@ -16,7 +16,7 @@ export function OledDisplayLesson() {
         <p className="text-sm leading-relaxed">
           A 128{"\u00d7"}64 pixel SSD1306 OLED display wired to the Arduino's{" "}
           <Term k="i2c">I2C</Term> pins (SDA on A4, SCL on A5). The sketch uses the{" "}
-          <code className="text-gray-200">Adafruit_SSD1306</code> library to clear the
+          <code className="text-foreground">Adafruit_SSD1306</code> library to clear the
           screen and render "Hello, World!" in large text.
         </p>
       </Section>
@@ -33,19 +33,19 @@ export function OledDisplayLesson() {
         <p className="text-sm leading-relaxed">
           The OLED communicates over <Term k="i2c" /> — a two-wire serial bus. The
           Arduino is the bus master; the display responds to address{" "}
-          <code className="text-gray-200">0x3C</code> (the most common default for
-          SSD1306 modules). The <code className="text-gray-200">Wire</code> library
+          <code className="text-foreground">0x3C</code> (the most common default for
+          SSD1306 modules). The <code className="text-foreground">Wire</code> library
           handles the I2C framing automatically; you only interact with the higher-level
           display API.
         </p>
         <p className="text-sm leading-relaxed">
-          <code className="text-gray-200">display.begin()</code> sends the initialization
+          <code className="text-foreground">display.begin()</code> sends the initialization
           sequence to configure the OLED's internal controller.{" "}
-          <code className="text-gray-200">display.clearDisplay()</code> blanks the
+          <code className="text-foreground">display.clearDisplay()</code> blanks the
           128{"\u00d7"}64 pixel framebuffer in RAM.{" "}
-          <code className="text-gray-200">display.setTextSize(2)</code> scales characters
+          <code className="text-foreground">display.setTextSize(2)</code> scales characters
           to 2{"\u00d7"} their native size, and{" "}
-          <code className="text-gray-200">display.display()</code> pushes the entire
+          <code className="text-foreground">display.display()</code> pushes the entire
           framebuffer to the OLED over I2C.
         </p>
       </Section>

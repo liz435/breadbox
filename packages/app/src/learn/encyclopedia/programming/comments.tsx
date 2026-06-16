@@ -46,8 +46,8 @@ export function CommentsPage() {
 
       <Section title="What to comment">
         <p className="text-sm leading-relaxed">
-          A comment should explain <em className="text-gray-200">why</em>,
-          not <em className="text-gray-200">what</em>. The code already
+          A comment should explain <em className="text-foreground">why</em>,
+          not <em className="text-foreground">what</em>. The code already
           shows what it does; the comment adds the intent a reader can't
           see.
         </p>

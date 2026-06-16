@@ -32,7 +32,7 @@ export function VoltageDividersPage() {
           the supply, set by the ratio of the two resistors:
         </p>
 
-        <p className="my-3 text-center text-lg font-mono text-gray-100">
+        <p className="my-3 text-center text-lg font-mono text-foreground">
           V<sub>out</sub> = V<sub>in</sub> × R2 / (R1 + R2)
         </p>
 
@@ -71,7 +71,7 @@ export function VoltageDividersPage() {
           5 V. Pick R1 = 4.7 kΩ and R2 = 4.7 kΩ:
         </p>
 
-        <p className="mt-2 text-sm leading-relaxed font-mono text-gray-200">
+        <p className="mt-2 text-sm leading-relaxed font-mono text-foreground">
           Vout = 9 V × 4.7k / (4.7k + 4.7k) = 4.5 V
         </p>
 
@@ -85,7 +85,7 @@ export function VoltageDividersPage() {
       <Section title="Where it shows up">
         <p className="text-sm leading-relaxed">
           Potentiometers{" "}
-          <em className="text-gray-200">are</em> voltage dividers —
+          <em className="text-foreground">are</em> voltage dividers —
           the wiper walks the midpoint continuously between the two
           ends. Photoresistors, thermistors, and flex sensors all
           use a fixed resistor paired with the variable one to
@@ -129,7 +129,7 @@ function VoltageDividerExplorer() {
   const pct = (vout / vin) * 100
 
   return (
-    <div className="rounded-md border border-neutral-800 bg-[#0d0d0d] p-4 space-y-4">
+    <div className="rounded-md border border-border bg-card p-4 space-y-4">
       {/* Sliders */}
       <div className="space-y-4">
         <SliderRow
@@ -159,28 +159,28 @@ function VoltageDividerExplorer() {
       </div>
 
       {/* Result */}
-      <div className="rounded border border-neutral-700 bg-neutral-900 p-3 space-y-2">
+      <div className="rounded border border-border bg-card p-3 space-y-2">
         <div className="flex items-baseline justify-between">
-          <span className="text-xs text-neutral-400">V<sub>out</sub></span>
+          <span className="text-xs text-muted-foreground">V<sub>out</sub></span>
           <span className="font-mono text-lg font-semibold text-emerald-400">
             {vout.toFixed(2)} V
           </span>
         </div>
         {/* Fraction bar */}
-        <div className="relative h-3 rounded-full bg-neutral-800 overflow-hidden" aria-hidden>
+        <div className="relative h-3 rounded-full bg-secondary overflow-hidden" aria-hidden>
           <div
             className="absolute inset-y-0 left-0 rounded-full bg-emerald-500 transition-all duration-150"
             style={{ width: `${pct}%` }}
           />
         </div>
-        <div className="flex justify-between text-[10px] text-neutral-500 font-mono">
+        <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
           <span>0 V</span>
-          <span className="text-neutral-400">{pct.toFixed(0)}% of Vin</span>
+          <span className="text-muted-foreground">{pct.toFixed(0)}% of Vin</span>
           <span>{vin.toFixed(1)} V</span>
         </div>
       </div>
 
-      <p className="text-[11px] text-neutral-500">
+      <p className="text-[11px] text-muted-foreground">
         Formula: V<sub>out</sub> = {vin.toFixed(1)} × {r2}/{r1 + r2} = {vout.toFixed(2)} V
       </p>
     </div>
@@ -204,10 +204,10 @@ function SliderRow({ id, label, value, min, max, step, display, onChange }: Slid
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
-        <label htmlFor={id} className="font-mono text-sm text-gray-300 w-6">{label}</label>
-        <span className="font-mono text-sm text-gray-300 tabular-nums min-w-[70px] text-right">{display}</span>
+        <label htmlFor={id} className="font-mono text-sm text-foreground w-6">{label}</label>
+        <span className="font-mono text-sm text-foreground tabular-nums min-w-[70px] text-right">{display}</span>
       </div>
-      <div className="relative h-2 rounded-full bg-neutral-800">
+      <div className="relative h-2 rounded-full bg-secondary">
         <div
           className="absolute inset-y-0 left-0 rounded-full bg-blue-500/60"
           style={{ width: `${pct}%` }}

@@ -52,40 +52,40 @@ export function BoardAnatomyPage() {
 
         <ul className="mt-2 space-y-2 text-sm leading-relaxed">
           <li>
-            <strong className="text-gray-200">USB port</strong> (top-left).
+            <strong className="text-foreground">USB port</strong> (top-left).
             A Type-B socket. This is how you flash sketches to the board
             and how the board appears as a serial device on your
             computer. It also powers the board when no other source is
             plugged in.
           </li>
           <li>
-            <strong className="text-gray-200">Barrel jack</strong>{" "}
+            <strong className="text-foreground">Barrel jack</strong>{" "}
             (bottom-left). A 2.1 mm DC jack for an external 7–12 V
             supply. Used when USB power isn't enough or when the board
             runs standalone.
           </li>
           <li>
-            <strong className="text-gray-200">Power headers</strong>{" "}
+            <strong className="text-foreground">Power headers</strong>{" "}
             (bottom edge). Six pins: <code>IOREF</code>,{" "}
             <code>RESET</code>, <code>3V3</code>, <code>5V</code>,{" "}
             <code>GND</code>, <code>GND</code>, <code>VIN</code>. These
             are what you wire to the power rails of a breadboard.
           </li>
           <li>
-            <strong className="text-gray-200">Analog input headers</strong>{" "}
+            <strong className="text-foreground">Analog input headers</strong>{" "}
             (bottom edge, right of the power headers). Six pins labeled{" "}
             <code>A0</code> through <code>A5</code>. Connects analog
             sensors to the board's 10-bit ADC.
           </li>
           <li>
-            <strong className="text-gray-200">Digital I/O headers</strong>{" "}
+            <strong className="text-foreground">Digital I/O headers</strong>{" "}
             (top edge). Fourteen pins labeled <code>D0</code> through{" "}
             <code>D13</code>, plus <code>GND</code> and{" "}
             <code>AREF</code>. Six of the digital pins (marked{" "}
             <code>~</code>) can do <Term k="pwm">PWM output</Term>.
           </li>
           <li>
-            <strong className="text-gray-200">ICSP header</strong>{" "}
+            <strong className="text-foreground">ICSP header</strong>{" "}
             (right edge). A 2×3 block of pins for programming the board
             at a lower level than the sketch upload flow. You can safely
             ignore it — most users never touch it.
@@ -100,7 +100,7 @@ export function BoardAnatomyPage() {
 
         <ul className="mt-2 space-y-2 text-sm leading-relaxed">
           <li>
-            <strong className="text-gray-200">ATmega328P microcontroller</strong>
+            <strong className="text-foreground">ATmega328P microcontroller</strong>
             {" "}— the big black chip in a DIP-28 package. This is the
             entire "computer" of the Arduino: 32 KB of flash to hold
             your sketch, 2 KB of RAM, 1 KB of EEPROM, and a single core
@@ -108,11 +108,11 @@ export function BoardAnatomyPage() {
             this chip.
           </li>
           <li>
-            <strong className="text-gray-200">Onboard LED on pin 13</strong>
+            <strong className="text-foreground">Onboard LED on pin 13</strong>
             {" "}— a small surface-mount LED labeled <code>L</code>{" "}
             wired directly to digital pin 13, with its own current-
             limiting resistor. It blinks whenever you{" "}
-            <code className="text-gray-200">digitalWrite(13, HIGH)</code>,
+            <code className="text-foreground">digitalWrite(13, HIGH)</code>,
             even if nothing is wired to the header. Great for a{" "}
             "is my sketch running?" sanity check.
           </li>
@@ -122,11 +122,11 @@ export function BoardAnatomyPage() {
       <Section title="What you'll actually touch">
         <p className="text-sm leading-relaxed">
           For 95% of beginner projects, you'll only use three parts of
-          the board: the <strong className="text-gray-200">USB port</strong>{" "}
+          the board: the <strong className="text-foreground">USB port</strong>{" "}
           (to upload sketches and power the board), the{" "}
-          <strong className="text-gray-200">digital header row</strong>{" "}
+          <strong className="text-foreground">digital header row</strong>{" "}
           (to wire components), and the{" "}
-          <strong className="text-gray-200">power header</strong> (to
+          <strong className="text-foreground">power header</strong> (to
           bring 5V and GND out to a breadboard). Everything else is
           there for specialist use cases.
         </p>

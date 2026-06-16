@@ -85,6 +85,11 @@ export const VIEW_PANELS: ViewPanel[] = [
     label: "OLED Display",
     defaultPosition: { referencePanel: "breadboard", direction: "right" },
   },
+  {
+    id: "debugger",
+    label: "Debugger",
+    defaultPosition: { referencePanel: "sketchEditor", direction: "below" },
+  },
   // Palette-only: no registered Dockview component, so keep it out of the
   // strip and menu (addPanel would mount an empty panel).
   { id: "electricalReport", label: "Electrical Report", inTabStrip: false },

@@ -69,17 +69,17 @@ void loop() {
       </Section>
 
       <Section title="Typical wiring">
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           Arduino pin 6 → NeoPixel DIN · Arduino 5V → NeoPixel 5V · Arduino GND → NeoPixel GND
         </p>
         <Note>Add a 300-470Ω resistor on the data line and a 1000µF capacitor across 5V/GND for protection.</Note>
       </Section>
 
       <Section title="Example board">
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           A ready-made example board with a NeoPixel strip is available in the sketch editor.
-          Click the <strong className="text-gray-200">Examples</strong> button in the toolbar
-          (right of Run/Stop) and select <strong className="text-gray-200">"NeoPixel Rainbow"</strong> to
+          Click the <strong className="text-foreground">Examples</strong> button in the toolbar
+          (right of Run/Stop) and select <strong className="text-foreground">"NeoPixel Rainbow"</strong> to
           load a complete circuit with a working sketch.
         </p>
       </Section>

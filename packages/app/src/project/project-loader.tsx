@@ -99,8 +99,8 @@ export function ProjectLoader({ children }: { children: ReactNode }) {
 
   if (state.status === "loading") {
     return (
-      <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-neutral-400">
-        <div className="size-6 animate-spin rounded-full border-2 border-neutral-600 border-t-neutral-300" />
+      <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-muted-foreground">
+        <div className="size-6 animate-spin rounded-full border-2 border-border border-t-neutral-300" />
         <p className="text-sm">Loading project...</p>
       </div>
     );
@@ -109,7 +109,7 @@ export function ProjectLoader({ children }: { children: ReactNode }) {
   if (state.status === "error") {
     const isNetworkError = state.message.includes("fetch") || state.message.includes("Failed") || state.message.includes("NetworkError");
     return (
-      <div className="flex h-full w-full flex-col items-center justify-center gap-4 text-neutral-400 px-8">
+      <div className="flex h-full w-full flex-col items-center justify-center gap-4 text-muted-foreground px-8">
         <div className="rounded-full bg-red-500/10 p-4">
           <svg viewBox="0 0 24 24" className="size-8 text-red-400" fill="none" stroke="currentColor" strokeWidth={1.5}>
             <circle cx={12} cy={12} r={10} />
@@ -118,10 +118,10 @@ export function ProjectLoader({ children }: { children: ReactNode }) {
           </svg>
         </div>
         <div className="text-center">
-          <p className="text-base font-medium text-neutral-300">
+          <p className="text-base font-medium text-foreground">
             {isNetworkError ? "Can't connect to the server" : "Failed to load project"}
           </p>
-          <p className="mt-1 text-sm text-neutral-500 max-w-sm">
+          <p className="mt-1 text-sm text-muted-foreground max-w-sm">
             {isNetworkError
               ? `Make sure the API server is running on port ${API_PORT}. Run \`bun run dev:api\` in a terminal.`
               : state.message}
@@ -131,7 +131,7 @@ export function ProjectLoader({ children }: { children: ReactNode }) {
           <button
             type="button"
             onClick={() => load()}
-            className="rounded bg-neutral-700 px-4 py-1.5 text-sm text-neutral-200 hover:bg-neutral-600 transition-colors"
+            className="rounded bg-muted px-4 py-1.5 text-sm text-foreground hover:bg-accent transition-colors"
           >
             Retry
           </button>
@@ -141,7 +141,7 @@ export function ProjectLoader({ children }: { children: ReactNode }) {
               localStorage.removeItem("dreamer:projectId");
               load();
             }}
-            className="rounded border border-neutral-700 px-4 py-1.5 text-sm text-neutral-400 hover:bg-neutral-800 transition-colors"
+            className="rounded border border-border px-4 py-1.5 text-sm text-muted-foreground hover:bg-secondary transition-colors"
           >
             New Project
           </button>

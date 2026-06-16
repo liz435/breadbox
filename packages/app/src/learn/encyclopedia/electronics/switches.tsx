@@ -27,11 +27,11 @@ export function SwitchesPage() {
 
       <Section title="Normally-open vs normally-closed">
         <p className="text-sm leading-relaxed">
-          A <em className="text-gray-200">normally-open</em> (NO)
+          A <em className="text-foreground">normally-open</em> (NO)
           switch is open when nobody's touching it and closes when
           pressed. A momentary <Term k="button">push button</Term>{" "}
           on an Arduino is almost always NO. A{" "}
-          <em className="text-gray-200">normally-closed</em> (NC)
+          <em className="text-foreground">normally-closed</em> (NC)
           switch is the opposite — connected by default, broken when
           pressed. NC switches are mostly used for safety interlocks
           ("if this contact ever opens, something is wrong").
@@ -41,9 +41,9 @@ export function SwitchesPage() {
       <Section title="Poles and throws (SPST vs SPDT)">
         <p className="text-sm leading-relaxed">
           The naming is less scary than it looks.{" "}
-          <em className="text-gray-200">Pole</em> = how many separate
+          <em className="text-foreground">Pole</em> = how many separate
           circuits the switch controls at once.{" "}
-          <em className="text-gray-200">Throw</em> = how many
+          <em className="text-foreground">Throw</em> = how many
           positions each pole can connect to. An SPST switch (single
           pole, single throw) has two terminals: connected or not. An
           SPDT switch (single pole, double throw) has three: a common
@@ -74,7 +74,7 @@ export function SwitchesPage() {
 
         <Note>
           Mechanical contacts also{" "}
-          <em className="text-gray-200">bounce</em> for a few
+          <em className="text-foreground">bounce</em> for a few
           milliseconds on every press and release. Any sketch that
           counts presses needs software debouncing, or you'll see
           three or four events per physical push.

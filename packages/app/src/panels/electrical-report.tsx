@@ -23,10 +23,10 @@ export function ElectricalReportPanel() {
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-card">
-      <div className="border-b border-zinc-700 px-3 py-1.5">
+      <div className="border-b border-border px-3 py-1.5">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold text-zinc-300">Electrical</span>
-          <span className="text-[10px] text-zinc-500">
+          <span className="text-xs font-semibold text-foreground">Electrical</span>
+          <span className="text-[10px] text-muted-foreground">
             Total draw: {report.estimatedTotalCurrentMa.toFixed(1)}mA
           </span>
         </div>
@@ -60,18 +60,18 @@ export function ElectricalReportPanel() {
               >
                 <div className="mb-1 flex items-center justify-between gap-2">
                   <SeverityPill severity={issue.severity} />
-                  <span className="text-[10px] text-zinc-400">{issue.code}</span>
+                  <span className="text-[10px] text-muted-foreground">{issue.code}</span>
                 </div>
-                <p className="text-zinc-200">{issue.message}</p>
+                <p className="text-foreground">{issue.message}</p>
               </div>
             ))}
           </div>
         )}
 
         {report.recommendations.length > 0 && (
-          <div className="mt-3 rounded border border-zinc-700 bg-zinc-900/60 p-2">
-            <p className="mb-1 text-[11px] font-semibold text-zinc-300">Recommended fixes</p>
-            <ul className="space-y-1 text-[11px] text-zinc-400">
+          <div className="mt-3 rounded border border-border bg-card/60 p-2">
+            <p className="mb-1 text-[11px] font-semibold text-foreground">Recommended fixes</p>
+            <ul className="space-y-1 text-[11px] text-muted-foreground">
               {report.recommendations.map((rec) => (
                 <li key={rec.code}>- {rec.message}</li>
               ))}

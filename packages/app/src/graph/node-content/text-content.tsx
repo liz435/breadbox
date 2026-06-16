@@ -20,7 +20,7 @@ export function TextContent({ node, onDataChange }: TextContentProps) {
   return (
     <div className="px-2 py-1">
       <textarea
-        className="w-full bg-neutral-950 text-[10px] text-orange-300 p-1.5 rounded border border-neutral-700 resize-none outline-none focus:border-orange-500"
+        className="w-full bg-background text-[10px] text-orange-300 p-1.5 rounded border border-border resize-none outline-none focus:border-orange-500"
         rows={3}
         value={content}
         onChange={handleChange}

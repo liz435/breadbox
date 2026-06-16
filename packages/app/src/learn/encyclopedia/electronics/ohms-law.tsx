@@ -34,7 +34,7 @@ export function OhmsLawPage() {
           multiplied by resistance:
         </p>
 
-        <p className="my-3 text-center text-lg font-mono text-gray-100">
+        <p className="my-3 text-center text-lg font-mono text-foreground">
           V = I × R
         </p>
 
@@ -50,7 +50,7 @@ export function OhmsLawPage() {
       <Section title="Interactive calculator">
         <p className="text-sm leading-relaxed mb-4">
           Drag the sliders below. Fix any two values and the third updates
-          in real time. Use the <strong className="text-gray-200">Lock</strong>{" "}
+          in real time. Use the <strong className="text-foreground">Lock</strong>{" "}
           buttons to choose which quantity is calculated from the other two.
         </p>
         <OhmsLawCalculator />
@@ -61,7 +61,7 @@ export function OhmsLawPage() {
           You have a 5 V supply and a 1 kΩ resistor in series. How much
           current flows?
         </p>
-        <p className="mt-2 text-sm leading-relaxed font-mono text-gray-200">
+        <p className="mt-2 text-sm leading-relaxed font-mono text-foreground">
           I = V / R = 5 V / 1000 Ω = 0.005 A = 5 mA
         </p>
       </Section>
@@ -71,7 +71,7 @@ export function OhmsLawPage() {
           You want 10 mA flowing through a resistor on a 5 V rail. What
           value do you need?
         </p>
-        <p className="mt-2 text-sm leading-relaxed font-mono text-gray-200">
+        <p className="mt-2 text-sm leading-relaxed font-mono text-foreground">
           R = V / I = 5 V / 0.01 A = 500 Ω
         </p>
         <p className="text-sm leading-relaxed">
@@ -85,7 +85,7 @@ export function OhmsLawPage() {
           about 2 V; you want ~15 mA through it. The resistor has to
           drop the remaining 3 V. So:
         </p>
-        <p className="mt-2 text-sm leading-relaxed font-mono text-gray-200">
+        <p className="mt-2 text-sm leading-relaxed font-mono text-foreground">
           R = V / I = (5 − 2) V / 0.015 A = 200 Ω
         </p>
 
@@ -182,7 +182,7 @@ function OhmsLawCalculator() {
   ]
 
   return (
-    <div className="rounded-md border border-neutral-800 bg-[#0d0d0d] p-4 space-y-5">
+    <div className="rounded-md border border-border bg-card p-4 space-y-5">
       {rows.map(({ key, id, value, displayValue }) => {
         const cfg = CONFIGS[key]
         const isSolved = solved === key
@@ -193,7 +193,7 @@ function OhmsLawCalculator() {
           <div key={key} className="space-y-1.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="font-mono text-sm font-semibold text-gray-200 w-4">{key}</span>
+                <span className="font-mono text-sm font-semibold text-foreground w-4">{key}</span>
                 <button
                   type="button"
                   onClick={() => lockTo(key)}
@@ -201,7 +201,7 @@ function OhmsLawCalculator() {
                     "rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide transition-colors",
                     isSolved
                       ? "bg-amber-500/20 text-amber-400 border border-amber-500/40"
-                      : "bg-neutral-800 text-neutral-500 border border-neutral-700 hover:bg-neutral-700 hover:text-neutral-300",
+                      : "bg-secondary text-muted-foreground border border-border hover:bg-muted hover:text-foreground",
                   )}
                   aria-pressed={isSolved}
                   title={isSolved ? "Currently calculated from other values" : "Click to calculate this value"}
@@ -209,12 +209,12 @@ function OhmsLawCalculator() {
                   {isSolved ? "Calculated" : "Lock"}
                 </button>
               </div>
-              <span className="font-mono text-sm text-gray-300 tabular-nums min-w-[90px] text-right">
+              <span className="font-mono text-sm text-foreground tabular-nums min-w-[90px] text-right">
                 {cfg.format(displayValue)}
               </span>
             </div>
             <label htmlFor={id} className="sr-only">{key} slider</label>
-            <div className="relative h-2 rounded-full bg-neutral-800">
+            <div className="relative h-2 rounded-full bg-secondary">
               <div
                 className="absolute inset-y-0 left-0 rounded-full bg-blue-500/60"
                 style={{ width: `${pct}%` }}
@@ -240,8 +240,8 @@ function OhmsLawCalculator() {
         )
       })}
 
-      <p className="text-[11px] text-neutral-500 pt-1 border-t border-neutral-800">
-        The amber "Calculated" field is derived from the other two. Click any label's <strong className="text-neutral-400">Lock</strong> button to solve for a different variable.
+      <p className="text-[11px] text-muted-foreground pt-1 border-t border-border">
+        The amber "Calculated" field is derived from the other two. Click any label's <strong className="text-muted-foreground">Lock</strong> button to solve for a different variable.
       </p>
     </div>
   )

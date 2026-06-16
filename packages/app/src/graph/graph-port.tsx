@@ -46,7 +46,7 @@ export function GraphPort({ port, nodeId, onConnectionStart }: GraphPortProps) {
         }}
         onMouseDown={handleMouseDown}
       />
-      <span className="text-[10px] text-neutral-400 select-none truncate">
+      <span className="text-[10px] text-muted-foreground select-none truncate">
         {port.name}
       </span>
     </div>

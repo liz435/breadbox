@@ -36,7 +36,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       if (this.props.fallback) return this.props.fallback
 
       return (
-        <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-zinc-900 p-4 text-center">
+        <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-card p-4 text-center">
           <div className="rounded-full bg-red-500/10 p-3">
             <svg viewBox="0 0 24 24" className="size-6 text-red-400" fill="none" stroke="currentColor" strokeWidth={2}>
               <circle cx={12} cy={12} r={10} />
@@ -45,17 +45,17 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             </svg>
           </div>
           <div>
-            <p className="text-sm font-medium text-zinc-300">
+            <p className="text-sm font-medium text-foreground">
               {this.props.name ? `${this.props.name} crashed` : "Something went wrong"}
             </p>
-            <p className="mt-1 text-xs text-zinc-500 max-w-xs">
+            <p className="mt-1 text-xs text-muted-foreground max-w-xs">
               {this.state.error?.message ?? "An unexpected error occurred"}
             </p>
           </div>
           <button
             type="button"
             onClick={() => this.setState({ hasError: false, error: null })}
-            className="rounded border border-zinc-700 px-3 py-1 text-xs text-zinc-300 hover:bg-zinc-800 transition-colors"
+            className="rounded border border-border px-3 py-1 text-xs text-foreground hover:bg-secondary transition-colors"
           >
             Try Again
           </button>

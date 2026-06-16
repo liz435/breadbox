@@ -10,7 +10,7 @@ export function SimulatorPage() {
       />
 
       <Section title="How it works">
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           Breadbox uses SPICE netlist analysis (via the <code>spicey</code> library) to solve the
           electrical circuit. Every time you add a component, change a wire, or update a pin
           assignment, the solver runs after a 250ms debounce. It computes voltage, current, and
@@ -71,7 +71,7 @@ export function SimulatorPage() {
       </Section>
 
       <Section title="Analog input (analogRead)">
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           Component voltages from the circuit solver are automatically fed into the Arduino VM.
           When a component has a pin assigned to an analog pin (A0–A5), its voltage is converted
           to a 0–1023 ADC value (0V = 0, 5V = 1023) and made available via <code>analogRead()</code>.
@@ -87,7 +87,7 @@ export function SimulatorPage() {
       </Section>
 
       <Section title="Interrupt handling">
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           External interrupts on pins 2 and 3 are fully supported. When a pin's digital state
           changes, registered ISRs fire based on the configured mode:
         </p>
@@ -106,7 +106,7 @@ export function SimulatorPage() {
       </Section>
 
       <Section title="Tone / audio">
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           The <code>tone(pin, frequency)</code> function generates real audio output via the Web Audio
           API. A square wave oscillator plays at the specified frequency. Use <code>noTone(pin)</code>{" "}
           to stop. Audio is automatically cleaned up when the simulation stops.
@@ -151,7 +151,7 @@ export function SimulatorPage() {
       </Section>
 
       <Section title="Current flow visualization">
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           When the circuit is active, animated arrows show the direction and magnitude of current
           flow along wires and through components. The brightness of the animation scales with
           current magnitude.

@@ -13,7 +13,7 @@ export function BlinkLedLesson() {
       <Section title="What you'll build">
         <p className="text-sm leading-relaxed">
           An <Term k="led" /> wired to pin{" "}
-          <span className="text-gray-200 font-mono">D13</span> that blinks once per
+          <span className="text-foreground font-mono">D13</span> that blinks once per
           second. The circuit has an LED, a 220Ω{" "}
           <Term k="resistor" /> (to limit current so the LED doesn't burn out),
           and two wires.
@@ -31,15 +31,15 @@ export function BlinkLedLesson() {
 
       <Section title="How it works">
         <p className="text-sm leading-relaxed">
-          The Arduino <code className="text-gray-200">setup()</code> function runs once
+          The Arduino <code className="text-foreground">setup()</code> function runs once
           when the board powers on. It calls{" "}
           <Term k="pin-mode">
-            <code className="text-gray-200">pinMode(13, OUTPUT)</code>
+            <code className="text-foreground">pinMode(13, OUTPUT)</code>
           </Term>{" "}
           to tell pin 13 that it will be driving a signal out to the LED.
         </p>
         <p className="text-sm leading-relaxed">
-          The <code className="text-gray-200">loop()</code> function runs over and over,
+          The <code className="text-foreground">loop()</code> function runs over and over,
           forever. It{" "}
           <Term k="digital-write">sets pin 13 HIGH</Term> (turning the LED on), waits
           500 milliseconds, sets pin 13 LOW (turning it off), and waits another

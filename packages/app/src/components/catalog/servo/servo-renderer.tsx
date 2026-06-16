@@ -3,7 +3,7 @@ import type { BoardComponent, PinState, LibraryState } from "@dreamer/schemas";
 import { gridToPixel } from "@/breadboard/breadboard-grid";
 import { LABEL_FONT_SIZE } from "@/breadboard/breadboard-constants";
 import { useBoardSelector } from "@/store/board-context";
-import { PinLabel } from "./pin-label";
+import { PinLabel } from "@/breadboard/component-renderers/pin-label";
 
 type ServoRendererProps = {
   component: BoardComponent;

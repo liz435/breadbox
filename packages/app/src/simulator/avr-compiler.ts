@@ -5,7 +5,7 @@
 // fqbns return base64-encoded UF2 (parsed into raw flash bytes for rp2040js).
 
 import { API_ORIGIN, PREFER_AVR } from "@dreamer/config"
-import type { CustomLibrary } from "@dreamer/schemas"
+import type { CustomLibrary, LineTableEntry } from "@dreamer/schemas"
 import { parseRp2040Uf2 } from "./uf2-parser"
 import { resolveFetchOptions } from "@/project/api-client"
 import { isAnonymousPreview } from "@/auth/use-current-user"
@@ -34,6 +34,12 @@ export type CompileResult =
        */
       hexText: string
       sizeInfo?: SketchSizeInfo
+      /**
+       * Source-line → word-address map for the debugger (AVR only). Absent
+       * when the backend couldn't produce it (no avr-objdump / older core);
+       * the debugger then falls back to address-only breakpoints.
+       */
+      lineTable?: LineTableEntry[]
     }
   | {
       success: true
@@ -126,6 +132,7 @@ type CompileStreamEvent =
       format?: "hex" | "uf2"
       data?: string
       sizeInfo?: SketchSizeInfo
+      lineTable?: LineTableEntry[]
       autoInstalled?: string[]
     }
   | { kind: "error"; message: string; autoInstalled?: string[] }
@@ -141,9 +148,10 @@ function decodeFirmware(
   format: "hex" | "uf2",
   data: string,
   sizeInfo: SketchSizeInfo | undefined,
+  lineTable?: LineTableEntry[],
 ): CompileResult {
   if (format === "hex") {
-    return { success: true, format: "hex", hex: parseIntelHex(data), hexText: data, sizeInfo }
+    return { success: true, format: "hex", hex: parseIntelHex(data), hexText: data, sizeInfo, lineTable }
   }
   const { flash, flashOffset } = parseRp2040Uf2(base64ToBytes(data))
   return { success: true, format: "uf2", flash, flashOffset, sizeInfo }
@@ -210,12 +218,13 @@ export async function compileSketch(code: string, options: CompileOptions = {}):
         data?: string
         error?: string
         sizeInfo?: SketchSizeInfo
+        lineTable?: LineTableEntry[]
       }
       if (body.error) return { success: false, error: body.error }
       if (!body.format || !body.data) {
         return { success: false, error: "Server returned no firmware data" }
       }
-      return decodeFirmware(body.format, body.data, body.sizeInfo)
+      return decodeFirmware(body.format, body.data, body.sizeInfo, body.lineTable)
     }
 
     if (!response.body) {
@@ -225,6 +234,7 @@ export async function compileSketch(code: string, options: CompileOptions = {}):
     let format: "hex" | "uf2" | undefined
     let data: string | undefined
     let sizeInfo: SketchSizeInfo | undefined
+    let lineTable: LineTableEntry[] | undefined
     let errorMessage: string | undefined
 
     for await (const event of readNdjsonStream<CompileStreamEvent>(response.body)) {
@@ -234,6 +244,7 @@ export async function compileSketch(code: string, options: CompileOptions = {}):
         format = event.format
         data = event.data
         sizeInfo = event.sizeInfo
+        lineTable = event.lineTable
       } else if (event.kind === "error") {
         errorMessage = event.message
       }
@@ -243,7 +254,7 @@ export async function compileSketch(code: string, options: CompileOptions = {}):
     if (!format || !data) {
       return { success: false, error: "Server returned no firmware data" }
     }
-    return decodeFirmware(format, data, sizeInfo)
+    return decodeFirmware(format, data, sizeInfo, lineTable)
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Failed to reach compilation server"

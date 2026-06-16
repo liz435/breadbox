@@ -38,7 +38,7 @@ export function ElectronicsPwmPage() {
           <Term k="pwm">Pulse Width Modulation</Term> cheats by flipping
           the pin between HIGH and LOW hundreds of times a second. Over
           a short time window, the{" "}
-          <em className="text-gray-200">average</em> voltage is a
+          <em className="text-foreground">average</em> voltage is a
           fraction of 5 V — determined by what fraction of the time the
           pin was HIGH versus LOW. Components that respond slowly
           (LEDs, motors, your eye) see only the average.
@@ -62,7 +62,7 @@ export function ElectronicsPwmPage() {
       <Section title="Frequency matters too">
         <p className="text-sm leading-relaxed">
           The duty cycle sets the average voltage, but the{" "}
-          <strong className="text-gray-200">frequency</strong> determines
+          <strong className="text-foreground">frequency</strong> determines
           whether the trick works. Too slow and you'll see the pulses
           as a flicker. The Arduino Uno's default PWM frequency (about
           490 Hz) is fast enough for LEDs and motors but too slow for

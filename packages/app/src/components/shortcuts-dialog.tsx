@@ -46,7 +46,7 @@ const SHORTCUT_GROUPS = [
 
 function Kbd({ children }: { children: React.ReactNode }) {
   return (
-    <kbd className="inline-flex min-w-[22px] items-center justify-center rounded border border-neutral-600 bg-neutral-800 px-1.5 py-0.5 text-[11px] font-medium text-neutral-300">
+    <kbd className="inline-flex min-w-[22px] items-center justify-center rounded border border-border bg-secondary px-1.5 py-0.5 text-[11px] font-medium text-foreground">
       {children}
     </kbd>
   )
@@ -75,16 +75,16 @@ function ShortcutsDialogInner({ open, onClose }: ShortcutsDialogProps) {
 
       {/* Dialog */}
       <div
-        className="relative w-full max-w-md rounded-xl border border-neutral-700 bg-neutral-900 shadow-2xl"
+        className="relative w-full max-w-md rounded-xl border border-border bg-card shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-neutral-700 px-5 py-3">
-          <h2 className="text-sm font-semibold text-neutral-200">Keyboard Shortcuts</h2>
+        <div className="flex items-center justify-between border-b border-border px-5 py-3">
+          <h2 className="text-sm font-semibold text-foreground">Keyboard Shortcuts</h2>
           <button
             type="button"
             onClick={onClose}
-            className="rounded p-1 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-300"
+            className="rounded p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
           >
             <svg viewBox="0 0 16 16" width={14} height={14}>
               <line x1={4} y1={4} x2={12} y2={12} stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" />
@@ -97,17 +97,17 @@ function ShortcutsDialogInner({ open, onClose }: ShortcutsDialogProps) {
         <div className="max-h-[60vh] overflow-y-auto px-5 py-3">
           {SHORTCUT_GROUPS.map((group) => (
             <div key={group.title} className="mb-4 last:mb-0">
-              <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+              <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 {group.title}
               </h3>
               <div className="flex flex-col gap-1.5">
                 {group.shortcuts.map((shortcut) => (
                   <div key={shortcut.description} className="flex items-center justify-between gap-4">
-                    <span className="text-xs text-neutral-400">{shortcut.description}</span>
+                    <span className="text-xs text-muted-foreground">{shortcut.description}</span>
                     <div className="flex items-center gap-1 shrink-0">
                       {shortcut.keys.map((key, i) => (
                         <React.Fragment key={i}>
-                          {i > 0 && <span className="text-[10px] text-neutral-600">+</span>}
+                          {i > 0 && <span className="text-[10px] text-muted-foreground">+</span>}
                           <Kbd>{key}</Kbd>
                         </React.Fragment>
                       ))}
@@ -120,7 +120,7 @@ function ShortcutsDialogInner({ open, onClose }: ShortcutsDialogProps) {
         </div>
 
         {/* Footer */}
-        <div className="border-t border-neutral-700 px-5 py-2 text-[10px] text-neutral-600">
+        <div className="border-t border-border px-5 py-2 text-[10px] text-muted-foreground">
           Press <Kbd>?</Kbd> anytime to show this dialog
         </div>
       </div>

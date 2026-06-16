@@ -43,7 +43,12 @@ export type AVRRunnerCallbacks = {
 
 export type AVRRunner = {
   load: (program: Uint16Array) => void
-  execute: (cycles: number) => void
+  /**
+   * Run up to `cycles` worth of instructions. Returns `true` if execution
+   * stopped early because the program counter reached an armed breakpoint
+   * (see `setBreakpoints`), `false` if the full cycle budget was consumed.
+   */
+  execute: (cycles: number) => boolean
   writeSerialInput: (text: string) => void
   setExternalPin: (port: string, pin: number, value: boolean) => void
   getPin: (port: string, pin: number) => PinState
@@ -58,6 +63,27 @@ export type AVRRunner = {
    * to a dead TWI instance ("works once, dead after Stop/Run" bug).
    */
   getTwi: () => AVRTWI
+
+  // ── Debug-control surface ──────────────────────────────────────────────
+  /** Arm the set of WORD program addresses that should halt `execute`. */
+  setBreakpoints: (addresses: readonly number[]) => void
+  /**
+   * Mark the next `execute`/`step` so it runs the instruction at the current
+   * pc before re-checking breakpoints — otherwise resuming from a breakpoint
+   * would immediately re-halt on the same instruction.
+   */
+  prepareResume: () => void
+  /** Execute exactly one instruction (single-step), ignoring breakpoints. */
+  step: () => void
+  /** Current program counter (WORD address; same unit as breakpoints). */
+  getPc: () => number
+  /** Current stack pointer (SPH:SPL). */
+  getSp: () => number
+  /**
+   * Copy of the full AVR data space: R0–R31 at 0x00–0x1F, I/O registers at
+   * 0x20–0xFF, SRAM from 0x100. Taken on halt only, so the copy is cheap.
+   */
+  getDataSpace: () => Uint8Array
 }
 
 /**
@@ -118,6 +144,14 @@ export function createAVRRunner(callbacks: AVRRunnerCallbacks): AVRRunner {
   // Bytes waiting to be delivered to the AVR USART RX line.
   const serialInputQueue: number[] = []
   let serialInputReadIdx = 0
+
+  // ── Debug state ──────────────────────────────────────────────────────────
+  // WORD program addresses that halt execution; empty in the common (non-debug)
+  // path so `execute` pays only a `.size` check per instruction.
+  let breakpoints = new Set<number>()
+  // When resuming from a breakpoint, run one instruction before re-checking so
+  // we don't immediately re-halt on the instruction we're parked on.
+  let skipBreakpointOnce = false
 
   function getPortInstance(portName: string): AVRIOPort | null {
     switch (portName) {
@@ -255,14 +289,56 @@ export function createAVRRunner(callbacks: AVRRunnerCallbacks): AVRRunner {
     cpu.cycles = 0
   }
 
-  function execute(cycles: number): void {
+  function execute(cycles: number): boolean {
     drainSerialInputQueue()
     const targetCycles = cpu.cycles + cycles
+    const hasBreakpoints = breakpoints.size > 0
     while (cpu.cycles < targetCycles) {
+      if (hasBreakpoints) {
+        if (skipBreakpointOnce) {
+          // Consume the one-shot skip on the instruction we resumed from.
+          skipBreakpointOnce = false
+        } else if (breakpoints.has(cpu.pc)) {
+          drainSerialInputQueue()
+          return true
+        }
+      }
       avrInstruction(cpu)
       cpu.tick()
     }
     drainSerialInputQueue()
+    return false
+  }
+
+  // ── Debug-control surface ──────────────────────────────────────────────────
+
+  function setBreakpoints(addresses: readonly number[]): void {
+    breakpoints = new Set(addresses)
+  }
+
+  function prepareResume(): void {
+    skipBreakpointOnce = true
+  }
+
+  function step(): void {
+    drainSerialInputQueue()
+    avrInstruction(cpu)
+    cpu.tick()
+    skipBreakpointOnce = false
+    drainSerialInputQueue()
+  }
+
+  function getPc(): number {
+    return cpu.pc
+  }
+
+  function getSp(): number {
+    // SPL = 0x5D, SPH = 0x5E in the ATmega328P I/O space.
+    return cpu.data[0x5d] | (cpu.data[0x5e] << 8)
+  }
+
+  function getDataSpace(): Uint8Array {
+    return cpu.data.slice()
   }
 
   function writeSerialInput(text: string): void {
@@ -305,6 +381,7 @@ export function createAVRRunner(callbacks: AVRRunnerCallbacks): AVRRunner {
       lastPinState[port].fill(PinState.Input)
     }
     clearSerialInputQueue()
+    skipBreakpointOnce = false
     wireListeners()
     wireAdc()
   }
@@ -328,5 +405,11 @@ export function createAVRRunner(callbacks: AVRRunnerCallbacks): AVRRunner {
     getCycleCount,
     getFrequencyHz,
     getTwi: () => twi,
+    setBreakpoints,
+    prepareResume,
+    step,
+    getPc,
+    getSp,
+    getDataSpace,
   }
 }

@@ -43,6 +43,7 @@ import {
 import { BOARD_TARGETS, boardTargetSchema, DEFAULT_BOARD_TARGET } from "@dreamer/schemas"
 import { createNdjsonStream, pumpProcessStream, type StreamWriter } from "./_stream-lines"
 import { readFirmwareArtifact } from "./_firmware-artifact"
+import { extractLineTable } from "../line-table"
 import { spawnWithTimeout } from "../process-utils"
 import {
   acquireCompileSlot,
@@ -337,12 +338,21 @@ export const compileRoutes = new Elysia().use(authPlugin).post("/api/compile", a
 
       const sizeInfo = parseSizeInfo(compileResult.stderr + compileResult.stdout)
 
+      // Source-line → address table for the simulator's debugger (AVR only).
+      // Best-effort: a miss just omits the field. Runs before the `finally`
+      // deletes the build dir, so the ELF is still present here.
+      const lineTable =
+        firmware.format === "hex"
+          ? await extractLineTable(outputDir, arduinoCli, fqbn)
+          : null
+
       log.info(`Compilation succeeded for ${sketchId}${autoInstalled.length > 0 ? ` (auto-installed: ${autoInstalled.join(", ")})` : ""}`)
       writer.write({
         kind: "done",
         format: firmware.format,
         data: firmware.data,
         sizeInfo,
+        lineTable: lineTable ?? undefined,
         autoInstalled: autoInstalled.length > 0 ? autoInstalled : undefined,
       })
     } catch (err) {

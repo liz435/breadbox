@@ -43,7 +43,7 @@ export function ResistorPage() {
       </Section>
 
       <Section title="Auto-generated sketch code">
-        <p className="text-sm text-gray-400">
+        <p className="text-sm text-muted-foreground">
           No sketch code is generated for resistors — they are passive components.
         </p>
       </Section>
@@ -73,17 +73,17 @@ export function ResistorPage() {
             ["Temperature coefficient", "±100 ppm/°C (carbon film)"],
           ]}
         />
-        <p className="text-sm text-gray-400 mt-2">
-          Ohm's law: <strong className="text-gray-300">V = I × R</strong> &nbsp;|&nbsp;
-          Power: <strong className="text-gray-300">P = I² × R = V² / R</strong>
+        <p className="text-sm text-muted-foreground mt-2">
+          Ohm's law: <strong className="text-foreground">V = I × R</strong> &nbsp;|&nbsp;
+          Power: <strong className="text-foreground">P = I² × R = V² / R</strong>
         </p>
       </Section>
 
       <Section title="Example board">
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           A ready-made example board with a resistor is available in the sketch editor.
-          Click the <strong className="text-gray-200">Examples</strong> button in the toolbar
-          (right of Run/Stop) and select <strong className="text-gray-200">"Current Limiting"</strong> to
+          Click the <strong className="text-foreground">Examples</strong> button in the toolbar
+          (right of Run/Stop) and select <strong className="text-foreground">"Current Limiting"</strong> to
           load a complete circuit with a working sketch.
         </p>
       </Section>

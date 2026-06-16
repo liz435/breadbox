@@ -117,11 +117,11 @@ export function NodeSearch({ onSelect, onClose }: NodeSearchProps) {
   }, []);
 
   return (
-    <div ref={rootRef} className="w-64 bg-neutral-800 border border-neutral-600 rounded-lg shadow-2xl overflow-hidden">
+    <div ref={rootRef} className="w-64 bg-secondary border border-border rounded-lg shadow-2xl overflow-hidden">
       <div className="p-2">
         <input
           ref={inputRef}
-          className="w-full bg-neutral-900 text-sm text-neutral-200 px-3 py-1.5 rounded border border-neutral-700 outline-none focus:border-neutral-500 placeholder:text-neutral-500"
+          className="w-full bg-card text-sm text-foreground px-3 py-1.5 rounded border border-border outline-none focus:border-border placeholder:text-muted-foreground"
           placeholder="Search nodes..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -130,7 +130,7 @@ export function NodeSearch({ onSelect, onClose }: NodeSearchProps) {
       </div>
       <div ref={listRef} className="max-h-60 overflow-y-auto">
         {filtered.length === 0 ? (
-          <div className="px-3 py-2 text-xs text-neutral-500">
+          <div className="px-3 py-2 text-xs text-muted-foreground">
             No matching nodes
           </div>
         ) : (
@@ -140,8 +140,8 @@ export function NodeSearch({ onSelect, onClose }: NodeSearchProps) {
               className={cn(
                 "w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 transition-colors",
                 idx === selectedIndex
-                  ? "bg-neutral-700 text-neutral-100"
-                  : "text-neutral-300 hover:bg-neutral-700/50"
+                  ? "bg-muted text-foreground"
+                  : "text-foreground hover:bg-muted/50"
               )}
               onMouseEnter={() => setSelectedIndex(idx)}
               onClick={() => onSelect(item.type)}

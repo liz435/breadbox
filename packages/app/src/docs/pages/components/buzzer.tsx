@@ -93,17 +93,17 @@ noTone(8);`} />
             ["No resistor needed", "Internal impedance limits current at 5V"],
           ]}
         />
-        <p className="text-sm text-gray-400 mt-2">
+        <p className="text-sm text-muted-foreground mt-2">
           A <strong>passive</strong> buzzer requires an external frequency signal (use <code>tone()</code>).
           An <strong>active</strong> buzzer buzzes at a fixed frequency when powered — connect positive to HIGH.
         </p>
       </Section>
 
       <Section title="Example board">
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <p className="text-sm text-foreground leading-relaxed">
           A ready-made example board with a buzzer is available in the sketch editor.
-          Click the <strong className="text-gray-200">Examples</strong> button in the toolbar
-          (right of Run/Stop) and select <strong className="text-gray-200">"Buzzer Melody"</strong> to
+          Click the <strong className="text-foreground">Examples</strong> button in the toolbar
+          (right of Run/Stop) and select <strong className="text-foreground">"Buzzer Melody"</strong> to
           load a complete circuit with a working sketch.
         </p>
       </Section>
