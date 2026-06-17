@@ -27,7 +27,6 @@ import { capabilitiesRoutes } from "./routes/capabilities";
 import { authRoutes } from "./routes/auth";
 import { configRoutes } from "./routes/config";
 import { adminRoutes } from "./routes/admin";
-import { billingRoutes } from "./routes/billing";
 import { motionRoutes } from "./routes/motion";
 import { createWebUiStatic } from "./routes/web-ui-static";
 import { stopWorker } from "./serial/serialport-bridge";
@@ -99,7 +98,6 @@ const app = new Elysia()
   .use(authRoutes)
   .use(configRoutes)
   .use(adminRoutes)
-  .use(billingRoutes)
   .use(projectRoutes)
   .use(agentRunRoutes)
   .use(chatRoutes)

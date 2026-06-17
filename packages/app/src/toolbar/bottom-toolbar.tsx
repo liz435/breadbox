@@ -19,7 +19,8 @@ import { BoardStatus } from "./board-status"
 import { AiToolbarHistory } from "./ai-toolbar"
 import { useChatMessages } from "./use-chat-messages"
 import { AuthStatusBadge } from "@/auth/auth-status-badge"
-import { CreditChip } from "@/billing/credit-chip"
+import { useCurrentUser } from "@/auth/use-current-user"
+import { OPEN_API_KEY_EVENT } from "@/auth/api-key-dialog"
 
 // Pin the agent to the v1.5.0 snapshot. Build mode is propose_circuit-first
 // with verify_circuit follow-up (returning from the v1.3.x DSL experiment
@@ -70,6 +71,21 @@ export function BottomToolbar() {
   const [mode, setMode] = useState<ToolbarMode>("edit")
   const chat = useChatMessages({ snapshotVersion: AGENT_SNAPSHOT_VERSION })
   const { send: boardSend } = useBoard()
+  const { mode: authMode, hasApiKey } = useCurrentUser()
+
+  // Switching into AI mode needs an Anthropic key in CLI/desktop (dev) mode.
+  // When none is saved yet, pop the key dialog so the user can enter one
+  // before prompting the agent. Boot already auto-opens this on dev + no key;
+  // this covers re-entry after that boot dialog was dismissed.
+  const handleModeChange = useCallback(
+    (next: ToolbarMode) => {
+      setMode(next)
+      if (next === "ai" && authMode === "dev" && !hasApiKey) {
+        window.dispatchEvent(new Event(OPEN_API_KEY_EVENT))
+      }
+    },
+    [authMode, hasApiKey],
+  )
 
   // Board-menu state lives here so the status well can flatten its top corners
   // + hide its top border while the menu is open — that's what makes the menu
@@ -140,15 +156,15 @@ export function BottomToolbar() {
       {/* Toolbar card — the 640px pill is the only visible chrome. Each
           mode already carries its own bg-card + border + shadow, so
           removing the outer strip doesn't change the pill's look. The
-          credit/auth chips are absolutely positioned to the right so
-          they don't shift the main pill off viewport-center (the AI
+          auth badge is absolutely positioned to the right so it
+          doesn't shift the main pill off viewport-center (the AI
           history above is centered on the viewport, and the pill must
           line up with it). */}
       <div className="relative flex items-center justify-center px-4 pb-3">
         <TooltipProvider delay={400}>
           {mode === "edit" ? (
             <div className="pointer-events-auto flex h-13 w-fit items-center gap-1.5 rounded-2xl border border-border/70 bg-card/90 px-2.5 shadow-[0_12px_40px_-10px_rgba(60,40,10,0.28)] ring-1 ring-black/[0.03] backdrop-blur-xl">
-              <ModeToggle mode={mode} onModeChange={setMode} />
+              <ModeToggle mode={mode} onModeChange={handleModeChange} />
               <Separator orientation="vertical" className="h-7 bg-border/60" />
               <EditToolbar />
               <Separator orientation="vertical" className="h-7 bg-border/60" />
@@ -189,13 +205,12 @@ export function BottomToolbar() {
                 onStop={chat.stop}
                 isStreaming={chat.status === "streaming" || chat.status === "submitted"}
                 placeholder="Ask the agent, or describe what to build…"
-                leading={<ModeToggle mode={mode} onModeChange={setMode} />}
+                leading={<ModeToggle mode={mode} onModeChange={handleModeChange} />}
               />
             </div>
           )}
         </TooltipProvider>
         <div className="pointer-events-auto absolute right-4 bottom-3 flex items-center gap-2">
-          <CreditChip />
           <AuthStatusBadge />
         </div>
       </div>

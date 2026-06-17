@@ -22,8 +22,6 @@ import type { AuthContext } from "../auth/context"
 import { auditLog } from "../auth/audit-log"
 import { bindCookieJar, createRequestClient } from "../supabase/request-client"
 import { IS_HOSTED_MODE } from "../supabase/env"
-import { grantCreditsForAdmin } from "../services/billing"
-import { BillingMisconfiguredError } from "../billing/errors"
 import { createLogger } from "../logger"
 
 const log = createLogger("admin-routes")
@@ -163,86 +161,4 @@ export const adminRoutes = new Elysia({ name: "admin-routes" })
       },
     })
     return { ok: true, projectId: parsed.projectId, ownerId: parsed.targetUserId }
-  })
-  // ── POST /api/admin/grant-credits ───────────────────────────────────
-  //
-  // Issue free credits to a user. Hosted-only. Gated on ADMIN_GITHUB_LOGINS
-  // (same admin check as claim-project). Idempotent on `(refType, refId)`
-  // — pass the same pair from a script and a retry won't double-credit.
-  //
-  // Body:
-  //   { targetUserId, credits, kind?, refType?, refId?, metadata? }
-  //
-  // Returns:
-  //   { credited: boolean, credits, balancePosted }
-  .post("/api/admin/grant-credits", async ({ auth, request, body, set }) => {
-    if (!IS_HOSTED) {
-      set.status = 404
-      return { error: "not found" }
-    }
-    const adminLogin = await resolveAdminLogin(auth, request, set)
-    if (!adminLogin) {
-      set.status = 403
-      return { error: "forbidden" }
-    }
-
-    const grantSchema = z.object({
-      targetUserId: z.string().uuid(),
-      credits: z.number().int().positive(),
-      kind: z
-        .enum(["grant_signup", "grant_monthly_plan", "adjustment", "refund"])
-        .default("adjustment"),
-      refType: z.string().optional(),
-      refId: z.string().optional(),
-      metadata: z.record(z.string(), z.unknown()).optional(),
-    })
-
-    let parsed: z.infer<typeof grantSchema>
-    try {
-      parsed = grantSchema.parse(body)
-    } catch (err) {
-      if (err instanceof ZodError) {
-        set.status = 400
-        return { error: "invalid body", details: err.flatten() }
-      }
-      throw err
-    }
-
-    try {
-      const result = await grantCreditsForAdmin({
-        targetUserId: parsed.targetUserId,
-        credits: parsed.credits,
-        kind: parsed.kind,
-        refType: parsed.refType,
-        refId: parsed.refId,
-        metadata: {
-          ...(parsed.metadata ?? {}),
-          adminLogin,
-        },
-        actingUserId: auth?.userId ?? parsed.targetUserId,
-      })
-      log.info(
-        `admin ${adminLogin} granted ${parsed.credits} (${parsed.kind}) to ${parsed.targetUserId} → balance ${result.balancePosted}${result.credited ? "" : " (idempotent no-op)"}`,
-      )
-      void auditLog({
-        userId: auth?.userId ?? `admin:${adminLogin}`,
-        action: "admin.grant-credits",
-        extra: {
-          adminLogin,
-          targetUserId: parsed.targetUserId,
-          credits: parsed.credits,
-          kind: parsed.kind,
-          credited: result.credited,
-          balancePosted: result.balancePosted,
-        },
-      })
-      return result
-    } catch (err) {
-      if (err instanceof BillingMisconfiguredError) {
-        log.warn(`grant failed: ${err.message}`)
-        set.status = 500
-        return { error: err.message }
-      }
-      throw err
-    }
   })
