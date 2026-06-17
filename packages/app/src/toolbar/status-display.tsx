@@ -97,6 +97,8 @@ type BoardMenuControl = {
   open: boolean
   onOpenChange: (open: boolean) => void
   anchor: RefObject<HTMLElement | null>
+  /** Fired after the menu's collapse animation completes. */
+  onExitComplete: () => void
 }
 
 type StatusDisplayProps = {
@@ -151,6 +153,7 @@ export function StatusDisplay({ sim, boardMenu }: StatusDisplayProps) {
           open={boardMenu?.open}
           onOpenChange={boardMenu?.onOpenChange}
           anchor={boardMenu?.anchor}
+          onExitComplete={boardMenu?.onExitComplete}
         />
       ) : (
         <Tooltip>

@@ -11,7 +11,7 @@
 // next Play (see simulation-loop.ts `getRunner`). Distinct from <BoardStatus/>,
 // which owns the USB *port* used for flashing.
 
-import { useState, type RefObject } from "react"
+import { useRef, useState, type RefObject } from "react"
 import { Popover } from "@base-ui/react/popover"
 import { motion, useReducedMotion } from "motion/react"
 import { ChevronDown, Check } from "lucide-react"
@@ -30,12 +30,25 @@ type BoardSelectorProps = {
   /** Element the menu anchors to + matches width of (the surrounding pill).
    *  Falls back to the trigger when omitted. */
   anchor?: RefObject<HTMLElement | null>
+  /** Called once the close (collapse) animation has finished — lets the
+   *  toolbar un-flatten the pill only after the menu has fully retracted, so
+   *  the continuous border survives the whole exit. */
+  onExitComplete?: () => void
 }
 
-export function BoardSelector({ disabled = false, open, onOpenChange, anchor }: BoardSelectorProps) {
+export function BoardSelector({
+  disabled = false,
+  open,
+  onOpenChange,
+  anchor,
+  onExitComplete,
+}: BoardSelectorProps) {
   const { state, send } = useBoard()
   const reduceMotion = useReducedMotion()
   const [internalOpen, setInternalOpen] = useState(false)
+  // With actionsRef set, Base UI keeps the popup mounted after close until we
+  // call unmount() — letting Motion run the collapse first (see onAnimationComplete).
+  const actionsRef = useRef<Popover.Root.Actions | null>(null)
   const isControlled = open !== undefined
   const openState = isControlled ? open : internalOpen
   const setOpen = (next: boolean) => {
@@ -47,7 +60,7 @@ export function BoardSelector({ disabled = false, open, onOpenChange, anchor }: 
   const current = BOARD_TARGETS[boardTarget]
 
   return (
-    <Popover.Root open={openState} onOpenChange={setOpen}>
+    <Popover.Root open={openState} onOpenChange={setOpen} actionsRef={actionsRef}>
       <Popover.Trigger
         type="button"
         disabled={disabled}
@@ -96,12 +109,22 @@ export function BoardSelector({ disabled = false, open, onOpenChange, anchor }: 
             render={
               <motion.div
                 initial={reduceMotion ? false : { opacity: 0, scaleY: 0.6 }}
-                animate={{ opacity: 1, scaleY: 1 }}
+                // Animate by open state (not a one-shot enter) so the same
+                // spring drives the collapse. Base UI keeps this mounted past
+                // close (actionsRef); when the collapse settles we unmount and
+                // tell the toolbar to un-flatten the pill.
+                animate={openState ? { opacity: 1, scaleY: 1 } : { opacity: 0, scaleY: 0.6 }}
                 transition={
                   reduceMotion
                     ? { duration: 0 }
                     : { type: "spring", stiffness: 520, damping: 36, mass: 0.7 }
                 }
+                onAnimationComplete={() => {
+                  if (!openState) {
+                    actionsRef.current?.unmount()
+                    onExitComplete?.()
+                  }
+                }}
               />
             }
           >

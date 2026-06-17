@@ -71,12 +71,24 @@ export function BottomToolbar() {
   const chat = useChatMessages({ snapshotVersion: AGENT_SNAPSHOT_VERSION })
   const { send: boardSend } = useBoard()
 
-  // Board-menu open state lives here so the status well can flatten its top
-  // corners + hide its top border while the menu is open — that's what makes
-  // the menu read as the well growing upward (one continuous border) rather
-  // than a detached popover. The well is also the menu's anchor (width match).
+  // Board-menu state lives here so the status well can flatten its top corners
+  // + hide its top border while the menu is open — that's what makes the menu
+  // read as the well growing upward (one continuous border) rather than a
+  // detached popover. The well is also the menu's anchor (width match).
+  //
+  // `boardMenuOpen` is the logical open state; `wellExpanded` is the visual
+  // flatten, kept separate so it persists through the close animation: it turns
+  // on the instant the menu opens and only turns off once the collapse finishes
+  // (onExitComplete), so the continuous border survives the whole exit.
   const [boardMenuOpen, setBoardMenuOpen] = useState(false)
+  const [wellExpanded, setWellExpanded] = useState(false)
   const wellRef = useRef<HTMLDivElement>(null)
+
+  const handleBoardMenuOpenChange = useCallback((open: boolean) => {
+    setBoardMenuOpen(open)
+    if (open) setWellExpanded(true)
+  }, [])
+  const handleBoardMenuExitComplete = useCallback(() => setWellExpanded(false), [])
 
   // Lift the simulation here so PlayControls and StatusDisplay share one
   // instance (and one xstate machine). The simulationRef is consumed by
@@ -153,15 +165,16 @@ export function BottomToolbar() {
                 ref={wellRef}
                 className={cn(
                   "relative flex h-8 items-center gap-1 border border-border/50 bg-background/60 pl-2.5 pr-1 shadow-inner transition-[border-radius]",
-                  boardMenuOpen ? "rounded-b-xl rounded-t-none border-t-transparent" : "rounded-xl",
+                  wellExpanded ? "rounded-b-xl rounded-t-none border-t-transparent" : "rounded-xl",
                 )}
               >
                 <StatusDisplay
                   sim={sim}
                   boardMenu={{
                     open: boardMenuOpen,
-                    onOpenChange: setBoardMenuOpen,
+                    onOpenChange: handleBoardMenuOpenChange,
                     anchor: wellRef,
+                    onExitComplete: handleBoardMenuExitComplete,
                   }}
                 />
                 <BoardStatus />
