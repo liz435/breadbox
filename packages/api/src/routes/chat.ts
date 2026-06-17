@@ -26,13 +26,6 @@ import { getApiKey } from "../config";
 import type { AuthContext } from "../auth/context";
 import { authPlugin } from "../auth/auth-plugin";
 import { requireRateLimit, RateLimitError } from "../auth/rate-limit";
-import {
-  assertCreditsAvailable,
-  debitForLlmRun,
-  ensureWalletForUser,
-} from "../services/billing";
-import { InsufficientCreditsError } from "../billing/errors";
-import type { DreamerSupportedLLM } from "../billing";
 
 const log = createLogger("chat");
 let requestId = 0;
@@ -142,20 +135,6 @@ export const chatRoutes = new Elysia().use(authPlugin).post("/api/chat", async (
       set.status = 429;
       set.headers["Retry-After"] = String(err.retryAfterSec);
       return { error: err.message, retryAfterSec: err.retryAfterSec };
-    }
-    throw err;
-  }
-
-  // Pre-stream balance gate. CLI mode no-ops; hosted 402s when the
-  // user is out of credits so the frontend can prompt before a long
-  // SSE stream opens against a dead wallet.
-  try {
-    await ensureWalletForUser(ownerId);
-    await assertCreditsAvailable(ownerId);
-  } catch (err) {
-    if (err instanceof InsufficientCreditsError) {
-      set.status = 402;
-      return { error: "insufficient credits", available: err.available };
     }
     throw err;
   }
@@ -741,21 +720,6 @@ async function finalizeRun(args: FinalizeRunArgs) {
       data: totalsWithWrite,
     });
   }
-
-  // Post-stream debit. Idempotent on runId. Fire-and-forget so a debit
-  // failure can't leak back into an already-flushed SSE response.
-  void debitForLlmRun({
-    userId: ownerId,
-    runId: runFile.run.id,
-    llm: {
-      kind: "llm",
-      model: result.tokenUsage.model as DreamerSupportedLLM,
-      inputTokens: result.tokenUsage.inputTokens,
-      outputTokens: result.tokenUsage.outputTokens,
-    },
-  }).catch((err) => {
-    reqLog.warn(`debit failed for run ${runFile.run.id}: ${err}`);
-  });
 
   reqLog.info(
     `completed — ${result.proposedOps.length} proposed, ${appliedOps.length} applied, v${newVersion}`

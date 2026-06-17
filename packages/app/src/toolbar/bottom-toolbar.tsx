@@ -19,7 +19,6 @@ import { BoardStatus } from "./board-status"
 import { AiToolbarHistory } from "./ai-toolbar"
 import { useChatMessages } from "./use-chat-messages"
 import { AuthStatusBadge } from "@/auth/auth-status-badge"
-import { CreditChip } from "@/billing/credit-chip"
 
 // Pin the agent to the v1.5.0 snapshot. Build mode is propose_circuit-first
 // with verify_circuit follow-up (returning from the v1.3.x DSL experiment
@@ -140,8 +139,8 @@ export function BottomToolbar() {
       {/* Toolbar card — the 640px pill is the only visible chrome. Each
           mode already carries its own bg-card + border + shadow, so
           removing the outer strip doesn't change the pill's look. The
-          credit/auth chips are absolutely positioned to the right so
-          they don't shift the main pill off viewport-center (the AI
+          auth badge is absolutely positioned to the right so it
+          doesn't shift the main pill off viewport-center (the AI
           history above is centered on the viewport, and the pill must
           line up with it). */}
       <div className="relative flex items-center justify-center px-4 pb-3">
@@ -195,7 +194,6 @@ export function BottomToolbar() {
           )}
         </TooltipProvider>
         <div className="pointer-events-auto absolute right-4 bottom-3 flex items-center gap-2">
-          <CreditChip />
           <AuthStatusBadge />
         </div>
       </div>
