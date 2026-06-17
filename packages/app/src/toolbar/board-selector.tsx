@@ -13,6 +13,7 @@
 
 import { useState, type RefObject } from "react"
 import { Popover } from "@base-ui/react/popover"
+import { motion, useReducedMotion } from "motion/react"
 import { ChevronDown, Check } from "lucide-react"
 import { BOARD_TARGETS, DEFAULT_BOARD_TARGET, type BoardTarget } from "@dreamer/schemas"
 import { useBoard } from "@/store/board-context"
@@ -33,6 +34,7 @@ type BoardSelectorProps = {
 
 export function BoardSelector({ disabled = false, open, onOpenChange, anchor }: BoardSelectorProps) {
   const { state, send } = useBoard()
+  const reduceMotion = useReducedMotion()
   const [internalOpen, setInternalOpen] = useState(false)
   const isControlled = open !== undefined
   const openState = isControlled ? open : internalOpen
@@ -74,21 +76,34 @@ export function BoardSelector({ disabled = false, open, onOpenChange, anchor }: 
           className="z-50"
         >
           {/* Bottom border dropped + flat bottom corners so it merges into the
-              pill (whose top border/corners the toolbar hides while open);
-              origin-bottom scale gives the "grows upward out of the pill"
-              motion. Width matches the pill via Base UI's --anchor-width. */}
+              pill (whose top border/corners the toolbar hides while open).
+              Motion drives the grow-up: a spring on scaleY (anchored to the
+              bottom via transformOrigin) + opacity, so the menu unfurls out of
+              the pill. Width matches the pill via Base UI's --anchor-width. */}
           <Popover.Popup
             className={cn(
-              "origin-bottom rounded-t-xl rounded-b-none border border-b-0 border-border/50",
+              "rounded-t-xl rounded-b-none border border-b-0 border-border/50",
               "bg-popover p-1.5 text-xs text-popover-foreground",
               "shadow-[0_-10px_30px_-14px_rgba(60,40,10,0.4)]",
-              "transition-[transform,opacity] duration-200 ease-out",
-              "data-[starting-style]:scale-y-75 data-[starting-style]:opacity-0",
-              "data-[ending-style]:scale-y-75 data-[ending-style]:opacity-0",
             )}
-            // Fallback to 16rem if Base UI doesn't expose --anchor-width, so
-            // the menu never collapses to zero width.
-            style={anchor ? { width: "var(--anchor-width, 16rem)" } : undefined}
+            // transformOrigin bottom so the scaleY reads as growing up out of
+            // the pill. Fallback width keeps the menu from collapsing to zero
+            // if Base UI doesn't expose --anchor-width.
+            style={{
+              transformOrigin: "bottom",
+              ...(anchor ? { width: "var(--anchor-width, 16rem)" } : {}),
+            }}
+            render={
+              <motion.div
+                initial={reduceMotion ? false : { opacity: 0, scaleY: 0.6 }}
+                animate={{ opacity: 1, scaleY: 1 }}
+                transition={
+                  reduceMotion
+                    ? { duration: 0 }
+                    : { type: "spring", stiffness: 520, damping: 36, mass: 0.7 }
+                }
+              />
+            }
           >
             <p className="px-2 py-1 font-medium text-muted-foreground">Board model</p>
             {BOARD_LIST.map((board) => {
