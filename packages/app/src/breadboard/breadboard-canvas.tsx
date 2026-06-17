@@ -25,6 +25,7 @@ import {
   RAIL_OFFSET,
   gridToPixel,
   pixelToGrid,
+  isOnBoard,
   getComponentFootprint,
   getBoardPinLayout,
   type ArduinoPinInfo,
@@ -667,6 +668,10 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
   const wireDragRef = useRef<{ wireId: string; endpoint: "from" | "to" } | null>(null);
   const [wireDragGhost, setWireDragGhost] = React.useState<{ row: number; col: number } | null>(null);
 
+  // ── Drag-to-wire state (pull a fresh wire straight out of a hole) ──
+  const newWireRef = useRef<{ fromRow: number; fromCol: number } | null>(null);
+  const [newWireGhost, setNewWireGhost] = React.useState<{ row: number; col: number } | null>(null);
+
   const handleBoardPointerDown = useCallback(
     (boardId: string, e: React.PointerEvent) => {
       if (effectiveReadOnly) return;
@@ -829,6 +834,32 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
         return;
       }
 
+      // Drag-to-wire: in idle mode, pressing on a breadboard hole and
+      // dragging pulls a fresh wire straight out of that hole. Releasing
+      // over another hole creates the wire. This is the direct-manipulation
+      // path; the wire tool (placing/"wire") still works via click-twice.
+      if (e.button === 0 && wire.interactionMode === "idle") {
+        const rect = svgRef.current?.getBoundingClientRect();
+        if (rect) {
+          const board = screenToBoard(e.clientX - rect.left, e.clientY - rect.top);
+          const grid = pixelToGrid(board.x, board.y);
+          if (isOnBoard(grid)) {
+            const holePos = gridToPixel(grid);
+            const hit = Math.hypot(board.x - holePos.x, board.y - holePos.y);
+            // Require the press to land on (not merely near) a hole, so a
+            // drag across the bare plastic still falls through to area-select.
+            if (hit <= HOLE_SPACING * 0.6) {
+              newWireRef.current = { fromRow: grid.row, fromCol: grid.col };
+              setNewWireGhost(grid);
+              svgRef.current?.setPointerCapture(e.pointerId);
+              send({ type: "SELECT", id: null });
+              setMultiSelected(new Set());
+              return;
+            }
+          }
+        }
+      }
+
       // Left click on empty space → start area select or deselect
       if (e.button === 0 && e.target === svgRef.current) {
         // Clear previous selections
@@ -850,6 +881,15 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
       if (camera.handlePanMove(e)) return;
+
+      // Drag-to-wire (fresh wire pulled from a hole)
+      if (newWireRef.current) {
+        const rect = svgRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const board = screenToBoard(e.clientX - rect.left, e.clientY - rect.top);
+        setNewWireGhost(pixelToGrid(board.x, board.y));
+        return;
+      }
 
       // Wire endpoint drag
       if (wireDragRef.current) {
@@ -956,6 +996,29 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
   const handlePointerUp = useCallback(() => {
     camera.stopPan();
 
+    // Complete a drag-to-wire gesture — release over a different hole
+    // creates the wire; release on the start hole or off-board cancels it.
+    if (newWireRef.current) {
+      const start = newWireRef.current;
+      const end = newWireGhost;
+      newWireRef.current = null;
+      setNewWireGhost(null);
+      if (end && isOnBoard(end) && (end.row !== start.fromRow || end.col !== start.fromCol)) {
+        send({
+          type: "ADD_WIRE",
+          wire: {
+            id: crypto.randomUUID(),
+            fromRow: start.fromRow,
+            fromCol: start.fromCol,
+            toRow: end.row,
+            toCol: end.col,
+            color: "#fbbf24",
+          },
+        });
+      }
+      return;
+    }
+
     // Complete area selection
     if (areaSelectRef.current && areaRect && areaRect.w > 3 && areaRect.h > 3) {
       const selected = new Set<string>();
@@ -1020,7 +1083,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
     }
 
     drag.handleDragEnd();
-  }, [camera, drag, wires, wireDragGhost, boardDragOffset, send]);
+  }, [camera, drag, wires, wireDragGhost, newWireGhost, boardDragOffset, send]);
 
   // ── Keyboard ──────────────────────────────────────────────────
 
@@ -1402,6 +1465,28 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
               <circle cx={pos.x} cy={pos.y} r={5} fill="#3b82f6" fillOpacity={0.3}
                 stroke="#3b82f6" strokeWidth={1.5} />
               <circle cx={pos.x} cy={pos.y} r={2} fill="#3b82f6" />
+            </g>
+          );
+        })()}
+
+        {/* Drag-to-wire rubber band (fresh wire pulled out of a hole) */}
+        {newWireRef.current && newWireGhost && (() => {
+          const from = newWireRef.current;
+          if (!from) return null;
+          const startPos = gridToPixel({ row: from.fromRow, col: from.fromCol });
+          const endPos = gridToPixel(newWireGhost);
+          const valid =
+            isOnBoard(newWireGhost) &&
+            (newWireGhost.row !== from.fromRow || newWireGhost.col !== from.fromCol);
+          return (
+            <g pointerEvents="none">
+              <line x1={startPos.x} y1={startPos.y} x2={endPos.x} y2={endPos.y}
+                stroke="#fbbf24" strokeWidth={2.5} strokeLinecap="round"
+                strokeDasharray="4 3" opacity={0.85} />
+              <circle cx={startPos.x} cy={startPos.y} r={4} fill="#fbbf24" opacity={0.7} />
+              <circle cx={endPos.x} cy={endPos.y} r={4}
+                fill={valid ? "#fbbf24" : "#9ca3af"} fillOpacity={0.35}
+                stroke={valid ? "#fbbf24" : "#9ca3af"} strokeWidth={1} />
             </g>
           );
         })()}

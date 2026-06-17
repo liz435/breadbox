@@ -116,6 +116,13 @@ function WireRendererInner({ wire, arduinoPins, isSelected, surfaceBoards, onSel
     onSelect?.(wire.id);
   };
 
+  const handlePointerDown = (e: React.PointerEvent) => {
+    // Stop the press from bubbling to the canvas, where it would start a
+    // fresh drag-to-wire gesture (and deselect) instead of selecting this
+    // wire. Mirrors how component renderers guard their own pointer-down.
+    e.stopPropagation();
+  };
+
   const handleFromPointerDown = (e: React.PointerEvent) => {
     if (isArduinoPinWire) return; // Can't drag Arduino pin end
     e.stopPropagation();
@@ -128,7 +135,7 @@ function WireRendererInner({ wire, arduinoPins, isSelected, surfaceBoards, onSel
   };
 
   return (
-    <g onClick={handleClick} style={{ cursor: "pointer" }}>
+    <g onClick={handleClick} onPointerDown={handlePointerDown} style={{ cursor: "pointer" }}>
       {/* Invisible wide hit area for easier clicking */}
       <path
         d={pathD}
