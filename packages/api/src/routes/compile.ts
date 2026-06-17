@@ -338,13 +338,11 @@ export const compileRoutes = new Elysia().use(authPlugin).post("/api/compile", a
 
       const sizeInfo = parseSizeInfo(compileResult.stderr + compileResult.stdout)
 
-      // Source-line → address table for the simulator's debugger (AVR only).
-      // Best-effort: a miss just omits the field. Runs before the `finally`
-      // deletes the build dir, so the ELF is still present here.
-      const lineTable =
-        firmware.format === "hex"
-          ? await extractLineTable(outputDir, arduinoCli, fqbn)
-          : null
+      // Source-line → address table for the simulator's debugger (AVR via
+      // avr-objdump, RP2040 via arm-none-eabi-objdump). Best-effort: a miss
+      // just omits the field. Runs before the `finally` deletes the build dir,
+      // so the ELF is still present here.
+      const lineTable = await extractLineTable(outputDir, arduinoCli, fqbn)
 
       log.info(`Compilation succeeded for ${sketchId}${autoInstalled.length > 0 ? ` (auto-installed: ${autoInstalled.join(", ")})` : ""}`)
       writer.write({

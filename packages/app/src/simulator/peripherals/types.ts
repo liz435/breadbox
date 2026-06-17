@@ -21,7 +21,9 @@ export type PinEdge = {
   value: 0 | 1
   /** Simulated MCU time in milliseconds — NOT performance.now(). */
   simMs: number
-  source: "transpile" | "avr" | "external"
+  /** Which runner emitted the edge. Metadata only — peripherals treat all
+   *  MCU-driven edges identically; "external" is the UI / circuit solver. */
+  source: "transpile" | "avr" | "rp2040" | "external"
 }
 
 export type PeripheralState =

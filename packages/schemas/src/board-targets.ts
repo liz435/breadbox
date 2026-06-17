@@ -52,6 +52,13 @@ export type BoardTargetInfo = {
     /** Flash page size in bytes (atmega328p = 128). */
     pageSize: number;
   };
+  /**
+   * When true, "flash to hardware" produces a downloadable `.uf2` the user
+   * drops onto the board's BOOTSEL mass-storage drive (RP2040 boards). This is
+   * orthogonal to `webSerialUpload` (serial-bootloader flashing) — a board uses
+   * one path or the other. See simulator/uf2-download.ts.
+   */
+  uf2Download?: boolean;
 };
 
 export const BOARD_TARGETS: Record<BoardTarget, BoardTargetInfo> = {
@@ -85,10 +92,14 @@ export const BOARD_TARGETS: Record<BoardTarget, BoardTargetInfo> = {
     label: "Raspberry Pi Pico",
     mcu: "RP2040 @ 125 MHz",
     fqbn: "rp2040:rp2040:rpipico",
-    // Runs on rp2040js via a lazy-loaded chunk. Without a real bootrom the
-    // boot handoff is synthesised — GPIO-only sketches work; Serial/USB CDC,
-    // PLLs, and XIP timing don't. See runners/rp2040-runner.ts header.
+    // Runs on rp2040js via a lazy-loaded chunk. With the bootrom vendored
+    // (`bun run bootrom:fetch`) the real boot chain runs (clocks/PLL/USB-CDC);
+    // without it the handoff is synthesised and only GPIO-only sketches work.
+    // See runners/rp2040-runner.ts header.
     runner: "rp2040",
+    // Flashed by dropping a .uf2 onto the BOOTSEL drive — not a serial
+    // bootloader — so no webSerialUpload.
+    uf2Download: true,
   },
 };
 

@@ -1,5 +1,5 @@
 import { useCallback, useRef } from "react"
-import { Play, Square, Cpu, Upload, Zap, AlertCircle } from "lucide-react"
+import { Play, Square, Cpu, Upload, Zap, AlertCircle, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { BOARD_TARGETS, DEFAULT_BOARD_TARGET, type BoardTarget } from "@dreamer/schemas"
@@ -16,6 +16,7 @@ import { useCapabilities } from "@/project/use-capabilities"
 import { usePairedPort } from "@/simulator/web-serial-port-store"
 import { isWebSerialSupported } from "@/simulator/web-serial-types"
 import { flashViaStk500v1 } from "@/simulator/stk500-uploader"
+import { downloadUf2 } from "@/simulator/uf2-download"
 import { setUploadState, useUploadState } from "./upload-status-store"
 
 type PlayControlsProps = {
@@ -74,6 +75,47 @@ export function PlayControls({ sim }: PlayControlsProps) {
   const handleUpload = useCallback(async () => {
     if (electrical.hasErrors) return
     if (!sketchCodeRef.current) return
+
+    // RP2040 boards flash via BOOTSEL mass storage, not a serial bootloader:
+    // compile to .uf2 and download it for the user to drop onto the RPI-RP2
+    // drive. Works identically on hosted and local (no USB/port needed).
+    if (boardTargetInfo.uf2Download) {
+      setUploadState({ status: "compiling", error: null })
+      boardSend({ type: "CLEAR_BUILD_LOG" })
+      try {
+        const compile = await compileSketch(sketchCodeRef.current, {
+          fqbn: boardTargetInfo.fqbn,
+          onLog: (tag, line, ts) => boardSend({ type: "APPEND_BUILD_LOG", tag, line, ts }),
+        })
+        if (!compile.success) {
+          setUploadState({ status: "error", error: compile.error })
+          return
+        }
+        if (compile.format !== "uf2") {
+          setUploadState({
+            status: "error",
+            error: `${boardTargetInfo.label} expected UF2 firmware but the compiler returned "${compile.format}".`,
+          })
+          return
+        }
+        downloadUf2(compile.uf2Base64, "sketch.uf2")
+        boardSend({
+          type: "APPEND_BUILD_LOG",
+          tag: "upload",
+          line:
+            "Downloaded sketch.uf2 — hold BOOTSEL, plug in the board, then drop the file onto the RPI-RP2 drive.",
+          ts: Date.now(),
+        })
+        setUploadState({ status: "done", error: null })
+        setTimeout(() => setUploadState({ status: "idle", error: null }), 4_000)
+      } catch (err) {
+        setUploadState({
+          status: "error",
+          error: err instanceof Error ? err.message : "UF2 build failed",
+        })
+      }
+      return
+    }
 
     // Hosted has no USB on the server; flash via WebSerial directly from
     // the browser. Local mode keeps the existing server-driven path so
@@ -229,20 +271,27 @@ export function PlayControls({ sim }: PlayControlsProps) {
   // place to land when they haven't paired yet — the disabled tooltip
   // tells them what to do). On local we keep the historical rule of
   // hiding the button until the user picks a server-detected port.
+  // UF2 boards (Pico) download a file — no USB pairing or server port needed,
+  // so the button is always available regardless of hosted/local.
+  const isUf2Download = !!boardTargetInfo.uf2Download
   const webSerialOk = capabilities.hosted && isWebSerialSupported()
-  const showUpload = capabilities.hosted ? true : !!selectedPort
-  const canUpload = capabilities.hosted
-    ? (webSerialOk && !!pairedPort && !!boardTargetInfo.webSerialUpload)
-    : !!selectedPort
-  const uploadDisabledReason: string | null = !capabilities.hosted
+  const showUpload = isUf2Download ? true : capabilities.hosted ? true : !!selectedPort
+  const canUpload = isUf2Download
+    ? true
+    : capabilities.hosted
+      ? (webSerialOk && !!pairedPort && !!boardTargetInfo.webSerialUpload)
+      : !!selectedPort
+  const uploadDisabledReason: string | null = isUf2Download
     ? null
-    : !isWebSerialSupported()
-      ? "Use Chrome or Edge to flash a board"
-      : !pairedPort
-        ? "Pair a board first"
-        : !boardTargetInfo.webSerialUpload
-          ? `${boardTargetInfo.label} can't yet be flashed from the browser`
-          : null
+    : !capabilities.hosted
+      ? null
+      : !isWebSerialSupported()
+        ? "Use Chrome or Edge to flash a board"
+        : !pairedPort
+          ? "Pair a board first"
+          : !boardTargetInfo.webSerialUpload
+            ? `${boardTargetInfo.label} can't yet be flashed from the browser`
+            : null
 
   return (
     <div className="flex items-center gap-1">
@@ -322,9 +371,12 @@ export function PlayControls({ sim }: PlayControlsProps) {
             {upload.status === "error" && (
               <AlertCircle className="size-3.5 text-red-400" />
             )}
-            {(upload.status === "idle" || upload.status === "done") && (
-              <Upload className="size-3.5 text-teal-400" />
-            )}
+            {(upload.status === "idle" || upload.status === "done") &&
+              (isUf2Download ? (
+                <Download className="size-3.5 text-teal-400" />
+              ) : (
+                <Upload className="size-3.5 text-teal-400" />
+              ))}
           </TooltipTrigger>
           <TooltipContent>
             {upload.status === "compiling" ? "Compiling…"
@@ -334,7 +386,9 @@ export function PlayControls({ sim }: PlayControlsProps) {
               : upload.status === "error" ? (upload.error ?? "Upload failed")
               : uploadDisabledReason
                 ? uploadDisabledReason
-                : `Compile & Upload (${boardTargetInfo.label})`}
+                : isUf2Download
+                  ? `Compile & download .uf2 (${boardTargetInfo.label})`
+                  : `Compile & Upload (${boardTargetInfo.label})`}
           </TooltipContent>
         </Tooltip>
       )}

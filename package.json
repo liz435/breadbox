@@ -25,6 +25,7 @@
     "test:api": "bun run --cwd packages/api test",
     "test:cli": "bun run --cwd packages/cli test",
     "test": "bun run test:schemas && bun run test:app && bun run test:api && bun run test:cli",
-    "examples:compile": "bun run scripts/compile-examples.ts"
+    "examples:compile": "bun run scripts/compile-examples.ts",
+    "bootrom:fetch": "bun run scripts/fetch-rp2040-bootrom.ts"
   }
 }
