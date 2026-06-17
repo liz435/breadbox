@@ -4,7 +4,6 @@ import {
   Zap,
   Code2,
   Workflow,
-  Sparkles,
   Terminal,
   ArrowRight,
   type LucideIcon,
@@ -15,7 +14,7 @@ import { DocsLayout, PageTitle, Section, Table, Badge } from "@/docs/docs-layout
 
 // The six core functions that make up Breadbox. Each card links to its
 // detailed reference page when one exists. Facts here are kept in sync with
-// the dedicated pages (simulator, sketch, graph, ai-agent).
+// the dedicated pages (simulator, sketch, graph).
 type Feature = {
   icon: LucideIcon
   title: string
@@ -55,14 +54,6 @@ const FEATURES: Feature[] = [
       "Build Arduino logic by connecting nodes in a graph instead of typing code. The editor generates the equivalent sketch from the node layout.",
     badge: <Badge variant="partial">Partial</Badge>,
     to: "/documentation/graph",
-  },
-  {
-    icon: Sparkles,
-    title: "AI Agent",
-    description:
-      "Describe what you want in natural language; the agent reads your board, places components, draws wires, and writes the sketch. Common patterns use instant zero-cost templates.",
-    badge: <Badge variant="implemented">Implemented</Badge>,
-    to: "/documentation/ai-agent",
   },
   {
     icon: Terminal,
@@ -122,9 +113,9 @@ export function CoreFeaturesPage() {
 
       <Section title="At a glance">
         <p className="text-sm text-foreground leading-relaxed">
-          Breadbox combines six core functions into a single browser-based workflow. Drop in
-          components, wire them up, watch a live circuit simulation, run your sketch, and lean on the
-          AI agent whenever you get stuck.
+          Breadbox combines five core functions into a single browser-based workflow. Drop in
+          components, wire them up, watch a live circuit simulation, run your sketch, and read serial
+          output — all in the browser.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           {FEATURES.map((feature) => (
@@ -141,7 +132,6 @@ export function CoreFeaturesPage() {
             ["Circuit simulation", <Badge variant="partial">Partial</Badge>, "SPICE DC steady-state only — no AC or capacitor dynamics"],
             ["Sketch run & compile", <Badge variant="implemented">Implemented</Badge>, "C++ → JS transpile, ~60fps loop"],
             ["Visual programming", <Badge variant="partial">Partial</Badge>, "Node UI works; codegen from graph"],
-            ["AI agent", <Badge variant="implemented">Implemented</Badge>, "Templates + tool-calling agent"],
             ["Serial monitor / Web Serial", <Badge variant="implemented">Implemented</Badge>, "Simulated + real Arduino (Chrome/Edge)"],
           ]}
         />

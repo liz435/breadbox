@@ -123,7 +123,6 @@ const NAV: NavGroup[] = [
       { label: "Sketch Editor", path: "/documentation/sketch" },
       { label: "Visual Programming", path: "/documentation/graph" },
       { label: "AI Agent", path: "/documentation/ai-agent" },
-      { label: "Agent Eval", path: "/documentation/agent-eval" },
       { label: "Adding Components", path: "/documentation/extending" },
     ],
   },
