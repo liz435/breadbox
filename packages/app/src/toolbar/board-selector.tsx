@@ -45,8 +45,11 @@ export function BoardSelector({ disabled = false }: BoardSelectorProps) {
       </Popover.Trigger>
 
       <Popover.Portal>
-        <Popover.Positioner side="top" align="start" sideOffset={8}>
-          <Popover.Popup className="z-50 min-w-[260px] rounded-lg border border-border bg-popover p-1.5 text-xs text-popover-foreground shadow-lg">
+        {/* align="end" mirrors the sibling USB popover (board-status.tsx) so the
+            menu opens up-and-left and stays on-screen instead of overflowing the
+            right edge. */}
+        <Popover.Positioner side="top" align="end" sideOffset={8}>
+          <Popover.Popup className="z-50 w-64 rounded-lg border border-border bg-popover p-1.5 text-xs text-popover-foreground shadow-lg">
             <p className="px-2 py-1 font-medium text-muted-foreground">Board model</p>
             {BOARD_LIST.map((board) => {
               const selected = board.id === boardTarget
