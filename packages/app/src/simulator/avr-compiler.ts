@@ -48,6 +48,19 @@ export type CompileResult =
       flash: Uint8Array
       /** Offset into the chip's flash region where `flash` should be written. */
       flashOffset: number
+      /**
+       * The original, untouched `.uf2` file as base64 — exactly what
+       * arduino-cli produced. Used by the "flash to hardware" path to download
+       * a file the user drags onto the RPI-RP2 BOOTSEL drive (the parsed
+       * `flash` image above is for the in-browser emulator, not for flashing).
+       */
+      uf2Base64: string
+      /**
+       * Source-line → BYTE-address map for the RP2040 debugger (Cortex-M0
+       * `core.PC`). Absent when arm-none-eabi-objdump was unavailable — the
+       * debugger then falls back to address-only breakpoints.
+       */
+      lineTable?: LineTableEntry[]
       sizeInfo?: SketchSizeInfo
     }
   | { success: false; error: string }
@@ -154,7 +167,7 @@ function decodeFirmware(
     return { success: true, format: "hex", hex: parseIntelHex(data), hexText: data, sizeInfo, lineTable }
   }
   const { flash, flashOffset } = parseRp2040Uf2(base64ToBytes(data))
-  return { success: true, format: "uf2", flash, flashOffset, sizeInfo }
+  return { success: true, format: "uf2", flash, flashOffset, uf2Base64: data, lineTable, sizeInfo }
 }
 
 /**

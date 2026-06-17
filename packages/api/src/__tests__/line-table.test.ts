@@ -71,6 +71,18 @@ sketch.ino   4   0x08   x
   test("returns empty when no addressed sketch rows are present", () => {
     expect(parseDecodedLineOutput("Contents of the .debug_line section:\n", {})).toEqual([])
   })
+
+  test("keeps raw BYTE addresses for ARM/RP2040 (wordAddresses: false)", () => {
+    // Cortex-M0 core.PC is a byte address, so the RP2040 path must NOT halve
+    // the DWARF address the way the AVR (word-indexed) path does.
+    const table = parseDecodedLineOutput(SAMPLE, { lineOffset: 1, wordAddresses: false })
+    expect(table).toEqual([
+      { line: 6, address: 0x80 },
+      { line: 7, address: 0x84 },
+      { line: 10, address: 0x9a },
+      { line: 11, address: 0xb4 },
+    ])
+  })
 })
 
 describe("line-table lookups (shared helpers)", () => {

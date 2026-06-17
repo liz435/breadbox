@@ -1,9 +1,10 @@
-import { useCallback, useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { Pencil, Sparkles } from "lucide-react"
 import { ToggleGroup } from "@/components/ui/toggle-group"
 import { Toggle } from "@/components/ui/toggle"
 import { Separator } from "@/components/ui/separator"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { cn } from "@/utils/classnames"
 import { PromptBox } from "@/chat/prompt-box"
 import { useBoard } from "@/store/board-context"
 import { useSimulation } from "@/simulator/simulation-loop"
@@ -70,6 +71,25 @@ export function BottomToolbar() {
   const chat = useChatMessages({ snapshotVersion: AGENT_SNAPSHOT_VERSION })
   const { send: boardSend } = useBoard()
 
+  // Board-menu state lives here so the status well can flatten its top corners
+  // + hide its top border while the menu is open — that's what makes the menu
+  // read as the well growing upward (one continuous border) rather than a
+  // detached popover. The well is also the menu's anchor (width match).
+  //
+  // `boardMenuOpen` is the logical open state; `wellExpanded` is the visual
+  // flatten, kept separate so it persists through the close animation: it turns
+  // on the instant the menu opens and only turns off once the collapse finishes
+  // (onExitComplete), so the continuous border survives the whole exit.
+  const [boardMenuOpen, setBoardMenuOpen] = useState(false)
+  const [wellExpanded, setWellExpanded] = useState(false)
+  const wellRef = useRef<HTMLDivElement>(null)
+
+  const handleBoardMenuOpenChange = useCallback((open: boolean) => {
+    setBoardMenuOpen(open)
+    if (open) setWellExpanded(true)
+  }, [])
+  const handleBoardMenuExitComplete = useCallback(() => setWellExpanded(false), [])
+
   // Lift the simulation here so PlayControls and StatusDisplay share one
   // instance (and one xstate machine). The simulationRef is consumed by
   // sketch-editor, command palette, serial monitor, etc.
@@ -134,11 +154,29 @@ export function BottomToolbar() {
               <Separator orientation="vertical" className="h-7 bg-border/60" />
               <PlayControls sim={sim} />
               {/* Status + Board share one recessed "well" so the pair reads
-                  as a single inset status surface instead of a pill next to a
-                  loose icon. Border + background live here; StatusDisplay
-                  + BoardStatus shed their own container chrome. */}
-              <div className="flex h-8 items-center gap-1 rounded-xl border border-border/50 bg-background/60 pl-2.5 pr-1 shadow-inner">
-                <StatusDisplay sim={sim} />
+                  as a single inset status surface. StatusDisplay shows the
+                  board picker when idle (and transient status otherwise);
+                  BoardStatus owns the USB port. Border/background live here;
+                  both children shed their own container chrome. While the
+                  board menu is open the top corners flatten + the top border
+                  goes transparent so the menu (anchored here, same width) grows
+                  out of the well as one continuous bordered surface. */}
+              <div
+                ref={wellRef}
+                className={cn(
+                  "relative flex h-8 items-center gap-1 border border-border/50 bg-background/60 pl-2.5 pr-1 shadow-inner transition-[border-radius]",
+                  wellExpanded ? "rounded-b-xl rounded-t-none border-t-transparent" : "rounded-xl",
+                )}
+              >
+                <StatusDisplay
+                  sim={sim}
+                  boardMenu={{
+                    open: boardMenuOpen,
+                    onOpenChange: handleBoardMenuOpenChange,
+                    anchor: wellRef,
+                    onExitComplete: handleBoardMenuExitComplete,
+                  }}
+                />
                 <BoardStatus />
               </div>
             </div>

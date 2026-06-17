@@ -9,7 +9,7 @@
 // null and the frontend falls back to address-only breakpoints.
 
 import { join } from "path";
-import { coreFamilyForFqbn, resolveAvrObjdump } from "./toolchain";
+import { coreFamilyForFqbn, resolveAvrObjdump, resolveArmObjdump } from "./toolchain";
 import { createLogger } from "./logger";
 import type { LineTableEntry } from "@dreamer/schemas";
 
@@ -43,15 +43,17 @@ const SKETCH_FILE_NAME = "sketch.ino";
  * skipped by the regex.
  *
  * Returns one entry per distinct address, sorted ascending by address, with
- * addresses converted to WORD units (avr8js `cpu.pc`) and line numbers
- * corrected by `lineOffset`.
+ * line numbers corrected by `lineOffset`. Addresses are reported in WORD units
+ * by default (avr8js `cpu.pc`); pass `wordAddresses: false` to keep raw BYTE
+ * addresses (Cortex-M0 `core.PC`, for the RP2040 debugger).
  */
 export function parseDecodedLineOutput(
   stdout: string,
-  opts: { sketchFileName?: string; lineOffset?: number } = {},
+  opts: { sketchFileName?: string; lineOffset?: number; wordAddresses?: boolean } = {},
 ): LineTableEntry[] {
   const sketchName = opts.sketchFileName ?? SKETCH_FILE_NAME;
   const lineOffset = opts.lineOffset ?? 0;
+  const wordAddresses = opts.wordAddresses ?? true;
   // filename (non-greedy, allows spaces) … line number … 0x address
   const ROW = /^(\S.*?)\s+(\d+)\s+(0x[0-9a-fA-F]+)\b/;
 
@@ -64,10 +66,13 @@ export function parseDecodedLineOutput(
     const rawLine = parseInt(m[2], 10);
     const byteAddr = parseInt(m[3], 16);
     if (!Number.isFinite(rawLine) || !Number.isFinite(byteAddr)) continue;
-    const wordAddr = byteAddr >> 1;
-    if (seenAddr.has(wordAddr)) continue;
-    seenAddr.add(wordAddr);
-    out.push({ line: Math.max(1, rawLine - lineOffset), address: wordAddr });
+    // AVR: avr8js indexes program memory by 16-bit word, so halve the byte
+    // address. ARM/Thumb: core.PC is a byte address (Thumb bit excluded), so
+    // keep it as-is.
+    const addr = wordAddresses ? byteAddr >> 1 : byteAddr;
+    if (seenAddr.has(addr)) continue;
+    seenAddr.add(addr);
+    out.push({ line: Math.max(1, rawLine - lineOffset), address: addr });
   }
   out.sort((a, b) => a.address - b.address);
   return out;
@@ -98,29 +103,39 @@ async function runObjdump(
 }
 
 /**
- * Extract the source-line → word-address table for a just-compiled sketch.
- * AVR only (V1). Returns null on any miss so the caller can omit the field.
+ * Extract the source-line → address table for a just-compiled sketch. Handles
+ * both AVR (avr-objdump, word addresses for avr8js) and RP2040 (arm-none-eabi-
+ * objdump, byte addresses for the Cortex-M0 core). Returns null on any miss so
+ * the caller can omit the field and the debugger falls back to address-only.
  */
 export async function extractLineTable(
   outputDir: string,
   arduinoCli: string,
   fqbn: string,
 ): Promise<LineTableEntry[] | null> {
-  if (coreFamilyForFqbn(fqbn) !== "arduino:avr") return null;
+  const family = coreFamilyForFqbn(fqbn);
+  const isArm = family === "rp2040:rp2040";
 
   const elfPath = join(outputDir, "sketch.ino.elf");
   if (!(await Bun.file(elfPath).exists())) return null;
 
-  const objdump = await resolveAvrObjdump(arduinoCli);
+  const objdump = isArm
+    ? await resolveArmObjdump(arduinoCli)
+    : await resolveAvrObjdump(arduinoCli);
   if (!objdump) {
-    log.info("avr-objdump unavailable — debugger will use address-only breakpoints");
+    log.info(
+      `${isArm ? "arm-none-eabi-objdump" : "avr-objdump"} unavailable — debugger will use address-only breakpoints`,
+    );
     return null;
   }
 
   try {
     const stdout = await runObjdump(objdump, elfPath);
     if (!stdout) return null;
-    const table = parseDecodedLineOutput(stdout, { lineOffset: ARDUINO_LINE_OFFSET });
+    const table = parseDecodedLineOutput(stdout, {
+      lineOffset: ARDUINO_LINE_OFFSET,
+      wordAddresses: !isArm,
+    });
     return table.length > 0 ? table : null;
   } catch (err) {
     log.info(`line-table extraction failed: ${err instanceof Error ? err.message : "unknown"}`);

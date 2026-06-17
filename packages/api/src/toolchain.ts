@@ -395,3 +395,48 @@ export async function resolveAvrObjdump(arduinoCli: string): Promise<string | nu
   }
   return null;
 }
+
+/**
+ * Locate the `arm-none-eabi-objdump` that ships with the installed
+ * `rp2040:rp2040` (Earle Philhower) core — used to read DWARF line info from
+ * the compiled RP2040 ELF for the Pico debugger. Resolution order:
+ *   1. $BREADBOX_ARM_OBJDUMP override.
+ *   2. The arm-gcc toolchain bundled under arduino-cli's data dir (the core
+ *      ships it as `packages/rp2040/tools/pqt-gcc/<ver>/bin/...`; we glob
+ *      loosely since the tool dir name has changed across core releases).
+ *   3. `which arm-none-eabi-objdump` on PATH.
+ * Returns null when none is found — callers degrade to address-only debugging.
+ */
+export async function resolveArmObjdump(arduinoCli: string): Promise<string | null> {
+  const exe = process.platform === "win32" ? "arm-none-eabi-objdump.exe" : "arm-none-eabi-objdump";
+
+  const override = process.env.BREADBOX_ARM_OBJDUMP;
+  if (override) return existsSync(override) ? override : null;
+
+  try {
+    const dataDir = await arduinoCliDataDir(arduinoCli);
+    if (dataDir) {
+      // The bundled GCC tool dir has been named "pqt-gcc" / "arm-none-eabi-gcc"
+      // across releases, so match any tool subdir that lands the binary in a
+      // `bin/` folder under the rp2040 core's tools tree.
+      const glob = new Bun.Glob(`packages/rp2040/tools/*/*/bin/${exe}`);
+      const matches: string[] = [];
+      for await (const m of glob.scan({ cwd: dataDir, absolute: true })) {
+        matches.push(m);
+      }
+      if (matches.length > 0) {
+        matches.sort();
+        return matches[matches.length - 1];
+      }
+    }
+  } catch {
+    /* fall through to PATH */
+  }
+
+  const onPath = await runCapture(["which", exe], WHICH_TIMEOUT_MS);
+  if (onPath.code === 0) {
+    const p = onPath.stdout.trim();
+    if (p) return p;
+  }
+  return null;
+}

@@ -1,11 +1,13 @@
 // ── Debugger Panel ──────────────────────────────────────────────────────────
 //
-// Source-level debugger UI for the AVR simulator. Shows the current halt
-// state (PC, line, SP, cycles), the 32 general-purpose registers, and a
-// scrollable SRAM hex view, with Continue / Step controls. Reads reactive
+// Source-level debugger UI. Shows the current halt state (PC, line, SP,
+// cycles) with Continue / Step controls, plus — for AVR — the 32 general-
+// purpose registers and a scrollable SRAM hex view. RP2040 supports
+// breakpoints + stepping too, but its Cortex-M0 register/SRAM state doesn't
+// fit the AVR-shaped inspector, so those sections hide for it. Reads reactive
 // state from `debugStateStore` (via useDebugState) and drives execution
 // through `simulationRef`. Disabled with a hint when the active runner has no
-// debug surface (e.g. RP2040/compile-only boards).
+// debug surface (e.g. compile-only boards).
 
 import { useMemo } from "react"
 import { Play, StepForward, CornerDownRight, Bug } from "lucide-react"
@@ -173,19 +175,27 @@ export function DebuggerPanel() {
         <>
           <HaltSummary snapshot={debug.current} />
 
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-              Registers
-            </span>
-            <RegisterGrid registers={debug.current.registers} />
-          </div>
+          {/* Register/SRAM inspector is AVR-shaped (32 8-bit regs, SRAM from
+              0x100). Runners that can't supply it (RP2040 — Cortex-M0 register
+              file + 264 KB SRAM don't fit) return empty arrays; hide the
+              sections rather than render a misleading dump. */}
+          {debug.current.registers.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                Registers
+              </span>
+              <RegisterGrid registers={debug.current.registers} />
+            </div>
+          )}
 
-          <div className="flex min-h-0 flex-1 flex-col gap-1">
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-              SRAM
-            </span>
-            <SramView sram={debug.current.sram} />
-          </div>
+          {debug.current.sram.length > 0 && (
+            <div className="flex min-h-0 flex-1 flex-col gap-1">
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                SRAM
+              </span>
+              <SramView sram={debug.current.sram} />
+            </div>
+          )}
         </>
       ) : (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">

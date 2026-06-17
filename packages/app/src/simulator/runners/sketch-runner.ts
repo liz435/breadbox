@@ -128,5 +128,8 @@ export interface SketchRunner {
     pendingLoopCycles: number
     droppedLoopCycles: number
     maxObservedBacklogCycles: number
+    /** RP2040 only: true when booted via the real bootrom, false on the
+     *  synthesised fallback. Absent for runners without a bootrom concept. */
+    usedBootrom?: boolean
   }
 }
