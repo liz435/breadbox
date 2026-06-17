@@ -1,6 +1,7 @@
 import React from "react"
 import { useRouter } from "@/router"
 import { OverviewPage } from "@/docs/pages/overview"
+import { CoreFeaturesPage } from "@/docs/pages/core-features"
 import { ArduinoUnoPage } from "@/docs/pages/arduino-uno"
 import { SimulatorPage } from "@/docs/pages/simulator"
 import { SketchPage } from "@/docs/pages/sketch"
@@ -33,6 +34,7 @@ import { DocsLayout, PageTitle } from "@/docs/docs-layout"
 
 const ROUTES: Record<string, () => React.JSX.Element> = {
   "/documentation": OverviewPage,
+  "/documentation/core-features": CoreFeaturesPage,
   "/documentation/arduino-uno": ArduinoUnoPage,
   "/documentation/simulator": SimulatorPage,
   "/documentation/sketch": SketchPage,
