@@ -77,6 +77,34 @@ export const componentTypeSchema = z.enum([
 ]);
 export type ComponentType = z.infer<typeof componentTypeSchema>;
 
+/**
+ * A user-authored custom component type, namespaced so it can never collide
+ * with a built-in. Validated structurally (kebab-case) rather than against a
+ * fixed enum — the set is open and lives in the per-app custom-parts library.
+ *
+ * Runtime is a plain string+pattern schema so it stays representable in JSON
+ * Schema (the validate_design / apply_design MCP tools serialize the diagram
+ * schema). The inferred type is refined to the namespaced template literal so
+ * BoardComponent.type remains a precise union and isCustomComponentType can
+ * narrow — z.custom<...> would infer the right type but is JSON-unrepresentable.
+ */
+export const customComponentTypeSchema = z
+  .string()
+  .regex(/^custom:[a-z0-9-]+$/, "Custom component type must be custom:<kebab-name>") as unknown as z.ZodType<`custom:${string}`>;
+export type CustomComponentType = z.infer<typeof customComponentTypeSchema>;
+
+/** Any placeable component type: a built-in or a custom one. */
+export const placeableComponentTypeSchema = z.union([
+  componentTypeSchema,
+  customComponentTypeSchema,
+]);
+export type PlaceableComponentType = z.infer<typeof placeableComponentTypeSchema>;
+
+/** True for the `custom:<name>` namespace (user-authored parts). */
+export function isCustomComponentType(type: string): type is CustomComponentType {
+  return /^custom:[a-z0-9-]+$/.test(type);
+}
+
 export const BOARD_COMPONENT_TYPES = boardComponentTypeValues;
 export const MCU_BOARD_TYPES = mcuBoardTypeValues;
 export const SURFACE_BOARD_TYPES = surfaceBoardTypeValues;
@@ -198,7 +226,7 @@ export type PersistedLibraryState = z.infer<typeof persistedLibraryStateSchema>;
 
 export const boardComponentSchema = z.object({
   id: z.string().min(1),
-  type: componentTypeSchema,
+  type: placeableComponentTypeSchema,
   name: z.string().min(1),
   x: z.number().int(), // breadboard grid column (0-9 for terminal, -2/-1/10/11 for power rails)
   y: z.number().int(), // breadboard grid row (0-29)

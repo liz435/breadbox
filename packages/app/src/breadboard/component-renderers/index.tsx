@@ -1,6 +1,8 @@
 import React from "react";
-import type { ComponentType } from "@dreamer/schemas";
+import { isCustomComponentType } from "@dreamer/schemas";
+import { getCustomDef } from "@/components/catalog/custom-store";
 import { GenericRenderer } from "./generic-renderer";
+import { CustomPartRenderer } from "./custom-part-renderer";
 import type { ComponentRendererProps } from "./renderer-types";
 // Per-component renderers are colocated with their definitions in catalog/<type>/.
 // This map wires component type → renderer; types without a dedicated renderer
@@ -45,9 +47,17 @@ const RENDERER_MAP: Record<
 };
 
 export function getComponentRenderer(
-  componentType: ComponentType
+  componentType: string
 ): React.ComponentType<ComponentRendererProps> {
-  return RENDERER_MAP[componentType] ?? GenericRenderer;
+  const builtIn = RENDERER_MAP[componentType];
+  if (builtIn) return builtIn;
+  // Custom parts use their own renderer when supplied, else the auto-box /
+  // missing-part placeholder. Built-ins without a dedicated renderer use the
+  // shared GenericRenderer.
+  if (isCustomComponentType(componentType)) {
+    return getCustomDef(componentType)?.renderer ?? CustomPartRenderer;
+  }
+  return GenericRenderer;
 }
 
 function ComponentRendererInner({ component, components, pinStates, wires, isSelected, electricalState, libraryState }: ComponentRendererProps) {

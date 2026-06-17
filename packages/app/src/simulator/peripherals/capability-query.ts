@@ -7,6 +7,7 @@
 // invalidation signal.
 
 import type { BoardComponent, ComponentType, Wire } from "@dreamer/schemas"
+import { isCustomComponentType } from "@dreamer/schemas"
 import { findPeripheralsOnPin } from "@/breadboard/component-pin-resolver"
 import type { PeripheralCapability } from "./types"
 
@@ -74,7 +75,9 @@ export function pinHasCapability(
   if (cached !== undefined) return cached
 
   const wired = findPeripheralsOnPin(pin, components, wires)
-  const hit = wired.some((c) => typeHasCapability(c.type, capability))
+  // Custom parts have no built-in peripheral capability; the guard also narrows
+  // c.type back to the built-in ComponentType union for typeHasCapability.
+  const hit = wired.some((c) => !isCustomComponentType(c.type) && typeHasCapability(c.type, capability))
   pinCache.set(capability, hit)
   memoCache.set(pin, pinCache)
   return hit

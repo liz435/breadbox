@@ -72,6 +72,7 @@ export function configPath(): string  { return join(dreamerHome(), "config.json"
 export function motionProjectsDir(): string { return join(dreamerHome(), "motion-projects"); }
 export function motionArtifactsDir(): string { return join(dreamerHome(), "motion-artifacts"); }
 export function motionJobsDir(): string { return join(dreamerHome(), "motion-jobs"); }
+export function customPartsDir(): string { return join(dreamerHome(), "custom-parts"); }
 
 // ── Machine-home paths (shared caches/binaries) ──────────────────────────
 export function binDir(): string   { return join(dreamerMachineHome(), "bin"); }
