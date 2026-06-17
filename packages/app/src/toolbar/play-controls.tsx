@@ -326,6 +326,7 @@ export function PlayControls({ sim }: PlayControlsProps) {
               <Play
                 className={cn(
                   "size-3.5",
+                  "fill-current",
                   isPaused ? "text-yellow-400" : "text-green-400",
                 )}
               />
