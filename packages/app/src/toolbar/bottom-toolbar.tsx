@@ -1,9 +1,10 @@
-import { useCallback, useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { Pencil, Sparkles } from "lucide-react"
 import { ToggleGroup } from "@/components/ui/toggle-group"
 import { Toggle } from "@/components/ui/toggle"
 import { Separator } from "@/components/ui/separator"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { cn } from "@/utils/classnames"
 import { PromptBox } from "@/chat/prompt-box"
 import { useBoard } from "@/store/board-context"
 import { useSimulation } from "@/simulator/simulation-loop"
@@ -69,6 +70,13 @@ export function BottomToolbar() {
   const [mode, setMode] = useState<ToolbarMode>("edit")
   const chat = useChatMessages({ snapshotVersion: AGENT_SNAPSHOT_VERSION })
   const { send: boardSend } = useBoard()
+
+  // Board-menu open state lives here so the status well can flatten its top
+  // corners + hide its top border while the menu is open — that's what makes
+  // the menu read as the well growing upward (one continuous border) rather
+  // than a detached popover. The well is also the menu's anchor (width match).
+  const [boardMenuOpen, setBoardMenuOpen] = useState(false)
+  const wellRef = useRef<HTMLDivElement>(null)
 
   // Lift the simulation here so PlayControls and StatusDisplay share one
   // instance (and one xstate machine). The simulationRef is consumed by
@@ -137,9 +145,25 @@ export function BottomToolbar() {
                   as a single inset status surface. StatusDisplay shows the
                   board picker when idle (and transient status otherwise);
                   BoardStatus owns the USB port. Border/background live here;
-                  both children shed their own container chrome. */}
-              <div className="flex h-8 items-center gap-1 rounded-xl border border-border/50 bg-background/60 pl-2.5 pr-1 shadow-inner">
-                <StatusDisplay sim={sim} />
+                  both children shed their own container chrome. While the
+                  board menu is open the top corners flatten + the top border
+                  goes transparent so the menu (anchored here, same width) grows
+                  out of the well as one continuous bordered surface. */}
+              <div
+                ref={wellRef}
+                className={cn(
+                  "relative flex h-8 items-center gap-1 border border-border/50 bg-background/60 pl-2.5 pr-1 shadow-inner transition-[border-radius]",
+                  boardMenuOpen ? "rounded-b-xl rounded-t-none border-t-transparent" : "rounded-xl",
+                )}
+              >
+                <StatusDisplay
+                  sim={sim}
+                  boardMenu={{
+                    open: boardMenuOpen,
+                    onOpenChange: setBoardMenuOpen,
+                    anchor: wellRef,
+                  }}
+                />
                 <BoardStatus />
               </div>
             </div>

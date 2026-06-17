@@ -1,15 +1,17 @@
 // ── Board model selector ─────────────────────────────────────────────────
 //
-// The board indicator in the bottom-toolbar status well, rendered as a select:
-// shows the current board (Uno / Nano / Mega / Pico) and opens a popover to
-// pick another. Dispatches SET_BOARD_TARGET; the simulation hook rebuilds its
-// runner on the next Play (see simulation-loop.ts `getRunner`).
+// The board indicator in the bottom-toolbar status well, rendered as a select.
+// When open, the menu is anchored to — and width-matched with — the
+// surrounding pill, sits flush on its top edge (no gap, seam border removed),
+// and grows upward, so the pill and menu read as ONE continuous bordered
+// surface rather than a detached floating card. The toolbar flattens the
+// well's top corners while open (it owns `open` state for that reason).
 //
-// Designed to sit inline after StatusDisplay's status dot, so it reads as
-// "● Arduino Uno ⌄" — the dot/tone is owned by StatusDisplay. Distinct from
-// <BoardStatus/>, which owns the USB *port* used for flashing.
+// Dispatches SET_BOARD_TARGET; the simulation hook rebuilds its runner on the
+// next Play (see simulation-loop.ts `getRunner`). Distinct from <BoardStatus/>,
+// which owns the USB *port* used for flashing.
 
-import { useState } from "react"
+import { useState, type RefObject } from "react"
 import { Popover } from "@base-ui/react/popover"
 import { ChevronDown, Check } from "lucide-react"
 import { BOARD_TARGETS, DEFAULT_BOARD_TARGET, type BoardTarget } from "@dreamer/schemas"
@@ -21,16 +23,29 @@ const BOARD_LIST = Object.values(BOARD_TARGETS)
 type BoardSelectorProps = {
   /** Disable the picker (e.g. while the sim is busy). */
   disabled?: boolean
+  /** Controlled open state — the toolbar uses it to restyle the pill. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  /** Element the menu anchors to + matches width of (the surrounding pill).
+   *  Falls back to the trigger when omitted. */
+  anchor?: RefObject<HTMLElement | null>
 }
 
-export function BoardSelector({ disabled = false }: BoardSelectorProps) {
+export function BoardSelector({ disabled = false, open, onOpenChange, anchor }: BoardSelectorProps) {
   const { state, send } = useBoard()
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const isControlled = open !== undefined
+  const openState = isControlled ? open : internalOpen
+  const setOpen = (next: boolean) => {
+    if (!isControlled) setInternalOpen(next)
+    onOpenChange?.(next)
+  }
+
   const boardTarget = (state.boardTarget ?? DEFAULT_BOARD_TARGET) as BoardTarget
   const current = BOARD_TARGETS[boardTarget]
 
   return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
+    <Popover.Root open={openState} onOpenChange={setOpen}>
       <Popover.Trigger
         type="button"
         disabled={disabled}
@@ -41,17 +56,40 @@ export function BoardSelector({ disabled = false }: BoardSelectorProps) {
         )}
       >
         <span className="truncate">{current.label}</span>
-        <ChevronDown className="size-3 shrink-0 text-muted-foreground/70" />
+        <ChevronDown
+          className={cn(
+            "size-3 shrink-0 text-muted-foreground/70 transition-transform",
+            openState && "rotate-180",
+          )}
+        />
       </Popover.Trigger>
 
       <Popover.Portal>
-        {/* Anchored just above the trigger and left-aligned so the menu reads as
-            the pill unrolling upward rather than a detached card. origin-bottom
-            + the starting/ending styles animate it rising out of the pill
-            (Base UI keeps it mounted through the exit transition). Default
-            collision-shift keeps it on-screen near the viewport edge. */}
-        <Popover.Positioner side="top" align="start" sideOffset={4}>
-          <Popover.Popup className="z-50 w-64 origin-bottom rounded-xl border border-border bg-popover p-1.5 text-xs text-popover-foreground shadow-lg transition-[transform,opacity] duration-150 ease-out data-[starting-style]:translate-y-1 data-[starting-style]:scale-y-95 data-[starting-style]:opacity-0 data-[ending-style]:translate-y-1 data-[ending-style]:scale-y-95 data-[ending-style]:opacity-0">
+        {/* Anchored to the surrounding pill, flush on its top edge (no gap). */}
+        <Popover.Positioner
+          anchor={anchor}
+          side="top"
+          align="start"
+          sideOffset={0}
+          className="z-50"
+        >
+          {/* Bottom border dropped + flat bottom corners so it merges into the
+              pill (whose top border/corners the toolbar hides while open);
+              origin-bottom scale gives the "grows upward out of the pill"
+              motion. Width matches the pill via Base UI's --anchor-width. */}
+          <Popover.Popup
+            className={cn(
+              "origin-bottom rounded-t-xl rounded-b-none border border-b-0 border-border/50",
+              "bg-popover p-1.5 text-xs text-popover-foreground",
+              "shadow-[0_-10px_30px_-14px_rgba(60,40,10,0.4)]",
+              "transition-[transform,opacity] duration-200 ease-out",
+              "data-[starting-style]:scale-y-75 data-[starting-style]:opacity-0",
+              "data-[ending-style]:scale-y-75 data-[ending-style]:opacity-0",
+            )}
+            // Fallback to 16rem if Base UI doesn't expose --anchor-width, so
+            // the menu never collapses to zero width.
+            style={anchor ? { width: "var(--anchor-width, 16rem)" } : undefined}
+          >
             <p className="px-2 py-1 font-medium text-muted-foreground">Board model</p>
             {BOARD_LIST.map((board) => {
               const selected = board.id === boardTarget

@@ -7,6 +7,7 @@
 // width stays stable — the message truncates with an ellipsis instead of
 // reflowing the surrounding controls.
 
+import type { RefObject } from "react"
 import { BOARD_TARGETS, DEFAULT_BOARD_TARGET, type BoardTarget } from "@dreamer/schemas"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { useBoard } from "@/store/board-context"
@@ -92,11 +93,20 @@ function deriveStatus(args: {
   return { tone: "neutral", label: boardLabel }
 }
 
-type StatusDisplayProps = {
-  sim: SimulationActions
+type BoardMenuControl = {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  anchor: RefObject<HTMLElement | null>
 }
 
-export function StatusDisplay({ sim }: StatusDisplayProps) {
+type StatusDisplayProps = {
+  sim: SimulationActions
+  /** Lets the toolbar own the board-menu open state + anchor it to the pill so
+   *  the menu grows out of the surrounding well as one continuous surface. */
+  boardMenu?: BoardMenuControl
+}
+
+export function StatusDisplay({ sim, boardMenu }: StatusDisplayProps) {
   const { state } = useBoard()
   const electrical = useElectricalReport()
   const upload = useUploadState()
@@ -137,7 +147,11 @@ export function StatusDisplay({ sim }: StatusDisplayProps) {
     >
       <span className={cn("size-1.5 shrink-0 rounded-full", TONE_DOT[info.tone])} />
       {isIdle ? (
-        <BoardSelector />
+        <BoardSelector
+          open={boardMenu?.open}
+          onOpenChange={boardMenu?.onOpenChange}
+          anchor={boardMenu?.anchor}
+        />
       ) : (
         <Tooltip>
           <TooltipTrigger render={<span className="truncate" />}>{info.label}</TooltipTrigger>
