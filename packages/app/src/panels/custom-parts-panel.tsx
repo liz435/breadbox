@@ -11,7 +11,7 @@
 // it warns if you paste the prompt by mistake).
 
 import { useCallback, useEffect, useState } from "react"
-import { ChevronLeft, ClipboardPaste, Copy, Save, Sparkles, Trash2 } from "lucide-react"
+import { ChevronLeft, ChevronRight, ClipboardPaste, Copy, Save, Sparkles, Trash2 } from "lucide-react"
 import { buildCustomPartPrompt } from "@dreamer/schemas"
 import { Button } from "@/components/ui/button"
 import { CodeEditor } from "@/components/ui/code-editor"
@@ -51,10 +51,14 @@ export function CustomPartEditor({
   // The id of a saved part (enables Delete); null for an unsaved new part.
   const [partId, setPartId] = useState<string | null>(null)
   const [status, setStatus] = useState<Status>({ kind: "idle" })
+  // The DSL/code editor is collapsed by default so a part's source doesn't
+  // dominate the panel; the Source header toggles it open.
+  const [sourceOpen, setSourceOpen] = useState(false)
 
   // Load source whenever the requested target changes.
   useEffect(() => {
     if (!target) return
+    setSourceOpen(false)
     if (target.kind === "new") {
       setSource(target.format === "dsl" ? CUSTOM_PART_DSL_TEMPLATE : CUSTOM_PART_TEMPLATE)
       setFormat(target.format)
@@ -134,44 +138,53 @@ export function CustomPartEditor({
   return (
     <div className="flex h-full flex-col bg-card">
       {/* Row 1: navigation + save */}
-      <div className="flex items-center gap-1 border-b border-border px-2 py-1.5">
+      <div className="flex items-center gap-2 border-b border-border px-3 py-2">
         <Button size="sm" variant="ghost" onClick={onClose} title="Back to components">
-          <ChevronLeft className="mr-0.5 size-3.5" /> Components
+          <ChevronLeft className="mr-1 size-3.5" /> Components
         </Button>
-        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted-foreground">
-          {format}
-        </span>
         <Button
           size="sm"
           className="ml-auto"
           onClick={() => void save()}
           disabled={status.kind === "saving"}
         >
-          <Save className="mr-1 size-3.5" /> Save
+          <Save className="mr-1.5 size-3.5" /> Save
         </Button>
       </div>
 
       {/* Row 2: AI prompt + clipboard */}
-      <div className="flex items-center gap-1 border-b border-border px-2 py-1">
+      <div className="flex items-center gap-2 border-b border-border px-3 py-1.5">
         <Button
           size="sm"
           variant="outline"
           onClick={copyPrompt}
           title="Copy an AI prompt to edit this part in any chat"
         >
-          <Sparkles className="mr-1 size-3.5" /> Prompt
+          <Sparkles className="mr-1.5 size-3.5" /> Prompt
         </Button>
-        <Button size="sm" variant="ghost" onClick={copyRaw} title="Copy source">
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-8 w-8 px-0"
+          onClick={copyRaw}
+          title="Copy source"
+        >
           <Copy className="size-3.5" />
         </Button>
-        <Button size="sm" variant="ghost" onClick={paste} title="Paste source or a chat's JSON reply">
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-8 w-8 px-0"
+          onClick={paste}
+          title="Paste source or a chat's JSON reply"
+        >
           <ClipboardPaste className="size-3.5" />
         </Button>
         {partId && (
           <Button
             size="sm"
             variant="ghost"
-            className="ml-auto"
+            className="ml-auto h-8 w-8 px-0"
             onClick={() => void remove()}
             title="Delete part"
           >
@@ -191,9 +204,35 @@ export function CustomPartEditor({
         </div>
       )}
 
-      <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
-        <CodeEditor value={source} onChange={setSource} />
-      </div>
+      {/* Source — collapsed by default so the DSL/code doesn't dominate the panel */}
+      <button
+        type="button"
+        onClick={() => setSourceOpen((open) => !open)}
+        aria-expanded={sourceOpen}
+        className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2 text-left transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+      >
+        <ChevronRight
+          className={cn(
+            "size-4 shrink-0 text-muted-foreground transition-transform",
+            sourceOpen && "rotate-90",
+          )}
+        />
+        <span className="text-xs font-medium text-foreground">Source</span>
+        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted-foreground">
+          {format}
+        </span>
+        {!sourceOpen && (
+          <span className="ml-auto truncate text-[10px] text-muted-foreground">
+            {partId ? `editing ${partId}` : "click to edit"}
+          </span>
+        )}
+      </button>
+
+      {sourceOpen && (
+        <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
+          <CodeEditor value={source} onChange={setSource} foldOnMount />
+        </div>
+      )}
     </div>
   )
 }
