@@ -101,8 +101,8 @@ function SchematicPanelInner() {
 
   if (!hasComponents) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-card">
-        <p className="text-sm text-muted-foreground">
+      <div className="flex h-full w-full items-center justify-center bg-card p-6">
+        <p className="max-w-xs text-center text-sm text-muted-foreground">
           Place components on the breadboard to see the schematic
         </p>
       </div>
