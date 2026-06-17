@@ -1,15 +1,14 @@
 // ── View panel registry ─────────────────────────────────────────────────
 //
-// Single source of truth for the project's view panels. Drives three things
+// Single source of truth for the project's view panels. Drives two things
 // that must stay in sync:
-//   1. the top tab strip (view-tab-strip.tsx)
-//   2. the Cmd+K command palette "Panels" commands (command-palette.tsx)
-//   3. the native macOS View menu (packages/desktop/src-tauri/src/lib.rs)
+//   1. the Cmd+K command palette "Panels" commands (command-palette.tsx)
+//   2. the native macOS View menu (packages/desktop/src-tauri/src/lib.rs)
 //
-// IMPORTANT: the order of VIEW_PANELS is the ordering authority for the tab
-// strip, the Next/Previous-tab cycle, and the Cmd+1..9 accelerators in the
-// native menu. If you reorder these, mirror the change in lib.rs's View
-// submenu (it maps the first 9 entries to Cmd+1..Cmd+9 in this same order).
+// IMPORTANT: the order of VIEW_PANELS is the ordering authority for the
+// Next/Previous-tab cycle and the Cmd+1..9 accelerators in the native menu.
+// If you reorder these, mirror the change in lib.rs's View submenu (it maps
+// the first 9 entries to Cmd+1..Cmd+9 in this same order).
 
 import type { DockviewApi } from "dockview-react";
 
