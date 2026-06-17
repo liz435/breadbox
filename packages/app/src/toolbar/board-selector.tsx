@@ -45,11 +45,13 @@ export function BoardSelector({ disabled = false }: BoardSelectorProps) {
       </Popover.Trigger>
 
       <Popover.Portal>
-        {/* align="end" mirrors the sibling USB popover (board-status.tsx) so the
-            menu opens up-and-left and stays on-screen instead of overflowing the
-            right edge. */}
-        <Popover.Positioner side="top" align="end" sideOffset={8}>
-          <Popover.Popup className="z-50 w-64 rounded-lg border border-border bg-popover p-1.5 text-xs text-popover-foreground shadow-lg">
+        {/* Anchored just above the trigger and left-aligned so the menu reads as
+            the pill unrolling upward rather than a detached card. origin-bottom
+            + the starting/ending styles animate it rising out of the pill
+            (Base UI keeps it mounted through the exit transition). Default
+            collision-shift keeps it on-screen near the viewport edge. */}
+        <Popover.Positioner side="top" align="start" sideOffset={4}>
+          <Popover.Popup className="z-50 w-64 origin-bottom rounded-xl border border-border bg-popover p-1.5 text-xs text-popover-foreground shadow-lg transition-[transform,opacity] duration-150 ease-out data-[starting-style]:translate-y-1 data-[starting-style]:scale-y-95 data-[starting-style]:opacity-0 data-[ending-style]:translate-y-1 data-[ending-style]:scale-y-95 data-[ending-style]:opacity-0">
             <p className="px-2 py-1 font-medium text-muted-foreground">Board model</p>
             {BOARD_LIST.map((board) => {
               const selected = board.id === boardTarget
