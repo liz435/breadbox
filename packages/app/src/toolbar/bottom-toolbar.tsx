@@ -15,7 +15,6 @@ import { getWorkspaceMode, modeShowsSerial } from "@/store/workspace-modes"
 import { PlayControls } from "./play-controls"
 import { StatusDisplay } from "./status-display"
 import { BoardStatus } from "./board-status"
-import { BoardSelector } from "./board-selector"
 import { AiToolbarHistory } from "./ai-toolbar"
 import { useChatMessages } from "./use-chat-messages"
 import { AuthStatusBadge } from "@/auth/auth-status-badge"
@@ -134,20 +133,11 @@ export function BottomToolbar() {
               <EditToolbar />
               <Separator orientation="vertical" className="h-7 bg-border/60" />
               <PlayControls sim={sim} />
-              <Separator orientation="vertical" className="h-7 bg-border/60" />
-              {/* Board model picker (Uno/Nano/Mega/Pico). Locked while the sim
-                  is busy so the emulated chip can't change mid-run. */}
-              <BoardSelector
-                disabled={
-                  sim.status === "running" ||
-                  sim.status === "paused" ||
-                  sim.status === "compiling"
-                }
-              />
               {/* Status + Board share one recessed "well" so the pair reads
-                  as a single inset status surface instead of a pill next to a
-                  loose icon. Border + background live here; StatusDisplay
-                  + BoardStatus shed their own container chrome. */}
+                  as a single inset status surface. StatusDisplay shows the
+                  board picker when idle (and transient status otherwise);
+                  BoardStatus owns the USB port. Border/background live here;
+                  both children shed their own container chrome. */}
               <div className="flex h-8 items-center gap-1 rounded-xl border border-border/50 bg-background/60 pl-2.5 pr-1 shadow-inner">
                 <StatusDisplay sim={sim} />
                 <BoardStatus />

@@ -1,32 +1,25 @@
 // ── Board model selector ─────────────────────────────────────────────────
 //
-// Compact chip in the bottom toolbar that lets the user pick which board
-// model the simulator/compiler targets (Uno, Nano, Mega, Pico, …). Dispatches
-// SET_BOARD_TARGET on the board machine; the simulation hook rebuilds its
-// runner the next time Play is pressed (see simulation-loop.ts `getRunner`).
+// The board indicator in the bottom-toolbar status well, rendered as a select:
+// shows the current board (Uno / Nano / Mega / Pico) and opens a popover to
+// pick another. Dispatches SET_BOARD_TARGET; the simulation hook rebuilds its
+// runner on the next Play (see simulation-loop.ts `getRunner`).
 //
-// Distinct from <BoardStatus/>, which owns the USB *port/connection* used for
-// flashing — this owns the *chip* being emulated. Changing the board is only
-// allowed while the sim is stopped: swapping the emulated chip mid-run would
-// leave pin/peripheral state describing the wrong hardware.
+// Designed to sit inline after StatusDisplay's status dot, so it reads as
+// "● Arduino Uno ⌄" — the dot/tone is owned by StatusDisplay. Distinct from
+// <BoardStatus/>, which owns the USB *port* used for flashing.
 
 import { useState } from "react"
 import { Popover } from "@base-ui/react/popover"
-import { Cpu, ChevronDown, Check } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ChevronDown, Check } from "lucide-react"
 import { BOARD_TARGETS, DEFAULT_BOARD_TARGET, type BoardTarget } from "@dreamer/schemas"
 import { useBoard } from "@/store/board-context"
 import { cn } from "@/utils/classnames"
 
 const BOARD_LIST = Object.values(BOARD_TARGETS)
 
-/** Trim the vendor prefix so the toolbar chip stays narrow ("Uno", "Pico"). */
-function shortLabel(label: string): string {
-  return label.replace(/^Arduino\s+/, "").replace(/^Raspberry Pi\s+/, "")
-}
-
 type BoardSelectorProps = {
-  /** Disable the picker while the sim is busy (running / paused / compiling). */
+  /** Disable the picker (e.g. while the sim is busy). */
   disabled?: boolean
 }
 
@@ -39,22 +32,20 @@ export function BoardSelector({ disabled = false }: BoardSelectorProps) {
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger
-        render={
-          <Button
-            variant="ghost"
-            disabled={disabled}
-            className="flex h-6 items-center gap-1 rounded px-1.5 hover:bg-accent"
-            aria-label={`Board: ${current.label} (${current.mcu})`}
-          />
-        }
+        type="button"
+        disabled={disabled}
+        aria-label={`Board: ${current.label} (${current.mcu}). Click to change.`}
+        className={cn(
+          "-mx-1 flex min-w-0 items-center gap-1 rounded px-1 text-foreground transition-colors",
+          "hover:bg-accent disabled:pointer-events-none disabled:opacity-60",
+        )}
       >
-        <Cpu className="size-3.5 text-muted-foreground" />
-        <span className="text-xs font-medium text-foreground">{shortLabel(current.label)}</span>
-        <ChevronDown className="size-3 text-muted-foreground/70" />
+        <span className="truncate">{current.label}</span>
+        <ChevronDown className="size-3 shrink-0 text-muted-foreground/70" />
       </Popover.Trigger>
 
       <Popover.Portal>
-        <Popover.Positioner side="top" align="end" sideOffset={8}>
+        <Popover.Positioner side="top" align="start" sideOffset={8}>
           <Popover.Popup className="z-50 min-w-[260px] rounded-lg border border-border bg-popover p-1.5 text-xs text-popover-foreground shadow-lg">
             <p className="px-2 py-1 font-medium text-muted-foreground">Board model</p>
             {BOARD_LIST.map((board) => {

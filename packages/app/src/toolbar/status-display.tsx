@@ -13,6 +13,7 @@ import { useBoard } from "@/store/board-context"
 import type { SimulationActions } from "@/simulator/simulation-loop"
 import { useElectricalReport } from "@/electrical/power-budget"
 import { useUploadState } from "./upload-status-store"
+import { BoardSelector } from "./board-selector"
 import { cn } from "@/utils/classnames"
 
 type Tone = "neutral" | "info" | "success" | "warning" | "error"
@@ -115,32 +116,34 @@ export function StatusDisplay({ sim }: StatusDisplayProps) {
     boardLabel: boardInfo.label,
   })
 
+  // The only "neutral" outcome is the idle board-label state — that's exactly
+  // when the indicator should be the board picker. Every other outcome is a
+  // transient status (Running / Compiling / error / upload) shown as text, and
+  // the board can't change mid-run anyway.
+  const isIdle = info.tone === "neutral"
+
+  // Container chrome (border, bg, rounded corners) is owned by the right-edge
+  // wrapper in bottom-toolbar.tsx so Status + BoardStatus read as one surface.
+  // This component provides the dot + tone color, then either the board picker
+  // (idle) or the transient status label.
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <div
-            // Fixed width so transient messages don't reflow the toolbar.
-            // Truncates with an ellipsis when the label overflows.
-            // Container chrome (border, bg, rounded corners) is now owned
-            // by the right-edge wrapper in bottom-toolbar.tsx so Status
-            // and BoardStatus read as a single status surface. This
-            // component just provides the dot + label + tone color.
-            className={cn(
-              "flex w-40 items-center gap-2 pr-2 text-[11px] tabular-nums",
-              TONE_TEXT[info.tone],
-            )}
-            role="status"
-            aria-live="polite"
-          />
-        }
-      >
-        <span className={cn("size-1.5 shrink-0 rounded-full", TONE_DOT[info.tone])} />
-        <span className="truncate">{info.label}</span>
-      </TooltipTrigger>
-      <TooltipContent>
-        {info.detail ?? `${boardInfo.label} • ${boardInfo.mcu}`}
-      </TooltipContent>
-    </Tooltip>
+    <div
+      className={cn(
+        "flex w-40 items-center gap-2 pr-2 text-[11px] tabular-nums",
+        TONE_TEXT[info.tone],
+      )}
+      role="status"
+      aria-live="polite"
+    >
+      <span className={cn("size-1.5 shrink-0 rounded-full", TONE_DOT[info.tone])} />
+      {isIdle ? (
+        <BoardSelector />
+      ) : (
+        <Tooltip>
+          <TooltipTrigger render={<span className="truncate" />}>{info.label}</TooltipTrigger>
+          <TooltipContent>{info.detail ?? `${boardInfo.label} • ${boardInfo.mcu}`}</TooltipContent>
+        </Tooltip>
+      )}
+    </div>
   )
 }
