@@ -146,16 +146,27 @@ describe("PeripheralBus — TWI demux", () => {
     void secondaryWrites
   })
 
-  test("attachTwi throws when bus has no TWI (transpile-mode contract)", () => {
+  test("an I²C peripheral with no TWI is skipped, not fatal to the board", () => {
     const bus = new PeripheralBus()
-    // No twi in the input — peripherals that opt in to I²C should fail loudly.
+    // No twi in the input: the SSD1306's attachTwi() throws. The bus must skip
+    // that one device rather than crash the whole board — RP2040 has no TWI
+    // bridge yet, and transpile mode has none either. (console.warn surfaces
+    // the skip; it isn't swallowed.)
     expect(() => {
       bus.attachBoard({
-        components: { "oled-1": makeComponent("oled-1", "oled_display") },
+        components: {
+          "oled-1": makeComponent("oled-1", "oled_display"),
+          "servo-1": makeComponent("servo-1", "servo"),
+        },
         wires: {},
         pinStore: new PinStateStore(),
       })
-    }).toThrow(/TWI not wired/)
+    }).not.toThrow()
+
+    // The OLED's attach threw, so it isn't registered…
+    expect(bus.get("oled-1")).toBeUndefined()
+    // …but a non-I²C peripheral alongside it still attached fine.
+    expect(bus.get("servo-1")).toBeDefined()
   })
 
   test("detachBoard clears the slave registry and currentSlave pointer", () => {

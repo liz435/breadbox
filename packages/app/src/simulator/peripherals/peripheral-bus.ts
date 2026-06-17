@@ -97,25 +97,36 @@ export class PeripheralBus {
     for (const component of Object.values(input.components)) {
       const factory = FACTORIES.get(component.type as ComponentType)
       if (!factory) continue
-      const peripheral = factory(component)
-      peripheral.attach({
-        componentId: component.id,
-        component,
-        wires: input.wires,
-        pinStore: input.pinStore,
-        trace: (entry) => this.recordTrace(component.id, entry),
-        scheduleEdge: (pin, value, atSimMs) => this.scheduleEdge(pin, value, atSimMs),
-        nowSimMs: () => this.lastSimMs,
-        attachTwi: (addr, handler) => this.attachTwi(addr, handler),
-      })
-      this.peripherals.set(component.id, peripheral)
-      const typeBucket = this.byType.get(peripheral.componentType) ?? new Set()
-      typeBucket.add(peripheral)
-      this.byType.set(peripheral.componentType, typeBucket)
-      for (const pin of peripheral.watchedPins) {
-        const bucket = this.byPin.get(pin) ?? new Set()
-        bucket.add(peripheral)
-        this.byPin.set(pin, bucket)
+      try {
+        const peripheral = factory(component)
+        peripheral.attach({
+          componentId: component.id,
+          component,
+          wires: input.wires,
+          pinStore: input.pinStore,
+          trace: (entry) => this.recordTrace(component.id, entry),
+          scheduleEdge: (pin, value, atSimMs) => this.scheduleEdge(pin, value, atSimMs),
+          nowSimMs: () => this.lastSimMs,
+          attachTwi: (addr, handler) => this.attachTwi(addr, handler),
+        })
+        this.peripherals.set(component.id, peripheral)
+        const typeBucket = this.byType.get(peripheral.componentType) ?? new Set()
+        typeBucket.add(peripheral)
+        this.byType.set(peripheral.componentType, typeBucket)
+        for (const pin of peripheral.watchedPins) {
+          const bucket = this.byPin.get(pin) ?? new Set()
+          bucket.add(peripheral)
+          this.byPin.set(pin, bucket)
+        }
+      } catch (err) {
+        // One peripheral that can't initialise must not take down the whole
+        // board. The common case is an I²C device (OLED/LCD) on a runner with
+        // no TWI bridge — attachTwi() throws (RP2040 today, and transpile
+        // mode). Skip just that device (it renders its idle placeholder) and
+        // keep the rest of the board live. Surfaced, not swallowed.
+        console.warn(
+          `[peripheral-bus] skipped ${component.type} (${component.id}): ${err instanceof Error ? err.message : String(err)}`,
+        )
       }
     }
   }

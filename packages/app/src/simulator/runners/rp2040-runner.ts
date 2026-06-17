@@ -467,6 +467,15 @@ export function createRp2040SketchRunner(
       // clock/PLL/USB-CDC-dependent code won't. `bun run bootrom:fetch` fixes
       // this properly (see rp2040-bootrom.ts).
       bootArduinoPicoFirmware(chip, result.flashOffset)
+      // Surface the limitation where the user is already looking (build log),
+      // so a flaky Serial/timing run has an obvious explanation + fix.
+      options?.onLog?.(
+        "compiler",
+        "Note: no RP2040 bootrom vendored — running a synthesised GPIO-only boot. " +
+          "Serial/USB-CDC, clocks and timing will be unreliable. " +
+          "Run `bun run bootrom:fetch` to enable full Pico simulation.",
+        Date.now(),
+      )
     }
 
     startPeripheralTick()
