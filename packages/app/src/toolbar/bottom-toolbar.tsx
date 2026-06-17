@@ -19,6 +19,7 @@ import { BoardStatus } from "./board-status"
 import { AiToolbarHistory } from "./ai-toolbar"
 import { useChatMessages } from "./use-chat-messages"
 import { AuthStatusBadge } from "@/auth/auth-status-badge"
+import { ApiKeyButton } from "@/auth/api-key-button"
 import { useCurrentUser } from "@/auth/use-current-user"
 import { OPEN_API_KEY_EVENT } from "@/auth/api-key-dialog"
 
@@ -211,6 +212,7 @@ export function BottomToolbar() {
           )}
         </TooltipProvider>
         <div className="pointer-events-auto absolute right-4 bottom-3 flex items-center gap-2">
+          <ApiKeyButton />
           <AuthStatusBadge />
         </div>
       </div>

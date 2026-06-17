@@ -8,7 +8,8 @@
 //   hosted + no user  → "Sign in" button → GitHub OAuth
 //   local  + user     → "@handle ▾" menu → Sign out
 //   local  + no user  → "No session" chip (CLI restart required)
-//   dev               → "Dev mode" chip (auth gate is bypassed)
+//   dev               → nothing (local/desktop — no account concept; the
+//                       API-key button is the only relevant control there)
 //
 // The pill mirrors the bottom toolbar's card chrome (h-10, rounded-lg,
 // border + bg-card + shadow-sm) so it reads as part of the same surface.
@@ -50,10 +51,10 @@ export function AuthStatusBadge() {
     )
   }
 
+  // Local/desktop (dev) has no GitHub account or session to surface — the
+  // API-key button in the toolbar covers everything relevant there.
   if (mode === "dev") {
-    return (
-      <div className={cn(pillBase, "text-muted-foreground")}>Dev mode</div>
-    )
+    return null
   }
 
   if (!user) {
