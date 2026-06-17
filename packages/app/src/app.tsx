@@ -1,7 +1,6 @@
 import { useEffect, useCallback, useRef, useState, type ReactNode } from "react";
 import { Router, useRouter } from "@/router";
 import { CommandPalette } from "@/components/command-palette";
-import { ViewTabStrip } from "@/components/view-tab-strip";
 import { ShortcutsDialog } from "@/components/shortcuts-dialog";
 import { ConnectClaudeDialog, OPEN_CONNECT_CLAUDE_EVENT } from "@/components/connect-claude-dialog";
 import { DocsRouter } from "@/docs/docs-router";
@@ -150,9 +149,9 @@ function AppInner() {
   // appear in the palette and simulate like built-ins.
   useEffect(() => { void loadAllCustomParts(); }, []);
   const dockviewApiRef = useRef<DockviewApi | null>(null);
-  // The same API as the ref, mirrored into state so the view tab strip and the
-  // native-menu bridge re-render/re-subscribe once Dockview is ready (a ref
-  // mutation alone wouldn't trigger that).
+  // The same API as the ref, mirrored into state so the native-menu bridge
+  // re-renders/re-subscribes once Dockview is ready (a ref mutation alone
+  // wouldn't trigger that).
   const [dockviewApi, setDockviewApi] = useState<DockviewApi | null>(null);
   // Route native macOS View-menu commands to the Dockview API. No-op in a
   // plain browser, where the menu event never fires.
@@ -412,7 +411,7 @@ function AppInner() {
     // view matches the Build button that's highlighted on first load:
     //   Components | Canvas | Sketch / Libraries | Schematic (top) / Inspector (bottom)
     // Other panels (Serial, Pin Inspector, Diagram) appear when you switch into
-    // Simulate / Debug or open them from the tab strip.
+    // Simulate / Debug or open them from the command palette / View menu.
     const totalWidth = api.width;
     const totalHeight = api.height;
 
@@ -485,8 +484,8 @@ function AppInner() {
 
   return (
     <DockviewContext.Provider value={dockviewApiRef}>
-      {/* Column layout: the view tab strip sits on top; Dockview fills the
-          rest. The BottomToolbar is a floating overlay anchored bottom-center
+      {/* Dockview fills the whole column. The BottomToolbar is a floating
+          overlay anchored bottom-center
           — it carries its own card chrome (border + bg-card + shadow) rather
           than a full-width strip, so the underlying panels bleed to the edges
           instead of reserving a persistent ~56px dark row that read as visual
@@ -494,7 +493,6 @@ function AppInner() {
           canvas fully draggable through empty space around the pill; the card
           itself re-enables pointer-events for interaction. */}
       <div className="relative flex h-full w-full flex-col">
-        <ViewTabStrip api={dockviewApi} />
         <div className="relative min-h-0 flex-1">
           <div className="absolute inset-0 dockview-theme-light">
             <DockviewReact
