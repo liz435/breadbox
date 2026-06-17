@@ -35,9 +35,10 @@ export type ViewPanel = {
 
 // `defaultPosition` mirrors the default layout built in app.tsx's onReady, so a
 // view that was closed reopens in its original spot. `within` re-adds a view as
-// a tab in its original group (e.g. Schematic/Libraries live with Sketch;
-// Diagram lives with Inspector). When the referenced panel is itself closed,
-// showPanel falls back to letting Dockview place the panel (see below).
+// a tab in its original group (e.g. Libraries lives with Sketch; Diagram lives
+// with Inspector). Schematic and Inspector share the right column (Schematic on
+// top, Inspector below). When the referenced panel is itself closed, showPanel
+// falls back to letting Dockview place the panel (see below).
 export const VIEW_PANELS: ViewPanel[] = [
   { id: "breadboard", label: "Breadboard" },
   {
@@ -48,12 +49,12 @@ export const VIEW_PANELS: ViewPanel[] = [
   {
     id: "schematic",
     label: "Schematic",
-    defaultPosition: { referencePanel: "sketchEditor", direction: "within" },
+    defaultPosition: { referencePanel: "inspector", direction: "above" },
   },
   {
     id: "inspector",
     label: "Inspector",
-    defaultPosition: { referencePanel: "sketchEditor", direction: "right" },
+    defaultPosition: { referencePanel: "schematic", direction: "below" },
   },
   {
     id: "serialMonitor",
@@ -89,11 +90,6 @@ export const VIEW_PANELS: ViewPanel[] = [
     id: "debugger",
     label: "Debugger",
     defaultPosition: { referencePanel: "sketchEditor", direction: "below" },
-  },
-  {
-    id: "customParts",
-    label: "Custom Parts",
-    defaultPosition: { referencePanel: "libraryManager", direction: "within" },
   },
   // Palette-only: no registered Dockview component, so keep it out of the
   // strip and menu (addPanel would mount an empty panel).

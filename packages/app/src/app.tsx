@@ -25,7 +25,6 @@ import { BreadboardPanel } from "./breadboard/breadboard-panel";
 import { SerialMonitor } from "./panels/serial-monitor";
 import { PinInspector } from "./panels/pin-inspector";
 import { DebuggerPanel } from "./panels/debugger-panel";
-import { CustomPartsPanel } from "./panels/custom-parts-panel";
 import { DiagramPanel } from "./panels/diagram-panel";
 import { OledDisplayPanel } from "./panels/oled-display-panel";
 
@@ -114,10 +113,6 @@ function DebuggerDockPanel(_props: IDockviewPanelProps) {
   return <ErrorBoundary name="Debugger"><DebuggerPanel /></ErrorBoundary>;
 }
 
-function CustomPartsDockPanel(_props: IDockviewPanelProps) {
-  return <ErrorBoundary name="Custom Parts"><CustomPartsPanel /></ErrorBoundary>;
-}
-
 const components = {
   projectFiles: ProjectFilesPanel,
   breadboard: BreadboardDockPanel,
@@ -133,7 +128,6 @@ const components = {
   diagram: DiagramEditorPanel,
   oledDisplay: OledDockPanel,
   debugger: DebuggerDockPanel,
-  customParts: CustomPartsDockPanel,
 };
 
 function AppInner() {
@@ -398,7 +392,7 @@ function AppInner() {
 
     // Clear stale layouts from before Arduino simulator conversion.
     // The old layout references "canvas" and missing panels — force a fresh default.
-    const LAYOUT_VERSION = "arduino-sim-v15";
+    const LAYOUT_VERSION = "arduino-sim-v17";
     const saved = localStorage.getItem(LAYOUT_STORAGE_KEY);
     const savedVersion = localStorage.getItem(LAYOUT_STORAGE_KEY + ":version");
     if (saved && savedVersion === LAYOUT_VERSION) {
@@ -416,10 +410,11 @@ function AppInner() {
 
     // Default layout = the Build workspace mode's tab set, so the initial
     // view matches the Build button that's highlighted on first load:
-    //   Components | Canvas | Sketch / Schematic | Inspector
-    // Other panels (Serial, Pin Inspector, Diagram, Libraries) appear when you
-    // switch into Simulate / Debug or open them from the tab strip.
+    //   Components | Canvas | Sketch / Libraries | Schematic (top) / Inspector (bottom)
+    // Other panels (Serial, Pin Inspector, Diagram) appear when you switch into
+    // Simulate / Debug or open them from the tab strip.
     const totalWidth = api.width;
+    const totalHeight = api.height;
 
     const projectFilesPanel = api.addPanel({
       id: "projectFiles",
@@ -434,7 +429,7 @@ function AppInner() {
       position: { referencePanel: projectFilesPanel, direction: "right" },
     });
 
-    // Sketch editor in the third column, with Schematic as a sibling tab.
+    // Sketch editor in the third column, with Libraries as a sibling tab.
     const sketchPanel = api.addPanel({
       id: "sketchEditor",
       component: "sketchEditor",
@@ -443,26 +438,34 @@ function AppInner() {
     });
 
     api.addPanel({
-      id: "schematic",
-      component: "schematic",
-      title: "Schematic",
+      id: "libraryManager",
+      component: "libraryManager",
+      title: "Libraries",
       position: { referencePanel: sketchPanel, direction: "within" },
     });
 
     sketchPanel.api.setActive();
 
-    // Inspector in the fourth column (right)
+    // Right column: Schematic on top, Inspector stacked below it.
+    const schematicPanel = api.addPanel({
+      id: "schematic",
+      component: "schematic",
+      title: "Schematic",
+      position: { referencePanel: sketchPanel, direction: "right" },
+    });
+
     const inspectorPanel = api.addPanel({
       id: "inspector",
       component: "inspector",
       title: "Inspector",
-      position: { referencePanel: sketchPanel, direction: "right" },
+      position: { referencePanel: schematicPanel, direction: "below" },
     });
 
     projectFilesPanel.api.setSize({ width: totalWidth * 0.14 });
-    canvasPanel.api.setSize({ width: totalWidth * 0.45 });
-    sketchPanel.api.setSize({ width: totalWidth * 0.21 });
-    inspectorPanel.api.setSize({ width: totalWidth * 0.20 });
+    canvasPanel.api.setSize({ width: totalWidth * 0.36 });
+    sketchPanel.api.setSize({ width: totalWidth * 0.25 });
+    schematicPanel.api.setSize({ width: totalWidth * 0.25 });
+    inspectorPanel.api.setSize({ height: totalHeight * 0.45 });
 
     setupPersistence(api);
   }, []);
@@ -475,7 +478,7 @@ function AppInner() {
       debounceRef.current = setTimeout(() => {
         const layout = api.toJSON();
         localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout));
-        localStorage.setItem(LAYOUT_STORAGE_KEY + ":version", "arduino-sim-v15");
+        localStorage.setItem(LAYOUT_STORAGE_KEY + ":version", "arduino-sim-v17");
       }, 300);
     });
   }

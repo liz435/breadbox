@@ -253,7 +253,7 @@ fn install_menu(app: &AppHandle) -> tauri::Result<HashMap<String, CheckMenuItem<
         "serialMonitor",
         "projectFiles",
     ];
-    let view_defs: [(&str, &str, Option<&str>); 12] = [
+    let view_defs: [(&str, &str, Option<&str>); 11] = [
         ("breadboard", "Breadboard", Some("CmdOrCtrl+1")),
         ("sketchEditor", "Sketch", Some("CmdOrCtrl+2")),
         ("schematic", "Schematic", Some("CmdOrCtrl+3")),
@@ -265,7 +265,6 @@ fn install_menu(app: &AppHandle) -> tauri::Result<HashMap<String, CheckMenuItem<
         ("diagram", "Diagram", Some("CmdOrCtrl+9")),
         ("oledDisplay", "OLED Display", None),
         ("debugger", "Debugger", None),
-        ("customParts", "Custom Parts", None),
     ];
 
     let mut view_items: HashMap<String, CheckMenuItem<Wry>> = HashMap::new();
