@@ -17,9 +17,9 @@ export function Badge({
     <span
       className={cn(
         "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-        variant === "implemented" && "bg-green-500/15 text-green-400 ring-1 ring-green-500/30",
-        variant === "partial" && "bg-yellow-500/15 text-yellow-400 ring-1 ring-yellow-500/30",
-        variant === "not-implemented" && "bg-red-500/15 text-red-400 ring-1 ring-red-500/30",
+        variant === "implemented" && "bg-green-500/15 text-green-700 ring-1 ring-green-600/30",
+        variant === "partial" && "bg-amber-500/15 text-amber-700 ring-1 ring-amber-600/30",
+        variant === "not-implemented" && "bg-red-500/15 text-red-700 ring-1 ring-red-600/30",
       )}
     >
       {children}
@@ -81,7 +81,7 @@ export function Section({ title, children }: { title: string; children: ReactNod
 
 export function Note({ children }: { children: ReactNode }) {
   return (
-    <div className="rounded-md border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-sm text-blue-300">
+    <div className="rounded-md border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-sm text-blue-800">
       {children}
     </div>
   )
@@ -89,7 +89,7 @@ export function Note({ children }: { children: ReactNode }) {
 
 export function Warn({ children }: { children: ReactNode }) {
   return (
-    <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-300">
+    <div className="rounded-md border border-amber-500/40 bg-amber-500/15 px-3 py-2 text-sm text-amber-800">
       {children}
     </div>
   )
@@ -163,9 +163,12 @@ function NavLink({ item }: { item: NavItem }) {
       onClick={() => navigate(item.path)}
       className={cn(
         "w-full text-left px-2 py-1 rounded text-sm transition-colors",
+        // Active selector mirrors the editor's toolbar: a bold amber fill with
+        // dark espresso text — on-theme and high-contrast (light blue text
+        // failed WCAG against the aged-paper background).
         isActive
-          ? "text-blue-400 bg-blue-500/10"
-          : "text-muted-foreground hover:text-foreground hover:bg-white/5",
+          ? "bg-primary text-primary-foreground font-medium shadow-sm shadow-primary/30"
+          : "text-muted-foreground hover:text-foreground hover:bg-accent",
       )}
     >
       {item.label}
@@ -180,7 +183,7 @@ function Sidebar() {
     <aside className="w-56 flex-shrink-0 border-r border-border bg-card flex flex-col">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-        <BookOpen className="size-4 text-blue-400 flex-shrink-0" />
+        <BookOpen className="size-4 text-primary flex-shrink-0" />
         <span className="text-sm font-semibold text-foreground">Docs</span>
         <button
           onClick={() => navigate("/editor")}

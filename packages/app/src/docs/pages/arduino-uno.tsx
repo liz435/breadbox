@@ -57,9 +57,9 @@ export function ArduinoUnoPage() {
           Pin names and header ordering are based on the official Arduino pinout references:
         </p>
         <ul className="list-disc pl-5 text-sm text-foreground space-y-1">
-          <li><a href="https://docs.arduino.cc/resources/pinouts/A000066-full-pinout.pdf" className="text-blue-400 hover:text-blue-300" target="_blank" rel="noreferrer">Uno R3 pinout (A000066)</a></li>
-          <li><a href="https://docs.arduino.cc/resources/pinouts/A000005-full-pinout.pdf" className="text-blue-400 hover:text-blue-300" target="_blank" rel="noreferrer">Nano pinout (A000005)</a></li>
-          <li><a href="https://docs.arduino.cc/resources/pinouts/A000067-full-pinout.pdf" className="text-blue-400 hover:text-blue-300" target="_blank" rel="noreferrer">Mega 2560 Rev3 pinout (A000067)</a></li>
+          <li><a href="https://docs.arduino.cc/resources/pinouts/A000066-full-pinout.pdf" className="text-blue-700 underline underline-offset-2 hover:text-blue-900" target="_blank" rel="noreferrer">Uno R3 pinout (A000066)</a></li>
+          <li><a href="https://docs.arduino.cc/resources/pinouts/A000005-full-pinout.pdf" className="text-blue-700 underline underline-offset-2 hover:text-blue-900" target="_blank" rel="noreferrer">Nano pinout (A000005)</a></li>
+          <li><a href="https://docs.arduino.cc/resources/pinouts/A000067-full-pinout.pdf" className="text-blue-700 underline underline-offset-2 hover:text-blue-900" target="_blank" rel="noreferrer">Mega 2560 Rev3 pinout (A000067)</a></li>
         </ul>
       </Section>
     </DocsLayout>
