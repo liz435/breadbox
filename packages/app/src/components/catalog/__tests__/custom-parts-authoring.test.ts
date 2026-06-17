@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { API_ORIGIN } from "@dreamer/config"
 import {
+  detectFormat,
   extractPartId,
-  fetchCustomPartSource,
+  fetchCustomPart,
   listCustomParts,
   removeCustomPart,
   saveCustomPartSource,
@@ -32,16 +33,36 @@ describe("extractPartId", () => {
     expect(extractPartId("type: 'custom:baz'")).toBe("baz")
   })
 
+  test("works for DSL (quoted) and code (unquoted) keys", () => {
+    expect(extractPartId('"type": "custom:foo"')).toBe("foo")
+    expect(extractPartId('type: "custom:bar"')).toBe("bar")
+  })
+
   test("returns null when no custom type is declared", () => {
     expect(extractPartId('type: "led"')).toBeNull()
     expect(extractPartId("no type here")).toBeNull()
   })
 })
 
+describe("detectFormat", () => {
+  test("a JSON object with a type is DSL; everything else is code", () => {
+    expect(detectFormat('{ "type": "custom:x", "label": "X" }')).toBe("dsl")
+    expect(detectFormat("export default (host) => host.defineComponent({})")).toBe("code")
+    expect(detectFormat("{ not json")).toBe("code")
+    expect(detectFormat('{ "label": "no type" }')).toBe("code")
+  })
+})
+
 describe("custom-parts API client", () => {
   test("listCustomParts returns the parts array", async () => {
-    mockFetch(() => new Response(JSON.stringify({ parts: [{ id: "a" }, { id: "b" }] }), { status: 200 }))
-    expect(await listCustomParts()).toEqual([{ id: "a" }, { id: "b" }])
+    mockFetch(() => new Response(
+      JSON.stringify({ parts: [{ id: "a", format: "code" }, { id: "b", format: "dsl" }] }),
+      { status: 200 },
+    ))
+    expect(await listCustomParts()).toEqual([
+      { id: "a", format: "code" },
+      { id: "b", format: "dsl" },
+    ])
   })
 
   test("listCustomParts is resilient to errors", async () => {
@@ -49,14 +70,14 @@ describe("custom-parts API client", () => {
     expect(await listCustomParts()).toEqual([])
   })
 
-  test("fetchCustomPartSource returns source text", async () => {
-    mockFetch(() => new Response(JSON.stringify({ id: "a", source: "SRC" }), { status: 200 }))
-    expect(await fetchCustomPartSource("a")).toBe("SRC")
+  test("fetchCustomPart returns source and format", async () => {
+    mockFetch(() => new Response(JSON.stringify({ id: "a", source: "SRC", format: "dsl" }), { status: 200 }))
+    expect(await fetchCustomPart("a")).toEqual({ source: "SRC", format: "dsl" })
   })
 
   const JSON_HEADERS = { "content-type": "application/json" }
 
-  test("saveCustomPartSource posts id+source and reports success", async () => {
+  test("saveCustomPartSource posts id+format+source and reports success", async () => {
     let capturedUrl = ""
     let capturedBody = ""
     mockFetch((url, init) => {
@@ -64,15 +85,15 @@ describe("custom-parts API client", () => {
       capturedBody = String(init?.body ?? "")
       return new Response(JSON.stringify({ ok: true, id: "foo" }), { status: 200, headers: JSON_HEADERS })
     })
-    const res = await saveCustomPartSource("foo", "const x = 1")
+    const res = await saveCustomPartSource("foo", "code", "const x = 1")
     expect(res).toEqual({ ok: true })
     expect(capturedUrl).toBe(`${API_ORIGIN}/api/custom-parts`)
-    expect(JSON.parse(capturedBody)).toEqual({ id: "foo", source: "const x = 1" })
+    expect(JSON.parse(capturedBody)).toEqual({ id: "foo", format: "code", source: "const x = 1" })
   })
 
   test("saveCustomPartSource surfaces server errors", async () => {
     mockFetch(() => new Response(JSON.stringify({ ok: false, error: "boom" }), { status: 422, headers: JSON_HEADERS }))
-    expect(await saveCustomPartSource("foo", "x")).toEqual({ ok: false, error: "boom" })
+    expect(await saveCustomPartSource("foo", "code", "x")).toEqual({ ok: false, error: "boom" })
   })
 
   test("saveCustomPartSource detects the SPA fallback (route missing → HTML 200)", async () => {
@@ -80,7 +101,7 @@ describe("custom-parts API client", () => {
       status: 200,
       headers: { "content-type": "text/html" },
     }))
-    const res = await saveCustomPartSource("foo", "x")
+    const res = await saveCustomPartSource("foo", "code", "x")
     expect(res.ok).toBe(false)
     expect(res.ok === false && res.error).toContain("rebuild the desktop sidecar")
   })

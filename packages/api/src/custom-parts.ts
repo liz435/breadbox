@@ -1,21 +1,24 @@
 // ── Custom Parts storage ───────────────────────────────────────────────────
 //
-// User-authored custom components, stored as TypeScript source files under the
-// data home ($BREADBOX_HOME/custom-parts/<id>.ts) and served to the frontend
-// as transpiled ES modules it dynamically imports. Authors write against the
-// in-app plugin host SDK (no imports, no JSX — use host.h for elements), so a
-// part is just `export default (host) => host.defineComponent({...})`.
+// User-authored custom components, stored under the data home in one of two
+// formats:
+//   - code: `<id>.ts`  — a host-SDK module, transpiled and dynamically imported
+//   - dsl:  `<id>.json` — a declarative DreamerCustomComponent spec, interpreted
 //
-// Transpilation is Bun's built-in TS transpiler (type-stripping only); it also
-// doubles as save-time validation — a syntax error throws before we persist.
+// Code parts are validated by transpiling; DSL parts by parsing against
+// customComponentDslSchema. Either way validation runs before the file lands.
 
 import { mkdir, readdir, readFile, unlink, writeFile } from "fs/promises";
 import { join } from "path";
+import { customComponentDslSchema } from "@dreamer/schemas";
 import { customPartsDir } from "./paths";
 
 const ID_RE = /^[a-z0-9-]+$/;
 
-export type CustomPartMeta = { id: string };
+export type CustomPartFormat = "code" | "dsl";
+export type CustomPartMeta = { id: string; format: CustomPartFormat };
+
+const EXT: Record<CustomPartFormat, string> = { code: ".ts", dsl: ".json" };
 
 export function isValidPartId(id: string): boolean {
   return ID_RE.test(id);
@@ -33,46 +36,88 @@ export function transpile(source: string): string {
   return transpiler.transformSync(source);
 }
 
+function formatOfFile(file: string): CustomPartFormat | null {
+  if (file.endsWith(".ts")) return "code";
+  if (file.endsWith(".json")) return "dsl";
+  return null;
+}
+
 export async function listCustomParts(): Promise<CustomPartMeta[]> {
   const dir = await ensureDir();
   const entries = await readdir(dir).catch(() => [] as string[]);
-  return entries
-    .filter((f) => f.endsWith(".ts"))
-    .map((f) => ({ id: f.slice(0, -3) }));
+  const parts: CustomPartMeta[] = [];
+  for (const file of entries) {
+    const format = formatOfFile(file);
+    if (format) parts.push({ id: file.slice(0, file.lastIndexOf(".")), format });
+  }
+  return parts;
 }
 
-export async function getCustomPartSource(id: string): Promise<string | null> {
+/** Read a part's source and format, or null if it doesn't exist. */
+export async function getCustomPart(
+  id: string,
+): Promise<{ source: string; format: CustomPartFormat } | null> {
   if (!isValidPartId(id)) return null;
   const dir = await ensureDir();
-  try {
-    return await readFile(join(dir, `${id}.ts`), "utf8");
-  } catch {
-    return null;
+  for (const format of ["code", "dsl"] as const) {
+    try {
+      const source = await readFile(join(dir, id + EXT[format]), "utf8");
+      return { source, format };
+    } catch {
+      // try the next format
+    }
   }
+  return null;
 }
 
-/** Transpiled ES module for an id, or null if it doesn't exist. May throw on a transpile error. */
+/** Transpiled ES module for a CODE part; null if missing or a DSL part. */
 export async function getCustomPartModule(id: string): Promise<string | null> {
-  const source = await getCustomPartSource(id);
-  if (source == null) return null;
-  return transpile(source);
+  const part = await getCustomPart(id);
+  if (!part || part.format !== "code") return null;
+  return transpile(part.source);
 }
 
-export async function saveCustomPart(id: string, source: string): Promise<void> {
+export async function saveCustomPart(
+  id: string,
+  format: CustomPartFormat,
+  source: string,
+): Promise<void> {
   if (!isValidPartId(id)) throw new Error(`Invalid part id "${id}" — use kebab-case (a-z, 0-9, -)`);
-  // Validate it compiles before persisting so a broken part never lands on disk.
-  transpile(source);
+
+  // Validate before persisting so a broken part never lands on disk.
+  if (format === "code") {
+    transpile(source);
+  } else {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(source);
+    } catch {
+      throw new Error("DSL part must be valid JSON");
+    }
+    const result = customComponentDslSchema.safeParse(parsed);
+    if (!result.success) {
+      throw new Error(result.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "));
+    }
+  }
+
   const dir = await ensureDir();
-  await writeFile(join(dir, `${id}.ts`), source, "utf8");
+  await writeFile(join(dir, id + EXT[format]), source, "utf8");
+  // A part has a single canonical format — drop the other extension if present.
+  const other = format === "code" ? "dsl" : "code";
+  await unlink(join(dir, id + EXT[other])).catch(() => {});
 }
 
 export async function deleteCustomPart(id: string): Promise<boolean> {
   if (!isValidPartId(id)) return false;
   const dir = await ensureDir();
-  try {
-    await unlink(join(dir, `${id}.ts`));
-    return true;
-  } catch {
-    return false;
+  let removed = false;
+  for (const format of ["code", "dsl"] as const) {
+    try {
+      await unlink(join(dir, id + EXT[format]));
+      removed = true;
+    } catch {
+      // not present in this format
+    }
   }
+  return removed;
 }

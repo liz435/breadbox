@@ -1,7 +1,31 @@
-// Starter template for a new custom part. Authored against the `host` SDK —
-// no imports, no JSX (use host.h for any custom visuals). The id after
-// "custom:" becomes the filename and the registered type.
+// Starter templates for a new custom part.
+//
+// DSL form (declarative, portable — copy-paste to/from a chatbot, MCP-safe) and
+// code form (a host-SDK module, full power). The id after "custom:" becomes the
+// filename and the registered type.
 
+export const CUSTOM_PART_DSL_TEMPLATE = `{
+  "type": "custom:my-sensor",
+  "label": "My Sensor",
+  "category": "input",
+  "pins": [
+    { "name": "vcc", "dx": 0, "dy": 0, "role": "power" },
+    { "name": "gnd", "dx": 0, "dy": 1, "role": "ground" },
+    { "name": "sig", "dx": 0, "dy": 2, "role": "analog" }
+  ],
+  "properties": { "value": 50 },
+  "electrical": {
+    "elements": [
+      { "kind": "source", "plus": "sig", "minus": "0", "volts": "value / 100 * 5" }
+    ]
+  },
+  "sketch": {
+    "loop": ["int v = analogRead({{pin.sig}}); // {{name}}"]
+  }
+}
+`
+
+// Code form (the host-SDK module).
 export const CUSTOM_PART_TEMPLATE = `// A custom Breadbox component. Edit and Save — it appears in the palette
 // immediately and simulates like a built-in part.
 

@@ -6,7 +6,9 @@
 
 import { useSyncExternalStore } from "react"
 
-export type CustomPartEditTarget = { kind: "new" } | { kind: "edit"; id: string }
+export type CustomPartEditTarget =
+  | { kind: "new"; format: "code" | "dsl" }
+  | { kind: "edit"; id: string }
 export type CustomPartEditorState = { open: boolean; target: CustomPartEditTarget | null }
 
 let state: CustomPartEditorState = { open: false, target: null }
