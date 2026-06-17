@@ -13,7 +13,6 @@ export function OverviewPage() {
           Breadbox is a browser-based Arduino simulator. You place components on a virtual breadboard,
           wire them to an Arduino Uno, run real SPICE circuit analysis to see voltages and currents,
           write and execute Arduino sketches in the browser, and use a visual node-graph for programming logic.
-          An AI agent can help you design circuits, place components, and write code.
         </p>
       </Section>
 
@@ -66,7 +65,6 @@ export function OverviewPage() {
           <li>The <strong className="text-foreground">Circuit Simulator</strong> runs automatically — LEDs glow, the schematic updates.</li>
           <li>Open the <strong className="text-foreground">Sketch Editor</strong> — a boilerplate sketch is auto-generated. Edit it freely, or click <strong className="text-foreground">Examples</strong> to load a pre-built board with a working sketch.</li>
           <li>Click <strong className="text-foreground">Run</strong> to compile and execute the sketch in the browser. Serial output appears in the Serial Monitor.</li>
-          <li>Use the <strong className="text-foreground">AI Agent</strong> (bottom toolbar, sparkle icon) to ask for help at any step.</li>
         </ol>
       </Section>
 

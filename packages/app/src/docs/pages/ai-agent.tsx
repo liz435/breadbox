@@ -5,34 +5,60 @@ export function AiAgentPage() {
     <DocsLayout>
       <PageTitle
         title="AI Agent"
-        subtitle="Chat-based assistant that designs circuits, places components, writes sketch code, and validates wiring."
+        subtitle="Three ways to bring AI into Breadbox — the built-in agent on your own API key, your own Claude over MCP, or instant zero-cost templates."
         badge={<Badge variant="implemented">Implemented</Badge>}
       />
 
-      <Section title="How to use">
+      <Section title="Three ways to use AI">
         <p className="text-sm text-foreground leading-relaxed">
-          Click the <strong className="text-foreground">sparkle icon</strong> (✦) in the bottom toolbar
-          to switch to AI mode. Type a request in natural language and press Enter. The agent reads
-          your board state, places components, draws wires, and updates the sketch — all in one step.
+          Breadbox doesn&apos;t ship a shared, metered AI. Instead you choose how the assistance reaches
+          your board — each path uses the same underlying circuit model, so you can freely mix them.
         </p>
+        <Table
+          headers={["Way", "What it is", "Model & key", "Best for"]}
+          rows={[
+            ["Built-in agent", "In-app chat (✦) — describe a circuit and it places parts, draws wires, and writes the sketch", "Your own Anthropic API key (BYOK)", "Designing and editing inside Breadbox"],
+            ["Your Claude over MCP", "Connect Claude Code, Claude Desktop, or Cursor; edits stream onto your open canvas live", "Your AI client's model & subscription", "Working from an assistant you already use"],
+            ["Instant templates", "Keyword-matched deterministic builders for common circuits", "None — 0 tokens, <100ms", "Blink, button + LED, and other starters"],
+          ]}
+        />
         <Note>
-          Common requests (blink, button+LED, servo sweep, traffic light, etc.) are handled by
-          instant templates — zero AI cost, &lt;100ms. Complex requests use the full agent.
+          Start a board with a template, refine it with the built-in agent, then hand the project to
+          your own Claude over MCP — the same project file flows through all three.
         </Note>
       </Section>
 
-      <Section title="Request routing">
-        <Table
-          headers={["Path", "When", "Cost", "Latency"]}
-          rows={[
-            ["Template", "Known patterns: blink, button+LED, servo sweep, traffic light, pot+LED, temperature, buzzer", "0 tokens", "<100ms"],
-            ["Agent (propose_circuit)", "New circuits described in natural language", "1,500-3,000 tokens", "3-8s"],
-            ["Agent (individual tools)", "Small edits: move, rename, change color, add one component", "500-1,500 tokens", "2-5s"],
-          ]}
-        />
+      <Section title="1. Built-in agent — bring your own API key">
+        <p className="text-sm text-foreground leading-relaxed">
+          Click the <strong className="text-foreground">sparkle icon</strong> (✦) in the bottom toolbar
+          to switch the chat panel to AI mode. Type a request in plain language and press Enter — the
+          agent reads your current board, places components, draws wires, and updates the sketch in a
+          single turn.
+        </p>
+        <Note>
+          Breadbox&apos;s built-in AI runs on <strong className="text-foreground">your own Anthropic API
+          key</strong> — there is no bundled or shared key. The first time you send an AI request (in
+          CLI or desktop mode) a dialog asks for a key starting with <code>sk-ant-</code>. It is saved
+          to <code>~/.dreamer/config.json</code>, applied without a restart, and never leaves your
+          machine except to call Anthropic. Grab one from the{" "}
+          <a
+            href="https://console.anthropic.com/settings/keys"
+            className="text-blue-700 underline underline-offset-2 hover:text-blue-900"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Anthropic Console
+          </a>
+          . If a request comes back without a key, the dialog re-opens automatically.
+        </Note>
+        <Warn>
+          You pay Anthropic directly for built-in-agent usage at their per-token rates. The other two
+          paths don&apos;t touch your key: templates run no model at all, and MCP bills against your own
+          AI client&apos;s subscription.
+        </Warn>
       </Section>
 
-      <Section title="What the agent can do">
+      <Section title="What the built-in agent can do">
         <Table
           headers={["Capability", "Example prompt"]}
           rows={[
@@ -49,37 +75,71 @@ export function AiAgentPage() {
         />
       </Section>
 
-      <Section title="Agent tools">
+      <Section title="How built-in requests are routed">
+        <p className="text-sm text-foreground leading-relaxed mb-2">
+          Every message is classified before it spends a token. Known patterns hit a deterministic
+          template (way 3); everything else goes to the Claude agent, which prefers a single{" "}
+          <code>propose_circuit</code> call for new circuits and individual tools for small edits.
+        </p>
         <Table
-          headers={["Tool", "What it does"]}
+          headers={["Path", "When", "Cost", "Latency"]}
           rows={[
-            ["propose_circuit", "Build an entire circuit in one call — components, wires, and sketch. Auto-positions everything. Preferred for new circuits."],
-            ["get_board_state", "Read current components, wires, and sketch code"],
-            ["get_wiring_guide", "Reference: breadboard bus rules, pin names, footprints"],
-            ["place_component", "Place a single component (22 types available)"],
-            ["update_component", "Change a component's name, pins, or properties"],
-            ["move_component", "Reposition a component on the breadboard"],
-            ["remove_component", "Delete a component (warns about orphaned wires)"],
-            ["connect_wire", "Draw a wire between two breadboard points"],
-            ["wire_component_to_pin", "High-level: wire a component to an Arduino pin by component ID"],
-            ["remove_wire", "Delete a wire by ID"],
-            ["update_wire", "Move a wire endpoint"],
-            ["update_sketch", "Replace the entire sketch code"],
-            ["patch_sketch", "Edit specific lines without replacing the whole file"],
-            ["create_blink_circuit", "Deterministic: LED + resistor + sketch"],
-            ["create_button_led_circuit", "Deterministic: button + LED + resistor + sketch"],
-            ["create_servo_sweep_circuit", "Deterministic: servo + Servo library sketch"],
+            ["Template", "Known patterns: blink, button+LED, servo sweep, traffic light, pot+LED, temperature, buzzer", "0 tokens", "<100ms"],
+            ["Agent (propose_circuit)", "New circuits described in natural language", "1,500-3,000 tokens", "3-8s"],
+            ["Agent (individual tools)", "Small edits: move, rename, change color, add one component", "500-1,500 tokens", "2-5s"],
           ]}
         />
       </Section>
 
-      <Section title="Templates (instant, zero cost)">
+      <Section title="2. Your own Claude over MCP">
+        <p className="text-sm text-foreground leading-relaxed">
+          Breadbox ships a <a href="https://modelcontextprotocol.io/" className="text-blue-700 underline underline-offset-2 hover:text-blue-900" target="_blank" rel="noreferrer">Model Context Protocol</a> server
+          (<code>dreamer mcp</code>) that exposes its circuit tools to your own Claude — Claude Code,
+          Claude Desktop, Cursor, or any MCP client. The model and subscription are yours, and edits
+          appear on your open Breadbox canvas in real time as each tool call lands — no import, no reload.
+        </p>
+        <p className="text-sm text-foreground leading-relaxed mt-2 mb-2">
+          Register the server with Claude Code:
+        </p>
+        <CodeBlock lang="bash" code={`claude mcp add dreamer -- dreamer --project <id> mcp`} />
+        <p className="text-sm text-foreground leading-relaxed mt-3 mb-2">
+          …or add it to Claude Desktop&apos;s <code>claude_desktop_config.json</code>:
+        </p>
+        <CodeBlock lang="json" code={`{
+  "mcpServers": {
+    "dreamer": {
+      "command": "dreamer",
+      "args": ["--project", "<id>", "mcp"]
+    }
+  }
+}`} />
+        <Table
+          headers={["MCP tool", "Purpose"]}
+          rows={[
+            ["validate_design", "Dry-run check a diagram (no writes) — run before applying"],
+            ["apply_design", "Atomically replace the board with a diagram (+ sketch)"],
+            ["get_board_state / list_components / list_wires", "Read the current board"],
+            ["update_sketch / patch_sketch", "Replace the sketch, or patch a line range"],
+            ["analyze_power_budget", "Per-pin / rail load + electrical-safety report"],
+            ["get_wiring_guide", "Wire colours, rules, footprints, pin aliases"],
+          ]}
+        />
+        <Note>
+          Get the project id from the in-app <strong className="text-foreground">Connect Claude (MCP)</strong> dialog
+          (<code>Cmd/Ctrl+K</code> → &quot;Connect Claude&quot;), which shows ready-to-copy commands. The live
+          canvas bridge is a <strong className="text-foreground">local</strong> feature — it is disabled on the
+          hosted deployment.
+        </Note>
+      </Section>
+
+      <Section title="3. Instant templates — no AI, no key">
         <p className="text-sm text-foreground leading-relaxed mb-2">
-          These patterns are detected by keyword matching before the AI agent runs. They execute
-          deterministic circuit builders that place components with correct wiring and working sketch code.
+          Common requests are matched by keyword before any model runs, then built by deterministic code
+          that places components with correct wiring and a working sketch. They cost nothing, finish in
+          under 100ms, and need no API key.
         </p>
         <Table
-          headers={["Template", "Trigger", "Components"]}
+          headers={["Template", "Trigger", "Builds"]}
           rows={[
             ["Blink", '"blink LED", "make an LED blink"', "LED + 220Ω resistor"],
             ["Button + LED", '"button LED", "button-controlled LED"', "Button + LED + 220Ω resistor"],
@@ -91,87 +151,23 @@ export function AiAgentPage() {
           ]}
         />
         <Note>
-          Templates clear the existing board by default. Use words like "add", "also", or "another"
-          to keep existing components: "also add a buzzer" preserves the board.
+          Templates clear the existing board by default. Words like &quot;add&quot;, &quot;also&quot;, or
+          &quot;another&quot; keep what&apos;s there — &quot;also add a buzzer&quot; preserves the board.
         </Note>
-      </Section>
-
-      <Section title="propose_circuit (recommended for new circuits)">
-        <p className="text-sm text-foreground leading-relaxed mb-2">
-          The agent describes components and wires by type and array index — the tool handles
-          positioning, ID generation, and validation automatically. No hallucinated IDs possible.
-        </p>
-        <CodeBlock lang="json" code={`// Agent calls propose_circuit with:
-{
-  "components": [
-    {"type": "led", "name": "LED", "properties": {"color": "#ef4444"}},
-    {"type": "resistor", "name": "R1", "properties": {"resistance": 220}}
-  ],
-  "wires": [
-    {"arduinoPin": 13, "toComponent": 0}
-  ],
-  "ledResistorPairs": [
-    {"ledIndex": 0, "resistorIndex": 1}
-  ],
-  "sketch": "void setup() { ... }"
-}`} />
-        <p className="text-sm text-muted-foreground mt-2">
-          Components are referenced by array index (0, 1, 2...), not by ID. The tool auto-positions
-          them on the breadboard, wires LED cathodes through resistors to GND, and validates everything
-          before placing.
-        </p>
-      </Section>
-
-      <Section title="Agent eval dashboard">
-        <p className="text-sm text-foreground leading-relaxed">
-          Every agent run is automatically evaluated for accuracy, efficiency, circuit quality, and
-          completeness. Results are stored in <code>data/tests/</code> alongside the run data.
-        </p>
-        <Table
-          headers={["Metric", "What it measures"]}
-          rows={[
-            ["Path trace", "Full execution sequence: every tool call, input, result, in order"],
-            ["Token cost", "Input/output tokens, estimated USD cost, waste detection"],
-            ["Tool accuracy", "Error rate, hallucinated IDs, wrong pin names, invalid positions"],
-            ["Circuit quality", "Floating components, bus shorts, missing resistors, sketch/pin match"],
-            ["Score", "0-100 composite: accuracy (25) + efficiency (25) + quality (25) + completeness (25)"],
-          ]}
-        />
-        <Note>
-          Access the dashboard at <code>http://localhost:4111/api/eval/dashboard</code> when
-          the API server is running. Click "Refresh" to evaluate all runs.
-        </Note>
-      </Section>
-
-      <Section title="Architecture">
-        <Table
-          headers={["Component", "Role"]}
-          rows={[
-            ["Intent classifier", "Regex-based router: detects known patterns → template, or freeform → agent"],
-            ["Circuit templates", "7 deterministic builders: blink, button+LED, servo, traffic light, pot+LED, temperature, buzzer"],
-            ["Core agent (Claude)", "Multi-step reasoning with tools. Uses propose_circuit for new circuits, individual tools for edits"],
-            ["Circuit specialist", "Delegated agent for validation and complex wiring analysis"],
-            ["Graph specialist", "Delegated agent for visual node-block programming"],
-            ["Board state tracker", "Server-side working copy so the agent sees current-turn changes"],
-            ["Auto-eval", "Every completed run is scored automatically for debugging"],
-          ]}
-        />
       </Section>
 
       <Section title="Limitations">
         <Table
           headers={["Feature", "Status"]}
           rows={[
-            ["Build circuits (propose_circuit)", "Implemented — auto-positions, validates, wires"],
-            ["Place / remove / move / update components", "Implemented"],
-            ["Draw and edit wires", "Implemented"],
-            ["Write and patch sketch code", "Implemented"],
-            ["Circuit validation", "Implemented — missing resistors, pin conflicts, bus shorts"],
-            ["Template shortcuts (blink, traffic light, etc.)", "Implemented — 7 templates, instant"],
-            ["Agent eval dashboard", "Implemented — http://localhost:4111/api/eval/dashboard"],
-            ["Read simulation results (voltage, current)", "Not implemented — agent can't read SPICE output"],
-            ["Run/stop sketch from chat", "Not implemented — user must click Run manually"],
+            ["Built-in agent: build / place / move / update / wire / sketch", "Implemented"],
+            ["Instant templates (blink, traffic light, …)", "Implemented — 7 templates"],
+            ["MCP live canvas bridge", "Implemented — local only (dev server, CLI, or desktop)"],
+            ["Bring-your-own Anthropic key", "Implemented — stored at ~/.dreamer/config.json"],
+            ["Read simulation results (voltage, current)", "Not implemented — the agent can't read SPICE output"],
+            ["Run/stop sketch from chat", "Not implemented — click Run manually"],
             ["Read serial output", "Not implemented"],
+            ["MCP live bridge on the hosted deployment", "Not available — local only"],
           ]}
         />
       </Section>

@@ -1,6 +1,7 @@
 import React from "react"
 import { useRouter } from "@/router"
 import { OverviewPage } from "@/docs/pages/overview"
+import { CoreFeaturesPage } from "@/docs/pages/core-features"
 import { ArduinoUnoPage } from "@/docs/pages/arduino-uno"
 import { SimulatorPage } from "@/docs/pages/simulator"
 import { SketchPage } from "@/docs/pages/sketch"
@@ -28,11 +29,11 @@ import { DhtSensorPage } from "@/docs/pages/components/dht-sensor"
 import { IrReceiverPage } from "@/docs/pages/components/ir-receiver"
 import { ShiftRegisterPage } from "@/docs/pages/components/shift-register"
 import { OledDisplayPage } from "@/docs/pages/components/oled-display"
-import { AgentEvalPage } from "@/docs/pages/agent-eval"
 import { DocsLayout, PageTitle } from "@/docs/docs-layout"
 
 const ROUTES: Record<string, () => React.JSX.Element> = {
   "/documentation": OverviewPage,
+  "/documentation/core-features": CoreFeaturesPage,
   "/documentation/arduino-uno": ArduinoUnoPage,
   "/documentation/simulator": SimulatorPage,
   "/documentation/sketch": SketchPage,
@@ -60,7 +61,6 @@ const ROUTES: Record<string, () => React.JSX.Element> = {
   "/documentation/components/ir-receiver": IrReceiverPage,
   "/documentation/components/shift-register": ShiftRegisterPage,
   "/documentation/components/oled-display": OledDisplayPage,
-  "/documentation/agent-eval": AgentEvalPage,
 }
 
 function NotFoundPage() {
