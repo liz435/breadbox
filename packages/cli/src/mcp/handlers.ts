@@ -24,6 +24,14 @@ import {
   ProjectNotFoundError,
   type McpSession,
 } from "./context"
+import { customComponentDslSchema } from "@dreamer/schemas"
+import {
+  deleteCustomPart as storeDeleteCustomPart,
+  getCustomPart as storeGetCustomPart,
+  isValidPartId,
+  listCustomParts as storeListCustomParts,
+  saveCustomPart as storeSaveCustomPart,
+} from "@dreamer/api/custom-parts"
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -329,4 +337,59 @@ export async function patchSketch(
     sketchBytes: patched.length,
     newVersion: applied.newVersion,
   }
+}
+
+// ── Custom parts ─────────────────────────────────────────────────────────
+//
+// Global (per BREADBOX_HOME), not project-scoped. DSL specs are validated
+// against customComponentDslSchema; saved parts appear in the palette and
+// simulate like built-ins.
+
+function partIdFromType(type: string): string {
+  return type.replace(/^custom:/, "");
+}
+
+export async function listCustomParts() {
+  return { parts: await storeListCustomParts() };
+}
+
+export async function getCustomPart(input: { id: string }) {
+  const part = await storeGetCustomPart(input.id);
+  if (!part) return { error: `Custom part "${input.id}" not found.` };
+  return part;
+}
+
+type CustomPartValidation =
+  | { valid: true; id: string }
+  | { valid: false; issues: Array<{ path: string; message: string }> };
+
+export function validateCustomPart(input: { spec: unknown }): CustomPartValidation {
+  const result = customComponentDslSchema.safeParse(input.spec);
+  if (!result.success) {
+    return {
+      valid: false,
+      issues: result.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
+    };
+  }
+  return { valid: true, id: partIdFromType(result.data.type) };
+}
+
+export async function saveCustomPart(input: { spec: unknown }) {
+  const result = customComponentDslSchema.safeParse(input.spec);
+  if (!result.success) {
+    return {
+      ok: false,
+      error: result.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
+    };
+  }
+  const id = partIdFromType(result.data.type);
+  if (!isValidPartId(id)) {
+    return { ok: false, error: `Invalid id "${id}" — type must be custom:<kebab-name>` };
+  }
+  await storeSaveCustomPart(id, "dsl", JSON.stringify(result.data, null, 2));
+  return { ok: true, id };
+}
+
+export async function deleteCustomPart(input: { id: string }) {
+  return { ok: await storeDeleteCustomPart(input.id) };
 }

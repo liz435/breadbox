@@ -11,19 +11,36 @@ import type { McpSession } from "./context"
 import {
   analyzePowerBudgetHandler,
   applyDesign,
+  deleteCustomPart,
   getBoardState,
   getComponentDetails,
   getCurrentProject,
+  getCustomPart,
   getSketchCode,
   getWiringGuide,
   listComponents,
+  listCustomParts,
   listProjects,
   listWires,
   patchSketch,
+  saveCustomPart,
   setCurrentProject,
   updateSketch,
+  validateCustomPart,
   validateDesign,
 } from "./handlers"
+
+// Compact DSL reference embedded in the custom-part tool descriptions so the
+// agent can generate a valid `spec` without a separate schema fetch.
+const DSL_SHAPE =
+  'spec = { type: "custom:<kebab>", label, category?: "input"|"output"|"passive"|"display"|"other", ' +
+  "pins: [{ name, dx, dy, role?: \"power\"|\"ground\"|\"digital\"|\"analog\"|\"io\" }], " +
+  "properties?: { <name>: number }, " +
+  'electrical?: { elements: [{ kind: "resistor", a, b, ohms } | { kind: "source", plus, minus, volts } | ' +
+  '{ kind: "input_impedance", pin, ohms? }] }, ' +
+  "sketch?: { includes?, globals?, setup?, loop? } }. " +
+  'A pin ref is a pin name or "0" (ground). ohms/volts may be a number or an expression string over ' +
+  'properties (e.g. "value / 100 * 5"). Sketch lines support {{name}} and {{pin.<name>}}.'
 
 function asContent(value: unknown) {
   return {
@@ -199,5 +216,55 @@ export function registerTools(server: McpServer, session: McpSession) {
       },
     },
     async (input) => wrap(() => patchSketch(session, input)),
+  )
+
+  // ── Custom parts (global, not project-scoped) ───────────────────
+
+  server.registerTool(
+    "list_custom_parts",
+    {
+      description:
+        "List the user's custom components as [{ id, format }], where format is 'code' (a TS module) or 'dsl' (a declarative spec).",
+      inputSchema: {},
+    },
+    async () => wrap(() => listCustomParts()),
+  )
+
+  server.registerTool(
+    "get_custom_part",
+    {
+      description: "Fetch one custom part by id, returning its source and format.",
+      inputSchema: { id: z.string().min(1) },
+    },
+    async (input) => wrap(() => getCustomPart(input)),
+  )
+
+  server.registerTool(
+    "validate_custom_part",
+    {
+      description:
+        `Dry-run validate a custom-component DSL spec. Returns { valid: true, id } or { valid: false, issues[] }. Does NOT save. ${DSL_SHAPE}`,
+      inputSchema: { spec: z.record(z.string(), z.unknown()) },
+    },
+    async (input) => wrap(() => validateCustomPart(input)),
+  )
+
+  server.registerTool(
+    "save_custom_part",
+    {
+      description:
+        `Create or update a custom component from a DSL spec. The id is the name after "custom:" in spec.type. Validated before saving; the saved part appears in the palette and simulates like a built-in. ${DSL_SHAPE}`,
+      inputSchema: { spec: z.record(z.string(), z.unknown()) },
+    },
+    async (input) => wrap(() => saveCustomPart(input)),
+  )
+
+  server.registerTool(
+    "delete_custom_part",
+    {
+      description: "Delete a custom part by id.",
+      inputSchema: { id: z.string().min(1) },
+    },
+    async (input) => wrap(() => deleteCustomPart(input)),
   )
 }
