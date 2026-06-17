@@ -41,6 +41,7 @@ export {
   HOLE_RADIUS,
   GAP_WIDTH,
   RAIL_OFFSET,
+  RAIL_PAIR_SPACING,
   ARDUINO_BOARD_WIDTH,
   ARDUINO_BOARD_HEIGHT,
   ARDUINO_BOARD_MARGIN,
@@ -51,6 +52,7 @@ import {
   HOLE_SPACING,
   GAP_WIDTH,
   RAIL_OFFSET,
+  RAIL_PAIR_SPACING,
   ARDUINO_BOARD_WIDTH,
   ARDUINO_BOARD_HEIGHT,
   ARDUINO_BOARD_MARGIN,
@@ -525,11 +527,11 @@ function gridToPixelUncached(point: GridPoint): { x: number; y: number } {
     return { x: TERMINAL_ORIGIN_X - RAIL_OFFSET + 4, y };
   }
   if (col === -1) {
-    return { x: TERMINAL_ORIGIN_X - RAIL_OFFSET + 4 + HOLE_SPACING, y };
+    return { x: TERMINAL_ORIGIN_X - RAIL_OFFSET + 4 + RAIL_PAIR_SPACING, y };
   }
   if (col === 10) {
     return {
-      x: TERMINAL_ORIGIN_X + BREADBOARD_INNER_WIDTH + RAIL_OFFSET - 4 - HOLE_SPACING,
+      x: TERMINAL_ORIGIN_X + BREADBOARD_INNER_WIDTH + RAIL_OFFSET - 4 - RAIL_PAIR_SPACING,
       y,
     };
   }
