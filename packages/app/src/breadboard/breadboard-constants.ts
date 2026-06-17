@@ -6,9 +6,16 @@
 export const ROWS = 30
 export const COLS = 10
 export const HOLE_SPACING = 14
-export const HOLE_RADIUS = 2.8
+export const HOLE_RADIUS = 2.5
 export const GAP_WIDTH = 28
 export const RAIL_OFFSET = 38
+
+/**
+ * Spacing between the two dot columns of a side power rail.
+ * Tighter than HOLE_SPACING so the inner column sits back from the terminal
+ * block (more breathing room) and the pair reads as a grouped rail.
+ */
+export const RAIL_PAIR_SPACING = 10
 export const ARDUINO_BOARD_WIDTH = 340
 export const ARDUINO_BOARD_HEIGHT = 220
 export const ARDUINO_BOARD_MARGIN = 20

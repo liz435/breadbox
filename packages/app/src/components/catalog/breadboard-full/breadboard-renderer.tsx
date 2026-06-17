@@ -227,6 +227,13 @@ function BreadboardRendererInner({ component }: ComponentRendererProps) {
   const gapX = TERMINAL_ORIGIN_X + TERMINAL_WIDTH;
   const gapY = TERMINAL_ORIGIN_Y - 6;
   const gapHeight = (ROWS - 1) * HOLE_SPACING + 12;
+  // Inset the center trough so it clears the dots in the bordering columns
+  // e (col 4, centered on gapX) and f (col 5, centered on gapX + GAP_WIDTH).
+  // Derived from HOLE_RADIUS so the trough stays off the dots at any hole size.
+  const gapInset = HOLE_RADIUS + 1.5;
+  const gapInnerX = gapX + gapInset;
+  const gapInnerWidth = GAP_WIDTH - gapInset * 2;
+  const gapInnerRight = gapInnerX + gapInnerWidth;
 
   const dx = component.worldX ?? 0;
   const dy = component.worldY ?? 0;
@@ -272,26 +279,26 @@ function BreadboardRendererInner({ component }: ComponentRendererProps) {
       />
 
       <rect
-        x={gapX + 2}
+        x={gapInnerX}
         y={gapY}
-        width={GAP_WIDTH - 4}
+        width={gapInnerWidth}
         height={gapHeight}
         fill="url(#gap-fill)"
         rx={1.5}
       />
       <line
-        x1={gapX + 2}
+        x1={gapInnerX}
         y1={gapY}
-        x2={gapX + GAP_WIDTH - 2}
+        x2={gapInnerRight}
         y2={gapY}
         stroke="#000000"
         strokeWidth={0.6}
         opacity={0.18}
       />
       <line
-        x1={gapX + 2}
+        x1={gapInnerX}
         y1={gapY + gapHeight}
-        x2={gapX + GAP_WIDTH - 2}
+        x2={gapInnerRight}
         y2={gapY + gapHeight}
         stroke="#ffffff"
         strokeWidth={0.6}
