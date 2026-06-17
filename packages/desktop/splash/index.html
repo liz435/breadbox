@@ -22,7 +22,7 @@
         align-items: center;
         justify-content: center;
         gap: 1.25rem;
-        background: radial-gradient(120% 120% at 50% 0%, #1b1530 0%, #0b0b0f 60%);
+        background: radial-gradient(120% 120% at 50% 0%, #2a1a05 0%, #0b0805 60%);
         color: #e5e7eb;
         font-family:
           system-ui,
@@ -36,7 +36,7 @@
       .mark {
         width: 72px;
         height: 72px;
-        filter: drop-shadow(0 6px 20px rgba(124, 58, 237, 0.45));
+        filter: drop-shadow(0 6px 20px rgba(217, 138, 30, 0.5));
         animation: float 3s ease-in-out infinite;
       }
       @keyframes float {
@@ -62,7 +62,7 @@
         height: 22px;
         border-radius: 9999px;
         border: 2px solid rgba(255, 255, 255, 0.15);
-        border-top-color: #a78bfa;
+        border-top-color: #e0a13a;
         animation: spin 0.8s linear infinite;
       }
       @keyframes spin {
@@ -79,19 +79,7 @@
     </style>
   </head>
   <body>
-    <svg class="mark" viewBox="0 0 1024 1024" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stop-color="#6366f1" />
-          <stop offset="1" stop-color="#7c3aed" />
-        </linearGradient>
-      </defs>
-      <rect x="64" y="64" width="896" height="896" rx="216" fill="url(#bg)" />
-      <path
-        d="M512 232 C 540 392, 632 484, 792 512 C 632 540, 540 632, 512 792 C 484 632, 392 540, 232 512 C 392 484, 484 392, 512 232 Z"
-        fill="#ffffff"
-      />
-    </svg>
+    <img class="mark" src="mark.png" alt="Breadbox" width="72" height="72" />
     <div class="title">Breadbox</div>
     <div class="spinner" role="status" aria-label="Starting"></div>
     <div class="sub">Starting the workspace…</div>
