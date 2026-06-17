@@ -257,6 +257,11 @@ export {
   type DslElement,
 } from "./custom-component-dsl";
 export { evaluateExpression } from "./expr-eval";
+export {
+  buildCustomPartPrompt,
+  WORKED_EXAMPLE_PART,
+  type CustomPartPromptOptions,
+} from "./custom-component-prompt";
 
 export {
   diagramToBoardState,
