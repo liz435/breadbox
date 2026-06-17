@@ -15,6 +15,7 @@ import { configRoutes } from "@dreamer/api/routes/config"
 import { evalRoutes } from "@dreamer/api/routes/eval"
 import { flashRoutes } from "@dreamer/api/routes/flash"
 import { libraryRoutes } from "@dreamer/api/routes/libraries"
+import { customPartsRoutes } from "@dreamer/api/routes/custom-parts"
 import { projectRoutes } from "@dreamer/api/routes/projects"
 import { ASSET_COUNT } from "./web-ui-manifest.generated"
 import { startStaticWebUI, type StaticWebUI } from "./web-ui"
@@ -142,6 +143,7 @@ export async function startHeadedMode(): Promise<void> {
     .use(mcpConnectRoutes)
     .use(evalRoutes)
     .use(libraryRoutes)
+    .use(customPartsRoutes)
     .use(capabilitiesRoutes)
     .listen({ port: apiPort, hostname: API_HOST })
 

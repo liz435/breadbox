@@ -18,6 +18,7 @@
 //   4. Import it below and add it to COMPONENT_REGISTRY (order = palette order)
 
 import type { ComponentDefinition } from "@/components/component-definition"
+import { getCustomDef } from "@/components/catalog/custom-store"
 
 import { led } from "./led"
 import { rgbLed } from "./rgb-led"
@@ -87,7 +88,11 @@ const _registryMap = new Map<string, ComponentDefinition>(
   COMPONENT_REGISTRY.map(def => [def.type, def]),
 )
 
-/** Look up a component definition by type. Returns undefined for unknown types (wire, arduino_uno). */
+/**
+ * Look up a component definition by type. Checks built-ins first, then the
+ * runtime custom-component overlay. Returns undefined for unknown types
+ * (wire, arduino_uno).
+ */
 export function getComponentDef(type: string): ComponentDefinition | undefined {
-  return _registryMap.get(type)
+  return _registryMap.get(type) ?? getCustomDef(type)
 }

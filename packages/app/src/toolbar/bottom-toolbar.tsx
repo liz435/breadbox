@@ -9,7 +9,9 @@ import { useBoard } from "@/store/board-context"
 import { useSimulation } from "@/simulator/simulation-loop"
 import { simulationRef } from "@/simulator/simulation-ref"
 import type { LibraryState } from "@dreamer/schemas"
-import { EditToolbar, markSerialUnread } from "./edit-toolbar"
+import { EditToolbar } from "./edit-toolbar"
+import { markSerialUnread } from "./serial-unread"
+import { getWorkspaceMode, modeShowsSerial } from "@/store/workspace-modes"
 import { PlayControls } from "./play-controls"
 import { StatusDisplay } from "./status-display"
 import { BoardStatus } from "./board-status"
@@ -76,7 +78,9 @@ export function BottomToolbar() {
       // Tag as simulator so the SerialMonitor's source filter can
       // distinguish this from real-board WebSerial output.
       boardSend({ type: "APPEND_SERIAL", text, source: "simulator" })
-      markSerialUnread()
+      // Only flag unread when the Serial Monitor isn't on screen (it's part of
+      // Simulate/Debug). The dot surfaces on the Simulate mode button.
+      if (!modeShowsSerial(getWorkspaceMode())) markSerialUnread()
     },
     [boardSend],
   )

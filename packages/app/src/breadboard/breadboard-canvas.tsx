@@ -6,6 +6,7 @@ import {
   isBoardComponentType,
   type BoardComponent,
   type ComponentType,
+  type PlaceableComponentType,
   type LibraryState,
   type Wire,
 } from "@dreamer/schemas";
@@ -47,15 +48,15 @@ import { useBreadboardWire, getWireColorForPin } from "./use-breadboard-wire";
 
 // ── Registry-driven helpers ──────────────────────────────────────
 
-function getDefaultPins(type: ComponentType): Record<string, number | null> {
+function getDefaultPins(type: PlaceableComponentType): Record<string, number | null> {
   return { ...(getComponentDef(type)?.defaultPins ?? {}) };
 }
 
-function getDefaultProperties(type: ComponentType): Record<string, unknown> {
+function getDefaultProperties(type: PlaceableComponentType): Record<string, unknown> {
   return { ...(getComponentDef(type)?.defaultProperties ?? {}) };
 }
 
-function getAccentColor(type: ComponentType): string | undefined {
+function getAccentColor(type: PlaceableComponentType): string | undefined {
   return getComponentDef(type)?.accentColor;
 }
 
@@ -285,7 +286,7 @@ function PowerRailStripes() {
 function GhostPreview({
   row, col, componentType, rotation = 0,
 }: {
-  row: number; col: number; componentType: ComponentType; rotation?: number;
+  row: number; col: number; componentType: PlaceableComponentType; rotation?: number;
 }) {
   const footprint = getComponentFootprint(componentType, row, col, rotation);
 

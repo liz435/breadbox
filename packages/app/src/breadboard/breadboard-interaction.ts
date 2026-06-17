@@ -1,5 +1,5 @@
 import { setup, assign, createActor } from "xstate";
-import type { ComponentType } from "@dreamer/schemas";
+import type { PlaceableComponentType } from "@dreamer/schemas";
 import type { ArduinoPinInfo } from "@/breadboard/breadboard-grid";
 
 type InteractionContext = {
@@ -14,7 +14,7 @@ type InteractionContext = {
   gridCol: number | null;
 
   // ── Placing state ──
-  componentType: ComponentType | null;
+  componentType: PlaceableComponentType | null;
   placingRotation: number;
 
   // ── Wiring (hole-to-hole) state ──
@@ -37,7 +37,7 @@ type InteractionContext = {
 };
 
 type InteractionEvent =
-  | { type: "START_PLACE"; componentType: ComponentType }
+  | { type: "START_PLACE"; componentType: PlaceableComponentType }
   | { type: "START_WIRE"; fromRow: number; fromCol: number }
   | { type: "SET_WIRE_START"; row: number; col: number }
   | { type: "START_DRAG"; componentId: string; offsetX: number; offsetY: number; startRow: number; startCol: number }
