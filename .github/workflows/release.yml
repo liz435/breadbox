@@ -1,0 +1,116 @@
+name: Release (desktop)
+
+# Cut a release by pushing a version tag:
+#
+#   git tag v0.2.0 && git push origin v0.2.0
+#
+# This builds the Tauri desktop app on macOS (Apple Silicon + Intel),
+# Windows, and Linux, signs + notarizes the macOS bundles, and uploads
+# everything to a DRAFT GitHub Release named after the tag. Review the
+# draft, then publish it. See RELEASING.md for required secrets.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Version tag to build (e.g. v0.2.0). Produces a draft release."
+        required: true
+
+# Don't cancel an in-flight release build — a half-uploaded release is worse
+# than a slightly stale queue.
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build (${{ matrix.label }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            label: macOS (Apple Silicon)
+          - os: macos-13
+            label: macOS (Intel)
+          - os: windows-latest
+            label: Windows
+          - os: ubuntu-22.04
+            label: Linux
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version tag
+        id: ver
+        shell: bash
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: packages/desktop/src-tauri
+
+      - name: Install Linux system dependencies
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            build-essential \
+            file \
+            libssl-dev \
+            libgtk-3-dev
+
+      # No --frozen-lockfile: matches ci.yml — the binary bun.lockb drifts and
+      # would otherwise fail every run.
+      - name: Install dependencies
+        run: bun install
+
+      - name: Sync bundle version to ${{ steps.ver.outputs.version }}
+        run: bun run scripts/set-release-version.ts "${{ steps.ver.outputs.version }}"
+
+      - name: Build, sign, notarize, and upload to draft release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # ── macOS code signing + notarization ──────────────────────────
+          # Tauri reads these on the macOS runners. Empty on other OSes (the
+          # build proceeds unsigned there). See RELEASING.md to populate them.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          # Use Bun to drive the local @tauri-apps/cli (the desktop package's
+          # "tauri" script). tauri then runs beforeBuildCommand
+          # (prepare:sidecar) to build the web UI + cross-compile the CLI and
+          # arduino-cli sidecars for this runner.
+          projectPath: packages/desktop
+          tauriScript: bun run tauri
+          tagName: ${{ steps.ver.outputs.tag }}
+          releaseName: "Breadbox ${{ steps.ver.outputs.tag }}"
+          releaseDraft: true
+          prerelease: false
