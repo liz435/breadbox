@@ -37,7 +37,7 @@ function measureAnchor(anchor: string | undefined): AnchorRect | null {
 }
 
 type CardPosition =
-  | { mode: "anchored"; left: number; top?: number; bottom?: number }
+  | { mode: "anchored"; left: number; top: number }
   | { mode: "centered" }
 
 function cardPositionFor(rect: AnchorRect | null): CardPosition {
@@ -50,12 +50,28 @@ function cardPositionFor(rect: AnchorRect | null): CardPosition {
   const rawLeft = rect.left + rect.width / 2 - CARD_WIDTH / 2
   const left = Math.max(MARGIN, Math.min(rawLeft, vw - CARD_WIDTH - MARGIN))
 
-  // Prefer below the anchor; flip above when there isn't room.
+  // Prefer below the anchor, else above. A tall anchor (e.g. the full-height
+  // canvas, whose first step sits near the top) leaves room for neither — so
+  // we always express the result as a `top` clamped into the viewport. The
+  // earlier version set an unclamped `bottom` for the "above" case, which
+  // pushed the card off the top edge for any anchor near the top.
   const roomBelow = vh - (rect.top + rect.height)
+  const roomAbove = rect.top
+
+  let top: number
   if (roomBelow >= ESTIMATED_CARD_HEIGHT + GAP) {
-    return { mode: "anchored", left, top: rect.top + rect.height + GAP }
+    top = rect.top + rect.height + GAP
+  } else if (roomAbove >= ESTIMATED_CARD_HEIGHT + GAP) {
+    top = rect.top - GAP - ESTIMATED_CARD_HEIGHT
+  } else {
+    // Neither side fits — overlap the anchor, pinned just inside the top.
+    top = MARGIN
   }
-  return { mode: "anchored", left, bottom: vh - rect.top + GAP }
+
+  // Final guard: keep the whole card on screen vertically regardless.
+  top = Math.max(MARGIN, Math.min(top, vh - ESTIMATED_CARD_HEIGHT - MARGIN))
+
+  return { mode: "anchored", left, top }
 }
 
 type OnboardingTourProps = {
@@ -171,7 +187,7 @@ export function OnboardingTour({ open, onClose }: OnboardingTourProps) {
         )}
         style={
           pos.mode === "anchored"
-            ? { left: pos.left, top: pos.top, bottom: pos.bottom }
+            ? { left: pos.left, top: pos.top }
             : undefined
         }
         role="dialog"
