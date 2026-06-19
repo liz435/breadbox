@@ -14,7 +14,7 @@ import { useState, useCallback } from "react"
 import { Dialog } from "@base-ui/react/dialog"
 import { API_ORIGIN } from "@dreamer/config"
 import { resolveFetchOptions } from "@/project/api-client"
-import { refreshCurrentUser } from "@/auth/use-current-user"
+import { refreshCurrentUser, useCurrentUser } from "@/auth/use-current-user"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
@@ -26,6 +26,7 @@ type ApiKeyDialogProps = {
 }
 
 export function ApiKeyDialog({ open, onClose }: ApiKeyDialogProps) {
+  const { hasApiKey } = useCurrentUser()
   const [key, setKey] = useState("")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -65,7 +66,7 @@ export function ApiKeyDialog({ open, onClose }: ApiKeyDialogProps) {
         <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-background shadow-2xl">
           <div className="border-b border-border px-5 py-3">
             <Dialog.Title className="text-sm font-semibold text-foreground">
-              Add your Anthropic API key
+              {hasApiKey ? "Change your Anthropic API key" : "Add your Anthropic API key"}
             </Dialog.Title>
           </div>
           <div className="space-y-4 px-5 py-4">
@@ -73,6 +74,7 @@ export function ApiKeyDialog({ open, onClose }: ApiKeyDialogProps) {
               Breadbox's AI runs on your own Anthropic API key. It's stored locally at{" "}
               <code className="text-foreground">~/.dreamer/config.json</code> and never
               leaves this machine except to call Anthropic.
+              {hasApiKey ? " Entering a new key replaces the one currently saved." : ""}
             </Dialog.Description>
             <form onSubmit={(e) => { e.preventDefault(); void save() }} className="space-y-3">
               <Input
@@ -95,7 +97,7 @@ export function ApiKeyDialog({ open, onClose }: ApiKeyDialogProps) {
                   Get an API key →
                 </a>
                 <Button type="submit" size="sm" disabled={!key.trim() || saving}>
-                  {saving ? "Saving…" : "Save key"}
+                  {saving ? "Saving…" : hasApiKey ? "Update key" : "Save key"}
                 </Button>
               </div>
             </form>
