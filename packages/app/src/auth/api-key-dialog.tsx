@@ -1,13 +1,14 @@
-// ── API key dialog (CLI/desktop) ─────────────────────────────────────────
+// ── API key form + dialog (CLI/desktop) ──────────────────────────────────
 //
 // In CLI/desktop mode the agent runs on the user's own Anthropic API key.
-// When none is configured this dialog collects one and POSTs it to
-// /api/config/anthropic-key, which persists it to ~/.dreamer/config.json and
-// applies it to the running server (no restart needed). On success we refresh
-// the auth snapshot so the gate re-reads `hasApiKey` and the dialog closes.
+// `ApiKeyForm` collects one and POSTs it to /api/config/anthropic-key, which
+// persists it to ~/.dreamer/config.json and applies it to the running server
+// (no restart needed). On success we refresh the auth snapshot so the gate
+// re-reads `hasApiKey`. The form is reused by both this dialog and the AI Hub
+// modal's "Built-in agent" section.
 //
-// Opened on boot when `!isHosted && !hasApiKey`, and re-opened mid-
-// session via the `dreamer:open-api-key` window event — dispatched when a
+// `ApiKeyDialog` is opened on boot when `!isHosted && !hasApiKey`, and re-opened
+// mid-session via the `dreamer:open-api-key` window event — dispatched when a
 // chat request 428s with `no_api_key` (see toolbar/use-chat-messages.ts).
 
 import { useState, useCallback } from "react"
@@ -20,12 +21,17 @@ import { Input } from "@/components/ui/input"
 
 export const OPEN_API_KEY_EVENT = "dreamer:open-api-key"
 
-type ApiKeyDialogProps = {
-  open: boolean
-  onClose: () => void
-}
-
-export function ApiKeyDialog({ open, onClose }: ApiKeyDialogProps) {
+/**
+ * Reusable Anthropic-key collector. `onSaved` fires after the key is persisted
+ * and the auth snapshot refreshed (the dialog uses it to close itself).
+ */
+export function ApiKeyForm({
+  onSaved,
+  autoFocus = true,
+}: {
+  onSaved?: () => void
+  autoFocus?: boolean
+}) {
   const { hasApiKey } = useCurrentUser()
   const [key, setKey] = useState("")
   const [saving, setSaving] = useState(false)
@@ -51,13 +57,58 @@ export function ApiKeyDialog({ open, onClose }: ApiKeyDialogProps) {
       }
       await refreshCurrentUser()
       setKey("")
-      onClose()
+      onSaved?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save key")
     } finally {
       setSaving(false)
     }
-  }, [key, saving, onClose])
+  }, [key, saving, onSaved])
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        Breadbox&apos;s AI runs on your own Anthropic API key. It&apos;s stored locally at{" "}
+        <code className="text-foreground">~/.dreamer/config.json</code> and never leaves this
+        machine except to call Anthropic.
+        {hasApiKey ? " Entering a new key replaces the one currently saved." : ""}
+      </p>
+      <form onSubmit={(e) => { e.preventDefault(); void save() }} className="space-y-3">
+        <Input
+          type="password"
+          autoFocus={autoFocus}
+          placeholder="sk-ant-..."
+          value={key}
+          onChange={(e) => setKey(e.target.value)}
+          spellCheck={false}
+          autoComplete="off"
+        />
+        {error ? <p className="text-xs text-red-400">{error}</p> : null}
+        <div className="flex items-center justify-between gap-3">
+          <a
+            href="https://console.anthropic.com/settings/keys"
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-primary underline-offset-4 hover:underline"
+          >
+            Get an API key →
+          </a>
+          <Button type="submit" size="sm" disabled={!key.trim() || saving}>
+            {saving ? "Saving…" : hasApiKey ? "Update key" : "Save key"}
+          </Button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+type ApiKeyDialogProps = {
+  open: boolean
+  onClose: () => void
+}
+
+export function ApiKeyDialog({ open, onClose }: ApiKeyDialogProps) {
+  const { hasApiKey } = useCurrentUser()
 
   return (
     <Dialog.Root open={open} onOpenChange={(next) => { if (!next) onClose() }}>
@@ -69,38 +120,8 @@ export function ApiKeyDialog({ open, onClose }: ApiKeyDialogProps) {
               {hasApiKey ? "Change your Anthropic API key" : "Add your Anthropic API key"}
             </Dialog.Title>
           </div>
-          <div className="space-y-4 px-5 py-4">
-            <Dialog.Description className="text-xs leading-relaxed text-muted-foreground">
-              Breadbox's AI runs on your own Anthropic API key. It's stored locally at{" "}
-              <code className="text-foreground">~/.dreamer/config.json</code> and never
-              leaves this machine except to call Anthropic.
-              {hasApiKey ? " Entering a new key replaces the one currently saved." : ""}
-            </Dialog.Description>
-            <form onSubmit={(e) => { e.preventDefault(); void save() }} className="space-y-3">
-              <Input
-                type="password"
-                autoFocus
-                placeholder="sk-ant-..."
-                value={key}
-                onChange={(e) => setKey(e.target.value)}
-                spellCheck={false}
-                autoComplete="off"
-              />
-              {error ? <p className="text-xs text-red-400">{error}</p> : null}
-              <div className="flex items-center justify-between gap-3">
-                <a
-                  href="https://console.anthropic.com/settings/keys"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs text-primary underline-offset-4 hover:underline"
-                >
-                  Get an API key →
-                </a>
-                <Button type="submit" size="sm" disabled={!key.trim() || saving}>
-                  {saving ? "Saving…" : hasApiKey ? "Update key" : "Save key"}
-                </Button>
-              </div>
-            </form>
+          <div className="px-5 py-4">
+            <ApiKeyForm onSaved={onClose} />
           </div>
         </Dialog.Popup>
       </Dialog.Portal>
