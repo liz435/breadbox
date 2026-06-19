@@ -156,7 +156,7 @@ export const authRoutes = new Elysia({ name: "auth-routes" })
       const hasApiKey = (await getApiKey()) !== null
       return {
         user: { userId: CLI_LOCAL_USER_ID, githubLogin: "local" },
-        mode: "dev" as const,
+        isHosted: false as const,
         hasApiKey,
       }
     }
@@ -167,7 +167,7 @@ export const authRoutes = new Elysia({ name: "auth-routes" })
     attach()
 
     if (error || !data.user) {
-      return { user: null, mode: "hosted" as const }
+      return { user: null, isHosted: true as const }
     }
 
     const meta = (data.user.user_metadata ?? {}) as {
@@ -177,6 +177,6 @@ export const authRoutes = new Elysia({ name: "auth-routes" })
     const githubLogin = meta.user_name ?? meta.preferred_username ?? undefined
     return {
       user: { userId: data.user.id, githubLogin },
-      mode: "hosted" as const,
+      isHosted: true as const,
     }
   })

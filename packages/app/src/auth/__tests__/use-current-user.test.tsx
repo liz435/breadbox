@@ -2,10 +2,10 @@
 //
 // The hook is a thin subscription over a module-level promise cache,
 // so the tests focus on two things:
-//   1. The three modes the server can return ("hosted" | "local" | "dev")
-//      each round-trip cleanly into the cache.
-//   2. Safe defaults on 401 / network error → `{ user: null, mode: "hosted" }`
-//      so the UI falls through to a login screen rather than throwing.
+//   1. The hosted and non-hosted (CLI/desktop) `/me` payloads each
+//      round-trip cleanly into the cache via the `isHosted` flag.
+//   2. Safe defaults on 401 / network error → `{ user: null, isHosted: true }`
+//      so the UI falls through to a sign-in path rather than throwing.
 //
 // The hook itself is exercised through `renderToStaticMarkup` to confirm
 // it returns `loading: true` on the very first render (when the promise
@@ -74,51 +74,41 @@ describe("refreshCurrentUser()", () => {
     restore = null
   })
 
-  test("resolves the hosted mode + user payload", async () => {
+  test("resolves the hosted + user payload", async () => {
     restore = installFetchMock({
       ok: true,
       body: {
         user: { userId: "gh:alice", githubLogin: "alice" },
-        mode: "hosted",
+        isHosted: true,
       },
     })
     const mod = await freshModule()
     const result = await mod.refreshCurrentUser()
-    expect(result.mode).toBe("hosted")
+    expect(result.isHosted).toBe(true)
     expect(result.user?.githubLogin).toBe("alice")
   })
 
-  test("resolves local mode with null user", async () => {
-    restore = installFetchMock({
-      ok: true,
-      body: { user: null, mode: "local" },
-    })
-    const mod = await freshModule()
-    const result = await mod.refreshCurrentUser()
-    expect(result.mode).toBe("local")
-    expect(result.user).toBeNull()
-  })
-
-  test("resolves dev mode (skip-auth) when server says so", async () => {
+  test("resolves the non-hosted (CLI/desktop) payload", async () => {
     restore = installFetchMock({
       ok: true,
       body: {
         user: { userId: "local", githubLogin: "local" },
-        mode: "dev",
+        isHosted: false,
+        hasApiKey: false,
       },
     })
     const mod = await freshModule()
     const result = await mod.refreshCurrentUser()
-    expect(result.mode).toBe("dev")
+    expect(result.isHosted).toBe(false)
     expect(result.user?.userId).toBe("local")
   })
 
-  test("falls back to { user: null, mode: 'hosted' } on 401", async () => {
+  test("falls back to { user: null, isHosted: true } on 401", async () => {
     restore = installFetchMock({ ok: false, status: 401 })
     const mod = await freshModule()
     const result = await mod.refreshCurrentUser()
     expect(result.user).toBeNull()
-    expect(result.mode).toBe("hosted")
+    expect(result.isHosted).toBe(true)
   })
 
   test("falls back to the safe default on network error", async () => {
@@ -126,17 +116,17 @@ describe("refreshCurrentUser()", () => {
     const mod = await freshModule()
     const result = await mod.refreshCurrentUser()
     expect(result.user).toBeNull()
-    expect(result.mode).toBe("hosted")
+    expect(result.isHosted).toBe(true)
   })
 
-  test("coerces unknown mode values to 'hosted'", async () => {
+  test("coerces a missing/invalid isHosted flag to true", async () => {
     restore = installFetchMock({
       ok: true,
-      body: { user: null, mode: "not-a-real-mode" },
+      body: { user: null, isHosted: "not-a-bool" },
     })
     const mod = await freshModule()
     const result = await mod.refreshCurrentUser()
-    expect(result.mode).toBe("hosted")
+    expect(result.isHosted).toBe(true)
   })
 })
 
@@ -157,7 +147,7 @@ describe("useCurrentUser() initial render", () => {
       ok: true,
       body: {
         user: { userId: "gh:alice", githubLogin: "alice" },
-        mode: "hosted",
+        isHosted: true,
       },
     })
   })
@@ -166,7 +156,7 @@ describe("useCurrentUser() initial render", () => {
     restore = null
   })
 
-  test("returns { loading: true, user: null, mode: 'hosted' } before resolve", async () => {
+  test("returns { loading: true, user: null, isHosted: true } before resolve", async () => {
     const mod = await freshModule()
     let captured: ReturnType<typeof mod.useCurrentUser> | null = null
     function Probe() {
@@ -177,6 +167,6 @@ describe("useCurrentUser() initial render", () => {
     expect(captured).not.toBeNull()
     expect(captured!.loading).toBe(true)
     expect(captured!.user).toBeNull()
-    expect(captured!.mode).toBe("hosted")
+    expect(captured!.isHosted).toBe(true)
   })
 })

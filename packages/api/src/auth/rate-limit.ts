@@ -74,16 +74,16 @@ export class RateLimitError extends Error {
 
 /**
  * Consume one token from (family, userId). Throws RateLimitError if the
- * bucket can't spot a token. Skip entirely in the NODE_ENV=test + dev
- * auth-mode combination — test suites slam endpoints in tight loops and
- * should not flap on this limiter.
+ * bucket can't spot a token. Skip entirely in the NODE_ENV=test +
+ * non-hosted (CLI/desktop) combination — test suites slam endpoints in
+ * tight loops and should not flap on this limiter.
  */
 export async function requireRateLimit(
   family: RateLimitFamily,
   userId: string,
-  authMode?: "hosted" | "local" | "dev",
+  isHosted?: boolean,
 ): Promise<void> {
-  if (authMode === "dev" && process.env.NODE_ENV === "test") return
+  if (isHosted === false && process.env.NODE_ENV === "test") return
 
   const cfg = FAMILIES[family]
   const now = Date.now()

@@ -64,7 +64,7 @@ describe("requestContextPlugin — concurrent isolation", () => {
       .derive({ as: "global" }, ({ request }) => {
         const url = new URL(request.url)
         const userId = url.searchParams.get("user") ?? null
-        return { auth: { userId, sessionId: null, mode: "dev" as const } }
+        return { auth: { userId, sessionId: null, isHosted: false } }
       })
       .use(requestContextPlugin)
       .get("/whoami", async () => {

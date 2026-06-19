@@ -23,11 +23,6 @@ const csvList = z
           .filter((s) => s.length > 0),
   )
 
-const boolFlag = z
-  .string()
-  .optional()
-  .transform((raw): boolean => raw === "1" || raw === "true")
-
 const optionalString = z
   .string()
   .optional()
@@ -49,12 +44,6 @@ export const AUTH_SECRETS: string[] = csvList.parse(process.env.AUTH_SECRETS)
 export const ADMIN_GITHUB_LOGINS: string[] = csvList.parse(
   process.env.ADMIN_GITHUB_LOGINS,
 )
-
-/** Dev-only shim: bypass auth when running `bun run dev` without the CLI bootstrap flow. */
-export const BREADBOX_DEV_SKIP_AUTH: boolean = boolFlag.parse(
-  process.env.BREADBOX_DEV_SKIP_AUTH,
-)
-
 /**
  * Network interface the API binds to. Default `0.0.0.0` for hosted
  * (Railway) deployments; `dreamer headed` sets `127.0.0.1` so the local

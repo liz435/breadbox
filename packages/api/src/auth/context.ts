@@ -10,7 +10,8 @@ import { z } from "zod"
 export const authContextSchema = z.object({
   userId: z.string(),
   sessionId: z.string().nullable(),
-  mode: z.enum(["hosted", "local", "dev"]),
+  /** True on the hosted (Supabase) deploy; false for CLI/desktop. */
+  isHosted: z.boolean(),
 })
 
 export type AuthContext = z.infer<typeof authContextSchema>

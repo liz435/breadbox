@@ -1,10 +1,10 @@
 // ── ApiKeyButton ─────────────────────────────────────────────────────────
 //
-// Discoverable entry point for the Anthropic API key in CLI/desktop (dev)
-// mode. The agent runs on the user's own key, so this button opens the
+// Discoverable entry point for the Anthropic API key in CLI/desktop mode.
+// The agent runs on the user's own key, so this button opens the
 // ApiKeyDialog at any time — to set a key, or change one that's already
 // saved — rather than relying solely on the boot/no-key auto-prompt. An
-// amber dot flags the "no key yet" state. Hidden in hosted/local mode,
+// amber dot flags the "no key yet" state. Hidden on the hosted deploy,
 // where the server holds the key and users never enter one.
 
 import { Key } from "lucide-react"
@@ -19,10 +19,10 @@ import { useCurrentUser } from "./use-current-user"
 import { OPEN_API_KEY_EVENT } from "./api-key-dialog"
 
 export function ApiKeyButton() {
-  const { mode, hasApiKey, loading } = useCurrentUser()
+  const { isHosted, hasApiKey, loading } = useCurrentUser()
 
-  // Only meaningful in dev (CLI/desktop) mode, and not until /me resolves.
-  if (loading || mode !== "dev") return null
+  // Only meaningful in CLI/desktop mode, and not until /me resolves.
+  if (loading || isHosted) return null
 
   const label = hasApiKey ? "Change API key" : "Set API key"
 

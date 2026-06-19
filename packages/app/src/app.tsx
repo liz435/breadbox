@@ -54,7 +54,6 @@ import { boardCatalog } from "./learn/board-catalog";
 import { decodeDiagramFromUrl, diagramToBoardState } from "@dreamer/schemas";
 import { useCurrentUser } from "./auth/use-current-user";
 import { ApiKeyDialog, OPEN_API_KEY_EVENT } from "./auth/api-key-dialog";
-import { LocalNoSessionScreen } from "./auth/local-no-session-screen";
 import { PreviewBanner } from "./auth/preview-banner";
 import { MotionEditorPage } from "./motion/motion-editor-page";
 
@@ -167,10 +166,10 @@ function AppInner() {
   const [connectClaudeOpen, setConnectClaudeOpen] = useState(false);
 
   // CLI/desktop: prompt for an Anthropic API key when none is configured.
-  // `mode`/`hasApiKey` come from /api/auth/me (resolved by the time AppInner
-  // mounts, since AuthGate already gated on `loading`).
-  const { mode, hasApiKey } = useCurrentUser();
-  const [apiKeyOpen, setApiKeyOpen] = useState(mode === "dev" && !hasApiKey);
+  // `isHosted`/`hasApiKey` come from /api/auth/me (resolved by the time
+  // AppInner mounts, since AuthGate already gated on `loading`).
+  const { isHosted, hasApiKey } = useCurrentUser();
+  const [apiKeyOpen, setApiKeyOpen] = useState(!isHosted && !hasApiKey);
 
   // Open the Connect-Claude dialog when the command palette dispatches its event.
   useEffect(() => {
@@ -554,28 +553,20 @@ function AppOrDocs() {
 
 // ── Auth gate ────────────────────────────────────────────────────────────
 //
-// Single source of truth for who sees the app: we read `/api/auth/me` via
-// `useCurrentUser` and pick a top-level tree based on mode + user. The
-// gate deliberately does NOT use `useEffect` — it derives the decision
-// directly from the hook's return, which is stable across renders.
-//
-// Mode semantics:
-//   - "dev":    bun run dev with BREADBOX_DEV_SKIP_AUTH=1. Skip the gate
-//               entirely — no login, no redirect.
-//   - "hosted": Railway deploy. Anonymous visitors see the full editor
-//               as a live-preview, with mutations blocked behind a
-//               "Sign in with GitHub" banner. Logged-in users get the
-//               normal experience.
-//   - "local":  `dreamer headed` CLI. Without a cookie, show the
-//               "restart your CLI" screen. OAuth isn't a thing here.
+// The app shell renders in every configuration — there is no login wall.
+//   - CLI/desktop (isHosted=false): no account concept; just render.
+//   - Hosted (Railway): anonymous visitors get the full editor as a
+//     live-preview (mutations blocked + a "Sign in with GitHub" banner via
+//     PreviewBanner / isAnonymousPreview); signed-in users get the normal
+//     experience. Either way the shell renders.
+// So the gate only suppresses the first paint until `/api/auth/me` resolves
+// (avoids a flash of the wrong affordances). It deliberately does NOT use
+// `useEffect` — it derives directly from the hook's return.
 function AuthGate({ children }: { children: ReactNode }) {
-  const { user, mode, loading } = useCurrentUser();
+  const { loading } = useCurrentUser();
 
   if (loading) return null;
-  if (mode === "dev") return <>{children}</>;
-  if (user) return <>{children}</>;
-  if (mode === "hosted") return <>{children}</>;
-  return <LocalNoSessionScreen />;
+  return <>{children}</>;
 }
 
 export default function App() {

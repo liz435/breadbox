@@ -6,7 +6,7 @@
 // applies it to the running server (no restart needed). On success we refresh
 // the auth snapshot so the gate re-reads `hasApiKey` and the dialog closes.
 //
-// Opened on boot when `mode === "dev" && !hasApiKey`, and re-opened mid-
+// Opened on boot when `!isHosted && !hasApiKey`, and re-opened mid-
 // session via the `dreamer:open-api-key` window event — dispatched when a
 // chat request 428s with `no_api_key` (see toolbar/use-chat-messages.ts).
 

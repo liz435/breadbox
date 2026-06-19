@@ -1,15 +1,13 @@
 // ── AuthStatusBadge ──────────────────────────────────────────────────────
 //
 // Persistent sign-in / signed-in indicator pill that lives in the bottom
-// toolbar. Renders in all three auth modes so the user always knows what
-// account (if any) they're acting as:
+// toolbar. Only meaningful on the hosted deploy, where there's a GitHub
+// account to surface:
 //
 //   hosted + user     → "@handle ▾" menu → Sign out
 //   hosted + no user  → "Sign in" button → GitHub OAuth
-//   local  + user     → "@handle ▾" menu → Sign out
-//   local  + no user  → "No session" chip (CLI restart required)
-//   dev               → nothing (local/desktop — no account concept; the
-//                       API-key button is the only relevant control there)
+//   CLI/desktop       → nothing (no account concept; the API-key button is
+//                       the only relevant control there)
 //
 // The pill mirrors the bottom toolbar's card chrome (h-10, rounded-lg,
 // border + bg-card + shadow-sm) so it reads as part of the same surface.
@@ -36,7 +34,7 @@ const pillBase =
   "pointer-events-auto inline-flex h-10 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-xs shadow-sm"
 
 export function AuthStatusBadge() {
-  const { user, mode, loading } = useCurrentUser()
+  const { user, isHosted, loading } = useCurrentUser()
 
   // First-paint: render a placeholder of equal width so the toolbar
   // doesn't jump when /me resolves.
@@ -51,31 +49,27 @@ export function AuthStatusBadge() {
     )
   }
 
-  // Local/desktop (dev) has no GitHub account or session to surface — the
-  // API-key button in the toolbar covers everything relevant there.
-  if (mode === "dev") {
+  // CLI/desktop has no GitHub account or session to surface — the API-key
+  // button in the toolbar covers everything relevant there.
+  if (!isHosted) {
     return null
   }
 
+  // Hosted, signed out → offer GitHub sign-in.
   if (!user) {
-    if (mode === "hosted") {
-      return (
-        <button
-          type="button"
-          onClick={redirectToSignIn}
-          className={cn(
-            pillBase,
-            "font-medium text-foreground transition-colors hover:bg-accent",
-          )}
-          aria-label="Sign in with GitHub"
-        >
-          <Github className="size-3.5" />
-          Sign in
-        </button>
-      )
-    }
     return (
-      <div className={cn(pillBase, "text-muted-foreground")}>No session</div>
+      <button
+        type="button"
+        onClick={redirectToSignIn}
+        className={cn(
+          pillBase,
+          "font-medium text-foreground transition-colors hover:bg-accent",
+        )}
+        aria-label="Sign in with GitHub"
+      >
+        <Github className="size-3.5" />
+        Sign in
+      </button>
     )
   }
 

@@ -278,11 +278,10 @@ async function dispatch(command: Command, projectId: string | null, sceneId: str
     }
 
     case "headed": {
-      // CLI mode: single-tenant, file-backed, no Supabase. Pin these env
-      // vars before the API modules import — auth-plugin reads them at
-      // import time to pick cli vs supabase middleware.
+      // CLI mode: single-tenant, file-backed, no Supabase. Pin BREADBOX_MODE
+      // before the API modules import — auth-plugin reads it at import time to
+      // pick cli vs supabase middleware.
       process.env.BREADBOX_MODE = "cli"
-      process.env.BREADBOX_DEV_SKIP_AUTH = "1"
       // Load the key from ~/.breadbox/config.json into the env BEFORE importing
       // the API graph, so the Anthropic provider (which falls back to
       // process.env in CLI mode) can use it. getApiKey() is non-interactive.
@@ -301,7 +300,6 @@ async function dispatch(command: Command, projectId: string | null, sceneId: str
       // renders the UI in a native window. Same single-tenant CLI mode as
       // `headed`; BREADBOX_NO_OPEN stops headed from popping a browser tab.
       process.env.BREADBOX_MODE = "cli"
-      process.env.BREADBOX_DEV_SKIP_AUTH = "1"
       process.env.BREADBOX_NO_OPEN = "1"
       // Load the key from config into the env before the API graph imports, so
       // the provider can use it (see the `headed` case for the rationale). When

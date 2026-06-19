@@ -196,7 +196,7 @@ export const compileRoutes = new Elysia().use(authPlugin).post("/api/compile", a
   }
 
   try {
-    await requireRateLimit("compile", ownerId, auth?.mode)
+    await requireRateLimit("compile", ownerId, auth?.isHosted)
   } catch (err) {
     if (err instanceof RateLimitError) {
       set.status = 429

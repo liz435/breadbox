@@ -30,7 +30,7 @@ const testAuthPlugin = new Elysia({ name: "test-auth" }).derive(
     auth: {
       userId: "test-owner",
       sessionId: null,
-      mode: "dev" as const,
+      isHosted: false,
     },
   }),
 )
