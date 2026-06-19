@@ -187,6 +187,15 @@ async function streamCompile(
 
 // ── Route ───────────────────────────────────────────────────────────────────
 
+/**
+ * arduino-cli emits e.g. `Platform 'arduino:avr' not found: platform not
+ * installed` when the board's core is missing. Distinct from a missing
+ * library header — this needs a `core install`, not a `lib install`.
+ */
+function isMissingCoreError(output: string): boolean {
+  return /platform not installed/i.test(output)
+}
+
 export const compileRoutes = new Elysia().use(authPlugin).post("/api/compile", async ({ auth, body, request, set }) => {
   const ownerId = requireOwnerId(auth)
   const parsed = compileRequestSchema.safeParse(body)
@@ -271,6 +280,29 @@ export const compileRoutes = new Elysia().use(authPlugin).post("/api/compile", a
       const MAX_RETRIES = 3
       const autoInstalled: string[] = []
       let compileResult = await streamCompile(arduinoCli, sketchDir, fqbn, libsDir, writer, signal)
+
+      // Missing-core self-heal (one shot). The pre-compile ensureArduinoCliCore
+      // normally installs the core, but if it slips through — `core list`
+      // mis-reported, or the core vanished mid-session — the compile fails with
+      // "platform not installed", which the missing-header loop below doesn't
+      // handle. Reinstall and retry once. ensureArduinoCliCore now verifies
+      // real presence, so this installs for real despite any stale stamp.
+      if (
+        compileResult.exitCode !== 0 &&
+        compileResult.aborted === null &&
+        isMissingCoreError(compileResult.stderr + compileResult.stdout)
+      ) {
+        const family = coreFamilyForFqbn(fqbn)
+        writer.write({
+          kind: "log",
+          tag: "compiler",
+          line: `[auto-install] platform "${family}" not installed — installing core (first run, may take several minutes)…`,
+          ts: Date.now(),
+        })
+        log.info(`sketch ${sketchId}: core "${family}" missing — installing then retrying`)
+        await ensureArduinoCliCore(family, writer)
+        compileResult = await streamCompile(arduinoCli, sketchDir, fqbn, libsDir, writer, signal)
+      }
 
       for (let attempt = 0; attempt < MAX_RETRIES && compileResult.exitCode !== 0 && compileResult.aborted === null; attempt++) {
         const stderr = compileResult.stderr + compileResult.stdout

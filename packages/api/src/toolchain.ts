@@ -13,7 +13,7 @@
 //   5. Throw ArduinoCliMissingError.
 
 import { existsSync } from "fs";
-import { mkdir, chmod } from "fs/promises";
+import { mkdir, chmod, rm } from "fs/promises";
 import { binDir, cacheDir } from "./paths";
 import { join } from "path";
 import { createLogger } from "./logger";
@@ -26,6 +26,7 @@ const WHICH_TIMEOUT_MS = 5_000
 const INSTALLER_TIMEOUT_MS = 10 * 60_000
 const CORE_UPDATE_INDEX_TIMEOUT_MS = 60_000
 const CORE_INSTALL_TIMEOUT_MS = 15 * 60_000
+const CORE_LIST_TIMEOUT_MS = 15_000
 
 function installKillTimer(proc: { kill: () => void }, timeoutMs: number): () => void {
   const t = setTimeout(() => {
@@ -237,19 +238,83 @@ async function pumpChildOutput(
 }
 
 /**
- * Ensure the given arduino-cli core is installed. No-op on the warm path
- * (stamp file present). On the cold path, spawns `core install` and — if a
- * `progress` writer is supplied — pipes every stdout/stderr line through
- * so the caller's HTTP stream stays warm instead of going silent for the
- * 5+ minutes a full download can take.
+ * Whether arduino-cli actually reports `family` among its installed
+ * platforms. This is the authoritative check that sits behind the stamp
+ * fast-path. A non-zero exit or unparseable output is treated as "not
+ * installed" so the caller errs toward an (idempotent) install rather than
+ * skipping one that's genuinely needed.
+ */
+async function isCoreInstalled(
+  arduinoCli: string,
+  family: CoreFamily,
+): Promise<boolean> {
+  const res = await runCapture(
+    [arduinoCli, "core", "list", "--format", "json"],
+    CORE_LIST_TIMEOUT_MS,
+  );
+  if (res.code !== 0) return false;
+  return parseInstalledCoreIds(res.stdout).includes(family);
+}
+
+/**
+ * Extract installed platform IDs (e.g. `arduino:avr`) from the stdout of
+ * `arduino-cli core list --format json`. arduino-cli has shipped two shapes:
+ * a bare array (older) and `{ "platforms": [...] }` (newer) — both handled.
+ * Malformed/empty input yields `[]` so callers treat it as "nothing
+ * installed" and err toward an idempotent install.
+ */
+export function parseInstalledCoreIds(stdout: string): string[] {
+  try {
+    const parsed: unknown = JSON.parse(stdout);
+    const platforms: unknown[] = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray((parsed as { platforms?: unknown }).platforms)
+        ? (parsed as { platforms: unknown[] }).platforms
+        : [];
+    return platforms.flatMap((p) =>
+      typeof p === "object" &&
+      p !== null &&
+      typeof (p as { id?: unknown }).id === "string"
+        ? [(p as { id: string }).id]
+        : [],
+    );
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Ensure the given arduino-cli core is installed. On the cold path, spawns
+ * `core install` and — if a `progress` writer is supplied — pipes every
+ * stdout/stderr line through so the caller's HTTP stream stays warm instead
+ * of going silent for the 5+ minutes a full download can take.
+ *
+ * The stamp file is only a fast-path hint, never the source of truth: it can
+ * outlive the core it records (a relocated/cleared arduino-cli data dir, an
+ * app reinstall, antivirus quarantining the ~200MB core). So a present stamp
+ * is verified against `core list` before we trust it — otherwise a stale
+ * stamp silently skips a needed install and every compile dead-ends on
+ * "platform not installed".
  */
 export async function ensureArduinoCliCore(
   family: CoreFamily,
   progress?: ToolchainProgressWriter,
 ): Promise<void> {
-  if (existsSync(CORE_STAMP(family))) return;
-
   const arduinoCli = await resolveArduinoCli();
+  const stampPath = CORE_STAMP(family);
+
+  if (existsSync(stampPath)) {
+    if (await isCoreInstalled(arduinoCli, family)) return;
+    // Stamp lied — the core is gone. Drop the stale stamp and reinstall.
+    await rm(stampPath, { force: true });
+  } else if (await isCoreInstalled(arduinoCli, family)) {
+    // Present out-of-band (system arduino-cli, an earlier run). Record the
+    // stamp so the next call hits the fast path, and skip the big download.
+    await mkdir(cacheDir(), { recursive: true });
+    await Bun.write(stampPath, new Date().toISOString());
+    return;
+  }
+
   await mkdir(cacheDir(), { recursive: true });
 
   const additionalUrl = CORE_ADDITIONAL_URLS[family];
