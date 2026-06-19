@@ -61,7 +61,7 @@ function ModeToggle({
       <Toggle value="edit" size="sm" className="size-9 rounded-r-none">
         <Pencil className="size-3.5" />
       </Toggle>
-      <Toggle value="ai" size="sm" className="size-9 rounded-l-none">
+      <Toggle value="ai" size="sm" className="size-9 rounded-l-none" data-onboarding="ai-chat">
         <Sparkles className="size-3.5" />
       </Toggle>
     </ToggleGroup>

@@ -82,7 +82,7 @@ function BreadboardPanelInner() {
   const handleTogglePan = useCallback(() => setPanMode((p) => !p), []);
 
   return (
-    <div className="relative flex h-full w-full overflow-hidden">
+    <div data-onboarding="canvas" className="relative flex h-full w-full overflow-hidden">
       <div className="relative flex-1">
         <BreadboardCanvas zoomTick={tick} panMode={panMode} />
         <ZoomControls

@@ -9,7 +9,7 @@ import {
 export function ProjectPanel() {
   const editor = useCustomPartEditor()
   return (
-    <div className="h-full flex flex-col bg-card overflow-hidden">
+    <div data-onboarding="components" className="h-full flex flex-col bg-card overflow-hidden">
       <div className="border-b border-border shrink-0">
         <ProjectSelector />
       </div>

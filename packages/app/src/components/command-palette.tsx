@@ -12,6 +12,7 @@ import { useDockviewApi } from "@/store/dockview-context"
 import { simulationRef } from "@/simulator/simulation-ref"
 import { saveRef } from "@/project/save-ref"
 import { OPEN_CONNECT_CLAUDE_EVENT } from "@/components/connect-claude-dialog"
+import { OPEN_ONBOARDING_EVENT } from "@/onboarding/use-onboarding"
 import { useCapabilities } from "@/project/use-capabilities"
 import { VIEW_PANELS, showPanel } from "@/store/view-panels"
 
@@ -149,6 +150,17 @@ function buildCommands(
       },
     })
   }
+  commands.push({
+    id: "action:getting-started",
+    label: "Getting Started",
+    description: "Take the guided tour of the editor",
+    category: "Actions",
+    icon: icons.action,
+    keywords: "onboarding tour walkthrough help intro guide welcome getting started",
+    action: () => {
+      window.dispatchEvent(new CustomEvent(OPEN_ONBOARDING_EVENT))
+    },
+  })
   commands.push({
     id: "action:pause",
     label: "Pause Sketch",

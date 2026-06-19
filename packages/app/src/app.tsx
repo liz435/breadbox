@@ -56,6 +56,12 @@ import { useCurrentUser } from "./auth/use-current-user";
 import { ApiKeyDialog, OPEN_API_KEY_EVENT } from "./auth/api-key-dialog";
 import { PreviewBanner } from "./auth/preview-banner";
 import { MotionEditorPage } from "./motion/motion-editor-page";
+import { OnboardingTour } from "./onboarding/onboarding-tour";
+import {
+  OPEN_ONBOARDING_EVENT,
+  ONBOARDING_BOARD_KEY,
+  shouldAutoStartOnboarding,
+} from "./onboarding/use-onboarding";
 
 // Dockview panel wrappers — each wrapped in an ErrorBoundary
 function ProjectFilesPanel(_props: IDockviewPanelProps) {
@@ -164,6 +170,7 @@ function AppInner() {
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [connectClaudeOpen, setConnectClaudeOpen] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
 
   // CLI/desktop: prompt for an Anthropic API key when none is configured.
   // `isHosted`/`hasApiKey` come from /api/auth/me (resolved by the time
@@ -176,6 +183,13 @@ function AppInner() {
     const open = () => setConnectClaudeOpen(true);
     window.addEventListener(OPEN_CONNECT_CLAUDE_EVENT, open);
     return () => window.removeEventListener(OPEN_CONNECT_CLAUDE_EVENT, open);
+  }, []);
+
+  // Re-open the onboarding tour from the command palette ("Getting Started").
+  useEffect(() => {
+    const open = () => setOnboardingOpen(true);
+    window.addEventListener(OPEN_ONBOARDING_EVENT, open);
+    return () => window.removeEventListener(OPEN_ONBOARDING_EVENT, open);
   }, []);
 
   // Re-open the API-key dialog when a chat request reports a missing key.
@@ -245,6 +259,18 @@ function AppInner() {
           },
         },
       );
+      return;
+    }
+
+    // First run on a fresh, empty project: drop a ready-to-run blink circuit
+    // on the board and kick off the guided tour. Gated so it never overwrites
+    // an existing circuit or re-runs for returning users (see use-onboarding).
+    if (shouldAutoStartOnboarding(project.projectFile.boardState)) {
+      const tutorialBoard = boardCatalog[ONBOARDING_BOARD_KEY];
+      if (tutorialBoard) {
+        boardSend({ type: "LOAD_BOARD", state: tutorialBoard });
+      }
+      setOnboardingOpen(true);
       return;
     }
 
@@ -514,6 +540,7 @@ function AppInner() {
         projectId={project.projectId}
       />
       <ApiKeyDialog open={apiKeyOpen} onClose={() => setApiKeyOpen(false)} />
+      <OnboardingTour open={onboardingOpen} onClose={() => setOnboardingOpen(false)} />
     </DockviewContext.Provider>
   );
 }
