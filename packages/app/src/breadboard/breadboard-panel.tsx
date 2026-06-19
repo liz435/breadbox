@@ -38,7 +38,7 @@ function ZoomControls({
     "bg-accent text-accent-foreground border-border ring-1 ring-ring";
 
   return (
-    <div className="absolute bottom-3 right-3 flex flex-col gap-1">
+    <div className="absolute top-3 right-3 flex flex-col gap-1">
       <button
         type="button"
         onClick={handleZoomIn}
