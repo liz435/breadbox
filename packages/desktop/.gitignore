@@ -6,7 +6,9 @@ src-tauri/gen/
 # Bundled sidecar binaries — large; produced by `bun run prepare:sidecar`.
 # The directory is kept via .gitkeep so the build doesn't fail on a fresh
 # clone before the sidecar is prepared.
+# `dreamer-*` is the pre-rebrand name; `breadbox-*` is current.
 src-tauri/binaries/dreamer-*
+src-tauri/binaries/breadbox-*
 src-tauri/binaries/arduino-cli-*
 # Scratch dir used while extracting the arduino-cli archive.
 src-tauri/binaries/.arduino-cli-tmp/
