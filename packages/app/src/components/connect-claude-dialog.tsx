@@ -1,27 +1,23 @@
-// ── Connect Claude (MCP) Dialog ──────────────────────────────────────────
+// ── Connect Claude (MCP) ─────────────────────────────────────────────────
 //
 // Lets the user point their own Claude (Claude Desktop / Claude Code) at this
 // project's MCP server. Once registered, Claude can build the circuit and write
 // the sketch via the `breadbox mcp` tools, and — thanks to the live board-stream
 // bridge (useLiveBoardSync) — the edits appear on this canvas in real time.
 //
+// `ConnectClaudeContent` is the reusable body (auto-connect + manual fallback);
+// it's embedded both by `ConnectClaudeDialog` (opened from the command palette
+// via the `breadbox:open-connect-claude` event) and by the AI Hub modal's
+// "Connect Claude (MCP)" section.
+//
 // "Connect automatically" calls the local API (POST /api/mcp/connect), which
 // writes the Claude Desktop config and best-effort runs `claude mcp add` for
 // Claude Code. Manual commands stay available as a fallback.
-//
-// Opened via the command palette ("Connect Claude (MCP)"), which dispatches a
-// `breadbox:open-connect-claude` window event that app.tsx listens for.
 
 import React from "react"
 import { API_ORIGIN } from "@dreamer/config"
 
 export const OPEN_CONNECT_CLAUDE_EVENT = "breadbox:open-connect-claude"
-
-type ConnectClaudeDialogProps = {
-  open: boolean
-  onClose: () => void
-  projectId: string
-}
 
 type DesktopResult =
   | { status: "written"; path: string; backedUp: boolean }
@@ -110,32 +106,15 @@ function codeLine(r: CodeResult | undefined): React.ReactNode {
   }
 }
 
-function ConnectClaudeDialogInner({ open, onClose, projectId }: ConnectClaudeDialogProps) {
+/**
+ * Reusable Connect-Claude body: auto-connect button, result status, and a
+ * manual-command fallback. Owns its own transient connect state, so mounting a
+ * fresh copy (dialog open / modal section switch) starts clean.
+ */
+export function ConnectClaudeContent({ projectId }: { projectId: string }) {
   const [phase, setPhase] = React.useState<"idle" | "working" | "done" | "error">("idle")
   const [result, setResult] = React.useState<ConnectResponse | null>(null)
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null)
-
-  // Reset transient state each time the dialog opens.
-  React.useEffect(() => {
-    if (open) {
-      setPhase("idle")
-      setResult(null)
-      setErrorMsg(null)
-    }
-  }, [open])
-
-  // Close on Escape.
-  React.useEffect(() => {
-    if (!open) return
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault()
-        onClose()
-      }
-    }
-    window.addEventListener("keydown", handler)
-    return () => window.removeEventListener("keydown", handler)
-  }, [open, onClose])
 
   const connect = React.useCallback(async () => {
     setPhase("working")
@@ -173,9 +152,113 @@ function ConnectClaudeDialogInner({ open, onClose, projectId }: ConnectClaudeDia
     }
   }, [projectId])
 
-  if (!open) return null
-
   const claudeCodeCmd = `claude mcp add breadbox -- breadbox --project ${projectId} mcp`
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        Point your own Claude at this project and it can place components, wire
+        them up, and write the sketch — the changes appear on this canvas live.
+      </p>
+
+      {/* Auto-connect */}
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={connect}
+          disabled={phase === "working"}
+          className="w-full rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-60"
+        >
+          {phase === "working" ? "Connecting…" : "Connect automatically"}
+        </button>
+
+        {phase === "error" && errorMsg && <p className="text-xs text-red-400">{errorMsg}</p>}
+
+        {phase === "done" && result && (
+          <div className="space-y-1 rounded-lg border border-border bg-background px-3 py-2">
+            {desktopLine(result.claudeDesktop)}
+            {codeLine(result.claudeCode)}
+            {result.needsRestart && (
+              <p className="pt-1 text-[11px] text-amber-400">
+                Restart Claude Desktop to load the new server.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Manual fallback */}
+      <details className="group">
+        <summary className="cursor-pointer text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-muted-foreground">
+          Or set it up manually
+        </summary>
+
+        <div className="mt-3 space-y-4">
+          <div className="space-y-1.5">
+            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Claude Code (CLI)
+            </h3>
+            <CommandRow value={claudeCodeCmd} />
+          </div>
+
+          <div className="space-y-1.5">
+            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Claude Desktop
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Add to{" "}
+              <code className="text-foreground">
+                ~/Library/Application Support/Claude/claude_desktop_config.json
+              </code>
+              , then restart:
+            </p>
+            <CommandRow
+              value={`"breadbox": { "command": "breadbox", "args": ["--project", "${projectId}", "mcp"] }`}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Active project
+            </h3>
+            <CommandRow value={projectId} />
+          </div>
+        </div>
+      </details>
+
+      <p className="text-[11px] leading-relaxed text-muted-foreground">
+        Then just chat with Claude — e.g. “add an LED on pin 13 and blink it.”
+        Keep this tab open to watch the board build itself.
+      </p>
+
+      <p className="text-[10px] text-muted-foreground">
+        Local only. Requires the <span className="text-foreground">breadbox</span> CLI (bundled with the desktop app).
+      </p>
+    </div>
+  )
+}
+
+type ConnectClaudeDialogProps = {
+  open: boolean
+  onClose: () => void
+  projectId: string
+}
+
+function ConnectClaudeDialogInner({ open, onClose, projectId }: ConnectClaudeDialogProps) {
+  // Close on Escape.
+  React.useEffect(() => {
+    if (!open) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault()
+        onClose()
+      }
+    }
+    window.addEventListener("keydown", handler)
+    return () => window.removeEventListener("keydown", handler)
+  }, [open, onClose])
+
+  if (!open) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose}>
@@ -203,86 +286,8 @@ function ConnectClaudeDialogInner({ open, onClose, projectId }: ConnectClaudeDia
         </div>
 
         {/* Content */}
-        <div className="max-h-[70vh] space-y-4 overflow-y-auto px-5 py-4">
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            Point your own Claude at this project and it can place components, wire
-            them up, and write the sketch — the changes appear on this canvas live.
-          </p>
-
-          {/* Auto-connect */}
-          <div className="space-y-2">
-            <button
-              type="button"
-              onClick={connect}
-              disabled={phase === "working"}
-              className="w-full rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-60"
-            >
-              {phase === "working" ? "Connecting…" : "Connect automatically"}
-            </button>
-
-            {phase === "error" && errorMsg && <p className="text-xs text-red-400">{errorMsg}</p>}
-
-            {phase === "done" && result && (
-              <div className="space-y-1 rounded-lg border border-border bg-background px-3 py-2">
-                {desktopLine(result.claudeDesktop)}
-                {codeLine(result.claudeCode)}
-                {result.needsRestart && (
-                  <p className="pt-1 text-[11px] text-amber-400">
-                    Restart Claude Desktop to load the new server.
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Manual fallback */}
-          <details className="group">
-            <summary className="cursor-pointer text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-muted-foreground">
-              Or set it up manually
-            </summary>
-
-            <div className="mt-3 space-y-4">
-              <div className="space-y-1.5">
-                <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Claude Code (CLI)
-                </h3>
-                <CommandRow value={claudeCodeCmd} />
-              </div>
-
-              <div className="space-y-1.5">
-                <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Claude Desktop
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  Add to{" "}
-                  <code className="text-foreground">
-                    ~/Library/Application Support/Claude/claude_desktop_config.json
-                  </code>
-                  , then restart:
-                </p>
-                <CommandRow
-                  value={`"breadbox": { "command": "breadbox", "args": ["--project", "${projectId}", "mcp"] }`}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Active project
-                </h3>
-                <CommandRow value={projectId} />
-              </div>
-            </div>
-          </details>
-
-          <p className="text-[11px] leading-relaxed text-muted-foreground">
-            Then just chat with Claude — e.g. “add an LED on pin 13 and blink it.”
-            Keep this tab open to watch the board build itself.
-          </p>
-        </div>
-
-        {/* Footer */}
-        <div className="border-t border-border px-5 py-2 text-[10px] text-muted-foreground">
-          Local only. Requires the <span className="text-muted-foreground">breadbox</span> CLI (bundled with the desktop app).
+        <div className="max-h-[70vh] overflow-y-auto px-5 py-4">
+          <ConnectClaudeContent projectId={projectId} />
         </div>
       </div>
     </div>

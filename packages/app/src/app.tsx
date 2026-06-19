@@ -54,6 +54,7 @@ import { boardCatalog } from "./learn/board-catalog";
 import { decodeDiagramFromUrl, diagramToBoardState } from "@dreamer/schemas";
 import { useCurrentUser } from "./auth/use-current-user";
 import { ApiKeyDialog, OPEN_API_KEY_EVENT } from "./auth/api-key-dialog";
+import { AiHubModal, OPEN_AI_HUB_EVENT } from "./ai/ai-hub-modal";
 import { PreviewBanner } from "./auth/preview-banner";
 import { MotionEditorPage } from "./motion/motion-editor-page";
 import { OnboardingTour } from "./onboarding/onboarding-tour";
@@ -171,6 +172,7 @@ function AppInner() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [connectClaudeOpen, setConnectClaudeOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [aiHubOpen, setAiHubOpen] = useState(false);
 
   // CLI/desktop: prompt for an Anthropic API key when none is configured.
   // `isHosted`/`hasApiKey` come from /api/auth/me (resolved by the time
@@ -190,6 +192,13 @@ function AppInner() {
     const open = () => setOnboardingOpen(true);
     window.addEventListener(OPEN_ONBOARDING_EVENT, open);
     return () => window.removeEventListener(OPEN_ONBOARDING_EVENT, open);
+  }, []);
+
+  // Open the AI Hub from the bottom-toolbar ✦ button.
+  useEffect(() => {
+    const open = () => setAiHubOpen(true);
+    window.addEventListener(OPEN_AI_HUB_EVENT, open);
+    return () => window.removeEventListener(OPEN_AI_HUB_EVENT, open);
   }, []);
 
   // Re-open the API-key dialog when a chat request reports a missing key.
@@ -541,6 +550,11 @@ function AppInner() {
       />
       <ApiKeyDialog open={apiKeyOpen} onClose={() => setApiKeyOpen(false)} />
       <OnboardingTour open={onboardingOpen} onClose={() => setOnboardingOpen(false)} />
+      <AiHubModal
+        open={aiHubOpen}
+        onClose={() => setAiHubOpen(false)}
+        projectId={project.projectId}
+      />
     </DockviewContext.Provider>
   );
 }
