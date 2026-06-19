@@ -129,7 +129,7 @@ export const chatRoutes = new Elysia().use(authPlugin).post("/api/chat", async (
   const ownerId = requireOwnerId(auth);
 
   try {
-    await requireRateLimit("chat", ownerId, auth?.mode);
+    await requireRateLimit("chat", ownerId, auth?.isHosted);
   } catch (err) {
     if (err instanceof RateLimitError) {
       set.status = 429;

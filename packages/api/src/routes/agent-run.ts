@@ -32,7 +32,7 @@ export const agentRunRoutes = new Elysia({ prefix: "/agent" }).use(authPlugin).p
     const ownerId = requireOwnerId(auth);
 
     try {
-      await requireRateLimit("chat", ownerId, auth?.mode);
+      await requireRateLimit("chat", ownerId, auth?.isHosted);
     } catch (err) {
       if (err instanceof RateLimitError) {
         set.status = 429;

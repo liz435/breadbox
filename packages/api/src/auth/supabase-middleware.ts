@@ -7,7 +7,7 @@
 //      signature/expiry, transparently refreshing via the refresh-token
 //      cookie when needed. The refresh writes new cookies back via the
 //      setAll callback, which we then attach to the response.
-//   3. Threads { auth: { userId, sessionId: null, mode: "hosted" } } onto
+//   3. Threads { auth: { userId, sessionId: null, isHosted: true } } onto
 //      the context for downstream routes.
 //
 // The middleware does NOT use a user-scoped client for DB work — all DB
@@ -97,6 +97,6 @@ export const supabaseAuthPlugin = new Elysia({ name: "auth" }).derive(
       set.status = 401
       throw new Error("unauthorized")
     }
-    return { auth: { userId, sessionId: null, mode: "hosted" } }
+    return { auth: { userId, sessionId: null, isHosted: true } }
   },
 )

@@ -72,20 +72,20 @@ export function BottomToolbar() {
   const [mode, setMode] = useState<ToolbarMode>("edit")
   const chat = useChatMessages({ snapshotVersion: AGENT_SNAPSHOT_VERSION })
   const { send: boardSend } = useBoard()
-  const { mode: authMode, hasApiKey } = useCurrentUser()
+  const { isHosted, hasApiKey } = useCurrentUser()
 
-  // Switching into AI mode needs an Anthropic key in CLI/desktop (dev) mode.
+  // Switching into AI mode needs an Anthropic key in CLI/desktop mode.
   // When none is saved yet, pop the key dialog so the user can enter one
-  // before prompting the agent. Boot already auto-opens this on dev + no key;
-  // this covers re-entry after that boot dialog was dismissed.
+  // before prompting the agent. Boot already auto-opens this on first run
+  // with no key; this covers re-entry after that boot dialog was dismissed.
   const handleModeChange = useCallback(
     (next: ToolbarMode) => {
       setMode(next)
-      if (next === "ai" && authMode === "dev" && !hasApiKey) {
+      if (next === "ai" && !isHosted && !hasApiKey) {
         window.dispatchEvent(new Event(OPEN_API_KEY_EVENT))
       }
     },
-    [authMode, hasApiKey],
+    [isHosted, hasApiKey],
   )
 
   // Board-menu state lives here so the status well can flatten its top corners

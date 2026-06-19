@@ -3,10 +3,10 @@
   "private": true,
   "workspaces": ["packages/*"],
   "scripts": {
-    "dev": "BREADBOX_MODE=${BREADBOX_MODE:-cli} BREADBOX_DEV_SKIP_AUTH=1 bun run dev:api & bun run dev:app",
+    "dev": "BREADBOX_MODE=${BREADBOX_MODE:-cli} bun run dev:api & bun run dev:app",
     "dev:app": "bun run --cwd packages/app dev",
-    "dev:api": "BREADBOX_MODE=${BREADBOX_MODE:-cli} BREADBOX_DEV_SKIP_AUTH=${BREADBOX_DEV_SKIP_AUTH:-1} bun run --cwd packages/api dev",
-    "dev:hosted": "BREADBOX_MODE=hosted BREADBOX_HOSTED=1 BREADBOX_DEV_SKIP_AUTH=0 APP_ORIGIN=${APP_ORIGIN:-http://localhost:3002} bun run --cwd packages/api dev & bun run dev:app",
+    "dev:api": "BREADBOX_MODE=${BREADBOX_MODE:-cli} bun run --cwd packages/api dev",
+    "dev:hosted": "BREADBOX_MODE=hosted BREADBOX_HOSTED=1 APP_ORIGIN=${APP_ORIGIN:-http://localhost:3002} bun run --cwd packages/api dev & bun run dev:app",
     "build": "bun run --cwd packages/app build",
     "build:webui": "bun run --cwd packages/app build && bun run scripts/generate-asset-manifest.ts",
     "build:cli": "bun run build:webui && bun run --cwd packages/cli build:all",

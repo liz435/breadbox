@@ -11,8 +11,8 @@ type PreviewBannerProps = {
 }
 
 export function PreviewBanner({ className }: PreviewBannerProps = {}) {
-  const { user, mode } = useCurrentUser()
-  if (mode !== "hosted" || user) return null
+  const { user, isHosted } = useCurrentUser()
+  if (!isHosted || user) return null
 
   return (
     <div

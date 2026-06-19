@@ -111,9 +111,12 @@ function buildApp() {
   return new Elysia()
     .use(supabaseAuthPlugin!)
     .get("/api/whoami", (ctx: unknown) => {
-      const auth = (ctx as { auth?: { userId: string; mode: string } | null })
-        .auth
-      return auth ? { userId: auth.userId, mode: auth.mode } : { userId: null }
+      const auth = (
+        ctx as { auth?: { userId: string; isHosted: boolean } | null }
+      ).auth
+      return auth
+        ? { userId: auth.userId, isHosted: auth.isHosted }
+        : { userId: null }
     })
 }
 
@@ -142,9 +145,9 @@ describeOrSkip("supabase auth middleware", () => {
       }),
     )
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { userId: string; mode: string }
+    const body = (await res.json()) as { userId: string; isHosted: boolean }
     expect(body.userId).toBe(session.userId)
-    expect(body.mode).toBe("hosted")
+    expect(body.isHosted).toBe(true)
   })
 
   test("missing cookie → 401", async () => {

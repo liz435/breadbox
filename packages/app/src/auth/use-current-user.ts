@@ -2,8 +2,9 @@
 //
 // Reads `/api/auth/me` once via a module-level promise cache and serves
 // the cached snapshot to every consumer synchronously thereafter. The
-// App gate uses this to decide between LoginScreen / LocalNoSession /
-// AppInner.
+// app shell always renders; `isHosted` + `user` only decide whether the
+// hosted deploy shows its sign-in / preview affordances. CLI/desktop
+// (isHosted=false) has no account concept.
 //
 // Design:
 //   - The fetch is kicked off lazily on first read, then cached. A
@@ -21,15 +22,13 @@
 //     that prefer Suspense semantics; the hook itself never calls it.
 //
 // Failure mode: a 401 or network error resolves to the safe default
-// `{ user: null, mode: "hosted" }` so the UI falls through to a login
-// screen rather than throwing. `/api/auth/me` never 401s in practice
+// `{ user: null, isHosted: true }` so the UI falls through to a sign-in
+// path rather than throwing. `/api/auth/me` never 401s in practice
 // (it's a discovery endpoint), so "401 here" really means an edge or
 // proxy misconfiguration.
 
 import { useSyncExternalStore } from "react"
 import { API_ORIGIN } from "@dreamer/config"
-
-export type AuthMode = "hosted" | "local" | "dev"
 
 export type CurrentUser = {
   userId: string
@@ -38,12 +37,15 @@ export type CurrentUser = {
 
 export type AuthMeResponse = {
   user: CurrentUser | null
-  mode: AuthMode
+  /** True on the hosted (Supabase) deploy; false for CLI/desktop. */
+  isHosted: boolean
   /** CLI/desktop only: whether an Anthropic API key is configured. */
   hasApiKey?: boolean
 }
 
-const DEFAULT_RESPONSE: AuthMeResponse = { user: null, mode: "hosted" }
+// Safe default → treat as hosted + logged out so the UI falls through to a
+// sign-in path rather than silently granting a local session.
+const DEFAULT_RESPONSE: AuthMeResponse = { user: null, isHosted: true }
 
 let promiseCache: Promise<AuthMeResponse> | null = null
 let snapshotCache: AuthMeResponse | null = null
@@ -64,13 +66,12 @@ async function fetchAuthMe(): Promise<AuthMeResponse> {
       return DEFAULT_RESPONSE
     }
     const data = (await res.json()) as Partial<AuthMeResponse>
-    const mode: AuthMode =
-      data.mode === "hosted" || data.mode === "local" || data.mode === "dev"
-        ? data.mode
-        : "hosted"
+    // Default an unknown/missing flag to hosted — the safe side (shows a
+    // sign-in path rather than bypassing it).
+    const isHosted = typeof data.isHosted === "boolean" ? data.isHosted : true
     const parsed: AuthMeResponse = {
       user: data.user ?? null,
-      mode,
+      isHosted,
       hasApiKey: data.hasApiKey ?? false,
     }
     snapshotCache = parsed
@@ -120,7 +121,7 @@ export function refreshCurrentUser(): Promise<AuthMeResponse> {
  */
 export function useCurrentUser(): {
   user: CurrentUser | null
-  mode: AuthMode
+  isHosted: boolean
   hasApiKey: boolean
   loading: boolean
 } {
@@ -133,13 +134,13 @@ export function useCurrentUser(): {
   if (snapshot) {
     return {
       user: snapshot.user,
-      mode: snapshot.mode,
+      isHosted: snapshot.isHosted,
       hasApiKey: snapshot.hasApiKey ?? false,
       loading: false,
     }
   }
 
-  return { user: null, mode: "hosted", hasApiKey: false, loading: true }
+  return { user: null, isHosted: true, hasApiKey: false, loading: true }
 }
 
 /**
@@ -161,5 +162,5 @@ export function getCurrentUserSnapshot(): AuthMeResponse | null {
 export function isAnonymousPreview(): boolean {
   const snap = snapshotCache
   if (!snap) return false
-  return snap.mode === "hosted" && snap.user === null
+  return snap.isHosted && snap.user === null
 }

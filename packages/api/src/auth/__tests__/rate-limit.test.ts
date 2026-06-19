@@ -38,19 +38,19 @@ beforeEach(() => {
 describe("compile bucket", () => {
   test("burst drains after 6 calls", async () => {
     for (let i = 0; i < 6; i++) {
-      await requireRateLimit("compile", "user-a", "hosted")
+      await requireRateLimit("compile", "user-a", true)
     }
     await expect(
-      requireRateLimit("compile", "user-a", "hosted"),
+      requireRateLimit("compile", "user-a", true),
     ).rejects.toBeInstanceOf(RateLimitError)
   })
 
   test("retryAfterSec ≥ 1 and rounded up", async () => {
     for (let i = 0; i < 6; i++) {
-      await requireRateLimit("compile", "user-r", "hosted")
+      await requireRateLimit("compile", "user-r", true)
     }
     try {
-      await requireRateLimit("compile", "user-r", "hosted")
+      await requireRateLimit("compile", "user-r", true)
       expect(false).toBe(true)
     } catch (err) {
       expect(err).toBeInstanceOf(RateLimitError)
@@ -63,10 +63,10 @@ describe("compile bucket", () => {
 
   test("refill restores capacity after time elapses", async () => {
     for (let i = 0; i < 6; i++) {
-      await requireRateLimit("compile", "user-b", "hosted")
+      await requireRateLimit("compile", "user-b", true)
     }
     await expect(
-      requireRateLimit("compile", "user-b", "hosted"),
+      requireRateLimit("compile", "user-b", true),
     ).rejects.toBeInstanceOf(RateLimitError)
 
     // Fake the clock by resetting + waiting a tick. The bucket refills
@@ -80,11 +80,11 @@ describe("compile bucket", () => {
 describe("per-user isolation", () => {
   test("draining user A doesn't affect user B", async () => {
     for (let i = 0; i < 6; i++) {
-      await requireRateLimit("compile", "user-a", "hosted")
+      await requireRateLimit("compile", "user-a", true)
     }
     // user-b still has a full bucket
     for (let i = 0; i < 6; i++) {
-      await requireRateLimit("compile", "user-b", "hosted")
+      await requireRateLimit("compile", "user-b", true)
     }
   })
 })
@@ -92,23 +92,23 @@ describe("per-user isolation", () => {
 describe("family isolation", () => {
   test("draining compile doesn't affect chat", async () => {
     for (let i = 0; i < 6; i++) {
-      await requireRateLimit("compile", "user-c", "hosted")
+      await requireRateLimit("compile", "user-c", true)
     }
     // chat bucket for the same user is still full (30 capacity)
     for (let i = 0; i < 30; i++) {
-      await requireRateLimit("chat", "user-c", "hosted")
+      await requireRateLimit("chat", "user-c", true)
     }
   })
 })
 
 describe("test-env skip", () => {
-  test("dev-mode + NODE_ENV=test skips the limiter entirely", async () => {
+  test("non-hosted + NODE_ENV=test skips the limiter entirely", async () => {
     const prev = process.env.NODE_ENV
     process.env.NODE_ENV = "test"
     try {
       // Far beyond any real capacity — must not throw.
       for (let i = 0; i < 1000; i++) {
-        await requireRateLimit("compile", "user-d", "dev")
+        await requireRateLimit("compile", "user-d", false)
       }
     } finally {
       process.env.NODE_ENV = prev
@@ -120,10 +120,10 @@ describe("test-env skip", () => {
     process.env.NODE_ENV = "test"
     try {
       for (let i = 0; i < 6; i++) {
-        await requireRateLimit("compile", "user-e", "hosted")
+        await requireRateLimit("compile", "user-e", true)
       }
       await expect(
-        requireRateLimit("compile", "user-e", "hosted"),
+        requireRateLimit("compile", "user-e", true),
       ).rejects.toBeInstanceOf(RateLimitError)
     } finally {
       process.env.NODE_ENV = prev
@@ -133,10 +133,10 @@ describe("test-env skip", () => {
 
 describe("eval bucket", () => {
   test("capacity 2 drains then blocks", async () => {
-    await requireRateLimit("eval", "user-x", "hosted")
-    await requireRateLimit("eval", "user-x", "hosted")
+    await requireRateLimit("eval", "user-x", true)
+    await requireRateLimit("eval", "user-x", true)
     await expect(
-      requireRateLimit("eval", "user-x", "hosted"),
+      requireRateLimit("eval", "user-x", true),
     ).rejects.toBeInstanceOf(RateLimitError)
   })
 })

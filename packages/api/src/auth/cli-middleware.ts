@@ -104,7 +104,7 @@ export const cliAuthPlugin = new Elysia({ name: "auth" }).derive(
     // fixed local user. There is no opt-out — the Host/Origin gate above
     // is the only defense, and it's appropriate for loopback-only.
     return {
-      auth: { userId: CLI_LOCAL_USER_ID, sessionId: null, mode: "dev" },
+      auth: { userId: CLI_LOCAL_USER_ID, sessionId: null, isHosted: false },
     }
   },
 )
