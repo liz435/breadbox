@@ -59,7 +59,10 @@ export function EditToolbar() {
   return (
     <div className="flex items-center gap-1">
       {/* Workspace modes — each opens its tab set and closes the rest. */}
-      <div className="flex items-center gap-0.5 rounded-2xl bg-secondary/40 p-0.5">
+      <div
+        data-onboarding="modes"
+        className="flex items-center gap-0.5 rounded-2xl bg-secondary/40 p-0.5"
+      >
         {WORKSPACE_MODES.map((m) => {
           const Icon = MODE_ICONS[m.id]
           const active = mode === m.id

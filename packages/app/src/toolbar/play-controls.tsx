@@ -245,7 +245,7 @@ export function PlayControls({ sim }: PlayControlsProps) {
           : null
 
   return (
-    <div className="flex items-center gap-1">
+    <div data-onboarding="run" className="flex items-center gap-1">
       {/* Play / Stop toggle — one button: Play when stopped, Stop while running */}
       {isRunning ? (
         <Tooltip>

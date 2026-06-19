@@ -460,7 +460,7 @@ function SketchEditorInner() {
   }, [])
 
   return (
-    <div className="flex h-full w-full flex-col bg-card">
+    <div data-onboarding="sketch" className="flex h-full w-full flex-col bg-card">
       {/* Toolbar */}
       <div className="flex items-center gap-1.5 border-b border-border px-3 py-1.5">
         {/* Play / Stop toggle — one button: Run when stopped, Stop while running */}
