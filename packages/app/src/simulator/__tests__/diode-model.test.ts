@@ -1,134 +1,14 @@
 import { describe, test, expect } from "bun:test"
 import {
-  estimateDiodeCurrentMa,
   getLedDiodeModel,
   diodeModelLine,
+  ledNetlistLines,
   type DiodeModelSpec,
 } from "../diode-model"
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-const RED_MODEL: DiodeModelSpec = { name: "DLED_RED", is: 1e-8, n: 2.0 }
-
-// ── estimateDiodeCurrentMa ───────────────────────────────────────────
-
-describe("estimateDiodeCurrentMa", () => {
-  describe("zero voltage", () => {
-    test("returns zero (or near-zero) current at 0V", () => {
-      // I = Is * (exp(0) - 1) = Is * 0 = 0
-      const result = estimateDiodeCurrentMa(0, RED_MODEL)
-      expect(result).toBe(0)
-    })
-  })
-
-  describe("positive forward bias", () => {
-    test("returns positive current at typical LED forward voltage (2V clamped to 0.8V)", () => {
-      // The function clamps vd to 0.8V max, so passing 2V == passing 0.8V
-      const at2V = estimateDiodeCurrentMa(2.0, RED_MODEL)
-      const at08V = estimateDiodeCurrentMa(0.8, RED_MODEL)
-      expect(at2V).toBeCloseTo(at08V, 10)
-    })
-
-    test("current increases with forward voltage up to clamp boundary", () => {
-      const at01V = estimateDiodeCurrentMa(0.1, RED_MODEL)
-      const at05V = estimateDiodeCurrentMa(0.5, RED_MODEL)
-      const at08V = estimateDiodeCurrentMa(0.8, RED_MODEL)
-      expect(at05V).toBeGreaterThan(at01V)
-      expect(at08V).toBeGreaterThan(at05V)
-    })
-
-    test("voltage beyond 0.8V is clamped — result equals result at exactly 0.8V", () => {
-      const at08V = estimateDiodeCurrentMa(0.8, RED_MODEL)
-      const at5V = estimateDiodeCurrentMa(5.0, RED_MODEL)
-      const at100V = estimateDiodeCurrentMa(100.0, RED_MODEL)
-      expect(at5V).toBeCloseTo(at08V, 10)
-      expect(at100V).toBeCloseTo(at08V, 10)
-    })
-  })
-
-  describe("negative reverse bias", () => {
-    test("returns near-zero current at small negative voltage", () => {
-      const result = estimateDiodeCurrentMa(-0.1, RED_MODEL)
-      // Reverse current is tiny (saturation current level) — should be < 0.001 mA
-      expect(result).toBeLessThan(0.001)
-    })
-
-    test("voltage below -1V is clamped — result equals result at exactly -1V", () => {
-      const atNeg1V = estimateDiodeCurrentMa(-1.0, RED_MODEL)
-      const atNeg5V = estimateDiodeCurrentMa(-5.0, RED_MODEL)
-      const atNeg100V = estimateDiodeCurrentMa(-100.0, RED_MODEL)
-      expect(atNeg5V).toBeCloseTo(atNeg1V, 10)
-      expect(atNeg100V).toBeCloseTo(atNeg1V, 10)
-    })
-
-    test("result is always non-negative (abs() wraps reverse leakage)", () => {
-      const reverse = estimateDiodeCurrentMa(-0.5, RED_MODEL)
-      expect(reverse).toBeGreaterThanOrEqual(0)
-    })
-  })
-
-  describe("extreme voltages", () => {
-    test("100V forward does not produce NaN or Infinity", () => {
-      const result = estimateDiodeCurrentMa(100, RED_MODEL)
-      expect(Number.isFinite(result)).toBe(true)
-      expect(Number.isNaN(result)).toBe(false)
-    })
-
-    test("-100V reverse does not produce NaN or Infinity", () => {
-      const result = estimateDiodeCurrentMa(-100, RED_MODEL)
-      expect(Number.isFinite(result)).toBe(true)
-      expect(Number.isNaN(result)).toBe(false)
-    })
-  })
-
-  describe("exponent clamping boundaries", () => {
-    // The exponent is clamped to [-60, 60].
-    // At 0.8V with vThermal = 2 * 0.02585 ≈ 0.05170, exponent ≈ 15.47 — within range.
-    // To hit the 60 ceiling: vd / vThermal = 60  →  vd = 60 * 0.05170 ≈ 3.1V
-    // Since vd is clamped to 0.8V first, the exponent ceiling of 60 is never
-    // actually reachable in normal operation.
-
-    test("exponent at 0.8V clamp is well below ceiling of 60 — result is finite", () => {
-      const result = estimateDiodeCurrentMa(0.8, RED_MODEL)
-      expect(Number.isFinite(result)).toBe(true)
-    })
-
-    test("exponent at -1V clamp is well above floor of -60 — result is finite", () => {
-      const result = estimateDiodeCurrentMa(-1.0, RED_MODEL)
-      expect(Number.isFinite(result)).toBe(true)
-    })
-  })
-
-  describe("numerical stability edge cases", () => {
-    test("very small Is value (1e-20) does not produce NaN", () => {
-      const tinyIs: DiodeModelSpec = { name: "TINY", is: 1e-20, n: 2.0 }
-      const result = estimateDiodeCurrentMa(0.5, tinyIs)
-      expect(Number.isFinite(result)).toBe(true)
-      expect(Number.isNaN(result)).toBe(false)
-    })
-
-    test("very large N value (100) prevents division by zero — vThermal floor is 1e-6", () => {
-      // n * VT = 100 * 0.02585 = 2.585, well above 1e-6 floor
-      const largeN: DiodeModelSpec = { name: "LARGE_N", is: 1e-8, n: 100 }
-      const result = estimateDiodeCurrentMa(0.5, largeN)
-      expect(Number.isFinite(result)).toBe(true)
-    })
-
-    test("Is = 0 returns zero current without NaN", () => {
-      const zeroIs: DiodeModelSpec = { name: "ZERO_IS", is: 0, n: 2.0 }
-      const result = estimateDiodeCurrentMa(0.5, zeroIs)
-      // 0 * (exp - 1) = 0
-      expect(result).toBe(0)
-    })
-
-    test("negative Is does not produce NaN (defensive)", () => {
-      const negIs: DiodeModelSpec = { name: "NEG_IS", is: -1e-8, n: 2.0 }
-      const result = estimateDiodeCurrentMa(0.5, negIs)
-      // abs() is applied at the end — result should be a finite number
-      expect(Number.isFinite(result)).toBe(true)
-    })
-  })
-})
+const RED_MODEL: DiodeModelSpec = { name: "DLED_RED", is: 3.3e-17, n: 2.0, rs: 12 }
 
 // ── getLedDiodeModel color mapping ───────────────────────────────────
 
@@ -266,14 +146,36 @@ describe("getLedDiodeModel", () => {
 describe("diodeModelLine", () => {
   test("generates correct SPICE .model line for RED model", () => {
     const line = diodeModelLine(RED_MODEL)
-    expect(line).toBe(".model DLED_RED D(Is=1e-8 N=2)")
+    // Rs is stamped as an explicit resistor, not in the .model line.
+    expect(line).toBe(".model DLED_RED D(Is=3.3e-17 N=2)")
   })
 
   test("uses model name from spec", () => {
-    const custom: DiodeModelSpec = { name: "MY_LED", is: 5e-9, n: 1.8 }
+    const custom: DiodeModelSpec = { name: "MY_LED", is: 5e-9, n: 1.8, rs: 10 }
     const line = diodeModelLine(custom)
     expect(line).toContain("MY_LED")
     expect(line).toContain("Is=5e-9")
     expect(line).toContain("N=1.8")
+  })
+})
+
+// ── ledNetlistLines (diode + series Rs) ───────────────────────────────
+
+describe("ledNetlistLines", () => {
+  test("emits a diode and a series Rs resistor joined by an internal node", () => {
+    const { lines } = ledNetlistLines("led1", "net_a", "net_b", RED_MODEL)
+    // Diode: anode → internal junction; Rs: junction → cathode.
+    expect(lines[0]).toBe("D_led1 net_a led1_jx DLED_RED")
+    expect(lines[1]).toBe("Rs_led1 led1_jx net_b 12")
+  })
+
+  test("keeps the diode named D_<id> so the solver reads its branch current", () => {
+    const { lines } = ledNetlistLines("led1", "a", "b", RED_MODEL)
+    expect(lines[0].startsWith("D_led1 ")).toBe(true)
+  })
+
+  test("returns the model line for the diode", () => {
+    const { modelLine } = ledNetlistLines("led1", "a", "b", RED_MODEL)
+    expect(modelLine).toBe(diodeModelLine(RED_MODEL))
   })
 })

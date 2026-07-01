@@ -1,26 +1,58 @@
 // ── LED Diode Models ───────────────────────────────────────────────────────
 //
-// Shared helpers for selecting LED diode models, emitting SPICE `.model` lines,
-// and estimating diode current from solved node voltages.
+// Shared helpers for selecting LED diode models and emitting the SPICE lines
+// that model an LED as a real junction in series with its bulk resistance Rs.
 
 export type DiodeModelSpec = {
   name: string
   is: number
   n: number
+  /** Bulk series resistance in ohms (contacts, bond wire, semiconductor bulk). */
+  rs: number
 }
 
+// A real LED = an ideal (Shockley) junction in series with a few ohms of bulk
+// resistance Rs. The junction sets the turn-on knee; Rs makes the forward
+// voltage keep climbing with current (and limits current when overdriven),
+// which a bare exponential can't reproduce.
+//
+// Is is anchored so the *terminal* forward voltage at 20mA matches datasheets:
+//   Vf(20mA) = N·Vt·ln(0.02/Is) + 0.02·Rs,  with N·Vt = 2.0 × 0.02585 = 0.0517 V.
+//   red ≈ 2.0V (Rs 12Ω), green ≈ 2.2V (Rs 15Ω), blue ≈ 3.2V (Rs 18Ω).
 const DIODE_MODELS = {
-  RED: { name: "DLED_RED", is: 1e-8, n: 2.0 },
-  GREEN: { name: "DLED_GREEN", is: 8e-9, n: 2.0 },
-  BLUE: { name: "DLED_BLUE", is: 6e-9, n: 2.0 },
-  RGB: { name: "DLED_RGB", is: 8e-9, n: 2.0 },
-  DEFAULT: { name: "DLED_DEFAULT", is: 9e-9, n: 2.0 },
+  RED: { name: "DLED_RED", is: 3.3e-17, n: 2.0, rs: 12 },
+  GREEN: { name: "DLED_GREEN", is: 2.2e-18, n: 2.0, rs: 15 },
+  BLUE: { name: "DLED_BLUE", is: 2.8e-26, n: 2.0, rs: 18 },
+  RGB: { name: "DLED_RGB", is: 1.5e-17, n: 2.0, rs: 15 },
+  DEFAULT: { name: "DLED_DEFAULT", is: 3.3e-17, n: 2.0, rs: 12 },
 } as const satisfies Record<string, DiodeModelSpec>
-
-const VT_300K = 0.02585
 
 export function diodeModelLine(model: DiodeModelSpec): string {
   return `.model ${model.name} D(Is=${model.is} N=${model.n})`
+}
+
+/**
+ * SPICE lines for an LED: an ideal diode `anode → junction` in series with the
+ * bulk resistance `junction → cathode`. This is the same internal-node
+ * decomposition SPICE uses for a diode's RS parameter — spicey has no native
+ * RS, so we stamp it explicitly. `elementId` must already be sanitized; the
+ * diode keeps the `D_<id>` name so the solver's element current reads back as
+ * the LED's through-current.
+ */
+export function ledNetlistLines(
+  elementId: string,
+  anode: string,
+  cathode: string,
+  model: DiodeModelSpec,
+): { lines: string[]; modelLine: string } {
+  const junction = `${elementId}_jx`
+  return {
+    lines: [
+      `D_${elementId} ${anode} ${junction} ${model.name}`,
+      `Rs_${elementId} ${junction} ${cathode} ${model.rs}`,
+    ],
+    modelLine: diodeModelLine(model),
+  }
 }
 
 function normalizeHexColor(color?: string): string | null {
@@ -55,19 +87,4 @@ export function getLedDiodeModel(color?: string): DiodeModelSpec {
 
 export function getRgbLedDiodeModel(): DiodeModelSpec {
   return DIODE_MODELS.RGB
-}
-
-/**
- * Match spicey's diode linearization bounds so UI current estimates stay in
- * sync with the solver's nonlinear stamping behavior.
- */
-export function estimateDiodeCurrentMa(
-  voltageDrop: number,
-  model: DiodeModelSpec,
-): number {
-  const vThermal = Math.max(model.n * VT_300K, 1e-6)
-  const vdLimited = Math.max(-1, Math.min(0.8, voltageDrop))
-  const exponent = Math.max(-60, Math.min(60, vdLimited / vThermal))
-  const currentA = model.is * (Math.exp(exponent) - 1)
-  return Math.abs(currentA * 1000)
 }

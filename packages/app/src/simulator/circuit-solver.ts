@@ -10,7 +10,6 @@ import { buildNetlist, type ShiftRegisterOutputs } from "./netlist-builder"
 import { gridToPixel, getComponentFootprint } from "@/breadboard/breadboard-grid"
 import { getComponentDef } from "@/components/registry"
 import { getCapVoltage, setCapVoltage } from "./capacitor-state"
-import { estimateDiodeCurrentMa, getLedDiodeModel, getRgbLedDiodeModel } from "./diode-model"
 
 type ParsedCircuit = ReturnType<typeof parseNetlist>
 
@@ -182,7 +181,7 @@ export function analyzeCircuit(
   }
 
   // Build the SPICE netlist
-  const { netlist, componentNodePairs } = buildNetlist(
+  const { netlist, componentNodePairs, pinSources } = buildNetlist(
     components,
     wires,
     pinStates,
@@ -270,18 +269,10 @@ export function analyzeCircuit(
     const sanitizedId = comp.id.replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 20)
     const spicePrefix = def?.spicePrefix ?? "R"
     const elementName = `${spicePrefix}_${sanitizedId}`
-    let currentA = Math.abs(getElementCurrent(elementName)) * 1000 // Convert to mA
-    if (comp.type === "led") {
-      currentA = estimateDiodeCurrentMa(
-        voltageDrop,
-        getLedDiodeModel(comp.properties.color as string | undefined),
-      )
-    } else if (comp.type === "rgb_led") {
-      currentA = estimateDiodeCurrentMa(
-        voltageDrop,
-        getRgbLedDiodeModel(),
-      )
-    }
+    // For LEDs the element is the `D_<id>` diode, in series with its Rs; the
+    // solved diode branch current is the LED's true through-current. voltageDrop
+    // is the terminal drop (junction + I·Rs), the physical LED voltage.
+    const currentA = Math.abs(getElementCurrent(elementName)) * 1000 // Convert to mA
     const elCtx = { voltageDrop, currentMa: currentA, elementName }
 
     const result = def?.computeElectricalState
@@ -328,6 +319,25 @@ export function analyzeCircuit(
     evolveCapacitorVoltages(circuit, circuitComponents, options?.dtSeconds ?? 0, getElementCurrent)
   }
 
+  // Check each driven pin against the ATmega328P's current limits. The pin's
+  // source branch current is its real load current; warn on the components it
+  // drives (so the marker renders at a real position).
+  const overcurrentComponentIds = flagPinOvercurrent(
+    pinSources,
+    componentNodePairs,
+    getElementCurrent,
+    warnings,
+  )
+
+  // A pin-overcurrent warning supersedes the generic "add a resistor" note on
+  // the same component — keep only the more specific one so markers don't stack.
+  const dedupedWarnings =
+    overcurrentComponentIds.size === 0
+      ? warnings
+      : warnings.filter(
+          (w) => !(w.type === "no_resistor" && overcurrentComponentIds.has(w.componentId)),
+        )
+
   // Check for open circuits: if no component has current flowing
   const anyActive = Array.from(componentStates.values()).some((s) => s.isActive)
   if (!anyActive && circuitComponents.length > 0) {
@@ -336,7 +346,7 @@ export function analyzeCircuit(
     if (hasVoltageSource) {
       for (const comp of circuitComponents) {
         if (comp.type === "led" || comp.type === "rgb_led") {
-          warnings.push({
+          dedupedWarnings.push({
             componentId: comp.id,
             type: "open_circuit",
             message: `${comp.name} has no complete circuit path`,
@@ -351,6 +361,41 @@ export function analyzeCircuit(
     netlist,
     componentStates,
     currentPaths,
-    warnings,
+    warnings: dedupedWarnings,
   }
+}
+
+// ── Arduino pin current limits (ATmega328P) ──────────────────────────
+const PIN_CURRENT_RECOMMENDED_MA = 20 // per-pin design limit
+const PIN_CURRENT_ABSOLUTE_MAX_MA = 40 // per-pin absolute max — risks damage
+
+/**
+ * Warn when a driven pin exceeds the ATmega's per-pin current limits. Attaches
+ * the warning to every component wired to that pin's node and returns the set
+ * of component ids flagged, so callers can suppress redundant warnings.
+ */
+function flagPinOvercurrent(
+  pinSources: Array<{ pin: number; element: string; node: string }>,
+  componentNodePairs: Map<string, { nodeA: string; nodeB: string }>,
+  getElementCurrent: (elementName: string) => number,
+  warnings: CircuitWarning[],
+): Set<string> {
+  const flagged = new Set<string>()
+  for (const src of pinSources) {
+    const currentMa = Math.abs(getElementCurrent(src.element)) * 1000
+    if (currentMa <= PIN_CURRENT_RECOMMENDED_MA) continue
+
+    const message =
+      currentMa > PIN_CURRENT_ABSOLUTE_MAX_MA
+        ? `Pin D${src.pin} draws ${currentMa.toFixed(0)}mA — over the ${PIN_CURRENT_ABSOLUTE_MAX_MA}mA absolute max for an Arduino pin. This can damage the pin; add a series resistor.`
+        : `Pin D${src.pin} draws ${currentMa.toFixed(0)}mA — above the recommended ${PIN_CURRENT_RECOMMENDED_MA}mA per pin. Add a series resistor.`
+
+    for (const [id, pair] of componentNodePairs) {
+      if (pair.nodeA === src.node || pair.nodeB === src.node) {
+        warnings.push({ componentId: id, type: "overcurrent", message })
+        flagged.add(id)
+      }
+    }
+  }
+  return flagged
 }

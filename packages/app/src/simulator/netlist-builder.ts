@@ -63,6 +63,12 @@ export type NetlistResult = {
   nets: Net[]
   nodeMap: Map<string, string>
   componentNodePairs: Map<string, { nodeA: string; nodeB: string }>
+  /**
+   * Digital output pins that drive the circuit, with the SPICE element whose
+   * branch current equals the pin's current and the net node it drives. Lets
+   * the solver check each pin against the ATmega's per-pin current limits.
+   */
+  pinSources: Array<{ pin: number; element: string; node: string }>
 }
 
 const ARDUINO_OUTPUT_SOURCE_RESISTANCE_OHMS = 25
@@ -98,6 +104,8 @@ export function buildNetlist(
     netId: string
     voltage: number
     sourceResistanceOhms?: number
+    /** Arduino digital pin number, when this source is a driven I/O pin. */
+    pin?: number
   }> = []
 
   // Build a point→netId lookup for fast component-to-net resolution
@@ -149,6 +157,7 @@ export function buildNetlist(
               netId: net.id,
               voltage,
               sourceResistanceOhms: ARDUINO_OUTPUT_SOURCE_RESISTANCE_OHMS,
+              pin: arduinoPin,
             })
           } else if (ps.digitalValue === 1) {
             voltageSourceNets.push({
@@ -156,6 +165,7 @@ export function buildNetlist(
               netId: net.id,
               voltage: 5,
               sourceResistanceOhms: ARDUINO_OUTPUT_SOURCE_RESISTANCE_OHMS,
+              pin: arduinoPin,
             })
           } else {
             // Pin is OUTPUT LOW → drive 0V through realistic output resistance.
@@ -164,6 +174,7 @@ export function buildNetlist(
               netId: net.id,
               voltage: 0,
               sourceResistanceOhms: ARDUINO_OUTPUT_SOURCE_RESISTANCE_OHMS,
+              pin: arduinoPin,
             })
           }
         } else if (!ps || ps.mode === "UNSET") {
@@ -239,6 +250,7 @@ export function buildNetlist(
 
   // Deduplicate voltage sources: only one source per unique node name
   const seenSourceNodes = new Set<string>()
+  const pinSources: NetlistResult["pinSources"] = []
   let vsIndex = 0
 
   for (const vs of voltageSourceNets) {
@@ -251,13 +263,17 @@ export function buildNetlist(
     if (seenSourceNodes.has(nodeName)) continue
     seenSourceNodes.add(nodeName)
 
+    const element = `${vs.label}_${vsIndex}`
     if (vs.sourceResistanceOhms && vs.sourceResistanceOhms > 0) {
       const sourceNode = `src_${vsIndex}`
-      lines.push(`${vs.label}_${vsIndex} ${sourceNode} 0 ${vs.voltage}`)
+      lines.push(`${element} ${sourceNode} 0 ${vs.voltage}`)
       lines.push(`R_src_${vsIndex} ${sourceNode} ${nodeName} ${vs.sourceResistanceOhms}`)
     } else {
-      lines.push(`${vs.label}_${vsIndex} ${nodeName} 0 ${vs.voltage}`)
+      lines.push(`${element} ${nodeName} 0 ${vs.voltage}`)
     }
+    // The source's branch current is the pin's current; record it so the solver
+    // can check the pin against the ATmega's current limits.
+    if (vs.pin != null) pinSources.push({ pin: vs.pin, element, node: nodeName })
     vsIndex++
   }
 
@@ -327,7 +343,7 @@ export function buildNetlist(
 
   const netlist = lines.join("\n")
 
-  return { netlist, nets, nodeMap, componentNodePairs }
+  return { netlist, nets, nodeMap, componentNodePairs, pinSources }
 }
 
 /** Sanitize a component ID for use in SPICE element names */
