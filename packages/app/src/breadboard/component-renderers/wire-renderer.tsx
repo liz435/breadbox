@@ -21,10 +21,22 @@ function offsetForBoard(
   boardId: string | undefined,
   surfaceBoards: BoardComponent[] | undefined,
 ): { dx: number; dy: number } {
-  if (!boardId || !surfaceBoards) return { dx: 0, dy: 0 };
-  const b = surfaceBoards.find((sb) => sb.id === boardId);
-  if (!b) return { dx: 0, dy: 0 };
-  return { dx: b.worldX ?? 0, dy: b.worldY ?? 0 };
+  if (!surfaceBoards || surfaceBoards.length === 0) return { dx: 0, dy: 0 };
+  // Explicit board reference — shift by that board's world position.
+  if (boardId) {
+    const b = surfaceBoards.find((sb) => sb.id === boardId);
+    return b ? { dx: b.worldX ?? 0, dy: b.worldY ?? 0 } : { dx: 0, dy: 0 };
+  }
+  // Legacy wires carry no board id. When exactly one surface board exists,
+  // treat it as the implicit board so the endpoint travels with it — mirrors
+  // the component parentId fallback in breadboard-canvas. Ambiguous with
+  // multiple boards, so it only applies to single-board scenes. (Arduino-pin
+  // ends resolve before this and never get a board offset.)
+  if (surfaceBoards.length === 1) {
+    const b = surfaceBoards[0];
+    return { dx: b.worldX ?? 0, dy: b.worldY ?? 0 };
+  }
+  return { dx: 0, dy: 0 };
 }
 
 /**

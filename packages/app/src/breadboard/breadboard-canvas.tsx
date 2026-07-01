@@ -44,7 +44,7 @@ import { useCircuitAnalysis } from "@/simulator/circuit-analysis-hook";
 import { usePinStates } from "@/simulator/use-pin-state";
 import { getComponentDef } from "@/components/registry";
 import { useBreadboardCamera } from "./use-breadboard-camera";
-import { useBreadboardDrag } from "./use-breadboard-drag";
+import { useBreadboardDrag, boardAtPoint } from "./use-breadboard-drag";
 import { useBreadboardWire, getWireColorForPin } from "./use-breadboard-wire";
 
 // ── Registry-driven helpers ──────────────────────────────────────
@@ -607,9 +607,18 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
   // board while the user is still holding the pointer.
   const parentOffsets = useMemo(() => {
     const map = new Map<string, { dx: number; dy: number }>();
+    // Legacy scenes (and components placed before multi-board parenting) can
+    // lack a parentId. When exactly one surface board exists, treat it as the
+    // implicit parent so those components still travel with it — mirrors the
+    // diagram-adapter's single-board defaulting. Board-type components carry
+    // their own world position and are skipped.
+    const soleBoardId =
+      surfaceBoardComponents.length === 1 ? surfaceBoardComponents[0].id : null;
     for (const comp of Object.values(components)) {
-      if (!comp.parentId) continue;
-      const parent = components[comp.parentId];
+      if (isBoardComponentType(comp.type)) continue;
+      const parentId = comp.parentId ?? soleBoardId;
+      if (!parentId) continue;
+      const parent = components[parentId];
       if (!parent) continue;
       const isLiveDrag = boardDragOffset?.id === parent.id;
       const liveDx = isLiveDrag ? boardDragOffset.dx : 0;
@@ -621,7 +630,7 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
       }
     }
     return map;
-  }, [components, boardDragOffset]);
+  }, [components, surfaceBoardComponents, boardDragOffset]);
 
   // Surface boards with the in-flight drag delta folded in. Passed to the
   // WireLayer so wire endpoints follow the board live while it's being
@@ -815,18 +824,32 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
           return `${prefix}-${n}`;
         };
 
+        // Attach non-board components to whichever surface board they land on,
+        // so they travel with it when the board is dragged. Grid coords are
+        // stored local to that board's origin (mirrors handleDragEnd). Falls
+        // back to the global grid + no parent for legacy single-board scenes
+        // that have no explicit surface board in components{}.
+        const overBoard = isSurfaceBoard
+          ? null
+          : boardAtPoint(board.x, board.y, surfaceBoardComponents);
+        const localGrid = overBoard
+          ? pixelToGrid(board.x - (overBoard.worldX ?? 0), board.y - (overBoard.worldY ?? 0))
+          : grid;
+
         const component: BoardComponent = {
           id: idPrefix ? nextSequentialId(idPrefix) : crypto.randomUUID(),
           type: placingType,
           name: placingType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
-          x: isSurfaceBoard ? 0 : grid.col,
-          y: isSurfaceBoard ? 0 : grid.row,
+          x: isSurfaceBoard ? 0 : localGrid.col,
+          y: isSurfaceBoard ? 0 : localGrid.row,
           rotation: breadboardInteractionActor.getSnapshot().context.placingRotation,
           pins: getDefaultPins(placingType),
           properties: getDefaultProperties(placingType),
           ...(isSurfaceBoard
             ? { parentId: null, worldX: board.x - BREADBOARD_OFFSET_X, worldY: board.y }
-            : {}),
+            : overBoard
+              ? { parentId: overBoard.id }
+              : {}),
         };
 
         send({ type: "PLACE_COMPONENT", component });
