@@ -294,8 +294,8 @@ describe("analyzeCircuit — open circuit detection", () => {
 
 // ── no_resistor warning ────────────────────────────────────────────────
 
-describe("analyzeCircuit — no_resistor warnings", () => {
-  test("LED directly connected to pin 13 HIGH and GND gets no_resistor warning", () => {
+describe("analyzeCircuit — pin overcurrent & no_resistor warnings", () => {
+  test("LED directly on pin 13 HIGH exceeds the pin current limit (overcurrent)", () => {
     const components: Record<string, BoardComponent> = {
       led1: makeLed("led1", 5, 0),
     }
@@ -306,10 +306,13 @@ describe("analyzeCircuit — no_resistor warnings", () => {
     const pinStates = makePinStates([{ pin: 13, mode: "OUTPUT", digitalValue: 1 }])
 
     const result = analyzeCircuit(components, wires, pinStates)
-    const noResWarnings = result.warnings.filter(
-      (w) => w.componentId === "led1" && w.type === "no_resistor",
+    const overcurrent = result.warnings.filter(
+      (w) => w.componentId === "led1" && w.type === "overcurrent",
     )
-    expect(noResWarnings.length).toBeGreaterThan(0)
+    expect(overcurrent.length).toBeGreaterThan(0)
+    // References the offending pin and the absolute-max advice.
+    expect(overcurrent[0].message).toContain("D13")
+    expect(overcurrent[0].message).toContain("40mA")
   })
 
   test("LED with series resistor does not get no_resistor warning", () => {

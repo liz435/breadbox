@@ -302,7 +302,8 @@ describe("analyzeCircuit", () => {
     }
 
     const result = analyzeCircuit(components, {}, createDefaultPinStates())
-    expect(result.netlist).toContain(".model DLED_RED D(Is=1e-8 N=2)")
+    // Is anchors the red junction; Rs (12Ω) is a separate series resistor.
+    expect(result.netlist).toContain(".model DLED_RED D(Is=3.3e-17 N=2)")
   })
 
   test("LED color maps to different diode models", () => {
@@ -311,7 +312,8 @@ describe("analyzeCircuit", () => {
     }
 
     const result = analyzeCircuit(components, {}, createDefaultPinStates())
-    expect(result.netlist).toContain(".model DLED_BLUE D(Is=6e-9 N=2)")
+    // Blue's much smaller Is gives its higher (~3V) forward voltage.
+    expect(result.netlist).toContain(".model DLED_BLUE D(Is=2.8e-26 N=2)")
   })
 
   test("output pin sources include realistic source resistance", () => {
@@ -354,7 +356,7 @@ describe("analyzeCircuit", () => {
     expect(noResWarnings.length).toBe(0)
   })
 
-  test("bare LED still reports no_resistor warning", () => {
+  test("bare LED on a pin is flagged as over the pin current limit", () => {
     const components: Record<string, BoardComponent> = {
       led1: makeLed("led1", 5, 0),
     }
@@ -365,10 +367,17 @@ describe("analyzeCircuit", () => {
     const pinStates = makePinStates([{ pin: 13, mode: "OUTPUT", digitalValue: 1 }])
 
     const result = analyzeCircuit(components, wires, pinStates)
+    // Direct LED draws far more than 40mA → overcurrent warning referencing the
+    // pin, which supersedes the generic no_resistor note.
+    const overcurrent = result.warnings.filter(
+      (w) => w.componentId === "led1" && w.type === "overcurrent",
+    )
+    expect(overcurrent.length).toBeGreaterThan(0)
+    expect(overcurrent[0].message).toContain("D13")
     const noResWarnings = result.warnings.filter(
       (w) => w.componentId === "led1" && w.type === "no_resistor",
     )
-    expect(noResWarnings.length).toBeGreaterThan(0)
+    expect(noResWarnings.length).toBe(0)
   })
 
   test("netlist contains .tran analysis command", () => {

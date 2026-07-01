@@ -1,6 +1,6 @@
 import { resolveComponentPins } from "@dreamer/schemas"
 import { HOLE_SPACING } from "@/breadboard/breadboard-constants"
-import { diodeModelLine, getLedDiodeModel } from "@/simulator/diode-model"
+import { getLedDiodeModel, ledNetlistLines } from "@/simulator/diode-model"
 import type { ComponentDefinition, ElectricalOutput } from "@/components/component-definition"
 import { footprintFromPins, sanitize } from "@/components/catalog/_shared"
 
@@ -28,12 +28,8 @@ export const led: ComponentDefinition = {
     const nodeA = resolveNode(anodePoint)
     const nodeB = resolveNode(cathodePoint)
     const model = getLedDiodeModel(comp.properties.color as string | undefined)
-    return {
-      lines: [`D_${sanitize(comp.id)} ${nodeA} ${nodeB} ${model.name}`],
-      modelLines: [diodeModelLine(model)],
-      nodeA,
-      nodeB,
-    }
+    const { lines, modelLine } = ledNetlistLines(sanitize(comp.id), nodeA, nodeB, model)
+    return { lines, modelLines: [modelLine], nodeA, nodeB }
   },
   computeElectricalState: (comp, { voltageDrop, currentMa }) => {
     const isReversed = voltageDrop < -0.1
