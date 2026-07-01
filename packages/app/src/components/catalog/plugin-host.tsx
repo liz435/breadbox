@@ -16,6 +16,7 @@ import { createElement } from "react"
 import type { ComponentType, ReactNode } from "react"
 import type { BoardComponent } from "@dreamer/schemas"
 import { HOLE_SPACING } from "@/breadboard/breadboard-constants"
+import { svgToDataUrl } from "@/utils/svg-data-url"
 import type {
   ComponentDefinition,
   NetlistContext,
@@ -60,6 +61,8 @@ export type PluginComponentSpec = {
   /** Pixel size of the body; defaults to the pin extent. */
   size?: { width: number; height: number }
   accentColor?: string
+  /** Raw SVG body markup, scaled to the footprint with pins overlaid. */
+  svg?: string
   paletteIcon?: ReactNode
   spicePrefix?: string
   buildNetlist?: (comp: BoardComponent, ctx: NetlistContext, api: PluginNetlistApi) => NetlistOutput | null
@@ -93,6 +96,11 @@ function defaultPaletteIcon(): ReactNode {
       <circle cx={8} cy={8} r={1} fill="#cbd5e1" />
     </svg>
   )
+}
+
+/** A palette icon that snapshots the part's own SVG body. */
+function svgPaletteIcon(svg: string): ReactNode {
+  return <img src={svgToDataUrl(svg)} alt="" width={20} height={20} className="object-contain" />
 }
 
 function pinExtent(pins: PluginPin[]): { width: number; height: number } {
@@ -189,9 +197,11 @@ export function createPluginHost(): PluginHost {
         defaultPins,
         defaultProperties: spec.properties,
         accentColor: spec.accentColor,
+        svg: spec.svg,
         renderer: spec.renderer,
         footprint,
-        paletteIcon: spec.paletteIcon ?? defaultPaletteIcon(),
+        paletteIcon:
+          spec.paletteIcon ?? (spec.svg ? svgPaletteIcon(spec.svg) : defaultPaletteIcon()),
         spicePrefix: spec.spicePrefix,
         buildNetlist,
         computeElectricalState,

@@ -58,6 +58,19 @@ describe("custom component DSL", () => {
     ])
   })
 
+  test("carries an optional svg body through to the definition", () => {
+    const svg = "<svg viewBox='0 0 10 10'><rect width='10' height='10'/></svg>"
+    const dsl = customComponentDslSchema.parse({ ...MY_SENSOR_DSL, svg })
+    const def = dslToComponentDefinition(dsl)
+    expect(def.svg).toBe(svg)
+  })
+
+  test("svg is optional — omitting it leaves the definition without one", () => {
+    const dsl = customComponentDslSchema.parse(MY_SENSOR_DSL)
+    const def = dslToComponentDefinition(dsl)
+    expect(def.svg).toBeUndefined()
+  })
+
   test("buildNetlist resolves pins and evaluates the volts expression", () => {
     const dsl = customComponentDslSchema.parse(MY_SENSOR_DSL)
     const def = dslToComponentDefinition(dsl)

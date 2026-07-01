@@ -21,4 +21,16 @@ describe("buildCustomPartPrompt", () => {
     const prompt = buildCustomPartPrompt("{}");
     expect(prompt).toContain("<describe the change you want here>");
   });
+
+  test("scopes the prompt to a single facet when given", () => {
+    const prompt = buildCustomPartPrompt('{ "type": "custom:foo" }', { facet: "look" });
+    expect(prompt).toContain("## Focus");
+    expect(prompt).toContain("visual appearance");
+    expect(prompt).toContain("`svg`");
+  });
+
+  test("no Focus section without a facet", () => {
+    const prompt = buildCustomPartPrompt('{ "type": "custom:foo" }', { change: "x" });
+    expect(prompt).not.toContain("## Focus");
+  });
 });
