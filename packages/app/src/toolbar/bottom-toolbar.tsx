@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react"
 import { Pencil, Sparkles } from "lucide-react"
+import { motion, useReducedMotion } from "motion/react"
 import { ToggleGroup } from "@/components/ui/toggle-group"
 import { Toggle } from "@/components/ui/toggle"
 import { Separator } from "@/components/ui/separator"
@@ -41,6 +42,11 @@ const AGENT_SNAPSHOT_VERSION = "2.0.0"
 
 type ToolbarMode = "edit" | "ai"
 
+const TOOLBAR_MODES = [
+  { value: "edit" as const, Icon: Pencil, rounded: "rounded-r-none" },
+  { value: "ai" as const, Icon: Sparkles, rounded: "rounded-l-none" },
+]
+
 function ModeToggle({
   mode,
   onModeChange,
@@ -48,6 +54,7 @@ function ModeToggle({
   mode: ToolbarMode
   onModeChange: (mode: ToolbarMode) => void
 }) {
+  const reduceMotion = useReducedMotion()
   return (
     <ToggleGroup
       value={[mode]}
@@ -58,12 +65,37 @@ function ModeToggle({
       }}
       className="gap-0 rounded-xl border-none bg-secondary/40"
     >
-      <Toggle value="edit" size="sm" className="size-9 rounded-r-none">
-        <Pencil className="size-3.5" />
-      </Toggle>
-      <Toggle value="ai" size="sm" className="size-9 rounded-l-none" data-onboarding="ai-chat">
-        <Sparkles className="size-3.5" />
-      </Toggle>
+      {TOOLBAR_MODES.map(({ value, Icon, rounded }) => {
+        const active = mode === value
+        return (
+          <Toggle
+            key={value}
+            value={value}
+            size="sm"
+            // Background is driven by the shared sliding pill below, not the
+            // Toggle's own data-[pressed] fill — so clear that fill and keep the
+            // button transparent. text-primary-foreground still tracks the
+            // pressed state so the icon under the pill flips to the amber-on
+            // color (eased by transition-colors).
+            className={cn("relative size-9 hover:bg-transparent data-[pressed]:bg-transparent", rounded)}
+            data-onboarding={value === "ai" ? "ai-chat" : undefined}
+          >
+            {active && (
+              <motion.span
+                layoutId="mode-toggle-pill"
+                aria-hidden
+                className="absolute inset-0 rounded-xl bg-primary"
+                transition={
+                  reduceMotion
+                    ? { duration: 0 }
+                    : { type: "spring", stiffness: 520, damping: 36, mass: 0.7 }
+                }
+              />
+            )}
+            <Icon className="relative z-10 size-3.5" />
+          </Toggle>
+        )
+      })}
     </ToggleGroup>
   )
 }

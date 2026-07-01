@@ -267,15 +267,13 @@ export function PlayControls({ sim }: PlayControlsProps) {
     upload.status === "flashing" ||
     upload.status === "reconnecting"
 
-  // On hosted the Upload button is always visible (so the user has a clear
-  // place to land when they haven't paired yet — the disabled tooltip
-  // tells them what to do). On local we keep the historical rule of
-  // hiding the button until the user picks a server-detected port.
-  // UF2 boards (Pico) download a file — no USB pairing or server port needed,
-  // so the button is always available regardless of hosted/local.
+  // The Upload button is always visible so it reads as a stable, findable
+  // control — it just grays out (disabled) until upload is actually possible,
+  // and the tooltip explains what's missing (no board paired/connected, wrong
+  // browser, etc.). UF2 boards (Pico) download a file — no USB pairing or
+  // server port needed — so they're always uploadable.
   const isUf2Download = !!boardTargetInfo.uf2Download
   const webSerialOk = capabilities.hosted && isWebSerialSupported()
-  const showUpload = isUf2Download ? true : capabilities.hosted ? true : !!selectedPort
   const canUpload = isUf2Download
     ? true
     : capabilities.hosted
@@ -284,7 +282,7 @@ export function PlayControls({ sim }: PlayControlsProps) {
   const uploadDisabledReason: string | null = isUf2Download
     ? null
     : !capabilities.hosted
-      ? null
+      ? (!selectedPort ? "Connect a board to upload" : null)
       : !isWebSerialSupported()
         ? "Use Chrome or Edge to flash a board"
         : !pairedPort
@@ -292,6 +290,12 @@ export function PlayControls({ sim }: PlayControlsProps) {
           : !boardTargetInfo.webSerialUpload
             ? `${boardTargetInfo.label} can't yet be flashed from the browser`
             : null
+
+  // Drive the disabled *look* + click-guard ourselves via aria-disabled instead
+  // of the native `disabled` attribute: a natively-disabled button gets
+  // pointer-events-none, which would swallow hover and hide the tooltip — but
+  // the tooltip is exactly where we explain *why* it's disabled (no board yet).
+  const uploadDisabled = electrical.hasErrors || uploadInProgress || !canUpload
 
   return (
     <div data-onboarding="run" className="flex items-center gap-1">
@@ -344,55 +348,58 @@ export function PlayControls({ sim }: PlayControlsProps) {
           right-edge status cluster (next to StatusDisplay) in
           bottom-toolbar.tsx so the board + status read as one unit. */}
 
-      {/* Upload to Arduino — visible on hosted (so user sees where to pair),
-          gated on a selected port locally. Inline status text used to live
-          here; it now renders in <StatusDisplay/>. */}
-      {showUpload && (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleUpload}
-                disabled={electrical.hasErrors || uploadInProgress || !canUpload}
-                className="size-9 rounded-xl transition-all duration-150 active:scale-90"
-              />
-            }
-          >
-            {upload.status === "compiling" && (
-              <Cpu className="size-3.5 animate-pulse text-blue-400" />
-            )}
-            {upload.status === "flashing" && (
-              <Zap className="size-3.5 animate-pulse text-teal-400" />
-            )}
-            {upload.status === "reconnecting" && (
-              <Upload className="size-3.5 animate-pulse text-teal-300" />
-            )}
-            {upload.status === "error" && (
-              <AlertCircle className="size-3.5 text-red-400" />
-            )}
-            {(upload.status === "idle" || upload.status === "done") &&
-              (isUf2Download ? (
-                <Download className="size-3.5 text-teal-400" />
-              ) : (
-                <Upload className="size-3.5 text-teal-400" />
-              ))}
-          </TooltipTrigger>
-          <TooltipContent>
-            {upload.status === "compiling" ? "Compiling…"
-              : upload.status === "flashing" ? "Flashing…"
-              : upload.status === "reconnecting" ? "Reconnecting…"
-              : electrical.hasErrors ? (electricalBlockReason ?? "Electrical issue blocks upload")
-              : upload.status === "error" ? (upload.error ?? "Upload failed")
-              : uploadDisabledReason
-                ? uploadDisabledReason
-                : isUf2Download
-                  ? `Compile & download .uf2 (${boardTargetInfo.label})`
-                  : `Compile & Upload (${boardTargetInfo.label})`}
-          </TooltipContent>
-        </Tooltip>
-      )}
+      {/* Upload to Arduino — always visible; disabled (grayed) until a board is
+          connected/paired, with the reason in the tooltip. Inline status text
+          renders in <StatusDisplay/>. */}
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={uploadDisabled ? undefined : handleUpload}
+              aria-disabled={uploadDisabled}
+              className={cn(
+                "size-9 rounded-xl transition-all duration-150",
+                uploadDisabled
+                  ? "cursor-not-allowed opacity-50 hover:bg-transparent"
+                  : "active:scale-90",
+              )}
+            />
+          }
+        >
+          {upload.status === "compiling" && (
+            <Cpu className="size-3.5 animate-pulse text-blue-400" />
+          )}
+          {upload.status === "flashing" && (
+            <Zap className="size-3.5 animate-pulse text-teal-400" />
+          )}
+          {upload.status === "reconnecting" && (
+            <Upload className="size-3.5 animate-pulse text-teal-300" />
+          )}
+          {upload.status === "error" && (
+            <AlertCircle className="size-3.5 text-red-400" />
+          )}
+          {(upload.status === "idle" || upload.status === "done") &&
+            (isUf2Download ? (
+              <Download className="size-3.5 text-muted-foreground" />
+            ) : (
+              <Upload className="size-3.5 text-muted-foreground" />
+            ))}
+        </TooltipTrigger>
+        <TooltipContent>
+          {upload.status === "compiling" ? "Compiling…"
+            : upload.status === "flashing" ? "Flashing…"
+            : upload.status === "reconnecting" ? "Reconnecting…"
+            : electrical.hasErrors ? (electricalBlockReason ?? "Electrical issue blocks upload")
+            : upload.status === "error" ? (upload.error ?? "Upload failed")
+            : uploadDisabledReason
+              ? uploadDisabledReason
+              : isUf2Download
+                ? `Compile & download .uf2 (${boardTargetInfo.label})`
+                : `Compile & Upload (${boardTargetInfo.label})`}
+        </TooltipContent>
+      </Tooltip>
     </div>
   )
 }
