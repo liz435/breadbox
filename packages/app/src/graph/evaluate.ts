@@ -2,7 +2,7 @@ import type { GraphNode, Edge, PortDataType } from "@dreamer/schemas";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
-export type PortValue = {
+type PortValue = {
   type: PortDataType;
   value: unknown;
 };
@@ -15,7 +15,7 @@ export type EvalResult = {
   order: string[];
 };
 
-export type EvalError = {
+type EvalError = {
   nodeId: string;
   edgeId?: string;
   message: string;

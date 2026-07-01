@@ -41,10 +41,8 @@ export {
   HOLE_RADIUS,
   GAP_WIDTH,
   RAIL_OFFSET,
-  RAIL_PAIR_SPACING,
   ARDUINO_BOARD_WIDTH,
   ARDUINO_BOARD_HEIGHT,
-  ARDUINO_BOARD_MARGIN,
   BOARD_PADDING,
 } from "@/breadboard/breadboard-constants"
 import {
@@ -65,7 +63,7 @@ export const BREADBOARD_OFFSET_X =
 
 // Computed dimensions for the breadboard itself
 export const TERMINAL_WIDTH = 4 * HOLE_SPACING; // 5 holes, 4 gaps
-export const BREADBOARD_INNER_WIDTH =
+const BREADBOARD_INNER_WIDTH =
   TERMINAL_WIDTH + GAP_WIDTH + TERMINAL_WIDTH;
 export const BREADBOARD_WIDTH =
   BOARD_PADDING * 2 + BREADBOARD_INNER_WIDTH + RAIL_OFFSET * 2;
@@ -77,10 +75,6 @@ export const BREADBOARD_HEIGHT =
   POWER_RAIL_HEIGHT + // top rails
   (ROWS - 1) * HOLE_SPACING +
   POWER_RAIL_HEIGHT; // bottom rails
-
-// Total canvas size
-export const CANVAS_WIDTH = BREADBOARD_OFFSET_X + BREADBOARD_WIDTH;
-export const CANVAS_HEIGHT = Math.max(ARDUINO_BOARD_HEIGHT + 40, BREADBOARD_HEIGHT);
 
 // ── Arduino pin pixel positions ──────────────────────────────
 
@@ -183,13 +177,13 @@ function makePowerPins(): ArduinoPinInfo[] {
 export const ARDUINO_DIGITAL_PINS = makeDigitalPins();
 export const ARDUINO_ANALOG_PINS = makeAnalogPins();
 export const ARDUINO_POWER_PINS = makePowerPins();
-export const ARDUINO_PINS: ArduinoPinInfo[] = [
+const ARDUINO_PINS: ArduinoPinInfo[] = [
   ...ARDUINO_DIGITAL_PINS,
   ...ARDUINO_ANALOG_PINS,
   ...ARDUINO_POWER_PINS,
 ];
 
-export type { ArduinoPinInfo, PinCategory };
+export type { ArduinoPinInfo };
 
 export type BoardPinLayout = {
   digitalPins: ArduinoPinInfo[];
@@ -504,10 +498,6 @@ export function getBoardPinLayout(boardTarget: BoardTarget = DEFAULT_BOARD_TARGE
   return BOARD_PIN_LAYOUTS[boardTarget] ?? BOARD_PIN_LAYOUTS[DEFAULT_BOARD_TARGET];
 }
 
-export function getBoardPins(boardTarget: BoardTarget = DEFAULT_BOARD_TARGET): ArduinoPinInfo[] {
-  return getBoardPinLayout(boardTarget).allPins;
-}
-
 // ── Coordinate conversion ─────────────────────────────────────
 
 /** The x offset where the breadboard terminal area starts */
@@ -624,10 +614,6 @@ export function pixelToGrid(px: number, py: number): GridPoint {
   return { row, col };
 }
 
-export function snapToGrid(px: number, py: number): GridPoint {
-  return pixelToGrid(px, py);
-}
-
 // ── Component footprints ─────────────────────────────────────
 
 /**
@@ -646,7 +632,7 @@ export type ComponentFootprint = {
  * Rotate footprint points in 90° increments around the anchor point (first point).
  * rotation: 0 = 0°, 1 = 90° CW, 2 = 180°, 3 = 270° CW
  */
-export function rotateFootprint(fp: ComponentFootprint, rotation: number): ComponentFootprint {
+function rotateFootprint(fp: ComponentFootprint, rotation: number): ComponentFootprint {
   const r = ((rotation % 4) + 4) % 4;
   if (r === 0) return fp;
 

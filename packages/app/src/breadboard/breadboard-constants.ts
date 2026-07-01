@@ -28,12 +28,6 @@ export const BOARD_PADDING = 40
 /** Standard dome radius for LEDs — half of HOLE_SPACING */
 export const LED_DOME_RADIUS = HOLE_SPACING / 2
 
-/** Standard body height for servo housing — 1.5× HOLE_SPACING */
-export const SERVO_BODY_HEIGHT = Math.round(HOLE_SPACING * 1.6)
-
-/** Standard body width for servo housing — ~2× HOLE_SPACING */
-export const SERVO_BODY_WIDTH = Math.round(HOLE_SPACING * 2.15)
-
 /** Buzzer/potentiometer radius — slightly less than HOLE_SPACING */
 export const KNOB_RADIUS = Math.round(HOLE_SPACING * 0.72)
 

@@ -51,19 +51,19 @@ import {
  * Distance in cm for HC-SR04 ultrasonic sensors, keyed by echo pin.
  * Read by `pulseIn(pin, HIGH, ...)` in the stdlib.
  */
-export const ultrasonicDistanceBus = new Map<number, number>()
+const ultrasonicDistanceBus = new Map<number, number>()
 
 /**
  * DHT11/22 readings keyed by signal pin.
  * Read by `DHTClass.readTemperature()` / `.readHumidity()`.
  */
-export const dhtSensorBus = new Map<number, { temperatureC: number; humidity: number }>()
+const dhtSensorBus = new Map<number, { temperatureC: number; humidity: number }>()
 
 /**
  * Trigger pin for each ultrasonic sensor keyed by echo pin.
  * Used by `pulseIn()` to validate the sketch sent a trigger pulse.
  */
-export const ultrasonicTriggerPinBus = new Map<number, number>()
+const ultrasonicTriggerPinBus = new Map<number, number>()
 
 /** Tracks the most recent `pendingCodeAt` we've dispatched to each
  *  IrReceiverPeripheral so back-to-back inspector-triggered sends

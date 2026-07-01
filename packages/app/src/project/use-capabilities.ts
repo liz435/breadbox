@@ -48,13 +48,6 @@ async function fetchCapabilities(): Promise<Capabilities> {
   }
 }
 
-/** Force-refresh the cache. Useful after actions that change server state. */
-export async function refreshCapabilities(): Promise<Capabilities> {
-  cached = null
-  inflight = null
-  return getCapabilities()
-}
-
 /** Get the cached capabilities, fetching once if not yet loaded. */
 export async function getCapabilities(): Promise<Capabilities> {
   if (cached) return cached

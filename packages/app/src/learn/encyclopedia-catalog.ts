@@ -27,7 +27,7 @@
 
 export type EncyclopediaTrack = "board" | "programming" | "electronics"
 
-export type EncyclopediaStatus = "planned" | "draft" | "published"
+type EncyclopediaStatus = "planned" | "draft" | "published"
 
 export type EncyclopediaEntry = {
   /** URL segment, kebab-case, unique within its track. */
@@ -816,7 +816,7 @@ export function findEntry(
  * Group entries by track → group → entries, preserving declaration order.
  * Used by the sidebar. Hides planned entries by default.
  */
-export type SidebarGroup = { group: string; items: EncyclopediaEntry[] }
+type SidebarGroup = { group: string; items: EncyclopediaEntry[] }
 export type SidebarTrack = { track: TrackMeta; groups: SidebarGroup[] }
 
 export function buildSidebarTracks({

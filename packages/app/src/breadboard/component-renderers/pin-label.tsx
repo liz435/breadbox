@@ -8,7 +8,7 @@ import React from "react"
 // ── Color map ─────────────────────────────────────────────────────────────
 
 /** Returns a fill color for a given pin name. */
-export function pinColor(name: string): string {
+function pinColor(name: string): string {
   const n = name.toLowerCase()
   if (n === "+" || n === "vcc" || n === "positive" || n === "anode" || n === "v+" || n === "vdd")
     return "#ef4444" // red — power
@@ -38,7 +38,7 @@ export function pinColor(name: string): string {
 }
 
 /** Short display symbol for a pin name. */
-export function pinSymbol(name: string): string {
+function pinSymbol(name: string): string {
   const n = name.toLowerCase()
   if (n === "vcc" || n === "v+" || n === "vdd") return "+"
   if (n === "positive") return "+"

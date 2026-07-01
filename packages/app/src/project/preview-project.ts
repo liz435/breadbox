@@ -25,10 +25,10 @@ function pickPreviewBoard(): BoardState | null {
   return first ?? null
 }
 
-export const PREVIEW_PROJECT_ID = "preview"
-export const PREVIEW_SCENE_ID = "preview-scene"
-export const PREVIEW_THREAD_ID = "preview-thread"
-export const PREVIEW_OWNER_ID = "preview"
+const PREVIEW_PROJECT_ID = "preview"
+const PREVIEW_SCENE_ID = "preview-scene"
+const PREVIEW_THREAD_ID = "preview-thread"
+const PREVIEW_OWNER_ID = "preview"
 
 /**
  * Build an in-memory ProjectFile for anonymous visitors. Uses a bundled
@@ -78,8 +78,4 @@ export function createPreviewProjectFile(): ProjectFile {
     file.boardState = board
   }
   return file
-}
-
-export function isPreviewProjectId(id: string): boolean {
-  return id === PREVIEW_PROJECT_ID
 }

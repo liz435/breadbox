@@ -13,7 +13,7 @@ import { getComponentDef } from "@/components/registry"
 import { findArduinoPinsForComponent } from "@/breadboard/component-pin-resolver"
 
 /** Marker comment used to detect auto-generated sketches */
-export const AUTO_GENERATED_MARKER = "// Auto-generated from board layout"
+const AUTO_GENERATED_MARKER = "// Auto-generated from board layout"
 
 /**
  * Returns true if the given sketch code is empty or was auto-generated

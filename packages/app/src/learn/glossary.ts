@@ -320,12 +320,3 @@ export const GLOSSARY = {
 // ── Derived types ──────────────────────────────────────────────────────
 
 export type GlossaryKey = keyof typeof GLOSSARY
-
-export function getTerm(key: GlossaryKey): GlossaryEntry {
-  return GLOSSARY[key]
-}
-
-/** Every key as an array — handy for a future glossary index page. */
-export const GLOSSARY_KEYS: readonly GlossaryKey[] = Object.keys(
-  GLOSSARY,
-) as GlossaryKey[]

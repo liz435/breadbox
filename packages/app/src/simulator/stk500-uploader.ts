@@ -49,9 +49,9 @@ const RESET_PULSE_MS = 100
 /** ms to wait after release before talking to the bootloader. Optiboot is fast. */
 const BOOTLOADER_SETTLE_MS = 50
 
-export type FlashPhase = "reset" | "sync" | "writing" | "verifying" | "done"
+type FlashPhase = "reset" | "sync" | "writing" | "verifying" | "done"
 
-export type FlashProgress = {
+type FlashProgress = {
   phase: FlashPhase
   bytesWritten?: number
   bytesTotal?: number
@@ -76,7 +76,7 @@ export type FlashOptions = {
  * lowest address. We ignore extended-linear-address records: the Uno's
  * 32KB flash fits in 16-bit address space, and Optiboot starts at 0x0000.
  */
-export function intelHexToBytes(hex: string): { data: Uint8Array; startAddress: number } {
+function intelHexToBytes(hex: string): { data: Uint8Array; startAddress: number } {
   const lines = hex.split(/\r?\n/).filter((l) => l.startsWith(":"))
   const chunks: { addr: number; bytes: Uint8Array }[] = []
   let minAddr = Number.MAX_SAFE_INTEGER

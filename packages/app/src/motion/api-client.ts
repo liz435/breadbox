@@ -2,7 +2,6 @@ import { API_ORIGIN } from "@dreamer/config";
 import {
   generationJobSchema,
   frameTransformEditSchema,
-  comfyPipelineSchema,
   motionProjectSchema,
   motionSegmentSchema,
   keyframePoseSchema,
@@ -300,5 +299,3 @@ export async function getComfyProviderHealth(input?: {
   );
   return parseJson(res, comfyProviderHealthSchema);
 }
-
-export type MotionComfyPipeline = z.infer<typeof comfyPipelineSchema>;

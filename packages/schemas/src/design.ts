@@ -21,11 +21,6 @@ export const DIAGRAM_SCHEMA_V1 = "breadbox-diagram-v1" as const;
 // literal on read. Producers only ever emit DIAGRAM_SCHEMA_V1.
 export const DIAGRAM_SCHEMA_V1_LEGACY = "dreamer-diagram-v1" as const;
 
-/** True if `value` is the current diagram schema literal or its legacy alias. */
-export function isAcceptedDiagramSchema(value: unknown): boolean {
-  return value === DIAGRAM_SCHEMA_V1 || value === DIAGRAM_SCHEMA_V1_LEGACY;
-}
-
 // ── Sub-schemas ──────────────────────────────────────────────────────────
 
 /**

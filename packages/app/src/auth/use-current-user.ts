@@ -144,16 +144,6 @@ export function useCurrentUser(): {
 }
 
 /**
- * Synchronous access to the current auth snapshot for non-React code
- * (api-client, toast handlers, etc). Returns null if the /me fetch
- * hasn't resolved yet — callers treat that as "assume hosted + logged
- * out" unless they know better.
- */
-export function getCurrentUserSnapshot(): AuthMeResponse | null {
-  return snapshotCache
-}
-
-/**
  * True when the page is viewing the app as an anonymous visitor on a
  * hosted deployment — the "preview" mode. Callers use this to decide
  * whether to make authed API calls, show sign-in prompts, or treat

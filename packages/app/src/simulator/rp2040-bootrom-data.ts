@@ -19,6 +19,3 @@
 
 /** base64 of the 16 KB bootrom, or null when not vendored. */
 export const RP2040_BOOTROM_BASE64: string | null = null
-
-/** Lowercase hex SHA-256 of the decoded bootrom, for provenance/verification. */
-export const RP2040_BOOTROM_SHA256: string | null = null

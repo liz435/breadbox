@@ -16,7 +16,7 @@ import { API_ORIGIN } from "@dreamer/config"
 
 const API_BASE = API_ORIGIN
 
-export type TelemetryFrame = {
+type TelemetryFrame = {
   ts: number
   wallTime: number
   digital: number[]

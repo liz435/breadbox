@@ -22,7 +22,7 @@ import { API_ORIGIN } from "@dreamer/config"
 import { useCapabilities } from "@/project/use-capabilities"
 import { resolveFetchOptions } from "@/project/api-client"
 
-export type PortInfo = {
+type PortInfo = {
   path: string
   manufacturer?: string
 }
@@ -100,17 +100,13 @@ function stateChanged(prev: StateSnapshot): boolean {
   )
 }
 
-export function setGlobalSelectedPort(path: string | null) {
+function setGlobalSelectedPort(path: string | null) {
   if (_selectedPort === path) return
   _selectedPort = path
   // User just (re)affirmed their choice; cancel any in-flight miss-count
   // toward auto-clearing.
   _selectedPortMissCount = 0
   notifyListeners()
-}
-
-export function getGlobalSelectedPort(): string | null {
-  return _selectedPort
 }
 
 async function fetchPortsOnce(): Promise<void> {

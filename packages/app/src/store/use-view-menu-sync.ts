@@ -8,7 +8,7 @@ import { emitToDesktop } from "@/lib/tauri";
  * desktop shell (lib.rs) listens for it to keep the native View menu's
  * checkmarks in sync. Must match VIEW_STATE_EVENT in lib.rs.
  */
-export const VIEW_STATE_EVENT = "dreamer-view-state";
+const VIEW_STATE_EVENT = "dreamer-view-state";
 
 /**
  * Report the set of currently-open view panels to the desktop shell whenever

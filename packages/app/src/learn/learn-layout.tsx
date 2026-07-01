@@ -40,7 +40,6 @@ import {
 import {
   buildSidebarTracks,
   encyclopediaPath,
-  TRACKS,
   type EncyclopediaEntry,
   type SidebarTrack,
   type TrackMeta,
@@ -49,7 +48,7 @@ import { LearnCommandPalette } from "./learn-command-palette"
 
 // Re-export shared primitives from docs-layout so lesson files only need
 // to import from "@/learn/learn-layout".
-export { Section, CodeBlock, Note, Warn, Badge, PageTitle, Table } from "@/docs/docs-layout"
+export { Section, CodeBlock, Note, Warn, PageTitle, Table } from "@/docs/docs-layout"
 
 // ── Difficulty badge ─────────────────────────────────────────────────────
 //
@@ -277,11 +276,11 @@ export const LESSONS: readonly LessonMeta[] = [
   },
 ]
 
-export function getLessonIndex(slug: string): number {
+function getLessonIndex(slug: string): number {
   return LESSONS.findIndex((l) => l.slug === slug)
 }
 
-export function getNextLesson(slug: string): LessonMeta | null {
+function getNextLesson(slug: string): LessonMeta | null {
   const i = getLessonIndex(slug)
   if (i === -1 || i >= LESSONS.length - 1) return null
   return LESSONS[i + 1]
@@ -667,9 +666,6 @@ function EntryLink({
     </button>
   )
 }
-
-// Exported for other files that care about the TRACKS list (future use).
-export { TRACKS }
 
 // ── Main layout ─────────────────────────────────────────────────────────
 

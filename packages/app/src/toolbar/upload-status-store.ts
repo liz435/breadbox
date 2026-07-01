@@ -7,7 +7,7 @@
 
 import { useSyncExternalStore } from "react"
 
-export type UploadStatus =
+type UploadStatus =
   | "idle"
   | "compiling"
   | "flashing"

@@ -996,5 +996,3 @@ export const Schematic = Object.assign(Root, {
   Ground,
   ArduinoPin,
 })
-
-export type { GridPoint }

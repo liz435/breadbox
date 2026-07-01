@@ -98,7 +98,7 @@ export type BoardEvent =
 // (see simulator/pin-state-store.ts) and is not part of the machine context.
 // React components access pin state via usePinStates() / usePinState(n).
 
-export type BuildLogEntry = {
+type BuildLogEntry = {
   tag: "compiler" | "upload";
   line: string;
   ts: number;

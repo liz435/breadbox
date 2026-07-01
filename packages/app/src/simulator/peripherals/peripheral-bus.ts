@@ -30,7 +30,7 @@ import { createShiftRegisterPeripheral } from "./shift-register"
 
 const FACTORIES = new Map<ComponentType, PeripheralFactory>()
 
-export function registerPeripheralFactory(
+function registerPeripheralFactory(
   type: ComponentType,
   factory: PeripheralFactory,
 ): void {

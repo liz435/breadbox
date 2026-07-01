@@ -17,11 +17,6 @@ function getInternals(): TauriInternals | null {
   return internals ?? null;
 }
 
-/** True when running inside the Tauri desktop shell. */
-export function isDesktop(): boolean {
-  return getInternals() !== null;
-}
-
 /**
  * Emit a Tauri event to the native process. No-op outside the desktop shell.
  * Mirrors @tauri-apps/api's `emit`, which invokes the core event plugin.

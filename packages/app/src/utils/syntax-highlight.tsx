@@ -4,7 +4,7 @@ import { Fragment, type ReactNode } from "react"
 // that emits colored <span>s. Zero runtime deps; palette matches VS Code Dark+
 // so code in /learn and /docs reads naturally on the #111 background.
 
-export type SyntaxLang = "cpp" | "ts" | "tsx" | "js" | "jsx" | "json" | "text"
+type SyntaxLang = "cpp" | "ts" | "tsx" | "js" | "jsx" | "json" | "text"
 
 type TokenType =
   | "comment"

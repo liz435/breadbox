@@ -48,7 +48,7 @@ export function formatPortLabel(info: SerialPortInfo | null | undefined): string
   return "USB serial device"
 }
 
-export type SessionKind = "monitor" | "flash" | null
+type SessionKind = "monitor" | "flash" | null
 
 export type PairedPortState = {
   port: SerialPort | null
