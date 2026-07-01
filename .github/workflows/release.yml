@@ -39,7 +39,11 @@ jobs:
         include:
           - os: macos-14
             label: macOS (Apple Silicon)
-          - os: macos-13
+          # macOS 13 was GitHub's last Intel image and was retired in Dec 2025;
+          # macos-15-intel is the current (and final) x86_64 macOS runner,
+          # available until ~Aug 2027. Revisit before then (universal binary
+          # on the arm64 runner, or drop Intel) — see release notes.
+          - os: macos-15-intel
             label: macOS (Intel)
           - os: windows-latest
             label: Windows
@@ -94,6 +98,15 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # ── Linux AppImage bundling ────────────────────────────────────
+          # linuxdeploy is itself an AppImage and needs FUSE to self-mount,
+          # which GitHub's Linux runners don't provide → the build fails with
+          # "failed to run linuxdeploy". Force every AppImage (linuxdeploy and
+          # its plugins) to extract-and-run instead of FUSE-mounting, and skip
+          # linuxdeploy's own strip pass (the release profile already strips).
+          # Both are no-ops on the macOS/Windows runners.
+          APPIMAGE_EXTRACT_AND_RUN: 1
+          NO_STRIP: 1
           # ── macOS code signing + notarization ──────────────────────────
           # Tauri reads these on the macOS runners. Empty on other OSes (the
           # build proceeds unsigned there). See RELEASING.md to populate them.
