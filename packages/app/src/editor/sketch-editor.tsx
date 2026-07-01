@@ -44,7 +44,6 @@ import { simulationRef } from "@/simulator/simulation-ref"
 import { saveRef, editorContentRef } from "@/project/save-ref"
 import { transpileErrorRef } from "@/simulator/transpile-error-ref"
 import { sketchSizeRef } from "@/simulator/sketch-size-ref"
-import { resetAllCapVoltages } from "@/simulator/capacitor-state"
 import { useElectricalReport } from "@/electrical/power-budget"
 import { DEFAULT_BOARD_TARGET } from "@dreamer/schemas"
 
@@ -391,25 +390,8 @@ function SketchEditorInner() {
     }
   }, [boardState.sketchCode])
 
-  const handlePlay = useCallback(() => {
-    if (electrical.hasErrors) return
-    if (sim.status === "paused") {
-      sim.resume()
-      return
-    }
-    const code = viewRef.current?.state.doc.toString() ?? boardState.sketchCode
-    sim.play(code)
-  }, [electrical.hasErrors, sim, boardState.sketchCode])
-
-  const handleStop = useCallback(() => {
-    sim.stop()
-    resetAllCapVoltages()
-    send({ type: "RESET_PINS" } as never)
-  }, [sim, send])
-
   const isRunning = sim.status === "running"
   const isPaused = sim.status === "paused"
-  const isCompiling = sim.status === "compiling"
   const electricalErrors = electrical.issues.filter((i) => i.severity === "error")
   const outputHasErrors = Boolean(sim.error || transpileErr || electricalErrors.length > 0)
 
@@ -461,39 +443,9 @@ function SketchEditorInner() {
 
   return (
     <div data-onboarding="sketch" className="flex h-full w-full flex-col bg-card">
-      {/* Toolbar */}
+      {/* Toolbar — run/stop lives in the bottom-toolbar PlayControls now; this
+          strip just surfaces sim status + the Examples picker. */}
       <div className="flex items-center gap-1.5 border-b border-border px-3 py-1.5">
-        {/* Play / Stop toggle — one button: Run when stopped, Stop while running */}
-        {isRunning ? (
-          <button
-            type="button"
-            onClick={handleStop}
-            className="flex items-center gap-1.5 rounded bg-red-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-red-500"
-          >
-            <svg viewBox="0 0 16 16" className="size-3 fill-current"><rect x={2} y={2} width={12} height={12} rx={2} /></svg>
-            Stop
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={handlePlay}
-            disabled={isCompiling || electrical.hasErrors}
-            className="flex items-center gap-1.5 rounded bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
-          >
-            {isCompiling ? (
-              <>
-                <svg viewBox="0 0 16 16" className="size-3 fill-current animate-pulse"><rect x={2} y={2} width={12} height={12} rx={2} /></svg>
-                Compiling...
-              </>
-            ) : (
-              <>
-                <svg viewBox="0 0 16 16" className="size-3 fill-current"><polygon points="3,1 14,8 3,15" /></svg>
-                {isPaused ? "Resume" : "Run"}
-              </>
-            )}
-          </button>
-        )}
-
         {/* Status */}
         {isPaused && (
           <span className="ml-1 text-[10px] text-yellow-400">paused</span>

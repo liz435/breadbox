@@ -19,7 +19,12 @@ export const RAIL_PAIR_SPACING = 10
 export const ARDUINO_BOARD_WIDTH = 340
 export const ARDUINO_BOARD_HEIGHT = 220
 export const ARDUINO_BOARD_MARGIN = 20
-export const BOARD_PADDING = 40
+/**
+ * Beige frame around the breadboard — the margin between the board's outer
+ * edge and the power rails / hole grid. Drives BREADBOARD_WIDTH/HEIGHT and the
+ * hole origins, so shrinking it thins the border evenly on all four sides.
+ */
+export const BOARD_PADDING = 16
 
 // ── Derived sizing constants ────────────────────────────────────────────
 // All component dimensions should derive from HOLE_SPACING so visuals
