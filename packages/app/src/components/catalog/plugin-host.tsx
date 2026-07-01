@@ -100,7 +100,11 @@ function defaultPaletteIcon(): ReactNode {
 
 /** A palette icon that snapshots the part's own SVG body. */
 function svgPaletteIcon(svg: string): ReactNode {
-  return <img src={svgToDataUrl(svg)} alt="" width={20} height={20} className="object-contain" />
+  // A fixed 20×20 box, matching the built-in SVG icons; object-contain scales the
+  // part's SVG to fit. The size MUST come from CSS (`size-5`), not width/height
+  // attributes — Tailwind preflight forces `img { height: auto }`, so a tall
+  // viewBox would otherwise render oversized.
+  return <img src={svgToDataUrl(svg)} alt="" className="size-5 shrink-0 object-contain" />
 }
 
 function pinExtent(pins: PluginPin[]): { width: number; height: number } {
