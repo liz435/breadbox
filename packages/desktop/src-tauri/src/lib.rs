@@ -281,9 +281,16 @@ fn install_menu(app: &AppHandle) -> tauri::Result<HashMap<String, CheckMenuItem<
         .item(&PredefinedMenuItem::select_all(app, None)?)
         .build()?;
 
-    // View items, in the same order as VIEW_PANELS (frontend). The first nine
-    // get Cmd+1..9; oledDisplay has no accelerator. `checked` mirrors the
-    // default layout so the menu is right before the first frontend sync.
+    // View items, grouped into sections: Build / Code / Inspect / Monitor.
+    // Cmd+1..9 run sequentially top-to-bottom in this display order; the two
+    // trailing panels (oledDisplay, debugger) have no accelerator. The 4th
+    // tuple field is "start a new group" (emit a separator before the item).
+    //
+    // NOTE: this visual order intentionally differs from VIEW_PANELS (frontend),
+    // which drives Next/Prev cycling and default-layout placement — the native
+    // menu only maps each item id -> `show:<panelId>`, so reordering here is
+    // purely presentational. `checked` mirrors the default layout so the menu is
+    // right before the first frontend sync.
     const DEFAULT_OPEN: &[&str] = &[
         "breadboard",
         "sketchEditor",
@@ -295,23 +302,30 @@ fn install_menu(app: &AppHandle) -> tauri::Result<HashMap<String, CheckMenuItem<
         "serialMonitor",
         "projectFiles",
     ];
-    let view_defs: [(&str, &str, Option<&str>); 11] = [
-        ("breadboard", "Breadboard", Some("CmdOrCtrl+1")),
-        ("sketchEditor", "Sketch", Some("CmdOrCtrl+2")),
-        ("schematic", "Schematic", Some("CmdOrCtrl+3")),
-        ("inspector", "Inspector", Some("CmdOrCtrl+4")),
-        ("serialMonitor", "Serial Monitor", Some("CmdOrCtrl+5")),
-        ("pinInspector", "Pin Inspector", Some("CmdOrCtrl+6")),
-        ("projectFiles", "Project Files", Some("CmdOrCtrl+7")),
-        ("libraryManager", "Libraries", Some("CmdOrCtrl+8")),
-        ("diagram", "Diagram", Some("CmdOrCtrl+9")),
-        ("oledDisplay", "OLED Display", None),
-        ("debugger", "Debugger", None),
+    let view_defs: [(&str, &str, Option<&str>, bool); 11] = [
+        // Build
+        ("breadboard", "Breadboard", Some("CmdOrCtrl+1"), false),
+        ("schematic", "Schematic", Some("CmdOrCtrl+2"), false),
+        ("diagram", "Diagram", Some("CmdOrCtrl+3"), false),
+        // Code
+        ("sketchEditor", "Sketch", Some("CmdOrCtrl+4"), true),
+        ("projectFiles", "Project Files", Some("CmdOrCtrl+5"), false),
+        ("libraryManager", "Libraries", Some("CmdOrCtrl+6"), false),
+        // Inspect
+        ("inspector", "Inspector", Some("CmdOrCtrl+7"), true),
+        ("pinInspector", "Pin Inspector", Some("CmdOrCtrl+8"), false),
+        // Monitor
+        ("serialMonitor", "Serial Monitor", Some("CmdOrCtrl+9"), true),
+        ("oledDisplay", "OLED Display", None, false),
+        ("debugger", "Debugger", None, false),
     ];
 
     let mut view_items: HashMap<String, CheckMenuItem<Wry>> = HashMap::new();
     let mut view_builder = SubmenuBuilder::new(app, "View");
-    for (panel_id, label, accel) in view_defs {
+    for (panel_id, label, accel, starts_group) in view_defs {
+        if starts_group {
+            view_builder = view_builder.separator();
+        }
         let mut builder = CheckMenuItemBuilder::with_id(format!("view:{panel_id}"), label)
             .checked(DEFAULT_OPEN.contains(&panel_id));
         if let Some(accel) = accel {
