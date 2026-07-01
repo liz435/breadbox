@@ -31,7 +31,7 @@ type UseBreadboardDragOptions = {
 }
 
 /** Find the surface board whose AABB contains a world point. */
-function boardAtPoint(
+export function boardAtPoint(
   worldX: number,
   worldY: number,
   boards: BoardComponent[],
