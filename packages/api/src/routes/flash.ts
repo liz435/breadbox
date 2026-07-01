@@ -30,7 +30,7 @@ import {
   extractMissingHeader,
   writeCustomLibraries,
 } from "../libraries"
-import { reconnectAfter } from "../serial/board-manager"
+import { releaseForFlash, reconnectAfter } from "../serial/board-manager"
 import { BOARD_TARGETS, boardTargetSchema, DEFAULT_BOARD_TARGET } from "@dreamer/schemas"
 import { createNdjsonStream, pumpProcessStream, type LogTag, type StreamWriter } from "./_stream-lines"
 import {
@@ -202,6 +202,9 @@ export const flashRoutes = new Elysia().use(authPlugin).post("/api/flash", async
   const signal = request.signal
 
   ;(async () => {
+    // Whether we closed an active serial-monitor session to free the port
+    // for avrdude — if so, `finally` reopens it regardless of outcome.
+    let portReleased = false
     try {
       let arduinoCli: string
       try {
@@ -307,6 +310,11 @@ export const flashRoutes = new Elysia().use(authPlugin).post("/api/flash", async
         })
         return
       }
+      // Free the port before avrdude opens it. If our serial monitor is
+      // connected to `port`, Windows won't let avrdude open it too
+      // (`ser_open(): Access is denied`). No-op if nothing is connected.
+      portReleased = await releaseForFlash(port)
+
       const uploadResult = await streamProc(
         buildFlashUploadArgs({
           arduinoCli,
@@ -339,7 +347,6 @@ export const flashRoutes = new Elysia().use(authPlugin).post("/api/flash", async
       }
 
       log.info(`Flash succeeded — ${port}`)
-      reconnectAfter(port, 2_500)
 
       writer.write({
         kind: "done",
@@ -352,6 +359,10 @@ export const flashRoutes = new Elysia().use(authPlugin).post("/api/flash", async
         message: err instanceof Error ? err.message : "Internal error",
       })
     } finally {
+      // Reopen the serial monitor we closed for the upload, regardless of
+      // success/failure/abort. The board resets after a flash and the
+      // bootloader holds the port for ~2s, so wait before reconnecting.
+      if (portReleased) reconnectAfter(port, 2_500)
       writer.close()
       release()
       rm(sketchDir, { recursive: true, force: true }).catch(() => {})

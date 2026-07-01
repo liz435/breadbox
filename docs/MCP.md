@@ -158,7 +158,7 @@ Claude makes each call.
 
 ### Developing the desktop app
 
-`desktop:dev` serves the **prebuilt** UI baked into the sidecar binary, so your
+`dev:desktop` serves the **prebuilt** UI baked into the sidecar binary, so your
 code changes don't hot-reload there. To make the desktop window reflect current
-code, force a sidecar rebuild: `bun run desktop:dev:fresh` (or do day-to-day
+code, force a sidecar rebuild: `bun run dev:desktop:fresh` (or do day-to-day
 frontend work with `bun run dev`, which has hot reload and the same live bridge).

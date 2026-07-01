@@ -46,6 +46,10 @@ type Session = {
   subscribers: Map<string, Subscriber>
   telemetry: TelemetrySnapshot[]
   latest: TelemetrySnapshot | null
+  // Set while the port is deliberately released for a flash. Keeps
+  // onPortClosed from tearing the session down so it can be reopened
+  // after avrdude finishes (see releaseForFlash / reconnectAfter).
+  suspended?: boolean
 }
 
 const sessions = new Map<string, Session>()
@@ -116,6 +120,32 @@ export function getTelemetryWindow(
 }
 
 /**
+ * Release a port ahead of a flash so avrdude can open it, keeping the
+ * session alive so it can be reopened afterward (via reconnectAfter).
+ *
+ * On Windows a COM port can only be owned by one process at a time, so
+ * avrdude fails with `ser_open(): Access is denied` while our arduino-cli
+ * monitor still holds the port. We must close the monitor first.
+ *
+ * Returns true if a live session was released (caller should reopen it
+ * later), false if nothing was connected — in which case avrdude opens the
+ * port directly and there is nothing to restore.
+ */
+export async function releaseForFlash(portPath: string): Promise<boolean> {
+  const session = sessions.get(portPath)
+  if (!session) return false
+
+  // Let subscribers know the monitor is dropping out for the upload.
+  broadcast(portPath, JSON.stringify({ type: "reconnecting" }))
+
+  // Suppress the onClose → onPortClosed teardown so the session survives
+  // the close and reconnectAfter() can bring it back.
+  session.suspended = true
+  await closePort(portPath)
+  return true
+}
+
+/**
  * Close and reopen a port after a delay (used after flashing, when the board
  * resets and the bootloader holds the port for ~2s).
  */
@@ -137,6 +167,7 @@ export function reconnectAfter(portPath: string, delayMs: number): void {
         (text) => onData(portPath, text),
         () => onPortClosed(portPath),
       )
+      session.suspended = false
       broadcast(portPath, JSON.stringify({ type: "connected" }))
     } catch (err) {
       broadcast(portPath, JSON.stringify({
@@ -181,6 +212,10 @@ function onData(portPath: string, text: string): void {
 }
 
 function onPortClosed(portPath: string): void {
+  const session = sessions.get(portPath)
+  // A deliberate release for flashing — keep the session so reconnectAfter
+  // can reopen it, and don't tell subscribers the board went away.
+  if (session?.suspended) return
   broadcast(portPath, JSON.stringify({ type: "disconnected" }))
   sessions.delete(portPath)
 }

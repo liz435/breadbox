@@ -66,7 +66,7 @@ the [`dreamer` CLI binary](../cli):
 ## Develop
 
 ```bash
-bun run desktop:dev          # from the repo root
+bun run dev:desktop          # from the repo root
 # └─ builds the sidecar if missing, compiles the Rust shell, opens the window
 ```
 
@@ -80,7 +80,7 @@ changing the app/api/cli to refresh it.
 ## Build installers
 
 ```bash
-bun run desktop:build        # from the repo root
+bun run build:desktop        # from the repo root
 ```
 
 `beforeBuildCommand` force-rebuilds the sidecar, then Tauri bundles for the host

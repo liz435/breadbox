@@ -196,15 +196,57 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if matches!(event, WindowEvent::Destroyed) {
-                if let Some(state) = window.app_handle().try_state::<Sidecar>() {
-                    if let Some(child) = state.0.lock().unwrap().take() {
-                        let _ = child.kill();
-                    }
-                }
+                reap_sidecar(window.app_handle());
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error while running the Breadbox desktop app");
+        .build(tauri::generate_context!())
+        .expect("error while building the Breadbox desktop app")
+        // Reap the sidecar on app exit too — not just on window Destroyed. An
+        // unclean exit (a `tauri dev` reload, a force-quit, a crash) can skip
+        // the window event, orphaning breadbox.exe and the arduino-cli /
+        // pqt-python3 processes it spawned. Those then leak serial polling AND
+        // hold file locks in target\debug, so the next build fails with
+        // "Access is denied". RunEvent::Exit fires on the normal teardown path.
+        .run(|app_handle, event| {
+            if matches!(event, tauri::RunEvent::Exit) {
+                reap_sidecar(app_handle);
+            }
+        });
+}
+
+/// Kill the sidecar and, on Windows, its entire process subtree.
+///
+/// `CommandChild::kill` terminates only breadbox.exe. On Windows that orphans
+/// the grandchildren it spawned (arduino-cli → the rp2040 core's pqt-python3),
+/// which keep running — leaking resources and holding the file locks that make
+/// the next `tauri build` fail with "Access is denied". `taskkill /T` reaps the
+/// whole tree by pid. On Unix the children exit on pipe EOF, so the direct
+/// kill is enough (and matches the previous behavior).
+///
+/// Idempotent: `take()` yields the child once, so calling this from both the
+/// Destroyed handler and RunEvent::Exit is safe.
+fn reap_sidecar(app: &AppHandle) {
+    if let Some(state) = app.try_state::<Sidecar>() {
+        if let Ok(mut guard) = state.0.lock() {
+            if let Some(child) = guard.take() {
+                #[cfg(windows)]
+                {
+                    use std::os::windows::process::CommandExt;
+                    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+                    let pid = child.pid().to_string();
+                    // /T = tree, /F = force. Best-effort: a race where the pid
+                    // already exited just returns a non-zero status we ignore.
+                    let _ = std::process::Command::new("taskkill")
+                        .args(["/PID", pid.as_str(), "/T", "/F"])
+                        .creation_flags(CREATE_NO_WINDOW)
+                        .status();
+                }
+                // Unix: the only path. Windows: fallback if taskkill is somehow
+                // unavailable (an already-dead pid just errors, which we drop).
+                let _ = child.kill();
+            }
+        }
+    }
 }
 
 /// Build and install the application menu.

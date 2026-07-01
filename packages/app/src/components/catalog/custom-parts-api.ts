@@ -49,7 +49,7 @@ export async function saveCustomPartSource(
   if (!contentType.includes("application/json")) {
     return {
       ok: false,
-      error: "Custom-parts API not found — rebuild the desktop sidecar (bun run desktop:dev:fresh).",
+      error: "Custom-parts API not found — rebuild the desktop sidecar (bun run dev:desktop:fresh).",
     }
   }
   const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string }
