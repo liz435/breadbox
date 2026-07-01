@@ -154,51 +154,51 @@ export function BottomToolbar() {
         </div>
       )}
 
-      {/* Toolbar card — the 640px pill is the only visible chrome. Each
-          mode already carries its own bg-card + border + shadow, so
-          removing the outer strip doesn't change the pill's look. The
-          auth badge is absolutely positioned to the right so it
-          doesn't shift the main pill off viewport-center (the AI
-          history above is centered on the viewport, and the pill must
-          line up with it). */}
+      {/* Toolbar card — one persistent 640px pill that holds its width, radius,
+          and chrome across both modes, so flipping edit ↔ ai swaps only the
+          interior controls instead of reshaping the box. Edit tools pack left
+          (empty slack on the right); AI mode fills the same shell with the
+          chrome-less prompt row. The auth badge is absolutely positioned to the
+          right so it doesn't shift the pill off viewport-center (the AI history
+          above is centered on the viewport, and the pill must line up). */}
       <div className="relative flex items-center justify-center px-4 pb-3">
         <TooltipProvider delay={400}>
-          {mode === "edit" ? (
-            <div className="pointer-events-auto flex h-13 w-fit items-center gap-1.5 rounded-2xl border border-border/70 bg-card/90 px-2.5 shadow-[0_12px_40px_-10px_rgba(60,40,10,0.28)] ring-1 ring-black/[0.03] backdrop-blur-xl">
-              <ModeToggle mode={mode} onModeChange={handleModeChange} />
-              <Separator orientation="vertical" className="h-7 bg-border/60" />
-              <EditToolbar />
-              <Separator orientation="vertical" className="h-7 bg-border/60" />
-              <PlayControls sim={sim} />
-              {/* Status + Board share one recessed "well" so the pair reads
-                  as a single inset status surface. StatusDisplay shows the
-                  board picker when idle (and transient status otherwise);
-                  BoardStatus owns the USB port. Border/background live here;
-                  both children shed their own container chrome. While the
-                  board menu is open the top corners flatten + the top border
-                  goes transparent so the menu (anchored here, same width) grows
-                  out of the well as one continuous bordered surface. */}
-              <div
-                ref={wellRef}
-                className={cn(
-                  "relative flex h-8 items-center gap-1 border border-border/50 bg-background/60 pl-2.5 pr-1 shadow-inner transition-[border-radius]",
-                  wellExpanded ? "rounded-b-xl rounded-t-none border-t-transparent" : "rounded-xl",
-                )}
-              >
-                <StatusDisplay
-                  sim={sim}
-                  boardMenu={{
-                    open: boardMenuOpen,
-                    onOpenChange: handleBoardMenuOpenChange,
-                    anchor: wellRef,
-                    onExitComplete: handleBoardMenuExitComplete,
-                  }}
-                />
-                <BoardStatus />
-              </div>
-            </div>
-          ) : (
-            <div className="pointer-events-auto w-[640px]">
+          <div className="pointer-events-auto flex min-h-13 w-[640px] items-center gap-1.5 rounded-2xl border border-border/70 bg-card/90 px-2.5 shadow-[0_12px_40px_-10px_rgba(60,40,10,0.28)] ring-1 ring-black/[0.03] backdrop-blur-xl">
+            {mode === "edit" ? (
+              <>
+                <ModeToggle mode={mode} onModeChange={handleModeChange} />
+                <Separator orientation="vertical" className="h-7 bg-border/60" />
+                <EditToolbar />
+                <Separator orientation="vertical" className="h-7 bg-border/60" />
+                <PlayControls sim={sim} />
+                {/* Status + Board share one recessed "well" so the pair reads
+                    as a single inset status surface. StatusDisplay shows the
+                    board picker when idle (and transient status otherwise);
+                    BoardStatus owns the USB port. Border/background live here;
+                    both children shed their own container chrome. While the
+                    board menu is open the top corners flatten + the top border
+                    goes transparent so the menu (anchored here, same width) grows
+                    out of the well as one continuous bordered surface. */}
+                <div
+                  ref={wellRef}
+                  className={cn(
+                    "relative flex h-8 items-center gap-1 border border-border/50 bg-background/60 pl-2.5 pr-1 shadow-inner transition-[border-radius]",
+                    wellExpanded ? "rounded-b-xl rounded-t-none border-t-transparent" : "rounded-xl",
+                  )}
+                >
+                  <StatusDisplay
+                    sim={sim}
+                    boardMenu={{
+                      open: boardMenuOpen,
+                      onOpenChange: handleBoardMenuOpenChange,
+                      anchor: wellRef,
+                      onExitComplete: handleBoardMenuExitComplete,
+                    }}
+                  />
+                  <BoardStatus />
+                </div>
+              </>
+            ) : (
               <PromptBox
                 value={chat.inputValue}
                 onChange={chat.setInputValue}
@@ -208,8 +208,8 @@ export function BottomToolbar() {
                 placeholder="Ask the agent, or describe what to build…"
                 leading={<ModeToggle mode={mode} onModeChange={handleModeChange} />}
               />
-            </div>
-          )}
+            )}
+          </div>
         </TooltipProvider>
         <div className="pointer-events-auto absolute right-4 bottom-3 flex items-center gap-2">
           <AiHubButton />

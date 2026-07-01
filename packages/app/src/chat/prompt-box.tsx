@@ -30,7 +30,7 @@ export function PromptBox({
     const el = textareaRef.current
     if (!el) return
     el.style.height = "0"
-    const next = Math.min(el.scrollHeight, 192) // max ~12rem
+    const next = Math.min(el.scrollHeight, 160) // max ~10rem
     el.style.height = `${next}px`
   }, [])
 
@@ -50,17 +50,18 @@ export function PromptBox({
   const canSend = !disabled && !isStreaming && value.trim().length > 0
 
   return (
+    // Chrome-less horizontal row: the bottom-toolbar shell owns the pill's
+    // border/bg/shadow/radius, so this just lays out [leading] [textarea] [send]
+    // in one line that sits inside the shared 640px pill at its resting height.
+    // The textarea still auto-grows for multi-line input, expanding the pill
+    // downward without changing the mode-switch footprint.
     <div
       className={cn(
-        // shadow-md (was shadow-lg): matches the history card's weight so
-        // the stack reads as one coherent surface rather than a heavy
-        // floating slab, especially in the empty state where this is the
-        // only card on screen.
-        "w-full max-w-2xl mx-auto rounded-lg border border-border bg-card p-3 shadow-md",
-        "transition-all duration-200",
+        "flex w-full items-center gap-2",
         disabled && "opacity-50 pointer-events-none"
       )}
     >
+      {leading && <div className="shrink-0">{leading}</div>}
       <textarea
         ref={textareaRef}
         value={value}
@@ -70,40 +71,36 @@ export function PromptBox({
         disabled={disabled || isStreaming}
         rows={1}
         className={cn(
-          "w-full resize-none bg-transparent text-sm text-foreground",
+          "min-w-0 flex-1 resize-none bg-transparent py-1 text-sm leading-6 text-foreground",
           "placeholder:text-muted-foreground",
           "focus:outline-none",
           "disabled:cursor-not-allowed",
-          "min-h-[2.5rem] max-h-48"
+          "max-h-40"
         )}
       />
-      <div className="flex items-center mt-2 gap-2">
-        {leading && <div className="shrink-0">{leading}</div>}
-        <div className="flex-1" />
-        {isStreaming ? (
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="secondary"
-            onClick={onStop}
-            aria-label="Stop"
-            className="rounded-full size-8"
-          >
-            <Square className="size-3.5" fill="currentColor" />
-          </Button>
-        ) : (
-          <Button
-            type="button"
-            size="icon-sm"
-            disabled={!canSend}
-            onClick={onSubmit}
-            aria-label="Send"
-            className="rounded-full size-8"
-          >
-            <ArrowUp className="size-4" />
-          </Button>
-        )}
-      </div>
+      {isStreaming ? (
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="secondary"
+          onClick={onStop}
+          aria-label="Stop"
+          className="shrink-0 rounded-full size-8"
+        >
+          <Square className="size-3.5" fill="currentColor" />
+        </Button>
+      ) : (
+        <Button
+          type="button"
+          size="icon-sm"
+          disabled={!canSend}
+          onClick={onSubmit}
+          aria-label="Send"
+          className="shrink-0 rounded-full size-8"
+        >
+          <ArrowUp className="size-4" />
+        </Button>
+      )}
     </div>
   )
 }
