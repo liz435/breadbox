@@ -45,6 +45,7 @@ import {
   getComponentPinNames,
   resolveComponentPin,
   resolveComponentPins,
+  type CustomFootprintLookup,
   type PinPoint,
 } from "./component-pins";
 import {
@@ -151,6 +152,7 @@ function resolveEndpoint(
   ref: string,
   components: Record<string, BoardComponent>,
   boardTarget: BoardTarget,
+  customFootprints?: CustomFootprintLookup,
 ): EndpointOk | EndpointErr {
   // grid.r,c
   if (ref.startsWith("grid.")) {
@@ -211,13 +213,13 @@ function resolveEndpoint(
   }
 
   // Named pin lookup via schema's canonical footprint resolver.
-  const pins = resolveComponentPins(comp.type, comp.y, comp.x, comp.properties);
+  const pins = resolveComponentPins(comp.type, comp.y, comp.x, comp.properties, customFootprints);
   const pinPoint = pins[pinRef];
   if (!pinPoint) {
     const validNames =
       comp.type === "power_supply"
         ? ["+", "-"]
-        : getComponentPinNames(comp.type);
+        : getComponentPinNames(comp.type, customFootprints);
     const suggestion = fuzzyPinSuggestion(pinRef, validNames);
     return {
       ok: false,
@@ -230,7 +232,10 @@ function resolveEndpoint(
 
 // ── diagramToBoardState ──────────────────────────────────────────────────
 
-export function diagramToBoardState(input: unknown): DiagramParseResult {
+export function diagramToBoardState(
+  input: unknown,
+  customFootprints?: CustomFootprintLookup,
+): DiagramParseResult {
   const errors: DiagramError[] = [];
 
   // Back-compat: normalize the pre-rebrand `dreamer-diagram-v1` literal to the
@@ -347,8 +352,8 @@ export function diagramToBoardState(input: unknown): DiagramParseResult {
   const usedWireIds = new Set<string>();
   for (let i = 0; i < diagram.wires.length; i++) {
     const w = diagram.wires[i];
-    const fromRes = resolveEndpoint(w.from, components, boardTarget);
-    const toRes = resolveEndpoint(w.to, components, boardTarget);
+    const fromRes = resolveEndpoint(w.from, components, boardTarget, customFootprints);
+    const toRes = resolveEndpoint(w.to, components, boardTarget, customFootprints);
     if (!fromRes.ok) {
       errors.push({
         path: `wires[${i}].from`,
@@ -459,7 +464,10 @@ export function diagramToBoardState(input: unknown): DiagramParseResult {
 
 // ── boardStateToDiagram ──────────────────────────────────────────────────
 
-export function boardStateToDiagram(state: BoardState): DreamerDiagram {
+export function boardStateToDiagram(
+  state: BoardState,
+  customFootprints?: CustomFootprintLookup,
+): DreamerDiagram {
   const components: DiagramComponent[] = Object.values(state.components)
     .slice()
     .sort((a, b) => a.id.localeCompare(b.id))
@@ -498,7 +506,7 @@ export function boardStateToDiagram(state: BoardState): DreamerDiagram {
     });
 
   // Index named-pin points per component so humanization is O(1) per wire.
-  const pinIndex = buildPinIndex(state.components);
+  const pinIndex = buildPinIndex(state.components, customFootprints);
 
   const wires: DiagramWire[] = Object.values(state.wires)
     .slice()
@@ -562,14 +570,17 @@ export function boardStateToDiagram(state: BoardState): DreamerDiagram {
 
 type PinIndex = Map<string /* "row,col" */, { compId: string; pinName: string }>;
 
-function buildPinIndex(components: Record<string, BoardComponent>): PinIndex {
+function buildPinIndex(
+  components: Record<string, BoardComponent>,
+  customFootprints?: CustomFootprintLookup,
+): PinIndex {
   const index: PinIndex = new Map();
   // Walk in insertion order. For collisions (two components at the same
   // grid point — a board bug) first write wins.
   for (const c of Object.values(components)) {
     if (isBoardComponentType(c.type)) continue;
     if (c.type === "power_supply") continue; // PSU uses +/- shortcut
-    const pins = resolveComponentPins(c.type, c.y, c.x, c.properties);
+    const pins = resolveComponentPins(c.type, c.y, c.x, c.properties, customFootprints);
     for (const [pinName, pt] of Object.entries(pins)) {
       const key = `${pt.row},${pt.col}`;
       if (!index.has(key)) {

@@ -12,6 +12,7 @@ import {
   analyzePowerBudgetHandler,
   applyDesign,
   deleteCustomPart,
+  getBoardOverview,
   getBoardState,
   getComponentDetails,
   getCurrentProject,
@@ -107,10 +108,20 @@ export function registerTools(server: McpServer, session: McpSession) {
   // ── Reads ───────────────────────────────────────────────────────
 
   server.registerTool(
+    "get_board_overview",
+    {
+      description:
+        "Cheap summary of the current project's board: component + wire counts, each component's id/type/position/assigned pins, wire endpoints, and a short sketch summary. Prefer this before get_board_state — it is far smaller and usually enough to reason about the board.",
+      inputSchema: {},
+    },
+    async () => wrap(() => getBoardOverview(session)),
+  )
+
+  server.registerTool(
     "get_board_state",
     {
       description:
-        "Return the current project's board as a DreamerDiagram (DSL v1). Same shape `apply_design` accepts.",
+        "Return the current project's FULL board as a DreamerDiagram (DSL v1) — same shape `apply_design` accepts. Expensive (full payload); prefer get_board_overview unless you need every field.",
       inputSchema: {},
     },
     async () => wrap(() => getBoardState(session)),

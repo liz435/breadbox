@@ -32,7 +32,7 @@ import {
   getBoardAnalogPins,
   isArduinoSignalPin,
 } from "./board-pins";
-import { resolveComponentPins } from "./component-pins";
+import { resolveComponentPins, type CustomFootprintLookup } from "./component-pins";
 import { diagramToBoardState, type DiagramError } from "./diagram-adapter";
 
 // ── Result types ──────────────────────────────────────────────────────────
@@ -68,8 +68,11 @@ export type DiagramValidation = {
 
 // ── Public API ────────────────────────────────────────────────────────────
 
-export function validateDiagram(input: unknown): DiagramValidation {
-  const structural = diagramToBoardState(input);
+export function validateDiagram(
+  input: unknown,
+  customFootprints?: CustomFootprintLookup,
+): DiagramValidation {
+  const structural = diagramToBoardState(input, customFootprints);
   if (!structural.ok) {
     return {
       ok: false,
@@ -77,7 +80,7 @@ export function validateDiagram(input: unknown): DiagramValidation {
     };
   }
 
-  const semantic = semanticIssues(structural.boardState);
+  const semantic = semanticIssues(structural.boardState, customFootprints);
   return {
     ok: true,
     boardState: structural.boardState,
@@ -100,7 +103,10 @@ function structuralIssueFromError(e: DiagramError): DiagramIssue {
 
 // ── Semantic checks ───────────────────────────────────────────────────────
 
-function semanticIssues(state: BoardState): DiagramIssue[] {
+function semanticIssues(
+  state: BoardState,
+  customFootprints?: CustomFootprintLookup,
+): DiagramIssue[] {
   const issues: DiagramIssue[] = [];
   const boardTarget = state.boardTarget ?? DEFAULT_BOARD_TARGET;
   const simComponents = Object.values(state.components).filter(
@@ -145,7 +151,7 @@ function semanticIssues(state: BoardState): DiagramIssue[] {
   // Dangling component: no wire endpoint lands on the same breadboard bus as
   // any of the component's pins.
   for (const comp of simComponents) {
-    const pins = resolveComponentPins(comp.type, comp.y, comp.x, comp.properties);
+    const pins = resolveComponentPins(comp.type, comp.y, comp.x, comp.properties, customFootprints);
     const entries = Object.entries(pins);
     if (entries.length === 0) continue; // nothing to check
     const touched = entries.some(([, pt]) =>
@@ -210,7 +216,7 @@ function semanticIssues(state: BoardState): DiagramIssue[] {
   }> = [];
   for (const comp of simComponents) {
     if (!SERIES_PASSABLE.has(comp.type)) continue;
-    const [a, b] = Object.values(resolveComponentPins(comp.type, comp.y, comp.x, comp.properties));
+    const [a, b] = Object.values(resolveComponentPins(comp.type, comp.y, comp.x, comp.properties, customFootprints));
     if (a && b) seriesLinks.push({ a, b });
   }
 
@@ -249,7 +255,7 @@ function semanticIssues(state: BoardState): DiagramIssue[] {
   }
 
   for (const comp of simComponents) {
-    const pins = resolveComponentPins(comp.type, comp.y, comp.x, comp.properties);
+    const pins = resolveComponentPins(comp.type, comp.y, comp.x, comp.properties, customFootprints);
     const groundPinKey = Object.keys(pins).find((k) =>
       /^(gnd|ground|negative|cathode)$/.test(k),
     );
@@ -287,7 +293,7 @@ function semanticIssues(state: BoardState): DiagramIssue[] {
   const i2cPinNumbers = getI2cPinNumbers(boardTarget);
   if (i2cPinNumbers) {
     for (const comp of simComponents) {
-      const pins = resolveComponentPins(comp.type, comp.y, comp.x, comp.properties);
+      const pins = resolveComponentPins(comp.type, comp.y, comp.x, comp.properties, customFootprints);
       const sda = pins.sda;
       const scl = pins.scl;
       if (!sda || !scl) continue; // not an I²C component

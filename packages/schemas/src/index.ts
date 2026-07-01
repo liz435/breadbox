@@ -223,6 +223,8 @@ export {
 export {
   type PinPoint,
   type ComponentPinMap,
+  type CustomPinFootprint,
+  type CustomFootprintLookup,
   getComponentPinNames,
   resolveComponentPins,
   resolveComponentPin,

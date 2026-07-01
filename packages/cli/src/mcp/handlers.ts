@@ -9,6 +9,7 @@ import {
   diagramToBoardState,
   validateDiagram,
   withDiagramSchemaVersion,
+  type CustomFootprintLookup,
   type DiagramIssue,
   type DiagramToolInput,
   type DiagramWire,
@@ -18,6 +19,7 @@ import { projectRepo } from "@dreamer/api/db/adapters/file/project-repo"
 import { analyzePowerBudget } from "@dreamer/api/electrical/power-budget-analyzer"
 import { validateSketch } from "@dreamer/api/utils/sketch-validator"
 import { WIRING_GUIDE_TEXT } from "@dreamer/api/agents/core/wiring-guide-text"
+import { summarizeBoardState } from "@dreamer/api/agents/core/tools/shared"
 import {
   LOCAL_OWNER_ID,
   NoProjectSelectedError,
@@ -40,17 +42,102 @@ function requireProjectId(session: McpSession): string {
   return session.currentProjectId
 }
 
+// ── Per-session project cache ────────────────────────────────────────────
+//
+// Every read handler used to call projectRepo.readProject on the file store,
+// so a single Claude Desktop reasoning step (e.g. list_components →
+// get_component_details → analyze_power_budget) paid three full disk reads +
+// boardState→diagram conversions. Cache the loaded ProjectFile per session
+// for a short window so a burst of reads within one step reuses one load.
+//
+// The TTL is deliberately short: the desktop app is a SEPARATE process
+// writing the same on-disk store, so a long cache would let Claude reason
+// about a board the user has since edited in the app. 2s coalesces a single
+// step's reads while keeping cross-process staleness negligible. Writes from
+// THIS process invalidate immediately (invalidateProjectCache); a project
+// switch misses via the projectId guard. Writes deliberately bypass the cache
+// (they read fresh) so expectedVersion is always current.
+type LoadedProject = NonNullable<Awaited<ReturnType<typeof projectRepo.readProject>>>
+
+const PROJECT_CACHE_TTL_MS = 2000
+
+const projectCache = new WeakMap<
+  McpSession,
+  { projectId: string; project: LoadedProject; loadedAtMs: number }
+>()
+
+async function readProjectCached(session: McpSession): Promise<LoadedProject> {
+  const projectId = requireProjectId(session)
+  const cached = projectCache.get(session)
+  if (
+    cached &&
+    cached.projectId === projectId &&
+    Date.now() - cached.loadedAtMs < PROJECT_CACHE_TTL_MS
+  ) {
+    return cached.project
+  }
+  const project = await projectRepo.readProject(projectId, LOCAL_OWNER_ID)
+  if (!project) throw new ProjectNotFoundError(projectId)
+  projectCache.set(session, { projectId, project, loadedAtMs: Date.now() })
+  return project
+}
+
+function invalidateProjectCache(session: McpSession): void {
+  projectCache.delete(session)
+}
+
+// ── Custom-part footprints ───────────────────────────────────────────────
+//
+// The schema-layer pin resolver is keyed only on the component type string, so
+// it can't resolve `custom:*` pins by itself. Build a lookup from the DSL
+// custom parts on disk (their `pins: [{name, dx, dy}]`) and hand it to the
+// diagram adapter/validator, so apply_design / validate_design can wire a
+// custom part by `id.pinName` — the same grid cells (row+dy, col+dx) the app
+// runtime uses. Code-format parts (TS modules) have no dx/dy footprint here and
+// are skipped.
+async function loadCustomFootprints(): Promise<CustomFootprintLookup> {
+  const map = new Map<string, Array<{ name: string; dx: number; dy: number }>>()
+  for (const meta of await storeListCustomParts()) {
+    if (meta.format !== "dsl") continue
+    const part = await storeGetCustomPart(meta.id)
+    if (!part || part.format !== "dsl") continue
+    let spec: unknown
+    try {
+      spec = JSON.parse(part.source)
+    } catch {
+      continue // malformed on disk — skip rather than fail the whole call
+    }
+    const parsed = customComponentDslSchema.safeParse(spec)
+    if (!parsed.success) continue
+    map.set(
+      parsed.data.type,
+      parsed.data.pins.map((p) => ({ name: p.name, dx: p.dx, dy: p.dy })),
+    )
+  }
+  return (type) => map.get(type)
+}
+
+/** True when any type in the collection is a `custom:*` part. */
+function hasCustomComponent(types: Iterable<string>): boolean {
+  for (const type of types) if (type.startsWith("custom:")) return true
+  return false
+}
+
 async function loadDiagram(session: McpSession): Promise<{
   projectId: string
   diagram: DreamerDiagram
   sketchCode: string
 }> {
-  const projectId = requireProjectId(session)
-  const project = await projectRepo.readProject(projectId, LOCAL_OWNER_ID)
-  if (!project) throw new ProjectNotFoundError(projectId)
+  const project = await readProjectCached(session)
   const board = project.boardState
+  // Only pay the custom-parts store scan when the board actually holds one, so
+  // the common (no-custom) read path stays free.
+  const footprints =
+    board && hasCustomComponent(Object.values(board.components).map((c) => c.type))
+      ? await loadCustomFootprints()
+      : undefined
   const diagram: DreamerDiagram = board
-    ? boardStateToDiagram(board)
+    ? boardStateToDiagram(board, footprints)
     : {
         $schema: "breadbox-diagram-v1",
         board: "arduino_uno",
@@ -60,7 +147,7 @@ async function loadDiagram(session: McpSession): Promise<{
         customLibraries: [],
         environment: { obstacles: [], boundaryEnabled: false, boundaryMargin: 100 },
       }
-  return { projectId, diagram, sketchCode: board?.sketchCode ?? "" }
+  return { projectId: project.project.id, diagram, sketchCode: board?.sketchCode ?? "" }
 }
 
 function firstSceneId(sceneIds: string[]): string {
@@ -90,6 +177,8 @@ export async function setCurrentProject(
   const project = await projectRepo.readProject(input.projectId, LOCAL_OWNER_ID)
   if (!project) throw new ProjectNotFoundError(input.projectId)
   session.currentProjectId = input.projectId
+  // Drop any entry cached for the previously-selected project.
+  invalidateProjectCache(session)
   return {
     ok: true,
     projectId: input.projectId,
@@ -102,6 +191,11 @@ export function getCurrentProject(session: McpSession) {
 }
 
 // ── Reads ──────────────────────────────────────────────────────────────
+
+export async function getBoardOverview(session: McpSession) {
+  const project = await readProjectCached(session)
+  return { summary: summarizeBoardState(project) }
+}
 
 export async function getBoardState(session: McpSession) {
   const { diagram } = await loadDiagram(session)
@@ -139,9 +233,7 @@ export async function getComponentDetails(
 }
 
 export async function analyzePowerBudgetHandler(session: McpSession) {
-  const projectId = requireProjectId(session)
-  const project = await projectRepo.readProject(projectId, LOCAL_OWNER_ID)
-  if (!project) throw new ProjectNotFoundError(projectId)
+  const project = await readProjectCached(session)
   const board = project.boardState
   if (!board) {
     return {
@@ -151,7 +243,13 @@ export async function analyzePowerBudgetHandler(session: McpSession) {
       note: "Board is empty — no power draw to analyse.",
     }
   }
-  return analyzePowerBudget(board)
+  // Resolve custom-part nets so the analyzer sees their pins (otherwise it
+  // reports a wired custom part as disconnected). Guarded to skip the store
+  // scan when the board has no custom parts.
+  const footprints = hasCustomComponent(Object.values(board.components).map((c) => c.type))
+    ? await loadCustomFootprints()
+    : undefined
+  return analyzePowerBudget(board, footprints)
 }
 
 export function getWiringGuide() {
@@ -171,9 +269,10 @@ function formatIssues(issues: DiagramIssue[]) {
   }))
 }
 
-export function validateDesign(input: DiagramToolInput) {
+export async function validateDesign(input: DiagramToolInput) {
   const withSchema = withDiagramSchemaVersion(input)
-  const result = validateDiagram(withSchema)
+  const footprints = await loadCustomFootprints()
+  const result = validateDiagram(withSchema, footprints)
   const errors = result.issues.filter((i) => i.severity === "error")
   const warnings = result.issues.filter((i) => i.severity === "warning")
   return {
@@ -193,7 +292,8 @@ export async function applyDesign(
   if (!project) throw new ProjectNotFoundError(projectId)
 
   const withSchema = withDiagramSchemaVersion(input)
-  const parse = diagramToBoardState(withSchema)
+  const footprints = await loadCustomFootprints()
+  const parse = diagramToBoardState(withSchema, footprints)
   if (!parse.ok) {
     return {
       ok: false,
@@ -233,6 +333,7 @@ export async function applyDesign(
     ops: [op],
   })
   if (!applied) throw new ProjectNotFoundError(projectId)
+  invalidateProjectCache(session)
 
   return {
     ok: true,
@@ -276,6 +377,7 @@ export async function updateSketch(
     ops: [op],
   })
   if (!applied) throw new ProjectNotFoundError(projectId)
+  invalidateProjectCache(session)
   return {
     ok: true,
     sketchBytes: input.code.length,
@@ -332,6 +434,7 @@ export async function patchSketch(
     ops: [op],
   })
   if (!applied) throw new ProjectNotFoundError(projectId)
+  invalidateProjectCache(session)
   return {
     ok: true,
     sketchBytes: patched.length,
