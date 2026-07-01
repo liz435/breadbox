@@ -4,19 +4,23 @@
 // runtime, but TS typings infer bundle types from extensions. Runtime
 // behavior is correct; silencing the type-check noise here.
 
-import asset__assets_arduino_uno_board_DBpS0kIP_svg from "../../app/dist/assets/arduino-uno-board-DBpS0kIP.svg" with { type: "file" }
-import asset__assets_index_BHOQ5juE_js from "../../app/dist/assets/index-BHOQ5juE.js" with { type: "file" }
-import asset__assets_index_BRopuUP4_css from "../../app/dist/assets/index-BRopuUP4.css" with { type: "file" }
+import asset__assets_arduino_uno_board_DzaMf6jI_svg from "../../app/dist/assets/arduino-uno-board-DzaMf6jI.svg" with { type: "file" }
 import asset__assets_index_CCUjAQjo_js from "../../app/dist/assets/index-CCUjAQjo.js" with { type: "file" }
+import asset__assets_index_DFGBPA_U_js from "../../app/dist/assets/index-DFGBPA_U.js" with { type: "file" }
+import asset__assets_index_DNamI1Fi_css from "../../app/dist/assets/index-DNamI1Fi.css" with { type: "file" }
+import asset__assets_rp2040_bootrom_data_BpBHbl0R_js from "../../app/dist/assets/rp2040-bootrom-data-BpBHbl0R.js" with { type: "file" }
+import asset__favicon_png from "../../app/dist/favicon.png" with { type: "file" }
 import asset__index_html from "../../app/dist/index.html" with { type: "file" }
 
 export const EMBEDDED_ASSETS: Record<string, string> = {
-  "/assets/arduino-uno-board-DBpS0kIP.svg": asset__assets_arduino_uno_board_DBpS0kIP_svg as unknown as string,
-  "/assets/index-BHOQ5juE.js": asset__assets_index_BHOQ5juE_js as unknown as string,
-  "/assets/index-BRopuUP4.css": asset__assets_index_BRopuUP4_css as unknown as string,
+  "/assets/arduino-uno-board-DzaMf6jI.svg": asset__assets_arduino_uno_board_DzaMf6jI_svg as unknown as string,
   "/assets/index-CCUjAQjo.js": asset__assets_index_CCUjAQjo_js as unknown as string,
+  "/assets/index-DFGBPA_U.js": asset__assets_index_DFGBPA_U_js as unknown as string,
+  "/assets/index-DNamI1Fi.css": asset__assets_index_DNamI1Fi_css as unknown as string,
+  "/assets/rp2040-bootrom-data-BpBHbl0R.js": asset__assets_rp2040_bootrom_data_BpBHbl0R_js as unknown as string,
+  "/favicon.png": asset__favicon_png as unknown as string,
   "/index.html": asset__index_html as unknown as string,
   "/": asset__index_html as unknown as string,
 }
 
-export const ASSET_COUNT = 5
+export const ASSET_COUNT = 7
