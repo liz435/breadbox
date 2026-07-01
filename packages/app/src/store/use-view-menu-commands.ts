@@ -7,7 +7,7 @@ import { showPanel, cycleView } from "@/store/view-panels";
  * `window.eval`) to drive view switching. In a plain browser this event never
  * fires, so the bridge is a no-op there — no desktop detection needed.
  */
-export const MENU_COMMAND_EVENT = "dreamer:menu-command";
+const MENU_COMMAND_EVENT = "dreamer:menu-command";
 
 type MenuCommandDetail = { action: string };
 

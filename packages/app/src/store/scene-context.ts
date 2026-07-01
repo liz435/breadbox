@@ -19,11 +19,3 @@ export function useScene(): { state: SceneState; send: (event: SceneEvent) => vo
   const state = SceneContext.useSelector((snap) => snap.context, sceneEqual);
   return { state, send: actorRef.send.bind(actorRef) };
 }
-
-export function useCanUndo(): boolean {
-  return SceneContext.useSelector((snap) => snap.context._past.length > 0);
-}
-
-export function useCanRedo(): boolean {
-  return SceneContext.useSelector((snap) => snap.context._future.length > 0);
-}

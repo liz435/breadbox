@@ -31,7 +31,7 @@ import { SchematicPanel } from "@/schematic/schematic-panel"
 import { highlight } from "@/utils/syntax-highlight"
 import { boardCatalog } from "./board-catalog"
 
-export type EmbedPanel = "code" | "schematic" | "serial"
+type EmbedPanel = "code" | "schematic" | "serial"
 
 export type BreadboardEmbedProps = {
   /** Board catalog key, e.g. "01-blink-led" — or an inline BoardState. */

@@ -9,7 +9,7 @@
 // though the transpiler is gone — the data shape is identical.
 
 /** Compile/transpile error with line number, column, and message. */
-export type TranspileError = {
+type TranspileError = {
   line: number
   column?: number
   message: string

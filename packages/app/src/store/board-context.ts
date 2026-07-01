@@ -31,11 +31,3 @@ export function useBoardSelector<T>(
 ): T {
   return BoardContext.useSelector((snap) => selector(snap.context));
 }
-
-export function useCanUndo(): boolean {
-  return BoardContext.useSelector((snap) => snap.context._past.length > 0);
-}
-
-export function useCanRedo(): boolean {
-  return BoardContext.useSelector((snap) => snap.context._future.length > 0);
-}

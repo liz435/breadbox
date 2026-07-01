@@ -7,7 +7,6 @@
 // "@/learn/learn-layout" directly so they get a single consistent
 // import line for every encyclopedia primitive.
 
-import type { ReactNode } from "react"
 import { useRouter } from "@/router"
 import { ArrowLeft, ArrowRight } from "lucide-react"
 import { cn } from "@/utils/classnames"
@@ -27,7 +26,6 @@ export {
   Warn,
   CodeBlock,
   Table,
-  Badge,
 } from "./learn-layout"
 export { Schematic, Figure } from "./schematic"
 
@@ -140,26 +138,5 @@ export function SeeAlso({ refs }: { refs: readonly SeeAlsoRef[] }) {
         ))}
       </ul>
     </aside>
-  )
-}
-
-// ── Page wrapper ───────────────────────────────────────────────────────
-//
-// Convenience wrapper that most encyclopedia pages use. Threads the
-// entry through so the footer can render the prev/next links without
-// the page having to import the catalog itself.
-
-export function EncyclopediaPage({
-  entry,
-  children,
-}: {
-  entry: EncyclopediaEntry
-  children: ReactNode
-}) {
-  return (
-    <>
-      {children}
-      <PrevNextFooter entry={entry} />
-    </>
   )
 }

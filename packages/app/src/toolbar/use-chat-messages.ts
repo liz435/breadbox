@@ -28,7 +28,7 @@ async function fetchThreadMessages(threadId: string): Promise<UIMessage[]> {
   }
 }
 
-export type ChildRunTokenUsage = {
+type ChildRunTokenUsage = {
   agent: string
   inputTokens: number
   outputTokens: number
@@ -36,7 +36,7 @@ export type ChildRunTokenUsage = {
   model: string
 }
 
-export type TokenUsageData = {
+type TokenUsageData = {
   inputTokens: number
   outputTokens: number
   totalTokens: number

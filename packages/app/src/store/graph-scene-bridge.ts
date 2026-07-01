@@ -1,6 +1,4 @@
 import type { GraphNode, Edge } from "@dreamer/schemas";
-import type { GraphEvent } from "./graph-machine";
-import type { SceneEvent } from "./scene-machine";
 import type { BoardEvent } from "./board-machine";
 import type { Sprite } from "../types";
 import { generateArduinoCode } from "../graph/arduino-codegen";
@@ -38,49 +36,6 @@ function generatePlaceholderImage(
     img.onload = () => resolve(img);
     img.src = canvas.toDataURL();
   });
-}
-
-/**
- * When a graph event occurs, check if it should also produce
- * a scene event (for sprite nodes that need canvas representation).
- *
- * Returns null if no scene event is needed.
- */
-export async function graphEventToSceneEvents(
-  event: GraphEvent
-): Promise<SceneEvent[] | null> {
-  switch (event.type) {
-    case "ADD_NODE": {
-      // TODO: Implement Arduino-specific bridge logic if needed
-      return null;
-    }
-
-    case "REMOVE_NODE": {
-      // We always dispatch REMOVE — if the id doesn't match a sprite,
-      // the scene machine simply ignores it (no sprite with that id).
-      return [{ type: "REMOVE", id: event.nodeId }];
-    }
-
-    case "UPDATE_NODE": {
-      // If the node data patch includes sprite-relevant fields, forward them
-      const changes: Partial<Omit<Sprite, "id" | "image">> = {};
-      const patch = event.patch;
-      if (typeof patch.name === "string") changes.name = patch.name;
-      if (typeof patch.sceneX === "number") changes.x = patch.sceneX;
-      if (typeof patch.sceneY === "number") changes.y = patch.sceneY;
-      if (typeof patch.width === "number") changes.width = patch.width;
-      if (typeof patch.height === "number") changes.height = patch.height;
-      if (typeof patch.rotation === "number") changes.rotation = patch.rotation;
-      if (typeof patch.scaleX === "number") changes.scaleX = patch.scaleX;
-      if (typeof patch.scaleY === "number") changes.scaleY = patch.scaleY;
-
-      if (Object.keys(changes).length === 0) return null;
-      return [{ type: "UPDATE", id: event.nodeId, changes }];
-    }
-
-    default:
-      return null;
-  }
 }
 
 /**

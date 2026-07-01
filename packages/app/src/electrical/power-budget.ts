@@ -10,7 +10,7 @@ import {
 } from "@dreamer/schemas";
 import { useBoard } from "@/store/board-context";
 
-export type ElectricalIssue = {
+type ElectricalIssue = {
   severity: "error" | "warning";
   code: string;
   message: string;
@@ -18,7 +18,7 @@ export type ElectricalIssue = {
   pin?: number;
 };
 
-export type ElectricalRecommendation = {
+type ElectricalRecommendation = {
   code: string;
   message: string;
 };

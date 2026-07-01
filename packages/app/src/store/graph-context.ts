@@ -28,11 +28,3 @@ export function useGraph(): {
   );
   return { state, send: actorRef.send.bind(actorRef) };
 }
-
-export function useGraphCanUndo(): boolean {
-  return GraphContext.useSelector((snap) => snap.context._past.length > 0);
-}
-
-export function useGraphCanRedo(): boolean {
-  return GraphContext.useSelector((snap) => snap.context._future.length > 0);
-}

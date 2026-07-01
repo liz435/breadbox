@@ -23,10 +23,6 @@ export function setCamera(next: Partial<CameraState>): void {
   };
 }
 
-export function resetCamera(): void {
-  state = { offsetX: 0, offsetY: 0, zoom: 1 };
-}
-
 export function screenToBoard(
   sx: number,
   sy: number
@@ -34,16 +30,6 @@ export function screenToBoard(
   return {
     x: (sx - state.offsetX) / state.zoom,
     y: (sy - state.offsetY) / state.zoom,
-  };
-}
-
-export function boardToScreen(
-  bx: number,
-  by: number
-): { x: number; y: number } {
-  return {
-    x: bx * state.zoom + state.offsetX,
-    y: by * state.zoom + state.offsetY,
   };
 }
 

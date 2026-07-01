@@ -12,7 +12,7 @@
 // fine-grained reactivity. Use `usePinStates()` in the circuit solver and
 // inspector panels that need the whole array.
 
-import { useSyncExternalStore, useCallback, useMemo } from "react"
+import { useSyncExternalStore, useCallback } from "react"
 import {
   pinStateStore,
   type PinStateStore,
@@ -102,12 +102,4 @@ export function usePinState(
     [store, pin],
   )
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
-}
-
-/**
- * Subscribe and get a typed accessor for writing external values back to the store.
- * Used by UI components like the ButtonInspector.
- */
-export function usePinStore(store: PinStateStore = pinStateStore): PinStateStore {
-  return useMemo(() => store, [store])
 }

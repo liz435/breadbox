@@ -16,7 +16,7 @@ import { getBoardPinLayout, getComponentFootprint, areConnected } from "@/breadb
 import { BoardContext } from "@/store/board-context"
 import { BOARD_TARGETS, DEFAULT_BOARD_TARGET, isBoardComponentType, type LibraryState, type ServoState } from "@dreamer/schemas"
 
-export type SimulationStatus = "stopped" | "compiling" | "running" | "paused" | "error"
+type SimulationStatus = "stopped" | "compiling" | "running" | "paused" | "error"
 
 /**
  * Global ref to the latest circuit analysis computed inside the simulation tick.

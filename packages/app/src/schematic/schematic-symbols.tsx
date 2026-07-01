@@ -437,7 +437,7 @@ export function GroundSymbol({ x, y, label }: SymbolProps) {
 
 // Dimensions used by both ArduinoPinSymbol and the IC body drawn in the renderer
 export const ARDUINO_IC_LABEL_WIDTH = 68  // label area inside the IC body
-export const ARDUINO_IC_STUB_LENGTH = 20  // stub from body right edge to terminal
+const ARDUINO_IC_STUB_LENGTH = 20  // stub from body right edge to terminal
 export const ARDUINO_IC_TERMINAL_OFFSET = ARDUINO_IC_LABEL_WIDTH + ARDUINO_IC_STUB_LENGTH  // 88
 
 export function ArduinoPinSymbol({ x, y, label }: SymbolProps) {
@@ -832,7 +832,7 @@ export function PirSensorSymbol({ x, y, label, value, voltage, current, isActive
   )
 }
 
-export function IcPinSymbol({ x, y, label }: SymbolProps) {
+function IcPinSymbol({ x, y, label }: SymbolProps) {
   const stroke = STROKE
   const stubLength = 16
   const labelOffset = 20

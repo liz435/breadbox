@@ -39,7 +39,7 @@ export function formatDiagram(state: ReturnType<typeof useBoard>["state"]): stri
  * wrap a returned diagram in ```json … ``` despite being asked not to; peel it
  * so the round-trip works without manual cleanup. No-op when not fenced.
  */
-export function stripCodeFence(raw: string): string {
+function stripCodeFence(raw: string): string {
   const trimmed = raw.trim()
   if (!trimmed.startsWith("```")) return raw
   return trimmed.replace(/^```[^\n]*\n/, "").replace(/\n?```\s*$/, "")

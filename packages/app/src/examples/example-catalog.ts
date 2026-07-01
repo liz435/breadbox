@@ -11,11 +11,10 @@
 
 import type { BoardState, BoardComponent, ComponentType } from "@dreamer/schemas"
 import { EXAMPLE_META as EXAMPLE_META_TABLE } from "./example-meta"
-import type { ExampleMeta as ExternalExampleMeta, ExpectedBehavior as ExternalExpectedBehavior } from "./example-meta"
+import type { ExampleMeta as ExternalExampleMeta } from "./example-meta"
 
 // Re-export so existing imports of these types from example-catalog still work.
-export type ExpectedBehavior = ExternalExpectedBehavior
-export type ExampleMeta = ExternalExampleMeta
+type ExampleMeta = ExternalExampleMeta
 
 // Eager glob — same pattern as learn/board-catalog.ts
 const modules = import.meta.glob("./boards/*.json", {
@@ -26,7 +25,7 @@ const modules = import.meta.glob("./boards/*.json", {
 
 // ── Resolved examples ─────────────────────────────────────────────────
 
-export type ExampleSource =
+type ExampleSource =
   | { kind: "builtin" }
   | { kind: "library"; libraryName: string }
 

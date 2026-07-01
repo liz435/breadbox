@@ -96,7 +96,7 @@ export const netSpecSchema = z.object({
 });
 export type NetSpec = z.infer<typeof netSpecSchema>;
 
-export const layoutGroupingSchema = z.object({
+const layoutGroupingSchema = z.object({
   id: z.string().min(1),
   moduleIds: z.array(z.string().min(1)).min(1),
 });
@@ -116,7 +116,7 @@ export const sketchIntentSchema = z.object({
 });
 export type SketchIntent = z.infer<typeof sketchIntentSchema>;
 
-export const circuitProgramBodySchema = z.object({
+const circuitProgramBodySchema = z.object({
   modules: z.array(circuitModuleSchema).default([]),
   nets: z.array(netSpecSchema).default([]),
   layout: layoutIntentSchema.default({ strategy: "auto" }),

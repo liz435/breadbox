@@ -1,5 +1,3 @@
-import { useSyncExternalStore } from "react"
-
 // ── Virtual IR remote broadcast ──────────────────────────────────────────
 //
 // A wireless "beam": the most recent IR code fired by a virtual remote
@@ -36,16 +34,4 @@ export const irRemoteStore = {
       listeners.delete(listener)
     }
   },
-}
-
-/**
- * React hook returning the latest broadcast. Re-renders on each press — used by
- * the remote renderer to flash its IR emitter when any button is pressed.
- */
-export function useIrBroadcast(): IrBroadcast {
-  return useSyncExternalStore(
-    irRemoteStore.subscribe,
-    irRemoteStore.getSnapshot,
-    irRemoteStore.getSnapshot,
-  )
 }

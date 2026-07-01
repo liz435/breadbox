@@ -36,7 +36,7 @@ const UF2_MAX_PAYLOAD = 476
 // RP2040 flash is mapped at 0x10000000 (XIP region).
 const RP2040_FLASH_ORIGIN = 0x10000000
 
-export type Uf2Block = {
+type Uf2Block = {
   targetAddr: number
   payload: Uint8Array
 }

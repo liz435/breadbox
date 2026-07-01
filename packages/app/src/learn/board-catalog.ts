@@ -25,6 +25,3 @@ export const boardCatalog: Record<string, BoardState> = Object.fromEntries(
     return [match[1], state]
   }),
 )
-
-/** List of all known board keys, sorted alphabetically (01-, 02-, …). */
-export const boardCatalogKeys: string[] = Object.keys(boardCatalog).sort()

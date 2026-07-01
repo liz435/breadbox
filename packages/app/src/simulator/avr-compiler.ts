@@ -65,7 +65,7 @@ export type CompileResult =
     }
   | { success: false; error: string }
 
-export type BuildLogTag = "compiler" | "upload"
+type BuildLogTag = "compiler" | "upload"
 
 export type CompileOptions = {
   fqbn?: string
@@ -124,13 +124,7 @@ export async function* readNdjsonStream<T = unknown>(
   }
 }
 
-/**
- * Re-exported from `./intel-hex` (extracted to a zero-dep module so the
- * bun test suite can use it without pulling in the API client). Kept here
- * for backwards-compat with the many callers of `simulator/avr-compiler`.
- */
 import { parseIntelHex } from "./intel-hex"
-export { parseIntelHex } from "./intel-hex"
 
 
 /** Event shapes on the wire from `/api/compile` (see routes/_stream-lines.ts). */

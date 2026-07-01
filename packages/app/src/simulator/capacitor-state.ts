@@ -16,7 +16,7 @@
 // charged linearly (not exponentially) and ignored the circuit entirely.
 
 /** Per-capacitor persistent state. */
-export type CapState = {
+type CapState = {
   /** Voltage across the capacitor at the end of the last solve, in volts. */
   voltage: number
 }

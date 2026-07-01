@@ -92,7 +92,7 @@ export function findArduinoPinsForComponent(
  * canonical pin position(s), so power/VCC wires on a nearby row cannot be
  * mistaken for a signal pin.
  */
-export function findArduinoPinsForComponentPin(
+function findArduinoPinsForComponentPin(
   component: BoardComponent,
   pinNames: string | readonly string[],
   wires: Record<string, Wire>,
