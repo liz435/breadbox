@@ -78,8 +78,8 @@ list of variables.
 UI in a native window. From the repo root:
 
 ```bash
-bun run desktop:dev          # develop
-bun run desktop:build        # build installers for the host OS
+bun run dev:desktop          # develop
+bun run build:desktop        # build installers for the host OS
 ```
 
 ## Development
