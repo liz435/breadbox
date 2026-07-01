@@ -6,7 +6,7 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { z } from "zod"
-import { diagramToolInputSchema } from "@dreamer/schemas"
+import { diagramToolInputSchema, WORKED_EXAMPLE_ACTUATOR } from "@dreamer/schemas"
 import type { McpSession } from "./context"
 import {
   analyzePowerBudgetHandler,
@@ -31,19 +31,65 @@ import {
   validateDesign,
 } from "./handlers"
 
-// Compact DSL reference embedded in the custom-part tool descriptions so the
-// agent can generate a valid `spec` without a separate schema fetch.
+// Compact DSL shape embedded in validate_custom_part; the full authoring
+// guide (facet semantics, art bar, worked example) lives on save_custom_part.
 const DSL_SHAPE =
   'spec = { type: "custom:<kebab>", label, category?: "input"|"output"|"passive"|"display"|"other", ' +
   "pins: [{ name, dx, dy, role?: \"power\"|\"ground\"|\"digital\"|\"analog\"|\"io\" }], " +
   "properties?: { <name>: number }, " +
   "size?: { width, height }, accentColor?: <css color>, " +
-  "svg?: <raw SVG body markup; scaled to the part, pins drawn on top; omit for the default labeled box>, " +
+  "svg?: <raw SVG body markup with a viewBox>, " +
   'electrical?: { elements: [{ kind: "resistor", a, b, ohms } | { kind: "source", plus, minus, volts } | ' +
   '{ kind: "input_impedance", pin, ohms? }] }, ' +
+  "behavior?: { signals: [<signal>] }, visual?: { bindings: [<binding>] }, " +
   "sketch?: { includes?, globals?, setup?, loop? } }. " +
-  'A pin ref is a pin name or "0" (ground). ohms/volts may be a number or an expression string over ' +
-  'properties (e.g. "value / 100 * 5"). Sketch lines support {{name}} and {{pin.<name>}}.'
+  "See save_custom_part for the full authoring guide (signal kinds, bindings, art guidance, worked example)."
+
+// The full authoring guide an agent needs to produce a GOOD part — realistic
+// art, behavior that sketch code can drive, and animation bound to it — not
+// just a schema-valid one. Kept on save_custom_part only to avoid paying for
+// it twice in the tool listing.
+const DSL_GUIDE = `
+A custom part is one JSON spec. Shape: ${DSL_SHAPE.replace(/ See save_custom_part.*$/, "")}
+
+FACETS — a convincing part usually uses all four:
+- electrical.elements: what the circuit solver sees. SPICE primitives between declared
+  pin names (or "0" = ground). Give every MCU-driven input pin an input_impedance
+  element so wiring validation sees a load.
+- behavior.signals: live values derived from pin activity — THIS is what makes the part
+  respond to sketch code. Kinds:
+    { kind: "digital", name, pin }                        pin level 0|1
+    { kind: "pwm", name, pin }                            measured duty cycle 0..1 (analogWrite)
+    { kind: "count", name, pin, direction?: <pin> }       rising-edge counter; with direction,
+                                                          each edge adds +1 (DIR high) or -1 (DIR low)
+    { kind: "frequency", name, pin }                      rising-edge Hz, 0 when idle
+    { kind: "integrate", name, rate: <expr>, min?, max?, wrap? }  value += rate x elapsed seconds
+                                                          (continuous motion, e.g. duty * maxDegPerSec; wrap: 360 for angles)
+    { kind: "expr", name, expr: <expr> }                  derived value
+  Signal names are identifiers, unique, and must not collide with property names.
+- visual.bindings: animate SVG elements from signals. Each binds one element by id:
+    { target: "<svg id>", rotate?, originX?, originY?, translateX?, translateY?, scale?, opacity? }
+  Values are numbers or expressions over properties + signals. rotate/scale default to
+  the element's own center; pass originX/originY (viewBox coords) for a specific pivot.
+- sketch: Arduino code templates ({{name}} = placed part's name, {{pin.<name>}} = the
+  Arduino pin wired to that part pin). Emit a minimal working driver for the part so a
+  generated sketch demonstrates it — pinMode in setup, motion in loop.
+
+EXPRESSIONS: sandboxed. Arithmetic + - * / %, comparisons (< > <= >= == !=), parentheses,
+and min, max, abs, clamp, floor, ceil, round, sqrt, pow over properties/signal names.
+No other identifiers or functions.
+
+ART: draw the real component, not a placeholder. Declare a viewBox; layer body, face/
+silkscreen, terminals, and a text label; use gradients for depth; give every animated
+element an id (e.g. a rotor <g>). Detail level to match: ${JSON.stringify(WORKED_EXAMPLE_ACTUATOR.svg)}
+
+WORKED EXAMPLE — a stepper motor whose rotor turns when sketch code pulses STEP:
+${JSON.stringify(WORKED_EXAMPLE_ACTUATOR)}
+
+CHECKLIST before saving: every element/signal pin is a declared pin name; expressions
+only use properties/signals; every binding target id exists in the svg; the svg has a
+viewBox; the sketch drives the pins the signals watch (validate_custom_part checks all
+of this and returns issues/warnings).`
 
 function asContent(value: unknown) {
   return {
@@ -256,7 +302,7 @@ export function registerTools(server: McpServer, session: McpSession) {
     "validate_custom_part",
     {
       description:
-        `Dry-run validate a custom-component DSL spec. Returns { valid: true, id } or { valid: false, issues[] }. Does NOT save. ${DSL_SHAPE}`,
+        `Dry-run validate a custom-component DSL spec: structural schema PLUS semantic lint (pin refs, expression syntax, binding targets). Returns { valid: true, id, warnings? } or { valid: false, issues[], warnings? }. Does NOT save. ${DSL_SHAPE}`,
       inputSchema: { spec: z.record(z.string(), z.unknown()) },
     },
     async (input) => wrap(() => validateCustomPart(input)),
@@ -266,7 +312,7 @@ export function registerTools(server: McpServer, session: McpSession) {
     "save_custom_part",
     {
       description:
-        `Create or update a custom component from a DSL spec. The id is the name after "custom:" in spec.type. Validated before saving; the saved part appears in the palette and simulates like a built-in. ${DSL_SHAPE}`,
+        `Create or update a custom component from a DSL spec. The id is the name after "custom:" in spec.type. Validated (schema + semantic lint) before saving; the saved part appears in the palette, simulates like a built-in, and — when it declares behavior signals — reacts live to the sketch code driving its pins. ${DSL_GUIDE}`,
       inputSchema: { spec: z.record(z.string(), z.unknown()) },
     },
     async (input) => wrap(() => saveCustomPart(input)),

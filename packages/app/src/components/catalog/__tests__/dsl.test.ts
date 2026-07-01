@@ -130,4 +130,38 @@ describe("custom component DSL", () => {
       "R_d1_2 n_1_0 0 10000",
     ])
   })
+
+  test("worked stepper example compiles with a working peripheral and bindings", async () => {
+    const { WORKED_EXAMPLE_ACTUATOR } = await import("@dreamer/schemas")
+    const dsl = customComponentDslSchema.parse(WORKED_EXAMPLE_ACTUATOR)
+    const def = dslToComponentDefinition(dsl)
+
+    expect(def.visualBindings).toEqual([{ target: "rotor", rotate: "angle", originX: 50, originY: 50 }])
+    expect(def.signalNames).toEqual(["steps", "angle"])
+    if (!def.createPeripheral) throw new Error("expected createPeripheral")
+
+    const comp: BoardComponent = {
+      id: "sm1",
+      type: "custom:stepper-motor",
+      name: "SM1",
+      x: 0,
+      y: 0,
+      rotation: 0,
+      pins: { step: 2, dir: 3, vcc: null, gnd: null },
+      properties: { stepAngle: 1.8 },
+    }
+    const peripheral = def.createPeripheral(comp)
+    if (!peripheral) throw new Error("expected a peripheral")
+
+    // DIR high, 50 STEP pulses → 50 steps → 90°.
+    peripheral.onPinEdge({ pin: 3, value: 1, simMs: 0, source: "avr" })
+    for (let i = 0; i < 50; i++) {
+      peripheral.onPinEdge({ pin: 2, value: 1, simMs: 1 + i, source: "avr" })
+      peripheral.onPinEdge({ pin: 2, value: 0, simMs: 1.5 + i, source: "avr" })
+    }
+    const state = peripheral.getState()
+    if (state?.kind !== "custom") throw new Error("expected custom state")
+    expect(state.values.steps).toBe(50)
+    expect(state.values.angle).toBeCloseTo(90)
+  })
 })

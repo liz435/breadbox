@@ -18,6 +18,7 @@ import type {
   PinEdge,
   TwiSlaveHandler,
 } from "./types"
+import { getCustomDef } from "@/components/catalog/custom-store"
 import { createServoPeripheral } from "./servo"
 import { createBuzzerPeripheral } from "./buzzer"
 import { createLcdPeripheral } from "./lcd"
@@ -73,7 +74,8 @@ type ScheduledEdge = {
 export class PeripheralBus {
   private peripherals = new Map<string, Peripheral>()
   private byPin = new Map<number, Set<Peripheral>>()
-  private byType = new Map<ComponentType, Set<Peripheral>>()
+  /** Keyed by componentType — a built-in ComponentType or a "custom:<id>" string. */
+  private byType = new Map<string, Set<Peripheral>>()
   private traces: PeripheralTrace[] = []
   private readonly traceRingSize = 256
   /** Sorted ascending by atSimMs — head is the next edge to fire. */
@@ -95,10 +97,14 @@ export class PeripheralBus {
     this.twi = input.twi ?? null
     if (this.twi) this.installTwiEventHandler(this.twi)
     for (const component of Object.values(input.components)) {
-      const factory = FACTORIES.get(component.type as ComponentType)
-      if (!factory) continue
       try {
-        const peripheral = factory(component)
+        // Built-in factory first; custom parts carry their own factory on the
+        // runtime definition (compiled from the DSL's behavior.signals facet).
+        const factory = FACTORIES.get(component.type as ComponentType)
+        const peripheral = factory
+          ? factory(component)
+          : getCustomDef(component.type)?.createPeripheral?.(component)
+        if (!peripheral) continue
         peripheral.attach({
           componentId: component.id,
           component,

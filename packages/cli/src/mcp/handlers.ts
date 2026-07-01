@@ -26,7 +26,7 @@ import {
   ProjectNotFoundError,
   type McpSession,
 } from "./context"
-import { customComponentDslSchema } from "@dreamer/schemas"
+import { customComponentDslSchema, lintCustomComponentDsl } from "@dreamer/schemas"
 import {
   deleteCustomPart as storeDeleteCustomPart,
   getCustomPart as storeGetCustomPart,
@@ -462,10 +462,18 @@ export async function getCustomPart(input: { id: string }) {
   return part;
 }
 
-type CustomPartValidation =
-  | { valid: true; id: string }
-  | { valid: false; issues: Array<{ path: string; message: string }> };
+type DslIssue = { path: string; message: string };
 
+type CustomPartValidation =
+  | { valid: true; id: string; warnings?: DslIssue[] }
+  | { valid: false; issues: DslIssue[]; warnings?: DslIssue[] };
+
+/**
+ * Structural (zod) + semantic (lint) validation. Lint errors — unknown pin
+ * refs, unparseable expressions, bindings with no svg — would produce a
+ * silently dead part at runtime, so they fail validation; lint warnings
+ * (missing svg id, undeclared sketch placeholder) pass through as advice.
+ */
 export function validateCustomPart(input: { spec: unknown }): CustomPartValidation {
   const result = customComponentDslSchema.safeParse(input.spec);
   if (!result.success) {
@@ -474,23 +482,31 @@ export function validateCustomPart(input: { spec: unknown }): CustomPartValidati
       issues: result.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
     };
   }
-  return { valid: true, id: partIdFromType(result.data.type) };
+  const lint = lintCustomComponentDsl(result.data);
+  const errors = lint.filter((i) => i.severity === "error").map(({ path, message }) => ({ path, message }));
+  const warnings = lint.filter((i) => i.severity === "warning").map(({ path, message }) => ({ path, message }));
+  if (errors.length > 0) {
+    return { valid: false, issues: errors, ...(warnings.length > 0 ? { warnings } : {}) };
+  }
+  return { valid: true, id: partIdFromType(result.data.type), ...(warnings.length > 0 ? { warnings } : {}) };
 }
 
 export async function saveCustomPart(input: { spec: unknown }) {
-  const result = customComponentDslSchema.safeParse(input.spec);
-  if (!result.success) {
+  const validation = validateCustomPart(input);
+  if (!validation.valid) {
     return {
       ok: false,
-      error: result.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
+      error: validation.issues.map((i) => `${i.path}: ${i.message}`).join("; "),
     };
   }
+  const result = customComponentDslSchema.safeParse(input.spec);
+  if (!result.success) return { ok: false, error: "spec failed to parse" };
   const id = partIdFromType(result.data.type);
   if (!isValidPartId(id)) {
     return { ok: false, error: `Invalid id "${id}" — type must be custom:<kebab-name>` };
   }
   await storeSaveCustomPart(id, "dsl", JSON.stringify(result.data, null, 2));
-  return { ok: true, id };
+  return { ok: true, id, ...(validation.warnings ? { warnings: validation.warnings } : {}) };
 }
 
 export async function deleteCustomPart(input: { id: string }) {

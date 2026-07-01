@@ -1,22 +1,133 @@
 // ── Custom Part Renderer ────────────────────────────────────────────────────
 //
-// Default visual for custom (user-authored) components that don't ship their
-// own renderer: an auto-generated labeled box sized to the part's footprint,
-// with a dot at each pin. When a board references a custom type whose plugin
-// isn't loaded (deleted, or authored in another install), the same renderer
-// draws a dashed "missing part" placeholder instead of rendering nothing.
+// Visual for custom (user-authored) components that don't ship their own
+// renderer. Three modes:
+//   - Animated: the part declares visual.bindings — its SVG is sanitized and
+//     inlined so bound elements (by id) can be rotated/translated/scaled/faded
+//     from live behavior signal values (libraryState.custom[componentId]).
+//   - Static: author SVG drawn via an isolated <image> data URL.
+//   - Fallback: an auto-generated labeled box sized to the footprint.
+// When a board references a custom type whose plugin isn't loaded (deleted, or
+// authored in another install), a dashed "missing part" placeholder is drawn.
 
-import React from "react";
-import { isCustomComponentType } from "@dreamer/schemas";
+import React, { useEffect, useMemo, useRef } from "react";
+import { evaluateExpression, isCustomComponentType } from "@dreamer/schemas";
+import type { DslBinding } from "@dreamer/schemas";
 import { gridToPixel, getComponentFootprint } from "@/breadboard/breadboard-grid";
 import { HOLE_SPACING } from "@/breadboard/breadboard-constants";
 import { getCustomDef } from "@/components/catalog/custom-store";
 import { svgToDataUrl } from "@/utils/svg-data-url";
+import { sanitizeSvg } from "@/utils/sanitize-svg";
 import type { ComponentRendererProps } from "./renderer-types";
 
-function CustomPartRendererInner({ component, isSelected }: ComponentRendererProps) {
+function evalBindingValue(
+  value: number | string | undefined,
+  context: Record<string, number>,
+): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === "number") return value;
+  try {
+    return evaluateExpression(value, context);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Apply one binding's evaluated transform/opacity to its target element. */
+function applyBinding(
+  el: SVGGraphicsElement,
+  binding: DslBinding,
+  context: Record<string, number>,
+  bboxCenters: Map<string, { cx: number; cy: number }>,
+): void {
+  const rotate = evalBindingValue(binding.rotate, context);
+  const scale = evalBindingValue(binding.scale, context);
+  const translateX = evalBindingValue(binding.translateX, context) ?? 0;
+  const translateY = evalBindingValue(binding.translateY, context) ?? 0;
+  const opacity = evalBindingValue(binding.opacity, context);
+
+  if (rotate !== undefined || scale !== undefined || translateX !== 0 || translateY !== 0) {
+    let cx = binding.originX;
+    let cy = binding.originY;
+    if ((rotate !== undefined || scale !== undefined) && (cx === undefined || cy === undefined)) {
+      // Default origin: the element's own untransformed center, cached — a
+      // rotor spins about its hub without the author computing coordinates.
+      let center = bboxCenters.get(binding.target);
+      if (!center) {
+        try {
+          const box = el.getBBox();
+          center = { cx: box.x + box.width / 2, cy: box.y + box.height / 2 };
+        } catch {
+          center = { cx: 0, cy: 0 };
+        }
+        bboxCenters.set(binding.target, center);
+      }
+      cx = cx ?? center.cx;
+      cy = cy ?? center.cy;
+    }
+    const parts: string[] = [];
+    if (translateX !== 0 || translateY !== 0) parts.push(`translate(${translateX} ${translateY})`);
+    if (rotate !== undefined || scale !== undefined) {
+      parts.push(`translate(${cx ?? 0} ${cy ?? 0})`);
+      if (rotate !== undefined) parts.push(`rotate(${rotate})`);
+      if (scale !== undefined) parts.push(`scale(${scale})`);
+      parts.push(`translate(${-(cx ?? 0)} ${-(cy ?? 0)})`);
+    }
+    // The binding owns the element's transform — any static transform the
+    // author put on a bound element is replaced.
+    el.setAttribute("transform", parts.join(" "));
+  }
+  if (opacity !== undefined) {
+    el.setAttribute("opacity", String(Math.min(1, Math.max(0, opacity))));
+  }
+}
+
+function CustomPartRendererInner({ component, isSelected, libraryState }: ComponentRendererProps) {
   const def = getCustomDef(component.type);
   const missing = isCustomComponentType(component.type) && !def;
+
+  // A part may supply raw SVG for its body; a missing plugin never does.
+  const svg = missing ? undefined : def?.svg;
+  const bindings = missing ? undefined : def?.visualBindings;
+  const wantsAnimation = !!svg && !!bindings && bindings.length > 0;
+
+  // Sanitized inline form; null (unparseable / no viewBox / no DOM) falls back
+  // to the isolated <image> path, losing animation but never the visual.
+  const parsed = useMemo(() => (wantsAnimation && svg ? sanitizeSvg(svg) : null), [wantsAnimation, svg]);
+
+  // Expression context: numeric properties, then signals (zero until the sim
+  // publishes values, so parts render a sane static pose before running).
+  const signalValues = libraryState?.custom?.[component.id];
+  const context = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const [key, value] of Object.entries(component.properties)) {
+      if (typeof value === "number") out[key] = value;
+    }
+    for (const name of def?.signalNames ?? []) out[name] = 0;
+    if (signalValues) Object.assign(out, signalValues);
+    return out;
+  }, [component.properties, def, signalValues]);
+
+  const svgHostRef = useRef<SVGSVGElement>(null);
+  const bboxCentersRef = useRef(new Map<string, { cx: number; cy: number }>());
+
+  // The inlined markup is replaced whenever the SVG source changes — drop the
+  // cached bbox origins with it.
+  useEffect(() => {
+    bboxCentersRef.current.clear();
+  }, [parsed]);
+
+  useEffect(() => {
+    const host = svgHostRef.current;
+    if (!host || !parsed || !bindings) return;
+    for (const binding of bindings) {
+      // Scoped query so multiple instances of the same part never cross-talk.
+      const el = host.querySelector(`[id="${binding.target}"]`);
+      if (el instanceof SVGGraphicsElement) {
+        applyBinding(el, binding, context, bboxCentersRef.current);
+      }
+    }
+  }, [parsed, bindings, context]);
 
   const footprint = getComponentFootprint(
     component.type,
@@ -36,8 +147,6 @@ function CustomPartRendererInner({ component, isSelected }: ComponentRendererPro
   const width = Math.max(...xs) - Math.min(...xs) + pad * 2;
   const height = Math.max(...ys) - Math.min(...ys) + pad * 2;
 
-  // A part may supply raw SVG for its body; a missing plugin never does.
-  const svg = missing ? undefined : def?.svg;
   const label = missing ? `⚠ ${component.type}` : def?.label ?? component.name;
   const fill = missing ? "#1f2937" : def?.accentColor ?? "#475569";
   const border = missing ? "#ef4444" : isSelected ? "#3b82f6" : "#94a3b8";
@@ -46,16 +155,34 @@ function CustomPartRendererInner({ component, isSelected }: ComponentRendererPro
     <g>
       {svg ? (
         <>
-          {/* Author-supplied SVG, drawn via a data URL so it renders in the
-              browser's restricted image mode (no scripts / external fetches). */}
-          <image
-            x={minX}
-            y={minY}
-            width={width}
-            height={height}
-            href={svgToDataUrl(svg)}
-            preserveAspectRatio="xMidYMid meet"
-          />
+          {parsed ? (
+            /* Sanitized inline SVG: bound elements are animated by the effect
+               above. Author ids stay as-authored; binding lookups are scoped
+               to this subtree, and duplicate gradient ids across instances
+               resolve to identical content. */
+            <svg
+              ref={svgHostRef}
+              x={minX}
+              y={minY}
+              width={width}
+              height={height}
+              viewBox={parsed.viewBox}
+              preserveAspectRatio="xMidYMid meet"
+              // eslint-disable-next-line react/no-danger
+              dangerouslySetInnerHTML={{ __html: parsed.content }}
+            />
+          ) : (
+            /* Static author SVG, drawn via a data URL so it renders in the
+               browser's restricted image mode (no scripts / external fetches). */
+            <image
+              x={minX}
+              y={minY}
+              width={width}
+              height={height}
+              href={svgToDataUrl(svg)}
+              preserveAspectRatio="xMidYMid meet"
+            />
+          )}
           {isSelected && (
             <rect
               x={minX}

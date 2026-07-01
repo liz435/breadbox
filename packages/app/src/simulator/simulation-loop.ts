@@ -198,10 +198,15 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     let lcd: LibraryState["lcd"] = null
     const oled: LibraryState["oled"] = {}
     const neopixels: LibraryState["neopixels"] = {}
+    const custom: LibraryState["custom"] = {}
     const peripherals = runner.getPeripheralBus().snapshot()
     for (const [id, s] of Object.entries(peripherals)) {
       if (s.kind === "servo") {
         servos[id] = { pin: s.pin, angle: s.angle }
+        continue
+      }
+      if (s.kind === "custom") {
+        custom[id] = s.values
         continue
       }
       if (s.kind === "lcd") {
@@ -245,11 +250,11 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     // framebuffer is a number[] (not Uint8Array) precisely so this comparison
     // is meaningful — Uint8Array would JSON.stringify to `{}` and changes
     // would be silently dropped.
-    const serialized = JSON.stringify({ servos, lcd, oled, neopixels })
+    const serialized = JSON.stringify({ servos, lcd, oled, neopixels, custom })
     if (serialized === prevLibStateRef.current) return
     prevLibStateRef.current = serialized
 
-    onLibChange({ servos, lcd, oled, neopixels })
+    onLibChange({ servos, lcd, oled, neopixels, custom })
   }, [])
 
   // Shared analysis result — updated inside the tick loop.

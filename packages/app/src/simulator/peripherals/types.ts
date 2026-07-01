@@ -38,6 +38,9 @@ export type PeripheralState =
   | { kind: "ir_receiver"; signalPin: number | null; lastCode: number | null; transmitting: boolean }
   | { kind: "oled"; width: number; height: number; on: boolean; inverted: boolean; framebuffer: number[] }
   | { kind: "shift_register"; data: number | null; clock: number | null; latch: number | null; outputs: boolean[] }
+  // Custom-part behavior signals (name → value), published by the generic
+  // DSL peripheral. componentType is the "custom:<id>" string.
+  | { kind: "custom"; componentType: string; values: Record<string, number> }
   | { kind: "raw"; componentType: ComponentType }
 
 /**
@@ -97,7 +100,8 @@ export type PeripheralContext = {
 
 export interface Peripheral<S extends PeripheralState = PeripheralState> {
   readonly id: string
-  readonly componentType: ComponentType
+  /** Built-in ComponentType, or a "custom:<id>" string for custom parts. */
+  readonly componentType: ComponentType | (string & {})
   readonly capabilities: ReadonlySet<PeripheralCapability>
   readonly watchedPins: ReadonlySet<number>
   attach(ctx: PeripheralContext): void

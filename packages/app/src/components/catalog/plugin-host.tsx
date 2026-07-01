@@ -14,7 +14,8 @@
 
 import { createElement } from "react"
 import type { ComponentType, ReactNode } from "react"
-import type { BoardComponent } from "@dreamer/schemas"
+import type { BoardComponent, DslBinding } from "@dreamer/schemas"
+import type { Peripheral } from "@/simulator/peripherals/types"
 import { HOLE_SPACING } from "@/breadboard/breadboard-constants"
 import { svgToDataUrl } from "@/utils/svg-data-url"
 import type {
@@ -69,6 +70,12 @@ export type PluginComponentSpec = {
   computeElectricalState?: (comp: BoardComponent, ctx: ElectricalContext) => ElectricalOutput | null
   generateSketch?: (comp: BoardComponent) => SketchOutput | null
   renderer?: ComponentType<ComponentRendererProps>
+  /** Join the simulator's peripheral bus (pin edges / ticks / state snapshots). */
+  createPeripheral?: (comp: BoardComponent) => Peripheral | null
+  /** Animate elements of `svg` (by id) from behavior signal values. */
+  visualBindings?: DslBinding[]
+  /** Signal names, for zero-filling binding expressions before the sim runs. */
+  signalNames?: string[]
 }
 
 /** The host API injected into a plugin factory. */
@@ -210,6 +217,9 @@ export function createPluginHost(): PluginHost {
         buildNetlist,
         computeElectricalState,
         generateSketch,
+        createPeripheral: spec.createPeripheral,
+        visualBindings: spec.visualBindings,
+        signalNames: spec.signalNames,
       }
     },
   }
