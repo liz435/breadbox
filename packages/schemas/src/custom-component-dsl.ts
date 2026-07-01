@@ -52,6 +52,11 @@ export const customComponentDslSchema = z.object({
   /** Pixel size of the body; defaults to the pin extent. */
   size: z.object({ width: z.number(), height: z.number() }).optional(),
   accentColor: z.string().optional(),
+  /**
+   * Raw SVG markup drawn as the part's body, scaled to the footprint with the
+   * pins overlaid. Omit to fall back to the auto-generated labeled box.
+   */
+  svg: z.string().optional(),
   electrical: z
     .object({ elements: z.array(dslElementSchema).default([]) })
     .default({ elements: [] }),

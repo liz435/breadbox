@@ -36,6 +36,8 @@ const DSL_SHAPE =
   'spec = { type: "custom:<kebab>", label, category?: "input"|"output"|"passive"|"display"|"other", ' +
   "pins: [{ name, dx, dy, role?: \"power\"|\"ground\"|\"digital\"|\"analog\"|\"io\" }], " +
   "properties?: { <name>: number }, " +
+  "size?: { width, height }, accentColor?: <css color>, " +
+  "svg?: <raw SVG body markup; scaled to the part, pins drawn on top; omit for the default labeled box>, " +
   'electrical?: { elements: [{ kind: "resistor", a, b, ohms } | { kind: "source", plus, minus, volts } | ' +
   '{ kind: "input_impedance", pin, ohms? }] }, ' +
   "sketch?: { includes?, globals?, setup?, loop? } }. " +

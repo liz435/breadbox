@@ -11,6 +11,7 @@ import { isCustomComponentType } from "@dreamer/schemas";
 import { gridToPixel, getComponentFootprint } from "@/breadboard/breadboard-grid";
 import { HOLE_SPACING } from "@/breadboard/breadboard-constants";
 import { getCustomDef } from "@/components/catalog/custom-store";
+import { svgToDataUrl } from "@/utils/svg-data-url";
 import type { ComponentRendererProps } from "./renderer-types";
 
 function CustomPartRendererInner({ component, isSelected }: ComponentRendererProps) {
@@ -35,24 +36,53 @@ function CustomPartRendererInner({ component, isSelected }: ComponentRendererPro
   const width = Math.max(...xs) - Math.min(...xs) + pad * 2;
   const height = Math.max(...ys) - Math.min(...ys) + pad * 2;
 
+  // A part may supply raw SVG for its body; a missing plugin never does.
+  const svg = missing ? undefined : def?.svg;
   const label = missing ? `⚠ ${component.type}` : def?.label ?? component.name;
   const fill = missing ? "#1f2937" : def?.accentColor ?? "#475569";
   const border = missing ? "#ef4444" : isSelected ? "#3b82f6" : "#94a3b8";
 
   return (
     <g>
-      <rect
-        x={minX}
-        y={minY}
-        width={width}
-        height={height}
-        rx={2}
-        fill={fill}
-        fillOpacity={missing ? 0.45 : 0.85}
-        stroke={border}
-        strokeWidth={isSelected ? 1.5 : 1}
-        strokeDasharray={missing ? "3 2" : undefined}
-      />
+      {svg ? (
+        <>
+          {/* Author-supplied SVG, drawn via a data URL so it renders in the
+              browser's restricted image mode (no scripts / external fetches). */}
+          <image
+            x={minX}
+            y={minY}
+            width={width}
+            height={height}
+            href={svgToDataUrl(svg)}
+            preserveAspectRatio="xMidYMid meet"
+          />
+          {isSelected && (
+            <rect
+              x={minX}
+              y={minY}
+              width={width}
+              height={height}
+              rx={2}
+              fill="none"
+              stroke="#3b82f6"
+              strokeWidth={1.5}
+            />
+          )}
+        </>
+      ) : (
+        <rect
+          x={minX}
+          y={minY}
+          width={width}
+          height={height}
+          rx={2}
+          fill={fill}
+          fillOpacity={missing ? 0.45 : 0.85}
+          stroke={border}
+          strokeWidth={isSelected ? 1.5 : 1}
+          strokeDasharray={missing ? "3 2" : undefined}
+        />
+      )}
       {points.map((p, i) => (
         <circle
           key={`pin-${i}`}
@@ -64,17 +94,19 @@ function CustomPartRendererInner({ component, isSelected }: ComponentRendererPro
           strokeWidth={0.5}
         />
       ))}
-      <text
-        x={minX + width / 2}
-        y={minY + height / 2}
-        textAnchor="middle"
-        dominantBaseline="middle"
-        fontSize={5}
-        fill={missing ? "#fca5a5" : "#f8fafc"}
-        fontFamily="monospace"
-      >
-        {label}
-      </text>
+      {!svg && (
+        <text
+          x={minX + width / 2}
+          y={minY + height / 2}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize={5}
+          fill={missing ? "#fca5a5" : "#f8fafc"}
+          fontFamily="monospace"
+        >
+          {label}
+        </text>
+      )}
     </g>
   );
 }

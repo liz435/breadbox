@@ -14,6 +14,7 @@ export const CUSTOM_PART_DSL_TEMPLATE = `{
     { "name": "sig", "dx": 0, "dy": 2, "role": "analog" }
   ],
   "properties": { "value": 50 },
+  "svg": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 36'><rect x='2' y='2' width='8' height='32' rx='2' fill='#334155' stroke='#94a3b8' stroke-width='0.5'/><circle cx='6' cy='8' r='1.5' fill='#38bdf8'/></svg>",
   "electrical": {
     "elements": [
       { "kind": "source", "plus": "sig", "minus": "0", "volts": "value / 100 * 5" }

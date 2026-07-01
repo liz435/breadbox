@@ -261,6 +261,7 @@ export {
   buildCustomPartPrompt,
   WORKED_EXAMPLE_PART,
   type CustomPartPromptOptions,
+  type CustomPartFacet,
 } from "./custom-component-prompt";
 
 export {

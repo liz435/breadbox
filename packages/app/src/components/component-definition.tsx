@@ -130,6 +130,13 @@ export type ComponentDefinition = {
   accentColor?: string
 
   /**
+   * Raw SVG markup drawn as the part body when no dedicated `renderer` is set
+   * (custom parts). Scaled to the footprint with pin dots overlaid; falls back
+   * to the auto-generated labeled box when omitted.
+   */
+  svg?: string
+
+  /**
    * Optional dedicated renderer. Built-ins are wired via the renderer index's
    * RENDERER_MAP (kept out of the registry to avoid a build-time import cycle);
    * custom components loaded at runtime carry their renderer here instead.

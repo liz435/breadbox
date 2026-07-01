@@ -95,6 +95,7 @@ export function dslToComponentDefinition(dsl: CustomComponentDsl): ComponentDefi
     properties: dsl.properties,
     size: dsl.size,
     accentColor: dsl.accentColor,
+    svg: dsl.svg,
     buildNetlist:
       elements.length === 0
         ? undefined

@@ -23,14 +23,39 @@ export const WORKED_EXAMPLE_PART = {
   sketch: { loop: ["int v = analogRead({{pin.sig}}); // {{name}}"] },
 };
 
+/** The editable facets of a custom part — one row per facet in the editor. */
+export type CustomPartFacet =
+  | "info"
+  | "pins"
+  | "properties"
+  | "look"
+  | "behavior"
+  | "firmware";
+
+/** Which DSL keys each facet owns, plus a human phrase for the scoped prompt. */
+const FACET_SPEC: Record<CustomPartFacet, { keys: string[]; phrase: string }> = {
+  info: { keys: ["type", "label", "category", "description"], phrase: "the part's identity and palette metadata" },
+  pins: { keys: ["pins"], phrase: "the named pins and their grid offsets" },
+  properties: { keys: ["properties"], phrase: "the user-tweakable numeric properties" },
+  look: { keys: ["svg", "accentColor", "size"], phrase: "the part's visual appearance" },
+  behavior: { keys: ["electrical"], phrase: "how the part affects the circuit" },
+  firmware: { keys: ["sketch"], phrase: "the Arduino code the part generates" },
+};
+
 export type CustomPartPromptOptions = {
   /** The user's requested change, baked into `## My change`. */
   change?: string;
+  /** Restrict the requested edit to a single facet of the part. */
+  facet?: CustomPartFacet;
 };
 
 export function buildCustomPartPrompt(specJson: string, options: CustomPartPromptOptions = {}): string {
   const change = options.change?.trim();
   const changeBlock = change && change.length > 0 ? change : "<describe the change you want here>";
+  const facet = options.facet ? FACET_SPEC[options.facet] : null;
+  const focusBlock = facet
+    ? `## Focus\nChange **only** ${facet.phrase} — the \`${facet.keys.join("`, `")}\` field${facet.keys.length > 1 ? "s" : ""}. Leave every other field exactly as it is. Still reply with the complete JSON document.\n\n`
+    : "";
   return `# Edit this Breadbox custom component
 
 You are editing a Breadbox **custom component** — a reusable breadboard part,
@@ -44,7 +69,7 @@ valid and follow the spec.
 ## My change
 ${changeBlock}
 
-## Current part
+${focusBlock}## Current part
 \`\`\`json
 ${specJson}
 \`\`\`
@@ -58,6 +83,8 @@ A custom component is one JSON object:
   "category": "input" | "output" | "passive" | "display" | "other",   // optional
   "pins": [ { "name": "<pin>", "dx": <int cols>, "dy": <int rows>, "role"?: "power"|"ground"|"digital"|"analog"|"io" } ],
   "properties"?: { "<name>": <number> },   // user-tweakable; referenced by expressions
+  "accentColor"?: "<css color>",   // body tint for the auto-generated box
+  "svg"?: "<raw SVG markup>",   // custom look, scaled to the part; pins drawn on top (omit for the auto box)
   "electrical"?: { "elements": [ <element>, ... ] },   // how the part affects the circuit
   "sketch"?: { "includes"?: [], "globals"?: [], "setup"?: [], "loop"?: [] }   // Arduino code
 }
