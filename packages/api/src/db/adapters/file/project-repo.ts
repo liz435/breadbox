@@ -1,5 +1,6 @@
 import { join } from "path";
 import { mkdir, readdir } from "fs/promises";
+import { z } from "zod";
 import { match } from "ts-pattern";
 import { generateUniqueProjectName } from "../../../utils/name-generator";
 import {
@@ -819,6 +820,56 @@ async function ensureAssetsDir(
   return dir;
 }
 
+// ── Last-opened project ──────────────────────────────────────────────────────
+//
+// Which project the UI should reopen on the next launch, persisted in the
+// data home rather than browser localStorage: the desktop app's origin is
+// `localhost:<port>` where the port can be OS-assigned and change between
+// launches, and localStorage is scoped per-origin — a client-side record
+// silently disappears whenever the port shifts.
+
+const lastOpenedMapSchema = z.record(z.string(), z.string());
+
+function lastOpenedPath(): string {
+  return join(dataDir(), "last-opened.json");
+}
+
+async function readLastOpenedMap(): Promise<Record<string, string>> {
+  const file = Bun.file(lastOpenedPath());
+  try {
+    if (!(await file.exists())) return {};
+    const parsed = lastOpenedMapSchema.safeParse(await file.json());
+    return parsed.success ? parsed.data : {};
+  } catch {
+    // Unreadable / corrupt — treat as no record rather than failing boot.
+    return {};
+  }
+}
+
+/**
+ * Last project this owner opened, or null when none was recorded or the
+ * recorded project no longer exists (deleted, or not owned). A non-null
+ * return is directly loadable.
+ */
+async function getLastOpenedProjectId(ownerId: string): Promise<string | null> {
+  const map = await readLastOpenedMap();
+  const projectId = map[ownerId];
+  if (!projectId) return null;
+  const project = await readProject(projectId, ownerId);
+  return project ? projectId : null;
+}
+
+async function setLastOpenedProjectId(
+  projectId: string,
+  ownerId: string,
+): Promise<void> {
+  const map = await readLastOpenedMap();
+  if (map[ownerId] === projectId) return;
+  map[ownerId] = projectId;
+  await mkdir(dataDir(), { recursive: true });
+  await Bun.write(lastOpenedPath(), JSON.stringify(map, null, 2));
+}
+
 // ── Delete project ──────────────────────────────────────────────────────────
 
 async function deleteProject(
@@ -864,4 +915,6 @@ export const projectRepo = {
   deleteProject,
   ensureAssetsDir,
   projectAssetsDir,
+  getLastOpenedProjectId,
+  setLastOpenedProjectId,
 };

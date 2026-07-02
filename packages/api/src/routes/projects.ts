@@ -93,6 +93,28 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
       throw error;
     }
   })
+  // Static segment — registered before the "/:id" routes so "last-opened"
+  // is never captured as a project id. Persisted server-side (not in
+  // browser localStorage) so it survives the desktop app's port — and
+  // therefore origin — changing between launches.
+  .get("/last-opened", async ({ auth }) => {
+    const ownerId = requireOwnerId(auth);
+    const projectId = await storage.projects.getLastOpenedProjectId(ownerId);
+    return { projectId };
+  })
+  .post("/last-opened", async ({ auth, body, set }) => {
+    const ownerId = requireOwnerId(auth);
+    const payload = body as { projectId?: string } | null;
+    const projectId = payload?.projectId?.trim();
+    if (!projectId) return badRequest(set, "projectId is required");
+    const project = await storage.projects.readProject(projectId, ownerId);
+    if (!project) {
+      set.status = 404;
+      return { error: "Project not found" };
+    }
+    await storage.projects.setLastOpenedProjectId(projectId, ownerId);
+    return { ok: true };
+  })
   .get("/:id", async ({ auth, params, set }) => {
     const ownerId = requireOwnerId(auth);
     const project = await storage.projects.readProject(params.id, ownerId);

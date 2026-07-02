@@ -5,7 +5,13 @@ import {
   getSavedProjectId,
   saveProjectId,
 } from "./project-context";
-import { fetchProject, createProject, ApiError } from "./api-client";
+import {
+  fetchProject,
+  createProject,
+  fetchLastOpenedProjectId,
+  saveLastOpenedProjectId,
+  ApiError,
+} from "./api-client";
 import { API_PORT } from "@dreamer/config";
 import type { ProjectFile } from "./schemas";
 import { isAnonymousPreview } from "@/auth/use-current-user";
@@ -26,40 +32,44 @@ async function loadProject(): Promise<ProjectFile> {
     return createPreviewProjectFile();
   }
 
+  // The server-side record wins over localStorage: the desktop app's
+  // origin (`localhost:<port>`) can change between launches, and
+  // localStorage is per-origin — relying on it alone made every launch
+  // on a new port open a brand-new project.
+  const serverId = await fetchLastOpenedProjectId();
   const savedId = getSavedProjectId();
+  const candidates = [serverId, savedId].filter(
+    (id, index, all): id is string => id !== null && all.indexOf(id) === index,
+  );
 
-  if (savedId) {
+  for (const id of candidates) {
     try {
-      return await fetchProject(savedId);
+      return await fetchProject(id);
     } catch (err) {
-      // If the saved project was deleted, fall through to create
-      if (err instanceof ApiError && err.status === 404) {
-        // fall through
-      } else {
-        throw err;
-      }
+      // Deleted since it was recorded — try the next candidate.
+      if (err instanceof ApiError && err.status === 404) continue;
+      throw err;
     }
   }
 
-  const projectFile = await createProject();
-  saveProjectId(projectFile.project.id);
-  return projectFile;
+  return createProject();
 }
 
 export function ProjectLoader({ children }: { children: ReactNode }) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [version, setVersion] = useState(0);
 
-  const load = useCallback((targetId?: string) => {
+  const runLoad = useCallback((projectFilePromise: Promise<ProjectFile>) => {
     setState({ status: "loading" });
-    const doLoad = targetId
-      ? fetchProject(targetId).then((pf) => {
-          saveProjectId(pf.project.id);
-          return pf;
-        })
-      : loadProject();
-    doLoad
+    projectFilePromise
       .then((projectFile) => {
+        // Record every successful open in both stores: localStorage for
+        // same-origin reloads, the server for the next launch (which may
+        // be a different origin — see loadProject).
+        if (!isAnonymousPreview()) {
+          saveProjectId(projectFile.project.id);
+          void saveLastOpenedProjectId(projectFile.project.id);
+        }
         setVersion(projectFile.project.version);
         setState({ status: "ready", projectFile });
       })
@@ -71,15 +81,19 @@ export function ProjectLoader({ children }: { children: ReactNode }) {
       );
   }, []);
 
+  const load = useCallback(() => {
+    runLoad(loadProject());
+  }, [runLoad]);
+
   useEffect(() => {
     load();
   }, [load]);
 
   const switchProject = useCallback(
     (targetId: string) => {
-      load(targetId);
+      runLoad(fetchProject(targetId));
     },
-    [load],
+    [runLoad],
   );
 
   const contextValue = useMemo<ProjectContextValue | null>(() => {
@@ -138,8 +152,9 @@ export function ProjectLoader({ children }: { children: ReactNode }) {
           <button
             type="button"
             onClick={() => {
-              localStorage.removeItem("dreamer:projectId");
-              load();
+              // Explicit create — re-running load() would just retry the
+              // recorded project that failed to open.
+              runLoad(createProject());
             }}
             className="rounded border border-border px-4 py-1.5 text-sm text-muted-foreground hover:bg-secondary transition-colors"
           >

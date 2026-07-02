@@ -280,3 +280,64 @@ describe("POST /project/:id/graph", () => {
     expect(result.saved).toBe(true);
   });
 });
+
+// ── /project/last-opened ──────────────────────────────────────────────────────
+
+describe("GET/POST /project/last-opened", () => {
+  test("returns null before any project was recorded", async () => {
+    const res = await req("/project/last-opened");
+    expect(res.status).toBe(200);
+    const body = typed<{ projectId: string | null }>(await json(res));
+    // May be non-null if an earlier test in this file recorded one — only
+    // assert the shape here; behavior is covered below.
+    expect("projectId" in body).toBe(true);
+  });
+
+  test("records and returns the last-opened project", async () => {
+    const p = await postProject("Resume Target");
+    const post = await req("/project/last-opened", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: p.project.id }),
+    });
+    expect(post.status).toBe(200);
+
+    const get = await req("/project/last-opened");
+    const body = typed<{ projectId: string | null }>(await json(get));
+    expect(body.projectId).toBe(p.project.id);
+  });
+
+  test("rejects an empty projectId", async () => {
+    const res = await req("/project/last-opened", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: "  " }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  test("404s when recording a project that does not exist", async () => {
+    const res = await req("/project/last-opened", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: crypto.randomUUID() }),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  test("returns null after the recorded project is deleted", async () => {
+    const p = await postProject("Delete Then Resume");
+    await req("/project/last-opened", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: p.project.id }),
+    });
+    const del = await req(`/project/${p.project.id}`, { method: "DELETE" });
+    expect(del.status).toBe(200);
+    created.splice(created.indexOf(p.project.id), 1);
+
+    const get = await req("/project/last-opened");
+    const body = typed<{ projectId: string | null }>(await json(get));
+    expect(body.projectId).toBeNull();
+  });
+});

@@ -1,13 +1,14 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useProject } from "@/project/project-context"
 import {
   listProjects,
   createProject,
   deleteProject,
+  renameProject,
   type ProjectSummary,
 } from "@/project/api-client"
 import { saveProjectId } from "@/project/project-context"
-import { Plus, ChevronDown, Loader2, Trash2, Check, Folder } from "lucide-react"
+import { Plus, ChevronDown, Loader2, Trash2, Check, Folder, Pencil } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "@/components/ui/toast"
 
@@ -18,6 +19,12 @@ export function ProjectSelector() {
   const [isLoading, setIsLoading] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [isHeaderRenaming, setIsHeaderRenaming] = useState(false)
+  const [renameValue, setRenameValue] = useState("")
+  // Escape must discard the edit, but blur always follows it — this flag
+  // lets the blur handler tell an intentional cancel from a commit.
+  const renameCancelledRef = useRef(false)
 
   // Fall back to the loaded project's name when the server-side list
   // doesn't contain it (preview mode returns `[]`, or the project was
@@ -81,6 +88,51 @@ export function ProjectSelector() {
     [projectId, projects, switchProject],
   )
 
+  const commitRename = useCallback(
+    async (id: string, rawName: string, prevName?: string) => {
+      const name = rawName.trim()
+      if (!name || name === prevName) return
+      try {
+        await renameProject(id, name)
+        if (projects.some((p) => p.id === id)) {
+          setProjects((list) =>
+            list.map((p) => (p.id === id ? { ...p, name } : p)),
+          )
+        } else {
+          // Not in the local list (initial fetch failed or hasn't landed) —
+          // re-fetch so the header stops falling back to the stale
+          // projectFile name.
+          refresh()
+        }
+      } catch {
+        toast.error("Failed to rename project")
+      }
+    },
+    [projects, refresh],
+  )
+
+  const handleRenameCommit = useCallback(async () => {
+    const id = renamingId
+    if (!id) return
+    setRenamingId(null)
+    if (renameCancelledRef.current) {
+      renameCancelledRef.current = false
+      return
+    }
+    const prev = projects.find((p) => p.id === id)
+    await commitRename(id, renameValue, prev?.name)
+  }, [renamingId, renameValue, projects, commitRename])
+
+  const handleHeaderRenameCommit = useCallback(async () => {
+    if (!isHeaderRenaming) return
+    setIsHeaderRenaming(false)
+    if (renameCancelledRef.current) {
+      renameCancelledRef.current = false
+      return
+    }
+    await commitRename(projectId, renameValue, currentProject?.name)
+  }, [isHeaderRenaming, projectId, renameValue, currentProject, commitRename])
+
   const handleCreate = useCallback(async () => {
     setIsCreating(true)
     try {
@@ -97,25 +149,78 @@ export function ProjectSelector() {
 
   return (
     <div className="relative">
-      <button
-        type="button"
-        className="flex w-full items-center gap-2 rounded px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
-        onClick={() => {
-          if (!isOpen) refresh()
-          setIsOpen((v) => !v)
-        }}
-      >
-        <Folder className="size-3 shrink-0 text-muted-foreground" />
-        <span className="flex-1 truncate text-left">
-          {currentProject?.name ?? "Loading..."}
-        </span>
-        <ChevronDown
-          className={cn(
-            "size-3 shrink-0 text-muted-foreground transition-transform",
-            isOpen && "rotate-180",
-          )}
-        />
-      </button>
+      {isHeaderRenaming ? (
+        <div className="flex w-full items-center gap-2 rounded px-3 py-1">
+          <Folder className="size-3 shrink-0 text-muted-foreground" />
+          <input
+            // autoFocus is intentional: the input appears in direct
+            // response to the pencil click.
+            // eslint-disable-next-line jsx-a11y/no-autofocus
+            autoFocus
+            value={renameValue}
+            aria-label="Rename current project"
+            className="w-full min-w-0 flex-1 rounded border border-border bg-background px-1.5 py-0.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            onChange={(e) => setRenameValue(e.target.value)}
+            onFocus={(e) => e.target.select()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.currentTarget.blur()
+              } else if (e.key === "Escape") {
+                renameCancelledRef.current = true
+                e.currentTarget.blur()
+              }
+            }}
+            onBlur={() => {
+              void handleHeaderRenameCommit()
+            }}
+          />
+        </div>
+      ) : (
+        <div className="group/header flex w-full items-center rounded transition-colors hover:bg-accent focus-within:bg-accent">
+          <button
+            type="button"
+            className="flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-3 text-xs font-medium focus-visible:outline-none"
+            onClick={() => {
+              if (!isOpen) refresh()
+              setIsOpen((v) => !v)
+            }}
+          >
+            <Folder className="size-3 shrink-0 text-muted-foreground" />
+            <span className="flex-1 truncate text-left">
+              {currentProject?.name ?? "Loading..."}
+            </span>
+          </button>
+          <button
+            type="button"
+            aria-label="Rename current project"
+            className="flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-colors hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring group-hover/header:opacity-100"
+            onClick={() => {
+              if (!currentProject) return
+              renameCancelledRef.current = false
+              setRenameValue(currentProject.name)
+              setIsHeaderRenaming(true)
+            }}
+          >
+            <Pencil className="size-3" />
+          </button>
+          <button
+            type="button"
+            aria-label="Toggle project list"
+            className="flex shrink-0 items-center py-1.5 pl-1 pr-3 focus-visible:outline-none"
+            onClick={() => {
+              if (!isOpen) refresh()
+              setIsOpen((v) => !v)
+            }}
+          >
+            <ChevronDown
+              className={cn(
+                "size-3 shrink-0 text-muted-foreground transition-transform",
+                isOpen && "rotate-180",
+              )}
+            />
+          </button>
+        </div>
+      )}
 
       {isOpen && (
         <>
@@ -124,6 +229,7 @@ export function ProjectSelector() {
             onClick={() => {
               setIsOpen(false)
               setConfirmDeleteId(null)
+              setRenamingId(null)
             }}
           />
           <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-md border border-border bg-popover shadow-lg">
@@ -140,6 +246,7 @@ export function ProjectSelector() {
                 {projects.map((p) => {
                   const isCurrent = p.id === projectId
                   const isConfirming = confirmDeleteId === p.id
+                  const isRenamingThis = renamingId === p.id
                   return (
                     <div
                       key={p.id}
@@ -149,7 +256,30 @@ export function ProjectSelector() {
                         isCurrent && !isConfirming && "bg-accent",
                       )}
                     >
-                      {isConfirming ? (
+                      {isRenamingThis ? (
+                        <input
+                          // autoFocus is intentional: the input appears in
+                          // direct response to the pencil click.
+                          // eslint-disable-next-line jsx-a11y/no-autofocus
+                          autoFocus
+                          value={renameValue}
+                          aria-label={`Rename ${p.name}`}
+                          className="w-full min-w-0 flex-1 rounded border border-border bg-background px-1.5 py-0.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          onFocus={(e) => e.target.select()}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.currentTarget.blur()
+                            } else if (e.key === "Escape") {
+                              renameCancelledRef.current = true
+                              e.currentTarget.blur()
+                            }
+                          }}
+                          onBlur={() => {
+                            void handleRenameCommit()
+                          }}
+                        />
+                      ) : isConfirming ? (
                         <>
                           <span className="flex-1 truncate text-[11px] text-destructive">
                             Delete &ldquo;{p.name}&rdquo;?
@@ -182,6 +312,20 @@ export function ProjectSelector() {
                             onClick={() => handleSelect(p.id)}
                           >
                             {p.name}
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Rename ${p.name}`}
+                            className="flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-colors hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring group-hover:opacity-100"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              renameCancelledRef.current = false
+                              setConfirmDeleteId(null)
+                              setRenameValue(p.name)
+                              setRenamingId(p.id)
+                            }}
+                          >
+                            <Pencil className="size-3" />
                           </button>
                           <button
                             type="button"
