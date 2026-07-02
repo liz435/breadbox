@@ -31,7 +31,7 @@ export type PeripheralState =
   | { kind: "buzzer"; pin: number; frequencyHz: number | null; playing: boolean }
   | { kind: "led"; pin: number; brightness: number }
   | { kind: "rgb_led"; pins: { r: number; g: number; b: number }; brightness: { r: number; g: number; b: number } }
-  | { kind: "lcd"; cols: number; rows: number; textBuffer: string[] }
+  | { kind: "lcd"; cols: number; rows: number; textBuffer: string[]; cgram: number[][] }
   | { kind: "neopixel"; pin: number; pixels: ReadonlyArray<{ r: number; g: number; b: number }> }
   | { kind: "ultrasonic"; trigPin: number | null; echoPin: number | null; distanceCm: number | null; lastPulseUs: number }
   | { kind: "dht"; signalPin: number | null; temperatureC: number; humidity: number }

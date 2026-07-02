@@ -223,3 +223,51 @@ describe("Ssd1306Peripheral — protocol parsing", () => {
     expect(fbB[1]).toBe(0x02)
   })
 })
+
+describe("Ssd1306Peripheral — addressing modes", () => {
+  test("page mode: 0xB0/col-nibble commands position writes, col wraps in page", () => {
+    const p = new Ssd1306Peripheral(makeComponent())
+    const { ctx, getHandler } = makeCtx()
+    p.attach(ctx)
+    const h = getHandler()
+
+    sendCommands(h, [0xaf]) // display on
+    sendCommands(h, [0x20, 0x02]) // page addressing mode
+    sendCommands(h, [0xb3, 0x05, 0x10]) // page 3, column 5 (low=5, high=0)
+    sendData(h, [0xff, 0x81])
+
+    const s = p.getState()
+    if (s?.kind !== "oled") throw new Error("expected oled state")
+    expect(s.framebuffer[3 * 128 + 5]).toBe(0xff)
+    expect(s.framebuffer[3 * 128 + 6]).toBe(0x81)
+    // Page never advances in page mode: fill past the row end and check page 4 untouched.
+    sendCommands(h, [0xb3, 0x0f, 0x17]) // page 3, column 127
+    sendData(h, [0x55, 0x66]) // second byte wraps to column 0 of the SAME page
+    const s2 = p.getState()
+    if (s2?.kind !== "oled") throw new Error("expected oled state")
+    expect(s2.framebuffer[3 * 128 + 127]).toBe(0x55)
+    expect(s2.framebuffer[3 * 128 + 0]).toBe(0x66)
+    expect(s2.framebuffer[4 * 128 + 0]).toBe(0)
+  })
+
+  test("i2cAddress property registers the slave at 0x3D", () => {
+    const component = { ...makeComponent(), properties: { i2cAddress: 0x3d } }
+    const registeredAddrs: number[] = []
+    const ctx: PeripheralContext = {
+      componentId: "oled-1",
+      component,
+      wires: {},
+      pinStore: {} as PeripheralContext["pinStore"],
+      trace: () => {},
+      scheduleEdge: () => {},
+      nowSimMs: () => 0,
+      attachTwi: (addr, _handler) => {
+        registeredAddrs.push(addr)
+        return () => {}
+      },
+    }
+    const p = new Ssd1306Peripheral(component)
+    p.attach(ctx)
+    expect(registeredAddrs).toEqual([0x3d])
+  })
+})

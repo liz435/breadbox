@@ -317,3 +317,46 @@ describe("LcdPeripheral — reset + legacy snapshot fallback", () => {
     expect(state.textBuffer[1]).toBe("row two        ")
   })
 })
+
+describe("LcdPeripheral — CGRAM custom characters", () => {
+  test("createChar-style writes fill cgram and codes 0-7 pass through", () => {
+    const component = makeComponent()
+    const p = new LcdPeripheral(component)
+    p.attach(makeCtx(component, makeWires()))
+    const d = new TestDriver(p)
+    d.begin16x2()
+
+    // createChar(0, heart): Set CGRAM addr 0, then 8 pixel rows.
+    const glyph = [0x00, 0x0a, 0x1f, 0x1f, 0x0e, 0x04, 0x00, 0x00]
+    d.cmd(0x40)
+    for (const row of glyph) d.data(row)
+    // Back to DDRAM (0,0) and print the custom char.
+    d.cmd(0x80)
+    d.data(0)
+
+    const s = asLcd(p.getState())
+    expect(s.cgram[0]).toEqual(glyph)
+    expect(s.textBuffer[0]!.charCodeAt(0)).toBe(0)
+  })
+})
+
+describe("LcdPeripheral — display shift", () => {
+  test("scrollDisplayLeft/Right move the visible window", () => {
+    const component = makeComponent()
+    const p = new LcdPeripheral(component)
+    p.attach(makeCtx(component, makeWires()))
+    const d = new TestDriver(p)
+    d.begin16x2()
+    d.print("HELLO")
+
+    d.cmd(0x18) // scrollDisplayLeft
+    expect(asLcd(p.getState()).textBuffer[0]!.startsWith("ELLO")).toBe(true)
+
+    d.cmd(0x1c) // scrollDisplayRight — back to origin
+    expect(asLcd(p.getState()).textBuffer[0]!.startsWith("HELLO")).toBe(true)
+
+    d.cmd(0x01) // clear resets the window
+    d.print("X")
+    expect(asLcd(p.getState()).textBuffer[0]!.startsWith("X")).toBe(true)
+  })
+})

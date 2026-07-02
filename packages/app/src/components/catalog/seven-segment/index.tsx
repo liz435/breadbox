@@ -27,14 +27,22 @@ export const sevenSegment: ComponentDefinition = {
   buildNetlist: (comp, { footprint, resolveNode }) => {
     const segments = ["a", "b", "c", "d", "e", "f", "g"] as const
     const lines: string[] = []
+    const isAnode = comp.properties.commonType === "anode"
+    // Common-cathode (default): each segment is a 220Ω branch to GND — the
+    // legacy approximation that keeps existing boards working unwired.
+    // Common-anode: segments return through the display's common pin (the
+    // last footprint hole), which the user wires to 5V; a segment then
+    // conducts when its driving pin goes LOW, like the real part.
+    const commonNode = isAnode
+      ? resolveNode(footprint.points[8] ?? footprint.points[footprint.points.length - 1])
+      : "0"
 
     for (let i = 0; i < segments.length; i++) {
       const point = footprint.points[i]
       if (!point) continue
       const node = resolveNode(point)
-      // Common-cathode approximation: each segment acts like a branch to GND.
-      if (node !== "0") {
-        lines.push(`R_${sanitize(comp.id)}_${segments[i]} ${node} 0 220`)
+      if (node !== commonNode) {
+        lines.push(`R_${sanitize(comp.id)}_${segments[i]} ${node} ${commonNode} 220`)
       }
     }
 
@@ -42,7 +50,7 @@ export const sevenSegment: ComponentDefinition = {
     return {
       lines,
       nodeA,
-      nodeB: "0",
+      nodeB: commonNode,
     }
   },
   generateSketch: (comp) => {

@@ -52,10 +52,35 @@ describe("virtual IR remote → receiver", () => {
     expect(peripheral.getState()?.transmitting).toBe(true)
     expect(bus.scheduledEdgeCount).toBeGreaterThan(baseEdges)
 
-    // Let the frame finish, then a pass with no new broadcast must NOT re-fire.
+    // Release the button (a click, not a hold), let the frame finish — a
+    // pass with no new broadcast must NOT re-fire the full code frame.
+    irRemoteStore.endHold()
+    applySensorInputs(components, {}, store, ENV, bus)
     peripheral.onTick(200)
     expect(peripheral.getState()?.transmitting).toBe(false)
     applySensorInputs(components, {}, store, ENV, bus)
+    expect(peripheral.getState()?.transmitting).toBe(false)
+  })
+
+  test("holding the remote button emits NEC repeat frames", () => {
+    const { store, bus, components, peripheral } = setup()
+
+    applySensorInputs(components, {}, store, ENV, bus) // arm cursor
+    irRemoteStore.broadcast(0x20df10ef)
+    applySensorInputs(components, {}, store, ENV, bus) // deliver + hold
+    peripheral.onTick(80) // full frame (~68ms) done, before the 108ms repeat
+    expect(peripheral.getState()?.transmitting).toBe(false)
+
+    // Past the 108ms repeat period and still held → a repeat frame fires.
+    peripheral.onTick(120)
+    expect(peripheral.getState()?.transmitting).toBe(true)
+
+    // Release: after the in-flight repeat finishes, no further frames.
+    irRemoteStore.endHold()
+    applySensorInputs(components, {}, store, ENV, bus)
+    peripheral.onTick(400)
+    expect(peripheral.getState()?.transmitting).toBe(false)
+    peripheral.onTick(600)
     expect(peripheral.getState()?.transmitting).toBe(false)
   })
 

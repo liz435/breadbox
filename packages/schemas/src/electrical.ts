@@ -68,7 +68,15 @@ export const powerBudgetReportSchema = z.object({
   railLoads: z.array(railLoadSchema),
   issues: z.array(powerIssueSchema),
   recommendations: z.array(powerRecommendationSchema),
+  /**
+   * Estimated current the BOARD itself must source: 5V + 3V3 rail loads plus
+   * per-pin signal loads (pin current flows through the MCU's VCC/GND, which
+   * is what the total limit protects). Profile-table estimate, not a solved
+   * circuit — the live simulator computes real branch currents.
+   */
   estimatedTotalCurrentMa: z.number().nonnegative(),
+  /** Load carried by an external supply, excluded from the board total. */
+  externalSupplyCurrentMa: z.number().nonnegative().default(0),
 });
 export type PowerBudgetReport = z.infer<typeof powerBudgetReportSchema>;
 

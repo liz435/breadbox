@@ -539,21 +539,39 @@ function BuzzerInspector({ component, onUpdate }: {
   component: BoardComponent;
   onUpdate: (changes: Partial<BoardComponent>) => void;
 }) {
+  const buzzerType = component.properties.buzzerType === "active" ? "active" : "passive";
   return (
-    <CollapsibleSection title="Pins" defaultOpen>
-      <PropertyRow label="+ Pin">
-        <PinSelect
-          value={component.pins.positive ?? null}
-          onChange={(pin) => onUpdate({ pins: { ...component.pins, positive: pin } })}
+    <>
+      <PropertyRow label="Type">
+        <SegmentedControl
+          options={[
+            { key: "passive" as const, label: "Passive" },
+            { key: "active" as const, label: "Active" },
+          ]}
+          value={buzzerType}
+          onChange={(v) => onUpdate({ properties: { ...component.properties, buzzerType: v } })}
         />
       </PropertyRow>
-      <PropertyRow label="- Pin">
-        <PinSelect
-          value={component.pins.negative ?? null}
-          onChange={(pin) => onUpdate({ pins: { ...component.pins, negative: pin } })}
-        />
-      </PropertyRow>
-    </CollapsibleSection>
+      <p className="text-[11px] leading-snug text-muted-foreground">
+        {buzzerType === "active"
+          ? "Internal oscillator — beeps at a fixed pitch whenever the pin is HIGH (digitalWrite)."
+          : "Needs a driven waveform — pitch follows tone() / PWM frequency."}
+      </p>
+      <CollapsibleSection title="Pins" defaultOpen>
+        <PropertyRow label="+ Pin">
+          <PinSelect
+            value={component.pins.positive ?? null}
+            onChange={(pin) => onUpdate({ pins: { ...component.pins, positive: pin } })}
+          />
+        </PropertyRow>
+        <PropertyRow label="- Pin">
+          <PinSelect
+            value={component.pins.negative ?? null}
+            onChange={(pin) => onUpdate({ pins: { ...component.pins, negative: pin } })}
+          />
+        </PropertyRow>
+      </CollapsibleSection>
+    </>
   );
 }
 
@@ -562,20 +580,32 @@ function CapacitorInspector({ component, onUpdate }: {
   onUpdate: (changes: Partial<BoardComponent>) => void;
 }) {
   const capacitance = (component.properties.capacitance as number) ?? 100;
+  // Fast RC transients are deliberately stretched to a watchable timescale;
+  // be honest about it so measured timings aren't mistaken for real ones.
+  const { analysis } = useCircuitAnalysis();
+  const timeScale = analysis?.componentStates.get(component.id)?.timeScale;
   return (
-    <PropertyRow label="Value (µF)">
-      <Input
-        className={inputClass}
-        type="number"
-        min={0.1}
-        step={0.1}
-        value={capacitance}
-        onChange={(e) => {
-          const v = parseFloat((e.target as HTMLInputElement).value);
-          if (v > 0) onUpdate({ properties: { ...component.properties, capacitance: v } });
-        }}
-      />
-    </PropertyRow>
+    <>
+      <PropertyRow label="Value (µF)">
+        <Input
+          className={inputClass}
+          type="number"
+          min={0.1}
+          step={0.1}
+          value={capacitance}
+          onChange={(e) => {
+            const v = parseFloat((e.target as HTMLInputElement).value);
+            if (v > 0) onUpdate({ properties: { ...component.properties, capacitance: v } });
+          }}
+        />
+      </PropertyRow>
+      {timeScale != null && (
+        <p className="text-[11px] leading-snug text-amber-500/90">
+          Transient shown ~{timeScale >= 10 ? Math.round(timeScale) : timeScale.toFixed(1)}× slower
+          than real time so the charge curve is watchable. The real RC time constant is faster.
+        </p>
+      )}
+    </>
   );
 }
 
@@ -999,8 +1029,24 @@ function SevenSegmentInspector({ component, onUpdate }: {
   component: BoardComponent;
   onUpdate: (changes: Partial<BoardComponent>) => void;
 }) {
+  const commonType = component.properties.commonType === "anode" ? "anode" : "cathode";
   return (
     <>
+      <PropertyRow label="Common">
+        <SegmentedControl
+          options={[
+            { key: "cathode" as const, label: "Cathode" },
+            { key: "anode" as const, label: "Anode" },
+          ]}
+          value={commonType}
+          onChange={(v) => onUpdate({ properties: { ...component.properties, commonType: v } })}
+        />
+      </PropertyRow>
+      <p className="text-[11px] leading-snug text-muted-foreground">
+        {commonType === "anode"
+          ? "Common pin to 5V — a segment lights when its pin is driven LOW."
+          : "Common pin to GND — a segment lights when its pin is driven HIGH."}
+      </p>
       <CollapsibleSection title="Segment pins" defaultOpen>
         {["a", "b", "c", "d", "e", "f", "g", "dp"].map((seg) => (
           <PropertyRow key={seg} label={`Seg ${seg.toUpperCase()}`}>

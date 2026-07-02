@@ -20,6 +20,16 @@ import { findArduinoPinForComponentPin } from "@/breadboard/component-pin-resolv
 const AUDIBLE_MIN_HZ = 20
 const AUDIBLE_MAX_HZ = 20_000
 
+// An ACTIVE buzzer has an internal oscillator: it beeps at its own fixed
+// pitch whenever the pin is driven HIGH (steady DC — no toggling required),
+// and ignores the drive frequency entirely. ~2.3kHz is the typical pitch of
+// a 5V active buzzer module.
+const ACTIVE_BUZZER_HZ = 2300
+// How long an active buzzer keeps sounding after the last HIGH level/edge —
+// long enough that square-wave drive (tone() on an active buzzer) sustains,
+// short enough that digitalWrite(LOW) reads as an immediate stop.
+const ACTIVE_OFF_DELAY_MS = 20
+
 // Require a sustained ring of edges before believing it's a tone — prevents
 // brief bursts (shiftOut, bit-banged SPI) from misfiring.
 const EDGE_RING_SIZE = 8
@@ -49,6 +59,10 @@ export class BuzzerPeripheral implements Peripheral<BuzzerStateShape> {
   private boundPin: number | null = null
   private frequencyHz: number | null = null
   private playing = false
+  /** "active" = internal oscillator (level-driven); "passive" = tone-driven. */
+  private readonly buzzerType: "active" | "passive"
+  /** Last seen digital level on the bound pin (active-type drive). */
+  private lastLevel: 0 | 1 = 0
 
   // Explicit-mode guard: once the stdlib calls tone()/noTone(), we stop
   // trying to derive frequency from pin edges for this pin. Re-enabled
@@ -66,6 +80,7 @@ export class BuzzerPeripheral implements Peripheral<BuzzerStateShape> {
   constructor(component: BoardComponent) {
     this.id = component.id
     this.component = component
+    this.buzzerType = component.properties?.buzzerType === "active" ? "active" : "passive"
     const explicit = component.pins?.positive
     if (typeof explicit === "number" && explicit >= 0) {
       this._watchedPins.add(explicit)
@@ -90,7 +105,8 @@ export class BuzzerPeripheral implements Peripheral<BuzzerStateShape> {
 
   onExplicitTone(frequency: number, durationMs?: number, simMs = 0): void {
     if (frequency < AUDIBLE_MIN_HZ || frequency > AUDIBLE_MAX_HZ) return
-    this.frequencyHz = frequency
+    // An active buzzer beeps at its own pitch no matter what it's driven with.
+    this.frequencyHz = this.buzzerType === "active" ? ACTIVE_BUZZER_HZ : frequency
     this.playing = true
     if (typeof durationMs === "number" && durationMs > 0) {
       this.explicitUntilSimMs = simMs + durationMs
@@ -117,6 +133,25 @@ export class BuzzerPeripheral implements Peripheral<BuzzerStateShape> {
     // If an explicit tone() is in effect, ignore pin edges — the explicit
     // command wins until it ends or noTone() is called.
     if (edge.simMs < this.explicitUntilSimMs) return
+
+    // Active buzzer: level-driven internal oscillator. A steady HIGH sounds
+    // (the case the passive edge-ring can never detect); square-wave drive
+    // sustains via the off-delay in onTick. Frequency is fixed.
+    if (this.buzzerType === "active") {
+      this.lastLevel = edge.value
+      this.lastEdgeSimMs = edge.simMs
+      if (edge.value === 1 && !this.playing) {
+        this.frequencyHz = ACTIVE_BUZZER_HZ
+        this.playing = true
+        this.trace({
+          simMs: edge.simMs,
+          kind: "derive",
+          message: `active buzzer on (${ACTIVE_BUZZER_HZ}Hz)`,
+          detail: { pin: edge.pin },
+        })
+      }
+      return
+    }
 
     this.lastEdgeSimMs = edge.simMs
     this.edgeRing[this.ringWriteIdx] = edge.simMs
@@ -170,6 +205,20 @@ export class BuzzerPeripheral implements Peripheral<BuzzerStateShape> {
           detail: { pin: this.boundPin },
         })
       }
+    }
+    // Active buzzer: stop once the pin has settled LOW.
+    if (this.buzzerType === "active") {
+      if (
+        this.playing &&
+        this.lastLevel === 0 &&
+        this.explicitUntilSimMs === 0 &&
+        simMs - this.lastEdgeSimMs > ACTIVE_OFF_DELAY_MS
+      ) {
+        this.frequencyHz = null
+        this.playing = false
+        this.trace({ simMs, kind: "derive", message: "active buzzer off", detail: { pin: this.boundPin } })
+      }
+      return
     }
     // AVR silence: no edges for SILENCE_TIMEOUT_MS → consider tone stopped
     if (

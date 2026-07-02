@@ -1,6 +1,6 @@
 import { resolveComponentPins } from "@dreamer/schemas"
 import { HOLE_SPACING } from "@/breadboard/breadboard-constants"
-import { getRgbLedDiodeModel, ledNetlistLines } from "@/simulator/diode-model"
+import { diodeModelLine, getRgbLedDiodeModel, ledNetlistLines } from "@/simulator/diode-model"
 import type { ComponentDefinition, ElectricalOutput } from "@/components/component-definition"
 import { sanitize } from "@/components/catalog/_shared"
 
@@ -36,15 +36,34 @@ export const rgbLed: ComponentDefinition = {
     </svg>
   ),
   spicePrefix: "D",
+  // All three channels are real diode branches so green/blue draw current
+  // like red does. The red branch keeps the bare sanitized id — that's the
+  // element name the circuit solver's `D_<id>` current lookup resolves, so
+  // computeElectricalState stays anchored on red as before.
   buildNetlist: (comp, { footprint, resolveNode }) => {
     const pinPoints = resolveComponentPins("rgb_led", comp.y, comp.x, comp.properties)
-    const channelPoint = pinPoints.red ?? footprint.points[0]
     const commonPoint = pinPoints.common ?? footprint.points[3] ?? footprint.points[1] ?? footprint.points[0]
-    const nodeA = resolveNode(channelPoint)
     const nodeB = resolveNode(commonPoint)
     const model = getRgbLedDiodeModel()
-    const { lines, modelLine } = ledNetlistLines(sanitize(comp.id), nodeA, nodeB, model)
-    return { lines, modelLines: [modelLine], nodeA, nodeB }
+    const id = sanitize(comp.id)
+
+    const channels: Array<{ suffix: string; point: typeof commonPoint | undefined }> = [
+      { suffix: "", point: pinPoints.red ?? footprint.points[0] },
+      { suffix: "_g", point: pinPoints.green ?? footprint.points[1] },
+      { suffix: "_b", point: pinPoints.blue ?? footprint.points[2] },
+    ]
+    const lines: string[] = []
+    let nodeA = nodeB
+    for (const { suffix, point } of channels) {
+      if (!point) continue
+      const node = resolveNode(point)
+      if (suffix === "") nodeA = node
+      if (node === nodeB) continue // unwired channel collapsing onto common
+      const branch = ledNetlistLines(`${id}${suffix}`, node, nodeB, model)
+      lines.push(...branch.lines)
+    }
+    if (lines.length === 0) return null
+    return { lines, modelLines: [diodeModelLine(model)], nodeA, nodeB }
   },
   computeElectricalState: (comp, { voltageDrop, currentMa }) => {
     const isReversed = voltageDrop < -0.1

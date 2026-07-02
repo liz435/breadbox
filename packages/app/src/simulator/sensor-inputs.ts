@@ -74,6 +74,12 @@ const irLastPendingAt = new Map<string, number>()
  *  IrReceiverPeripheral so a remote press fires exactly once per receiver. */
 const irLastBroadcastSeq = new Map<string, number>()
 
+/**
+ * PIR timing state per component: when the sensor started warming up and when
+ * motion was last present. Cleared on reset so each run re-warms.
+ */
+const pirState = new Map<string, { warmupStartedAt: number; lastMotionAt: number }>()
+
 /** Clear all sensor busses — called on simulation reset/stop. */
 export function resetSensorBuses(): void {
   ultrasonicDistanceBus.clear()
@@ -81,6 +87,7 @@ export function resetSensorBuses(): void {
   ultrasonicTriggerPinBus.clear()
   irLastPendingAt.clear()
   irLastBroadcastSeq.clear()
+  pirState.clear()
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -206,9 +213,19 @@ function writeUltrasonic(
   }
 }
 
+// A real HC-SR501 needs ~60s to stabilize after power-up and holds its output
+// HIGH for a configurable time after motion stops. Defaults here are shorter
+// than the datasheet's for usability but preserve both behaviors: sketches
+// that read the PIR immediately at boot, or expect an instant LOW after
+// motion ends, misbehave the same way they would on hardware.
+const PIR_DEFAULT_WARMUP_S = 10
+const PIR_DEFAULT_HOLD_S = 2.5
+
 /**
- * PIR motion sensor: toggle the signal pin HIGH/LOW based on the inspector's
- * "Motion detected" switch.
+ * PIR motion sensor: drive the signal pin from the inspector's "Motion"
+ * switch through the sensor's real timing envelope — a warm-up window after
+ * sim start during which the output stays LOW, and a retriggerable hold that
+ * keeps the output HIGH for `holdS` after motion last stopped.
  */
 function writePir(
   comp: BoardComponent,
@@ -217,8 +234,25 @@ function writePir(
 ): void {
   const pin = resolveNamedPin(comp, "signal", wires)
   if (pin == null) return
+  const now = performance.now()
+  let state = pirState.get(comp.id)
+  if (!state) {
+    state = { warmupStartedAt: now, lastMotionAt: Number.NEGATIVE_INFINITY }
+    pirState.set(comp.id, state)
+  }
+
+  const warmupMs = clamp((comp.properties.warmupS as number) ?? PIR_DEFAULT_WARMUP_S, 0, 120) * 1000
+  const holdMs = clamp((comp.properties.holdS as number) ?? PIR_DEFAULT_HOLD_S, 0.3, 300) * 1000
+
+  if (now - state.warmupStartedAt < warmupMs) {
+    store.writeExternal(pin, { digitalValue: 0 })
+    return
+  }
+
   const motion = (comp.properties.motion as boolean) === true
-  store.writeExternal(pin, { digitalValue: motion ? 1 : 0 })
+  if (motion) state.lastMotionAt = now
+  const output = now - state.lastMotionAt < holdMs ? 1 : 0
+  store.writeExternal(pin, { digitalValue: output })
 }
 
 /**
@@ -284,6 +318,16 @@ function writeIrReceiver(
     } else if (beam.seq > seenSeq && beam.code !== 0) {
       irLastBroadcastSeq.set(comp.id, beam.seq)
       ;(peripheral as { sendCode: (code: number) => void }).sendCode(beam.code)
+    }
+
+    // While the remote button stays held, the receiver emits NEC repeat
+    // frames — but only if this receiver actually got the held press.
+    if (
+      "setHolding" in peripheral &&
+      typeof (peripheral as { setHolding?: (h: boolean) => void }).setHolding === "function"
+    ) {
+      const delivered = irLastBroadcastSeq.get(comp.id) === beam.seq
+      ;(peripheral as { setHolding: (h: boolean) => void }).setHolding(beam.holding && delivered)
     }
   }
 }

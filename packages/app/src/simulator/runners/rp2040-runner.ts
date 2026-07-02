@@ -78,6 +78,11 @@ const RP2040_SETUP_BUDGET_MS = 8
 const RP2040_FRAME_BUDGET_MS = 6
 const RP2040_MAX_LOOP_BACKLOG_CYCLES = RP2040_CYCLES_PER_FRAME * 120 // ~2s backlog cap
 
+// Smoothing factor for the sim-speed EMA (matches the AVR runner). The Pico
+// drops cycles once the backlog cap is hit, so under sustained load the
+// simulated clock advances slower than wall-clock and this ratio dips below 1.
+const REALTIME_FACTOR_EMA_ALPHA = 0.2
+
 const FLASH_ORIGIN = 0x10000000
 const ARDUINO_PICO_VECTOR_TABLE_OFFSET = 0x100
 
@@ -160,6 +165,11 @@ export function createRp2040SketchRunner(
   let droppedLoopCycles = 0
   let maxObservedBacklogCycles = 0
 
+  // Smoothed ratio of simulated-time-advanced / wall-time-elapsed per loop
+  // iteration. Null until the first measurement; surfaced via getRealtimeFactor
+  // so the toolbar can flag when the Pico is lagging real time.
+  let realtimeFactorEma: number | null = null
+
   // ── Debug state ────────────────────────────────────────────────────
   // Source-line table from the last compile (byte addresses; empty ⇒ no
   // source-level debug). Breakpoints are armed as a set of byte addresses we
@@ -192,6 +202,18 @@ export function createRp2040SketchRunner(
     // `micros` field — reading it returned undefined and pinned millis at 0).
     const nanos = (mcu.clock as unknown as { nanos?: number }).nanos
     return typeof nanos === "number" ? Math.floor(nanos / 1_000_000) : 0
+  }
+
+  // Fractional milliseconds from the same nanosecond clock, WITHOUT flooring.
+  // Pin-edge timestamps and scheduled-edge flushes must keep sub-ms precision:
+  // a servo control pulse is 0.5–2.4ms wide, so quantizing edge times to whole
+  // milliseconds (as getMillis does) collapses the pulse-width the servo
+  // peripheral decodes. getMillis() stays integer-valued for callers that want
+  // whole-ms elapsed time (the public getMillis() surface, the 20 Hz tick).
+  function getMillisFloat(): number {
+    if (!mcu) return 0
+    const nanos = (mcu.clock as unknown as { nanos?: number }).nanos
+    return typeof nanos === "number" ? nanos / 1_000_000 : 0
   }
 
   function nowMs(): number {
@@ -323,8 +345,9 @@ export function createRp2040SketchRunner(
       }
       // Flush peripheral edges scheduled during this chunk (ultrasonic echo,
       // DHT frame, IR NEC envelope) at sub-frame granularity, mirroring the
-      // AVR runner's per-chunk flush.
-      peripheralBus.flushScheduledEdges(getMillis())
+      // AVR runner's per-chunk flush. Fractional ms so a scheduled edge fires
+      // in the right chunk instead of being rounded to a whole-ms boundary.
+      peripheralBus.flushScheduledEdges(getMillisFloat())
     }
     updateBacklogMetrics()
   }
@@ -343,7 +366,7 @@ export function createRp2040SketchRunner(
           peripheralBus.dispatchEdge({
             pin: i,
             value: digital,
-            simMs: getMillis(),
+            simMs: getMillisFloat(),
             source: "rp2040",
           })
         } else if (state === Enum.InputPullUp) {
@@ -509,7 +532,10 @@ export function createRp2040SketchRunner(
           pendingLoopCycles = RP2040_MAX_LOOP_BACKLOG_CYCLES
         }
       }
+      const simMsBefore = getMillisFloat()
+      const wallBefore = nowMs()
       drainPendingCycles(mcu, RP2040_FRAME_BUDGET_MS)
+      updateRealtimeFactor(getMillisFloat() - simMsBefore, nowMs() - wallBefore)
       flushPwm()
     } catch (err) {
       callbacks.onError(
@@ -518,6 +544,20 @@ export function createRp2040SketchRunner(
       return false
     }
     return true
+  }
+
+  /**
+   * Fold one loop iteration's sim-vs-wall ratio into the EMA. Skips halted
+   * frames (a breakpoint stops draining early, so the ratio is meaningless)
+   * and frames with no measurable wall time (avoids div-by-zero → Infinity).
+   */
+  function updateRealtimeFactor(simMsAdvanced: number, wallElapsedMs: number): void {
+    if (halted || wallElapsedMs <= 0) return
+    const instantaneous = simMsAdvanced / wallElapsedMs
+    realtimeFactorEma =
+      realtimeFactorEma === null
+        ? instantaneous
+        : realtimeFactorEma + REALTIME_FACTOR_EMA_ALPHA * (instantaneous - realtimeFactorEma)
   }
 
   function getPinState(pin: number): PinSnapshot {
@@ -569,6 +609,7 @@ export function createRp2040SketchRunner(
     pendingLoopCycles = 0
     droppedLoopCycles = 0
     maxObservedBacklogCycles = 0
+    realtimeFactorEma = null
     halted = false
     breakpointAddrs = new Set()
     pwmTracker.reset()
@@ -607,6 +648,10 @@ export function createRp2040SketchRunner(
     }
   }
 
+  function getRealtimeFactor(): number | null {
+    return realtimeFactorEma
+  }
+
   // ── Debug controller ────────────────────────────────────────────────────
   //
   // Source-level debugging for the Pico: arm breakpoints by source line (mapped
@@ -621,7 +666,7 @@ export function createRp2040SketchRunner(
 
   function flushAfterStep(): void {
     if (!mcu) return
-    peripheralBus.flushScheduledEdges(getMillis())
+    peripheralBus.flushScheduledEdges(getMillisFloat())
     flushPwm()
     flushSerial()
   }
@@ -712,5 +757,6 @@ export function createRp2040SketchRunner(
     getPeripheralBus,
     attachBoard,
     getExecutionBacklog,
+    getRealtimeFactor,
   }
 }

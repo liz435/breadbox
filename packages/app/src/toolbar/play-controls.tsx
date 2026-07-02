@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Play, Square, Cpu, Upload, Zap, AlertCircle, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
@@ -21,6 +21,30 @@ import { setUploadState, useUploadState } from "./upload-status-store"
 
 type PlayControlsProps = {
   sim: SimulationActions
+}
+
+/** Show the lag badge only when the sim is meaningfully behind real time. */
+const REALTIME_BADGE_THRESHOLD = 0.9
+
+/**
+ * Poll the running sketch's sim-vs-wall speed ratio (~1 Hz). The emulator
+ * runs a fixed cycle budget per frame with no catch-up, so dropped frames
+ * silently slow the MCU — this makes that visible instead of letting users
+ * mistake a lagging sim for real-time behavior.
+ */
+function useRealtimeFactor(runner: SimulationActions["runner"], isRunning: boolean): number | null {
+  const [factor, setFactor] = useState<number | null>(null)
+  useEffect(() => {
+    if (!isRunning || !runner?.getRealtimeFactor) {
+      setFactor(null)
+      return
+    }
+    const id = setInterval(() => {
+      setFactor(runner.getRealtimeFactor?.() ?? null)
+    }, 1000)
+    return () => clearInterval(id)
+  }, [runner, isRunning])
+  return factor
 }
 
 export function PlayControls({ sim }: PlayControlsProps) {
@@ -260,6 +284,9 @@ export function PlayControls({ sim }: PlayControlsProps) {
   const isRunning = status === "running"
   const isPaused = status === "paused"
   const isCompiling = status === "compiling"
+  const realtimeFactor = useRealtimeFactor(sim.runner, isRunning)
+  const showLagBadge =
+    isRunning && realtimeFactor !== null && realtimeFactor < REALTIME_BADGE_THRESHOLD
   const electricalBlockReason = electrical.issues.find((issue) => issue.severity === "error")?.message
 
   const uploadInProgress =
@@ -340,6 +367,24 @@ export function PlayControls({ sim }: PlayControlsProps) {
             {electrical.hasErrors
               ? "Electrical issue blocks Run"
               : isPaused ? "Resume" : isCompiling ? "Compiling..." : "Compile & Run"}
+          </TooltipContent>
+        </Tooltip>
+      )}
+
+      {/* Sim-speed lag badge — visible only when the emulator falls behind
+          real time, so timing-sensitive results aren't mistaken for 1×. */}
+      {showLagBadge && (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <span className="rounded-md bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] font-medium text-amber-400" />
+            }
+          >
+            {realtimeFactor.toFixed(1)}×
+          </TooltipTrigger>
+          <TooltipContent>
+            Simulation is running at ~{realtimeFactor.toFixed(1)}× real time — delays, tones and
+            pulse timing stretch accordingly.
           </TooltipContent>
         </Tooltip>
       )}

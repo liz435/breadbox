@@ -1,7 +1,8 @@
 // ── SSD1306 OLED Peripheral ────────────────────────────────────────────────
 //
-// Models a 128×64 monochrome SSD1306 OLED on I²C address 0x3C, driven by
-// Adafruit_SSD1306 over the AVR's TWI peripheral.
+// Models a 128×64 monochrome SSD1306 OLED on I²C address 0x3C (configurable
+// via properties.i2cAddress for 0x3D panels), driven by Adafruit_SSD1306
+// over the AVR's TWI peripheral.
 //
 // Protocol (SSD1306 datasheet §8 / §10):
 //   Each I²C transaction:
@@ -11,12 +12,13 @@
 //   Adafruit only uses Co=0 (the rest of the transaction is one stream),
 //   so we ignore the Co bit and key off D/C.
 //
-//   Data writes go into GDDRAM with auto-increment under horizontal
-//   addressing mode: byte → (col, page); col++; if col>colEnd then
-//   col=colStart, page++; if page>pageEnd then page=pageStart. The
-//   col/page pointers persist across STOP/START — Adafruit reissues
-//   COL_ADDR + PAGE_ADDR before every full-frame flush so the pointer
-//   is always re-anchored.
+//   Data writes go into GDDRAM with auto-increment per the addressing mode
+//   (0x20): horizontal (col++, wrap → next page — Adafruit's default),
+//   vertical (page++, wrap → next col), or page (col++ wraps within the
+//   current page — the u8g2/legacy style, with 0xB0-B7 page select and
+//   0x00-0x1F column-nibble commands). The col/page pointers persist across
+//   STOP/START — Adafruit reissues COL_ADDR + PAGE_ADDR before every
+//   full-frame flush so the pointer is always re-anchored.
 //
 // Pixel layout: framebuffer[(y >> 3) * 128 + x] holds 8 vertical pixels;
 // bit (y % 8) is row y, LSB on top (datasheet §8.7 / Fig 8-17).
@@ -34,7 +36,16 @@ import type {
 
 type OledStateShape = Extract<PeripheralState, { kind: "oled" }>
 
-const SSD1306_I2C_ADDR = 0x3c
+const SSD1306_DEFAULT_I2C_ADDR = 0x3c
+
+/** Resolve the panel's I²C address from properties (0x3C default, 0x3D common). */
+function resolveI2cAddress(component: BoardComponent): number {
+  const raw = component.properties?.i2cAddress
+  const parsed =
+    typeof raw === "number" ? raw : typeof raw === "string" ? Number.parseInt(raw, 16) : NaN
+  return Number.isInteger(parsed) && parsed > 0 && parsed <= 0x7f ? parsed : SSD1306_DEFAULT_I2C_ADDR
+}
+
 const WIDTH = 128
 const HEIGHT = 64
 const PAGES = HEIGHT / 8
@@ -86,13 +97,17 @@ export class Ssd1306Peripheral implements Peripheral<OledStateShape> {
   private framebufferSnapshot: number[] = new Array<number>(FRAMEBUFFER_BYTES).fill(0)
   private dirty = false
 
-  // Addressing state (horizontal mode 0x00 only).
+  // Addressing state. Mode 0 = horizontal (Adafruit default), 1 = vertical,
+  // 2 = page (u8g2/legacy style).
+  private addrMode: 0 | 1 | 2 = 0
   private colStart = 0
   private colEnd = WIDTH - 1
   private pageStart = 0
   private pageEnd = PAGES - 1
   private col = 0
   private page = 0
+
+  private readonly i2cAddress: number
 
   private displayOn = false
   private inverted = false
@@ -113,12 +128,13 @@ export class Ssd1306Peripheral implements Peripheral<OledStateShape> {
 
   constructor(component: BoardComponent) {
     this.id = component.id
+    this.i2cAddress = resolveI2cAddress(component)
   }
 
   attach(ctx: PeripheralContext): void {
     this.ctx = ctx
     // attachTwi throws if AVR runner didn't wire TWI — that's the contract.
-    this.detachTwi = ctx.attachTwi(SSD1306_I2C_ADDR, this.twiHandler)
+    this.detachTwi = ctx.attachTwi(this.i2cAddress, this.twiHandler)
   }
 
   onPinEdge(_edge: PinEdge): void { /* I²C is register-driven, not pin-driven */ }
@@ -148,6 +164,7 @@ export class Ssd1306Peripheral implements Peripheral<OledStateShape> {
     this.gddram.fill(0)
     for (let i = 0; i < FRAMEBUFFER_BYTES; i++) this.framebufferSnapshot[i] = 0
     this.dirty = false
+    this.addrMode = 0
     this.colStart = 0
     this.colEnd = WIDTH - 1
     this.pageStart = 0
@@ -213,10 +230,25 @@ export class Ssd1306Peripheral implements Peripheral<OledStateShape> {
       this.dirty = true
     }
     this.dataBytesThisTxn++
-    this.col++
-    if (this.col > this.colEnd) {
-      this.col = this.colStart
-      this.page = this.page >= this.pageEnd ? this.pageStart : this.page + 1
+    // Pointer auto-increment per addressing mode (datasheet §10.1.3).
+    if (this.addrMode === 2) {
+      // Page mode: column wraps within the current page; page unchanged.
+      this.col = this.col >= WIDTH - 1 ? 0 : this.col + 1
+    } else if (this.addrMode === 1) {
+      // Vertical mode: advance down the pages, then to the next column.
+      if (this.page >= this.pageEnd) {
+        this.page = this.pageStart
+        this.col = this.col >= this.colEnd ? this.colStart : this.col + 1
+      } else {
+        this.page++
+      }
+    } else {
+      // Horizontal mode (default): across the columns, then to the next page.
+      this.col++
+      if (this.col > this.colEnd) {
+        this.col = this.colStart
+        this.page = this.page >= this.pageEnd ? this.pageStart : this.page + 1
+      }
     }
   }
 
@@ -243,6 +275,21 @@ export class Ssd1306Peripheral implements Peripheral<OledStateShape> {
     // Start-line opcode is encoded in the low 6 bits of 0x40-0x7F. Adafruit
     // calls it during init; we don't model start-line scrolling so it's a no-op.
     if (opcode >= 0x40 && opcode <= 0x7f) return
+
+    // Page-mode pointer commands (u8g2/legacy libraries): 0xB0-B7 selects the
+    // page, 0x00-0x0F / 0x10-0x17 set the column pointer's low/high nibble.
+    if (opcode >= 0xb0 && opcode <= 0xb7) {
+      this.page = opcode & 0x07
+      return
+    }
+    if (opcode <= 0x0f) {
+      this.col = (this.col & 0x70) | opcode
+      return
+    }
+    if (opcode >= 0x10 && opcode <= 0x17) {
+      this.col = (this.col & 0x0f) | ((opcode & 0x07) << 4)
+      return
+    }
 
     switch (opcode) {
       case CMD_DISPLAY_OFF:
@@ -272,7 +319,13 @@ export class Ssd1306Peripheral implements Peripheral<OledStateShape> {
         this.pageEnd = params[1] & 0x07
         this.page = this.pageStart
         break
-      // 0x20 (ADDR_MODE), 0x81 (contrast), 0x8d (charge pump), 0xa8 (mux),
+      case 0x20: {
+        // SET_MEMORY_ADDR_MODE: 0 horizontal, 1 vertical, 2 page.
+        const mode = params[0] & 0x03
+        this.addrMode = mode === 1 ? 1 : mode === 2 ? 2 : 0
+        break
+      }
+      // 0x81 (contrast), 0x8d (charge pump), 0xa8 (mux),
       // 0xd3 (offset), 0xd5 (clock div), 0xd9 (precharge), 0xda (com pins),
       // 0xdb (vcomh): Adafruit fires these during begin(); we accept and
       // discard. A8/D3 etc would matter for non-128×64 panels but Adafruit's

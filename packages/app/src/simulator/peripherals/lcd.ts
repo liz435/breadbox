@@ -20,23 +20,26 @@
 //   0x01         Clear Display      — DDRAM = spaces; cursor → (0,0).
 //   0x02         Return Home        — cursor → (0,0); display not shifted.
 //   0x04..0x07   Entry Mode Set     — direction (+1 / -1) for cursor advance.
-//                                     Shift-on-write is not modelled (the
-//                                     visible window stays at address 0).
+//                                     Shift-on-write (S bit) is not modelled.
 //   0x08..0x0F   Display Control    — display/cursor/blink on/off flags.
-//   0x10..0x1F   Cursor/Display Shift — noop in our model.
+//   0x10..0x1F   Cursor/Display Shift — display shift (S/C=1) moves the
+//                                     visible window over the 40-col DDRAM
+//                                     (scrollDisplayLeft/Right); cursor-only
+//                                     shift (S/C=0) moves the write cursor.
 //   0x20..0x3F   Function Set       — we always assume 4-bit, 2-line, 5×8.
 //                                     Re-issued function-sets are no-ops.
-//   0x40..0x7F   Set CGRAM Address  — noop (custom glyphs not modelled).
+//   0x40..0x7F   Set CGRAM Address  — enters CGRAM mode; subsequent data
+//                                     writes fill the 8 custom 5×8 glyphs
+//                                     (createChar). Codes 0–7 then render
+//                                     from CGRAM.
 //   0x80..0xFF   Set DDRAM Address  — lower 7 bits = DDRAM index. 0x00..0x27
 //                                     = row 0 (40 chars), 0x40..0x67 = row 1.
 //                                     Out-of-range addresses snap the cursor
 //                                     to the nearest legal row.
 //
 // What we do NOT model:
-//   • Custom characters (CGRAM). Writing the CGRAM-address opcode is a noop
-//     so sketches that set custom chars still parse cleanly; they just show
-//     whatever character code the sketch writes later.
-//   • Display shift (LiquidCrystal exposes this as scrollDisplayLeft() etc).
+//   • Entry-mode shift-on-write (the S bit): the window only moves via
+//     explicit shift commands, not per character.
 //   • The 8-bit interface mode. Arduino's library defaults to 4-bit for the
 //     6-pin wiring the breadboard expects.
 //   • Timing. A real HD44780 requires ~37µs per byte; the AVR sketch already
@@ -164,6 +167,18 @@ export class LcdPeripheral implements Peripheral<LcdStateShape> {
   /** +1 for left-to-right (default), -1 for right-to-left. LiquidCrystal's
    *  `leftToRight()` / `rightToLeft()` toggle this. */
   private cursorDirection: 1 | -1 = 1
+  /** Visible-window origin over the 40-col DDRAM (scrollDisplayLeft/Right). */
+  private scrollOffset = 0
+
+  // CGRAM: 8 custom 5×8 glyphs (createChar). Data writes land here while the
+  // address pointer is in CGRAM mode; character codes 0–7 render from it.
+  private addressMode: "ddram" | "cgram" = "ddram"
+  private cgramAddr = 0
+  private cgram: number[][] = LcdPeripheral.emptyCgram()
+
+  private static emptyCgram(): number[][] {
+    return Array.from({ length: 8 }, () => new Array<number>(8).fill(0))
+  }
 
   // Display flags (0x08..0x0F).
   private displayOn = false
@@ -277,6 +292,7 @@ export class LcdPeripheral implements Peripheral<LcdStateShape> {
           cols: this.legacySource.cols,
           rows: this.legacySource.rows,
           textBuffer: [...this.legacySource.textBuffer],
+          cgram: this.cgram.map((rows) => [...rows]),
         }
       }
       return null
@@ -286,6 +302,7 @@ export class LcdPeripheral implements Peripheral<LcdStateShape> {
       cols: this.cols,
       rows: this.rows,
       textBuffer: this.visibleTextBuffer(),
+      cgram: this.cgram.map((rows) => [...rows]),
     }
   }
 
@@ -294,6 +311,10 @@ export class LcdPeripheral implements Peripheral<LcdStateShape> {
     this.ddramRow = 0
     this.ddramCol = 0
     this.cursorDirection = 1
+    this.scrollOffset = 0
+    this.addressMode = "ddram"
+    this.cgramAddr = 0
+    this.cgram = LcdPeripheral.emptyCgram()
     this.displayOn = false
     this.cursorVisible = false
     this.cursorBlink = false
@@ -374,12 +395,16 @@ export class LcdPeripheral implements Peripheral<LcdStateShape> {
       this.ddram = this.emptyDdram()
       this.ddramRow = 0
       this.ddramCol = 0
+      this.scrollOffset = 0
+      this.addressMode = "ddram"
       this.trace({ simMs: 0, kind: "write", message: "clear", detail: {} })
       return
     }
     if (byte === 0x02 || byte === 0x03) {
       this.ddramRow = 0
       this.ddramCol = 0
+      this.scrollOffset = 0
+      this.addressMode = "ddram"
       this.trace({ simMs: 0, kind: "write", message: "home", detail: {} })
       return
     }
@@ -414,7 +439,24 @@ export class LcdPeripheral implements Peripheral<LcdStateShape> {
       return
     }
     if ((byte & 0xf0) === 0x10) {
-      // Cursor / Display Shift — not modelled.
+      // Cursor / Display Shift. S/C (bit 3) = 1 shifts the visible window
+      // (scrollDisplayLeft/Right); R/L (bit 2) picks the direction. A right
+      // shift moves the text right, i.e. the window origin moves left.
+      if ((byte & 0x08) !== 0) {
+        const delta = (byte & 0x04) !== 0 ? -1 : 1
+        this.scrollOffset = (this.scrollOffset + delta + DDRAM_COLS) % DDRAM_COLS
+        this.trace({
+          simMs: 0,
+          kind: "write",
+          message: "display-shift",
+          detail: { direction: delta > 0 ? "left" : "right", scrollOffset: this.scrollOffset },
+        })
+      } else {
+        // Cursor-only shift: move the write cursor one cell.
+        const delta = (byte & 0x04) !== 0 ? 1 : -1
+        const next = this.ddramCol + delta
+        if (next >= 0 && next < DDRAM_COLS) this.ddramCol = next
+      }
       return
     }
     if ((byte & 0xe0) === 0x20) {
@@ -425,11 +467,20 @@ export class LcdPeripheral implements Peripheral<LcdStateShape> {
       return
     }
     if ((byte & 0xc0) === 0x40) {
-      // Set CGRAM Address — custom glyph write-pointer. Not modelled.
+      // Set CGRAM Address — subsequent data writes fill custom-glyph rows.
+      this.addressMode = "cgram"
+      this.cgramAddr = byte & 0x3f
+      this.trace({
+        simMs: 0,
+        kind: "write",
+        message: "set-cgram-addr",
+        detail: { char: this.cgramAddr >> 3, row: this.cgramAddr & 0x07 },
+      })
       return
     }
     if ((byte & 0x80) === 0x80) {
       const { row, col } = addressToRowCol(byte & 0x7f)
+      this.addressMode = "ddram"
       this.ddramRow = row
       this.ddramCol = col
       this.trace({
@@ -444,10 +495,20 @@ export class LcdPeripheral implements Peripheral<LcdStateShape> {
   }
 
   private writeChar(byte: number): void {
+    // CGRAM mode: the byte is a 5-bit pixel row of a custom glyph, and the
+    // address pointer auto-increments — exactly what createChar() emits.
+    if (this.addressMode === "cgram") {
+      const charIndex = (this.cgramAddr >> 3) & 0x07
+      const rowIndex = this.cgramAddr & 0x07
+      this.cgram[charIndex][rowIndex] = byte & 0x1f
+      this.cgramAddr = (this.cgramAddr + 1) & 0x3f
+      return
+    }
     // Printable ASCII maps 1:1 to HD44780 character codes in the ranges the
     // sketch typically uses (0x20..0x7E). Codes outside that stay as-is so
     // the renderer can decide how to draw them (today it just uses the raw
     // character, so non-ASCII codes render as-is via String.fromCharCode).
+    // Codes 0–7 pass through too — the renderer looks them up in `cgram`.
     const ch = String.fromCharCode(byte)
     if (this.ddramRow < DDRAM_ROWS && this.ddramCol < DDRAM_COLS) {
       this.ddram[this.ddramRow][this.ddramCol] = ch
@@ -470,12 +531,19 @@ export class LcdPeripheral implements Peripheral<LcdStateShape> {
     return rows
   }
 
-  /** Slice the `rows × DDRAM_COLS` DDRAM down to `rows × cols` for display. */
+  /**
+   * Slice the `rows × DDRAM_COLS` DDRAM down to `rows × cols` for display,
+   * starting at the shifted window origin (wrapping at 40, per HD44780).
+   */
   private visibleTextBuffer(): string[] {
     const out: string[] = []
     for (let r = 0; r < this.rows; r++) {
       const ddramRow = this.ddram[r] ?? new Array<string>(DDRAM_COLS).fill(" ")
-      out.push(ddramRow.slice(0, this.cols).join(""))
+      let line = ""
+      for (let c = 0; c < this.cols; c++) {
+        line += ddramRow[(c + this.scrollOffset) % DDRAM_COLS]
+      }
+      out.push(line)
     }
     return out
   }
