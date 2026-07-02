@@ -21,10 +21,20 @@ export const photoresistor: ComponentDefinition = {
       <line x1={16} y1={4} x2={14} y2={7} stroke="#fbbf24" strokeWidth={1.5} />
     </svg>
   ),
+  // Light-dependent resistance, so the LDR behaves physically when used as a
+  // real circuit element (divider, series load). The inspector's 0-100 light
+  // slider maps logarithmically onto lux (0.1 lux dark → 1000 lux bright),
+  // then a standard GL5528-style curve R = R10 × (lux/10)^-0.7 with R10=10kΩ:
+  // ~250kΩ in the dark, 10kΩ at 10 lux, ~400Ω in bright light.
+  // (The direct analogRead injection in sensor-inputs.ts remains the
+  // simplified read path and ignores wiring; this models the element itself.)
   buildNetlist: (comp, { footprint, resolveNode }) => {
     const nodeA = resolveNode(footprint.points[0])
     const nodeB = resolveNode(footprint.points[1] ?? footprint.points[0])
-    return { lines: [`R_${sanitize(comp.id)} ${nodeA} ${nodeB} 10000`], nodeA, nodeB }
+    const light = Math.max(0, Math.min(100, (comp.properties.light as number) ?? 50))
+    const lux = 0.1 * 10 ** (light / 25)
+    const ohms = Math.max(130, Math.min(1_000_000, 10_000 * (lux / 10) ** -0.7))
+    return { lines: [`R_${sanitize(comp.id)} ${nodeA} ${nodeB} ${ohms.toFixed(0)}`], nodeA, nodeB }
   },
   computeElectricalState: (_comp, { voltageDrop, currentMa }) => ({
     isActive: currentMa > 0.01,

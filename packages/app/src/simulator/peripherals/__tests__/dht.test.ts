@@ -128,3 +128,33 @@ describe("DhtPeripheral — bit encoding", () => {
     expect(deriveTrace!.detail?.byte3).toBe(125)
   })
 })
+
+describe("DhtPeripheral — internal sampling interval", () => {
+  test("reads within the sampling interval serve the stale reading", () => {
+    const store = new PinStateStore()
+    const bus = new PeripheralBus()
+    const comp = makeDht(4, "dht11", 30, 65)
+    bus.attachBoard({ components: { "dht-1": comp }, wires: {}, pinStore: store })
+    const p = bus.get("dht-1")!
+
+    // First read at t≈0 samples 30°C.
+    bus.dispatchEdge({ pin: 4, value: 0, simMs: 0, source: "avr" })
+    bus.dispatchEdge({ pin: 4, value: 1, simMs: 2.0, source: "avr" })
+    bus.tick(20) // release frameBusy
+
+    // Environment changes, but a read 100ms later is inside the 1s interval.
+    ;(p as unknown as { setReading: (t: number, h: number) => void }).setReading(40, 65)
+    bus.dispatchEdge({ pin: 4, value: 0, simMs: 100, source: "avr" })
+    bus.dispatchEdge({ pin: 4, value: 1, simMs: 102, source: "avr" })
+    bus.tick(120)
+
+    const derives = p.getTrace().filter((t) => t.kind === "derive")
+    expect(derives[derives.length - 1]!.detail?.byte2).toBe(30) // stale
+
+    // A read past the 1s interval picks up the fresh value.
+    bus.dispatchEdge({ pin: 4, value: 0, simMs: 1200, source: "avr" })
+    bus.dispatchEdge({ pin: 4, value: 1, simMs: 1202, source: "avr" })
+    const derives2 = p.getTrace().filter((t) => t.kind === "derive")
+    expect(derives2[derives2.length - 1]!.detail?.byte2).toBe(40)
+  })
+})

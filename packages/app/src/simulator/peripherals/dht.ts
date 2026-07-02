@@ -39,6 +39,15 @@ const BIT_LOW_MS = 0.05                  // 50 µs LOW between each bit
 const BIT_HIGH_ZERO_MS = 0.026           // 26 µs HIGH = 0
 const BIT_HIGH_ONE_MS = 0.07             // 70 µs HIGH = 1
 
+// The sensor's own sampling rate: a DHT11 refreshes its reading at most once
+// per second, a DHT22 once per two seconds. Polling faster than that on real
+// hardware returns the PREVIOUS reading — modeled here so a sketch that reads
+// in a tight loop sees stale values instead of an impossibly fresh stream.
+const SAMPLE_INTERVAL_MS: Record<"dht11" | "dht22", number> = {
+  dht11: 1000,
+  dht22: 2000,
+}
+
 const TRACE_RING_SIZE = 32
 
 /** Build the 5-byte frame, returning [b0, b1, b2, b3, checksum]. */
@@ -83,6 +92,12 @@ export class DhtPeripheral implements Peripheral<DhtStateShape> {
   private temperatureC = 22
   private humidity = 50
 
+  // What the sensor element last sampled — frames report THESE, refreshed at
+  // most once per SAMPLE_INTERVAL_MS, mirroring the real part's internal rate.
+  private sampledTemperatureC = 22
+  private sampledHumidity = 50
+  private lastSampleAtSimMs = Number.NEGATIVE_INFINITY
+
   // Start-signal detection state.
   private trigLowAtSimMs = 0
   private awaitingRelease = false
@@ -103,6 +118,8 @@ export class DhtPeripheral implements Peripheral<DhtStateShape> {
     if (typeof t === "number") this.temperatureC = t
     const h = component.properties?.humidity
     if (typeof h === "number") this.humidity = h
+    this.sampledTemperatureC = this.temperatureC
+    this.sampledHumidity = this.humidity
 
     if (this.explicitSignal !== null) {
       this.signalPin = this.explicitSignal
@@ -171,7 +188,21 @@ export class DhtPeripheral implements Peripheral<DhtStateShape> {
   private scheduleResponse(fromSimMs: number): void {
     if (!this.ctx || this.signalPin === null) return
     this.frameBusy = true
-    const [b0, b1, b2, b3, checksum] = buildFrame(this.variant, this.temperatureC, this.humidity)
+    // Refresh the sensor's internal sample only if its sampling interval has
+    // elapsed; otherwise the frame carries the previous (stale) reading.
+    if (fromSimMs - this.lastSampleAtSimMs >= SAMPLE_INTERVAL_MS[this.variant]) {
+      this.sampledTemperatureC = this.temperatureC
+      this.sampledHumidity = this.humidity
+      this.lastSampleAtSimMs = fromSimMs
+    } else if (this.sampledTemperatureC !== this.temperatureC || this.sampledHumidity !== this.humidity) {
+      this.trace({
+        simMs: fromSimMs,
+        kind: "warn",
+        message: `read within ${SAMPLE_INTERVAL_MS[this.variant]}ms sampling interval — serving stale reading`,
+        detail: { staleTemperatureC: this.sampledTemperatureC, staleHumidity: this.sampledHumidity },
+      })
+    }
+    const [b0, b1, b2, b3, checksum] = buildFrame(this.variant, this.sampledTemperatureC, this.sampledHumidity)
     const bytes = [b0, b1, b2, b3, checksum]
 
     // Response starts after 40µs of line release.
@@ -203,11 +234,11 @@ export class DhtPeripheral implements Peripheral<DhtStateShape> {
     this.trace({
       simMs: fromSimMs,
       kind: "derive",
-      message: `${this.variant} frame @ ${this.temperatureC}°C ${this.humidity}% (ends at ${frameEnd.toFixed(2)}ms)`,
+      message: `${this.variant} frame @ ${this.sampledTemperatureC}°C ${this.sampledHumidity}% (ends at ${frameEnd.toFixed(2)}ms)`,
       detail: {
         variant: this.variant,
-        temperatureC: this.temperatureC,
-        humidity: this.humidity,
+        temperatureC: this.sampledTemperatureC,
+        humidity: this.sampledHumidity,
         byte0: b0,
         byte1: b1,
         byte2: b2,
@@ -245,6 +276,9 @@ export class DhtPeripheral implements Peripheral<DhtStateShape> {
     this.awaitingRelease = false
     this.frameBusy = false
     this.frameReleaseAtSimMs = 0
+    this.sampledTemperatureC = this.temperatureC
+    this.sampledHumidity = this.humidity
+    this.lastSampleAtSimMs = Number.NEGATIVE_INFINITY
     this.traces = []
   }
 

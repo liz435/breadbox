@@ -508,7 +508,13 @@ export function analyzePowerBudget(
     });
   }
 
-  const estimatedTotalCurrentMa = v5Load + v3Load;
+  // The board total covers everything the Arduino itself must source: rail
+  // loads plus per-pin signal loads (pin current flows through the MCU's
+  // VCC/GND pins — that's what the total limit protects). External-supply
+  // loads are reported separately and excluded.
+  const pinLoadTotal = [...pinLoads.values()].reduce((sum, l) => sum + l.currentMa, 0);
+  const externalSupplyCurrentMa = railLoads.get("external")?.currentMa ?? 0;
+  const estimatedTotalCurrentMa = v5Load + v3Load + pinLoadTotal;
   if (estimatedTotalCurrentMa > ARDUINO_UNO_ELECTRICAL_PROFILE.totalCurrentLimitMa) {
     issues.push({
       severity: "error",
@@ -563,5 +569,6 @@ export function analyzePowerBudget(
     issues,
     recommendations: [...recommendations.entries()].map(([code, message]) => ({ code, message })),
     estimatedTotalCurrentMa: Number(estimatedTotalCurrentMa.toFixed(2)),
+    externalSupplyCurrentMa: Number(externalSupplyCurrentMa.toFixed(2)),
   };
 }

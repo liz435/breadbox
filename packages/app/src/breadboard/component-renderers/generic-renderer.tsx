@@ -1653,13 +1653,19 @@ function SevenSegmentRenderer({ component, components, pinStates, wires, isSelec
       }
     }
 
+    // Common-cathode lights on HIGH; common-anode sinks current, so a segment
+    // lights when its driving pin goes LOW.
+    const isCommonAnode = component.properties.commonType === "anode";
     for (const seg of signalSegments) {
       const pinsForSegment = segmentPins.get(seg);
       if (!pinsForSegment || pinsForSegment.size === 0) continue;
       for (const pin of pinsForSegment) {
         const state = pinStates[pin];
         if (!state || state.mode !== "OUTPUT") continue;
-        if (state.digitalValue === 1 || state.pwmValue > 0) {
+        const driveOn = isCommonAnode
+          ? (state.isPwm ? state.pwmValue < 255 : state.digitalValue === 0)
+          : state.digitalValue === 1 || state.pwmValue > 0;
+        if (driveOn) {
           lit[seg] = true;
           break;
         }

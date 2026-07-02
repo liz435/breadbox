@@ -69,9 +69,36 @@ export type NetlistResult = {
    * the solver check each pin against the ATmega's per-pin current limits.
    */
   pinSources: Array<{ pin: number; element: string; node: string }>
+  /**
+   * PWM-driven sources. The emitted netlist holds each at its duty-averaged
+   * voltage (the safe fallback); the solver can instead enumerate HIGH/LOW
+   * switching states by flipping each source between `highVolts` and 0 and
+   * weight-averaging the results — the physically correct time average for
+   * nonlinear loads like LEDs (avg of currents, not current at avg voltage).
+   */
+  pwmSources: Array<{ element: string; duty: number; highVolts: number }>
+  /**
+   * The 5V / 3.3V rail sources, for supply-limit checks. Unlike digital pins
+   * the rails come from the regulator/polyfuse, so they get their own (small)
+   * source resistance and their own current limits.
+   */
+  railSources: Array<{ element: string; rail: "5V" | "3V3"; node: string }>
+  /**
+   * Rails that are wired directly into a ground net — a dead short. These
+   * never make it into the netlist (the merged net IS node 0, so the source
+   * is dropped), so they must be flagged at build time. `componentIds` are
+   * the components touching the shorted net, for warning placement.
+   */
+  railShorts: Array<{ rail: "5V" | "3V3"; componentIds: string[] }>
 }
 
 const ARDUINO_OUTPUT_SOURCE_RESISTANCE_OHMS = 25
+// The 5V rail on a real Uno comes through a ~0.3Ω polyfuse plus traces (USB)
+// or the regulator; the 3V3 rail is an LP2985 LDO. Small series resistances
+// make rails sag realistically under heavy load instead of holding an ideal
+// 5.000V into a short.
+const RAIL_5V_SOURCE_RESISTANCE_OHMS = 0.5
+const RAIL_3V3_SOURCE_RESISTANCE_OHMS = 1.0
 
 // TODO(multi-board-resolver): inherits resolveNets's single-board assumption.
 // In a scene with >1 surface board, components on different boards that
@@ -106,6 +133,12 @@ export function buildNetlist(
     sourceResistanceOhms?: number
     /** Arduino digital pin number, when this source is a driven I/O pin. */
     pin?: number
+    /** PWM duty 0..1 when this source is a switching pin (voltage = duty-avg). */
+    pwmDuty?: number
+    /** HIGH-state voltage for a PWM source (what the pin drives when on). */
+    pwmHighVolts?: number
+    /** Set when this source is a supply rail rather than an I/O pin. */
+    rail?: "5V" | "3V3"
   }> = []
 
   // Build a point→netId lookup for fast component-to-net resolution
@@ -133,10 +166,22 @@ export function buildNetlist(
       // Power pins
       if (arduinoPin === -1) {
         // 5V pin
-        voltageSourceNets.push({ label: "V_5V", netId: net.id, voltage: 5 })
+        voltageSourceNets.push({
+          label: "V_5V",
+          netId: net.id,
+          voltage: 5,
+          sourceResistanceOhms: RAIL_5V_SOURCE_RESISTANCE_OHMS,
+          rail: "5V",
+        })
       } else if (arduinoPin === -2) {
         // 3.3V pin
-        voltageSourceNets.push({ label: "V_3V3", netId: net.id, voltage: 3.3 })
+        voltageSourceNets.push({
+          label: "V_3V3",
+          netId: net.id,
+          voltage: 3.3,
+          sourceResistanceOhms: RAIL_3V3_SOURCE_RESISTANCE_OHMS,
+          rail: "3V3",
+        })
       } else if (arduinoPin === -3 || arduinoPin === -4) {
         // GND pins
         groundNetIds.add(net.id)
@@ -151,13 +196,17 @@ export function buildNetlist(
         if (ps && ps.mode === "OUTPUT") {
           // Sketch is running and has set this pin to OUTPUT
           if (ps.isPwm) {
-            const voltage = (ps.pwmValue / 255) * 5
+            // Netlist holds the duty-averaged voltage as the safe fallback;
+            // the solver enumerates HIGH/LOW states via pwmSources when it can.
+            const duty = ps.pwmValue / 255
             voltageSourceNets.push({
               label: `V_D${arduinoPin}`,
               netId: net.id,
-              voltage,
+              voltage: duty * 5,
               sourceResistanceOhms: ARDUINO_OUTPUT_SOURCE_RESISTANCE_OHMS,
               pin: arduinoPin,
+              pwmDuty: duty,
+              pwmHighVolts: 5,
             })
           } else if (ps.digitalValue === 1) {
             voltageSourceNets.push({
@@ -248,9 +297,30 @@ export function buildNetlist(
     lines.push(`R_bleed_float_${net.id} ${nodeName} 0 1000000000`)
   }
 
+  // A supply rail landing in a ground net is a dead short: the merged net IS
+  // node 0, so its source gets dropped below and no current would ever be
+  // computed. Flag it here, attaching the components that touch the net so
+  // the warning can render somewhere meaningful.
+  const railShorts: NetlistResult["railShorts"] = []
+  for (const vs of voltageSourceNets) {
+    if (!vs.rail || !groundNetIds.has(vs.netId)) continue
+    if (railShorts.some((s) => s.rail === vs.rail)) continue
+    const componentIds: string[] = []
+    for (const comp of Object.values(components)) {
+      if (isBoardComponentType(comp.type) || comp.type === "wire") continue
+      const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties)
+      if (footprint.points.some((pt) => pointToNetId.get(pointKey(pt)) === vs.netId)) {
+        componentIds.push(comp.id)
+      }
+    }
+    railShorts.push({ rail: vs.rail, componentIds })
+  }
+
   // Deduplicate voltage sources: only one source per unique node name
   const seenSourceNodes = new Set<string>()
   const pinSources: NetlistResult["pinSources"] = []
+  const pwmSources: NetlistResult["pwmSources"] = []
+  const railSources: NetlistResult["railSources"] = []
   let vsIndex = 0
 
   for (const vs of voltageSourceNets) {
@@ -274,6 +344,10 @@ export function buildNetlist(
     // The source's branch current is the pin's current; record it so the solver
     // can check the pin against the ATmega's current limits.
     if (vs.pin != null) pinSources.push({ pin: vs.pin, element, node: nodeName })
+    if (vs.pwmDuty != null) {
+      pwmSources.push({ element, duty: vs.pwmDuty, highVolts: vs.pwmHighVolts ?? 5 })
+    }
+    if (vs.rail) railSources.push({ element, rail: vs.rail, node: nodeName })
     vsIndex++
   }
 
@@ -343,7 +417,7 @@ export function buildNetlist(
 
   const netlist = lines.join("\n")
 
-  return { netlist, nets, nodeMap, componentNodePairs, pinSources }
+  return { netlist, nets, nodeMap, componentNodePairs, pinSources, pwmSources, railSources, railShorts }
 }
 
 /** Sanitize a component ID for use in SPICE element names */

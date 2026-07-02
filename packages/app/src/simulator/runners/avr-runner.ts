@@ -46,6 +46,18 @@ const SCHEDULER_STEP_CYCLES = 160
 // steps again. Generous enough to cross any normal statement.
 const STEP_LINE_MAX_INSTRUCTIONS = 200_000
 
+// Smoothing factor for the sim-speed EMA. 0.2 keeps the "N× realtime" badge
+// steady while still reacting within a handful of frames when the machine
+// starts (or stops) lagging wall-clock.
+const REALTIME_FACTOR_EMA_ALPHA = 0.2
+
+function nowMs(): number {
+  if (typeof performance !== "undefined" && typeof performance.now === "function") {
+    return performance.now()
+  }
+  return Date.now()
+}
+
 export function createAvrSketchRunner(
   target: BoardTargetInfo,
   callbacks: SketchRunnerCallbacks,
@@ -67,6 +79,14 @@ export function createAvrSketchRunner(
 
   // ── AVR runner state ───────────────────────────────────────────────
   let avrRunner: AVRRunner | null = null
+
+  // ── Sim-speed tracking ─────────────────────────────────────────────
+  // AVR runs a fixed AVR_CYCLES_PER_FRAME every loop iteration with no
+  // catch-up, so on a slow frame the MCU silently advances less simulated
+  // time than the wall-clock that elapsed. Track the smoothed ratio of
+  // simulated-time-advanced / wall-time-elapsed so the toolbar can flag when
+  // the emulator is running below real time. Null until the first measurement.
+  let realtimeFactorEma: number | null = null
 
   // ── Debug state ────────────────────────────────────────────────────
   // Source-line table from the last compile (empty ⇒ address-only debug).
@@ -202,6 +222,21 @@ export function createAvrSketchRunner(
   ): Promise<{ success: boolean; error?: string }> {
     reset()
 
+    // Mega 2560 compiles real ATmega2560 firmware but executes it on the
+    // ATmega328P core (avr8js has no Mega model). Non-trivial sketches touching
+    // Mega-only hardware break silently, so surface the limitation up front in
+    // the build log — the same channel the RP2040 runner uses for its
+    // no-bootrom notice.
+    if (target.id === "arduino_mega_2560") {
+      options?.onLog?.(
+        "compiler",
+        "⚠ Mega 2560 runs best-effort on an ATmega328P core: Timer3/4/5, " +
+          "USART1-3, pins 20-53 and Mega-specific registers are not emulated. " +
+          "Prefer Uno/Nano for accurate simulation.",
+        Date.now(),
+      )
+    }
+
     const backendLibs: Record<string, { name: string; code: string; description: string }> = {}
     if (customLibraries) {
       for (const [name, codeBody] of Object.entries(customLibraries)) {
@@ -289,12 +324,31 @@ export function createAvrSketchRunner(
   function runLoopIteration(): boolean {
     if (!avrRunner) return true
     try {
+      const cyclesBefore = avrRunner.getCycleCount()
+      const wallBefore = nowMs()
       executeChunked(AVR_CYCLES_PER_FRAME)
+      updateRealtimeFactor(avrRunner.getCycleCount() - cyclesBefore, nowMs() - wallBefore)
     } catch (err) {
       callbacks.onError(err instanceof Error ? err.message : "Runtime error in AVR execution")
       return false
     }
     return true
+  }
+
+  /**
+   * Fold one loop iteration's sim-vs-wall ratio into the EMA. Skips frames
+   * that halted on a breakpoint (they advance a partial, unrepresentative
+   * cycle count) and frames with no measurable wall time (avoids div-by-zero
+   * and the resulting Infinity poisoning the average).
+   */
+  function updateRealtimeFactor(cyclesAdvanced: number, wallElapsedMs: number): void {
+    if (!avrRunner || halted || wallElapsedMs <= 0) return
+    const simMsAdvanced = (cyclesAdvanced / avrRunner.getFrequencyHz()) * 1000
+    const instantaneous = simMsAdvanced / wallElapsedMs
+    realtimeFactorEma =
+      realtimeFactorEma === null
+        ? instantaneous
+        : realtimeFactorEma + REALTIME_FACTOR_EMA_ALPHA * (instantaneous - realtimeFactorEma)
   }
 
   function getPinState(pin: number): PinSnapshot {
@@ -332,6 +386,11 @@ export function createAvrSketchRunner(
     store.setExternalPinSink(null)
     store.reset()
     halted = false
+    realtimeFactorEma = null
+  }
+
+  function getRealtimeFactor(): number | null {
+    return realtimeFactorEma
   }
 
   // ── Debug controller ────────────────────────────────────────────────────
@@ -461,5 +520,6 @@ export function createAvrSketchRunner(
     getPinStore,
     getPeripheralBus,
     attachBoard,
+    getRealtimeFactor,
   }
 }

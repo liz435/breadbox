@@ -224,7 +224,7 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
           direction: 1,
           autoscroll: false,
           scrollOffset: 0,
-          cgram: [],
+          cgram: s.cgram,
         }
         continue
       }

@@ -13,6 +13,11 @@ import {
   AVRUSART,
   AVRTWI,
   AVRADC,
+  AVRClock,
+  AVRSPI,
+  AVREEPROM,
+  EEPROMMemoryBackend,
+  AVRWatchdog,
   ADCMuxInputType,
   adcConfig,
   timer0Config,
@@ -23,10 +28,22 @@ import {
   portDConfig,
   usart0Config,
   twiConfig,
+  spiConfig,
+  watchdogConfig,
   PinState,
 } from "avr8js"
 
 const AVR_FREQ_HZ = 16_000_000 // 16 MHz (Arduino Uno)
+
+// ATmega328P has 1 KB of EEPROM. The backend is a plain byte buffer that
+// persists for the lifetime of a run (cleared on reset()), so EEPROM.read /
+// EEPROM.write round-trip correctly within a session.
+const ATMEGA328P_EEPROM_BYTES = 1024
+
+// Idle MISO reads back as 0xFF (line pulled high) when no SPI slave is wired.
+// Returning this from the transfer callback lets SPI.transfer() see SPIF set
+// and complete instead of spinning forever waiting on the flag.
+const SPI_IDLE_MISO_BYTE = 0xff
 
 export type AVRRunnerCallbacks = {
   /**
@@ -141,6 +158,19 @@ export function createAVRRunner(callbacks: AVRRunnerCallbacks): AVRRunner {
   let usart = new AVRUSART(cpu, usart0Config, AVR_FREQ_HZ)
   let twi = new AVRTWI(cpu, twiConfig, AVR_FREQ_HZ)
   let adc = new AVRADC(cpu, adcConfig)
+
+  // The system clock drives CLKPR prescaling and, crucially, feeds the
+  // watchdog its timeout base — AVRWatchdog needs a live AVRClock reference.
+  let clock = new AVRClock(cpu, AVR_FREQ_HZ)
+  // SPI, EEPROM and the watchdog install their own CPU register write-hooks in
+  // their constructors. Before they were wired, SPDR writes were ignored (so
+  // SPIF never set and SPI.transfer() spun forever), EEPROM.read/write were
+  // no-ops, and WDT registers did nothing. They must be recreated on reset()
+  // alongside the CPU they hook into.
+  let spi = new AVRSPI(cpu, spiConfig, AVR_FREQ_HZ)
+  let eeprom = new AVREEPROM(cpu, new EEPROMMemoryBackend(ATMEGA328P_EEPROM_BYTES))
+  let watchdog = new AVRWatchdog(cpu, watchdogConfig, clock)
+
   // Bytes waiting to be delivered to the AVR USART RX line.
   const serialInputQueue: number[] = []
   let serialInputReadIdx = 0
@@ -205,6 +235,21 @@ export function createAVRRunner(callbacks: AVRRunnerCallbacks): AVRRunner {
           : defaultAdcResult(input)
       const clamped = Math.min(Math.max(Math.round(result), 0), 1023)
       cpu.addClockEvent(() => adc.completeADCRead(clamped), adc.sampleCycles)
+    }
+  }
+
+  function wireSpi(): void {
+    // No SPI slave device is modeled, so satisfy the transfer ourselves.
+    // avr8js's default `onByte` already schedules completion, but it reads
+    // back 0x00; a floating/unselected MISO line idles HIGH, so real sketches
+    // probing for a chip (or SD/flash libraries) expect 0xFF. Complete after
+    // the hardware-accurate `transferCycles` so SPIF timing stays realistic
+    // and `SPI.transfer()` sees the flag instead of spinning forever.
+    spi.onByte = () => {
+      cpu.addClockEvent(
+        () => spi.completeTransfer(SPI_IDLE_MISO_BYTE),
+        spi.transferCycles,
+      )
     }
   }
 
@@ -276,6 +321,7 @@ export function createAVRRunner(callbacks: AVRRunnerCallbacks): AVRRunner {
 
   wireListeners()
   wireAdc()
+  wireSpi()
 
   function load(program: Uint16Array): void {
     cpu.reset()
@@ -377,6 +423,10 @@ export function createAVRRunner(callbacks: AVRRunnerCallbacks): AVRRunner {
     usart = new AVRUSART(cpu, usart0Config, AVR_FREQ_HZ)
     twi = new AVRTWI(cpu, twiConfig, AVR_FREQ_HZ)
     adc = new AVRADC(cpu, adcConfig)
+    clock = new AVRClock(cpu, AVR_FREQ_HZ)
+    spi = new AVRSPI(cpu, spiConfig, AVR_FREQ_HZ)
+    eeprom = new AVREEPROM(cpu, new EEPROMMemoryBackend(ATMEGA328P_EEPROM_BYTES))
+    watchdog = new AVRWatchdog(cpu, watchdogConfig, clock)
     for (const port of Object.keys(lastPinState)) {
       lastPinState[port].fill(PinState.Input)
     }
@@ -384,6 +434,7 @@ export function createAVRRunner(callbacks: AVRRunnerCallbacks): AVRRunner {
     skipBreakpointOnce = false
     wireListeners()
     wireAdc()
+    wireSpi()
   }
 
   function getCycleCount(): number {
