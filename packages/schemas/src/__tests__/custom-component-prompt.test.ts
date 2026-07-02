@@ -1,10 +1,28 @@
 import { describe, expect, test } from "bun:test";
-import { buildCustomPartPrompt, WORKED_EXAMPLE_PART } from "../custom-component-prompt";
+import { buildCustomPartPrompt, WORKED_EXAMPLE_PART, WORKED_EXAMPLE_ACTUATOR } from "../custom-component-prompt";
 import { customComponentDslSchema } from "../custom-component-dsl";
+import { lintCustomComponentDsl } from "../custom-component-lint";
 
 describe("buildCustomPartPrompt", () => {
   test("the worked example is a valid DSL spec", () => {
     expect(customComponentDslSchema.safeParse(WORKED_EXAMPLE_PART).success).toBe(true);
+  });
+
+  test("the actuator worked example is a valid, lint-clean DSL spec", () => {
+    const parsed = customComponentDslSchema.safeParse(WORKED_EXAMPLE_ACTUATOR);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(lintCustomComponentDsl(parsed.data)).toEqual([]);
+    }
+  });
+
+  test("the format spec documents behavior signals and visual bindings", () => {
+    const prompt = buildCustomPartPrompt("{}");
+    expect(prompt).toContain('"behavior"?');
+    expect(prompt).toContain('"visual"?');
+    expect(prompt).toContain('"kind": "count"');
+    expect(prompt).toContain("integrate");
+    expect(prompt).toContain("stepper");
   });
 
   test("embeds the spec, the requested change, and the format spec", () => {

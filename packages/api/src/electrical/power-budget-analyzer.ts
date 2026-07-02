@@ -9,6 +9,7 @@ import type {
   BoardComponent,
   BoardState,
   ComponentType,
+  CustomFootprintLookup,
   PinLoad,
   PinPoint,
   PowerBudgetReport,
@@ -63,8 +64,11 @@ function keyForArduinoPin(pin: number): string {
  * This ensures agreement with propose_circuit's wire generation and the
  * frontend's breadboard-grid connectivity checks.
  */
-function componentPinPoints(component: BoardComponent): Record<string, PinPoint> {
-  const pins = resolveComponentPins(component.type, component.y, component.x, component.properties);
+function componentPinPoints(
+  component: BoardComponent,
+  customFootprints?: CustomFootprintLookup,
+): Record<string, PinPoint> {
+  const pins = resolveComponentPins(component.type, component.y, component.x, component.properties, customFootprints);
 
   // Power supply has a special layout not covered by the shared resolver
   if (component.type === "power_supply") {
@@ -220,7 +224,10 @@ function connectBreadboardBuses(ds: DisjointSet, usedGridPoints: Set<string>) {
   }
 }
 
-export function analyzePowerBudget(board: BoardState): PowerBudgetReport {
+export function analyzePowerBudget(
+  board: BoardState,
+  customFootprints?: CustomFootprintLookup,
+): PowerBudgetReport {
   const boardTarget = board.boardTarget ?? DEFAULT_BOARD_TARGET;
   const issues: PowerIssue[] = [];
   const recommendations = new Map<string, string>();
@@ -256,7 +263,7 @@ export function analyzePowerBudget(board: BoardState): PowerBudgetReport {
 
   for (const component of components) {
     const profile = getComponentElectricalProfile(component.type as ComponentType);
-    const pins = componentPinPoints(component);
+    const pins = componentPinPoints(component, customFootprints);
     const signalPinNames = chooseSignalPins(component);
     const powerPinNames = choosePowerPins(component);
 
@@ -501,7 +508,13 @@ export function analyzePowerBudget(board: BoardState): PowerBudgetReport {
     });
   }
 
-  const estimatedTotalCurrentMa = v5Load + v3Load;
+  // The board total covers everything the Arduino itself must source: rail
+  // loads plus per-pin signal loads (pin current flows through the MCU's
+  // VCC/GND pins — that's what the total limit protects). External-supply
+  // loads are reported separately and excluded.
+  const pinLoadTotal = [...pinLoads.values()].reduce((sum, l) => sum + l.currentMa, 0);
+  const externalSupplyCurrentMa = railLoads.get("external")?.currentMa ?? 0;
+  const estimatedTotalCurrentMa = v5Load + v3Load + pinLoadTotal;
   if (estimatedTotalCurrentMa > ARDUINO_UNO_ELECTRICAL_PROFILE.totalCurrentLimitMa) {
     issues.push({
       severity: "error",
@@ -556,5 +569,6 @@ export function analyzePowerBudget(board: BoardState): PowerBudgetReport {
     issues,
     recommendations: [...recommendations.entries()].map(([code, message]) => ({ code, message })),
     estimatedTotalCurrentMa: Number(estimatedTotalCurrentMa.toFixed(2)),
+    externalSupplyCurrentMa: Number(externalSupplyCurrentMa.toFixed(2)),
   };
 }

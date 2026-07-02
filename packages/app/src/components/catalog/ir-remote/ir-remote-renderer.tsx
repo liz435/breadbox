@@ -46,7 +46,10 @@ function IrRemoteRendererInner({ component, isSelected }: IrRemoteRendererProps)
     irRemoteStore.broadcast(code);
     setPressedIdx(idx);
   }, []);
-  const release = useCallback(() => setPressedIdx(null), []);
+  const release = useCallback(() => {
+    irRemoteStore.endHold();
+    setPressedIdx(null);
+  }, []);
 
   return (
     <g>

@@ -45,6 +45,15 @@ function elementCount(doc: DslDoc): number {
   return 0
 }
 
+function nestedArrLen(doc: DslDoc, key: string, arrayKey: string): number {
+  const value = doc[key]
+  if (value && typeof value === "object" && arrayKey in value) {
+    const arr = (value as Record<string, unknown>)[arrayKey]
+    return Array.isArray(arr) ? arr.length : 0
+  }
+  return 0
+}
+
 // ── row shell ────────────────────────────────────────────────────────────────
 
 export function FacetRow({
@@ -284,13 +293,35 @@ export function FacetEditor({
       </FacetRow>
 
       <FacetRow
-        title="Behavior"
+        title="Electrical"
         summary={`${elementCount(doc)} elements`}
         onCopyPrompt={() => onCopyFacetPrompt("behavior")}
       >
         <JsonSliceEditor
           value={doc.electrical ?? { elements: [] }}
           onChange={(electrical) => onPatch({ electrical })}
+        />
+      </FacetRow>
+
+      <FacetRow
+        title="Signals"
+        summary={`${nestedArrLen(doc, "behavior", "signals")} signals`}
+        onCopyPrompt={() => onCopyFacetPrompt("behavior")}
+      >
+        <JsonSliceEditor
+          value={doc.behavior ?? { signals: [] }}
+          onChange={(behavior) => onPatch({ behavior })}
+        />
+      </FacetRow>
+
+      <FacetRow
+        title="Motion"
+        summary={`${nestedArrLen(doc, "visual", "bindings")} bindings`}
+        onCopyPrompt={() => onCopyFacetPrompt("look")}
+      >
+        <JsonSliceEditor
+          value={doc.visual ?? { bindings: [] }}
+          onChange={(visual) => onPatch({ visual })}
         />
       </FacetRow>
 

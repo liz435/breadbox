@@ -20,6 +20,8 @@ export const CUSTOM_PART_DSL_TEMPLATE = `{
       { "kind": "source", "plus": "sig", "minus": "0", "volts": "value / 100 * 5" }
     ]
   },
+  "behavior": { "signals": [] },
+  "visual": { "bindings": [] },
   "sketch": {
     "loop": ["int v = analogRead({{pin.sig}}); // {{name}}"]
   }

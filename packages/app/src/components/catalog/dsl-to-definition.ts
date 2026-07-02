@@ -11,6 +11,7 @@ import type { BoardComponent } from "@dreamer/schemas"
 import { evaluateExpression, type CustomComponentDsl, type DslElement } from "@dreamer/schemas"
 import type { ComponentDefinition, NetlistOutput, SketchOutput } from "@/components/component-definition"
 import { createPluginHost, type PluginNetlistApi } from "@/components/catalog/plugin-host"
+import { createCustomDslPeripheral } from "@/simulator/peripherals/custom-dsl"
 
 function numericContext(props: Record<string, unknown>): Record<string, number> {
   const out: Record<string, number> = {}
@@ -86,6 +87,8 @@ export function dslToComponentDefinition(dsl: CustomComponentDsl): ComponentDefi
   const host = createPluginHost()
   const elements = dsl.electrical.elements
   const sketch = dsl.sketch
+  const signals = dsl.behavior?.signals ?? []
+  const bindings = dsl.visual?.bindings ?? []
   return host.defineComponent({
     type: dsl.type,
     label: dsl.label,
@@ -101,5 +104,9 @@ export function dslToComponentDefinition(dsl: CustomComponentDsl): ComponentDefi
         ? undefined
         : (comp, _ctx, api) => buildNetlistFromElements(elements, comp, api),
     generateSketch: sketch ? (comp) => buildSketch(sketch, comp) : undefined,
+    createPeripheral:
+      signals.length === 0 ? undefined : (comp) => createCustomDslPeripheral(dsl, comp),
+    visualBindings: bindings.length === 0 ? undefined : bindings,
+    signalNames: signals.length === 0 ? undefined : signals.map((s) => s.name),
   })
 }

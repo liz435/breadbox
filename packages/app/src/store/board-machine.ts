@@ -635,6 +635,7 @@ export const boardMachine = setup({
           serialBaud: 0,
           oled: {},
           neopixels: {},
+          custom: {},
         }, s.libraryState ?? {});
 
         // Retroactive migration: projects saved before the seeded default

@@ -122,6 +122,16 @@ export interface SketchRunner {
   // return null and leave `sketchSizeRef` untouched (or use estimates).
   getSketchSize?(): SketchSizeInfo | null
 
+  /**
+   * Ratio of simulated MCU time advanced to wall-clock time elapsed, smoothed
+   * as an exponential moving average across run-loop iterations. `1.0` means
+   * the emulator is keeping up with real time; `< 1.0` means the MCU is lagging
+   * wall-clock (a slow frame or dropped-cycle backlog). Returns `null` before
+   * the first loop iteration produces a measurement. The toolbar surfaces this
+   * as an unobtrusive "N× realtime" badge when the sim falls behind.
+   */
+  getRealtimeFactor?(): number | null
+
   // Optional runner-specific execution backlog metrics for tuning.
   getExecutionBacklog?(): {
     pendingSetupCycles: number

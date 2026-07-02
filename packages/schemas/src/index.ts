@@ -223,6 +223,8 @@ export {
 export {
   type PinPoint,
   type ComponentPinMap,
+  type CustomPinFootprint,
+  type CustomFootprintLookup,
   getComponentPinNames,
   resolveComponentPins,
   resolveComponentPin,
@@ -253,13 +255,19 @@ export {
 export {
   customComponentDslSchema,
   dslElementSchema,
+  dslSignalSchema,
+  dslBindingSchema,
   type CustomComponentDsl,
   type DslElement,
+  type DslSignal,
+  type DslBinding,
 } from "./custom-component-dsl";
+export { lintCustomComponentDsl, type DslLintIssue } from "./custom-component-lint";
 export { evaluateExpression } from "./expr-eval";
 export {
   buildCustomPartPrompt,
   WORKED_EXAMPLE_PART,
+  WORKED_EXAMPLE_ACTUATOR,
   type CustomPartPromptOptions,
   type CustomPartFacet,
 } from "./custom-component-prompt";

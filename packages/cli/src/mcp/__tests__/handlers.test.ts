@@ -16,6 +16,7 @@ const { projectRepo } = await import("@dreamer/api/db/adapters/file/project-repo
 const {
   applyDesign,
   analyzePowerBudgetHandler,
+  getBoardOverview,
   getBoardState,
   getComponentDetails,
   getCurrentProject,
@@ -25,6 +26,7 @@ const {
   listProjects,
   listWires,
   patchSketch,
+  saveCustomPart,
   setCurrentProject,
   updateSketch,
   validateDesign,
@@ -145,8 +147,8 @@ describe("read handlers", () => {
 // ── validate_design ────────────────────────────────────────────────────
 
 describe("validate_design", () => {
-  test("clean diagram → ok: true, zero errors", () => {
-    const result = validateDesign({
+  test("clean diagram → ok: true, zero errors", async () => {
+    const result = await validateDesign({
       board: "arduino_uno",
       sketch: "void setup(){}\nvoid loop(){}",
       components: [
@@ -175,8 +177,8 @@ describe("validate_design", () => {
     expect(result.errorCount).toBe(0)
   })
 
-  test("unknown pin name → error issue", () => {
-    const result = validateDesign({
+  test("unknown pin name → error issue", async () => {
+    const result = await validateDesign({
       board: "arduino_uno",
       sketch: "void setup(){}\nvoid loop(){}",
       components: [
@@ -348,6 +350,111 @@ describe("sketch handlers", () => {
 })
 
 // ── component details ─────────────────────────────────────────────────
+
+// ── custom-part pin resolution ─────────────────────────────────────────
+//
+// The schema-layer resolver is keyed only on the type string, so before the
+// footprint-lookup fix a `custom:*` part had zero resolvable pins — wiring by
+// id.pinName failed and validate_design reported it disconnected. These lock
+// in that apply_design/validate_design now resolve custom pins via the DSL
+// footprint (row+dy, col+dx).
+
+describe("custom-part pin resolution", () => {
+  const motorSpec = {
+    type: "custom:test-motor",
+    label: "Test Motor",
+    pins: [
+      { name: "vcc", dx: 0, dy: 0 },
+      { name: "in1", dx: 0, dy: 1 },
+      { name: "in2", dx: 0, dy: 2 },
+    ],
+  }
+
+  test("apply_design wires a custom part by id.pinName and round-trips to names", async () => {
+    const saved = await saveCustomPart({ spec: motorSpec })
+    expect(saved.ok).toBe(true)
+
+    const p = await makeProject("Custom wiring")
+    const session = createSession(p.project.id)
+
+    const result = await applyDesign(session, {
+      board: "arduino_uno",
+      sketch: "void setup(){}\nvoid loop(){}",
+      components: [
+        { id: "motor-1", type: "custom:test-motor", at: [2, 1], rotation: 0, properties: {} },
+      ],
+      wires: [
+        { from: "arduino.8", to: "motor-1.in1", color: "#3b82f6" },
+        { from: "arduino.9", to: "motor-1.in2", color: "#8b5cf6" },
+      ],
+    })
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.wireCount).toBe(2)
+
+    // Round-trip: the endpoints humanize back to the custom pin names, proving
+    // apply resolved id.pinName → the right grid cell (row+dy, col+dx) and the
+    // readback resolved that cell back to the name.
+    const diagram = await getBoardState(session)
+    const endpoints = diagram.wires.flatMap((w) => [w.from, w.to])
+    expect(endpoints).toContain("motor-1.in1")
+    expect(endpoints).toContain("motor-1.in2")
+  })
+
+  test("validate_design accepts a custom part wired by pin name (no false unknown-pin)", async () => {
+    await saveCustomPart({ spec: motorSpec })
+    const result = await validateDesign({
+      board: "arduino_uno",
+      sketch: "void setup(){}\nvoid loop(){}",
+      components: [
+        { id: "motor-1", type: "custom:test-motor", at: [2, 1], rotation: 0, properties: {} },
+      ],
+      wires: [
+        { from: "arduino.8", to: "motor-1.in1", color: "#3b82f6" },
+        { from: "arduino.9", to: "motor-1.in2", color: "#8b5cf6" },
+      ],
+    })
+    expect(result.errorCount).toBe(0)
+  })
+})
+
+// ── get_board_overview ─────────────────────────────────────────────────
+
+describe("get_board_overview", () => {
+  test("summarizes an empty board", async () => {
+    const p = await makeProject("Overview empty")
+    const session = createSession(p.project.id)
+    const result = await getBoardOverview(session)
+    expect(result.summary).toContain("Board is empty")
+  })
+
+  test("reflects an applied design, proving writes invalidate the cache", async () => {
+    const p = await makeProject("Overview populated")
+    const session = createSession(p.project.id)
+    // Prime the session cache with a read of the (empty) board, then apply a
+    // design in the same session. The follow-up overview must show the new
+    // board — if applyDesign failed to invalidate, the 2s cache would still
+    // report "Board is empty" here.
+    await getBoardOverview(session)
+    await applyDesign(session, {
+      board: "arduino_uno",
+      sketch:
+        "void setup(){pinMode(13,OUTPUT);}\nvoid loop(){digitalWrite(13,HIGH);delay(1000);digitalWrite(13,LOW);delay(1000);}",
+      components: [
+        { id: "led1", type: "led", at: [5, 7], rotation: 0, properties: { color: "#ef4444" } },
+        { id: "r1", type: "resistor", at: [5, 3], rotation: 0, properties: { resistance: 220 } },
+      ],
+      wires: [
+        { from: "arduino.13", to: "led1.anode", color: "#22c55e" },
+        { from: "led1.cathode", to: "r1.b", color: "#1e293b" },
+        { from: "r1.a", to: "arduino.GND", color: "#1e293b" },
+      ],
+    })
+    const result = await getBoardOverview(session)
+    expect(result.summary).toContain("Components: 2")
+    expect(result.summary).toContain("id=led1")
+    expect(result.summary).toContain("id=r1")
+  })
+})
 
 describe("getComponentDetails", () => {
   test("returns the component by id after apply_design", async () => {

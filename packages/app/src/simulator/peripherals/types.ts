@@ -31,13 +31,16 @@ export type PeripheralState =
   | { kind: "buzzer"; pin: number; frequencyHz: number | null; playing: boolean }
   | { kind: "led"; pin: number; brightness: number }
   | { kind: "rgb_led"; pins: { r: number; g: number; b: number }; brightness: { r: number; g: number; b: number } }
-  | { kind: "lcd"; cols: number; rows: number; textBuffer: string[] }
+  | { kind: "lcd"; cols: number; rows: number; textBuffer: string[]; cgram: number[][] }
   | { kind: "neopixel"; pin: number; pixels: ReadonlyArray<{ r: number; g: number; b: number }> }
   | { kind: "ultrasonic"; trigPin: number | null; echoPin: number | null; distanceCm: number | null; lastPulseUs: number }
   | { kind: "dht"; signalPin: number | null; temperatureC: number; humidity: number }
   | { kind: "ir_receiver"; signalPin: number | null; lastCode: number | null; transmitting: boolean }
   | { kind: "oled"; width: number; height: number; on: boolean; inverted: boolean; framebuffer: number[] }
   | { kind: "shift_register"; data: number | null; clock: number | null; latch: number | null; outputs: boolean[] }
+  // Custom-part behavior signals (name → value), published by the generic
+  // DSL peripheral. componentType is the "custom:<id>" string.
+  | { kind: "custom"; componentType: string; values: Record<string, number> }
   | { kind: "raw"; componentType: ComponentType }
 
 /**
@@ -97,7 +100,8 @@ export type PeripheralContext = {
 
 export interface Peripheral<S extends PeripheralState = PeripheralState> {
   readonly id: string
-  readonly componentType: ComponentType
+  /** Built-in ComponentType, or a "custom:<id>" string for custom parts. */
+  readonly componentType: ComponentType | (string & {})
   readonly capabilities: ReadonlySet<PeripheralCapability>
   readonly watchedPins: ReadonlySet<number>
   attach(ctx: PeripheralContext): void

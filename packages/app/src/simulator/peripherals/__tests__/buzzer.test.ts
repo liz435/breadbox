@@ -136,3 +136,48 @@ describe("board-aware audio integration", () => {
     expect(buzzer?.playing).toBe(true)
   })
 })
+
+describe("BuzzerPeripheral — active buzzer", () => {
+  function makeActive(pin: number): BoardComponent {
+    return {
+      id: "buzzer-1",
+      type: "buzzer",
+      name: "Buzzer",
+      x: 5,
+      y: 5,
+      rotation: 0,
+      pins: { positive: pin, negative: null },
+      properties: { buzzerType: "active" },
+    }
+  }
+
+  test("steady digitalWrite HIGH sounds at the fixed internal pitch", () => {
+    const p = new BuzzerPeripheral(makeActive(8))
+    p.onPinEdge({ pin: 8, value: 1, simMs: 0, source: "avr" })
+    const state = p.getState()
+    expect(state?.playing).toBe(true)
+    expect(state?.frequencyHz).toBe(2300)
+    // Stays on with no further edges — an active buzzer needs no waveform.
+    p.onTick(500)
+    expect(p.getState()?.playing).toBe(true)
+  })
+
+  test("digitalWrite LOW stops it after the off-delay", () => {
+    const p = new BuzzerPeripheral(makeActive(8))
+    p.onPinEdge({ pin: 8, value: 1, simMs: 0, source: "avr" })
+    p.onPinEdge({ pin: 8, value: 0, simMs: 10, source: "avr" })
+    p.onTick(50)
+    expect(p.getState()?.playing).toBe(false)
+  })
+
+  test("passive buzzer stays silent on a steady HIGH level", () => {
+    const passive: BoardComponent = {
+      ...makeActive(8),
+      properties: {},
+    }
+    const p = new BuzzerPeripheral(passive)
+    p.onPinEdge({ pin: 8, value: 1, simMs: 0, source: "avr" })
+    p.onTick(500)
+    expect(p.getState()?.playing).toBe(false)
+  })
+})

@@ -280,7 +280,7 @@ describe("netlist-builder — source resistance on digital output pins", () => {
     expect(netlist).toContain("R_src_")
   })
 
-  test("5V power rail does NOT get source resistance (direct ideal source)", () => {
+  test("5V power rail gets a small supply resistance (polyfuse/traces)", () => {
     const components: Record<string, BoardComponent> = {
       r1: makeResistor("r1", 5, 0),
     }
@@ -288,18 +288,19 @@ describe("netlist-builder — source resistance on digital output pins", () => {
       w5V: { id: "w5V", fromRow: -999, fromCol: -1, toRow: 5, toCol: 0, color: "red" },
     }
 
-    const { netlist } = buildNetlist(components, wires, createDefaultPinStates())
+    const { netlist, railSources } = buildNetlist(components, wires, createDefaultPinStates())
 
-    // 5V rail should emit V_5V directly with no R_src in between
+    // The rail drives through an intermediate src_ node + 0.5Ω series R so it
+    // sags realistically under heavy load instead of holding an ideal 5V.
     expect(netlist).toContain("V_5V_")
-    // The 5V source line should be "V_5V_0 <node> 0 5" (no intermediate src_ node)
     const v5VLine = netlist.split("\n").find((l) => l.startsWith("V_5V_"))
     expect(v5VLine).toBeDefined()
-    if (v5VLine) {
-      // format: "V_5V_0 <nodeName> 0 5"
-      // Should NOT reference a "src_" intermediate node
-      expect(v5VLine).not.toContain("src_")
-    }
+    if (v5VLine) expect(v5VLine).toContain("src_")
+    const srcLine = netlist.split("\n").find((l) => l.startsWith("R_src_"))
+    expect(srcLine).toBeDefined()
+    if (srcLine) expect(srcLine.endsWith(" 0.5")).toBe(true)
+    expect(railSources).toHaveLength(1)
+    expect(railSources[0]?.rail).toBe("5V")
   })
 })
 

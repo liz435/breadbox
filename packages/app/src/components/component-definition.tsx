@@ -12,10 +12,11 @@
 //      (both fall back gracefully if omitted)
 
 import type { ComponentType, ReactNode } from "react"
-import type { BoardComponent, PinState } from "@dreamer/schemas"
+import type { BoardComponent, DslBinding, PinState } from "@dreamer/schemas"
 import type { ComponentFootprint, GridPoint } from "@/breadboard/breadboard-grid"
 import type { ComponentRendererProps } from "@/breadboard/component-renderers/renderer-types"
 import type { SchematicSymbolType } from "@/schematic/schematic-symbols"
+import type { Peripheral } from "@/simulator/peripherals/types"
 
 // ── Sketch generation ─────────────────────────────────────────────────────
 
@@ -172,6 +173,26 @@ export type ComponentDefinition = {
     comp: BoardComponent,
     ctx: ElectricalContext,
   ) => ElectricalOutput | null
+
+  /**
+   * Optional peripheral factory: lets a component join the simulator's
+   * peripheral bus (pin edges, ticks, state snapshots) without a static entry
+   * in the bus's FACTORIES map. Custom parts compile their DSL
+   * `behavior.signals` into this; built-ins keep using FACTORIES.
+   */
+  createPeripheral?: (comp: BoardComponent) => Peripheral | null
+
+  /**
+   * Custom-part SVG animation bindings: drive elements of `svg` (by id) from
+   * behavior signal values. Consumed by CustomPartRenderer.
+   */
+  visualBindings?: DslBinding[]
+
+  /**
+   * Names of the part's behavior signals — used to zero-fill the binding
+   * expression context before the simulator publishes any values.
+   */
+  signalNames?: string[]
 
   // ── Sketch generation ─────────────────────────────────────────────────
 

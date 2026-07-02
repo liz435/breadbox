@@ -66,6 +66,40 @@ describe("custom parts MCP handlers", () => {
     expect((await listCustomParts()).parts).toHaveLength(0);
   });
 
+  test("validate/save fail on semantic lint errors (unknown pin, bad expression)", async () => {
+    const spec = {
+      ...VALID_SPEC,
+      type: "custom:lint-bad",
+      behavior: { signals: [{ kind: "count", name: "steps", pin: "nope" }] },
+    };
+    const validation = validateCustomPart({ spec });
+    expect(validation.valid).toBe(false);
+    if (!validation.valid) {
+      expect(validation.issues.some((i) => i.message.includes('"nope"'))).toBe(true);
+    }
+    const saved = await saveCustomPart({ spec });
+    expect(saved.ok).toBe(false);
+    expect((await listCustomParts()).parts).toHaveLength(0);
+  });
+
+  test("lint warnings pass validation and ride along on save", async () => {
+    const spec = {
+      ...VALID_SPEC,
+      type: "custom:lint-warn",
+      svg: "<svg viewBox='0 0 10 10'><g id='body'/></svg>",
+      behavior: { signals: [{ kind: "digital", name: "on", pin: "sig" }] },
+      visual: { bindings: [{ target: "rotor", opacity: "on" }] }, // no #rotor in svg
+    };
+    const validation = validateCustomPart({ spec });
+    expect(validation.valid).toBe(true);
+    if (validation.valid) {
+      expect(validation.warnings?.some((w) => w.message.includes('id="rotor"'))).toBe(true);
+    }
+    const saved = await saveCustomPart({ spec });
+    expect(saved.ok).toBe(true);
+    if (saved.ok) expect("warnings" in saved).toBe(true);
+  });
+
   test("delete removes the part", async () => {
     await saveCustomPart({ spec: VALID_SPEC });
     expect(await deleteCustomPart({ id: "my-sensor" })).toEqual({ ok: true });

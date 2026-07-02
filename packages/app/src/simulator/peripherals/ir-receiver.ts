@@ -36,6 +36,12 @@ const BIT_HIGH_ZERO_MS = 0.56
 const BIT_HIGH_ONE_MS = 1.69
 const TRAILER_LOW_MS = 0.56
 
+// NEC repeat: while a button is HELD, real remotes send a short repeat frame
+// (9 ms LOW + 2.25 ms HIGH + 560 µs LOW) every ~108 ms instead of resending
+// the full code. IRremote surfaces these as repeat/0xFFFFFFFF results.
+const REPEAT_HIGH_MS = 2.25
+const REPEAT_PERIOD_MS = 108
+
 // Idle line is HIGH (active-low receiver output). Frame ends HIGH.
 const TRACE_RING_SIZE = 32
 
@@ -57,6 +63,9 @@ export class IrReceiverPeripheral implements Peripheral<IrStateShape> {
   private lastCode: number | null = null
   private transmitting = false
   private transmitEndSimMs = 0
+  /** While true (remote button held), NEC repeat frames fire every ~108 ms. */
+  private holding = false
+  private nextRepeatAtSimMs = 0
 
   private traces: PeripheralTrace[] = []
 
@@ -143,11 +152,40 @@ export class IrReceiverPeripheral implements Peripheral<IrStateShape> {
     this.ctx.scheduleEdge(this.signalPin, 1, t)
 
     this.transmitEndSimMs = t + 1 // small buffer
+    this.nextRepeatAtSimMs = startMs + REPEAT_PERIOD_MS
     this.trace({
       simMs: startMs,
       kind: "derive",
       message: `NEC 0x${u32.toString(16).toUpperCase()} (ends ${this.transmitEndSimMs.toFixed(1)}ms)`,
       detail: { code: u32, endMs: this.transmitEndSimMs },
+    })
+  }
+
+  /** Track whether the virtual remote's button is still held (repeat frames). */
+  setHolding(holding: boolean): void {
+    this.holding = holding
+    if (!holding) this.nextRepeatAtSimMs = 0
+  }
+
+  /** Emit an NEC repeat frame — sent every ~108 ms while a button is held. */
+  private sendRepeat(startAtSimMs: number): void {
+    if (!this.ctx || this.signalPin === null || this.transmitting) return
+    this.transmitting = true
+    let t = startAtSimMs
+    this.ctx.scheduleEdge(this.signalPin, 0, t)
+    t += LEADER_LOW_MS
+    this.ctx.scheduleEdge(this.signalPin, 1, t)
+    t += REPEAT_HIGH_MS
+    this.ctx.scheduleEdge(this.signalPin, 0, t)
+    t += TRAILER_LOW_MS
+    this.ctx.scheduleEdge(this.signalPin, 1, t)
+    this.transmitEndSimMs = t + 1
+    this.nextRepeatAtSimMs = startAtSimMs + REPEAT_PERIOD_MS
+    this.trace({
+      simMs: startAtSimMs,
+      kind: "derive",
+      message: "NEC repeat frame",
+      detail: { endMs: this.transmitEndSimMs },
     })
   }
 
@@ -159,6 +197,15 @@ export class IrReceiverPeripheral implements Peripheral<IrStateShape> {
     if (this.transmitting && simMs >= this.transmitEndSimMs) {
       this.transmitting = false
       this.transmitEndSimMs = 0
+    }
+    if (
+      this.holding &&
+      !this.transmitting &&
+      this.lastCode !== null &&
+      this.nextRepeatAtSimMs > 0 &&
+      simMs >= this.nextRepeatAtSimMs
+    ) {
+      this.sendRepeat(simMs)
     }
   }
 
@@ -176,6 +223,8 @@ export class IrReceiverPeripheral implements Peripheral<IrStateShape> {
     this.transmitting = false
     this.transmitEndSimMs = 0
     this.lastCode = null
+    this.holding = false
+    this.nextRepeatAtSimMs = 0
     this.traces = []
   }
 

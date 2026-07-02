@@ -444,3 +444,84 @@ describe("analyzeCircuit", () => {
     expect(result.netlist.length).toBeGreaterThan(0)
   })
 })
+
+// ── PWM average-current model ──────────────────────────────────────────
+
+describe("analyzeCircuit — PWM switching-state average", () => {
+  // D9 → resistor(220) → LED → GND. The diode's exponential I-V means the
+  // correct time-average current is duty × I(5V), NOT I(duty × 5V) — the old
+  // averaged-voltage model underestimated PWM LED current several-fold.
+  function buildPwmCircuit(pin9: Partial<PinState>) {
+    const components: Record<string, BoardComponent> = {
+      r1: makeResistor("r1", 5, 0, 220),
+      led1: makeLed("led1", 5, 5),
+    }
+    const wires: Record<string, Wire> = {
+      w1: makeWire("w1", -999, 9, 5, 0), // D9 → resistor input
+      w2: makeWire("w2", 5, 4, 5, 5), // resistor → LED anode
+      w3: makeWire("w3", -999, -3, 6, 5), // LED cathode → GND
+    }
+    const pinStates = makePinStates([{ pin: 9, mode: "OUTPUT", ...pin9 }])
+    return analyzeCircuit(components, wires, pinStates)
+  }
+
+  test("50% duty LED carries ~half the full-on current", () => {
+    const fullOn = buildPwmCircuit({ digitalValue: 1 })
+    const half = buildPwmCircuit({ isPwm: true, pwmValue: 128, digitalValue: 1 })
+
+    const iFull = fullOn.componentStates.get("led1")?.current ?? 0
+    const iHalf = half.componentStates.get("led1")?.current ?? 0
+    expect(iFull).toBeGreaterThan(5) // sanity: LED is actually conducting
+
+    const duty = 128 / 255
+    // Within 10% of duty × I(5V) — the physically correct time average.
+    expect(iHalf).toBeGreaterThan(duty * iFull * 0.9)
+    expect(iHalf).toBeLessThan(duty * iFull * 1.1)
+    // And far above what the old averaged-voltage model produced (~0.2×).
+    expect(iHalf).toBeGreaterThan(0.35 * iFull)
+  })
+
+  test("duty 0 and duty 255 collapse to the two DC endpoints", () => {
+    const off = buildPwmCircuit({ isPwm: true, pwmValue: 0, digitalValue: 0 })
+    const on = buildPwmCircuit({ isPwm: true, pwmValue: 255, digitalValue: 1 })
+    const fullOn = buildPwmCircuit({ digitalValue: 1 })
+
+    expect(off.componentStates.get("led1")?.current ?? 1).toBeLessThan(0.1)
+    const iOn = on.componentStates.get("led1")?.current ?? 0
+    const iFull = fullOn.componentStates.get("led1")?.current ?? 0
+    expect(Math.abs(iOn - iFull)).toBeLessThan(0.5)
+  })
+})
+
+// ── Rail faults ────────────────────────────────────────────────────────
+
+describe("analyzeCircuit — rail faults", () => {
+  test("5V wired straight to GND emits a short_circuit warning", () => {
+    const components: Record<string, BoardComponent> = {
+      r1: makeResistor("r1", 8, 0, 220), // bystander part, off the shorted net
+    }
+    const wires: Record<string, Wire> = {
+      short: makeWire("short", -999, -1, 5, 0), // 5V → row 5
+      toGnd: makeWire("toGnd", -999, -3, 5, 1), // GND → same row 5 net
+    }
+    const result = analyzeCircuit(components, wires, createDefaultPinStates())
+    expect(result.warnings.some((w) => w.type === "short_circuit")).toBe(true)
+  })
+
+  test("heavy load on the 5V rail warns about the supply limit", () => {
+    // 5V → 5Ω → GND ≈ 1A — far over the ~500mA polyfuse.
+    const components: Record<string, BoardComponent> = {
+      r1: makeResistor("r1", 5, 0, 5),
+    }
+    const wires: Record<string, Wire> = {
+      w1: makeWire("w1", -999, -1, 5, 0),
+      w2: makeWire("w2", -999, -3, 5, 4),
+    }
+    const result = analyzeCircuit(components, wires, createDefaultPinStates())
+    expect(
+      result.warnings.some(
+        (w) => (w.type === "overcurrent" || w.type === "short_circuit") && w.message.includes("5V"),
+      ),
+    ).toBe(true)
+  })
+})

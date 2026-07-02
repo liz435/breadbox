@@ -215,11 +215,15 @@ export const libraryStateSchema = z.object({
   // across multiple soft-buses and the renderer locates by component.
   oled: z.record(z.string(), oledStateSchema).default({}),
   neopixels: z.record(z.string(), neoPixelStateSchema).default({}),
+  // Custom-part behavior signals, keyed by componentId → signal name → value.
+  // Published by the generic DSL peripheral; consumed by visual bindings.
+  custom: z.record(z.string(), z.record(z.string(), z.number())).default({}),
 });
 export type LibraryState = z.infer<typeof libraryStateSchema>;
 
-// Save-path schema: framebuffers are runtime-only, never persisted to disk.
-export const persistedLibraryStateSchema = libraryStateSchema.omit({ oled: true, neopixels: true });
+// Save-path schema: framebuffers and live signal values are runtime-only,
+// never persisted to disk.
+export const persistedLibraryStateSchema = libraryStateSchema.omit({ oled: true, neopixels: true, custom: true });
 export type PersistedLibraryState = z.infer<typeof persistedLibraryStateSchema>;
 
 // ── Board Component ──────────────────────────────────────────────
@@ -314,7 +318,7 @@ export type Environment = z.infer<typeof environmentSchema>;
 const boardStateBaseSchema = z.object({
   components: z.record(z.string(), boardComponentSchema),
   wires: z.record(z.string(), wireSchema),
-  libraryState: libraryStateSchema.default({ servos: {}, lcd: null, serialBaud: 0, oled: {}, neopixels: {} }),
+  libraryState: libraryStateSchema.default({ servos: {}, lcd: null, serialBaud: 0, oled: {}, neopixels: {}, custom: {} }),
   // Supports legacy string[] format from old saves, normalises to {text, ts}.
   // `source` (optional, added v2.x) lets the Serial Monitor filter output by
   // origin when both the simulator AND a paired real board are emitting at
@@ -389,7 +393,7 @@ export function createDefaultBoardState(): BoardState {
       },
     },
     wires: {},
-    libraryState: { servos: {}, lcd: null, serialBaud: 0, oled: {}, neopixels: {} },
+    libraryState: { servos: {}, lcd: null, serialBaud: 0, oled: {}, neopixels: {}, custom: {} },
     serialOutput: [],
     sketchCode: DEFAULT_SKETCH_CODE,
     customLibraries: {},

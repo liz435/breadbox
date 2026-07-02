@@ -13,6 +13,23 @@
 export type PinPoint = { row: number; col: number };
 export type ComponentPinMap = Record<string, PinPoint>;
 
+/**
+ * A custom part's pin: a name plus a grid offset (dx columns, dy rows) from the
+ * placement origin. Sourced from the custom-component DSL `pins` field.
+ */
+export type CustomPinFootprint = { name: string; dx: number; dy: number };
+
+/**
+ * Resolves a `custom:<id>` type to its pin footprints, or undefined when the
+ * type is unknown / not a DSL custom part. The built-in resolver is pure and
+ * keyed only on the type string, so callers that need custom parts resolved
+ * (the MCP `apply_design` / `validate_design` DSL path) pass this in, built
+ * from the custom-parts store.
+ */
+export type CustomFootprintLookup = (
+  type: string,
+) => readonly CustomPinFootprint[] | undefined;
+
 // ── Pin Name Registry ────────────────────────────────────────────────────
 
 const PIN_NAMES: Record<string, string[]> = {
@@ -26,7 +43,7 @@ const PIN_NAMES: Record<string, string[]> = {
   servo: ["signal", "vcc", "gnd"],
   neopixel: ["din", "vcc", "gnd"],
   pir_sensor: ["vcc", "signal", "gnd"],
-  relay: ["vcc", "signal", "gnd"],
+  relay: ["vcc", "signal", "gnd", "com", "no", "nc"],
   dc_motor: ["vcc", "signal"],
   dht_sensor: ["vcc", "data", "gnd"],
   ir_receiver: ["out", "gnd", "vcc"],
@@ -43,7 +60,14 @@ const PIN_NAMES: Record<string, string[]> = {
 /**
  * Get the ordered list of pin names for a component type.
  */
-export function getComponentPinNames(type: string): string[] {
+export function getComponentPinNames(
+  type: string,
+  customFootprints?: CustomFootprintLookup,
+): string[] {
+  if (customFootprints && type.startsWith("custom:")) {
+    const fp = customFootprints(type);
+    if (fp && fp.length > 0) return fp.map((p) => p.name);
+  }
   return PIN_NAMES[type] ?? [];
 }
 
@@ -61,6 +85,7 @@ export function resolveComponentPins(
   row: number,
   col: number,
   _properties?: Record<string, unknown>,
+  customFootprints?: CustomFootprintLookup,
 ): ComponentPinMap {
   switch (type) {
     // ── Horizontal, straddles center gap ─────────────────────────
@@ -107,7 +132,17 @@ export function resolveComponentPins(
       return { vcc: { row, col }, signal: { row: row + 1, col }, gnd: { row: row + 2, col } };
 
     case "relay":
-      return { vcc: { row, col }, signal: { row: row + 1, col }, gnd: { row: row + 2, col } };
+      // Coil side (vcc/signal/gnd) on rows 0-2, switched contacts (com/no/nc)
+      // appended on rows 3-5 so the relay can actually switch a load in the
+      // netlist. Appending keeps existing saved boards' pin positions valid.
+      return {
+        vcc: { row, col },
+        signal: { row: row + 1, col },
+        gnd: { row: row + 2, col },
+        com: { row: row + 3, col },
+        no: { row: row + 4, col },
+        nc: { row: row + 5, col },
+      };
 
     case "neopixel":
       return { din: { row, col }, vcc: { row: row + 1, col }, gnd: { row: row + 2, col } };
@@ -215,9 +250,26 @@ export function resolveComponentPins(
         q7s: { row: row + 7, col: 7 },   // pin 9 (Q7' serial-out)
       };
 
-    // ── Fallback: generic vertical layout ────────────────────────
+    // ── Custom parts: resolve from the injected footprint ────────
+    //
+    // A DSL custom part declares `pins: [{name, dx, dy}]` — grid offsets from
+    // the placement origin. Map each to (row + dy, col + dx), the exact cell
+    // the app runtime places it at, so wiring a `custom:*` part by id.pinName
+    // resolves the same on both sides. Falls through to the generic layout
+    // when no footprint is available (keeps the resolver pure without one).
 
     default: {
+      if (customFootprints && type.startsWith("custom:")) {
+        const footprint = customFootprints(type);
+        if (footprint && footprint.length > 0) {
+          const customMap: ComponentPinMap = {};
+          for (const pin of footprint) {
+            customMap[pin.name] = { row: row + pin.dy, col: col + pin.dx };
+          }
+          return customMap;
+        }
+      }
+
       const names = PIN_NAMES[type];
       if (!names || names.length === 0) return {};
       const map: ComponentPinMap = {};
@@ -239,7 +291,8 @@ export function resolveComponentPin(
   col: number,
   pinName: string,
   properties?: Record<string, unknown>,
+  customFootprints?: CustomFootprintLookup,
 ): PinPoint | null {
-  const pins = resolveComponentPins(type, row, col, properties);
+  const pins = resolveComponentPins(type, row, col, properties, customFootprints);
   return pins[pinName] ?? null;
 }
