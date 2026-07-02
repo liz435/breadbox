@@ -1,22 +1,14 @@
-// ── Storage adapter selector ────────────────────────────────────────────
+// ── Storage adapter ─────────────────────────────────────────────────────
 //
 // One module exporting `storage`, the unified `{ projects, agentRuns }`
-// repo bundle. Pinned at process start based on BREADBOX_MODE — never
-// switches per-request. Both adapters ship in code permanently:
-//   • cli mode (default)  → file-based, `dataDir()` on disk
-//   • hosted mode         → Supabase Postgres + Supabase Storage
+// repo bundle: file-based storage under `dataDir()` on disk.
 //
 // Call sites import `storage` and use `storage.projects.x()` /
 // `storage.agentRuns.x()`. Tests can override via setStorageForTests.
 
-import { IS_HOSTED_MODE } from "../supabase/env"
 import { projectRepo as fileProjectRepo } from "./adapters/file/project-repo"
 import { agentRunRepo as fileAgentRunRepo } from "./adapters/file/agent-run-repo"
-import { projectRepo as supabaseProjectRepo } from "./adapters/supabase/project-repo"
-import { agentRunRepo as supabaseAgentRunRepo } from "./adapters/supabase/agent-run-repo"
 
-// Lock the structural shape to the file repo's. Any Supabase divergence
-// is a compile error at the import seam below.
 export type ProjectRepo = typeof fileProjectRepo
 export type AgentRunRepo = typeof fileAgentRunRepo
 
@@ -25,23 +17,13 @@ export type StorageAdapter = {
   agentRuns: AgentRunRepo
 }
 
-function pickAdapter(): StorageAdapter {
-  if (IS_HOSTED_MODE) {
-    return {
-      projects: supabaseProjectRepo as ProjectRepo,
-      agentRuns: supabaseAgentRunRepo as AgentRunRepo,
-    }
-  }
-  return { projects: fileProjectRepo, agentRuns: fileAgentRunRepo }
+let _storage: StorageAdapter = {
+  projects: fileProjectRepo,
+  agentRuns: fileAgentRunRepo,
 }
 
-let _storage: StorageAdapter = pickAdapter()
-
 // Proxy indirection so `setStorageForTests` can swap the active adapter
-// without rewiring every call site. The trade-off: the Supabase SDK ships
-// in CLI builds because both adapters are statically imported above. A
-// future bundle-size pass could move to dynamic import + a `getStorage()`
-// accessor; for PR1 the simpler shape wins.
+// without rewiring every call site.
 export const storage = new Proxy({} as StorageAdapter, {
   get(_target, prop) {
     return _storage[prop as keyof StorageAdapter]

@@ -1,11 +1,8 @@
-// ── Auth plugin selector ────────────────────────────────────────────────
+// ── Auth plugin ─────────────────────────────────────────────────────────
 //
-// Picks the active auth middleware once at startup based on BREADBOX_MODE.
-// Both implementations populate the same { auth: AuthContext } shape,
-// so downstream routes never branch on mode.
+// Single-tenant local auth: every request is the fixed CLI user. The
+// middleware populates { auth: AuthContext } for downstream routes.
 
-import { IS_HOSTED_MODE } from "../supabase/env"
 import { cliAuthPlugin } from "./cli-middleware"
-import { supabaseAuthPlugin } from "./supabase-middleware"
 
-export const authPlugin = IS_HOSTED_MODE ? supabaseAuthPlugin : cliAuthPlugin
+export const authPlugin = cliAuthPlugin

@@ -15,15 +15,6 @@ import type { Asset } from "../db/schemas";
 import type { AuthContext } from "../auth/context";
 import { authPlugin } from "../auth/auth-plugin";
 import { auditLog } from "../auth/audit-log";
-import { getSupabaseAdmin } from "../supabase/admin-client";
-import { IS_HOSTED_MODE } from "../supabase/env";
-
-const ASSET_BUCKET = "project-assets";
-
-/** Object key under the bucket. Mirrors the file adapter's directory layout. */
-function assetObjectKey(ownerId: string, projectId: string, filename: string): string {
-  return `${ownerId}/${projectId}/${filename}`;
-}
 
 // Combined save payload — both fields optional so the client can omit one
 // when nothing changed in that half. At least one must be present.
@@ -296,30 +287,13 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
     const filename = `${assetId}.${ext}`;
     const buffer = await file.arrayBuffer();
 
-    if (IS_HOSTED_MODE) {
-      // Hosted: upload to Supabase Storage. Bucket is private; the route
-      // mints short-lived signed URLs on GET.
-      const supabase = getSupabaseAdmin();
-      const { error } = await supabase.storage
-        .from(ASSET_BUCKET)
-        .upload(assetObjectKey(ownerId, params.id, filename), buffer, {
-          contentType: file.type || "application/octet-stream",
-          upsert: false,
-        });
-      if (error) {
-        set.status = 502;
-        return { error: `asset upload failed: ${error.message}` };
-      }
-    } else {
-      // CLI: write to filesystem under the project's asset dir.
-      const dir = await storage.projects.ensureAssetsDir(params.id, ownerId);
-      if (!dir) {
-        set.status = 404;
-        return { error: "Project not found" };
-      }
-      const filePath = join(dir, filename);
-      await Bun.write(filePath, buffer);
+    // Write to filesystem under the project's asset dir.
+    const dir = await storage.projects.ensureAssetsDir(params.id, ownerId);
+    if (!dir) {
+      set.status = 404;
+      return { error: "Project not found" };
     }
+    await Bun.write(join(dir, filename), buffer);
 
     const uri = `/project/${params.id}/assets/${filename}`;
     const assetType = mimeToAssetType(file.type, ext);
@@ -413,26 +387,15 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
     // already detached).
     const filename = asset.uri.split("/").pop();
     if (filename) {
-      if (IS_HOSTED_MODE) {
-        try {
-          const supabase = getSupabaseAdmin();
-          await supabase.storage
-            .from(ASSET_BUCKET)
-            .remove([assetObjectKey(ownerId, params.id, filename)]);
-        } catch {
-          // Object may already be gone
-        }
-      } else {
-        const filePath = join(
-          storage.projects.projectAssetsDir(params.id),
-          filename,
-        );
-        try {
-          const { unlink } = await import("fs/promises");
-          await unlink(filePath);
-        } catch {
-          // File may already be gone
-        }
+      const filePath = join(
+        storage.projects.projectAssetsDir(params.id),
+        filename,
+      );
+      try {
+        const { unlink } = await import("fs/promises");
+        await unlink(filePath);
+      } catch {
+        // File may already be gone
       }
     }
 
@@ -457,10 +420,8 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
       return { error: "Project not found" };
     }
 
-    // Containment check: reject anything that isn't a bare basename. Path
-    // traversal isn't possible in hosted mode (the Supabase object key is
-    // a constructed string with no user-provided slashes), but we keep the
-    // same gate in both modes for consistency + defense-in-depth.
+    // Containment check: reject anything that isn't a bare basename —
+    // path-traversal defense for the filesystem read below.
     const filename = params.filename;
     if (
       filename.length === 0 ||
@@ -472,26 +433,6 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
     ) {
       set.status = 400;
       return { error: "Invalid asset filename" };
-    }
-
-    if (IS_HOSTED_MODE) {
-      // Hosted: mint a short-lived signed URL and 302-redirect. The
-      // browser caches the redirect just long enough that subsequent
-      // renders hit the bucket directly.
-      const supabase = getSupabaseAdmin();
-      const { data, error } = await supabase.storage
-        .from(ASSET_BUCKET)
-        .createSignedUrl(assetObjectKey(ownerId, params.id, filename), 3600);
-      if (error || !data?.signedUrl) {
-        set.status = 404;
-        return { error: "Asset not found" };
-      }
-      set.status = 302;
-      set.headers["Location"] = data.signedUrl;
-      // Cache the redirect itself for slightly less than the signed-URL
-      // TTL so the browser re-fetches a fresh URL before this one expires.
-      set.headers["Cache-Control"] = "private, max-age=3300";
-      return "";
     }
 
     const dir = storage.projects.projectAssetsDir(params.id);

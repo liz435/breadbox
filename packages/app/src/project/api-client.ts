@@ -18,7 +18,7 @@ export class ApiError extends Error {
 // ── Auth-aware fetch plumbing ────────────────────────────────────────────
 //
 // Every API call threads through `resolveFetchOptions` so the browser
-// attaches the Supabase auth cookies (HttpOnly, set by /auth/callback).
+// attaches session cookies when present.
 // The fetch is same-origin in prod (static UI served by the Elysia API)
 // and via Vite's /api proxy in dev, so `credentials: "include"` is
 // sufficient — no bearer token in the URL or headers.
@@ -58,11 +58,9 @@ export function isInAnonymousPreview(): boolean {
 }
 
 /**
- * Start the GitHub OAuth flow via the server-orchestrated Supabase Auth
- * route. The server holds the PKCE verifier in an HttpOnly cookie, runs
- * the exchange, and sets session cookies — the browser never touches a
- * raw access token. Preserves the user's current path so they land back
- * where they came from after callback.
+ * Navigate to the server's sign-in route. Dead path on the local server
+ * (isHosted is always false, and /auth/sign-in 404s) — kept only because
+ * the hosted-preview components still reference it.
  */
 export function redirectToSignIn(): void {
   if (typeof window === "undefined") return;

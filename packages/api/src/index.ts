@@ -1,7 +1,6 @@
 // ── Secret lockdown (must be first) ─────────────────────────────────────
 // Side-effect import: captures ANTHROPIC_API_KEY into a module-local and
 // deletes it from process.env before any agent/tool module loads.
-// (build-trigger: redeploy after Dockerfile --frozen-lockfile fix)
 import "./bootstrap-secrets";
 
 import { Elysia } from "elysia";
@@ -9,9 +8,7 @@ import { cors } from "@elysiajs/cors";
 import { createLogger } from "./logger";
 import { authPlugin } from "./auth/auth-plugin";
 import { requestContextPlugin } from "./request-context";
-import { flush as flushLogSink } from "./log-supabase-sink";
 import { migrateOwnership } from "./db/migrate-ownership";
-import { CLI_LOCAL_USER_ID, IS_HOSTED_MODE } from "./supabase/env";
 import { projectRoutes } from "./routes/projects";
 import { agentRunRoutes } from "./routes/agent-run";
 import { chatRoutes, awaitPendingSummaries } from "./routes/chat";
@@ -20,18 +17,16 @@ import { flashRoutes } from "./routes/flash";
 import { boardRoutes } from "./routes/boards";
 import { boardStreamRoutes } from "./routes/board-stream";
 import { mcpConnectRoutes } from "./routes/mcp-connect";
-import { evalRoutes } from "./routes/eval";
 import { libraryRoutes } from "./routes/libraries";
 import { customPartsRoutes } from "./routes/custom-parts";
 import { capabilitiesRoutes } from "./routes/capabilities";
 import { authRoutes } from "./routes/auth";
 import { configRoutes } from "./routes/config";
-import { adminRoutes } from "./routes/admin";
 import { motionRoutes } from "./routes/motion";
 import { createWebUiStatic } from "./routes/web-ui-static";
 import { stopWorker } from "./serial/serialport-bridge";
 import { APP_ORIGIN, API_PORT as _API_PORT } from "@dreamer/config";
-import { BREADBOX_BIND, IS_HOSTED } from "./env";
+import { BREADBOX_BIND, CLI_LOCAL_USER_ID, IS_HOSTED } from "./env";
 
 const API_PORT = Number(process.env.PORT ?? _API_PORT);
 
@@ -67,16 +62,15 @@ const corsOrigin: string[] = IS_HOSTED
     ];
 
 // ── Ownership migration ─────────────────────────────────────────────────
-// Scan project JSONs that predate the ownerId schema field. Hosted mode
-// quarantines them under `_legacy/`; local mode stamps them with the
-// canonical CLI owner UUID (and rewrites the pre-Supabase "local" literal
-// to the same UUID on the way through). Failures are logged and
+// Scan project JSONs that predate the ownerId schema field and stamp
+// them with the canonical CLI owner UUID (rewriting the legacy "local"
+// literal to the same UUID on the way through). Failures are logged and
 // swallowed — a migration error must not wedge a restart, since we can
 // always re-run on the next boot.
 try {
   await migrateOwnership({
     ownerIdForLocal: CLI_LOCAL_USER_ID,
-    hosted: IS_HOSTED_MODE,
+    hosted: false,
   });
 } catch (err) {
   log.warn(`ownership migration failed: ${err instanceof Error ? err.message : err}`);
@@ -97,7 +91,6 @@ const app = new Elysia()
   .use(requestContextPlugin)
   .use(authRoutes)
   .use(configRoutes)
-  .use(adminRoutes)
   .use(projectRoutes)
   .use(agentRunRoutes)
   .use(chatRoutes)
@@ -106,7 +99,6 @@ const app = new Elysia()
   .use(boardRoutes)
   .use(boardStreamRoutes)
   .use(mcpConnectRoutes)
-  .use(evalRoutes)
   .use(libraryRoutes)
   .use(customPartsRoutes)
   .use(capabilitiesRoutes)
@@ -158,14 +150,6 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   }
 
   await awaitPendingSummaries(SHUTDOWN_DEADLINE_MS - 500)
-
-  // Drain the Supabase log sink so the last second of warn+ entries
-  // make it to Postgres before SIGKILL. In CLI mode this is a no-op.
-  try {
-    await flushLogSink()
-  } catch (err) {
-    log.warn(`flush log sink failed: ${err instanceof Error ? err.message : err}`)
-  }
 
   log.info("shutdown complete")
   process.exit(0)

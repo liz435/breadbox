@@ -1,19 +1,12 @@
 // ── Audit log ───────────────────────────────────────────────────────────
 //
-// Two backends, picked by BREADBOX_MODE:
+// Append-only JSONL rotated per calendar day under
+// `$BREADBOX_HOME/audit/{YYYY-MM-DD}.jsonl`. Operator handles
+// rotation/archival.
 //
-//   • CLI (default): append-only JSONL rotated per calendar day under
-//     `$BREADBOX_HOME/audit/{YYYY-MM-DD}.jsonl`. Operator handles
-//     rotation/archival.
-//
-//   • Hosted: one row per event in `public.audit_events`. Indexed on
-//     (user_id, ts desc) and (project_id, ts desc). RLS is intentionally
-//     empty — service-role only.
-//
-// Writes are fire-and-forget in both modes: callers do `void auditLog(evt)`
-// and never await. An audit failure (disk full, network blip, Supabase
-// outage) must not fail the user's request — we log-warn locally and
-// swallow.
+// Writes are fire-and-forget: callers do `void auditLog(evt)` and never
+// await. An audit failure (disk full) must not fail the user's request —
+// we log-warn locally and swallow.
 //
 // CLI concurrency: `fs.appendFile` + a single `\n`-terminated line per call
 // is atomic on POSIX up to PIPE_BUF (4 KiB on Linux, 512 B on macOS) for
@@ -25,8 +18,6 @@ import { join } from "node:path"
 import { z } from "zod"
 import { dreamerHome } from "../paths"
 import { createLogger } from "../logger"
-import { IS_HOSTED_MODE } from "../supabase/env"
-import { getSupabaseAdmin } from "../supabase/admin-client"
 
 const log = createLogger("audit")
 
@@ -41,7 +32,6 @@ export type AuditAction =
   | "agent.run"
   | "compile.start"
   | "flash.start"
-  | "admin.claim-project"
 
 const auditActionSchema = z.enum([
   "project.create",
@@ -53,7 +43,6 @@ const auditActionSchema = z.enum([
   "agent.run",
   "compile.start",
   "flash.start",
-  "admin.claim-project",
 ])
 
 export const auditEventSchema = z.object({
@@ -102,21 +91,8 @@ async function ensureDir(): Promise<void> {
 
 // ── API ───────────────────────────────────────────────────────────────
 
-// userId field arrives as either a Supabase UUID (hosted) or the fixed
-// CLI local user UUID. The Postgres column is `uuid`-typed but
-// historically we accepted the literal string "local" for legacy CLI
-// callers. Pre-screen for the UUID shape; if the input doesn't match,
-// we still write the JSONL row (CLI) but pass null into Postgres so
-// the schema constraint isn't violated.
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-function looksLikeUuid(value: string): boolean {
-  return UUID_RE.test(value)
-}
-
 /**
- * Append an event to today's audit file (CLI) or insert one row into
- * public.audit_events (hosted). Fire-and-forget: returns a promise that
+ * Append an event to today's audit file. Fire-and-forget: returns a promise that
  * never rejects. Callers should `void auditLog(...)` and not await
  * unless they specifically want to sequence against the write (rare).
  */
@@ -137,11 +113,7 @@ export async function auditLog(input: AuditEventInput): Promise<void> {
       return
     }
 
-    if (IS_HOSTED_MODE) {
-      await writeToPostgres(parsed.data)
-    } else {
-      await writeToJsonl(parsed.data)
-    }
+    await writeToJsonl(parsed.data)
   } catch (err) {
     // Swallow: audit must never fail a request.
     log.warn(`audit append failed: ${err instanceof Error ? err.message : String(err)}`)
@@ -151,18 +123,6 @@ export async function auditLog(input: AuditEventInput): Promise<void> {
 async function writeToJsonl(event: AuditEvent): Promise<void> {
   await ensureDir()
   await appendFile(auditFilePath(event.ts), JSON.stringify(event) + "\n")
-}
-
-async function writeToPostgres(event: AuditEvent): Promise<void> {
-  const supabase = getSupabaseAdmin()
-  const { error } = await supabase.from("audit_events").insert({
-    ts: new Date(event.ts).toISOString(),
-    user_id: looksLikeUuid(event.userId) ? event.userId : null,
-    action: event.action,
-    project_id: event.projectId ?? null,
-    extra: event.extra ?? null,
-  })
-  if (error) throw new Error(error.message)
 }
 
 /** Exposed for tests — file path for a given timestamp. */

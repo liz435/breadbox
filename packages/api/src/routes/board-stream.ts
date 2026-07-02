@@ -21,7 +21,7 @@
 //     client ignores it when the version is one it already has.
 //   - When the last subscriber for a project disconnects, its poller stops.
 //
-// Disabled in hosted mode (multi-user Supabase) — this is a local/desktop
+// Disabled in hosted mode (multi-user) — this is a local/desktop
 // feature only.
 
 import { Elysia } from "elysia"

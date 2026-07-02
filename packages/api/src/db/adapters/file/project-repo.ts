@@ -865,27 +865,3 @@ export const projectRepo = {
   ensureAssetsDir,
   projectAssetsDir,
 };
-
-// ── Pure helpers shared with the Supabase adapter ────────────────────────
-//
-// Exported so adapters/supabase/project-repo.ts can reuse the in-memory
-// mutation logic without duplicating ~200 lines of op handlers. Keep
-// these functions free of IO — the adapter handles persistence.
-
-export {
-  applyOne as applyOneOp,
-  applyBoardOp as applyOneBoardOp,
-  buildInitialProject,
-  projectHasContent,
-  stripRuntimeOnly,
-  parseRequestApplyOps,
-  parseRequestApplyBoardOps,
-};
-
-// Wrappers exposing schema parsing without leaking the schema imports.
-function parseRequestApplyOps(req: unknown): ApplyOpsRequest {
-  return applyOpsRequestSchema.parse(req);
-}
-function parseRequestApplyBoardOps(req: unknown): ApplyBoardOpsRequest {
-  return applyBoardOpsRequestSchema.parse(req);
-}

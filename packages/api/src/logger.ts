@@ -19,7 +19,6 @@ import { existsSync, statSync, renameSync, mkdirSync, appendFileSync } from "fs"
 import { join } from "path";
 import { logsDir } from "./paths";
 import { redactHeaders } from "./logging-redact";
-import { emitToSupabase } from "./log-supabase-sink";
 
 const colors = {
   reset: "\x1b[0m",
@@ -211,9 +210,6 @@ function createLogger(tag: string) {
     else console.log(line);
     const file = ensureFileReady();
     if (file) writeJsonl(file, level, tag, message, data);
-    // Third sink: Supabase (hosted mode only). Failure-isolated +
-    // recursion-guarded inside the sink itself — see log-supabase-sink.ts.
-    emitToSupabase(level, tag, message, data);
   };
   return {
     debug(message: string, data?: unknown) { emit("debug", message, data); },

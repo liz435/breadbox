@@ -1,6 +1,6 @@
 // ── CLI auth middleware (file-mode, single tenant) ──────────────────────
 //
-// Local-only deployment: no Supabase, no real auth. Every request is
+// Local-only deployment: no real auth. Every request is
 // treated as the fixed local user (CLI_LOCAL_USER_ID). We still gate
 // Host + Origin headers to defend against DNS-rebind attacks against
 // the bound loopback port.
@@ -8,7 +8,7 @@
 import { Elysia } from "elysia"
 import { APP_ORIGIN } from "@dreamer/config"
 import type { AuthContext } from "./context"
-import { CLI_LOCAL_USER_ID } from "../supabase/env"
+import { CLI_LOCAL_USER_ID } from "../env"
 
 const PUBLIC_PATHS = new Set<string>([
   "/api/capabilities",

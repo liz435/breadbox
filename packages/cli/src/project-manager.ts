@@ -1,6 +1,6 @@
 import { projectRepo } from "@dreamer/api/db/adapters/file/project-repo"
 import { boardTracker } from "@dreamer/api/db/board-state-tracker"
-import { CLI_LOCAL_USER_ID } from "@dreamer/api/supabase/env"
+import { CLI_LOCAL_USER_ID } from "@dreamer/api/env"
 import type { ProjectFile } from "@dreamer/schemas"
 
 // CLI is single-tenant; every project it reads or writes is owned by the

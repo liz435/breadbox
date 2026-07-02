@@ -4,8 +4,7 @@
 // single request without explicit plumbing. The Elysia middleware
 // (`requestContextPlugin`) enters the context on every request and
 // downstream code reads it via `getRequestContext()`. Used by the
-// runtime logger's Supabase sink (PR3) and the audit log writer to
-// stamp `user_id` / `request_id` on every record.
+// audit log writer to stamp `user_id` / `request_id` on every record.
 //
 // Bun's `node:async_hooks` works the same as Node — values set in
 // `als.run(value, fn)` are visible to every async continuation that
@@ -16,7 +15,7 @@ import { AsyncLocalStorage } from "node:async_hooks"
 import { Elysia } from "elysia"
 
 export type RequestContext = {
-  /** Verified user id from auth middleware (Supabase UUID in hosted, fixed UUID in CLI). */
+  /** User id from auth middleware (the fixed local-user UUID). */
   userId: string | null
   /** Per-request opaque id for log correlation. Generated on entry. */
   requestId: string

@@ -173,11 +173,6 @@ async function completeRun(params: {
   if (params.tokenUsage) existing.tokenUsage = params.tokenUsage;
 
   await writeRun(existing.run.id, existing);
-
-  // Fire-and-forget: auto-evaluate the run
-  import("../../../eval/batch-evaluator").then(({ evaluateSingleRun }) => {
-    evaluateSingleRun(params.runId).catch(() => {});
-  }).catch(() => {});
 }
 
 /**
@@ -289,11 +284,6 @@ async function appendOverhead(
   existing.tokenUsage.totalTokens = existing.tokenUsage.totalTokens + overhead.totalTokens;
 
   await writeRun(runId, existing);
-
-  // Re-run eval so the summary picks up the corrected total
-  import("../../../eval/batch-evaluator").then(({ evaluateSingleRun }) => {
-    evaluateSingleRun(runId).catch(() => {});
-  }).catch(() => {});
 }
 
 export const agentRunRepo = {

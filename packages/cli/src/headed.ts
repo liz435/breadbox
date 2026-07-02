@@ -2,7 +2,6 @@ import { Elysia } from "elysia"
 import { cors } from "@elysiajs/cors"
 import { authPlugin } from "@dreamer/api/auth/auth-plugin"
 import { createLogger } from "@dreamer/api/logger"
-import { adminRoutes } from "@dreamer/api/routes/admin"
 import { agentRunRoutes } from "@dreamer/api/routes/agent-run"
 import { authRoutes } from "@dreamer/api/routes/auth"
 import { boardRoutes } from "@dreamer/api/routes/boards"
@@ -12,7 +11,6 @@ import { capabilitiesRoutes } from "@dreamer/api/routes/capabilities"
 import { chatRoutes } from "@dreamer/api/routes/chat"
 import { compileRoutes } from "@dreamer/api/routes/compile"
 import { configRoutes } from "@dreamer/api/routes/config"
-import { evalRoutes } from "@dreamer/api/routes/eval"
 import { flashRoutes } from "@dreamer/api/routes/flash"
 import { libraryRoutes } from "@dreamer/api/routes/libraries"
 import { customPartsRoutes } from "@dreamer/api/routes/custom-parts"
@@ -132,7 +130,6 @@ export async function startHeadedMode(): Promise<void> {
     .use(authPlugin)
     .use(authRoutes)
     .use(configRoutes)
-    .use(adminRoutes)
     .use(projectRoutes)
     .use(agentRunRoutes)
     .use(chatRoutes)
@@ -141,7 +138,6 @@ export async function startHeadedMode(): Promise<void> {
     .use(boardRoutes)
     .use(boardStreamRoutes)
     .use(mcpConnectRoutes)
-    .use(evalRoutes)
     .use(libraryRoutes)
     .use(customPartsRoutes)
     .use(capabilitiesRoutes)
