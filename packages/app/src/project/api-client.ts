@@ -1,6 +1,6 @@
 import { API_ORIGIN } from "@dreamer/config";
 import { projectFileSchema, type ProjectFile } from "./schemas";
-import type { z } from "zod";
+import { z } from "zod";
 import { refreshCurrentUser, isAnonymousPreview } from "@/auth/use-current-user";
 import { getCapabilities } from "./use-capabilities";
 import { toast } from "@/components/ui/toast";
@@ -228,6 +228,48 @@ export async function renameScene(
 
 export function fetchProject(projectId: string): Promise<ProjectFile> {
   return request(`/project/${encodeURIComponent(projectId)}`, projectFileSchema);
+}
+
+// ── Last-opened project ──────────────────────────────────────────────────
+//
+// The server keeps a record of the last project each user opened so a
+// fresh launch reopens where they left off. This is deliberately NOT
+// localStorage-only: the desktop app loads from `localhost:<port>` where
+// the port can change between launches, and localStorage is per-origin,
+// so a client-side record silently vanishes whenever the port shifts.
+
+const lastOpenedResponseSchema = z.object({
+  projectId: z.string().nullable(),
+});
+
+/**
+ * Last project the user opened, validated server-side to still exist.
+ * Returns null on any failure — callers fall back to localStorage or a
+ * fresh project.
+ */
+export async function fetchLastOpenedProjectId(): Promise<string | null> {
+  if (isAnonymousPreview()) return null;
+  try {
+    const res = await authedFetch(`${API_ORIGIN}/project/last-opened`);
+    if (!res.ok) return null;
+    return lastOpenedResponseSchema.parse(await res.json()).projectId;
+  } catch {
+    return null;
+  }
+}
+
+/** Best-effort record of the open so the next launch resumes here. */
+export async function saveLastOpenedProjectId(projectId: string): Promise<void> {
+  if (isAnonymousPreview()) return;
+  try {
+    await authedFetch(`${API_ORIGIN}/project/last-opened`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId }),
+    });
+  } catch {
+    // Non-fatal — the next launch falls back to localStorage.
+  }
 }
 
 export function createProject(params?: {

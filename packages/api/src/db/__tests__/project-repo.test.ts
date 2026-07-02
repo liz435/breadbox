@@ -561,3 +561,39 @@ describe("projectRepo — legacy data graceful handling", () => {
     await unlink(join(projectsDir(), `${id}.json`));
   });
 });
+
+// ── Last-opened project ───────────────────────────────────────────────────────
+
+describe("projectRepo — last-opened project", () => {
+  test("returns null when nothing was recorded", async () => {
+    expect(await projectRepo.getLastOpenedProjectId("nobody")).toBeNull();
+  });
+
+  test("round-trips the recorded project id", async () => {
+    const p = await make("Resume Me");
+    await projectRepo.setLastOpenedProjectId(p.project.id, OWNER_A);
+    expect(await projectRepo.getLastOpenedProjectId(OWNER_A)).toBe(p.project.id);
+  });
+
+  test("is tracked per owner", async () => {
+    const a = await make("A's project", OWNER_A);
+    const b = await make("B's project", OWNER_B);
+    await projectRepo.setLastOpenedProjectId(a.project.id, OWNER_A);
+    await projectRepo.setLastOpenedProjectId(b.project.id, OWNER_B);
+    expect(await projectRepo.getLastOpenedProjectId(OWNER_A)).toBe(a.project.id);
+    expect(await projectRepo.getLastOpenedProjectId(OWNER_B)).toBe(b.project.id);
+  });
+
+  test("returns null when the recorded project was deleted", async () => {
+    const p = await projectRepo.createProject({ ownerId: OWNER_A, name: "Doomed" });
+    await projectRepo.setLastOpenedProjectId(p.project.id, OWNER_A);
+    await projectRepo.deleteProject(p.project.id, OWNER_A);
+    expect(await projectRepo.getLastOpenedProjectId(OWNER_A)).toBeNull();
+  });
+
+  test("returns null when the recorded project belongs to someone else", async () => {
+    const p = await make("A's only", OWNER_A);
+    await projectRepo.setLastOpenedProjectId(p.project.id, OWNER_B);
+    expect(await projectRepo.getLastOpenedProjectId(OWNER_B)).toBeNull();
+  });
+});
