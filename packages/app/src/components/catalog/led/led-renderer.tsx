@@ -46,7 +46,6 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
         );
       })();
 
-  const isReversed = electricalState?.isReversed ?? false;
   const brightness = electricalState?.brightness ?? (isOn ? 1 : 0);
   const currentMa = electricalState?.current ?? 0;
   const voltage = electricalState?.voltage ?? 0;
@@ -63,7 +62,6 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
   const bodyGradId = `led-body-${component.id}`;
   const auraGradId = `led-aura-${component.id}`;
   const coreGradId = `led-core-${component.id}`;
-  const reversePolarityFilterId = `led-reverse-${component.id}`;
 
   // Dome shape: bullet profile (rounded top, straight sides, flat bottom)
   // Centered at (cx, cy), radius R
@@ -83,14 +81,14 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
   ].join(" ");
 
   // Brightness-responsive visuals
+  // A reversed LED simply doesn't light — the dome looks off. The circuit
+  // overlay's ReversePolarityGlow carries the diagnostic warning.
   const offColor = "#4a4a4a";
   const domeColor = isOn
     ? brightness > 0.7
       ? lighten(color, (brightness - 0.7) / 0.3 * 0.4)
       : color
-    : isReversed
-      ? "#ef4444"
-      : offColor;
+    : offColor;
 
   const domeOpacity = isOn ? 0.7 + brightness * 0.3 : 0.35;
   const visualStrength = Math.max(0, Math.min(1, brightness));
@@ -116,7 +114,7 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
         <radialGradient id={gradientId} cx="35%" cy="30%" r="70%">
           <stop offset="0%" stopColor="#ffffff" stopOpacity={specularOpacity} />
           <stop offset="30%" stopColor={isOverdriven ? lighten(color, 0.6) : domeColor} stopOpacity={0.95} />
-          <stop offset="85%" stopColor={isOn ? darken(color, 0.25) : (isReversed ? "#ef444488" : offColor)} stopOpacity={0.9} />
+          <stop offset="85%" stopColor={isOn ? darken(color, 0.25) : offColor} stopOpacity={0.9} />
           <stop offset="100%" stopColor={isOn ? darken(color, 0.4) : darken(offColor, 0.3)} stopOpacity={1} />
         </radialGradient>
         {/* Vertical body gradient for 3D cylinder effect */}
@@ -138,15 +136,6 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
         {isOn && (
           <filter id={filterId} x="-200%" y="-200%" width="500%" height="500%">
             <feGaussianBlur stdDeviation={glowBlur} result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        )}
-        {isReversed && (
-          <filter id={reversePolarityFilterId} x="-200%" y="-200%" width="500%" height="500%">
-            <feGaussianBlur stdDeviation="4" result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
@@ -391,25 +380,6 @@ function LedRendererInner({ component, pinStates, isSelected, electricalState }:
           fill={isOn ? darken(color, 0.45) : "#444"}
         />
       </g>
-
-      {/* Reverse polarity warning glow */}
-      {isReversed && (
-        <ellipse
-          cx={cx}
-          cy={cy}
-          rx={R + 5}
-          ry={R + 6}
-          fill="#ef4444"
-          filter={`url(#${reversePolarityFilterId})`}
-        >
-          <animate
-            attributeName="opacity"
-            values="0.15;0.35;0.15"
-            dur="1s"
-            repeatCount="indefinite"
-          />
-        </ellipse>
-      )}
 
       {/* Pin hole indicators */}
       <circle cx={anode.x} cy={anode.y} r={2} fill={color} opacity={0.5} />
