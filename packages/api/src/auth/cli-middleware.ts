@@ -8,7 +8,7 @@
 import { Elysia } from "elysia"
 import { APP_ORIGIN } from "@dreamer/config"
 import type { AuthContext } from "./context"
-import { CLI_LOCAL_USER_ID } from "../supabase/env"
+import { CLI_LOCAL_USER_ID } from "../env"
 
 const PUBLIC_PATHS = new Set<string>([
   "/api/capabilities",

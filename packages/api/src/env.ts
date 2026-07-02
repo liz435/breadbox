@@ -5,49 +5,20 @@
 // endpoint derives the client-visible `hosted` flag from this same value,
 // so server gates and UI gates can't disagree.
 
-import { z } from "zod"
-
 export const IS_HOSTED = process.env.BREADBOX_HOSTED === "1"
 
-// ── Env schemas ──────────────────────────────────────────────────────────
-
-const csvList = z
-  .string()
-  .optional()
-  .transform((raw): string[] =>
-    raw == null
-      ? []
-      : raw
-          .split(",")
-          .map((s) => s.trim())
-          .filter((s) => s.length > 0),
-  )
-
-const optionalString = z
-  .string()
-  .optional()
-  .transform((raw): string => raw ?? "")
-
-// ── Parsed exports ───────────────────────────────────────────────────────
-
-export const GITHUB_CLIENT_ID: string = optionalString.parse(
-  process.env.GITHUB_CLIENT_ID,
-)
-export const GITHUB_CLIENT_SECRET: string = optionalString.parse(
-  process.env.GITHUB_CLIENT_SECRET,
-)
-
-/** Comma-separated rotation list; index 0 is the active signer. */
-export const AUTH_SECRETS: string[] = csvList.parse(process.env.AUTH_SECRETS)
-
-/** GitHub logins authorized to run admin endpoints (project claim, etc.). */
-export const ADMIN_GITHUB_LOGINS: string[] = csvList.parse(
-  process.env.ADMIN_GITHUB_LOGINS,
-)
 /**
- * Network interface the API binds to. Default `0.0.0.0` for hosted
- * (Railway) deployments; `dreamer headed` sets `127.0.0.1` so the local
- * API is loopback-only and not reachable from the LAN.
+ * Default user id used when auth is bypassed (single-tenant CLI/desktop).
+ * Stable across processes so file-backed projects on disk keep matching
+ * their `ownerId` field. UUID-shaped for compatibility with projects
+ * saved by older builds.
+ */
+export const CLI_LOCAL_USER_ID = "00000000-0000-0000-0000-000000000001"
+
+/**
+ * Network interface the API binds to. Default `0.0.0.0`; `dreamer headed`
+ * sets `127.0.0.1` so the local API is loopback-only and not reachable
+ * from the LAN.
  */
 export const BREADBOX_BIND: string =
   (process.env.BREADBOX_BIND && process.env.BREADBOX_BIND.trim()) || "0.0.0.0"

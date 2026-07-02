@@ -2,7 +2,7 @@
 // the stdio process. The current project id is the only mutable bit —
 // everything else (paths, ownership, primitives) is derived on each call.
 
-import { CLI_LOCAL_USER_ID } from "@dreamer/api/supabase/env"
+import { CLI_LOCAL_USER_ID } from "@dreamer/api/env"
 
 // The MCP must read/write projects as the SAME owner the local app + CLI use,
 // or it sees a disjoint set of projects (the ownership migration stamps local

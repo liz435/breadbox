@@ -4,13 +4,9 @@
 // ~/.dreamer/config.json and apply it to the running process so the next
 // agent call works without a restart. This is the in-app equivalent of
 // `dreamer config set anthropic-key`, used by the desktop key dialog.
-//
-// Single-tenant CLI/desktop only. In hosted mode the server key is managed
-// centrally and a tenant must never overwrite it, so this 404s.
 
 import { Elysia } from "elysia"
 import { z } from "zod"
-import { IS_HOSTED_MODE } from "../supabase/env"
 import { setApiKey } from "../config"
 import { createLogger } from "../logger"
 
@@ -23,11 +19,6 @@ const setKeyBodySchema = z.object({
 export const configRoutes = new Elysia({ name: "config-routes" }).post(
   "/api/config/anthropic-key",
   async ({ body, set }) => {
-    if (IS_HOSTED_MODE) {
-      set.status = 404
-      return { error: "not found" }
-    }
-
     const parsed = setKeyBodySchema.safeParse(body)
     if (!parsed.success) {
       set.status = 400
