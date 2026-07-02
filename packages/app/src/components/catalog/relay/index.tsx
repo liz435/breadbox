@@ -78,6 +78,23 @@ export const relay: ComponentDefinition = {
     const ncPoint = footprint.points[5]
     if (!comPoint || !noPoint || !ncPoint) return null
 
+    // Backward-compat gate: boards saved before the relay had contact pins
+    // may have unrelated circuitry on rows y+3..y+5 — blindly emitting a
+    // closed COM↔NO branch there would silently short those rows together.
+    // Only switch the contacts when the user has actually wired the COM hole
+    // (any wire endpoint in its row cluster), which old layouts never did.
+    const hasWireAt = (row: number, col: number): boolean => {
+      const clusterOf = (c: number): "L" | "R" | null => (c >= 0 && c <= 4 ? "L" : c >= 5 && c <= 9 ? "R" : null)
+      const cluster = clusterOf(col)
+      if (!cluster) return false
+      return Object.values(wires).some(
+        (w) =>
+          (w.toRow === row && clusterOf(w.toCol) === cluster) ||
+          (w.fromRow === row && clusterOf(w.fromCol) === cluster),
+      )
+    }
+    if (!hasWireAt(comPoint.row, comPoint.col)) return null
+
     const coilPin =
       typeof comp.pins.out === "number" && comp.pins.out >= 0
         ? comp.pins.out

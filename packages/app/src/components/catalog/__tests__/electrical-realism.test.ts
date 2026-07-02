@@ -47,9 +47,16 @@ describe("relay — switched contacts in the netlist", () => {
     }
   }
 
+  // The COM hole (row y+3) must be wired for the contacts to switch — the
+  // backward-compat gate keeps un-wired (pre-contact-pin) boards inert.
+  const COM_WIRE: Record<string, Wire> = {
+    wcom: { id: "wcom", fromRow: 8, fromCol: 0, toRow: 8, toCol: 3, color: "#000" },
+  }
+
   test("coil HIGH closes COM→NO and opens COM→NC", () => {
     const comp = makeRelay()
     const ctx = makeCtx(relay, comp, {
+      wires: COM_WIRE,
       pinStates: pinStatesWith([{ pin: 7, mode: "OUTPUT", digitalValue: 1 }]),
     })
     const out = relay.buildNetlist?.(comp, ctx)
@@ -62,6 +69,7 @@ describe("relay — switched contacts in the netlist", () => {
   test("coil LOW opens COM→NO and closes COM→NC", () => {
     const comp = makeRelay()
     const ctx = makeCtx(relay, comp, {
+      wires: COM_WIRE,
       pinStates: pinStatesWith([{ pin: 7, mode: "OUTPUT", digitalValue: 0 }]),
     })
     const lines = relay.buildNetlist?.(comp, ctx)?.lines ?? []
@@ -69,10 +77,19 @@ describe("relay — switched contacts in the netlist", () => {
     expect(lines.find((l) => l.includes("_nc"))).toContain("0.01")
   })
 
+  test("un-wired contacts stay inert (pre-contact-pin boards)", () => {
+    const comp = makeRelay()
+    const ctx = makeCtx(relay, comp, {
+      pinStates: pinStatesWith([{ pin: 7, mode: "OUTPUT", digitalValue: 1 }]),
+    })
+    expect(relay.buildNetlist?.(comp, ctx)).toBeNull()
+  })
+
   test("coil resolved from wire topology when comp.pins.out is unset", () => {
     const comp = { ...makeRelay(), pins: { out: null, com: null, no: null, nc: null } }
     // D7 wired to the signal hole (row y+1, same left-cluster row).
     const wires: Record<string, Wire> = {
+      ...COM_WIRE,
       w1: { id: "w1", fromRow: -999, fromCol: 7, toRow: 6, toCol: 3, color: "#000" },
     }
     const ctx = makeCtx(relay, comp, {
