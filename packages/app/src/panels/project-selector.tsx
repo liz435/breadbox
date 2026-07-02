@@ -1,13 +1,14 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useProject } from "@/project/project-context"
 import {
   listProjects,
   createProject,
   deleteProject,
+  renameProject,
   type ProjectSummary,
 } from "@/project/api-client"
 import { saveProjectId } from "@/project/project-context"
-import { Plus, ChevronDown, Loader2, Trash2, Check, Folder } from "lucide-react"
+import { Plus, ChevronDown, Loader2, Trash2, Check, Folder, Pencil } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "@/components/ui/toast"
 
@@ -18,6 +19,11 @@ export function ProjectSelector() {
   const [isLoading, setIsLoading] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState("")
+  // Escape must discard the edit, but blur always follows it — this flag
+  // lets the blur handler tell an intentional cancel from a commit.
+  const renameCancelledRef = useRef(false)
 
   // Fall back to the loaded project's name when the server-side list
   // doesn't contain it (preview mode returns `[]`, or the project was
@@ -81,6 +87,27 @@ export function ProjectSelector() {
     [projectId, projects, switchProject],
   )
 
+  const handleRenameCommit = useCallback(async () => {
+    const id = renamingId
+    if (!id) return
+    setRenamingId(null)
+    if (renameCancelledRef.current) {
+      renameCancelledRef.current = false
+      return
+    }
+    const name = renameValue.trim()
+    const prev = projects.find((p) => p.id === id)
+    if (!name || !prev || name === prev.name) return
+    try {
+      await renameProject(id, name)
+      setProjects((list) =>
+        list.map((p) => (p.id === id ? { ...p, name } : p)),
+      )
+    } catch {
+      toast.error("Failed to rename project")
+    }
+  }, [renamingId, renameValue, projects])
+
   const handleCreate = useCallback(async () => {
     setIsCreating(true)
     try {
@@ -124,6 +151,7 @@ export function ProjectSelector() {
             onClick={() => {
               setIsOpen(false)
               setConfirmDeleteId(null)
+              setRenamingId(null)
             }}
           />
           <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-md border border-border bg-popover shadow-lg">
@@ -140,6 +168,7 @@ export function ProjectSelector() {
                 {projects.map((p) => {
                   const isCurrent = p.id === projectId
                   const isConfirming = confirmDeleteId === p.id
+                  const isRenamingThis = renamingId === p.id
                   return (
                     <div
                       key={p.id}
@@ -149,7 +178,30 @@ export function ProjectSelector() {
                         isCurrent && !isConfirming && "bg-accent",
                       )}
                     >
-                      {isConfirming ? (
+                      {isRenamingThis ? (
+                        <input
+                          // autoFocus is intentional: the input appears in
+                          // direct response to the pencil click.
+                          // eslint-disable-next-line jsx-a11y/no-autofocus
+                          autoFocus
+                          value={renameValue}
+                          aria-label={`Rename ${p.name}`}
+                          className="w-full min-w-0 flex-1 rounded border border-border bg-background px-1.5 py-0.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          onFocus={(e) => e.target.select()}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.currentTarget.blur()
+                            } else if (e.key === "Escape") {
+                              renameCancelledRef.current = true
+                              e.currentTarget.blur()
+                            }
+                          }}
+                          onBlur={() => {
+                            void handleRenameCommit()
+                          }}
+                        />
+                      ) : isConfirming ? (
                         <>
                           <span className="flex-1 truncate text-[11px] text-destructive">
                             Delete &ldquo;{p.name}&rdquo;?
@@ -182,6 +234,20 @@ export function ProjectSelector() {
                             onClick={() => handleSelect(p.id)}
                           >
                             {p.name}
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Rename ${p.name}`}
+                            className="flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-colors hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring group-hover:opacity-100"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              renameCancelledRef.current = false
+                              setConfirmDeleteId(null)
+                              setRenameValue(p.name)
+                              setRenamingId(p.id)
+                            }}
+                          >
+                            <Pencil className="size-3" />
                           </button>
                           <button
                             type="button"
