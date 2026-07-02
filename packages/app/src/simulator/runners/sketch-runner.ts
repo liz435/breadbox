@@ -95,6 +95,14 @@ export interface SketchRunner {
     options?: SketchRunnerLoadOptions,
   ): Promise<{ success: boolean; error?: string }>
 
+  /**
+   * Load pre-compiled firmware directly, skipping the compile step. Only
+   * runners whose chip can execute the format implement this (AVR: Intel
+   * HEX). Used by the headless example-simulation suites, which run
+   * committed hex fixtures without arduino-cli.
+   */
+  loadHex?(hex: string): void
+
   runSetup(): void
   runLoopIteration(): boolean
 

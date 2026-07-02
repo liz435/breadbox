@@ -6,18 +6,21 @@
 // electrical analysis.
 
 import { readFileSync } from "node:fs"
-import { join } from "node:path"
+import { basename, isAbsolute, join } from "node:path"
 import { boardStateSchema, type BoardState } from "@dreamer/schemas"
 import { analyzeElectricalBoard } from "../../electrical/power-budget"
 
 const BOARDS_DIR = join(import.meta.dir, "..", "boards")
 
-export function loadExampleBoard(fileName: string): BoardState {
-  const filePath = join(BOARDS_DIR, fileName)
+/** Load + schema-validate a board JSON (bare name ⇒ examples/boards). */
+export function loadExampleBoard(fileNameOrPath: string): BoardState {
+  const filePath = isAbsolute(fileNameOrPath)
+    ? fileNameOrPath
+    : join(BOARDS_DIR, fileNameOrPath)
   const raw = JSON.parse(readFileSync(filePath, "utf8")) as unknown
   const parsed = boardStateSchema.safeParse(raw)
   if (!parsed.success) {
-    throw new Error(`${fileName}: invalid BoardState JSON`)
+    throw new Error(`${basename(filePath)}: invalid BoardState JSON — ${parsed.error.message}`)
   }
   return parsed.data
 }
