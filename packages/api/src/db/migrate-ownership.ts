@@ -16,7 +16,7 @@
 //     project belongs to the one user. Stamp the local owner UUID in place.
 //     Earlier CLI versions stamped the literal string "local"; those are
 //     rewritten to the UUID on this pass so projects authored before the
-//     Supabase migration remain visible to their owner.
+//     ownership migration remain visible to their owner.
 //
 // Idempotent on re-run: files with the current ownerId are left alone, and
 // files already under `_legacy/` are never rescanned.
@@ -53,7 +53,7 @@ export type OwnershipMigrationResult = {
   errors: number
 }
 
-// CLI versions before the Supabase migration stamped this literal string
+// CLI versions before the ownership migration stamped this literal string
 // as the local owner; we now use a UUID so it can join hosted-mode rows
 // in Postgres without a type cast. Any project still wearing the legacy
 // string is rewritten to the canonical UUID below.
@@ -114,7 +114,7 @@ export async function migrateOwnership(params?: {
       const hasOwner =
         typeof existingOwner === "string" && existingOwner.length > 0
 
-      // Local-mode rewrite: pre-Supabase CLI versions wrote the literal
+      // Local-mode rewrite: older CLI versions wrote the literal
       // "local"; bring those forward to the UUID so the active owner gate
       // still recognizes them. Hosted mode never touches these — a project
       // wearing "local" arrived from a CLI checkout and shouldn't be

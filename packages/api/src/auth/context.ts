@@ -10,7 +10,7 @@ import { z } from "zod"
 export const authContextSchema = z.object({
   userId: z.string(),
   sessionId: z.string().nullable(),
-  /** True on the hosted (Supabase) deploy; false for CLI/desktop. */
+  /** Always false — retained so the response shape stays stable for the UI. */
   isHosted: z.boolean(),
 })
 

@@ -55,11 +55,11 @@ export function redactHeadersDeep(data: unknown, depth = 0): unknown {
 
 // ── Broad payload scrub ────────────────────────────────────────────────
 //
-// The Supabase log sink (PR3) ships log `data` payloads to a Postgres
-// table that can outlive a single deploy. The header redaction above
-// catches HTTP shapes, but agent runs + OAuth code paths also embed
-// raw tokens / emails / codes in `data` fields. Strip those by key
-// name before push, leaving everything else intact for debuggability.
+// Log `data` payloads land in the JSONL file sink, which can outlive
+// a session. The header redaction above catches HTTP shapes, but agent
+// runs also embed raw tokens / emails in `data` fields. Strip those by
+// key name before write, leaving everything else intact for
+// debuggability.
 //
 // Match is case-insensitive on the literal key (not contains), so
 // `email`, `access_token`, etc. are scrubbed but `display_name` or

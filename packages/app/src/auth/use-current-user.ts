@@ -37,7 +37,7 @@ export type CurrentUser = {
 
 export type AuthMeResponse = {
   user: CurrentUser | null
-  /** True on the hosted (Supabase) deploy; false for CLI/desktop. */
+  /** Always false from the local server — retained for response-shape compatibility. */
   isHosted: boolean
   /** CLI/desktop only: whether an Anthropic API key is configured. */
   hasApiKey?: boolean

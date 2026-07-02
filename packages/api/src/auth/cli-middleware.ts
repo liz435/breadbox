@@ -1,6 +1,6 @@
 // ── CLI auth middleware (file-mode, single tenant) ──────────────────────
 //
-// Local-only deployment: no Supabase, no real auth. Every request is
+// Local-only deployment: no real auth. Every request is
 // treated as the fixed local user (CLI_LOCAL_USER_ID). We still gate
 // Host + Origin headers to defend against DNS-rebind attacks against
 // the bound loopback port.
