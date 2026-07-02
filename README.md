@@ -20,8 +20,7 @@ compile and flash to real hardware.
   connected microcontroller.
 - **MCP integration** — connect Claude Desktop or Cursor via `dreamer mcp` and
   build circuits from your existing AI client, with a live canvas bridge.
-- **Runs anywhere** — a single-file CLI binary, a native desktop app (Tauri),
-  or a hosted multi-tenant web deployment.
+- **Runs anywhere** — a single-file CLI binary or a native desktop app (Tauri).
 
 ## Quickstart
 
@@ -58,19 +57,6 @@ packages/
 
 See [`docs/`](./docs) for the architecture, simulation, agent, breadboard, and
 CLI deep-dives — start with [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
-
-## Two modes
-
-Breadbox runs single-tenant by default and multi-tenant when hosted:
-
-- **CLI mode** (`DREAMER_MODE=cli`, the default) — file-based storage, auth
-  bypassed, bring-your-own Anthropic key. This is what the CLI and desktop app
-  use. No Supabase required.
-- **Hosted mode** (`DREAMER_MODE=hosted`) — Supabase auth (GitHub OAuth),
-  Postgres-backed storage, and credit-based billing for a multi-tenant SaaS.
-
-The boundary is behind clean flags/adapters; see `.env.example` for the full
-list of variables.
 
 ## Desktop app
 
