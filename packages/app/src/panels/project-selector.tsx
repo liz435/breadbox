@@ -20,6 +20,7 @@ export function ProjectSelector() {
   const [isCreating, setIsCreating] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [isHeaderRenaming, setIsHeaderRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState("")
   // Escape must discard the edit, but blur always follows it — this flag
   // lets the blur handler tell an intentional cancel from a commit.
@@ -87,6 +88,29 @@ export function ProjectSelector() {
     [projectId, projects, switchProject],
   )
 
+  const commitRename = useCallback(
+    async (id: string, rawName: string, prevName?: string) => {
+      const name = rawName.trim()
+      if (!name || name === prevName) return
+      try {
+        await renameProject(id, name)
+        if (projects.some((p) => p.id === id)) {
+          setProjects((list) =>
+            list.map((p) => (p.id === id ? { ...p, name } : p)),
+          )
+        } else {
+          // Not in the local list (initial fetch failed or hasn't landed) —
+          // re-fetch so the header stops falling back to the stale
+          // projectFile name.
+          refresh()
+        }
+      } catch {
+        toast.error("Failed to rename project")
+      }
+    },
+    [projects, refresh],
+  )
+
   const handleRenameCommit = useCallback(async () => {
     const id = renamingId
     if (!id) return
@@ -95,18 +119,19 @@ export function ProjectSelector() {
       renameCancelledRef.current = false
       return
     }
-    const name = renameValue.trim()
     const prev = projects.find((p) => p.id === id)
-    if (!name || !prev || name === prev.name) return
-    try {
-      await renameProject(id, name)
-      setProjects((list) =>
-        list.map((p) => (p.id === id ? { ...p, name } : p)),
-      )
-    } catch {
-      toast.error("Failed to rename project")
+    await commitRename(id, renameValue, prev?.name)
+  }, [renamingId, renameValue, projects, commitRename])
+
+  const handleHeaderRenameCommit = useCallback(async () => {
+    if (!isHeaderRenaming) return
+    setIsHeaderRenaming(false)
+    if (renameCancelledRef.current) {
+      renameCancelledRef.current = false
+      return
     }
-  }, [renamingId, renameValue, projects])
+    await commitRename(projectId, renameValue, currentProject?.name)
+  }, [isHeaderRenaming, projectId, renameValue, currentProject, commitRename])
 
   const handleCreate = useCallback(async () => {
     setIsCreating(true)
@@ -124,25 +149,78 @@ export function ProjectSelector() {
 
   return (
     <div className="relative">
-      <button
-        type="button"
-        className="flex w-full items-center gap-2 rounded px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
-        onClick={() => {
-          if (!isOpen) refresh()
-          setIsOpen((v) => !v)
-        }}
-      >
-        <Folder className="size-3 shrink-0 text-muted-foreground" />
-        <span className="flex-1 truncate text-left">
-          {currentProject?.name ?? "Loading..."}
-        </span>
-        <ChevronDown
-          className={cn(
-            "size-3 shrink-0 text-muted-foreground transition-transform",
-            isOpen && "rotate-180",
-          )}
-        />
-      </button>
+      {isHeaderRenaming ? (
+        <div className="flex w-full items-center gap-2 rounded px-3 py-1">
+          <Folder className="size-3 shrink-0 text-muted-foreground" />
+          <input
+            // autoFocus is intentional: the input appears in direct
+            // response to the pencil click.
+            // eslint-disable-next-line jsx-a11y/no-autofocus
+            autoFocus
+            value={renameValue}
+            aria-label="Rename current project"
+            className="w-full min-w-0 flex-1 rounded border border-border bg-background px-1.5 py-0.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            onChange={(e) => setRenameValue(e.target.value)}
+            onFocus={(e) => e.target.select()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.currentTarget.blur()
+              } else if (e.key === "Escape") {
+                renameCancelledRef.current = true
+                e.currentTarget.blur()
+              }
+            }}
+            onBlur={() => {
+              void handleHeaderRenameCommit()
+            }}
+          />
+        </div>
+      ) : (
+        <div className="group/header flex w-full items-center rounded transition-colors hover:bg-accent focus-within:bg-accent">
+          <button
+            type="button"
+            className="flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-3 text-xs font-medium focus-visible:outline-none"
+            onClick={() => {
+              if (!isOpen) refresh()
+              setIsOpen((v) => !v)
+            }}
+          >
+            <Folder className="size-3 shrink-0 text-muted-foreground" />
+            <span className="flex-1 truncate text-left">
+              {currentProject?.name ?? "Loading..."}
+            </span>
+          </button>
+          <button
+            type="button"
+            aria-label="Rename current project"
+            className="flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-colors hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring group-hover/header:opacity-100"
+            onClick={() => {
+              if (!currentProject) return
+              renameCancelledRef.current = false
+              setRenameValue(currentProject.name)
+              setIsHeaderRenaming(true)
+            }}
+          >
+            <Pencil className="size-3" />
+          </button>
+          <button
+            type="button"
+            aria-label="Toggle project list"
+            className="flex shrink-0 items-center py-1.5 pl-1 pr-3 focus-visible:outline-none"
+            onClick={() => {
+              if (!isOpen) refresh()
+              setIsOpen((v) => !v)
+            }}
+          >
+            <ChevronDown
+              className={cn(
+                "size-3 shrink-0 text-muted-foreground transition-transform",
+                isOpen && "rotate-180",
+              )}
+            />
+          </button>
+        </div>
+      )}
 
       {isOpen && (
         <>
