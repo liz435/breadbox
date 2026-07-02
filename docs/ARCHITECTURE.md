@@ -167,7 +167,6 @@ See `packages/api/src/toolchain.ts:121` (CLI resolution),
 | 3000 | Vite dev server | `packages/app` | `bun run dev:app` |
 | 4111 | Elysia API | `packages/api` | `bun run dev:api` |
 | runtime | `dreamer` binary (CLI) static UI | `packages/cli/src/web-ui.ts` | `dreamer headed` |
-| runtime | Elysia in hosted mode (single port for UI + API) | `packages/api/src/routes/web-ui-static.ts` | Railway |
 
 The frontend learns the API origin via `@dreamer/config`: it reads
 `window.__DREAMER__.apiOrigin` if injected, falls back to the Vite env.

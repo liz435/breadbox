@@ -1,9 +1,7 @@
 # Breadbox Docs
 
 Documentation for the current code in this repository. These docs describe how
-things are actually built today, not the plans. The plan / roadmap documents
-(AGENT_DECISION_TREE, ARDUINO_PLAN, etc.) still live alongside these and cover
-where the project is heading.
+things are actually built today.
 
 ## Architecture docs
 
@@ -27,17 +25,6 @@ where the project is heading.
   button-press → `digitalRead`, sensor inputs → pin store (and the ordering
   rule), undo/redo vs. agent ops. Read this after the subsystem docs when
   you need to reason about a flow that spans them.
-
-## Plan docs (not tracked by this agent)
-
-- [`AGENT_DECISION_TREE.md`](./AGENT_DECISION_TREE.md)
-- [`AGENT_EVAL_PLAN.md`](./AGENT_EVAL_PLAN.md)
-- [`ARDUINO_PLAN.md`](./ARDUINO_PLAN.md)
-- [`HARDWARE_DEBUG_PLAN.md`](./HARDWARE_DEBUG_PLAN.md)
-- [`PLAN.md`](./PLAN.md)
-- [`REQUIRMENT.md`](./REQUIRMENT.md)
-- [`SHIPPING_BLOCKERS.md`](./SHIPPING_BLOCKERS.md)
-- [`VELXIO_ADOPTION_ROADMAP.md`](./VELXIO_ADOPTION_ROADMAP.md)
 
 ## Conventions
 
