@@ -252,6 +252,23 @@ export async function searchLibraries(query: string): Promise<Array<{
 // ── Auto-install on missing-header compile error ─────────────────────────
 
 /**
+ * Headers whose providing library can't be found by name-matching the
+ * Arduino index. The generic strategy below (exact normalized match, or a
+ * single search hit) covers most libraries — e.g. "SimpleDHT.h" → SimpleDHT,
+ * "Adafruit_SSD1306.h" → Adafruit SSD1306 — but some canonical headers are
+ * both non-matching and ambiguous. `lib search "DHT"` returns dozens of
+ * libraries and none is named "DHT", so the DHT examples (and any user
+ * sketch using the standard Adafruit DHT API) would fail to compile.
+ */
+export const KNOWN_HEADER_LIBRARIES: Record<string, string> = {
+  DHT: "DHT sensor library",
+  DHT_U: "DHT sensor library",
+  Adafruit_Sensor: "Adafruit Unified Sensor",
+  OneWire: "OneWire",
+  U8g2lib: "U8g2",
+}
+
+/**
  * Parse arduino-cli's "fatal error: Foo.h: No such file or directory" output
  * and return the header name (without .h) if present.
  */
@@ -284,9 +301,29 @@ export async function attemptAutoInstall(
     return { reason: "BREADBOX_AUTO_INSTALL_LIBS=0" }
   }
 
-  const candidates = await searchLibraries(headerBase)
+  const known = KNOWN_HEADER_LIBRARIES[headerBase]
+  const pick = known
+    ? { name: known }
+    : pickLibraryForHeader(headerBase, await searchLibraries(headerBase))
+
+  if (typeof pick === "string") return { reason: pick }
+
+  const result = await installLibrary(pick.name)
+  if (!result.success) return { reason: `install "${pick.name}" failed: ${result.error}` }
+  return { installed: pick.name }
+}
+
+/**
+ * Pure name-matching half of the auto-install strategy: given the search
+ * candidates for a header, pick the library to install, or return a
+ * human-readable reason string when no safe pick exists.
+ */
+export function pickLibraryForHeader(
+  headerBase: string,
+  candidates: Array<{ name: string }>,
+): { name: string } | string {
   if (candidates.length === 0) {
-    return { reason: `no library matches "${headerBase}" in the Arduino index` }
+    return `no library matches "${headerBase}" in the Arduino index`
   }
 
   // Arduino library names typically use spaces where headers use underscores
@@ -306,14 +343,10 @@ export async function attemptAutoInstall(
 
   if (!pick) {
     const top = candidates.slice(0, 5).map((c) => c.name).join(", ")
-    return {
-      reason:
-        `"${headerBase}" ambiguous in the Arduino index (candidates: ${top}). ` +
-        `Install one explicitly via \`arduino-cli lib install "<name>"\`.`,
-    }
+    return (
+      `"${headerBase}" ambiguous in the Arduino index (candidates: ${top}). ` +
+      `Install one explicitly via \`arduino-cli lib install "<name>"\`.`
+    )
   }
-
-  const result = await installLibrary(pick.name)
-  if (!result.success) return { reason: `install "${pick.name}" failed: ${result.error}` }
-  return { installed: pick.name }
+  return pick
 }
