@@ -1222,19 +1222,23 @@ function NeoPixelRenderer({ component, isSelected, libraryState }: { component: 
 
   const livePixels = libraryState?.neopixels?.[component.id]?.pixels;
   const hasLivePixels = livePixels != null;
-  const fallbackColors = ["#151515", "#151515", "#151515", "#151515", "#151515", "#151515", "#151515", "#151515"];
-  const toColor = (i: number) => {
+
+  // Separate HUE from INTENSITY, like a real emitter: the die glows in the
+  // fully-saturated color (a dim red WS2812 still looks *red*, not maroon)
+  // while PWM magnitude drives how bright / how far the light carries.
+  // Perceptual exponent matches the realistic-LED treatment — WS2812s at
+  // setBrightness(50) already read as bright to the eye.
+  const pixelVisual = (i: number) => {
     const live = livePixels?.[i];
-    if (live) return `rgb(${live.r}, ${live.g}, ${live.b})`;
-    return fallbackColors[i % fallbackColors.length];
+    if (!live) return null;
+    const peak = Math.max(live.r, live.g, live.b);
+    if (peak === 0) return { lit: false as const, hue: "#151515", intensity: 0 };
+    const scale = 255 / peak;
+    const hue = `rgb(${Math.round(live.r * scale)}, ${Math.round(live.g * scale)}, ${Math.round(live.b * scale)})`;
+    const luma = (0.2126 * live.r + 0.7152 * live.g + 0.0722 * live.b) / 255;
+    const intensity = Math.pow(Math.min(1, luma), 0.45);
+    return { lit: true as const, hue, intensity };
   };
-  const brightnessFor = (i: number) => {
-    const live = livePixels?.[i];
-    if (!live) return 0;
-    const raw = Math.max(live.r, live.g, live.b);
-    return raw > 0 ? Math.max(0.42, Math.min(1, raw / 80)) : 0;
-  };
-  const isAnimating = livePixels?.some((p) => p.r > 0 || p.g > 0 || p.b > 0) ?? false;
 
   const pinNames = ["din", "vcc", "gnd"];
   const pinColors = ["#a855f7", "#ef4444", "#6b7280"];
@@ -1266,62 +1270,49 @@ function NeoPixelRenderer({ component, isSelected, libraryState }: { component: 
         rx={1.5} fill="#1a1a1a"
         stroke={isSelected ? "#3b82f6" : "#2a2a2a"}
         strokeWidth={isSelected ? 1.5 : 0.8} />
-      {isAnimating && (
-        <>
-          <rect
-            x={stripL}
-            y={stripT}
-            width={stripW}
-            height={stripH}
-            rx={1.5}
-            fill="none"
-            stroke="#a78bfa"
-            strokeWidth={0.8}
-            strokeDasharray="6 5"
-            opacity={0.55}
-          >
-            <animate attributeName="stroke-dashoffset" values="0;-22" dur="0.9s" repeatCount="indefinite" />
-            <animate attributeName="opacity" values="0.35;0.75;0.35" dur="0.9s" repeatCount="indefinite" />
-          </rect>
-          <rect
-            x={stripL + 2}
-            y={stripT + 2}
-            width={7}
-            height={stripH - 4}
-            rx={1}
-            fill="#ffffff"
-            opacity={0.12}
-          >
-            <animate attributeName="x" values={`${stripL + 2};${stripL + stripW - 9};${stripL + 2}`} dur="1.4s" repeatCount="indefinite" />
-            <animate attributeName="opacity" values="0.05;0.22;0.05" dur="1.4s" repeatCount="indefinite" />
-          </rect>
-        </>
-      )}
       {/* Solder mask green accent lines */}
       <line x1={stripL + 2} y1={stripT + 1.5} x2={stripL + stripW - 2} y2={stripT + 1.5}
         stroke="#065f46" strokeWidth={0.5} opacity={0.4} />
       <line x1={stripL + 2} y1={stripT + stripH - 1.5} x2={stripL + stripW - 2} y2={stripT + stripH - 1.5}
         stroke="#065f46" strokeWidth={0.5} opacity={0.4} />
 
-      {/* SMD LED pads + LED squares */}
+      {/* Per-pixel bloom gradients — white-hot core falling off through the
+          pixel's saturated hue. Defined once per pixel, referenced below. */}
+      <defs>
+        {Array.from({ length: displayLeds }, (_, i) => {
+          const v = pixelVisual(i);
+          if (!v?.lit) return null;
+          return (
+            <radialGradient key={i} id={`neo-bloom-${component.id}-${i}`} cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#ffffff" stopOpacity={0.5 + v.intensity * 0.45} />
+              <stop offset="28%" stopColor={v.hue} stopOpacity={0.55 + v.intensity * 0.35} />
+              <stop offset="62%" stopColor={v.hue} stopOpacity={0.22 + v.intensity * 0.2} />
+              <stop offset="100%" stopColor={v.hue} stopOpacity={0} />
+            </radialGradient>
+          );
+        })}
+      </defs>
+
+      {/* SMD LED pads + LED packages. A real WS2812 holds rock-steady light —
+          no pulse/shimmer animations; all motion comes from live pixel data. */}
       {Array.from({ length: displayLeds }, (_, i) => {
         const ledX = stripL + 5 + i * ((stripW - 10) / (displayLeds - 1 || 1));
         const ledSize = 4;
-        const c = toColor(i);
-        const brightness = brightnessFor(i);
+        const v = pixelVisual(i);
+        const lit = v?.lit === true;
+        const intensity = lit ? v.intensity : 0;
         return (
           <g key={i}>
-            {brightness > 0 && (
+            {/* Steady bloom — radius and strength track perceived brightness */}
+            {lit && (
               <circle
                 cx={ledX}
                 cy={stripCy}
-                r={4 + brightness * 4}
-                fill={c}
-                opacity={0.16 + brightness * 0.24}
-              >
-                <animate attributeName="r" values={`${4 + brightness * 2};${5 + brightness * 5};${4 + brightness * 2}`} dur={`${0.8 + i * 0.05}s`} repeatCount="indefinite" />
-                <animate attributeName="opacity" values={`${0.16 + brightness * 0.18};${0.3 + brightness * 0.28};${0.16 + brightness * 0.18}`} dur={`${0.8 + i * 0.05}s`} repeatCount="indefinite" />
-              </circle>
+                r={4.5 + intensity * 6}
+                fill={`url(#neo-bloom-${component.id}-${i})`}
+                opacity={0.5 + intensity * 0.5}
+                pointerEvents="none"
+              />
             )}
             {/* Copper pad */}
             <rect x={ledX - ledSize / 2 - 0.8} y={stripCy - ledSize / 2 - 0.8}
@@ -1331,17 +1322,25 @@ function NeoPixelRenderer({ component, isSelected, libraryState }: { component: 
             <rect x={ledX - ledSize / 2} y={stripCy - ledSize / 2}
               width={ledSize} height={ledSize} rx={0.5}
               fill="#f5f5f5" stroke="#ddd" strokeWidth={0.3} />
-            {/* Colored LED die */}
+            {/* LED die: saturated hue when lit (dim ≠ muddy), dark when off */}
             <rect x={ledX - ledSize / 2 + 0.8} y={stripCy - ledSize / 2 + 0.8}
               width={ledSize - 1.6} height={ledSize - 1.6} rx={0.3}
-              fill={c} opacity={hasLivePixels ? 0.5 + brightness * 0.5 : 0.35}>
-              {brightness > 0 && (
-                <animate attributeName="opacity" values={`${0.5 + brightness * 0.25};1;${0.5 + brightness * 0.25}`} dur={`${0.72 + i * 0.04}s`} repeatCount="indefinite" />
-              )}
-            </rect>
+              fill={lit ? v.hue : "#151515"}
+              opacity={lit ? 0.75 + intensity * 0.25 : hasLivePixels ? 0.9 : 0.35} />
+            {/* Diffuser white-out at the center of a driven pixel */}
+            {lit && (
+              <circle
+                cx={ledX}
+                cy={stripCy}
+                r={0.55 + intensity * 0.55}
+                fill="#ffffff"
+                opacity={0.35 + intensity * 0.6}
+                pointerEvents="none"
+              />
+            )}
             {/* Corner mark (pin 1 indicator) */}
             <circle cx={ledX - ledSize / 2 + 1} cy={stripCy - ledSize / 2 + 1}
-              r={0.4} fill={c} opacity={hasLivePixels ? 0.7 : 0.35} />
+              r={0.4} fill="#888" opacity={0.5} />
           </g>
         );
       })}
