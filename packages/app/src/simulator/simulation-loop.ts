@@ -350,7 +350,11 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
           }
         }
       }
-    } catch {
+    } catch (err) {
+      // analyzeCircuit reports solver failures via isValid:false; reaching
+      // here means netlist construction itself crashed. Keep the sketch
+      // running but say so — a silently-blank overlay reads as "all LEDs off".
+      console.error("[simulation] circuit analysis crashed mid-run:", err)
       analysisResultRef.current = null
     }
 
@@ -475,6 +479,16 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
           wires: boardCtx.wires,
           pinStore: runner.getPinStore(),
         })
+        // A peripheral that couldn't attach (I²C device with no TWI bridge,
+        // address collision, …) means a placed component will sit idle all
+        // run. Surface it in the build log — console.warn alone is invisible.
+        for (const skip of runner.getPeripheralBus().attachSkips) {
+          onLog?.(
+            "compiler",
+            `⚠ ${skip.componentType} (${skip.componentId}) is disabled for this run: ${skip.reason}`,
+            Date.now(),
+          )
+        }
         send({ type: "COMPILE_SUCCESS" })
 
         // Debugger: advertise what this runner supports and arm any
@@ -492,6 +506,16 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
 
         runner.runSetup()
         startLoop()
+      }).catch((err: unknown) => {
+        // loadSketchAsync resolves {success:false} for compile errors, but
+        // emulator bring-up can still reject (hex load, RP2040 module/bootrom
+        // fetch), and attachBoard/runSetup can throw. Without this catch the
+        // machine sits in "compiling" forever with no visible error.
+        if (!runTokenGateRef.current.isCurrent(runToken)) return
+        const message =
+          err instanceof Error ? err.message : "Failed to start the simulation"
+        callbacksRef.current.onError?.(message)
+        send({ type: "COMPILE_ERROR", message })
       })
     },
     [send, startLoop],

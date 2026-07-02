@@ -71,11 +71,19 @@ type ScheduledEdge = {
   atSimMs: number
 }
 
+export type PeripheralAttachSkip = {
+  componentId: string
+  componentType: string
+  reason: string
+}
+
 export class PeripheralBus {
   private peripherals = new Map<string, Peripheral>()
   private byPin = new Map<number, Set<Peripheral>>()
   /** Keyed by componentType — a built-in ComponentType or a "custom:<id>" string. */
   private byType = new Map<string, Set<Peripheral>>()
+  /** Components whose peripheral failed to attach in the last attachBoard. */
+  private skips: PeripheralAttachSkip[] = []
   private traces: PeripheralTrace[] = []
   private readonly traceRingSize = 256
   /** Sorted ascending by atSimMs — head is the next edge to fire. */
@@ -93,6 +101,7 @@ export class PeripheralBus {
   /** Re-create peripherals from the current board state. Call on sim start. */
   attachBoard(input: PeripheralBoardInput): void {
     this.detachBoard()
+    this.skips = []
     this.boardPinStore = input.pinStore
     this.twi = input.twi ?? null
     if (this.twi) this.installTwiEventHandler(this.twi)
@@ -129,17 +138,30 @@ export class PeripheralBus {
         // board. The common case is an I²C device (OLED/LCD) on a runner with
         // no TWI bridge — attachTwi() throws (RP2040 today, and transpile
         // mode). Skip just that device (it renders its idle placeholder) and
-        // keep the rest of the board live. Surfaced, not swallowed.
+        // keep the rest of the board live. Recorded in `attachSkips` so the
+        // simulation loop can surface it to the user, not just the console.
+        const reason = err instanceof Error ? err.message : String(err)
+        this.skips.push({
+          componentId: component.id,
+          componentType: component.type,
+          reason,
+        })
         console.warn(
-          `[peripheral-bus] skipped ${component.type} (${component.id}): ${err instanceof Error ? err.message : String(err)}`,
+          `[peripheral-bus] skipped ${component.type} (${component.id}): ${reason}`,
         )
       }
     }
   }
 
+  /** Components whose peripheral could not attach in the last attachBoard. */
+  get attachSkips(): ReadonlyArray<PeripheralAttachSkip> {
+    return this.skips
+  }
+
   /** Tear down all peripherals. Call on sim stop/reset. */
   detachBoard(): void {
     for (const p of this.peripherals.values()) p.reset()
+    this.skips = []
     this.peripherals.clear()
     this.byPin.clear()
     this.byType.clear()
