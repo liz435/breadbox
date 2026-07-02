@@ -30,17 +30,9 @@ function BuzzerRenderer({ component, isSelected, electricalState }: { component:
   // Body sits to the LEFT of the pin column so the pins stay visible.
   const bodyCx = pinPos.x - radius - 4;
   const bodyCy = (pinPos.y + pinNeg.y) / 2;
-  const buzzGradId = `buzzer-active-${component.id}`;
 
   return (
     <g>
-      <defs>
-        <radialGradient id={buzzGradId} cx="50%" cy="50%" r="65%">
-          <stop offset="0%" stopColor="#a78bfa" stopOpacity={0.95} />
-          <stop offset="65%" stopColor="#7c3aed" stopOpacity={0.35} />
-          <stop offset="100%" stopColor="#7c3aed" stopOpacity={0} />
-        </radialGradient>
-      </defs>
       {/* Pin hole indicators */}
       <circle cx={pinPos.x} cy={pinPos.y} r={2} fill="#ef4444" opacity={0.55} />
       <circle cx={pinNeg.x} cy={pinNeg.y} r={2} fill="#6b7280" opacity={0.55} />
@@ -55,37 +47,18 @@ function BuzzerRenderer({ component, isSelected, electricalState }: { component:
         fill="none" stroke="#c0c0c0" strokeWidth={1.3} strokeLinecap="round"
       />
 
-      {/* Vibration rings when active */}
+      {/* Sound annotation — expanding ripples while driven. Neutral thin
+          strokes: the buzzer emits sound, not light, so nothing glows. */}
       {isActive && (
         <>
-          <circle cx={bodyCx} cy={bodyCy} r={radius + 2} fill={`url(#${buzzGradId})`} opacity={0.28 * loudness}>
-            <animate attributeName="r" values={`${radius};${radius + 9};${radius}`} dur={waveDur} repeatCount="indefinite" />
-            <animate attributeName="opacity" values={`${0.22 * loudness};0;${0.22 * loudness}`} dur={waveDur} repeatCount="indefinite" />
+          <circle cx={bodyCx} cy={bodyCy} r={radius + 2} fill="none" stroke="#9ca3af" strokeWidth={0.6} opacity={0.4 * loudness}>
+            <animate attributeName="r" values={`${radius};${radius + 10};${radius}`} dur={waveDur} repeatCount="indefinite" />
+            <animate attributeName="opacity" values={`${0.4 * loudness};0;${0.4 * loudness}`} dur={waveDur} repeatCount="indefinite" />
           </circle>
-          <circle cx={bodyCx} cy={bodyCy} r={radius + 4} fill="none" stroke="#c4b5fd" strokeWidth={0.7 + loudness * 0.4} opacity={0.45 * loudness}>
-            <animate attributeName="r" values={`${radius + 3};${radius + 13};${radius + 3}`} dur={waveDur} begin="0.12s" repeatCount="indefinite" />
-            <animate attributeName="opacity" values={`${0.5 * loudness};0;${0.5 * loudness}`} dur={waveDur} begin="0.12s" repeatCount="indefinite" />
+          <circle cx={bodyCx} cy={bodyCy} r={radius + 4} fill="none" stroke="#9ca3af" strokeWidth={0.5} opacity={0.3 * loudness}>
+            <animate attributeName="r" values={`${radius + 3};${radius + 14};${radius + 3}`} dur={waveDur} begin="0.14s" repeatCount="indefinite" />
+            <animate attributeName="opacity" values={`${0.32 * loudness};0;${0.32 * loudness}`} dur={waveDur} begin="0.14s" repeatCount="indefinite" />
           </circle>
-          <path
-            d={`M ${bodyCx - radius - 7} ${bodyCy - 5} Q ${bodyCx - radius - 11} ${bodyCy} ${bodyCx - radius - 7} ${bodyCy + 5}`}
-            fill="none"
-            stroke="#a78bfa"
-            strokeWidth={0.8}
-            strokeLinecap="round"
-            opacity={0.55}
-          >
-            <animate attributeName="opacity" values="0.15;0.75;0.15" dur={waveDur} repeatCount="indefinite" />
-          </path>
-          <path
-            d={`M ${bodyCx + radius + 7} ${bodyCy - 5} Q ${bodyCx + radius + 11} ${bodyCy} ${bodyCx + radius + 7} ${bodyCy + 5}`}
-            fill="none"
-            stroke="#a78bfa"
-            strokeWidth={0.8}
-            strokeLinecap="round"
-            opacity={0.55}
-          >
-            <animate attributeName="opacity" values="0.15;0.75;0.15" dur={waveDur} begin="0.08s" repeatCount="indefinite" />
-          </path>
         </>
       )}
 
@@ -101,13 +74,7 @@ function BuzzerRenderer({ component, isSelected, electricalState }: { component:
       {/* Inner ring */}
       <circle cx={bodyCx} cy={bodyCy} r={radius - 3} fill="none" stroke="#333" strokeWidth={0.5} />
       {/* Sound hole */}
-      <circle cx={bodyCx} cy={bodyCy} r={3} fill={isActive ? "#4c1d95" : "#2a2a2a"} stroke={isActive ? "#a78bfa" : "#444"} strokeWidth={0.3} />
-      {isActive && (
-        <circle cx={bodyCx} cy={bodyCy} r={1.25} fill="#ddd6fe">
-          <animate attributeName="r" values="1;2.2;1" dur={waveDur} repeatCount="indefinite" />
-          <animate attributeName="opacity" values="0.8;0.25;0.8" dur={waveDur} repeatCount="indefinite" />
-        </circle>
-      )}
+      <circle cx={bodyCx} cy={bodyCy} r={3} fill="#2a2a2a" stroke="#444" strokeWidth={0.3} />
       {/* + marking on the body */}
       <text x={bodyCx - 5} y={bodyCy - radius + 6} fontSize={4} fill="#666" fontFamily="monospace">+</text>
 
@@ -576,7 +543,6 @@ function TemperatureSensorRenderer({ component, isSelected }: { component: Board
   // Temperature tint: cold (blue) → neutral → hot (red)
   const tempFraction = Math.max(0, Math.min(1, (temperature + 40) / 165)); // -40..125 → 0..1
   const hot = tempFraction > 0.5;
-  const heatAmount = hot ? (tempFraction - 0.5) * 2 : 0;
   const coldAmount = !hot ? (0.5 - tempFraction) * 2 : 0;
 
   // TO-92 package: rounded top + flat face — offset to the LEFT of the pin column
@@ -587,7 +553,6 @@ function TemperatureSensorRenderer({ component, isSelected }: { component: Board
   const bodyBot = bodyCy + bodyRadius + 4;
 
   const bodyGradId = `tmp-body-${component.id}`;
-  const hotGlowId = `tmp-hot-${component.id}`;
 
   return (
     <g>
@@ -598,15 +563,6 @@ function TemperatureSensorRenderer({ component, isSelected }: { component: Board
           <stop offset="50%" stopColor="#1a1a1a" />
           <stop offset="100%" stopColor="#000000" />
         </radialGradient>
-        {heatAmount > 0.2 && (
-          <filter id={hotGlowId} x="-200%" y="-200%" width="500%" height="500%">
-            <feGaussianBlur stdDeviation={1.5 + heatAmount * 2} result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        )}
       </defs>
 
       {/* Pin hole indicators */}
@@ -648,7 +604,6 @@ function TemperatureSensorRenderer({ component, isSelected }: { component: Board
         fill={`url(#${bodyGradId})`}
         stroke={isSelected ? "#3b82f6" : "#333"}
         strokeWidth={isSelected ? 1.5 : 0.8}
-        filter={heatAmount > 0.2 ? `url(#${hotGlowId})` : undefined}
       />
 
       {/* Flat-face orientation marker */}
@@ -669,52 +624,12 @@ function TemperatureSensorRenderer({ component, isSelected }: { component: Board
         36
       </text>
 
-      {/* Live temperature readout dot — colour fades blue ↔ red */}
-      <circle
-        cx={bodyCx}
-        cy={bodyCy + 5}
-        r={1.6}
-        fill={
-          hot
-            ? `rgb(${Math.round(180 + heatAmount * 75)},${Math.round(50 - heatAmount * 40)},${Math.round(50 - heatAmount * 40)})`
-            : `rgb(${Math.round(50 + coldAmount * 30)},${Math.round(150 - coldAmount * 30)},${Math.round(180 + coldAmount * 75)})`
-        }
-      />
-
-      {/* Heat shimmer lines above the body when hot */}
-      {heatAmount > 0.3 && (
-        <g opacity={heatAmount * 0.7}>
-          {[-3, 0, 3].map((dx, i) => (
-            <path
-              key={i}
-              d={`M ${bodyCx + dx} ${bodyTop - 1} Q ${bodyCx + dx + 2} ${bodyTop - 4}, ${bodyCx + dx} ${bodyTop - 7} T ${bodyCx + dx} ${bodyTop - 12}`}
-              fill="none"
-              stroke="#fb923c"
-              strokeWidth={0.6}
-              strokeLinecap="round"
-            >
-              <animate attributeName="opacity" values="0.2;0.7;0.2" dur={`${1.5 + i * 0.3}s`} repeatCount="indefinite" />
-            </path>
-          ))}
-        </g>
-      )}
-
-      {/* Frost crystal hint when cold */}
-      {coldAmount > 0.5 && (
-        <g opacity={coldAmount * 0.7}>
-          {[-4, 0, 4].map((dx, i) => (
-            <g key={i}>
-              <line x1={bodyCx + dx - 1} y1={bodyTop - 2} x2={bodyCx + dx + 1} y2={bodyTop - 2} stroke="#93c5fd" strokeWidth={0.5} />
-              <line x1={bodyCx + dx} y1={bodyTop - 3} x2={bodyCx + dx} y2={bodyTop - 1} stroke="#93c5fd" strokeWidth={0.5} />
-            </g>
-          ))}
-        </g>
-      )}
-
-      {/* Live temperature text above the body */}
+      {/* Live temperature text above the body — the ambient temperature is a
+          user-set input, so it's annotated as text; the package itself never
+          glows or shimmers no matter how hot the air is. */}
       <text
         x={bodyCx}
-        y={bodyTop - 14}
+        y={bodyTop - 4}
         textAnchor="middle"
         fontSize={4}
         fill={hot ? "#fb923c" : coldAmount > 0.5 ? "#93c5fd" : "#9ca3af"}
@@ -755,7 +670,6 @@ function PhotoresistorRenderer({ component, isSelected }: { component: BoardComp
 
   const bodyGradId = `ldr-body-${component.id}`;
   const cdsGradId = `ldr-cds-${component.id}`;
-  const glowId = `ldr-glow-${component.id}`;
 
   // Zigzag serpentine path for the CdS element — classic LDR pattern.
   // Draw a horizontal serpentine that fills the top of the body.
@@ -788,24 +702,16 @@ function PhotoresistorRenderer({ component, isSelected }: { component: BoardComp
           <stop offset="0%" stopColor={cdsColor} />
           <stop offset="100%" stopColor={cdsDarkEdge} />
         </radialGradient>
-        {light > 60 && (
-          <filter id={glowId} x="-200%" y="-200%" width="500%" height="500%">
-            <feGaussianBlur stdDeviation={0.8 + (light - 60) / 40 * 2} result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        )}
       </defs>
 
       {/* Pin hole indicators */}
       <circle cx={pinA.x} cy={pinA.y} r={2} fill="#fbbf24" opacity={0.6} />
       <circle cx={pinB.x} cy={pinB.y} r={2} fill="#fbbf24" opacity={0.6} />
 
-      {/* Light rays when bright */}
+      {/* Incident-light annotation — steady rays scaled by the light level.
+          Ambient light doesn't flicker, so neither do these. */}
       {light > 40 && (
-        <g opacity={(light - 40) / 60}>
+        <g opacity={((light - 40) / 60) * 0.55}>
           {[-55, -30, 0, 30, 55].map((angle, i) => {
             const rad = ((angle - 90) * Math.PI) / 180;
             const inner = bodyR + 2;
@@ -820,9 +726,7 @@ function PhotoresistorRenderer({ component, isSelected }: { component: BoardComp
                 stroke="#fde047"
                 strokeWidth={0.9}
                 strokeLinecap="round"
-              >
-                <animate attributeName="opacity" values="0.3;0.9;0.3" dur={`${1.8 + i * 0.15}s`} repeatCount="indefinite" />
-              </line>
+              />
             );
           })}
         </g>
@@ -850,8 +754,7 @@ function PhotoresistorRenderer({ component, isSelected }: { component: BoardComp
       <rect x={padL} y={padT} width={padW} height={padH} rx={1}
         fill={`url(#${cdsGradId})`}
         stroke={cdsDarkEdge}
-        strokeWidth={0.4}
-        filter={light > 60 ? `url(#${glowId})` : undefined} />
+        strokeWidth={0.4} />
 
       {/* Serpentine gold trace on top of the CdS pad */}
       <path d={zigPath}
@@ -1067,7 +970,6 @@ function IrReceiverRenderer({ component, isSelected }: { component: BoardCompone
 
   const bodyGradId = `ir-body-${component.id}`;
   const lensGradId = `ir-lens-${component.id}`;
-  const glowId = `ir-glow-${component.id}`;
 
   const pinNames = ["out", "gnd", "vcc"];
   const pinColors = ["#dc2626", "#6b7280", "#3b82f6"];
@@ -1087,15 +989,6 @@ function IrReceiverRenderer({ component, isSelected }: { component: BoardCompone
           <stop offset="60%" stopColor="#450a0a" stopOpacity={0.95} />
           <stop offset="100%" stopColor="#1c0303" stopOpacity={1} />
         </radialGradient>
-        {justReceived && (
-          <filter id={glowId} x="-300%" y="-300%" width="700%" height="700%">
-            <feGaussianBlur stdDeviation={2.5} result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        )}
       </defs>
 
       {/* Pin hole indicators + horizontal leads into body */}
@@ -1115,27 +1008,6 @@ function IrReceiverRenderer({ component, isSelected }: { component: BoardCompone
         </g>
       ))}
 
-      {/* Incoming IR burst — ripple lines from the LEFT when code received */}
-      {justReceived && (
-        <g opacity={1 - sinceReceive / 400}>
-          {[0, 1, 2, 3].map(i => (
-            <path
-              key={i}
-              d={`M ${bodyCx - bodyW / 2 - lensR - 8 - i * 3} ${bodyCy - 8} Q ${bodyCx - bodyW / 2 - lensR - 11 - i * 3} ${bodyCy}, ${bodyCx - bodyW / 2 - lensR - 8 - i * 3} ${bodyCy + 8}`}
-              fill="none"
-              stroke="#dc2626"
-              strokeWidth={1}
-              strokeLinecap="round"
-              opacity={0.8 - i * 0.2}
-            />
-          ))}
-          {/* Small IR source icon (the "remote") */}
-          <rect x={bodyCx - bodyW / 2 - lensR - 22} y={bodyCy - 3} width={4} height={6} rx={0.6}
-            fill="#374151" stroke="#6b7280" strokeWidth={0.4} />
-          <circle cx={bodyCx - bodyW / 2 - lensR - 20} cy={bodyCy} r={0.8} fill="#dc2626" />
-        </g>
-      )}
-
       {/* Drop shadow */}
       <rect x={bodyCx - bodyW / 2 + 0.8} y={bodyCy - bodyH / 2 + 1.2}
         width={bodyW} height={bodyH} rx={1.2} fill="#00000055" />
@@ -1151,14 +1023,14 @@ function IrReceiverRenderer({ component, isSelected }: { component: BoardCompone
       <rect x={bodyCx - bodyW / 2 + 0.8} y={bodyCy - bodyH / 2 + 1}
         width={0.8} height={bodyH - 2} fill="#ffffff" opacity={0.12} />
 
-      {/* Red dome lens — sticks out to the LEFT (facing outward) */}
+      {/* Red dome lens — sticks out to the LEFT (facing outward). IR is
+          invisible; the lens looks identical whether receiving or not. */}
       <circle cx={bodyCx - bodyW / 2 + lensR * 0.2}
         cy={bodyCy}
         r={lensR}
         fill={`url(#${lensGradId})`}
-        stroke={justReceived ? "#ef4444" : "#450a0a"}
-        strokeWidth={justReceived ? 1 : 0.5}
-        filter={justReceived ? `url(#${glowId})` : undefined} />
+        stroke="#450a0a"
+        strokeWidth={0.5} />
       {/* Lens specular highlight */}
       <ellipse
         cx={bodyCx - bodyW / 2 + lensR * 0.2 - lensR * 0.35}
@@ -1222,19 +1094,23 @@ function NeoPixelRenderer({ component, isSelected, libraryState }: { component: 
 
   const livePixels = libraryState?.neopixels?.[component.id]?.pixels;
   const hasLivePixels = livePixels != null;
-  const fallbackColors = ["#151515", "#151515", "#151515", "#151515", "#151515", "#151515", "#151515", "#151515"];
-  const toColor = (i: number) => {
+
+  // Separate HUE from INTENSITY, like a real emitter: the die glows in the
+  // fully-saturated color (a dim red WS2812 still looks *red*, not maroon)
+  // while PWM magnitude drives how bright / how far the light carries.
+  // Perceptual exponent matches the realistic-LED treatment — WS2812s at
+  // setBrightness(50) already read as bright to the eye.
+  const pixelVisual = (i: number) => {
     const live = livePixels?.[i];
-    if (live) return `rgb(${live.r}, ${live.g}, ${live.b})`;
-    return fallbackColors[i % fallbackColors.length];
+    if (!live) return null;
+    const peak = Math.max(live.r, live.g, live.b);
+    if (peak === 0) return { lit: false as const, hue: "#151515", intensity: 0 };
+    const scale = 255 / peak;
+    const hue = `rgb(${Math.round(live.r * scale)}, ${Math.round(live.g * scale)}, ${Math.round(live.b * scale)})`;
+    const luma = (0.2126 * live.r + 0.7152 * live.g + 0.0722 * live.b) / 255;
+    const intensity = Math.pow(Math.min(1, luma), 0.45);
+    return { lit: true as const, hue, intensity };
   };
-  const brightnessFor = (i: number) => {
-    const live = livePixels?.[i];
-    if (!live) return 0;
-    const raw = Math.max(live.r, live.g, live.b);
-    return raw > 0 ? Math.max(0.42, Math.min(1, raw / 80)) : 0;
-  };
-  const isAnimating = livePixels?.some((p) => p.r > 0 || p.g > 0 || p.b > 0) ?? false;
 
   const pinNames = ["din", "vcc", "gnd"];
   const pinColors = ["#a855f7", "#ef4444", "#6b7280"];
@@ -1266,62 +1142,49 @@ function NeoPixelRenderer({ component, isSelected, libraryState }: { component: 
         rx={1.5} fill="#1a1a1a"
         stroke={isSelected ? "#3b82f6" : "#2a2a2a"}
         strokeWidth={isSelected ? 1.5 : 0.8} />
-      {isAnimating && (
-        <>
-          <rect
-            x={stripL}
-            y={stripT}
-            width={stripW}
-            height={stripH}
-            rx={1.5}
-            fill="none"
-            stroke="#a78bfa"
-            strokeWidth={0.8}
-            strokeDasharray="6 5"
-            opacity={0.55}
-          >
-            <animate attributeName="stroke-dashoffset" values="0;-22" dur="0.9s" repeatCount="indefinite" />
-            <animate attributeName="opacity" values="0.35;0.75;0.35" dur="0.9s" repeatCount="indefinite" />
-          </rect>
-          <rect
-            x={stripL + 2}
-            y={stripT + 2}
-            width={7}
-            height={stripH - 4}
-            rx={1}
-            fill="#ffffff"
-            opacity={0.12}
-          >
-            <animate attributeName="x" values={`${stripL + 2};${stripL + stripW - 9};${stripL + 2}`} dur="1.4s" repeatCount="indefinite" />
-            <animate attributeName="opacity" values="0.05;0.22;0.05" dur="1.4s" repeatCount="indefinite" />
-          </rect>
-        </>
-      )}
       {/* Solder mask green accent lines */}
       <line x1={stripL + 2} y1={stripT + 1.5} x2={stripL + stripW - 2} y2={stripT + 1.5}
         stroke="#065f46" strokeWidth={0.5} opacity={0.4} />
       <line x1={stripL + 2} y1={stripT + stripH - 1.5} x2={stripL + stripW - 2} y2={stripT + stripH - 1.5}
         stroke="#065f46" strokeWidth={0.5} opacity={0.4} />
 
-      {/* SMD LED pads + LED squares */}
+      {/* Per-pixel bloom gradients — white-hot core falling off through the
+          pixel's saturated hue. Defined once per pixel, referenced below. */}
+      <defs>
+        {Array.from({ length: displayLeds }, (_, i) => {
+          const v = pixelVisual(i);
+          if (!v?.lit) return null;
+          return (
+            <radialGradient key={i} id={`neo-bloom-${component.id}-${i}`} cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#ffffff" stopOpacity={0.5 + v.intensity * 0.45} />
+              <stop offset="28%" stopColor={v.hue} stopOpacity={0.55 + v.intensity * 0.35} />
+              <stop offset="62%" stopColor={v.hue} stopOpacity={0.22 + v.intensity * 0.2} />
+              <stop offset="100%" stopColor={v.hue} stopOpacity={0} />
+            </radialGradient>
+          );
+        })}
+      </defs>
+
+      {/* SMD LED pads + LED packages. A real WS2812 holds rock-steady light —
+          no pulse/shimmer animations; all motion comes from live pixel data. */}
       {Array.from({ length: displayLeds }, (_, i) => {
         const ledX = stripL + 5 + i * ((stripW - 10) / (displayLeds - 1 || 1));
         const ledSize = 4;
-        const c = toColor(i);
-        const brightness = brightnessFor(i);
+        const v = pixelVisual(i);
+        const lit = v?.lit === true;
+        const intensity = lit ? v.intensity : 0;
         return (
           <g key={i}>
-            {brightness > 0 && (
+            {/* Steady bloom — radius and strength track perceived brightness */}
+            {lit && (
               <circle
                 cx={ledX}
                 cy={stripCy}
-                r={4 + brightness * 4}
-                fill={c}
-                opacity={0.16 + brightness * 0.24}
-              >
-                <animate attributeName="r" values={`${4 + brightness * 2};${5 + brightness * 5};${4 + brightness * 2}`} dur={`${0.8 + i * 0.05}s`} repeatCount="indefinite" />
-                <animate attributeName="opacity" values={`${0.16 + brightness * 0.18};${0.3 + brightness * 0.28};${0.16 + brightness * 0.18}`} dur={`${0.8 + i * 0.05}s`} repeatCount="indefinite" />
-              </circle>
+                r={4.5 + intensity * 6}
+                fill={`url(#neo-bloom-${component.id}-${i})`}
+                opacity={0.5 + intensity * 0.5}
+                pointerEvents="none"
+              />
             )}
             {/* Copper pad */}
             <rect x={ledX - ledSize / 2 - 0.8} y={stripCy - ledSize / 2 - 0.8}
@@ -1331,17 +1194,25 @@ function NeoPixelRenderer({ component, isSelected, libraryState }: { component: 
             <rect x={ledX - ledSize / 2} y={stripCy - ledSize / 2}
               width={ledSize} height={ledSize} rx={0.5}
               fill="#f5f5f5" stroke="#ddd" strokeWidth={0.3} />
-            {/* Colored LED die */}
+            {/* LED die: saturated hue when lit (dim ≠ muddy), dark when off */}
             <rect x={ledX - ledSize / 2 + 0.8} y={stripCy - ledSize / 2 + 0.8}
               width={ledSize - 1.6} height={ledSize - 1.6} rx={0.3}
-              fill={c} opacity={hasLivePixels ? 0.5 + brightness * 0.5 : 0.35}>
-              {brightness > 0 && (
-                <animate attributeName="opacity" values={`${0.5 + brightness * 0.25};1;${0.5 + brightness * 0.25}`} dur={`${0.72 + i * 0.04}s`} repeatCount="indefinite" />
-              )}
-            </rect>
+              fill={lit ? v.hue : "#151515"}
+              opacity={lit ? 0.75 + intensity * 0.25 : hasLivePixels ? 0.9 : 0.35} />
+            {/* Diffuser white-out at the center of a driven pixel */}
+            {lit && (
+              <circle
+                cx={ledX}
+                cy={stripCy}
+                r={0.55 + intensity * 0.55}
+                fill="#ffffff"
+                opacity={0.35 + intensity * 0.6}
+                pointerEvents="none"
+              />
+            )}
             {/* Corner mark (pin 1 indicator) */}
             <circle cx={ledX - ledSize / 2 + 1} cy={stripCy - ledSize / 2 + 1}
-              r={0.4} fill={c} opacity={hasLivePixels ? 0.7 : 0.35} />
+              r={0.4} fill="#888" opacity={0.5} />
           </g>
         );
       })}
@@ -1391,8 +1262,6 @@ function PirRenderer({ component, isSelected }: { component: BoardComponent; isS
 
   const gradId = `pir-pcb-${component.id}`;
   const domeGradId = `pir-dome-${component.id}`;
-  const glowId = `pir-glow-${component.id}`;
-  const coneId = `pir-cone-${component.id}`;
 
   return (
     <g>
@@ -1409,22 +1278,6 @@ function PirRenderer({ component, isSelected }: { component: BoardComponent; isS
           <stop offset="45%" stopColor="#f1f5f9" stopOpacity={0.9} />
           <stop offset="100%" stopColor="#cbd5e1" stopOpacity={0.95} />
         </radialGradient>
-        {motion && (
-          <>
-            <filter id={glowId} x="-200%" y="-200%" width="500%" height="500%">
-              <feGaussianBlur stdDeviation={2.5} result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-            <radialGradient id={coneId} cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#ef4444" stopOpacity={0.5} />
-              <stop offset="70%" stopColor="#ef4444" stopOpacity={0.1} />
-              <stop offset="100%" stopColor="#ef4444" stopOpacity={0} />
-            </radialGradient>
-          </>
-        )}
       </defs>
 
       {/* Pin hole indicators + horizontal header leads going RIGHT into the
@@ -1473,30 +1326,16 @@ function PirRenderer({ component, isSelected }: { component: BoardComponent; isS
         <line x1={pcbL + pcbW - 6.5} y1={domeCy} x2={pcbL + pcbW - 3.5} y2={domeCy} stroke="#422006" strokeWidth={0.4} />
       </g>
 
-      {/* Motion detection cone (only when triggered) */}
-      {motion && (
-        <ellipse
-          cx={domeCx}
-          cy={domeCy}
-          rx={domeR + 10}
-          ry={domeR + 10}
-          fill={`url(#${coneId})`}
-        >
-          <animate attributeName="rx" values={`${domeR + 6};${domeR + 14};${domeR + 6}`} dur="1.2s" repeatCount="indefinite" />
-          <animate attributeName="ry" values={`${domeR + 6};${domeR + 14};${domeR + 6}`} dur="1.2s" repeatCount="indefinite" />
-        </ellipse>
-      )}
-
       {/* Dome base ring (metal socket) */}
       <circle cx={domeCx} cy={domeCy} r={domeR + 0.5} fill="#9ca3af" stroke="#4b5563" strokeWidth={0.4} />
       <circle cx={domeCx} cy={domeCy} r={domeR - 0.3} fill="#6b7280" />
 
-      {/* Dome itself */}
+      {/* Dome itself — a real HC-SR501 fresnel dome shows nothing when it
+          triggers; detection is annotated in the label text below. */}
       <ellipse cx={domeCx} cy={domeCy - 0.5} rx={domeR - 0.5} ry={domeR - 0.3}
         fill={`url(#${domeGradId})`}
-        stroke={motion ? "#ef4444" : "#94a3b8"}
-        strokeWidth={motion ? 1 : 0.5}
-        filter={motion ? `url(#${glowId})` : undefined} />
+        stroke="#94a3b8"
+        strokeWidth={0.5} />
 
       {/* Honeycomb fresnel pattern — concentric hexagonal segments */}
       {[1, 2, 3].map(ring => (
@@ -1526,13 +1365,6 @@ function PirRenderer({ component, isSelected }: { component: BoardComponent; isS
         fill="#ffffff"
         opacity={0.6}
       />
-
-      {/* Red motion dot when triggered */}
-      {motion && (
-        <circle cx={domeCx} cy={domeCy - 0.5} r={1.6} fill="#ef4444">
-          <animate attributeName="opacity" values="1;0.4;1" dur="0.7s" repeatCount="indefinite" />
-        </circle>
-      )}
 
       {/* Pin labels on the right of each vertical hole */}
       {(["vcc", "sig", "gnd"] as const).map((name, i) => (
@@ -1984,35 +1816,20 @@ function RelayRenderer({ component, pinStates, wires, isSelected }: {
       <text x={cubeL + cubeW / 2} y={cubeT + 9} textAnchor="middle" fontSize={2.3} fill="#bfdbfe" fontFamily="monospace">
         VDC-SL-C
       </text>
-      {/* Small clicking line with state indicator */}
+      {/* Armature contact diagram — the arm snaps closed when the coil is
+          energized. Purely mechanical: no glow, no sparking; the steady
+          status LED is the electrical cue. */}
       <circle cx={contactPivotX} cy={contactY} r={1} fill="#bfdbfe" opacity={0.8} />
-      <circle cx={contactEndX} cy={contactY} r={1} fill={energized ? "#fde68a" : "#60a5fa"} opacity={0.85} />
+      <circle cx={contactEndX} cy={contactY} r={1} fill="#93c5fd" opacity={0.85} />
       <line
         x1={contactPivotX}
         y1={contactY}
         x2={contactEndX}
         y2={energized ? contactClosedY : contactOpenY}
-        stroke={energized ? "#fbbf24" : "#93c5fd"}
+        stroke="#bfdbfe"
         strokeWidth={1.05}
         strokeLinecap="round"
-        filter={energized ? `url(#${glowId})` : undefined}
-      >
-        {energized && (
-          <animate attributeName="stroke-width" values="1.05;1.45;1.05" dur="0.7s" repeatCount="indefinite" />
-        )}
-      </line>
-      {energized && (
-        <path
-          d={`M ${contactEndX - 2.5} ${contactY - 2.2} L ${contactEndX - 0.6} ${contactY - 4.2} L ${contactEndX + 0.2} ${contactY - 2.3}`}
-          fill="none"
-          stroke="#fde68a"
-          strokeWidth={0.55}
-          strokeLinecap="round"
-          opacity={0.85}
-        >
-          <animate attributeName="opacity" values="0.85;0.25;0.85" dur="0.45s" repeatCount="indefinite" />
-        </path>
-      )}
+      />
       <text x={cubeL + cubeW / 2} y={cubeT + cubeH - 0.5} textAnchor="middle" fontSize={2} fill="#93c5fd" fontFamily="monospace">
         {energized ? "CLOSED" : "OPEN"}
       </text>

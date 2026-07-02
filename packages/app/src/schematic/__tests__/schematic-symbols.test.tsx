@@ -23,7 +23,7 @@ import {
   PirSensorSymbol,
   GenericModuleSymbol,
   WireJunction,
-  type SchematicSymbolType,
+  SCHEMATIC_SYMBOL_TYPES,
 } from "../schematic-symbols"
 import type { SymbolProps } from "../schematic-symbols"
 
@@ -41,35 +41,14 @@ function render(node: React.ReactNode): string {
 
 // ── renderSymbol dispatch ──────────────────────────────────────────────
 
-describe("renderSymbol — dispatch to all 21 symbol types", () => {
-  const ALL_TYPES: SchematicSymbolType[] = [
-    "resistor",
-    "led",
-    "button",
-    "capacitor",
-    "buzzer",
-    "dc_motor",
-    "relay",
-    "servo",
-    "potentiometer",
-    "seven_segment",
-    "ultrasonic_sensor",
-    "temperature_sensor",
-    "photoresistor",
-    "lcd",
-    "neopixel",
-    "pir_sensor",
-    "voltage_source",
-    "ground",
-    "arduino_pin",
-    "junction",
-    "generic_module",
-  ]
-
-  for (const type of ALL_TYPES) {
+describe("renderSymbol — dispatch to every symbol type", () => {
+  // Iterate the runtime source of truth: a symbol added to the union can't
+  // dodge this suite (the old hand-maintained list silently missed ic_pin).
+  for (const type of SCHEMATIC_SYMBOL_TYPES) {
     test(`renderSymbol("${type}") returns a non-null React node`, () => {
       const result = renderSymbol(type, BASE_PROPS)
       expect(result).not.toBeNull()
+      expect(result).not.toBeUndefined()
     })
 
     test(`renderSymbol("${type}") renders to non-empty HTML`, () => {
@@ -78,10 +57,6 @@ describe("renderSymbol — dispatch to all 21 symbol types", () => {
       expect(html.length).toBeGreaterThan(0)
     })
   }
-
-  test("all 21 types are covered (exhaustive count check)", () => {
-    expect(ALL_TYPES.length).toBe(21)
-  })
 })
 
 // ── Label rendering ────────────────────────────────────────────────────

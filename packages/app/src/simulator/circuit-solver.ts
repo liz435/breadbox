@@ -227,6 +227,7 @@ export type CircuitWarning = {
     | "overcurrent"
     | "open_circuit"
     | "short_circuit"
+    | "solver_failed"
   message: string
 }
 
@@ -284,9 +285,17 @@ export function analyzeCircuit(
   try {
     circuit = parseNetlist(netlist)
     tran = simulateTRAN(circuit)
-  } catch {
+  } catch (err) {
     // Simulation failed — mark all components as inactive. Stored capacitor
     // charge is left untouched, so a solver hiccup just holds the last value.
+    // Push a warning so callers (and the overlay) can tell "the solver blew
+    // up" apart from "there is nothing to solve" — both return isValid:false.
+    warnings.push({
+      componentId: circuitComponents[0].id,
+      type: "solver_failed",
+      message: `Circuit solver failed: ${err instanceof Error ? err.message : String(err)}`,
+    })
+    console.error("[circuit-solver] netlist solve failed:", err)
     for (const comp of circuitComponents) {
       componentStates.set(comp.id, {
         componentId: comp.id,

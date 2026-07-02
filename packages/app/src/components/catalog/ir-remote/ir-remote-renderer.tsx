@@ -40,7 +40,6 @@ function IrRemoteRendererInner({ component, isSelected }: IrRemoteRendererProps)
   const energized = pressedIdx !== null;
 
   const bodyGradId = `irrem-body-${component.id}`;
-  const glowId = `irrem-glow-${component.id}`;
 
   const press = useCallback((idx: number, code: number) => {
     irRemoteStore.broadcast(code);
@@ -59,15 +58,6 @@ function IrRemoteRendererInner({ component, isSelected }: IrRemoteRendererProps)
           <stop offset="55%" stopColor="#1f2937" />
           <stop offset="100%" stopColor="#111827" />
         </linearGradient>
-        {energized && (
-          <filter id={glowId} x="-200%" y="-200%" width="500%" height="500%">
-            <feGaussianBlur stdDeviation={1.4} result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        )}
       </defs>
 
       {/* Body shadow + shell */}
@@ -83,23 +73,11 @@ function IrRemoteRendererInner({ component, isSelected }: IrRemoteRendererProps)
         strokeWidth={isSelected ? 1.5 : 0.8}
       />
 
-      {/* IR emitter LED at the top — glows while a button is held */}
-      <circle cx={emitterX} cy={emitterY} r={2.6} fill={energized ? "#7f1d1d" : "#3f1d1d"} />
-      <circle
-        cx={emitterX}
-        cy={emitterY}
-        r={1.7}
-        fill={energized ? "#f87171" : "#7f1d1d"}
-        filter={energized ? `url(#${glowId})` : undefined}
-      />
-      {/* Emitted IR waves while pressing */}
-      {energized &&
-        [0, 1, 2].map((i) => (
-          <circle key={i} cx={emitterX} cy={emitterY} r={3} fill="none" stroke="#fca5a5" strokeWidth={0.7} opacity={0.6}>
-            <animate attributeName="r" values={`3;${9 + i * 3};3`} dur="0.7s" begin={`${i * 0.12}s`} repeatCount="indefinite" />
-            <animate attributeName="opacity" values="0.6;0;0.6" dur="0.7s" begin={`${i * 0.12}s`} repeatCount="indefinite" />
-          </circle>
-        ))}
+      {/* IR emitter LED at the top. IR is near-invisible: while a button is
+          held the die shows only the faint dim-red you'd catch by eye on a
+          real remote — no rings, no bloom. */}
+      <circle cx={emitterX} cy={emitterY} r={2.6} fill={energized ? "#4f1d1d" : "#3f1d1d"} />
+      <circle cx={emitterX} cy={emitterY} r={1.7} fill={energized ? "#9f2626" : "#7f1d1d"} />
 
       <text x={emitterX} y={bodyT + 15} textAnchor="middle" fontSize={3} fill="#9ca3af" fontFamily="monospace">
         IR REMOTE

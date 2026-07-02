@@ -75,7 +75,11 @@ export function useCircuitAnalysis(): {
     const { components: c, wires: w } = depsRef.current
     try {
       analysisRef.current = analyzeCircuit(c, w, snapshotAsPinStates(), undefined, { dtSeconds })
-    } catch {
+    } catch (err) {
+      // Netlist construction crashed (analyzeCircuit reports solver failures
+      // in-band via isValid/warnings) — keep the board interactive but leave
+      // a trace instead of silently blanking the overlay.
+      console.error("[circuit-analysis] analysis crashed:", err)
       analysisRef.current = null
     }
     forceRender()

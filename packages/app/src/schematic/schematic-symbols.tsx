@@ -900,29 +900,37 @@ export function GenericModuleSymbol({ x, y, label, value, voltage, current, isAc
 
 // ── Symbol Lookup ──────────────────────────────────────────────────────
 
-export type SchematicSymbolType =
-  | "resistor"
-  | "led"
-  | "button"
-  | "capacitor"
-  | "buzzer"
-  | "dc_motor"
-  | "relay"
-  | "servo"
-  | "potentiometer"
-  | "seven_segment"
-  | "ultrasonic_sensor"
-  | "temperature_sensor"
-  | "photoresistor"
-  | "lcd"
-  | "neopixel"
-  | "pir_sensor"
-  | "voltage_source"
-  | "ground"
-  | "arduino_pin"
-  | "ic_pin"
-  | "junction"
-  | "generic_module"
+/**
+ * Runtime list of every symbol type — the `SchematicSymbolType` union is
+ * derived from it, so tests can iterate ALL symbols without maintaining a
+ * parallel list that drifts (the old hand-written copy missed `ic_pin`).
+ */
+export const SCHEMATIC_SYMBOL_TYPES = [
+  "resistor",
+  "led",
+  "button",
+  "capacitor",
+  "buzzer",
+  "dc_motor",
+  "relay",
+  "servo",
+  "potentiometer",
+  "seven_segment",
+  "ultrasonic_sensor",
+  "temperature_sensor",
+  "photoresistor",
+  "lcd",
+  "neopixel",
+  "pir_sensor",
+  "voltage_source",
+  "ground",
+  "arduino_pin",
+  "ic_pin",
+  "junction",
+  "generic_module",
+] as const
+
+export type SchematicSymbolType = (typeof SCHEMATIC_SYMBOL_TYPES)[number]
 
 export function renderSymbol(
   type: SchematicSymbolType,

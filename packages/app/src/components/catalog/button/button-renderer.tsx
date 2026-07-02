@@ -73,7 +73,7 @@ function ButtonRendererInner({ component, isSelected }: ButtonRendererProps) {
 
   const housingGradId = `btn-body-${component.id}`;
   const capGradId = `btn-cap-${component.id}`;
-  const pressGlowId = `btn-press-${component.id}`;
+  const capSink = isPressed ? 1 : 0;
 
   // Attach pointer handlers to the whole group so any click on the button
   // triggers press — not just the small cap circle.
@@ -97,15 +97,6 @@ function ButtonRendererInner({ component, isSelected }: ButtonRendererProps) {
           <stop offset="60%" stopColor={isPressed ? "#555" : "#777"} />
           <stop offset="100%" stopColor={isPressed ? "#444" : "#555"} />
         </radialGradient>
-        {isPressed && (
-          <filter id={pressGlowId} x="-80%" y="-80%" width="260%" height="260%">
-            <feGaussianBlur stdDeviation={1.2} result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        )}
       </defs>
 
       {/* Pin legs — L-shaped leads from holes to body */}
@@ -164,30 +155,14 @@ function ButtonRendererInner({ component, isSelected }: ButtonRendererProps) {
       {/* Recessed well for the cap */}
       <rect
         x={centerX - capR - 2}
-        y={centerY - capR - 2 + (isPressed ? 0.5 : 0)}
+        y={centerY - capR - 2}
         width={(capR + 2) * 2}
-        height={(capR + 2) * 2 - (isPressed ? 0.8 : 0)}
+        height={(capR + 2) * 2}
         rx={2}
-        fill={isPressed ? "#111827" : "#1a1a1a"}
+        fill="#141414"
         stroke="#333"
         strokeWidth={0.5}
       />
-
-      {isPressed && (
-        <circle
-          cx={centerX}
-          cy={centerY}
-          r={capR + 4}
-          fill="none"
-          stroke="#60a5fa"
-          strokeWidth={0.7}
-          opacity={0.55}
-          pointerEvents="none"
-        >
-          <animate attributeName="r" values={`${capR + 1};${capR + 7};${capR + 1}`} dur="0.55s" repeatCount="indefinite" />
-          <animate attributeName="opacity" values="0.55;0;0.55" dur="0.55s" repeatCount="indefinite" />
-        </circle>
-      )}
 
       {/* Corner pin markings (small triangles in corners of housing) */}
       {[
@@ -199,37 +174,46 @@ function ButtonRendererInner({ component, isSelected }: ButtonRendererProps) {
         <circle key={`mark-${i}`} cx={mx} cy={my} r={1} fill="#444" />
       ))}
 
+      {/* Cap drop shadow — the cap sits proud of the well; the shadow
+          tightens as it sinks, which is what actually reads as "pressed" */}
+      <ellipse
+        cx={centerX + 0.4}
+        cy={centerY + capSink + 1}
+        rx={capR}
+        ry={capR * 0.92}
+        fill="#000000"
+        opacity={isPressed ? 0.18 : 0.4}
+        pointerEvents="none"
+      />
+
       {/* Button cap — circular, depresses on press */}
       <circle
         cx={centerX}
-        cy={centerY + (isPressed ? 0.8 : 0)}
-        r={capR - (isPressed ? 0.7 : 0)}
+        cy={centerY + capSink}
+        r={capR - capSink * 0.5}
         fill={`url(#${capGradId})`}
-        stroke={isPressed ? "#60a5fa" : "#444"}
-        strokeWidth={isPressed ? 1 : 0.8}
-        filter={isPressed ? `url(#${pressGlowId})` : undefined}
+        stroke="#333"
+        strokeWidth={0.8}
       />
 
-      {/* Cap highlight — specular reflection */}
-      {!isPressed && (
-        <ellipse
-          cx={centerX - capR * 0.15}
-          cy={centerY - capR * 0.2}
-          rx={capR * 0.35}
-          ry={capR * 0.25}
-          fill="#ffffff"
-          opacity={0.15}
-          pointerEvents="none"
-        />
-      )}
+      {/* Cap highlight — specular reflection, dims and follows the cap down */}
+      <ellipse
+        cx={centerX - capR * 0.15}
+        cy={centerY - capR * 0.2 + capSink}
+        rx={capR * 0.35}
+        ry={capR * 0.25}
+        fill="#ffffff"
+        opacity={isPressed ? 0.06 : 0.15}
+        pointerEvents="none"
+      />
 
       {/* Cap edge ring */}
       <circle
         cx={centerX}
-        cy={centerY + (isPressed ? 0.8 : 0)}
-        r={capR - 1.5 - (isPressed ? 0.7 : 0)}
+        cy={centerY + capSink}
+        r={capR - 1.5 - capSink * 0.5}
         fill="none"
-        stroke={isPressed ? "#93c5fd" : "#555"}
+        stroke="#4a4a4a"
         strokeWidth={0.4}
         pointerEvents="none"
       />

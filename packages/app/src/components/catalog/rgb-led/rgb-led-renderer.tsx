@@ -40,16 +40,19 @@ function RgbLedRendererInner({ component, pinStates, wires, isSelected }: RgbLed
   const isOn = rBright > 0.02 || gBright > 0.02 || bBright > 0.02;
   const maxChannel = Math.max(rBright, gBright, bBright);
 
-  // Synthesize the dome color from the three channels. We scale each channel
-  // proportionally so the dome colour matches the intended hue even at low
-  // brightness, but dim the alpha/glow based on the max channel.
+  // Hue/intensity split (same treatment as the NeoPixel renderer): the hue is
+  // the channel mix normalized to full scale — a dim red still looks red, not
+  // muddy maroon — while perceived luminance drives how strong the bloom is.
   const red = Math.round(rBright * 255);
   const green = Math.round(gBright * 255);
   const blue = Math.round(bBright * 255);
+  const hueScale = maxChannel > 0 ? 1 / maxChannel : 0;
+  const litColor = `rgb(${Math.round(rBright * hueScale * 255)},${Math.round(gBright * hueScale * 255)},${Math.round(bBright * hueScale * 255)})`;
+  const luma = 0.2126 * rBright + 0.7152 * gBright + 0.0722 * bBright;
+  const intensity = Math.pow(Math.min(1, luma), 0.45);
   const dimRed = Math.round(rBright * 150 + 40);
   const dimGreen = Math.round(gBright * 150 + 40);
   const dimBlue = Math.round(bBright * 150 + 40);
-  const litColor = `rgb(${red},${green},${blue})`;
   const midColor = isOn ? `rgb(${dimRed},${dimGreen},${dimBlue})` : "#4a4a4a";
   const darkColor = isOn
     ? `rgb(${Math.round(dimRed * 0.5)},${Math.round(dimGreen * 0.5)},${Math.round(dimBlue * 0.5)})`
@@ -69,10 +72,11 @@ function RgbLedRendererInner({ component, pinStates, wires, isSelected }: RgbLed
   const gradId = `rgb-led-grad-${component.id}`;
   const rimGradId = `rgb-led-rim-${component.id}`;
   const bodyGradId = `rgb-led-body-${component.id}`;
-  const glowBlur = 2 + maxChannel * 10;
-  const haloR = R + 2 + maxChannel * 8;
-  const haloMaxR = haloR + 3 + maxChannel * 6;
-  const haloOpacity = 0.15 + maxChannel * 0.45;
+  // Bloom scales with perceived luminance — steady, like a real emitter.
+  const glowBlur = 1.1 + intensity * 4.6;
+  const haloR = R + 1.8 + intensity * 4.2;
+  const ambientR = R + 5 + intensity * 10;
+  const haloOpacity = 0.03 + intensity * 0.18;
 
   // Dome geometry: bullet profile (rounded top, straight walls, flat bottom)
   const domeTop = cy - R - 1;
@@ -94,7 +98,7 @@ function RgbLedRendererInner({ component, pinStates, wires, isSelected }: RgbLed
       <defs>
         {/* Main dome gradient — 3D translucent epoxy with colour-shifting core */}
         <radialGradient id={gradId} cx="35%" cy="30%" r="80%">
-          <stop offset="0%" stopColor="#ffffff" stopOpacity={isOn ? 0.4 + maxChannel * 0.5 : 0.12} />
+          <stop offset="0%" stopColor="#ffffff" stopOpacity={isOn ? 0.25 + intensity * 0.45 : 0.12} />
           <stop offset="25%" stopColor={isOn ? litColor : midColor} stopOpacity={isOn ? 0.95 : 0.85} />
           <stop offset="70%" stopColor={midColor} stopOpacity={0.9} />
           <stop offset="100%" stopColor={darkColor} stopOpacity={1} />
@@ -127,44 +131,16 @@ function RgbLedRendererInner({ component, pinStates, wires, isSelected }: RgbLed
       <line x1={pB.x} y1={pB.y} x2={pB.x + 1.2} y2={cy + R + 3.5} stroke="#c0c0c0" strokeWidth={LEG_WIDTH} strokeLinecap="round" />
       <line x1={pK.x} y1={pK.y} x2={pK.x + 3.5} y2={cy + R + 3.5} stroke="#c0c0c0" strokeWidth={LEG_WIDTH} strokeLinecap="round" />
 
-      {/* Big outer halo */}
+      {/* Steady bloom — ambient wash plus a tighter halo, both scaled by
+          perceived luminance. Real LEDs hold rock-steady light: no pulsing,
+          no rays. */}
       {isOn && (
         <>
-          <ellipse cx={cx} cy={cy - 1} rx={haloMaxR} ry={haloMaxR * 1.05}
-            fill={litColor} opacity={haloOpacity * 0.35}>
-            <animate attributeName="opacity" values={`${haloOpacity * 0.2};${haloOpacity * 0.45};${haloOpacity * 0.2}`} dur="2s" repeatCount="indefinite" />
-          </ellipse>
-          <ellipse cx={cx} cy={cy - 1} rx={haloR} ry={haloR * 1.05}
-            fill={litColor} opacity={haloOpacity}>
-            <animate attributeName="rx" values={`${haloR};${haloR + 3};${haloR}`} dur="1.6s" repeatCount="indefinite" />
-            <animate attributeName="opacity" values={`${haloOpacity * 0.6};${haloOpacity};${haloOpacity * 0.6}`} dur="1.6s" repeatCount="indefinite" />
-          </ellipse>
+          <ellipse cx={cx} cy={cy - 1} rx={ambientR} ry={ambientR * 1.05}
+            fill={litColor} opacity={haloOpacity * 0.45} />
+          <ellipse cx={cx} cy={cy - 1} rx={haloR} ry={haloR * 1.02}
+            fill={litColor} opacity={haloOpacity * 0.72} />
         </>
-      )}
-
-      {/* Light rays when bright */}
-      {isOn && maxChannel > 0.4 && (
-        <g opacity={maxChannel * 0.45}>
-          {[0, 45, 90, 135, 180, 225, 270, 315].map((angle, i) => {
-            const rad = (angle * Math.PI) / 180;
-            const innerR = R + 2;
-            const outerR = R + 8 + maxChannel * 6;
-            return (
-              <line
-                key={i}
-                x1={cx + Math.cos(rad) * innerR}
-                y1={cy + Math.sin(rad) * innerR}
-                x2={cx + Math.cos(rad) * outerR}
-                y2={cy + Math.sin(rad) * outerR}
-                stroke={litColor}
-                strokeWidth={0.8}
-                strokeLinecap="round"
-              >
-                <animate attributeName="opacity" values="0.2;0.8;0.2" dur={`${1.5 + i * 0.1}s`} repeatCount="indefinite" />
-              </line>
-            );
-          })}
-        </g>
       )}
 
       {/* Dome with glow filter */}
@@ -207,7 +183,7 @@ function RgbLedRendererInner({ component, pinStates, wires, isSelected }: RgbLed
           rx={R * 0.35}
           ry={R * 0.22}
           fill="#ffffff"
-          opacity={isOn ? 0.35 + maxChannel * 0.3 : 0.12}
+          opacity={isOn ? 0.2 + intensity * 0.25 : 0.12}
         />
         {/* Secondary smaller highlight */}
         <ellipse

@@ -14,21 +14,21 @@
     }
   },
   "wires": {
-    "wire-d2": {
-      "id": "wire-d2",
-      "fromRow": -999,
-      "fromCol": 2,
-      "toRow": 5,
-      "toCol": 7,
-      "color": "#22c55e"
-    },
     "wire-5v": {
       "id": "wire-5v",
       "fromRow": -999,
       "fromCol": -1,
-      "toRow": 6,
+      "toRow": 5,
       "toCol": 7,
       "color": "#ef4444"
+    },
+    "wire-d2": {
+      "id": "wire-d2",
+      "fromRow": -999,
+      "fromCol": 2,
+      "toRow": 6,
+      "toCol": 7,
+      "color": "#22c55e"
     },
     "wire-gnd": {
       "id": "wire-gnd",
