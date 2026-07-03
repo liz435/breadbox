@@ -163,7 +163,7 @@ export function DiagramPanel() {
 
         {/* Status pill — reflects the active mode */}
         {activeDirty ? (
-          <span className="rounded-full bg-amber-900/40 px-1.5 py-0.5 text-[10px] text-amber-300">
+          <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-800">
             unsaved edits
           </span>
         ) : activeStatus.kind === "issues" || activeStatus.kind === "validated" ? (
@@ -171,10 +171,10 @@ export function DiagramPanel() {
             className={cn(
               "rounded-full px-1.5 py-0.5 text-[10px]",
               issueCounts.errors > 0
-                ? "bg-red-900/40 text-red-300"
+                ? "bg-destructive/15 text-destructive"
                 : issueCounts.warnings > 0
-                  ? "bg-amber-900/40 text-amber-300"
-                  : "bg-emerald-900/40 text-emerald-300",
+                  ? "bg-amber-500/15 text-amber-800"
+                  : "bg-emerald-500/15 text-emerald-800",
             )}
           >
             {issueCounts.errors > 0
@@ -184,7 +184,7 @@ export function DiagramPanel() {
                 : "✓ all checks passed"}
           </span>
         ) : appliedAgo ? (
-          <span className="rounded-full bg-emerald-900/40 px-1.5 py-0.5 text-[10px] text-emerald-300">
+          <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] text-emerald-800">
             ✓ applied
           </span>
         ) : mode === "raw" ? (
