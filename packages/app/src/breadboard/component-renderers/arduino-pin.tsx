@@ -8,7 +8,7 @@ type ArduinoPinProps = {
   onStartWire: (pin: ArduinoPinInfo) => void;
 };
 
-const RADIUS_DEFAULT = 3.5;
+const RADIUS_DEFAULT = 3.2;
 
 function getPinStrokeColor(pin: ArduinoPinInfo): string {
   // GND pins
@@ -98,9 +98,9 @@ function ArduinoPinInner({ pin, isWiring, onStartWire }: ArduinoPinProps) {
       {/* Native SVG tooltip — no useState needed */}
       <title>{getPinTooltip(pin)}</title>
 
-      {/* Invisible hit area — capped at half the ~9px header pitch so
+      {/* Invisible hit area — capped at half the ~8px header pitch so
           adjacent pins don't steal each other's clicks */}
-      <circle cx={pin.x} cy={pin.y} r={4.5} fill="transparent" />
+      <circle cx={pin.x} cy={pin.y} r={4} fill="transparent" />
 
       {/* PWM indicator — stable intensity so duty-cycle changes don't read as jitter */}
       {isPwmActive && (
@@ -108,7 +108,7 @@ function ArduinoPinInner({ pin, isWiring, onStartWire }: ArduinoPinProps) {
           <circle
             cx={pin.x}
             cy={pin.y}
-            r={4.8}
+            r={4}
             fill="#ff9800"
             fillOpacity={0.08 + pwmStrength * 0.12}
             pointerEvents="none"
@@ -116,7 +116,7 @@ function ArduinoPinInner({ pin, isWiring, onStartWire }: ArduinoPinProps) {
           <circle
             cx={pin.x}
             cy={pin.y}
-            r={4.8}
+            r={4}
             fill="none"
             stroke="#ff9800"
             strokeWidth={1.2}
@@ -131,7 +131,7 @@ function ArduinoPinInner({ pin, isWiring, onStartWire }: ArduinoPinProps) {
         <circle
           cx={pin.x}
           cy={pin.y}
-          r={4.8}
+          r={4}
           fill="#4caf50"
           fillOpacity={0.35}
           pointerEvents="none"
@@ -143,7 +143,7 @@ function ArduinoPinInner({ pin, isWiring, onStartWire }: ArduinoPinProps) {
         <circle
           cx={pin.x}
           cy={pin.y}
-          r={4.8}
+          r={4}
           fill="#ffd54f"
           fillOpacity={0.3}
           pointerEvents="none"

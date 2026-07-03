@@ -105,18 +105,21 @@ const artX = (x: number) => UNO_ART_X + x * UNO_ART_SCALE;
 const artY = (y: number) => ARDUINO_Y + y * UNO_ART_SCALE;
 
 /**
- * Header socket centres measured off the artwork (SVG px). All headers share
- * a 25.4 px pitch. The top-left strip's first two sockets are SCL/SDA and the
- * power strip's first socket is unpopulated — neither is modelled, so the
- * anchors below start at the first socket we expose.
+ * Header socket centres in the artwork's SVG user units, measured from
+ * headless Chromium and WebKit renders (both engines agree; macOS Quick
+ * Look draws this file ~11% larger, so don't re-measure with qlmanage).
+ * All headers share a 22.7-unit pitch. The top-left strip's first two
+ * sockets are SCL/SDA and the power strip's first socket is unpopulated —
+ * neither is modelled, so the anchors below start at the first socket we
+ * expose.
  */
-const UNO_PITCH = 25.4;
-const UNO_TOP_HEADER_Y = 105.5; // digital header centreline
-const UNO_BOTTOM_HEADER_Y = 577; // power/analog header centreline
-const UNO_AREF_X = 377.3; // top-left strip: AREF, GND, D13..D8
-const UNO_D7_X = 595.7; // top-right strip: D7..D0
-const UNO_IOREF_X = 443.9; // power strip: IOREF, RESET, 3V3, 5V, GND, GND, VIN
-const UNO_A0_X = 646.7; // analog strip: A0..A5
+const UNO_PITCH = 22.7;
+const UNO_TOP_HEADER_Y = 86.8; // digital header centreline
+const UNO_BOTTOM_HEADER_Y = 523.2; // power/analog header centreline
+const UNO_AREF_X = 336.8; // top-left strip: AREF, GND, D13..D8
+const UNO_D7_X = 532.3; // top-right strip: D7..D0
+const UNO_IOREF_X = 396.5; // power strip: IOREF, RESET, 3V3, 5V, GND, GND, VIN
+const UNO_A0_X = 577.5; // analog strip: A0..A5
 
 /**
  * Digital pins along the TOP edge, matching the silkscreen:
