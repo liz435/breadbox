@@ -90,88 +90,119 @@ type ArduinoPinInfo = {
   labelSide?: "top" | "bottom" | "left" | "right";
 };
 
-const ARDUINO_PIN_SPACING = 14;
 const ARDUINO_X = 10; // left edge of the Uno board
 const ARDUINO_Y = 20; // top edge of the Uno board
 
 /**
- * Digital pins along the TOP edge of the board.
- * Order (right to left): D0(RX), D1(TX), D2, D3~, D4, D5~, D6~, D7 | D8, D9~, D10~, D11~, D12, D13, GND, AREF
- * We lay them left-to-right in ascending pin order for rendering convenience,
- * with AREF and GND at the right end.
+ * The Uno artwork (assets/arduino-uno-board.svg, intrinsic 860×611) is drawn
+ * into the 340×220 board box with preserveAspectRatio="meet": it scales to
+ * 220/611 and centers horizontally. These helpers map artwork coordinates to
+ * board space so every clickable pin dot lands exactly on its drawn socket.
+ */
+const UNO_ART_SCALE = ARDUINO_BOARD_HEIGHT / 611;
+const UNO_ART_X = ARDUINO_X + (ARDUINO_BOARD_WIDTH - 860 * UNO_ART_SCALE) / 2;
+const artX = (x: number) => UNO_ART_X + x * UNO_ART_SCALE;
+const artY = (y: number) => ARDUINO_Y + y * UNO_ART_SCALE;
+
+/**
+ * Header socket centres measured off the artwork (SVG px). All headers share
+ * a 25.4 px pitch. The top-left strip's first two sockets are SCL/SDA and the
+ * power strip's first socket is unpopulated — neither is modelled, so the
+ * anchors below start at the first socket we expose.
+ */
+const UNO_PITCH = 25.4;
+const UNO_TOP_HEADER_Y = 105.5; // digital header centreline
+const UNO_BOTTOM_HEADER_Y = 577; // power/analog header centreline
+const UNO_AREF_X = 377.3; // top-left strip: AREF, GND, D13..D8
+const UNO_D7_X = 595.7; // top-right strip: D7..D0
+const UNO_IOREF_X = 443.9; // power strip: IOREF, RESET, 3V3, 5V, GND, GND, VIN
+const UNO_A0_X = 646.7; // analog strip: A0..A5
+
+/**
+ * Digital pins along the TOP edge, matching the silkscreen:
+ * AREF, GND, D13..D8 on the left strip, D7..D0 on the right strip.
  */
 function makeDigitalPins(): ArduinoPinInfo[] {
   const pins: ArduinoPinInfo[] = [];
   const pwmPins = new Set([3, 5, 6, 9, 10, 11]);
-  const startX = ARDUINO_X + 56; // offset from left edge (past USB area)
-  const pinY = ARDUINO_Y + 8; // near top edge
+  const pinY = artY(UNO_TOP_HEADER_Y);
 
-  // Digital pins D0..D13
   for (let i = 0; i <= 13; i++) {
+    const x =
+      i >= 8
+        ? artX(UNO_AREF_X + (2 + (13 - i)) * UNO_PITCH) // left strip after AREF, GND
+        : artX(UNO_D7_X + (7 - i) * UNO_PITCH); // right strip
     pins.push({
       label: `D${i}${pwmPins.has(i) ? "~" : ""}`,
       pin: i,
-      x: startX + i * ARDUINO_PIN_SPACING,
+      x,
       y: pinY,
       isPwm: pwmPins.has(i),
       category: "digital",
+      labelSide: "top",
     });
   }
-  // GND (near digital header)
   pins.push({
     label: "GND",
     pin: -6,
-    x: startX + 14 * ARDUINO_PIN_SPACING,
+    x: artX(UNO_AREF_X + UNO_PITCH),
     y: pinY,
     category: "power",
+    labelSide: "top",
   });
-  // AREF
   pins.push({
     label: "AREF",
     pin: -7,
-    x: startX + 15 * ARDUINO_PIN_SPACING,
+    x: artX(UNO_AREF_X),
     y: pinY,
     category: "power",
+    labelSide: "top",
   });
   return pins;
 }
 
 /**
- * Analog pins along the BOTTOM-RIGHT edge.
- * A0..A5 left to right.
+ * Analog pins A0..A5 on the bottom-right header, left to right.
  */
 function makeAnalogPins(): ArduinoPinInfo[] {
   const pins: ArduinoPinInfo[] = [];
-  const startX = ARDUINO_X + 182; // right portion of bottom edge
-  const pinY = ARDUINO_Y + ARDUINO_BOARD_HEIGHT - 8; // near bottom edge
+  const pinY = artY(UNO_BOTTOM_HEADER_Y);
   for (let i = 0; i <= 5; i++) {
     pins.push({
       label: `A${i}`,
       pin: 14 + i,
-      x: startX + i * ARDUINO_PIN_SPACING,
+      x: artX(UNO_A0_X + i * UNO_PITCH),
       y: pinY,
       category: "analog",
+      labelSide: "bottom",
     });
   }
   return pins;
 }
 
 /**
- * Power pins along the BOTTOM-LEFT edge.
+ * Power pins on the bottom-left header:
  * IOREF, RESET, 3V3, 5V, GND, GND, VIN
  */
 function makePowerPins(): ArduinoPinInfo[] {
-  const startX = ARDUINO_X + 56;
-  const pinY = ARDUINO_Y + ARDUINO_BOARD_HEIGHT - 8;
-  return [
-    { label: "IOREF", pin: -8, x: startX, y: pinY, category: "power" },
-    { label: "RESET", pin: -9, x: startX + ARDUINO_PIN_SPACING, y: pinY, category: "power" },
-    { label: "3V3", pin: -2, x: startX + ARDUINO_PIN_SPACING * 2, y: pinY, category: "power" },
-    { label: "5V", pin: -1, x: startX + ARDUINO_PIN_SPACING * 3, y: pinY, category: "power" },
-    { label: "GND", pin: -3, x: startX + ARDUINO_PIN_SPACING * 4, y: pinY, category: "power" },
-    { label: "GND", pin: -4, x: startX + ARDUINO_PIN_SPACING * 5, y: pinY, category: "power" },
-    { label: "VIN", pin: -5, x: startX + ARDUINO_PIN_SPACING * 6, y: pinY, category: "power" },
+  const pinY = artY(UNO_BOTTOM_HEADER_Y);
+  const labels: Array<{ label: string; pin: number }> = [
+    { label: "IOREF", pin: -8 },
+    { label: "RESET", pin: -9 },
+    { label: "3V3", pin: -2 },
+    { label: "5V", pin: -1 },
+    { label: "GND", pin: -3 },
+    { label: "GND", pin: -4 },
+    { label: "VIN", pin: -5 },
   ];
+  return labels.map(({ label, pin }, i) => ({
+    label,
+    pin,
+    x: artX(UNO_IOREF_X + i * UNO_PITCH),
+    y: pinY,
+    category: "power" as const,
+    labelSide: "bottom" as const,
+  }));
 }
 
 export const ARDUINO_DIGITAL_PINS = makeDigitalPins();
