@@ -11,6 +11,7 @@ import {
 } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { projectRepo } from "@dreamer/api/db/adapters/file/project-repo"
+import { forceLoggerStderr } from "@dreamer/api/logger"
 import { CLI_VERSION } from "../version"
 import { LOCAL_OWNER_ID, createSession } from "./context"
 import { registerTools } from "./tools"
@@ -27,6 +28,10 @@ export type RunMcpOptions = {
 }
 
 export async function runMcpServer(options: RunMcpOptions): Promise<void> {
+  // Everything any module logs at info level must land on stderr here —
+  // stdout carries the JSON-RPC frames (see header note).
+  forceLoggerStderr()
+
   const session = createSession(options.projectId)
 
   const server = new McpServer(
@@ -111,10 +116,25 @@ export async function runMcpServer(options: RunMcpOptions): Promise<void> {
   await server.connect(transport)
 
   // Block until the client disconnects or we get a termination signal.
+  // A client that dies uncleanly (terminal closed, process killed) fires
+  // none of these — the orphaned server used to idle forever. The watchdog
+  // catches that case: on macOS an orphan is reparented to launchd (ppid 1).
+  // (Linux subreapers can mask the ppid change; there this degrades to the
+  // old behavior, and the EOF/signal paths still cover clean closes.)
   await new Promise<void>((resolve) => {
-    const done = () => resolve()
+    let watchdog: ReturnType<typeof setInterval> | null = null
+    const done = () => {
+      if (watchdog) clearInterval(watchdog)
+      resolve()
+    }
     transport.onclose = done
     process.once("SIGINT", done)
     process.once("SIGTERM", done)
+    process.once("SIGHUP", done)
+    process.stdin.once("end", done)
+    process.stdin.once("close", done)
+    watchdog = setInterval(() => {
+      if (process.ppid === 1) done()
+    }, 15_000)
   })
 }

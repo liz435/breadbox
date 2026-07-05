@@ -39,7 +39,7 @@ type Status = { kind: "idle" | "saving" | "error" | "saved"; message?: string }
 function stripCodeFence(text: string): string {
   const trimmed = text.trim()
   const fenced = trimmed.match(/^```(?:json)?\s*\n([\s\S]*?)\n```$/)
-  return fenced ? fenced[1]! : trimmed
+  return fenced?.[1] ?? trimmed
 }
 
 export function CustomPartEditor({
@@ -70,14 +70,21 @@ export function CustomPartEditor({
       return
     }
     const id = target.id
+    let stale = false
     void fetchCustomPart(id).then((part) => {
+      if (stale) return
       if (part) {
         setSource(part.source)
         setFormat(part.format)
         setPartId(id)
         setStatus({ kind: "idle" })
+      } else {
+        setStatus({ kind: "error", message: `Couldn't load part "${id}"` })
       }
     })
+    return () => {
+      stale = true
+    }
   }, [target])
 
   const save = useCallback(async () => {
@@ -100,7 +107,11 @@ export function CustomPartEditor({
 
   const remove = useCallback(async () => {
     if (!partId) return
-    await removeCustomPart(partId)
+    const removed = await removeCustomPart(partId)
+    if (!removed) {
+      setStatus({ kind: "error", message: `Couldn't delete "${partId}"` })
+      return
+    }
     onClose()
   }, [partId, onClose])
 

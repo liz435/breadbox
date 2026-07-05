@@ -10,12 +10,12 @@
 // When a board references a custom type whose plugin isn't loaded (deleted, or
 // authored in another install), a dashed "missing part" placeholder is drawn.
 
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { evaluateExpression, isCustomComponentType } from "@dreamer/schemas";
 import type { DslBinding } from "@dreamer/schemas";
 import { gridToPixel, getComponentFootprint } from "@/breadboard/breadboard-grid";
 import { HOLE_SPACING } from "@/breadboard/breadboard-constants";
-import { getCustomDef } from "@/components/catalog/custom-store";
+import { getCustomDef, subscribeCustom } from "@/components/catalog/custom-store";
 import { svgToDataUrl } from "@/utils/svg-data-url";
 import { sanitizeSvg } from "@/utils/sanitize-svg";
 import type { ComponentRendererProps } from "./renderer-types";
@@ -83,7 +83,13 @@ function applyBinding(
 }
 
 function CustomPartRendererInner({ component, isSelected, libraryState }: ComponentRendererProps) {
-  const def = getCustomDef(component.type);
+  // Subscribed lookup: a part registered after mount (e.g. fetched on demand
+  // when an MCP-authored board arrives) replaces the missing placeholder live.
+  const def = useSyncExternalStore(
+    subscribeCustom,
+    () => getCustomDef(component.type),
+    () => getCustomDef(component.type),
+  );
   const missing = isCustomComponentType(component.type) && !def;
 
   // A part may supply raw SVG for its body; a missing plugin never does.

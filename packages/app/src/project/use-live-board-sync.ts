@@ -16,6 +16,7 @@ import { API_ORIGIN } from "@dreamer/config"
 import type { BoardState } from "@dreamer/schemas"
 import { useBoard } from "@/store/board-context"
 import { useProject } from "@/project/project-context"
+import { ensureCustomPartsRegistered } from "@/components/catalog/custom-parts-on-demand"
 
 const WS_BASE = API_ORIGIN.replace(/^http/, "ws")
 const RECONNECT_MS = 1_500
@@ -59,6 +60,12 @@ export function useLiveBoardSync(): void {
         }
         if (msg.type !== "board") return
         if (msg.version <= versionRef.current) return
+        // The broadcast may reference a custom part saved (via MCP) after this
+        // app booted — fetch and register it so the canvas doesn't draw the
+        // "missing part" placeholder until a reload.
+        void ensureCustomPartsRegistered(
+          Object.values(msg.boardState.components).map((c) => c.type),
+        )
         sendRef.current({ type: "LOAD_BOARD", state: msg.boardState })
         setVersionRef.current(msg.version)
       }

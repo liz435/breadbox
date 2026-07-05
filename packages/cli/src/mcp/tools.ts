@@ -12,6 +12,7 @@ import {
   diagramToolInputSchema,
   WORKED_EXAMPLE_ACTUATOR,
 } from "@dreamer/schemas"
+import { createLogger } from "@dreamer/api/logger"
 import type { McpSession } from "./context"
 import {
   analyzePowerBudgetHandler,
@@ -123,11 +124,20 @@ function errorContent(err: unknown) {
   }
 }
 
-async function wrap<T>(fn: () => T | Promise<T>) {
+// Per-call timing goes to stderr (stdout carries the JSON-RPC stream) and,
+// when the file sink is enabled, to the JSONL log — the only visibility into
+// which tools are slow once the server runs headless under an MCP client.
+const log = createLogger("mcp")
+
+async function wrap<T>(tool: string, fn: () => T | Promise<T>) {
+  const started = performance.now()
   try {
     const result = await fn()
+    log.info(`${tool} ok in ${Math.round(performance.now() - started)}ms`)
     return asContent(result)
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    log.warn(`${tool} failed in ${Math.round(performance.now() - started)}ms: ${message}`)
     return errorContent(err)
   }
 }
@@ -141,7 +151,7 @@ export function registerTools(server: McpServer, session: McpSession) {
       description: "List every Breadbox project on disk under the current BREADBOX_HOME.",
       inputSchema: {},
     },
-    async () => wrap(() => listProjects()),
+    async () => wrap("list_projects", () => listProjects()),
   )
 
   server.registerTool(
@@ -151,7 +161,7 @@ export function registerTools(server: McpServer, session: McpSession) {
         "Return the project id this MCP session is currently operating on, or null if none is selected.",
       inputSchema: {},
     },
-    async () => wrap(() => getCurrentProject(session)),
+    async () => wrap("get_current_project", () => getCurrentProject(session)),
   )
 
   server.registerTool(
@@ -161,7 +171,7 @@ export function registerTools(server: McpServer, session: McpSession) {
         "Select a project by id. All subsequent per-project tools (reads + writes) will target it.",
       inputSchema: { projectId: z.string().min(1) },
     },
-    async (input) => wrap(() => setCurrentProject(session, input)),
+    async (input) => wrap("set_current_project", () => setCurrentProject(session, input)),
   )
 
   // ── Reads ───────────────────────────────────────────────────────
@@ -173,7 +183,7 @@ export function registerTools(server: McpServer, session: McpSession) {
         "Cheap summary of the current project's board: component + wire counts, each component's id/type/position/assigned pins, wire endpoints, and a short sketch summary. Prefer this before get_board_state — it is far smaller and usually enough to reason about the board.",
       inputSchema: {},
     },
-    async () => wrap(() => getBoardOverview(session)),
+    async () => wrap("get_board_overview", () => getBoardOverview(session)),
   )
 
   server.registerTool(
@@ -183,7 +193,7 @@ export function registerTools(server: McpServer, session: McpSession) {
         "Return the current project's FULL board as a DreamerDiagram (DSL v1) — same shape `apply_design` accepts. Expensive (full payload); prefer get_board_overview unless you need every field.",
       inputSchema: {},
     },
-    async () => wrap(() => getBoardState(session)),
+    async () => wrap("get_board_state", () => getBoardState(session)),
   )
 
   server.registerTool(
@@ -193,7 +203,7 @@ export function registerTools(server: McpServer, session: McpSession) {
         "List the current project's components (DSL shape): { id, type, at: [x,y], rotation, name?, pins?, properties }.",
       inputSchema: {},
     },
-    async () => wrap(() => listComponents(session)),
+    async () => wrap("list_components", () => listComponents(session)),
   )
 
   server.registerTool(
@@ -203,7 +213,7 @@ export function registerTools(server: McpServer, session: McpSession) {
         "List the current project's wires (DSL shape) with readable endpoint strings ('arduino.13', 'led1.anode', …).",
       inputSchema: {},
     },
-    async () => wrap(() => listWires(session)),
+    async () => wrap("list_wires", () => listWires(session)),
   )
 
   server.registerTool(
@@ -212,7 +222,7 @@ export function registerTools(server: McpServer, session: McpSession) {
       description: "Return the current project's Arduino sketch source.",
       inputSchema: {},
     },
-    async () => wrap(() => getSketchCode(session)),
+    async () => wrap("get_sketch_code", () => getSketchCode(session)),
   )
 
   server.registerTool(
@@ -221,7 +231,7 @@ export function registerTools(server: McpServer, session: McpSession) {
       description: "Fetch one component from the current project by id.",
       inputSchema: { componentId: z.string().min(1) },
     },
-    async (input) => wrap(() => getComponentDetails(session, input)),
+    async (input) => wrap("get_component_details", () => getComponentDetails(session, input)),
   )
 
   server.registerTool(
@@ -231,7 +241,7 @@ export function registerTools(server: McpServer, session: McpSession) {
         "Analyse per-pin load, rail load, and electrical safety of the current project's board. Returns a PowerBudgetReport.",
       inputSchema: {},
     },
-    async () => wrap(() => analyzePowerBudgetHandler(session)),
+    async () => wrap("analyze_power_budget", () => analyzePowerBudgetHandler(session)),
   )
 
   server.registerTool(
@@ -241,7 +251,7 @@ export function registerTools(server: McpServer, session: McpSession) {
         "Static reference: wire colours, wiring rules, component footprints, pin names, Arduino pin aliases.",
       inputSchema: {},
     },
-    async () => wrap(() => getWiringGuide()),
+    async () => wrap("get_wiring_guide", () => getWiringGuide()),
   )
 
   // ── Writes ──────────────────────────────────────────────────────
@@ -253,7 +263,7 @@ export function registerTools(server: McpServer, session: McpSession) {
         "Dry-run check on a DreamerDiagram (DSL v1). Returns `issues[]` with severity/category/code/path/message. Does NOT modify the board. Call before `apply_design`.",
       inputSchema: diagramToolInputSchema.shape,
     },
-    async (input) => wrap(() => validateDesign(input)),
+    async (input) => wrap("validate_design", () => validateDesign(input)),
   )
 
   server.registerTool(
@@ -263,7 +273,7 @@ export function registerTools(server: McpServer, session: McpSession) {
         "Atomically replace the current project's board with a DreamerDiagram (DSL v1). Removes every existing component + wire and installs the new design. Also sets the sketch.",
       inputSchema: diagramToolInputSchema.shape,
     },
-    async (input) => wrap(() => applyDesign(session, input)),
+    async (input) => wrap("apply_design", () => applyDesign(session, input)),
   )
 
   server.registerTool(
@@ -273,7 +283,7 @@ export function registerTools(server: McpServer, session: McpSession) {
         "Replace the current project's Arduino sketch. Validated before accepting (balanced braces, setup/loop present).",
       inputSchema: { code: z.string() },
     },
-    async (input) => wrap(() => updateSketch(session, input)),
+    async (input) => wrap("update_sketch", () => updateSketch(session, input)),
   )
 
   server.registerTool(
@@ -287,7 +297,7 @@ export function registerTools(server: McpServer, session: McpSession) {
         newCode: z.string(),
       },
     },
-    async (input) => wrap(() => patchSketch(session, input)),
+    async (input) => wrap("patch_sketch", () => patchSketch(session, input)),
   )
 
   // ── Custom parts (global, not project-scoped) ───────────────────
@@ -299,7 +309,7 @@ export function registerTools(server: McpServer, session: McpSession) {
         "List the user's custom components as [{ id, format }], where format is 'code' (a TS module) or 'dsl' (a declarative spec).",
       inputSchema: {},
     },
-    async () => wrap(() => listCustomParts()),
+    async () => wrap("list_custom_parts", () => listCustomParts()),
   )
 
   server.registerTool(
@@ -308,7 +318,7 @@ export function registerTools(server: McpServer, session: McpSession) {
       description: "Fetch one custom part by id, returning its source and format.",
       inputSchema: { id: z.string().min(1) },
     },
-    async (input) => wrap(() => getCustomPart(input)),
+    async (input) => wrap("get_custom_part", () => getCustomPart(input)),
   )
 
   server.registerTool(
@@ -318,7 +328,7 @@ export function registerTools(server: McpServer, session: McpSession) {
         `Dry-run validate a custom-component DSL spec: structural schema PLUS semantic lint (pin refs, expression syntax, binding targets). Returns { valid: true, id, warnings? } or { valid: false, issues[], warnings? }. Does NOT save. ${DSL_SHAPE}`,
       inputSchema: { spec: z.record(z.string(), z.unknown()) },
     },
-    async (input) => wrap(() => validateCustomPart(input)),
+    async (input) => wrap("validate_custom_part", () => validateCustomPart(input)),
   )
 
   server.registerTool(
@@ -328,7 +338,7 @@ export function registerTools(server: McpServer, session: McpSession) {
         `Create or update a custom component from a DSL spec. The id is the name after "custom:" in spec.type. Validated (schema + semantic lint) before saving; the saved part appears in the palette, simulates like a built-in, and — when it declares behavior signals — reacts live to the sketch code driving its pins. ${DSL_GUIDE}`,
       inputSchema: { spec: z.record(z.string(), z.unknown()) },
     },
-    async (input) => wrap(() => saveCustomPart(input)),
+    async (input) => wrap("save_custom_part", () => saveCustomPart(input)),
   )
 
   server.registerTool(
@@ -337,6 +347,6 @@ export function registerTools(server: McpServer, session: McpSession) {
       description: "Delete a custom part by id.",
       inputSchema: { id: z.string().min(1) },
     },
-    async (input) => wrap(() => deleteCustomPart(input)),
+    async (input) => wrap("delete_custom_part", () => deleteCustomPart(input)),
   )
 }
