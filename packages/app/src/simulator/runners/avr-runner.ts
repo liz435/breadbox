@@ -10,6 +10,7 @@
 import { sketchSizeRef } from "../sketch-size-ref"
 import { createAVRRunner, arduinoPinToPort, portToArduinoPin, type AVRRunner } from "../avr-runner"
 import { compileSketch } from "../avr-compiler"
+import { parseIntelHex } from "../intel-hex"
 import { PinState } from "avr8js"
 import { pinStateStore, type PinStateStore } from "../pin-state-store"
 import { PwmTracker } from "../pwm-tracker"
@@ -271,6 +272,14 @@ export function createAvrSketchRunner(
     return { success: true }
   }
 
+  /** Load pre-compiled Intel HEX directly (fixture-driven headless runs). */
+  function loadHex(hex: string): void {
+    reset()
+    lineTable = []
+    avrRunner = createAVRRunnerInstance()
+    avrRunner.load(parseIntelHex(hex))
+  }
+
   /**
    * Publish reconstructed PWM duty cycles to the store. Called once per frame
    * (after a chunk of execution) so isPwm/pwmValue reflect the averaged signal
@@ -509,6 +518,7 @@ export function createAvrSketchRunner(
     fqbn,
     debug,
     loadSketchAsync,
+    loadHex,
     runSetup,
     runLoopIteration,
     sendSerialInput,

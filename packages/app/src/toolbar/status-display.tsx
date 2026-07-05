@@ -27,18 +27,18 @@ type StatusInfo = {
 
 const TONE_DOT: Record<Tone, string> = {
   neutral: "bg-muted-foreground",
-  info: "bg-blue-400 animate-pulse",
-  success: "bg-emerald-400",
-  warning: "bg-amber-400",
-  error: "bg-red-400",
+  info: "bg-blue-500 animate-pulse",
+  success: "bg-emerald-500",
+  warning: "bg-amber-500",
+  error: "bg-red-500",
 }
 
 const TONE_TEXT: Record<Tone, string> = {
   neutral: "text-muted-foreground",
-  info: "text-blue-300",
-  success: "text-emerald-300",
-  warning: "text-amber-300",
-  error: "text-red-300",
+  info: "text-blue-700",
+  success: "text-emerald-700",
+  warning: "text-amber-700",
+  error: "text-red-700",
 }
 
 function deriveStatus(args: {

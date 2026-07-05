@@ -166,7 +166,7 @@ export function DebuggerPanel() {
       </div>
 
       {!debug.hasLineTable && (
-        <p className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs text-amber-300">
+        <p className="rounded border border-amber-600/30 bg-amber-500/15 px-2 py-1 text-xs text-amber-800">
           No source-line map for this build — breakpoints fall back to addresses.
         </p>
       )}

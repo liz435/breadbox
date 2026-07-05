@@ -8,7 +8,7 @@ type ArduinoPinProps = {
   onStartWire: (pin: ArduinoPinInfo) => void;
 };
 
-const RADIUS_DEFAULT = 3.5;
+const RADIUS_DEFAULT = 3.2;
 
 function getPinStrokeColor(pin: ArduinoPinInfo): string {
   // GND pins
@@ -64,16 +64,18 @@ function ArduinoPinInner({ pin, isWiring, onStartWire }: ArduinoPinProps) {
   const isPwmActive = pinState?.isPwm && (pinState?.pwmValue ?? 0) > 0;
   const pwmStrength = Math.max(0, Math.min(1, (pinState?.pwmValue ?? 0) / 255));
 
+  // Top/bottom labels are rotated vertical like real board silkscreen —
+  // header pitch is ~9-12px, far too tight for horizontal text.
   const labelPos = (() => {
     switch (pin.labelSide) {
       case "left":
-        return { x: pin.x - 9, y: pin.y, anchor: "end" as const };
+        return { x: pin.x - 9, y: pin.y, anchor: "end" as const, rotate: false };
       case "right":
-        return { x: pin.x + 9, y: pin.y, anchor: "start" as const };
+        return { x: pin.x + 9, y: pin.y, anchor: "start" as const, rotate: false };
       case "top":
-        return { x: pin.x, y: pin.y - 8, anchor: "middle" as const };
+        return { x: pin.x, y: pin.y - 9, anchor: "start" as const, rotate: true };
       case "bottom":
-        return { x: pin.x, y: pin.y + 12, anchor: "middle" as const };
+        return { x: pin.x, y: pin.y + 9, anchor: "end" as const, rotate: true };
       default: {
         // Backward-compatible fallback for legacy pin maps.
         const isTopPin = pin.y < 100;
@@ -81,6 +83,7 @@ function ArduinoPinInner({ pin, isWiring, onStartWire }: ArduinoPinProps) {
           x: pin.x,
           y: isTopPin ? pin.y + 12 : pin.y - 8,
           anchor: "middle" as const,
+          rotate: false,
         };
       }
     }
@@ -95,8 +98,9 @@ function ArduinoPinInner({ pin, isWiring, onStartWire }: ArduinoPinProps) {
       {/* Native SVG tooltip — no useState needed */}
       <title>{getPinTooltip(pin)}</title>
 
-      {/* Invisible hit area for easier hovering */}
-      <circle cx={pin.x} cy={pin.y} r={8} fill="transparent" />
+      {/* Invisible hit area — capped at half the ~8px header pitch so
+          adjacent pins don't steal each other's clicks */}
+      <circle cx={pin.x} cy={pin.y} r={4} fill="transparent" />
 
       {/* PWM indicator — stable intensity so duty-cycle changes don't read as jitter */}
       {isPwmActive && (
@@ -104,7 +108,7 @@ function ArduinoPinInner({ pin, isWiring, onStartWire }: ArduinoPinProps) {
           <circle
             cx={pin.x}
             cy={pin.y}
-            r={7.5}
+            r={4}
             fill="#ff9800"
             fillOpacity={0.08 + pwmStrength * 0.12}
             pointerEvents="none"
@@ -112,10 +116,10 @@ function ArduinoPinInner({ pin, isWiring, onStartWire }: ArduinoPinProps) {
           <circle
             cx={pin.x}
             cy={pin.y}
-            r={7.5}
+            r={4}
             fill="none"
             stroke="#ff9800"
-            strokeWidth={1.5}
+            strokeWidth={1.2}
             opacity={0.22 + pwmStrength * 0.38}
             pointerEvents="none"
           />
@@ -127,7 +131,7 @@ function ArduinoPinInner({ pin, isWiring, onStartWire }: ArduinoPinProps) {
         <circle
           cx={pin.x}
           cy={pin.y}
-          r={6}
+          r={4}
           fill="#4caf50"
           fillOpacity={0.35}
           pointerEvents="none"
@@ -139,7 +143,7 @@ function ArduinoPinInner({ pin, isWiring, onStartWire }: ArduinoPinProps) {
         <circle
           cx={pin.x}
           cy={pin.y}
-          r={6}
+          r={4}
           fill="#ffd54f"
           fillOpacity={0.3}
           pointerEvents="none"
@@ -179,6 +183,11 @@ function ArduinoPinInner({ pin, isWiring, onStartWire }: ArduinoPinProps) {
         style={{ fill: "var(--foreground)" }}
         fontFamily="monospace"
         pointerEvents="none"
+        transform={
+          labelPos.rotate
+            ? `rotate(-90 ${labelPos.x} ${labelPos.y})`
+            : undefined
+        }
       >
         {pin.label}
       </text>

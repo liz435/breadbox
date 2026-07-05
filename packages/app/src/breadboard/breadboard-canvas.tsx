@@ -1459,7 +1459,10 @@ function BreadboardCanvasInner({ zoomTick: _zoomTick, panMode, readOnly }: Bread
           onDragStart={effectiveReadOnly ? noopDragStart : drag.handleDragStart}
         />
 
-        {analysis && analysis.isValid && (
+        {/* Render on a failed solve too — warnings (e.g. solver_failed)
+            must stay visible, otherwise a crashed solve looks identical
+            to an idle board. */}
+        {analysis && (analysis.isValid || analysis.warnings.length > 0) && (
           <CircuitOverlay analysis={analysis} components={filteredComponents} />
         )}
 

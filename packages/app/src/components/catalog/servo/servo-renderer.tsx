@@ -123,13 +123,11 @@ function ServoRendererInner({ component, isSelected, libraryState }: ServoRender
   const shaftY = bodyT + 7;
   const hubR = 5.2;
   const hornLen = 12;
-  const isDriven = libraryState != null && connectedPin != null;
 
   const hornRef = useServoSlew(angle, cx, shaftY);
 
   const bodyGradId = `servo-body-${component.id}`;
   const hubGradId = `servo-hub-${component.id}`;
-  const glowId = `servo-glow-${component.id}`;
 
   // Mounting flange (the screw-tab ears) y position.
   const flangeY = shaftY;
@@ -148,15 +146,6 @@ function ServoRendererInner({ component, isSelected, libraryState }: ServoRender
           <stop offset="55%" stopColor="#d8d8d8" />
           <stop offset="100%" stopColor="#9e9e9e" />
         </radialGradient>
-        {isDriven && (
-          <filter id={glowId} x="-120%" y="-120%" width="340%" height="340%">
-            <feGaussianBlur stdDeviation={0.9} result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        )}
       </defs>
 
       {/* Cables from body to pin holes — horizontal lines */}
@@ -202,23 +191,19 @@ function ServoRendererInner({ component, isSelected, libraryState }: ServoRender
       <path
         d={`M ${cx} ${shaftY - hornLen} A ${hornLen} ${hornLen} 0 0 1 ${cx} ${shaftY + hornLen}`}
         fill="none"
-        stroke={isDriven ? "#93c5fd" : "#5b9be0"}
-        strokeWidth={isDriven ? 0.9 : 0.6}
-        opacity={isDriven ? 0.6 : 0.4}
+        stroke="#5b9be0"
+        strokeWidth={0.6}
+        opacity={0.4}
         strokeLinecap="round"
         strokeDasharray="1.5 2"
       />
 
       {/* Gearbox hub */}
       <circle cx={cx} cy={shaftY} r={hubR + 1.2} fill="#0d47a1" opacity={0.5} />
-      <circle cx={cx} cy={shaftY} r={hubR} fill={`url(#${hubGradId})`} stroke={isDriven ? "#93c5fd" : "#bdbdbd"} strokeWidth={isDriven ? 0.9 : 0.6} />
+      <circle cx={cx} cy={shaftY} r={hubR} fill={`url(#${hubGradId})`} stroke="#bdbdbd" strokeWidth={0.6} />
 
       {/* Horn — authored pointing right (= 90°); the rAF slew rotates this group */}
       <g ref={hornRef}>
-        {isDriven && (
-          <line x1={cx} y1={shaftY} x2={cx + hornLen} y2={shaftY}
-            stroke="#60a5fa" strokeWidth={5} strokeLinecap="round" opacity={0.22} filter={`url(#${glowId})`} />
-        )}
         {/* Short counter-arm so it reads as a real 2-sided horn.
             NB: solid stroke — a gradient on a horizontal (zero-height) line
             has a degenerate objectBoundingBox and paints nothing. */}
@@ -233,7 +218,7 @@ function ServoRendererInner({ component, isSelected, libraryState }: ServoRender
         <circle cx={cx + hornLen * 0.6} cy={shaftY} r={0.5} fill="#9e9e9e" />
       </g>
       {/* Hub centre screw (drawn after the horn so it sits on top) */}
-      <circle cx={cx} cy={shaftY} r={1.7} fill={isDriven ? "#60a5fa" : "#8a8a8a"} stroke="#5c5c5c" strokeWidth={0.3} />
+      <circle cx={cx} cy={shaftY} r={1.7} fill="#8a8a8a" stroke="#5c5c5c" strokeWidth={0.3} />
 
       {/* Name + commanded angle */}
       <text x={p1.x} y={p2.y + 12} textAnchor="middle" fontSize={LABEL_FONT_SIZE} fill="#888" fontFamily="monospace">

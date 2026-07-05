@@ -256,7 +256,7 @@ export function SerialMonitor() {
       : null
 
     return (
-      <div key={index} className={isInput ? "text-blue-400" : undefined}>
+      <div key={index} className={isInput ? "text-blue-700" : undefined}>
         {tsStr && <span className="text-muted-foreground mr-2">[{tsStr}]</span>}
         {entry.text}
       </div>
@@ -282,10 +282,10 @@ export function SerialMonitor() {
                4. Nothing → grey */}
           {serialConnected ? (
             <span
-              className="flex items-center gap-1 text-[10px] text-emerald-400"
+              className="flex items-center gap-1 text-[10px] text-emerald-700"
               title={`Open at ${baudRate} baud · ${boardBytesReceived} bytes received`}
             >
-              <span className="size-1.5 rounded-full bg-emerald-400" />
+              <span className="size-1.5 rounded-full bg-emerald-500" />
               {activePort ?? "Connected"}
               <span className="text-muted-foreground">
                 · {baudRate} baud · {boardBytesReceived}B rx
@@ -293,10 +293,10 @@ export function SerialMonitor() {
             </span>
           ) : activePort ? (
             <span
-              className="flex items-center gap-1 text-[10px] text-amber-300"
+              className="flex items-center gap-1 text-[10px] text-amber-700"
               title="A board is paired but the read loop isn't running. Click Connect."
             >
-              <span className="size-1.5 rounded-full bg-amber-300/80" />
+              <span className="size-1.5 rounded-full bg-amber-500" />
               Board disconnected
               <span className="text-muted-foreground">· click Connect →</span>
             </span>
@@ -320,7 +320,7 @@ export function SerialMonitor() {
                 setBaudRate(sketchBaud)
               }}
               title="Click to match the sketch's Serial.begin() baud"
-              className="rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-300 hover:bg-amber-500/20"
+              className="rounded border border-amber-600/40 bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-800 hover:bg-amber-500/25"
             >
               sketch uses {sketchBaud} baud · match
             </button>
@@ -352,8 +352,8 @@ export function SerialMonitor() {
               className={cn(
                 "rounded px-2 py-0.5 text-[10px] transition-colors",
                 serialConnected
-                  ? "bg-red-600/20 text-red-400 hover:bg-red-600/30"
-                  : "bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30",
+                  ? "bg-red-600/15 text-red-700 hover:bg-red-600/25"
+                  : "bg-emerald-600/15 text-emerald-700 hover:bg-emerald-600/25",
               )}
             >
               {serialConnected ? "Disconnect" : "Connect"}
@@ -432,7 +432,7 @@ export function SerialMonitor() {
       <div className="flex border-b border-border">
         <input
           type="text"
-          className="flex-1 bg-secondary px-3 py-1.5 text-xs text-green-300 placeholder:text-muted-foreground outline-none"
+          className="flex-1 bg-secondary px-3 py-1.5 text-xs text-emerald-800 placeholder:text-muted-foreground outline-none"
           placeholder="Type message and press Enter to send…"
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -459,7 +459,7 @@ export function SerialMonitor() {
       {/* Output */}
       <pre
         ref={scrollRef}
-        className="flex-1 overflow-y-auto whitespace-pre-wrap px-3 py-2 text-green-400"
+        className="flex-1 overflow-y-auto whitespace-pre-wrap px-3 py-2 text-emerald-800"
       >
         {visibleSerial.length === 0 ? (
           <span className="text-muted-foreground italic">

@@ -101,6 +101,12 @@ export class DhtPeripheral implements Peripheral<DhtStateShape> {
   // Start-signal detection state.
   private trigLowAtSimMs = 0
   private awaitingRelease = false
+  // Last logical level seen on the signal pin. The AVR dispatches an edge on
+  // every pin-STATE transition, including OUTPUT-LOW → INPUT (0 → 0) when
+  // the sketch releases the line: without level tracking that repeat-0 edge
+  // would restart the LOW-pulse timer at the moment of release and the
+  // measured start pulse would be 0 ms.
+  private lastLevel: 0 | 1 = 1
   // While the peripheral is emitting a response frame, ignore further
   // start-signal attempts (real DHT wouldn't respond mid-frame anyway).
   private frameBusy = false
@@ -159,12 +165,17 @@ export class DhtPeripheral implements Peripheral<DhtStateShape> {
 
   onPinEdge(edge: PinEdge): void {
     if (edge.pin !== this.signalPin) return
+    const wasLow = this.lastLevel === 0
+    this.lastLevel = edge.value
     if (this.frameBusy) return
 
     if (edge.value === 0) {
-      // Start of a potential start-signal LOW pulse.
-      this.trigLowAtSimMs = edge.simMs
-      this.awaitingRelease = true
+      // Start of a potential start-signal LOW pulse. Repeat-0 edges (pin
+      // MODE changes while the line stays low) must not restart the timer.
+      if (!wasLow) {
+        this.trigLowAtSimMs = edge.simMs
+        this.awaitingRelease = true
+      }
       return
     }
 
@@ -274,6 +285,7 @@ export class DhtPeripheral implements Peripheral<DhtStateShape> {
   reset(): void {
     this.trigLowAtSimMs = 0
     this.awaitingRelease = false
+    this.lastLevel = 1
     this.frameBusy = false
     this.frameReleaseAtSimMs = 0
     this.sampledTemperatureC = this.temperatureC

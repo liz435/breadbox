@@ -248,7 +248,7 @@ function ComponentWarnings({ componentId }: { componentId: string }) {
             "rounded-md px-2.5 py-1.5 text-[11px] leading-snug",
             w.severity === "error"
               ? "bg-destructive/15 text-destructive border border-destructive/30"
-              : "bg-amber-500/10 text-amber-400 border border-amber-500/25",
+              : "bg-amber-500/15 text-amber-800 border border-amber-600/30",
           )}
         >
           {w.message}
@@ -443,7 +443,7 @@ function ButtonInspector({ component, onUpdate }: {
       </PropertyRow>
 
       {!canDrivePress && (
-        <div className="rounded-md border border-amber-500/25 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-snug text-amber-400">
+        <div className="rounded-md border border-amber-600/30 bg-amber-500/15 px-2.5 py-1.5 text-[11px] leading-snug text-amber-800">
           Wire one side to an Arduino input pin and the opposite side to
           {isPullup ? " GND" : " 5V/3V3"}.
         </div>
@@ -510,7 +510,7 @@ function ServoInspector({ component, onUpdate, wires, libraryState }: {
       <div className="rounded-md border border-border bg-muted/20 px-2.5 py-2 text-[11px] leading-snug text-muted-foreground">
         <div className="flex items-center justify-between gap-3">
           <span>Servo pulse</span>
-          <span className={cn("font-mono tabular-nums", isLive ? "text-blue-400" : "text-foreground/70")}>
+          <span className={cn("font-mono tabular-nums", isLive ? "text-blue-700" : "text-foreground/70")}>
             {formatSignalPin(signalPin)} · {pulseUs}µs @ 50Hz
           </span>
         </div>
@@ -600,7 +600,7 @@ function CapacitorInspector({ component, onUpdate }: {
         />
       </PropertyRow>
       {timeScale != null && (
-        <p className="text-[11px] leading-snug text-amber-500/90">
+        <p className="text-[11px] leading-snug text-amber-800">
           Transient shown ~{timeScale >= 10 ? Math.round(timeScale) : timeScale.toFixed(1)}× slower
           than real time so the charge curve is watchable. The real RC time constant is faster.
         </p>
@@ -1087,7 +1087,7 @@ function PirSensorInspector({ component, onUpdate }: {
             }
             className="accent-amber-500"
           />
-          <span className={cn("text-xs", motion ? "text-amber-400" : "text-muted-foreground")}>
+          <span className={cn("text-xs", motion ? "text-amber-700" : "text-muted-foreground")}>
             {motion ? "Detected" : "Idle"}
           </span>
         </label>
