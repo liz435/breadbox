@@ -202,11 +202,21 @@ function formatMessage(
   return `${base}\n${colors.dim}${serialized}${colors.reset}`;
 }
 
+// When set, ALL console output goes to stderr regardless of level. For
+// processes whose stdout is a protocol stream (the MCP server speaks JSON-RPC
+// on stdout) — an info line on stdout would corrupt the frame stream.
+let stderrOnly = false;
+
+/** Route all logger console output to stderr. Call once at process entry. */
+function forceLoggerStderr(): void {
+  stderrOnly = true;
+}
+
 function createLogger(tag: string) {
   const emit = (level: LogLevel, message: string, data?: unknown) => {
     if (LEVEL_ORDER[level] < currentMinLevel()) return;
     const line = formatMessage(level, tag, message, data);
-    if (level === "error" || level === "warn") console.error(line);
+    if (stderrOnly || level === "error" || level === "warn") console.error(line);
     else console.log(line);
     const file = ensureFileReady();
     if (file) writeJsonl(file, level, tag, message, data);
@@ -224,4 +234,4 @@ function createLogger(tag: string) {
 
 export type Logger = ReturnType<typeof createLogger>;
 
-export { createLogger };
+export { createLogger, forceLoggerStderr };

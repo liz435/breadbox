@@ -11,6 +11,7 @@ import {
 } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { projectRepo } from "@dreamer/api/db/adapters/file/project-repo"
+import { forceLoggerStderr } from "@dreamer/api/logger"
 import { CLI_VERSION } from "../version"
 import { LOCAL_OWNER_ID, createSession } from "./context"
 import { registerTools } from "./tools"
@@ -27,6 +28,10 @@ export type RunMcpOptions = {
 }
 
 export async function runMcpServer(options: RunMcpOptions): Promise<void> {
+  // Everything any module logs at info level must land on stderr here —
+  // stdout carries the JSON-RPC frames (see header note).
+  forceLoggerStderr()
+
   const session = createSession(options.projectId)
 
   const server = new McpServer(
