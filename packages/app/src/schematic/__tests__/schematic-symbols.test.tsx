@@ -23,6 +23,8 @@ import {
   PirSensorSymbol,
   GenericModuleSymbol,
   WireJunction,
+  GroundFlag,
+  PowerFlag,
   SCHEMATIC_SYMBOL_TYPES,
 } from "../schematic-symbols"
 import type { SymbolProps } from "../schematic-symbols"
@@ -98,6 +100,24 @@ describe("symbol label rendering", () => {
     expect(html).toContain("D13")
   })
 
+  test("ArduinoPinSymbol draws PWM waveform marker when isPwm=true", () => {
+    const html = render(<ArduinoPinSymbol {...BASE_PROPS} label="~D9" isPwm={true} />)
+    // PWM marker uses the breadboard's PWM orange
+    expect(html).toContain("#ff9800")
+  })
+
+  test("ArduinoPinSymbol has no PWM marker when isPwm is falsy", () => {
+    const html = render(<ArduinoPinSymbol {...BASE_PROPS} label="D13" />)
+    expect(html).not.toContain("#ff9800")
+  })
+
+  test("ServoSymbol renders SIG/VCC/GND pin labels", () => {
+    const html = render(<ServoSymbol {...BASE_PROPS} label="Servo" />)
+    expect(html).toContain("SIG")
+    expect(html).toContain("VCC")
+    expect(html).toContain("GND")
+  })
+
   test("VoltageSourceSymbol renders 5V label", () => {
     const html = render(<VoltageSourceSymbol {...BASE_PROPS} label="5V" />)
     expect(html).toContain("5V")
@@ -119,10 +139,9 @@ describe("symbol value rendering", () => {
 
   test("ResistorSymbol does not render value element when value is undefined", () => {
     const html = render(<ResistorSymbol {...BASE_PROPS} />)
-    // Should not have a second text element for value — just the label
-    // We check that "220" is not in the output as a proxy
-    // We can also check that the output does not have a value-styled text
-    const occurrences = (html.match(/fill="#aaa"/g) ?? []).length
+    // Value / annotation text is the only muted (fillOpacity) ink; with no
+    // value, voltage, or current there should be none.
+    const occurrences = (html.match(/fill-opacity="0.6"/g) ?? []).length
     expect(occurrences).toBe(0)
   })
 
@@ -140,15 +159,15 @@ describe("symbol active state styling", () => {
     expect(html).toContain("#ef4444")
   })
 
-  test("ResistorSymbol uses default stroke (#333) when isActive=false", () => {
+  test("ResistorSymbol uses neutral theme ink (currentColor) when isActive=false", () => {
     const html = render(<ResistorSymbol {...BASE_PROPS} isActive={false} />)
-    expect(html).toContain("#333")
+    expect(html).toContain("currentColor")
     expect(html).not.toContain("#ef4444")
   })
 
-  test("ResistorSymbol uses default stroke when isActive is undefined", () => {
+  test("ResistorSymbol uses neutral theme ink when isActive is undefined", () => {
     const html = render(<ResistorSymbol {...BASE_PROPS} />)
-    expect(html).toContain("#333")
+    expect(html).toContain("currentColor")
   })
 
   test("LedSymbol uses active stroke (#ef4444) when isActive=true", () => {
@@ -255,6 +274,37 @@ describe("WireJunction", () => {
   test("junction circle has r=4", () => {
     const html = render(<WireJunction x={0} y={0} />)
     expect(html).toContain(`r="4"`)
+  })
+})
+
+// ── Rail flags (distributed power/ground) ──────────────────────────────
+
+describe("GroundFlag", () => {
+  test("renders in ground blue with a stub from the terminal point", () => {
+    const html = render(<GroundFlag x={100} y={100} dir={{ dx: 1, dy: 0 }} />)
+    expect(html).toContain("#3b82f6")
+    // stub starts at the terminal (x, y)
+    expect(html).toContain(`x1="100"`)
+    expect(html).toContain(`y1="100"`)
+  })
+
+  test("orients bars perpendicular to a downward stub", () => {
+    // dir down → bars are horizontal (vary in x, share y)
+    const html = render(<GroundFlag x={50} y={50} dir={{ dx: 0, dy: 1 }} />)
+    expect(html).toContain("#3b82f6")
+  })
+})
+
+describe("PowerFlag", () => {
+  test("renders in power red with its rail label", () => {
+    const html = render(<PowerFlag x={100} y={100} dir={{ dx: -1, dy: 0 }} label="5V" />)
+    expect(html).toContain("#ef4444")
+    expect(html).toContain("5V")
+  })
+
+  test("renders 3.3V rail label", () => {
+    const html = render(<PowerFlag x={0} y={0} dir={{ dx: 0, dy: -1 }} label="3.3V" />)
+    expect(html).toContain("3.3V")
   })
 })
 

@@ -67,7 +67,7 @@ export const temperatureSensor: ComponentDefinition = {
   schematicSymbol: "temperature_sensor",
   schematicValue: (comp) => {
     const temp = (comp.properties.temperature as number) ?? 25
-    return `TMP36 ${temp}°C`
+    return `${temp}°C`
   },
   generateSketch: (comp) => {
     const pin = comp.pins.signal

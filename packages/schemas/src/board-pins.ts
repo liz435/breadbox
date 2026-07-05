@@ -60,6 +60,27 @@ export function isArduinoSignalPin(pin: number): boolean {
   return Number.isInteger(pin) && pin >= 0 && pin <= MAX_ARDUINO_PIN;
 }
 
+// PWM-capable output pins per board, matching each board's silkscreen (~) marks.
+const BOARD_PWM_PINS: Record<BoardTarget, readonly number[]> = {
+  arduino_uno: [3, 5, 6, 9, 10, 11],
+  arduino_nano: [3, 5, 6, 9, 10, 11],
+  arduino_mega_2560: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 44, 45, 46],
+  // RP2040: every GPIO is backed by one of eight PWM slices.
+  rpi_pico: Array.from({ length: 30 }, (_, i) => i),
+};
+
+/**
+ * Whether a digital pin can output a hardware PWM (analogWrite / Servo) signal
+ * on the given board — the pins the physical board marks with a `~`.
+ */
+export function isPwmCapablePin(
+  pin: number,
+  boardTarget: BoardTarget = DEFAULT_BOARD_TARGET,
+): boolean {
+  const pins = BOARD_PWM_PINS[boardTarget] ?? BOARD_PWM_PINS[DEFAULT_BOARD_TARGET];
+  return pins.includes(pin);
+}
+
 export function formatArduinoPin(
   pin: number,
   boardTarget: BoardTarget = DEFAULT_BOARD_TARGET,

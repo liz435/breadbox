@@ -37,5 +37,9 @@ export const servo: ComponentDefinition = {
     }
   },
   schematicSymbol: "servo",
-  schematicValue: () => "Servo",
+  // Show the commanded angle rather than repeating the component name.
+  schematicValue: (comp) => {
+    const angle = comp.properties?.angle
+    return typeof angle === "number" ? `${angle}°` : undefined
+  },
 }

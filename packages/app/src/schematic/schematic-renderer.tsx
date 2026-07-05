@@ -5,7 +5,7 @@
 
 import type { CircuitAnalysis } from "@/simulator/circuit-solver"
 import type { SchematicLayout, SchematicEdge, SchematicTerminalSide } from "./schematic-layout"
-import { renderSymbol, WireJunction, ARDUINO_IC_LABEL_WIDTH, ARDUINO_IC_TERMINAL_OFFSET, type SymbolProps } from "./schematic-symbols"
+import { renderSymbol, WireJunction, GroundFlag, PowerFlag, ARDUINO_IC_LABEL_WIDTH, ARDUINO_IC_TERMINAL_OFFSET, type SymbolProps } from "./schematic-symbols"
 
 type SchematicRendererProps = {
   layout: SchematicLayout
@@ -20,6 +20,8 @@ type SchematicRendererProps = {
 /** Terminal offset: how far from the node center to the wire connection point */
 const TERMINAL_OFFSET: Record<SchematicTerminalSide, { dx: number; dy: number }> = {
   left: { dx: 0, dy: 0 },
+  "left-top": { dx: 0, dy: -14 },
+  "left-bottom": { dx: 0, dy: 14 },
   right: { dx: 60, dy: 0 },
   top: { dx: 30, dy: -20 },
   bottom: { dx: 30, dy: 20 },
@@ -52,13 +54,55 @@ function getTerminalPos(
     return { x: nodeX, y: nodeY }
   }
 
-  if (nodeType === "temperature_sensor") {
-    if (side === "bottom-left") return { x: nodeX + 18, y: nodeY + 28 }
-    if (side === "bottom-center") return { x: nodeX + 26, y: nodeY + 28 }
-    if (side === "bottom-right") return { x: nodeX + 34, y: nodeY + 28 }
+  // Connector-block modules (servo, temperature sensor): signal/power on the
+  // left, ground on the right. Must match MODULE_PIN_DY / MODULE_GND_X used by
+  // ServoSymbol and TemperatureSensorSymbol.
+  if (nodeType === "servo" || nodeType === "temperature_sensor") {
+    if (side === "left-top") return { x: nodeX, y: nodeY - 14 }
+    if (side === "left-bottom") return { x: nodeX, y: nodeY + 14 }
+    if (side === "right") return { x: nodeX + 64, y: nodeY }
+  }
+
+  // An IC pin's terminal is its node position (the stub runs into the body).
+  if (nodeType === "ic_pin") {
+    return { x: nodeX, y: nodeY }
   }
 
   return { x: nodeX + offset.dx, y: nodeY + offset.dy }
+}
+
+/** Unit vector pointing away from a component for a terminal on the given side. */
+function outwardDir(side: SchematicTerminalSide): { dx: number; dy: number } {
+  switch (side) {
+    case "left":
+    case "left-top":
+    case "left-bottom":
+      return { dx: -1, dy: 0 }
+    case "right":
+      return { dx: 1, dy: 0 }
+    case "top":
+      return { dx: 0, dy: -1 }
+    default:
+      return { dx: 0, dy: 1 } // bottom / bottom-* terminals face down
+  }
+}
+
+function RailFlags({ layout }: { layout: SchematicLayout }) {
+  return (
+    <g>
+      {layout.rails.map((rail) => {
+        const node = layout.nodes.find((n) => n.id === rail.nodeId)
+        if (node == null) return null
+        const pos = getTerminalPos(node.x, node.y, node.type, rail.side)
+        const dir = outwardDir(rail.side)
+        return rail.kind === "ground" ? (
+          <GroundFlag key={rail.id} x={pos.x} y={pos.y} dir={dir} />
+        ) : (
+          <PowerFlag key={rail.id} x={pos.x} y={pos.y} dir={dir} label={rail.label ?? "VCC"} />
+        )
+      })}
+    </g>
+  )
 }
 
 function wireColor(edge: SchematicEdge, layout: SchematicLayout): string {
@@ -152,6 +196,7 @@ function ArduinoICBody({ layout }: { layout: SchematicLayout }) {
   const bodyH = maxY - minY + vPad * 2
 
   const midY = bodyY + bodyH / 2
+  const { ground, powerLabels } = layout.boardRails
 
   return (
     <g>
@@ -178,6 +223,18 @@ function ArduinoICBody({ layout }: { layout: SchematicLayout }) {
       >
         Arduino
       </text>
+      {/* Board power rail flags on the top edge (power points up) */}
+      {powerLabels.map((label, i) => (
+        <PowerFlag
+          key={`board-power-${label}`}
+          x={bodyX + bodyW / 2 + (i - (powerLabels.length - 1) / 2) * 26}
+          y={bodyY}
+          dir={{ dx: 0, dy: -1 }}
+          label={label}
+        />
+      ))}
+      {/* Board ground flag on the bottom edge (ground points down) */}
+      {ground && <GroundFlag x={bodyX + bodyW / 2} y={bodyY + bodyH} dir={{ dx: 0, dy: 1 }} />}
     </g>
   )
 }
@@ -207,10 +264,25 @@ function IcBodyGroup({ layout }: { layout: SchematicLayout }) {
         const ys = group.nodes.map((n) => n.y)
         const minY = Math.min(...ys)
         const maxY = Math.max(...ys)
-        const x = group.nodes[0]!.x
-        const bodyX = x + 12
+        // Left (input) pins define the body's left edge; right (output) pins its
+        // right edge. A single-sided IC keeps the old fixed body width.
+        const leftXs = group.nodes.filter((n) => n.icSide !== "right").map((n) => n.x)
+        const rightXs = group.nodes.filter((n) => n.icSide === "right").map((n) => n.x)
+        const singleWidth = 58
+        let bodyX: number
+        let bodyRight: number
+        if (leftXs.length > 0 && rightXs.length > 0) {
+          bodyX = Math.min(...leftXs) + 12
+          bodyRight = Math.max(...rightXs) - 12
+        } else if (leftXs.length > 0) {
+          bodyX = Math.min(...leftXs) + 12
+          bodyRight = bodyX + singleWidth
+        } else {
+          bodyRight = Math.max(...rightXs) - 12
+          bodyX = bodyRight - singleWidth
+        }
+        const bodyW = bodyRight - bodyX
         const bodyY = minY - 40
-        const bodyW = 58
         const bodyH = maxY - minY + 80
 
         return (
@@ -230,7 +302,7 @@ function IcBodyGroup({ layout }: { layout: SchematicLayout }) {
                 x={bodyX + bodyW / 2}
                 y={bodyY + 12}
                 textAnchor="middle"
-                fill="#aaa"
+                fill="currentColor" fillOpacity={0.6}
                 fontStyle="italic"
                 style={{ font: "10px monospace" }}
               >
@@ -248,7 +320,9 @@ export function SchematicRenderer({ layout, analysis, pressedButtons, selectedCo
   const junctions = findJunctions(layout)
 
   return (
-    <g>
+    // color drives currentColor for all neutral symbol ink, so the schematic
+    // follows the theme foreground instead of hardcoded dark-canvas grays.
+    <g style={{ color: "var(--foreground)" }}>
       {/* Arduino IC body (drawn behind everything) */}
       <ArduinoICBody layout={layout} />
 
@@ -259,6 +333,9 @@ export function SchematicRenderer({ layout, analysis, pressedButtons, selectedCo
       {layout.edges.map((edge) => (
         <WirePath key={edge.id} edge={edge} layout={layout} />
       ))}
+
+      {/* Distributed power/ground rail flags */}
+      <RailFlags layout={layout} />
 
       {/* Junctions */}
       {junctions.map((j, i) => (
@@ -289,6 +366,8 @@ export function SchematicRenderer({ layout, analysis, pressedButtons, selectedCo
           voltage: compState?.voltage,
           current: compState?.current,
           isActive: isButtonPressed ?? compState?.isActive,
+          isPwm: node.isPwm,
+          icSide: node.icSide,
         }
 
         return (
