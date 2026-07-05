@@ -26,7 +26,7 @@ import {
   ProjectNotFoundError,
   type McpSession,
 } from "./context"
-import { customComponentDslSchema, lintCustomComponentDsl } from "@dreamer/schemas"
+import { customComponentDslSchema, lintCustomComponentDsl, type CustomComponentDsl } from "@dreamer/schemas"
 import {
   deleteCustomPart as storeDeleteCustomPart,
   getCustomPart as storeGetCustomPart,
@@ -468,45 +468,65 @@ type CustomPartValidation =
   | { valid: true; id: string; warnings?: DslIssue[] }
   | { valid: false; issues: DslIssue[]; warnings?: DslIssue[] };
 
+type ParsedCustomPart =
+  | { validation: Extract<CustomPartValidation, { valid: true }>; data: CustomComponentDsl }
+  | { validation: Extract<CustomPartValidation, { valid: false }>; data: null };
+
 /**
  * Structural (zod) + semantic (lint) validation. Lint errors — unknown pin
  * refs, unparseable expressions, bindings with no svg — would produce a
  * silently dead part at runtime, so they fail validation; lint warnings
  * (missing svg id, undeclared sketch placeholder) pass through as advice.
+ * Returns the parsed spec alongside the verdict so save doesn't re-parse.
  */
-export function validateCustomPart(input: { spec: unknown }): CustomPartValidation {
-  const result = customComponentDslSchema.safeParse(input.spec);
+function parseCustomPartSpec(spec: unknown): ParsedCustomPart {
+  const result = customComponentDslSchema.safeParse(spec);
   if (!result.success) {
     return {
-      valid: false,
-      issues: result.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
+      validation: {
+        valid: false,
+        issues: result.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
+      },
+      data: null,
     };
   }
   const lint = lintCustomComponentDsl(result.data);
   const errors = lint.filter((i) => i.severity === "error").map(({ path, message }) => ({ path, message }));
   const warnings = lint.filter((i) => i.severity === "warning").map(({ path, message }) => ({ path, message }));
   if (errors.length > 0) {
-    return { valid: false, issues: errors, ...(warnings.length > 0 ? { warnings } : {}) };
+    return {
+      validation: { valid: false, issues: errors, ...(warnings.length > 0 ? { warnings } : {}) },
+      data: null,
+    };
   }
-  return { valid: true, id: partIdFromType(result.data.type), ...(warnings.length > 0 ? { warnings } : {}) };
+  return {
+    validation: {
+      valid: true,
+      id: partIdFromType(result.data.type),
+      ...(warnings.length > 0 ? { warnings } : {}),
+    },
+    data: result.data,
+  };
+}
+
+export function validateCustomPart(input: { spec: unknown }): CustomPartValidation {
+  return parseCustomPartSpec(input.spec).validation;
 }
 
 export async function saveCustomPart(input: { spec: unknown }) {
-  const validation = validateCustomPart(input);
-  if (!validation.valid) {
+  const parsed = parseCustomPartSpec(input.spec);
+  if (!parsed.validation.valid) {
     return {
       ok: false,
-      error: validation.issues.map((i) => `${i.path}: ${i.message}`).join("; "),
+      error: parsed.validation.issues.map((i) => `${i.path}: ${i.message}`).join("; "),
     };
   }
-  const result = customComponentDslSchema.safeParse(input.spec);
-  if (!result.success) return { ok: false, error: "spec failed to parse" };
-  const id = partIdFromType(result.data.type);
+  const id = parsed.validation.id;
   if (!isValidPartId(id)) {
     return { ok: false, error: `Invalid id "${id}" — type must be custom:<kebab-name>` };
   }
-  await storeSaveCustomPart(id, "dsl", JSON.stringify(result.data, null, 2));
-  return { ok: true, id, ...(validation.warnings ? { warnings: validation.warnings } : {}) };
+  await storeSaveCustomPart(id, "dsl", JSON.stringify(parsed.data, null, 2));
+  return { ok: true, id, ...(parsed.validation.warnings ? { warnings: parsed.validation.warnings } : {}) };
 }
 
 export async function deleteCustomPart(input: { id: string }) {
