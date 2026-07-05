@@ -15,7 +15,10 @@ type SymbolProps = {
   isPwm?: boolean
 }
 
-const STROKE = "#333"
+// Neutral ink follows the theme foreground via currentColor (set on the
+// renderer root), so component outlines and text stay readable on the app's
+// warm/light canvas. Semantic colors (green/red/blue/orange) stay literal.
+const STROKE = "currentColor"
 const STROKE_ACTIVE = "#ef4444"
 const STROKE_WIDTH = 2
 const FONT_LABEL = "10px monospace"
@@ -56,7 +59,7 @@ function Annotation({ x, y, voltage, current }: {
       x={x}
       y={y}
       textAnchor="middle"
-      fill="#888"
+      fill="currentColor" fillOpacity={0.6}
       fontStyle="italic"
       style={{ font: FONT_ANNOTATION }}
     >
@@ -80,12 +83,12 @@ export function ResistorSymbol({ x, y, label, value, voltage, current, isActive 
       <circle cx={x} cy={y} r={3} fill={stroke} />
       <circle cx={x + w} cy={y} r={3} fill={stroke} />
       {/* Label above */}
-      <text x={x + w / 2} y={y - 18} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+      <text x={x + w / 2} y={y - 18} textAnchor="middle" fill="currentColor" style={{ font: FONT_LABEL }}>
         {label}
       </text>
       {/* Value below */}
       {value && (
-        <text x={x + w / 2} y={y + 22} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+        <text x={x + w / 2} y={y + 22} textAnchor="middle" fill="currentColor" fillOpacity={0.6} style={{ font: FONT_VALUE }}>
           {value}
         </text>
       )}
@@ -124,11 +127,11 @@ export function LedSymbol({ x, y, label, value, voltage, current, isActive }: Sy
       <circle cx={x} cy={y} r={3} fill={stroke} />
       <circle cx={x + w} cy={y} r={3} fill={stroke} />
       {/* Label */}
-      <text x={x + w / 2} y={y - 24} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+      <text x={x + w / 2} y={y - 24} textAnchor="middle" fill="currentColor" style={{ font: FONT_LABEL }}>
         {label}
       </text>
       {value && (
-        <text x={x + w / 2} y={y + 22} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+        <text x={x + w / 2} y={y + 22} textAnchor="middle" fill="currentColor" fillOpacity={0.6} style={{ font: FONT_VALUE }}>
           {value}
         </text>
       )}
@@ -158,11 +161,11 @@ export function ButtonSymbol({ x, y, label, value, voltage, current, isActive }:
       <circle cx={x} cy={y} r={3} fill={stroke} />
       <circle cx={x + w} cy={y} r={3} fill={stroke} />
       {/* Label */}
-      <text x={x + w / 2} y={y - 22} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+      <text x={x + w / 2} y={y - 22} textAnchor="middle" fill="currentColor" style={{ font: FONT_LABEL }}>
         SW {label}
       </text>
       {value && (
-        <text x={x + w / 2} y={y + 18} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+        <text x={x + w / 2} y={y + 18} textAnchor="middle" fill="currentColor" fillOpacity={0.6} style={{ font: FONT_VALUE }}>
           {value}
         </text>
       )}
@@ -194,11 +197,11 @@ export function CapacitorSymbol({ x, y, label, value, voltage, current, isActive
       <circle cx={x} cy={y} r={3} fill={stroke} />
       <circle cx={x + w} cy={y} r={3} fill={stroke} />
       {/* Label */}
-      <text x={x + w / 2} y={y - 16} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+      <text x={x + w / 2} y={y - 16} textAnchor="middle" fill="currentColor" style={{ font: FONT_LABEL }}>
         {label}
       </text>
       {value && (
-        <text x={x + w / 2} y={y + 22} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+        <text x={x + w / 2} y={y + 22} textAnchor="middle" fill="currentColor" fillOpacity={0.6} style={{ font: FONT_VALUE }}>
           {value}
         </text>
       )}
@@ -221,18 +224,18 @@ export function BuzzerSymbol({ x, y, label, value, voltage, current, isActive }:
       {/* Circle */}
       <circle cx={cx} cy={y} r={r} fill="none" stroke={stroke} strokeWidth={STROKE_WIDTH} />
       {/* BZ text */}
-      <text x={cx} y={y + 4} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+      <text x={cx} y={y + 4} textAnchor="middle" fill="currentColor" style={{ font: FONT_LABEL }}>
         BZ
       </text>
       {/* Terminal dots */}
       <circle cx={x} cy={y} r={3} fill={stroke} />
       <circle cx={x + w} cy={y} r={3} fill={stroke} />
       {/* Label */}
-      <text x={cx} y={y - r - 6} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+      <text x={cx} y={y - r - 6} textAnchor="middle" fill="currentColor" style={{ font: FONT_LABEL }}>
         {label}
       </text>
       {value && (
-        <text x={cx} y={y + r + 14} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+        <text x={cx} y={y + r + 14} textAnchor="middle" fill="currentColor" fillOpacity={0.6} style={{ font: FONT_VALUE }}>
           {value}
         </text>
       )}
@@ -255,18 +258,18 @@ export function DcMotorSymbol({ x, y, label, value, voltage, current, isActive }
       {/* Motor body */}
       <circle cx={cx} cy={y} r={r} fill="none" stroke={stroke} strokeWidth={STROKE_WIDTH} />
       {/* M inside */}
-      <text x={cx} y={y + 4} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+      <text x={cx} y={y + 4} textAnchor="middle" fill="currentColor" style={{ font: FONT_LABEL }}>
         M
       </text>
       {/* Terminal dots */}
       <circle cx={x} cy={y} r={3} fill={stroke} />
       <circle cx={x + w} cy={y} r={3} fill={stroke} />
       {/* Label */}
-      <text x={cx} y={y - r - 8} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+      <text x={cx} y={y - r - 8} textAnchor="middle" fill="currentColor" style={{ font: FONT_LABEL }}>
         {label}
       </text>
       {value && (
-        <text x={cx} y={y + r + 14} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+        <text x={cx} y={y + r + 14} textAnchor="middle" fill="currentColor" fillOpacity={0.6} style={{ font: FONT_VALUE }}>
           {value}
         </text>
       )}
@@ -310,11 +313,11 @@ export function RelaySymbol({ x, y, label, value, voltage, current, isActive }: 
       <circle cx={x} cy={y} r={3} fill={stroke} />
       <circle cx={x + w} cy={y} r={3} fill={stroke} />
       {/* Label */}
-      <text x={x + w / 2} y={y - h / 2 - 8} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+      <text x={x + w / 2} y={y - h / 2 - 8} textAnchor="middle" fill="currentColor" style={{ font: FONT_LABEL }}>
         {label}
       </text>
       {value && (
-        <text x={x + w / 2} y={y + h / 2 + 14} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+        <text x={x + w / 2} y={y + h / 2 + 14} textAnchor="middle" fill="currentColor" fillOpacity={0.6} style={{ font: FONT_VALUE }}>
           {value}
         </text>
       )}
@@ -352,27 +355,27 @@ export function ServoSymbol({ x, y, label, value, voltage, current, isActive }: 
       {/* Signal pin (left, upper) */}
       <line x1={x} y1={y - MODULE_PIN_DY} x2={bodyX} y2={y - MODULE_PIN_DY} stroke={stroke} strokeWidth={STROKE_WIDTH} />
       <circle cx={x} cy={y - MODULE_PIN_DY} r={3} fill={stroke} />
-      <text x={bodyX + 3} y={y - MODULE_PIN_DY} dominantBaseline="middle" fill="#999" style={{ font: FONT_VALUE }}>
+      <text x={bodyX + 3} y={y - MODULE_PIN_DY} dominantBaseline="middle" fill="currentColor" fillOpacity={0.6} style={{ font: FONT_VALUE }}>
         SIG
       </text>
       {/* VCC pin (left, lower) */}
       <line x1={x} y1={y + MODULE_PIN_DY} x2={bodyX} y2={y + MODULE_PIN_DY} stroke={stroke} strokeWidth={STROKE_WIDTH} />
       <circle cx={x} cy={y + MODULE_PIN_DY} r={3} fill={stroke} />
-      <text x={bodyX + 3} y={y + MODULE_PIN_DY} dominantBaseline="middle" fill="#999" style={{ font: FONT_VALUE }}>
+      <text x={bodyX + 3} y={y + MODULE_PIN_DY} dominantBaseline="middle" fill="currentColor" fillOpacity={0.6} style={{ font: FONT_VALUE }}>
         VCC
       </text>
       {/* GND pin (right, center) */}
       <line x1={bodyRight} y1={y} x2={x + MODULE_GND_X} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
       <circle cx={x + MODULE_GND_X} cy={y} r={3} fill={stroke} />
-      <text x={bodyRight - 3} y={y} textAnchor="end" dominantBaseline="middle" fill="#999" style={{ font: FONT_VALUE }}>
+      <text x={bodyRight - 3} y={y} textAnchor="end" dominantBaseline="middle" fill="currentColor" fillOpacity={0.6} style={{ font: FONT_VALUE }}>
         GND
       </text>
       {/* Label */}
-      <text x={(bodyX + bodyRight) / 2} y={bodyTop - 6} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+      <text x={(bodyX + bodyRight) / 2} y={bodyTop - 6} textAnchor="middle" fill="currentColor" style={{ font: FONT_LABEL }}>
         {label}
       </text>
       {value && (
-        <text x={(bodyX + bodyRight) / 2} y={bodyTop + bodyH + 14} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+        <text x={(bodyX + bodyRight) / 2} y={bodyTop + bodyH + 14} textAnchor="middle" fill="currentColor" fillOpacity={0.6} style={{ font: FONT_VALUE }}>
           {value}
         </text>
       )}
@@ -402,11 +405,11 @@ export function PotentiometerSymbol({ x, y, label, value, voltage, current, isAc
       <circle cx={x} cy={y} r={3} fill={stroke} />
       <circle cx={x + w} cy={y} r={3} fill={stroke} />
       {/* Label */}
-      <text x={x + w / 2} y={y - 28} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+      <text x={x + w / 2} y={y - 28} textAnchor="middle" fill="currentColor" style={{ font: FONT_LABEL }}>
         {label}
       </text>
       {value && (
-        <text x={x + w / 2} y={y + 22} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+        <text x={x + w / 2} y={y + 22} textAnchor="middle" fill="currentColor" fillOpacity={0.6} style={{ font: FONT_VALUE }}>
           {value}
         </text>
       )}
@@ -498,7 +501,7 @@ export function ArduinoPinSymbol({ x, y, label, isPwm }: SymbolProps) {
 }
 
 export function WireJunction({ x, y }: { x: number; y: number }) {
-  return <circle cx={x} cy={y} r={4} fill="#1a1a1a" />
+  return <circle cx={x} cy={y} r={4} fill="currentColor" />
 }
 
 // ── Distributed rail flags ─────────────────────────────────────────────
@@ -620,11 +623,11 @@ export function SevenSegmentSymbol({ x, y, label, value, voltage, current, isAct
       <circle cx={x} cy={y} r={3} fill={stroke} />
       <circle cx={x + w} cy={y} r={3} fill={stroke} />
       {/* Label */}
-      <text x={x + w / 2} y={y - h / 2 - 6} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+      <text x={x + w / 2} y={y - h / 2 - 6} textAnchor="middle" fill="currentColor" style={{ font: FONT_LABEL }}>
         {label}
       </text>
       {value && (
-        <text x={x + w / 2} y={y + h / 2 + 14} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+        <text x={x + w / 2} y={y + h / 2 + 14} textAnchor="middle" fill="currentColor" fillOpacity={0.6} style={{ font: FONT_VALUE }}>
           {value}
         </text>
       )}
@@ -655,8 +658,8 @@ export function UltrasonicSensorSymbol({ x, y, label, value, voltage, current, i
       <circle cx={x + 20} cy={y} r={6} fill="none" stroke={stroke} strokeWidth={1.5} />
       <circle cx={x + 40} cy={y} r={6} fill="none" stroke={stroke} strokeWidth={1.5} />
       {/* T and R labels */}
-      <text x={x + 20} y={y + 3} textAnchor="middle" fill="#ddd" style={{ font: "7px monospace" }}>T</text>
-      <text x={x + 40} y={y + 3} textAnchor="middle" fill="#ddd" style={{ font: "7px monospace" }}>R</text>
+      <text x={x + 20} y={y + 3} textAnchor="middle" fill="currentColor" style={{ font: "7px monospace" }}>T</text>
+      <text x={x + 40} y={y + 3} textAnchor="middle" fill="currentColor" style={{ font: "7px monospace" }}>R</text>
       {/* Wave arcs from transmitter */}
       <path d={`M ${x + 10} ${y - 4} Q ${x + 6} ${y} ${x + 10} ${y + 4}`} fill="none" stroke={stroke} strokeWidth={1} />
       <path d={`M ${x + 7} ${y - 6} Q ${x + 2} ${y} ${x + 7} ${y + 6}`} fill="none" stroke={stroke} strokeWidth={1} />
@@ -668,11 +671,11 @@ export function UltrasonicSensorSymbol({ x, y, label, value, voltage, current, i
       <circle cx={x} cy={y} r={3} fill={stroke} />
       <circle cx={x + w} cy={y} r={3} fill={stroke} />
       {/* Label */}
-      <text x={x + w / 2} y={y - h / 2 - 6} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+      <text x={x + w / 2} y={y - h / 2 - 6} textAnchor="middle" fill="currentColor" style={{ font: FONT_LABEL }}>
         {label}
       </text>
       {value && (
-        <text x={x + w / 2} y={y + h / 2 + 14} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+        <text x={x + w / 2} y={y + h / 2 + 14} textAnchor="middle" fill="currentColor" fillOpacity={0.6} style={{ font: FONT_VALUE }}>
           {value}
         </text>
       )}
@@ -709,27 +712,27 @@ export function TemperatureSensorSymbol({ x, y, label, value, voltage, current, 
       {/* OUT signal pin (left, upper) */}
       <line x1={x} y1={y - MODULE_PIN_DY} x2={bodyX} y2={y - MODULE_PIN_DY} stroke={stroke} strokeWidth={STROKE_WIDTH} />
       <circle cx={x} cy={y - MODULE_PIN_DY} r={3} fill={stroke} />
-      <text x={bodyX + 3} y={y - MODULE_PIN_DY} dominantBaseline="middle" fill="#999" style={{ font: FONT_VALUE }}>
+      <text x={bodyX + 3} y={y - MODULE_PIN_DY} dominantBaseline="middle" fill="currentColor" fillOpacity={0.6} style={{ font: FONT_VALUE }}>
         OUT
       </text>
       {/* V+ power pin (left, lower) */}
       <line x1={x} y1={y + MODULE_PIN_DY} x2={bodyX} y2={y + MODULE_PIN_DY} stroke={stroke} strokeWidth={STROKE_WIDTH} />
       <circle cx={x} cy={y + MODULE_PIN_DY} r={3} fill={stroke} />
-      <text x={bodyX + 3} y={y + MODULE_PIN_DY} dominantBaseline="middle" fill="#999" style={{ font: FONT_VALUE }}>
+      <text x={bodyX + 3} y={y + MODULE_PIN_DY} dominantBaseline="middle" fill="currentColor" fillOpacity={0.6} style={{ font: FONT_VALUE }}>
         V+
       </text>
       {/* GND pin (right, center) */}
       <line x1={bodyRight} y1={y} x2={x + MODULE_GND_X} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
       <circle cx={x + MODULE_GND_X} cy={y} r={3} fill={stroke} />
-      <text x={bodyRight - 3} y={y} textAnchor="end" dominantBaseline="middle" fill="#999" style={{ font: FONT_VALUE }}>
+      <text x={bodyRight - 3} y={y} textAnchor="end" dominantBaseline="middle" fill="currentColor" fillOpacity={0.6} style={{ font: FONT_VALUE }}>
         GND
       </text>
       {/* Label */}
-      <text x={(bodyX + bodyRight) / 2} y={bodyTop - 6} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+      <text x={(bodyX + bodyRight) / 2} y={bodyTop - 6} textAnchor="middle" fill="currentColor" style={{ font: FONT_LABEL }}>
         {label}
       </text>
       {value && (
-        <text x={(bodyX + bodyRight) / 2} y={bodyTop + bodyH + 14} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+        <text x={(bodyX + bodyRight) / 2} y={bodyTop + bodyH + 14} textAnchor="middle" fill="currentColor" fillOpacity={0.6} style={{ font: FONT_VALUE }}>
           {value}
         </text>
       )}
@@ -761,11 +764,11 @@ export function PhotoresistorSymbol({ x, y, label, value, voltage, current, isAc
       <circle cx={x} cy={y} r={3} fill={stroke} />
       <circle cx={x + w} cy={y} r={3} fill={stroke} />
       {/* Label */}
-      <text x={x + w / 2} y={y - 30} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+      <text x={x + w / 2} y={y - 30} textAnchor="middle" fill="currentColor" style={{ font: FONT_LABEL }}>
         {label}
       </text>
       {value && (
-        <text x={x + w / 2} y={y + 22} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+        <text x={x + w / 2} y={y + 22} textAnchor="middle" fill="currentColor" fillOpacity={0.6} style={{ font: FONT_VALUE }}>
           {value}
         </text>
       )}
@@ -814,11 +817,11 @@ export function LcdSymbol({ x, y, label, value, voltage, current, isActive }: Sy
       <circle cx={x} cy={y} r={3} fill={stroke} />
       <circle cx={x + w} cy={y} r={3} fill={stroke} />
       {/* Label */}
-      <text x={x + w / 2} y={y - h / 2 - 6} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+      <text x={x + w / 2} y={y - h / 2 - 6} textAnchor="middle" fill="currentColor" style={{ font: FONT_LABEL }}>
         {label}
       </text>
       {value && (
-        <text x={x + w / 2} y={y + h / 2 + 14} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+        <text x={x + w / 2} y={y + h / 2 + 14} textAnchor="middle" fill="currentColor" fillOpacity={0.6} style={{ font: FONT_VALUE }}>
           {value}
         </text>
       )}
@@ -870,11 +873,11 @@ export function NeopixelSymbol({ x, y, label, value, voltage, current, isActive 
       <circle cx={x} cy={y} r={3} fill={stroke} />
       <circle cx={x + w} cy={y} r={3} fill={stroke} />
       {/* Label */}
-      <text x={x + w / 2} y={y - h / 2 - 6} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+      <text x={x + w / 2} y={y - h / 2 - 6} textAnchor="middle" fill="currentColor" style={{ font: FONT_LABEL }}>
         {label}
       </text>
       {value && (
-        <text x={x + w / 2} y={y + h / 2 + 14} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+        <text x={x + w / 2} y={y + h / 2 + 14} textAnchor="middle" fill="currentColor" fillOpacity={0.6} style={{ font: FONT_VALUE }}>
           {value}
         </text>
       )}
@@ -912,7 +915,7 @@ export function PirSensorSymbol({ x, y, label, value, voltage, current, isActive
       <path d={`M ${x + 24} ${y - h / 2 - 2} Q ${x + 30} ${y - h / 2 - 8} ${x + 36} ${y - h / 2 - 2}`} fill="none" stroke={stroke} strokeWidth={1} />
       <path d={`M ${x + 22} ${y - h / 2 - 6} Q ${x + 30} ${y - h / 2 - 14} ${x + 38} ${y - h / 2 - 6}`} fill="none" stroke={stroke} strokeWidth={1} />
       {/* PIR label */}
-      <text x={x + w / 2} y={y + 6} textAnchor="middle" fill="#ddd" style={{ font: "7px monospace" }}>PIR</text>
+      <text x={x + w / 2} y={y + 6} textAnchor="middle" fill="currentColor" style={{ font: "7px monospace" }}>PIR</text>
       {/* Lead left */}
       <line x1={x} y1={y} x2={x + 5} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
       {/* Lead right */}
@@ -921,11 +924,11 @@ export function PirSensorSymbol({ x, y, label, value, voltage, current, isActive
       <circle cx={x} cy={y} r={3} fill={stroke} />
       <circle cx={x + w} cy={y} r={3} fill={stroke} />
       {/* Label */}
-      <text x={x + w / 2} y={y - h / 2 - 10} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+      <text x={x + w / 2} y={y - h / 2 - 10} textAnchor="middle" fill="currentColor" style={{ font: FONT_LABEL }}>
         {label}
       </text>
       {value && (
-        <text x={x + w / 2} y={y + h / 2 + 14} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+        <text x={x + w / 2} y={y + h / 2 + 14} textAnchor="middle" fill="currentColor" fillOpacity={0.6} style={{ font: FONT_VALUE }}>
           {value}
         </text>
       )}
@@ -957,7 +960,7 @@ function IcPinSymbol({ x, y, label }: SymbolProps) {
         x={x + labelOffset}
         y={y}
         dominantBaseline="middle"
-        fill="#ccc"
+        fill="currentColor"
         style={{ font: FONT_LABEL }}
       >
         {label}
@@ -987,11 +990,11 @@ export function GenericModuleSymbol({ x, y, label, value, voltage, current, isAc
       <line x1={x + w - 6} y1={y} x2={x + w} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
       <circle cx={x} cy={y} r={3} fill={stroke} />
       <circle cx={x + w} cy={y} r={3} fill={stroke} />
-      <text x={x + w / 2} y={y - h / 2 - 8} textAnchor="middle" fill="#ddd" style={{ font: FONT_LABEL }}>
+      <text x={x + w / 2} y={y - h / 2 - 8} textAnchor="middle" fill="currentColor" style={{ font: FONT_LABEL }}>
         {label}
       </text>
       {value && (
-        <text x={x + w / 2} y={y + h / 2 + 14} textAnchor="middle" fill="#aaa" style={{ font: FONT_VALUE }}>
+        <text x={x + w / 2} y={y + h / 2 + 14} textAnchor="middle" fill="currentColor" fillOpacity={0.6} style={{ font: FONT_VALUE }}>
           {value}
         </text>
       )}

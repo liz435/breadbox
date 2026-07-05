@@ -282,7 +282,7 @@ function IcBodyGroup({ layout }: { layout: SchematicLayout }) {
                 x={bodyX + bodyW / 2}
                 y={bodyY + 12}
                 textAnchor="middle"
-                fill="#aaa"
+                fill="currentColor" fillOpacity={0.6}
                 fontStyle="italic"
                 style={{ font: "10px monospace" }}
               >
@@ -300,7 +300,9 @@ export function SchematicRenderer({ layout, analysis, pressedButtons, selectedCo
   const junctions = findJunctions(layout)
 
   return (
-    <g>
+    // color drives currentColor for all neutral symbol ink, so the schematic
+    // follows the theme foreground instead of hardcoded dark-canvas grays.
+    <g style={{ color: "var(--foreground)" }}>
       {/* Arduino IC body (drawn behind everything) */}
       <ArduinoICBody layout={layout} />
 

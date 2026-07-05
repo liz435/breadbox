@@ -603,9 +603,8 @@ describe("SchematicRenderer — node symbol rendering", () => {
     ]
     const layout = makeLayout(nodes, edges)
     const html = renderLayout(layout)
-    // WireJunction renders a circle with r="4" and fill="#1a1a1a"
+    // WireJunction is the only circle with r="4" (terminal dots use r=3/2.5)
     expect(html).toContain(`r="4"`)
-    expect(html).toContain(`#1a1a1a`)
   })
 
   test("no junction dots when no terminal has 3+ edges", () => {
@@ -618,8 +617,8 @@ describe("SchematicRenderer — node symbol rendering", () => {
     ]
     const layout = makeLayout(nodes, edges)
     const html = renderLayout(layout)
-    // No junction circles with #1a1a1a fill
-    expect(html).not.toContain(`#1a1a1a`)
+    // No junction circle (r="4" is unique to junctions)
+    expect(html).not.toContain(`r="4"`)
   })
 
   test("distributed rail flags render (power red + ground blue)", () => {
