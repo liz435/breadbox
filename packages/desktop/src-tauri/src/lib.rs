@@ -22,8 +22,10 @@ use tauri::menu::{
     SubmenuBuilder,
 };
 use tauri::{AppHandle, Listener, Manager, WindowEvent, Wry};
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
+use tauri_plugin_updater::UpdaterExt;
 
 const SERVER_FAILED_JS: &str = "document.body.innerHTML = '<p style=\"font-family:system-ui;color:#e5e7eb;padding:2rem\">Breadbox server did not start. Check the logs.</p>'";
 
@@ -51,6 +53,8 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Sidecar(Mutex::new(None)))
         .setup(|app| {
             // Native menu bar. Preserves the standard macOS app/Edit/Window
@@ -154,6 +158,17 @@ pub fn run() {
                 }
             });
 
+            // Silent auto-update check a few seconds after launch (once the
+            // window/server are up), so a newer published release prompts to
+            // install. `silent` suppresses the up-to-date / error dialogs — an
+            // offline run or a not-yet-published release just no-ops. The manual
+            // "Check for Updates…" menu item runs the same flow non-silently.
+            let update_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_secs(5));
+                tauri::async_runtime::spawn(run_update_check(update_handle, true));
+            });
+
             Ok(())
         })
         // View-menu clicks (and Cmd+1..9 / Next-Prev accelerators) arrive here.
@@ -163,6 +178,12 @@ pub fn run() {
         // browser this menu doesn't exist, so the event simply never fires.
         .on_menu_event(|app, event| {
             let id = event.id().0.as_str();
+            // "Check for Updates…" — run the same flow as the startup check but
+            // non-silently, so the user always gets feedback (up to date / error).
+            if id == "app:check-updates" {
+                tauri::async_runtime::spawn(run_update_check(app.clone(), false));
+                return;
+            }
             let action: Option<String> = if id == "view:next" {
                 Some("next-tab".to_string())
             } else if id == "view:prev" {
@@ -249,6 +270,89 @@ fn reap_sidecar(app: &AppHandle) {
     }
 }
 
+/// Check the release feed for a newer version and, if the user agrees, download,
+/// install, and relaunch.
+///
+/// Drives the whole flow from Rust (native dialogs) rather than the web UI: the
+/// UI is a remote http URL with no Tauri IPC, so a JS-side updater can't reach
+/// these APIs. `silent` suppresses the "up to date" and error dialogs so the
+/// automatic startup check never nags — an offline run or a not-yet-published
+/// release simply does nothing. The manual menu item passes `silent = false`.
+///
+/// Runs on the async runtime (never the main thread), so the blocking dialogs
+/// are safe. `app.restart()` diverges; the app's RunEvent::Exit path still reaps
+/// the sidecar on the way out.
+async fn run_update_check(app: AppHandle, silent: bool) {
+    let updater = match app.updater() {
+        Ok(updater) => updater,
+        Err(err) => {
+            eprintln!("[updater] unavailable: {err}");
+            if !silent {
+                app.dialog()
+                    .message(format!("Update check is unavailable:\n{err}"))
+                    .title("Updates")
+                    .blocking_show();
+            }
+            return;
+        }
+    };
+
+    let maybe_update = match updater.check().await {
+        Ok(found) => found,
+        Err(err) => {
+            eprintln!("[updater] check failed: {err}");
+            if !silent {
+                app.dialog()
+                    .message(format!("Couldn't check for updates:\n{err}"))
+                    .title("Updates")
+                    .blocking_show();
+            }
+            return;
+        }
+    };
+
+    let Some(update) = maybe_update else {
+        if !silent {
+            app.dialog()
+                .message("You're on the latest version.")
+                .title("Up to date")
+                .blocking_show();
+        }
+        return;
+    };
+
+    let wants_install = app
+        .dialog()
+        .message(format!(
+            "Breadbox {} is available (you have {}).\n\nDownload and install it now?",
+            update.version, update.current_version
+        ))
+        .title("Update available")
+        .buttons(MessageDialogButtons::OkCancelCustom(
+            "Install".to_string(),
+            "Later".to_string(),
+        ))
+        .blocking_show();
+    if !wants_install {
+        return;
+    }
+
+    if let Err(err) = update.download_and_install(|_, _| {}, || {}).await {
+        eprintln!("[updater] install failed: {err}");
+        app.dialog()
+            .message(format!("The update couldn't be installed:\n{err}"))
+            .title("Update failed")
+            .blocking_show();
+        return;
+    }
+
+    app.dialog()
+        .message("Update installed. Breadbox will now restart.")
+        .title("Restarting")
+        .blocking_show();
+    app.restart();
+}
+
 /// Build and install the application menu.
 ///
 /// Replaces the default auto-generated menu with: a standard macOS app menu
@@ -264,6 +368,7 @@ fn reap_sidecar(app: &AppHandle) {
 fn install_menu(app: &AppHandle) -> tauri::Result<HashMap<String, CheckMenuItem<Wry>>> {
     let app_menu = SubmenuBuilder::new(app, "Breadbox")
         .item(&PredefinedMenuItem::about(app, None, None)?)
+        .item(&MenuItemBuilder::with_id("app:check-updates", "Check for Updates…").build(app)?)
         .separator()
         .item(&PredefinedMenuItem::services(app, None)?)
         .separator()

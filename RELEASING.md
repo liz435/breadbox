@@ -3,8 +3,13 @@
 Releases are produced by the **Release (desktop)** GitHub Actions workflow
 (`.github/workflows/release.yml`). Pushing a version tag builds the Tauri
 desktop app on macOS (Apple Silicon + Intel), Windows, and Linux, signs +
-notarizes the macOS bundles, and uploads everything to a **draft** GitHub
-Release. You review the draft, then publish it.
+notarizes the macOS bundles, signs the auto-update artifacts, and uploads
+everything to a **draft** GitHub Release. You review the draft, then publish it.
+
+> **One-time setup required.** In-app auto-update is wired in, which means the
+> build now **signs update artifacts and will fail without the updater signing
+> key**. Before your first release, do the [one-time updater key setup](#one-time-updater-signing-key)
+> below. It's a two-command step.
 
 ## Cutting a release
 
@@ -34,6 +39,41 @@ Review the artifacts, edit the notes, and click **Publish release**.
 ## Required GitHub secrets
 
 Add these under **Settings → Secrets and variables → Actions**.
+
+### Auto-updater signing — required (the build fails without it)
+
+| Secret | What it is |
+| --- | --- |
+| `TAURI_SIGNING_PRIVATE_KEY` | Contents of the updater private key generated below |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | The key's password — **leave unset**; our key has none |
+
+The matching **public** key is committed in `tauri.conf.json`
+(`plugins.updater.pubkey`); installed apps use it to verify that an update was
+signed by the holder of this private key. See the one-time setup below.
+
+#### One-time updater signing key
+
+The updater keypair is the trust root for auto-update: anything signed with the
+private key is downloaded and executed by every installed app, so the private
+key must never be committed or shared. Generate it once and push it straight to
+GitHub secrets:
+
+```bash
+# 1. Generate the keypair (no password). Writes the private key OUTSIDE the repo.
+cd packages/desktop
+bunx tauri signer generate -w ~/.tauri/breadbox-updater.key -p '' --ci
+
+# 2. Push the PRIVATE key content to GitHub secrets without printing it.
+#    (Requires the `gh` CLI, authenticated for liz435/breadbox.)
+gh secret set TAURI_SIGNING_PRIVATE_KEY < ~/.tauri/breadbox-updater.key
+```
+
+The **public** key (`~/.tauri/breadbox-updater.key.pub`) is already baked into
+`tauri.conf.json`. If you ever rotate the keypair, replace `plugins.updater.pubkey`
+with the new `.pub` contents and re-run step 2 — but note that apps signed with
+the old key can't verify updates signed by the new one, so ship one release that
+still trusts the old key before cutting over. Keep a backup of the private key;
+losing it means no installed app can ever be auto-updated again.
 
 ### macOS (signing + notarization) — required for warning-free Mac installs
 
@@ -78,6 +118,30 @@ rules (since 2023) require either **Azure Trusted Signing** (sign via a
 key) or a legacy exportable `.pfx` (import in a PowerShell CI step + set
 `bundle.windows.certificateThumbprint`). Until then the matrix stays as-is.
 
+## How auto-update works
+
+- **Feed.** `tauri-action` generates a `latest.json` manifest (version + a
+  signed download URL per platform) and uploads it to each release. The app's
+  update endpoint is `tauri.conf.json` →
+  `https://github.com/liz435/breadbox/releases/latest/download/latest.json`,
+  which GitHub resolves to whichever release is marked **Latest**.
+- **Only published, non-prerelease releases update users.** Draft releases and
+  pre-releases aren't "Latest", so `releases/latest/download/…` 404s for them —
+  the app just stays put. Updates go live the moment you **Publish** a release
+  (and untick *Set as a pre-release*). This is why the workflow uploads drafts.
+- **Client behavior.** On launch (≈5s in) the app silently checks the feed; if a
+  newer version exists it prompts *Install / Later*, then downloads, verifies the
+  signature against the baked-in pubkey, installs, and relaunches. The
+  **Breadbox → Check for Updates…** menu item runs the same flow on demand and
+  also reports "up to date". macOS/Linux swap the app bundle in place; Windows
+  runs the new installer in `passive` mode.
+- **Bundle-granular.** The updater replaces the whole app, so the bundled
+  `breadbox` + `arduino-cli` sidecars update together with the shell — there's no
+  per-file patching to reason about.
+- **Version compare.** The updater installs when `latest.json`'s version is newer
+  than the running app's (semver). Since the tag drives the bundle version
+  (below), pushing a higher `vX.Y.Z` is all it takes.
+
 ## Notes & caveats
 
 - **Per-OS builds.** Each installer is built on its own runner; you can't
@@ -85,9 +149,9 @@ key) or a legacy exportable `.pfx` (import in a PowerShell CI step + set
 - **Both Mac arches.** `macos-14` builds Apple Silicon, `macos-13` builds
   Intel. The CLI/arduino-cli sidecars are auto-built per runner by
   `prepare:sidecar` (`beforeBuildCommand`).
-- **No auto-updater.** This setup publishes installers but does not configure
-  Tauri's updater (which needs its own signing keypair + a release manifest
-  endpoint). Ask if you want in-app auto-update added.
+- **Auto-updater.** Installed apps check the release feed on launch (and via
+  **Breadbox → Check for Updates…**) and offer to self-update. See
+  [How auto-update works](#how-auto-update-works) below.
 - **Version source of truth.** `scripts/set-release-version.ts` writes the tag
   version into `tauri.conf.json` at build time, so the tag drives the bundle
   version. Keep tags `vX.Y.Z`.
