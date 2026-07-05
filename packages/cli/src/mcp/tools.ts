@@ -6,7 +6,12 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { z } from "zod"
-import { diagramToolInputSchema, WORKED_EXAMPLE_ACTUATOR } from "@dreamer/schemas"
+import {
+  BREADBOARD_FULL_ROWS,
+  BREADBOARD_TERMINAL_HALF_WIDTH,
+  diagramToolInputSchema,
+  WORKED_EXAMPLE_ACTUATOR,
+} from "@dreamer/schemas"
 import type { McpSession } from "./context"
 import {
   analyzePowerBudgetHandler,
@@ -74,6 +79,14 @@ FACETS — a convincing part usually uses all four:
 - sketch: Arduino code templates ({{name}} = placed part's name, {{pin.<name>}} = the
   Arduino pin wired to that part pin). Emit a minimal working driver for the part so a
   generated sketch demonstrates it — pinMode in setup, motion in loop.
+
+PLACEMENT & WIRING (after saving): place the part with apply_design as
+{ type: "custom:<id>", at: [row, col] }. Pin p occupies grid cell (row + p.dy, col + p.dx).
+The main grid is ${BREADBOARD_FULL_ROWS} rows x ${BREADBOARD_TERMINAL_HALF_WIDTH * 2} cols,
+0-indexed — every pin's cell must land on the board. Cols 0-${BREADBOARD_TERMINAL_HALF_WIDTH - 1}
+of a row are one bus, cols ${BREADBOARD_TERMINAL_HALF_WIDTH}-${BREADBOARD_TERMINAL_HALF_WIDTH * 2 - 1}
+another; pins sharing a bus are already connected, so put pins that must stay isolated on
+separate rows. Wire with endpoints "<componentId>.<pinName>" using your declared pin names.
 
 EXPRESSIONS: sandboxed. Arithmetic + - * / %, comparisons (< > <= >= == !=), parentheses,
 and min, max, abs, clamp, floor, ceil, round, sqrt, pow over properties/signal names.
