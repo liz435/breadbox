@@ -311,11 +311,31 @@ export function generateSchematicLayout(
   if (regularComponents.length > 0) col = componentCol + 1
 
   // Column N: Multi-pin IC entities — one ic_pin stub per connected named
-  // signal pin. GND / VCC pins are intentionally skipped here; they are
-  // already covered by the shared ground/power column nodes and would
-  // otherwise create duplicate visual rails.
+  // signal pin. GND / VCC pins are skipped (they become distributed rail flags
+  // where wired). Output pins that share a net with a load align to that load's
+  // row so the trace is a clean horizontal; the remaining control/input pins
+  // fill the FREE rows in between. Placing them on already-used rows is what
+  // overlapped IC pin labels/wires before.
   const icPinCol = componentCol + (regularComponents.length > 0 ? 1 : 0)
-  let icRow = 0
+  const icPinX = PADDING + icPinCol * HORIZONTAL_SPACING
+  const usedIcYs = new Set<number>()
+  const unalignedIcPins: Array<{ comp: BoardComponent; pinName: string }> = []
+
+  const pushIcPin = (comp: BoardComponent, pinName: string, y: number) => {
+    nodes.push({
+      id: `ic-pin-${comp.id}-${pinName}`,
+      type: "ic_pin",
+      x: icPinX,
+      y,
+      label: pinName,
+      value: comp.name,
+      componentId: comp.id,
+      pinName,
+    })
+    usedIcYs.add(y)
+  }
+
+  // Pass 1: place output pins aligned to their load rows; defer the rest.
   for (const comp of multiPinComponents) {
     const pinMap = resolveComponentPins(comp.type, comp.y, comp.x, comp.properties)
     for (const [pinName, pinPoint] of Object.entries(pinMap)) {
@@ -327,8 +347,6 @@ export function generateSchematicLayout(
       )
       if (net == null) continue
 
-      // If a regular component shares this net, align Y with that node so
-      // the wire is a clean horizontal trace; otherwise stack down by row.
       let alignedY: number | null = null
       for (const regComp of regularComponents) {
         const regPins = resolveComponentPins(regComp.type, regComp.y, regComp.x, regComp.properties)
@@ -343,21 +361,28 @@ export function generateSchematicLayout(
           }
         }
       }
-      const y = alignedY ?? PADDING + icRow * VERTICAL_SPACING
 
-      nodes.push({
-        id: `ic-pin-${comp.id}-${pinName}`,
-        type: "ic_pin",
-        x: PADDING + icPinCol * HORIZONTAL_SPACING,
-        y,
-        label: pinName,
-        value: comp.name,
-        componentId: comp.id,
-        pinName,
-      })
-      if (alignedY == null) icRow++
+      if (alignedY != null) {
+        pushIcPin(comp, pinName, alignedY)
+      } else {
+        unalignedIcPins.push({ comp, pinName })
+      }
     }
   }
+
+  // Pass 2: place control/input pins at free grid rows, never on top of an
+  // already-placed output pin.
+  let icSlot = 0
+  for (const { comp, pinName } of unalignedIcPins) {
+    let y = PADDING + icSlot * VERTICAL_SPACING
+    while (usedIcYs.has(y)) {
+      icSlot++
+      y = PADDING + icSlot * VERTICAL_SPACING
+    }
+    pushIcPin(comp, pinName, y)
+    icSlot++
+  }
+
   if (multiPinComponents.length > 0) col = icPinCol + 1
 
   // Board rails: whether the Arduino itself supplies ground / power in this

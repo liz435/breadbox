@@ -1,5 +1,6 @@
 import { describe, test, expect } from "bun:test"
 import { generateSchematicLayout } from "../schematic-layout"
+import shiftRegisterBoard from "../../examples/boards/ex-shift-register.json"
 import type { BoardComponent, Wire } from "@dreamer/schemas"
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -697,6 +698,37 @@ describe("generateSchematicLayout — edge generation", () => {
     const pinNode = layout.nodes.find((n) => n.id === "pin-13")
     expect(pinNode!.label).toBe("D13")
     expect(pinNode!.isPwm).toBe(false)
+  })
+})
+
+// ── Multi-pin IC placement ─────────────────────────────────────────────
+
+describe("generateSchematicLayout — multi-pin IC pin placement", () => {
+  test("74HC595 LED chaser: no two IC pins share a coordinate", () => {
+    const components = shiftRegisterBoard.components as unknown as Record<string, BoardComponent>
+    const wires = shiftRegisterBoard.wires as unknown as Record<string, Wire>
+    const layout = generateSchematicLayout(components, wires)
+
+    const icPins = layout.nodes.filter((n) => n.type === "ic_pin")
+    // 8 Q outputs plus control/input pins
+    expect(icPins.length).toBeGreaterThan(8)
+    // Every stub sits at a distinct (x, y) — overlapping stubs made the pin
+    // labels and wires collide and read as wrong wiring.
+    const coords = new Set(icPins.map((n) => `${n.x},${n.y}`))
+    expect(coords.size).toBe(icPins.length)
+  })
+
+  test("74HC595 output pins align to their resistor rows", () => {
+    const components = shiftRegisterBoard.components as unknown as Record<string, BoardComponent>
+    const wires = shiftRegisterBoard.wires as unknown as Record<string, Wire>
+    const layout = generateSchematicLayout(components, wires)
+
+    // q0 shares a net with R0 → same row (clean horizontal trace)
+    const q0 = layout.nodes.find((n) => n.type === "ic_pin" && n.pinName === "q0")
+    const r0 = layout.nodes.find((n) => n.id === "comp-r-0")
+    expect(q0).toBeDefined()
+    expect(r0).toBeDefined()
+    expect(q0!.y).toBe(r0!.y)
   })
 })
 
