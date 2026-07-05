@@ -117,6 +117,7 @@ export {
   parseArduinoPinToken,
   isArduinoSignalPin,
   formatArduinoPin,
+  isPwmCapablePin,
 } from "./board-pins";
 
 export {

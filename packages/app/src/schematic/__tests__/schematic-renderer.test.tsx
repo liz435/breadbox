@@ -20,6 +20,8 @@ import type {
 // Mirror of getTerminalPos from schematic-renderer for unit testing the spec
 const TERMINAL_OFFSET: Record<SchematicTerminalSide, { dx: number; dy: number }> = {
   left: { dx: 0, dy: 0 },
+  "left-top": { dx: 0, dy: -14 },
+  "left-bottom": { dx: 0, dy: 14 },
   right: { dx: 60, dy: 0 },
   top: { dx: 30, dy: -20 },
   bottom: { dx: 30, dy: 20 },
@@ -44,10 +46,10 @@ function getTerminalPos(
   if (nodeType === "ground" && side === "left") {
     return { x: nodeX, y: nodeY }
   }
-  if (nodeType === "temperature_sensor") {
-    if (side === "bottom-left") return { x: nodeX + 18, y: nodeY + 28 }
-    if (side === "bottom-center") return { x: nodeX + 26, y: nodeY + 28 }
-    if (side === "bottom-right") return { x: nodeX + 34, y: nodeY + 28 }
+  if (nodeType === "servo" || nodeType === "temperature_sensor") {
+    if (side === "left-top") return { x: nodeX, y: nodeY - 14 }
+    if (side === "left-bottom") return { x: nodeX, y: nodeY + 14 }
+    if (side === "right") return { x: nodeX + 64, y: nodeY }
   }
   return { x: nodeX + offset.dx, y: nodeY + offset.dy }
 }
@@ -106,7 +108,7 @@ function makeEdge(overrides: Partial<SchematicEdge> & { id: string; fromNodeId: 
 }
 
 function makeLayout(nodes: SchematicNode[], edges: SchematicEdge[]): SchematicLayout {
-  return { nodes, edges, width: 800, height: 600 }
+  return { nodes, edges, rails: [], boardRails: { ground: false, powerLabels: [] }, width: 800, height: 600 }
 }
 
 // ── getTerminalPos special cases ────────────────────────────────────────
@@ -184,16 +186,28 @@ describe("getTerminalPos — default (generic component)", () => {
     expect(pos.y).toBe(170)
   })
 
-  test("servo bottom-left returns signal terminal position", () => {
-    const pos = getTerminalPos(200, 150, "servo", "bottom-left")
-    expect(pos.x).toBe(218)
-    expect(pos.y).toBe(175)
+  test("servo left-top returns signal terminal position", () => {
+    const pos = getTerminalPos(200, 150, "servo", "left-top")
+    expect(pos.x).toBe(200)
+    expect(pos.y).toBe(136)
   })
 
-  test("temperature sensor bottom-center matches its middle pin", () => {
-    const pos = getTerminalPos(200, 150, "temperature_sensor", "bottom-center")
-    expect(pos.x).toBe(226)
-    expect(pos.y).toBe(178)
+  test("servo right returns gnd terminal position", () => {
+    const pos = getTerminalPos(200, 150, "servo", "right")
+    expect(pos.x).toBe(264)
+    expect(pos.y).toBe(150)
+  })
+
+  test("temperature sensor left-top returns its OUT terminal position", () => {
+    const pos = getTerminalPos(200, 150, "temperature_sensor", "left-top")
+    expect(pos.x).toBe(200)
+    expect(pos.y).toBe(136)
+  })
+
+  test("temperature sensor right returns its GND terminal position", () => {
+    const pos = getTerminalPos(200, 150, "temperature_sensor", "right")
+    expect(pos.x).toBe(264)
+    expect(pos.y).toBe(150)
   })
 
   test("unknown component type falls through to default offsets", () => {
@@ -606,5 +620,39 @@ describe("SchematicRenderer — node symbol rendering", () => {
     const html = renderLayout(layout)
     // No junction circles with #1a1a1a fill
     expect(html).not.toContain(`#1a1a1a`)
+  })
+
+  test("distributed rail flags render (power red + ground blue)", () => {
+    const nodes = [makeNode({ id: "comp-led1", type: "led", x: 230, y: 100, componentId: "led1" })]
+    const layout: SchematicLayout = {
+      nodes,
+      edges: [],
+      rails: [
+        { id: "r1", nodeId: "comp-led1", side: "left", kind: "power", label: "5V" },
+        { id: "r2", nodeId: "comp-led1", side: "right", kind: "ground" },
+      ],
+      boardRails: { ground: false, powerLabels: [] },
+      width: 800,
+      height: 600,
+    }
+    const html = renderLayout(layout)
+    expect(html).toContain("#ef4444") // power flag
+    expect(html).toContain("#3b82f6") // ground flag
+    expect(html).toContain("5V")
+  })
+
+  test("board rail flags render on the Arduino IC body", () => {
+    const nodes = [makeNode({ id: "pin-9", type: "arduino_pin", x: 80, y: 100 })]
+    const layout: SchematicLayout = {
+      nodes,
+      edges: [],
+      rails: [],
+      boardRails: { ground: true, powerLabels: ["5V"] },
+      width: 800,
+      height: 600,
+    }
+    const html = renderLayout(layout)
+    expect(html).toContain("5V") // board power flag label
+    expect(html).toContain("#3b82f6") // board ground flag
   })
 })

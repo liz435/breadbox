@@ -317,10 +317,10 @@ describe("generateSchematicLayout — signal pin nodes", () => {
   })
 })
 
-// ── Power pin nodes ────────────────────────────────────────────────────
+// ── Power rails (distributed flags) ────────────────────────────────────
 
-describe("generateSchematicLayout — power nodes", () => {
-  test("5V pin (-1) creates a voltage_source node", () => {
+describe("generateSchematicLayout — power rails", () => {
+  test("5V pin (-1) produces a power rail flag on the component + board rail", () => {
     const components: Record<string, BoardComponent> = {
       arduino: makeArduino(),
       led1: makeLed("led1", 5, 0),
@@ -329,14 +329,17 @@ describe("generateSchematicLayout — power nodes", () => {
       w1: makeArduinoWire("w1", -1, 5, 0),
     }
     const layout = generateSchematicLayout(components, wires)
-    const powerNode = layout.nodes.find((n) => n.id === "power--1")
-    expect(powerNode).toBeDefined()
-    expect(powerNode!.type).toBe("voltage_source")
-    expect(powerNode!.label).toBe("5V")
-    expect(powerNode!.arduinoPin).toBe(-1)
+    // No shared voltage-source column node
+    expect(layout.nodes.some((n) => n.type === "voltage_source")).toBe(false)
+    // Distributed power flag on the LED terminal
+    const powerRail = layout.rails.find((r) => r.kind === "power" && r.nodeId === "comp-led1")
+    expect(powerRail).toBeDefined()
+    expect(powerRail!.label).toBe("5V")
+    // Board advertises the 5V rail
+    expect(layout.boardRails.powerLabels).toContain("5V")
   })
 
-  test("3.3V pin (-2) creates a voltage_source node with label 3.3V", () => {
+  test("3.3V pin (-2) power rail is labelled 3.3V", () => {
     const components: Record<string, BoardComponent> = {
       arduino: makeArduino(),
       led1: makeLed("led1", 5, 0),
@@ -345,12 +348,12 @@ describe("generateSchematicLayout — power nodes", () => {
       w1: makeArduinoWire("w1", -2, 5, 0),
     }
     const layout = generateSchematicLayout(components, wires)
-    const powerNode = layout.nodes.find((n) => n.id === "power--2")
-    expect(powerNode).toBeDefined()
-    expect(powerNode!.label).toBe("3.3V")
+    const powerRail = layout.rails.find((r) => r.kind === "power")
+    expect(powerRail?.label).toBe("3.3V")
+    expect(layout.boardRails.powerLabels).toContain("3.3V")
   })
 
-  test("power node is placed to the left of signal pin column", () => {
+  test("power connection does not create a shared power column node", () => {
     const components: Record<string, BoardComponent> = {
       arduino: makeArduino(),
       led1: makeLed("led1", 5, 0),
@@ -360,16 +363,14 @@ describe("generateSchematicLayout — power nodes", () => {
       w13: makeArduinoWire("w13", 13, 7, 0),
     }
     const layout = generateSchematicLayout(components, wires)
-    const powerNode = layout.nodes.find((n) => n.id === "power--1")
-    const pinNode = layout.nodes.find((n) => n.id === "pin-13")
-    expect(powerNode!.x).toBeLessThan(pinNode!.x)
+    expect(layout.nodes.some((n) => n.id.startsWith("power-"))).toBe(false)
   })
 })
 
-// ── Ground nodes ──────────────────────────────────────────────────────
+// ── Ground rails (distributed flags) ───────────────────────────────────
 
-describe("generateSchematicLayout — ground nodes", () => {
-  test("GND pin -3 creates a single ground node", () => {
+describe("generateSchematicLayout — ground rails", () => {
+  test("GND pin -3 produces a ground rail on the connected component, no shared node", () => {
     const components: Record<string, BoardComponent> = {
       arduino: makeArduino(),
       led1: makeLed("led1", 5, 0),
@@ -378,13 +379,13 @@ describe("generateSchematicLayout — ground nodes", () => {
       w1: makeArduinoWire("w1", -3, 6, 0),
     }
     const layout = generateSchematicLayout(components, wires)
-    const groundNode = layout.nodes.find((n) => n.id === "ground")
-    expect(groundNode).toBeDefined()
-    expect(groundNode!.type).toBe("ground")
-    expect(groundNode!.label).toBe("GND")
+    expect(layout.nodes.some((n) => n.type === "ground")).toBe(false)
+    const groundRail = layout.rails.find((r) => r.kind === "ground" && r.nodeId === "comp-led1")
+    expect(groundRail).toBeDefined()
+    expect(layout.boardRails.ground).toBe(true)
   })
 
-  test("GND pin -4 creates a single ground node", () => {
+  test("GND pin -4 also yields a ground rail + board ground flag", () => {
     const components: Record<string, BoardComponent> = {
       arduino: makeArduino(),
       led1: makeLed("led1", 5, 0),
@@ -393,12 +394,11 @@ describe("generateSchematicLayout — ground nodes", () => {
       w1: makeArduinoWire("w1", -4, 6, 0),
     }
     const layout = generateSchematicLayout(components, wires)
-    const groundNode = layout.nodes.find((n) => n.id === "ground")
-    expect(groundNode).toBeDefined()
-    expect(groundNode!.type).toBe("ground")
+    expect(layout.rails.some((r) => r.kind === "ground")).toBe(true)
+    expect(layout.boardRails.ground).toBe(true)
   })
 
-  test("GND pin -6 creates a single ground node", () => {
+  test("GND pin -6 also yields a ground rail + board ground flag", () => {
     const components: Record<string, BoardComponent> = {
       arduino: makeArduino(),
       led1: makeLed("led1", 5, 0),
@@ -407,11 +407,11 @@ describe("generateSchematicLayout — ground nodes", () => {
       w1: makeArduinoWire("w1", -6, 6, 0),
     }
     const layout = generateSchematicLayout(components, wires)
-    const groundNode = layout.nodes.find((n) => n.id === "ground")
-    expect(groundNode).toBeDefined()
+    expect(layout.rails.some((r) => r.kind === "ground")).toBe(true)
+    expect(layout.boardRails.ground).toBe(true)
   })
 
-  test("multiple GND pins create only one ground node", () => {
+  test("multiple GND pins yield a single board ground flag, no shared node", () => {
     const components: Record<string, BoardComponent> = {
       arduino: makeArduino(),
       led1: makeLed("led1", 5, 0),
@@ -423,11 +423,14 @@ describe("generateSchematicLayout — ground nodes", () => {
       w3: makeArduinoWire("w3", -6, 12, 0),
     }
     const layout = generateSchematicLayout(components, wires)
-    const groundNodes = layout.nodes.filter((n) => n.type === "ground")
-    expect(groundNodes).toHaveLength(1)
+    expect(layout.nodes.some((n) => n.type === "ground")).toBe(false)
+    expect(layout.boardRails.ground).toBe(true)
+    // Each LED that touches ground gets its own local ground flag
+    const groundRails = layout.rails.filter((r) => r.kind === "ground")
+    expect(groundRails.length).toBeGreaterThanOrEqual(2)
   })
 
-  test("ground node is placed to the right of component column", () => {
+  test("ground rail attaches to the LED cathode (right) terminal", () => {
     const components: Record<string, BoardComponent> = {
       arduino: makeArduino(),
       led1: makeLed("led1", 5, 0),
@@ -436,9 +439,8 @@ describe("generateSchematicLayout — ground nodes", () => {
       w1: makeArduinoWire("w1", -3, 6, 0),
     }
     const layout = generateSchematicLayout(components, wires)
-    const groundNode = layout.nodes.find((n) => n.id === "ground")
-    const compNode = layout.nodes.find((n) => n.id === "comp-led1")
-    expect(groundNode!.x).toBeGreaterThan(compNode!.x)
+    const groundRail = layout.rails.find((r) => r.kind === "ground" && r.nodeId === "comp-led1")
+    expect(groundRail?.side).toBe("right")
   })
 })
 
@@ -542,6 +544,8 @@ describe("generateSchematicLayout — edge generation", () => {
   test("edge fromSide and toSide are valid directions", () => {
     const validSides = new Set([
       "left",
+      "left-top",
+      "left-bottom",
       "right",
       "top",
       "bottom",
@@ -580,7 +584,7 @@ describe("generateSchematicLayout — edge generation", () => {
     }
   })
 
-  test("ground connection edge has fromSide or toSide of left for ground node", () => {
+  test("ground net is a rail flag, not a drawn edge", () => {
     const components: Record<string, BoardComponent> = {
       arduino: makeArduino(),
       led1: makeLed("led1", 5, 0),
@@ -589,20 +593,12 @@ describe("generateSchematicLayout — edge generation", () => {
       w1: makeArduinoWire("w1", -3, 6, 0),
     }
     const layout = generateSchematicLayout(components, wires)
-    const groundEdges = layout.edges.filter(
-      (e) => e.fromNodeId === "ground" || e.toNodeId === "ground"
-    )
-    for (const edge of groundEdges) {
-      if (edge.fromNodeId === "ground") {
-        expect(edge.fromSide).toBe("left")
-      }
-      if (edge.toNodeId === "ground") {
-        expect(edge.toSide).toBe("left")
-      }
-    }
+    // The LED->GND connection produces no wire; it is a distributed flag.
+    expect(layout.edges).toHaveLength(0)
+    expect(layout.rails.some((r) => r.kind === "ground" && r.nodeId === "comp-led1")).toBe(true)
   })
 
-  test("LED cathode uses the right terminal, preserving polarity", () => {
+  test("LED cathode ground rail uses the right terminal, preserving polarity", () => {
     const components: Record<string, BoardComponent> = {
       arduino: makeArduino(),
       led1: makeLed("led1", 5, 0),
@@ -611,18 +607,12 @@ describe("generateSchematicLayout — edge generation", () => {
       wgnd: makeArduinoWire("wgnd", -3, 6, 0),
     }
     const layout = generateSchematicLayout(components, wires)
-    const cathodeEdge = layout.edges.find(
-      (e) => e.fromNodeId === "comp-led1" || e.toNodeId === "comp-led1",
-    )
-    expect(cathodeEdge).toBeDefined()
-    const ledSide =
-      cathodeEdge!.fromNodeId === "comp-led1"
-        ? cathodeEdge!.fromSide
-        : cathodeEdge!.toSide
-    expect(ledSide).toBe("right")
+    const rail = layout.rails.find((r) => r.nodeId === "comp-led1")
+    expect(rail).toBeDefined()
+    expect(rail!.side).toBe("right")
   })
 
-  test("servo signal/vcc/gnd wires use distinct bottom terminals", () => {
+  test("servo: signal is a wire on the left; vcc/gnd are distributed rails", () => {
     const components: Record<string, BoardComponent> = {
       arduino: makeArduino(),
       servo1: makeServo("servo1", 5, 0),
@@ -633,11 +623,47 @@ describe("generateSchematicLayout — edge generation", () => {
       wgnd: makeArduinoWire("wgnd", -3, 7, 0),
     }
     const layout = generateSchematicLayout(components, wires)
-    const sides = layout.edges
-      .filter((e) => e.fromNodeId === "comp-servo1" || e.toNodeId === "comp-servo1")
-      .map((e) => (e.fromNodeId === "comp-servo1" ? e.fromSide : e.toSide))
-      .sort()
-    expect(sides).toEqual(["bottom-center", "bottom-left", "bottom-right"])
+    // Signal is drawn as a wire, entering the servo on the upper-left pin.
+    const sigEdge = layout.edges.find(
+      (e) => e.fromNodeId === "comp-servo1" || e.toNodeId === "comp-servo1",
+    )
+    expect(sigEdge).toBeDefined()
+    const sigSide = sigEdge!.fromNodeId === "comp-servo1" ? sigEdge!.fromSide : sigEdge!.toSide
+    expect(sigSide).toBe("left-top")
+    // VCC and GND are local flags, not wires.
+    const powerRail = layout.rails.find((r) => r.kind === "power" && r.nodeId === "comp-servo1")
+    const groundRail = layout.rails.find((r) => r.kind === "ground" && r.nodeId === "comp-servo1")
+    expect(powerRail?.side).toBe("left-bottom")
+    expect(groundRail?.side).toBe("right")
+  })
+
+  test("PWM-capable signal pin label is prefixed with ~ (pin 9)", () => {
+    const components: Record<string, BoardComponent> = {
+      arduino: makeArduino(),
+      servo1: makeServo("servo1", 5, 0),
+    }
+    const wires: Record<string, Wire> = {
+      wsig: makeArduinoWire("wsig", 9, 5, 0),
+    }
+    const layout = generateSchematicLayout(components, wires)
+    const pinNode = layout.nodes.find((n) => n.id === "pin-9")
+    expect(pinNode).toBeDefined()
+    expect(pinNode!.label).toBe("~D9")
+    expect(pinNode!.isPwm).toBe(true)
+  })
+
+  test("non-PWM signal pin label has no ~ prefix (pin 13)", () => {
+    const components: Record<string, BoardComponent> = {
+      arduino: makeArduino(),
+      led1: makeLed("led1", 5, 0),
+    }
+    const wires: Record<string, Wire> = {
+      w1: makeArduinoWire("w1", 13, 5, 0),
+    }
+    const layout = generateSchematicLayout(components, wires)
+    const pinNode = layout.nodes.find((n) => n.id === "pin-13")
+    expect(pinNode!.label).toBe("D13")
+    expect(pinNode!.isPwm).toBe(false)
   })
 })
 
@@ -692,7 +718,7 @@ describe("generateSchematicLayout — dimensions", () => {
 // ── Column layout structure ────────────────────────────────────────────
 
 describe("generateSchematicLayout — column ordering", () => {
-  test("power column is leftmost when power pin is connected", () => {
+  test("signal pins sit to the left of components; no power/ground columns", () => {
     const components: Record<string, BoardComponent> = {
       arduino: makeArduino(),
       led1: makeLed("led1", 5, 0),
@@ -703,21 +729,17 @@ describe("generateSchematicLayout — column ordering", () => {
       wgnd: makeArduinoWire("wgnd", -3, 6, 0),
     }
     const layout = generateSchematicLayout(components, wires)
-    const powerNode = layout.nodes.find((n) => n.type === "voltage_source")
     const pinNode = layout.nodes.find((n) => n.type === "arduino_pin")
     const compNode = layout.nodes.find((n) => n.id === "comp-led1")
-    const groundNode = layout.nodes.find((n) => n.type === "ground")
-    expect(powerNode).toBeDefined()
     expect(pinNode).toBeDefined()
     expect(compNode).toBeDefined()
-    expect(groundNode).toBeDefined()
-    // Left to right: power < signal < component < ground
-    expect(powerNode!.x).toBeLessThan(pinNode!.x)
+    // Signal pins are to the left of components
     expect(pinNode!.x).toBeLessThan(compNode!.x)
-    expect(compNode!.x).toBeLessThan(groundNode!.x)
+    // Power and ground are distributed rails, not columns
+    expect(layout.nodes.some((n) => n.type === "voltage_source" || n.type === "ground")).toBe(false)
   })
 
-  test("signal column is at PADDING when no power column present", () => {
+  test("signal column is at PADDING (leftmost) since there is no power column", () => {
     const components: Record<string, BoardComponent> = {
       arduino: makeArduino(),
       led1: makeLed("led1", 5, 0),
@@ -727,24 +749,21 @@ describe("generateSchematicLayout — column ordering", () => {
     }
     const layout = generateSchematicLayout(components, wires)
     const pinNode = layout.nodes.find((n) => n.type === "arduino_pin")
-    // col=0 when no power column → x = PADDING (80)
+    // col=0 → x = PADDING (80)
     expect(pinNode!.x).toBe(80)
   })
 
-  test("component column x = PADDING + col * 150 matching number of columns before it", () => {
-    // With power + signal before component
+  test("component column follows the signal-pin column (col 1)", () => {
     const components: Record<string, BoardComponent> = {
       arduino: makeArduino(),
       led1: makeLed("led1", 5, 0),
     }
     const wires: Record<string, Wire> = {
-      w5v: makeArduinoWire("w5v", -1, 5, 0),
-      w13: makeArduinoWire("w13", 13, 7, 0),
+      w13: makeArduinoWire("w13", 13, 5, 0),
     }
     const layout = generateSchematicLayout(components, wires)
     const compNode = layout.nodes.find((n) => n.id === "comp-led1")
-    // col 0 = power, col 1 = signal, col 2 = component
-    // x = 80 + 2 * 150 = 380
-    expect(compNode!.x).toBe(380)
+    // col 0 = signal pins, col 1 = component → x = 80 + 1 * 150 = 230
+    expect(compNode!.x).toBe(230)
   })
 })

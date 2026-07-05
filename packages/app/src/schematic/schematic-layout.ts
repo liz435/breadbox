@@ -7,6 +7,7 @@ import {
   DEFAULT_BOARD_TARGET,
   formatArduinoPin,
   isBoardComponentType,
+  isPwmCapablePin,
   resolveComponentPins,
   type BoardComponent,
   type BoardTarget,
@@ -29,6 +30,8 @@ export type SchematicNode = {
   arduinoPin?: number
   /** For ic_pin nodes: the logical pin name on the parent IC (e.g. "a", "data"). */
   pinName?: string
+  /** For arduino_pin nodes: whether the pin can output a hardware PWM signal. */
+  isPwm?: boolean
 }
 
 export type SchematicEdge = {
@@ -42,6 +45,8 @@ export type SchematicEdge = {
 
 export type SchematicTerminalSide =
   | "left"
+  | "left-top"
+  | "left-bottom"
   | "right"
   | "top"
   | "bottom"
@@ -49,12 +54,39 @@ export type SchematicTerminalSide =
   | "bottom-center"
   | "bottom-right"
 
+export type SchematicRailKind = "ground" | "power"
+
+/**
+ * A local power/ground symbol attached to a single component terminal.
+ * Distributed rails (a flag at each pin) are drawn instead of routing every
+ * power/ground pin across the sheet to one shared node — standard schematic
+ * practice that keeps wiring local and uncluttered.
+ */
+export type SchematicRailFlag = {
+  id: string
+  nodeId: string
+  side: SchematicTerminalSide
+  kind: SchematicRailKind
+  /** Power flags only: the rail voltage, e.g. "5V" / "3.3V". */
+  label?: string
+}
+
+/** Rails the Arduino board itself supplies, drawn as flags on its body. */
+export type SchematicBoardRails = {
+  ground: boolean
+  powerLabels: string[]
+}
+
 export type SchematicLayout = {
   nodes: SchematicNode[]
   edges: SchematicEdge[]
+  rails: SchematicRailFlag[]
+  boardRails: SchematicBoardRails
   width: number
   height: number
 }
+
+const EMPTY_BOARD_RAILS: SchematicBoardRails = { ground: false, powerLabels: [] }
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
@@ -103,10 +135,18 @@ function terminalSideForPin(
       if (pinName === "signal") return "top"
       return pinName === "gnd" ? "right" : "left"
     case "servo":
-      if (pinName === "signal") return "bottom-left"
-      if (pinName === "vcc") return "bottom-center"
-      return "bottom-right"
+      // Signal + power enter from the left (pin / power columns); ground exits
+      // to the right toward the shared ground column. This keeps all three
+      // traces as clean horizontal runs instead of crossing under the body.
+      if (pinName === "signal") return "left-top"
+      if (pinName === "vcc") return "left-bottom"
+      return "right"
     case "temperature_sensor":
+      // Same connector-block flow as the servo: output + power on the left,
+      // ground on the right, so labels and rail flags don't collide.
+      if (pinName === "signal" || pinName === "data") return "left-top"
+      if (pinName === "vcc") return "left-bottom"
+      return "right"
     case "dht_sensor":
       if (pinName === "vcc") return "bottom-left"
       if (pinName === "signal" || pinName === "data") return "bottom-center"
@@ -188,7 +228,7 @@ export function generateSchematicLayout(
   )
 
   if (circuitComponents.length === 0) {
-    return { nodes: [], edges: [], width: 0, height: 0 }
+    return { nodes: [], edges: [], rails: [], boardRails: EMPTY_BOARD_RAILS, width: 0, height: 0 }
   }
 
   const regularComponents = circuitComponents.filter(
@@ -209,39 +249,28 @@ export function generateSchematicLayout(
     }
   }
 
-  // 4. Create nodes for power sources, Arduino pins, components, and ground
-  //    Layout columns: power | arduino pins | components | ground
+  // 4. Create nodes. Layout columns: arduino pins | components | ic pins.
+  //    Power and ground are NOT shared column nodes — each connection is drawn
+  //    as a local flag on the component (distributed rails), so wires don't
+  //    converge across the sheet.
   let col = 0
 
-  // Column 0: Power sources
-  const powerPins = [...connectedArduinoPins].filter(isPowerPin).sort()
-  let powerRow = 0
-  for (const pin of powerPins) {
-    nodes.push({
-      id: `power-${pin}`,
-      type: "voltage_source",
-      x: PADDING + col * HORIZONTAL_SPACING,
-      y: PADDING + powerRow * VERTICAL_SPACING,
-      label: getPowerLabel(pin),
-      arduinoPin: pin,
-    })
-    powerRow++
-  }
-  if (powerPins.length > 0) col++
-
-  // Column 1: Arduino digital/analog pins
+  // Column 0: Arduino digital/analog signal pins
   const signalPins = [...connectedArduinoPins]
     .filter((p) => !isPowerPin(p) && !isGroundPin(p))
     .sort((a, b) => a - b)
   let signalRow = 0
   for (const pin of signalPins) {
+    const pwm = isPwmCapablePin(pin, boardTarget)
     nodes.push({
       id: `pin-${pin}`,
       type: "arduino_pin",
       x: PADDING + col * HORIZONTAL_SPACING,
       y: PADDING + signalRow * VERTICAL_SPACING,
-      label: formatArduinoPin(pin, boardTarget),
+      // Prefix PWM-capable pins with the board's silkscreen "~" marker.
+      label: `${pwm ? "~" : ""}${formatArduinoPin(pin, boardTarget)}`,
       arduinoPin: pin,
+      isPwm: pwm,
     })
     signalRow++
   }
@@ -319,64 +348,38 @@ export function generateSchematicLayout(
   }
   if (multiPinComponents.length > 0) col = icPinCol + 1
 
-  // Column last: Ground nodes
+  // Board rails: whether the Arduino itself supplies ground / power in this
+  // circuit. Drawn as flags on the board body rather than as separate columns.
   const groundPins = [...connectedArduinoPins].filter(isGroundPin)
-  if (groundPins.length > 0) {
-    // Single ground symbol is sufficient
-    nodes.push({
-      id: "ground",
-      type: "ground",
-      x: PADDING + col * HORIZONTAL_SPACING,
-      y: PADDING + Math.floor(Math.max(compRow, signalRow, powerRow) / 2) * VERTICAL_SPACING,
-      label: "GND",
-      arduinoPin: groundPins[0],
-    })
-    col++
+  const powerPins = [...connectedArduinoPins].filter(isPowerPin).sort((a, b) => a - b)
+  const boardRails: SchematicBoardRails = {
+    ground: groundPins.length > 0,
+    powerLabels: powerPins.map(getPowerLabel),
   }
 
-  // 5. Create edges based on net connectivity
-  //    For each net, find which nodes share it and connect them
+  // 5. Build signal edges and distributed power/ground rail flags.
+  //    A net that touches an Arduino GND pin is a ground net; one that touches
+  //    a 5V/3.3V pin is a power net. Those get a local flag at every component
+  //    terminal instead of wires to a shared node. Everything else is a signal
+  //    net and is drawn as wires between the driving pin and the components.
+  const rails: SchematicRailFlag[] = []
   let edgeId = 0
+  let railId = 0
 
-  // Build a map: arduinoPin -> nodeId
-  const pinToNodeId = new Map<number, string>()
-  for (const node of nodes) {
-    if (node.arduinoPin != null) {
-      pinToNodeId.set(node.arduinoPin, node.id)
-    }
-  }
-  // Ground pins all map to the single ground node
-  for (const pin of groundPins) {
-    pinToNodeId.set(pin, "ground")
-  }
-
-  // Build a map: component grid points -> component node id
-  // We need to figure out which net each component pin belongs to
   type PinMapping = { nodeId: string; side: SchematicTerminalSide }
 
   for (const net of nets) {
-    // Find all schematic nodes that participate in this net
-    const participatingNodes: PinMapping[] = []
+    const netGroundPins = net.arduinoPins.filter(isGroundPin)
+    const netPowerPins = net.arduinoPins.filter(isPowerPin).sort((a, b) => a - b)
+    const isGroundNet = netGroundPins.length > 0
+    const isPowerNet = !isGroundNet && netPowerPins.length > 0
+    const powerLabel = netPowerPins.length > 0 ? getPowerLabel(netPowerPins[0]) : "VCC"
 
-    // Check Arduino pin nodes
-    for (const pin of net.arduinoPins) {
-      const nodeId = pinToNodeId.get(pin)
-      if (nodeId != null) {
-        const node = nodes.find((n) => n.id === nodeId)
-        if (node != null) {
-          // Power and pin nodes connect from their right side
-          // Ground connects from its left side
-          const side = node.type === "ground" ? "left" as const : "right" as const
-          participatingNodes.push({ nodeId, side })
-        }
-      }
-    }
-
-    // Check regular component nodes by named pins first. The footprint order
-    // is a physical rendering detail; schematic terminals need electrical
-    // meaning (anode/cathode, signal/vcc/gnd, etc.) so polarity and sensor
-    // headers do not drift when a component has more than two footprint
-    // points. Multi-pin ICs are handled separately below.
+    // Component / IC terminals participating in this net. Named pins carry
+    // electrical meaning (anode/cathode, signal/vcc/gnd) so terminals stay put
+    // even when a component has more than two footprint points; fall back to
+    // footprint order only when no named pin matches.
+    const terminals: PinMapping[] = []
     for (const comp of regularComponents) {
       const compNodeId = `comp-${comp.id}`
       if (!nodes.find((n) => n.id === compNodeId)) continue
@@ -386,10 +389,7 @@ export function generateSchematicLayout(
       for (const [pinName, pinPoint] of Object.entries(pinMap)) {
         const inNet = net.points.some((np) => np.row === pinPoint.row && np.col === pinPoint.col)
         if (inNet) {
-          participatingNodes.push({
-            nodeId: compNodeId,
-            side: terminalSideForPin(comp.type, pinName),
-          })
+          terminals.push({ nodeId: compNodeId, side: terminalSideForPin(comp.type, pinName) })
           matchedNamedPin = true
           break
         }
@@ -401,35 +401,54 @@ export function generateSchematicLayout(
         const fp = footprint.points[pinIdx]
         const inNet = net.points.some((np) => np.row === fp.row && np.col === fp.col)
         if (inNet) {
-          const side = fallbackTerminalSide(pinIdx)
-          participatingNodes.push({ nodeId: compNodeId, side })
+          terminals.push({ nodeId: compNodeId, side: fallbackTerminalSide(pinIdx) })
           break // One connection per component per net
         }
       }
     }
 
-    // Multi-pin ICs: each connected signal pin participates as its own
-    // ic_pin node so that wires terminate at distinct stubs rather than
-    // collapsing onto a single shared terminal.
+    // Multi-pin ICs: each connected signal pin terminates at its own ic_pin
+    // stub rather than collapsing onto a shared terminal.
     for (const ic of multiPinComponents) {
       const icPinMap = resolveComponentPins(ic.type, ic.y, ic.x, ic.properties)
       for (const [pinName, pinPoint] of Object.entries(icPinMap)) {
-        const inNet = net.points.some(
-          (np) => np.row === pinPoint.row && np.col === pinPoint.col,
-        )
+        const inNet = net.points.some((np) => np.row === pinPoint.row && np.col === pinPoint.col)
         if (!inNet) continue
         const icPinNodeId = `ic-pin-${ic.id}-${pinName}`
         if (nodes.find((n) => n.id === icPinNodeId)) {
-          participatingNodes.push({ nodeId: icPinNodeId, side: "left" as const })
+          terminals.push({ nodeId: icPinNodeId, side: "left" as const })
           break
         }
       }
     }
 
-    // Connect participating nodes pairwise (chain them)
-    for (let i = 0; i < participatingNodes.length - 1; i++) {
-      const from = participatingNodes[i]
-      const to = participatingNodes[i + 1]
+    if (isGroundNet || isPowerNet) {
+      // Distributed rail: drop a local flag at each terminal, no cross wires.
+      for (const t of terminals) {
+        rails.push({
+          id: `rail-${railId++}`,
+          nodeId: t.nodeId,
+          side: t.side,
+          kind: isGroundNet ? "ground" : "power",
+          label: isPowerNet ? powerLabel : undefined,
+        })
+      }
+      continue
+    }
+
+    // Signal net: chain the driving Arduino pin(s) and the component terminals.
+    const participating: PinMapping[] = []
+    for (const pin of net.arduinoPins) {
+      const nodeId = `pin-${pin}`
+      if (nodes.find((n) => n.id === nodeId)) {
+        participating.push({ nodeId, side: "right" as const })
+      }
+    }
+    participating.push(...terminals)
+
+    for (let i = 0; i < participating.length - 1; i++) {
+      const from = participating[i]
+      const to = participating[i + 1]
       if (from.nodeId === to.nodeId) continue
 
       edges.push({
@@ -449,5 +468,5 @@ export function generateSchematicLayout(
   const width = maxX + PADDING
   const height = maxY + PADDING
 
-  return { nodes, edges, width, height }
+  return { nodes, edges, rails, boardRails, width, height }
 }
