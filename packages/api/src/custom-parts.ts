@@ -10,7 +10,7 @@
 
 import { mkdir, readdir, readFile, unlink, writeFile } from "fs/promises";
 import { join } from "path";
-import { customComponentDslSchema } from "@dreamer/schemas";
+import { customComponentDslSchema, lintCustomComponentDsl } from "@dreamer/schemas";
 import { customPartsDir } from "./paths";
 
 const ID_RE = /^[a-z0-9-]+$/;
@@ -97,6 +97,12 @@ export async function saveCustomPart(
     const result = customComponentDslSchema.safeParse(parsed);
     if (!result.success) {
       throw new Error(result.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "));
+    }
+    // Semantic lint, same as the MCP save path — lint errors (unknown pin
+    // refs, bad bindings) would produce a silently dead part at runtime.
+    const lintErrors = lintCustomComponentDsl(result.data).filter((i) => i.severity === "error");
+    if (lintErrors.length > 0) {
+      throw new Error(lintErrors.map((i) => `${i.path}: ${i.message}`).join("; "));
     }
   }
 

@@ -86,6 +86,17 @@ describe("custom parts storage", () => {
     expect(await getCustomPart("bad-json")).toBeNull();
   });
 
+  test("rejects schema-valid DSL with lint errors (unknown pin ref)", async () => {
+    const badRef = JSON.stringify({
+      type: "custom:bad-ref",
+      label: "Bad Ref",
+      pins: [{ name: "sig", dx: 0, dy: 0, role: "analog" }],
+      electrical: { elements: [{ kind: "source", plus: "nope", minus: "0", volts: "5" }] },
+    });
+    expect(saveCustomPart("bad-ref", "dsl", badRef)).rejects.toThrow(/not a declared pin/);
+    expect(await getCustomPart("bad-ref")).toBeNull();
+  });
+
   test("re-saving as a different format replaces the file", async () => {
     await saveCustomPart("morph", "code", CODE_SAMPLE.replace("test-part", "morph"));
     expect((await getCustomPart("morph"))?.format).toBe("code");
