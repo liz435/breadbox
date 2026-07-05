@@ -63,6 +63,11 @@ function getTerminalPos(
     if (side === "right") return { x: nodeX + 64, y: nodeY }
   }
 
+  // An IC pin's terminal is its node position (the stub runs into the body).
+  if (nodeType === "ic_pin") {
+    return { x: nodeX, y: nodeY }
+  }
+
   return { x: nodeX + offset.dx, y: nodeY + offset.dy }
 }
 
@@ -259,10 +264,25 @@ function IcBodyGroup({ layout }: { layout: SchematicLayout }) {
         const ys = group.nodes.map((n) => n.y)
         const minY = Math.min(...ys)
         const maxY = Math.max(...ys)
-        const x = group.nodes[0]!.x
-        const bodyX = x + 12
+        // Left (input) pins define the body's left edge; right (output) pins its
+        // right edge. A single-sided IC keeps the old fixed body width.
+        const leftXs = group.nodes.filter((n) => n.icSide !== "right").map((n) => n.x)
+        const rightXs = group.nodes.filter((n) => n.icSide === "right").map((n) => n.x)
+        const singleWidth = 58
+        let bodyX: number
+        let bodyRight: number
+        if (leftXs.length > 0 && rightXs.length > 0) {
+          bodyX = Math.min(...leftXs) + 12
+          bodyRight = Math.max(...rightXs) - 12
+        } else if (leftXs.length > 0) {
+          bodyX = Math.min(...leftXs) + 12
+          bodyRight = bodyX + singleWidth
+        } else {
+          bodyRight = Math.max(...rightXs) - 12
+          bodyX = bodyRight - singleWidth
+        }
+        const bodyW = bodyRight - bodyX
         const bodyY = minY - 40
-        const bodyW = 58
         const bodyH = maxY - minY + 80
 
         return (
@@ -347,6 +367,7 @@ export function SchematicRenderer({ layout, analysis, pressedButtons, selectedCo
           current: compState?.current,
           isActive: isButtonPressed ?? compState?.isActive,
           isPwm: node.isPwm,
+          icSide: node.icSide,
         }
 
         return (

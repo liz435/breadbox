@@ -1,6 +1,7 @@
 import { describe, test, expect } from "bun:test"
 import { generateSchematicLayout } from "../schematic-layout"
 import shiftRegisterBoard from "../../examples/boards/ex-shift-register.json"
+import sevenSegmentBoard from "../../examples/boards/ex-seven-segment.json"
 import type { BoardComponent, Wire } from "@dreamer/schemas"
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -729,6 +730,38 @@ describe("generateSchematicLayout — multi-pin IC pin placement", () => {
     expect(q0).toBeDefined()
     expect(r0).toBeDefined()
     expect(q0!.y).toBe(r0!.y)
+  })
+
+  test("74HC595 is two-sided: outputs on the right, inputs on the left", () => {
+    const components = shiftRegisterBoard.components as unknown as Record<string, BoardComponent>
+    const wires = shiftRegisterBoard.wires as unknown as Record<string, Wire>
+    const layout = generateSchematicLayout(components, wires)
+
+    const icPins = layout.nodes.filter((n) => n.type === "ic_pin")
+    const outputs = icPins.filter((n) => n.icSide === "right")
+    const inputs = icPins.filter((n) => n.icSide === "left")
+    expect(outputs.length).toBe(8) // q0..q7 drive the LEDs
+    expect(inputs.length).toBeGreaterThan(0) // data/clock/latch/mr/oe...
+
+    // Chip in the middle: an output is LEFT of its resistor, which is left of
+    // its LED — the channel flows rightward with no crossings.
+    const q0 = icPins.find((n) => n.pinName === "q0")!
+    const r0 = layout.nodes.find((n) => n.id === "comp-r-0")!
+    const led0 = layout.nodes.find((n) => n.id === "comp-led-0")!
+    expect(q0.x).toBeLessThan(r0.x)
+    expect(r0.x).toBeLessThan(led0.x)
+  })
+
+  test("7-segment driven through resistors stays single-sided (all inputs)", () => {
+    const components = sevenSegmentBoard.components as unknown as Record<string, BoardComponent>
+    const wires = sevenSegmentBoard.wires as unknown as Record<string, Wire>
+    const layout = generateSchematicLayout(components, wires)
+
+    // The display is a sink fed Arduino → resistor → segment, so its pins are
+    // inputs, not outputs — it must NOT flip to the two-sided layout.
+    const icPins = layout.nodes.filter((n) => n.type === "ic_pin")
+    expect(icPins.length).toBeGreaterThan(0)
+    expect(icPins.every((n) => n.icSide !== "right")).toBe(true)
   })
 })
 

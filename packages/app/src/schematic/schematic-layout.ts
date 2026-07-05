@@ -32,6 +32,12 @@ export type SchematicNode = {
   pinName?: string
   /** For arduino_pin nodes: whether the pin can output a hardware PWM signal. */
   isPwm?: boolean
+  /**
+   * For ic_pin nodes: which edge of the IC body the stub belongs to. Inputs sit
+   * on the left (facing the Arduino), outputs on the right (facing the loads).
+   * Defaults to "left" (a single-sided IC).
+   */
+  icSide?: "left" | "right"
 }
 
 export type SchematicEdge = {
@@ -288,72 +294,165 @@ export function generateSchematicLayout(
   }
   if (signalPins.length > 0) col++
 
-  // Column 2+: Regular circuit components arranged vertically. Multi-pin ICs
-  //  are deferred to the next column so the visual flow reads
-  //  Arduino → Resistors → IC pins → IC body.
-  let compRow = 0
-  const componentCol = col
-  for (const comp of regularComponents) {
-    const symbolType = componentTypeToSymbol(comp.type)
-    if (symbolType == null) continue
-
-    nodes.push({
-      id: `comp-${comp.id}`,
-      type: symbolType,
-      x: PADDING + componentCol * HORIZONTAL_SPACING,
-      y: PADDING + compRow * VERTICAL_SPACING,
-      label: comp.name,
-      value: getComponentValue(comp),
-      componentId: comp.id,
-    })
-    compRow++
-  }
-  if (regularComponents.length > 0) col = componentCol + 1
-
-  // Column N: Multi-pin IC entities — one ic_pin stub per connected named
-  // signal pin. GND / VCC pins are skipped (they become distributed rail flags
-  // where wired). Output pins that share a net with a load align to that load's
-  // row so the trace is a clean horizontal; the remaining control/input pins
-  // fill the FREE rows in between. Placing them on already-used rows is what
-  // overlapped IC pin labels/wires before.
-  const icPinCol = componentCol + (regularComponents.length > 0 ? 1 : 0)
-  const icPinX = PADDING + icPinCol * HORIZONTAL_SPACING
-  const usedIcYs = new Set<number>()
-  const unalignedIcPins: Array<{ comp: BoardComponent; pinName: string }> = []
-
-  const pushIcPin = (comp: BoardComponent, pinName: string, y: number) => {
-    nodes.push({
-      id: `ic-pin-${comp.id}-${pinName}`,
-      type: "ic_pin",
-      x: icPinX,
-      y,
-      label: pinName,
-      value: comp.name,
-      componentId: comp.id,
-      pinName,
-    })
-    usedIcYs.add(y)
+  // ── Component + multi-pin IC placement ────────────────────────────────
+  const footprintPointsOf = (c: BoardComponent) =>
+    getComponentFootprint(c.type, c.y, c.x, c.rotation, c.properties).points
+  const onNet = (
+    points: ReadonlyArray<{ row: number; col: number }>,
+    net: ReturnType<typeof resolveNets>[number],
+  ) => points.some((p) => net.points.some((np) => np.row === p.row && np.col === p.col))
+  const isRailNet = (net: ReturnType<typeof resolveNets>[number]) =>
+    net.arduinoPins.some((p) => isPowerPin(p) || isGroundPin(p))
+  const netsOfComp = (c: BoardComponent) => {
+    const pts = footprintPointsOf(c)
+    return nets.filter((n) => onNet(pts, n))
   }
 
-  // Pass 1: place output pins aligned to their load rows; defer the rest.
-  for (const comp of multiPinComponents) {
-    const pinMap = resolveComponentPins(comp.type, comp.y, comp.x, comp.properties)
+  // Classify each connected IC signal pin: an "output" drives a regular-
+  // component load; everything else (Arduino-driven, rail-tied) is an "input".
+  type IcPinInfo = {
+    ic: BoardComponent
+    pinName: string
+    net: ReturnType<typeof resolveNets>[number]
+    kind: "input" | "output"
+  }
+  const icPinInfos: IcPinInfo[] = []
+  for (const ic of multiPinComponents) {
+    const pinMap = resolveComponentPins(ic.type, ic.y, ic.x, ic.properties)
     for (const [pinName, pinPoint] of Object.entries(pinMap)) {
       if (MULTI_PIN_IC_SKIP_PINS.has(pinName)) continue
-
-      // Find the net carrying this pin (skip pins that are not wired up).
       const net = nets.find((n) =>
         n.points.some((np) => np.row === pinPoint.row && np.col === pinPoint.col),
       )
       if (net == null) continue
+      const drivenByArduino = net.arduinoPins.some((p) => p >= 0)
+      // The pin's immediate loads on this net.
+      const loadComps =
+        !drivenByArduino && !isRailNet(net)
+          ? regularComponents.filter((rc) => onNet(footprintPointsOf(rc), net))
+          : []
+      // Output = the load leads onward (to another load / ground), not back to
+      // an Arduino pin driving *through* it (that's an input, e.g. a 7-seg fed
+      // Arduino → resistor → segment).
+      const drivesLoad =
+        loadComps.length > 0 &&
+        !loadComps.some((load) =>
+          netsOfComp(load)
+            .filter((n) => n.id !== net.id)
+            .some((n) => n.arduinoPins.some((p) => p >= 0)),
+        )
+      icPinInfos.push({ ic, pinName, net, kind: drivesLoad ? "output" : "input" })
+    }
+  }
+  const outputPins = icPinInfos.filter((p) => p.kind === "output").sort((a, b) => a.pinName.localeCompare(b.pinName))
+  // Order inputs by their Arduino driver pin so each control line is a straight
+  // horizontal trace (no crossing); rail-tied / unconnected inputs come after.
+  const arduinoDriverPin = (info: IcPinInfo): number => {
+    const signalPins = info.net.arduinoPins.filter((p) => p >= 0)
+    return signalPins.length > 0 ? Math.min(...signalPins) : Number.POSITIVE_INFINITY
+  }
+  const inputPins = icPinInfos
+    .filter((p) => p.kind === "input")
+    .sort((a, b) => arduinoDriverPin(a) - arduinoDriverPin(b) || a.pinName.localeCompare(b.pinName))
+  const twoSidedIc = outputPins.length > 0
 
+  const placedCompIds = new Set<string>()
+  const pushCompNodeAt = (comp: BoardComponent, x: number, y: number) => {
+    const symbolType = componentTypeToSymbol(comp.type)
+    if (symbolType == null) return
+    nodes.push({
+      id: `comp-${comp.id}`,
+      type: symbolType,
+      x,
+      y,
+      label: comp.name,
+      value: getComponentValue(comp),
+      componentId: comp.id,
+    })
+    placedCompIds.add(comp.id)
+  }
+  const pushIcPinAt = (info: IcPinInfo, x: number, y: number, side: "left" | "right") => {
+    nodes.push({
+      id: `ic-pin-${info.ic.id}-${info.pinName}`,
+      type: "ic_pin",
+      x,
+      y,
+      label: info.pinName,
+      value: info.ic.name,
+      componentId: info.ic.id,
+      pinName: info.pinName,
+      icSide: side,
+    })
+  }
+
+  if (twoSidedIc) {
+    // Chip in the middle: inputs on the left (facing the Arduino), outputs on
+    // the right driving R → LED → ground chains that flow rightward. The body
+    // height is max(#inputs, #outputs) rows — not the sum — and the load chains
+    // sit past the outputs, so nothing crosses.
+    const icLeftPinX = PADDING + col * HORIZONTAL_SPACING
+    const icRightPinX = icLeftPinX + HORIZONTAL_SPACING
+    const primaryLoadX = icRightPinX + HORIZONTAL_SPACING
+    const secondaryLoadX = primaryLoadX + HORIZONTAL_SPACING
+
+    // One row per output channel: output stub → resistor → LED.
+    let row = 0
+    for (const out of outputPins) {
+      const y = PADDING + row * VERTICAL_SPACING
+      pushIcPinAt(out, icRightPinX, y, "right")
+
+      const primary = regularComponents.find(
+        (rc) => !placedCompIds.has(rc.id) && onNet(footprintPointsOf(rc), out.net),
+      )
+      if (primary != null) {
+        pushCompNodeAt(primary, primaryLoadX, y)
+        const primaryPts = footprintPointsOf(primary)
+        const secondary = regularComponents.find(
+          (rc) =>
+            !placedCompIds.has(rc.id) &&
+            !onNet(footprintPointsOf(rc), out.net) &&
+            netsOfComp(rc).some((n) => !isRailNet(n) && onNet(primaryPts, n)),
+        )
+        if (secondary != null) pushCompNodeAt(secondary, secondaryLoadX, y)
+      }
+      row++
+    }
+
+    // Input pins stack on the left edge of the body.
+    let inputRow = 0
+    for (const inp of inputPins) {
+      pushIcPinAt(inp, icLeftPinX, PADDING + inputRow * VERTICAL_SPACING, "left")
+      inputRow++
+    }
+
+    // Any regular component not part of an output chain: stack it past the loads.
+    let orphanRow = Math.max(row, inputRow)
+    for (const rc of regularComponents) {
+      if (placedCompIds.has(rc.id)) continue
+      pushCompNodeAt(rc, primaryLoadX, PADDING + orphanRow * VERTICAL_SPACING)
+      orphanRow++
+    }
+  } else {
+    // Single-sided layout: regular components stacked, then the IC's pins to
+    // their right (Arduino → loads → IC pins → body). Output pins align to
+    // their load's row; control pins fill the free rows in between.
+    let compRow = 0
+    const componentCol = col
+    for (const comp of regularComponents) {
+      pushCompNodeAt(comp, PADDING + componentCol * HORIZONTAL_SPACING, PADDING + compRow * VERTICAL_SPACING)
+      compRow++
+    }
+    if (regularComponents.length > 0) col = componentCol + 1
+
+    const icPinCol = componentCol + (regularComponents.length > 0 ? 1 : 0)
+    const icPinX = PADDING + icPinCol * HORIZONTAL_SPACING
+    const usedIcYs = new Set<number>()
+    const unaligned: IcPinInfo[] = []
+
+    for (const info of icPinInfos) {
       let alignedY: number | null = null
       for (const regComp of regularComponents) {
-        const regPins = resolveComponentPins(regComp.type, regComp.y, regComp.x, regComp.properties)
-        const sharesNet = Object.values(regPins).some((p) =>
-          net.points.some((np) => np.row === p.row && np.col === p.col),
-        )
-        if (sharesNet) {
+        if (onNet(footprintPointsOf(regComp), info.net)) {
           const regNode = nodes.find((n) => n.id === `comp-${regComp.id}`)
           if (regNode != null) {
             alignedY = regNode.y
@@ -361,29 +460,25 @@ export function generateSchematicLayout(
           }
         }
       }
-
       if (alignedY != null) {
-        pushIcPin(comp, pinName, alignedY)
+        pushIcPinAt(info, icPinX, alignedY, "left")
+        usedIcYs.add(alignedY)
       } else {
-        unalignedIcPins.push({ comp, pinName })
+        unaligned.push(info)
       }
     }
-  }
 
-  // Pass 2: place control/input pins at free grid rows, never on top of an
-  // already-placed output pin.
-  let icSlot = 0
-  for (const { comp, pinName } of unalignedIcPins) {
-    let y = PADDING + icSlot * VERTICAL_SPACING
-    while (usedIcYs.has(y)) {
+    let icSlot = 0
+    for (const info of unaligned) {
+      let y = PADDING + icSlot * VERTICAL_SPACING
+      while (usedIcYs.has(y)) {
+        icSlot++
+        y = PADDING + icSlot * VERTICAL_SPACING
+      }
+      pushIcPinAt(info, icPinX, y, "left")
       icSlot++
-      y = PADDING + icSlot * VERTICAL_SPACING
     }
-    pushIcPin(comp, pinName, y)
-    icSlot++
   }
-
-  if (multiPinComponents.length > 0) col = icPinCol + 1
 
   // Board rails: whether the Arduino itself supplies ground / power in this
   // circuit. Drawn as flags on the board body rather than as separate columns.

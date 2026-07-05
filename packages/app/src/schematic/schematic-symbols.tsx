@@ -13,6 +13,8 @@ type SymbolProps = {
   isActive?: boolean
   /** Arduino pin nodes only: draw a PWM waveform marker on the pin. */
   isPwm?: boolean
+  /** ic_pin nodes only: "left" (input, stub goes right) or "right" (output). */
+  icSide?: "left" | "right"
 }
 
 // Neutral ink follows the theme foreground via currentColor (set on the
@@ -937,29 +939,33 @@ export function PirSensorSymbol({ x, y, label, value, voltage, current, isActive
   )
 }
 
-function IcPinSymbol({ x, y, label }: SymbolProps) {
+function IcPinSymbol({ x, y, label, icSide }: SymbolProps) {
   const stroke = STROKE
   const stubLength = 16
   const labelOffset = 20
+  // Output pins sit on the right edge of the body: stub + label point inward
+  // (to the left) so the terminal faces the loads.
+  const dir = icSide === "right" ? -1 : 1
 
   return (
     <g>
-      {/* Terminal dot at (x, y) — left side, where wires connect */}
+      {/* Terminal dot at (x, y) — where wires connect */}
       <circle cx={x} cy={y} r={3} fill={stroke} />
-      {/* Short stub going right from (x, y) to (x+stubLength, y) */}
+      {/* Short stub going into the body */}
       <line
         x1={x}
         y1={y}
-        x2={x + stubLength}
+        x2={x + dir * stubLength}
         y2={y}
         stroke={stroke}
         strokeWidth={STROKE_WIDTH}
       />
-      {/* Pin name label, vertically centered, starting just past the stub */}
+      {/* Pin name label, just inside the body */}
       <text
-        x={x + labelOffset}
+        x={x + dir * labelOffset}
         y={y}
         dominantBaseline="middle"
+        textAnchor={dir < 0 ? "end" : "start"}
         fill="currentColor"
         style={{ font: FONT_LABEL }}
       >
