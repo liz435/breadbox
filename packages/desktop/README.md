@@ -115,7 +115,11 @@ For public distribution, configure signing/notarization — see Tauri's guides:
 
 - macOS: <https://tauri.app/distribute/sign/macos/>
 - Windows: <https://tauri.app/distribute/sign/windows/>
-- Auto-update: <https://tauri.app/plugin/updater/>
+
+**Auto-update is wired in** (`tauri-plugin-updater`): the app checks the GitHub
+release feed on launch and via **Breadbox → Check for Updates…**, then
+self-installs signed updates. It requires a one-time updater signing key — see
+[`RELEASING.md`](../../RELEASING.md#one-time-updater-signing-key).
 
 ## Caveats
 

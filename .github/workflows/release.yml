@@ -98,6 +98,14 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # ── Auto-updater signing ───────────────────────────────────────
+          # Signs the bundles + the generated `latest.json` so installed apps
+          # can verify updates against the pubkey baked into tauri.conf.json.
+          # These MUST be set (see RELEASING.md) — with `createUpdaterArtifacts`
+          # on, the bundler fails the build if the private key is missing.
+          # The key has no password; leave the PASSWORD secret unset (empty).
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # ── Linux AppImage bundling ────────────────────────────────────
           # linuxdeploy is itself an AppImage and needs FUSE to self-mount,
           # which GitHub's Linux runners don't provide → the build fails with

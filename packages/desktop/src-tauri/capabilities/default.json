@@ -8,6 +8,8 @@
   },
   "permissions": [
     "core:default",
+    "updater:default",
+    "dialog:default",
     {
       "identifier": "shell:allow-spawn",
       "allow": [{ "name": "binaries/breadbox", "sidecar": true, "args": true }]
