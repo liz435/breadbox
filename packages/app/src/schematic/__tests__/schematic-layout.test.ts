@@ -56,6 +56,20 @@ function makeServo(id: string, row: number, col: number): BoardComponent {
   }
 }
 
+// power_supply footprint puts its right + rail at (row, 11) and right − rail at (row, 10)
+function makePowerSupply(id: string, row: number): BoardComponent {
+  return {
+    id,
+    type: "power_supply",
+    name: "External 5V",
+    x: 0,
+    y: row,
+    rotation: 0,
+    pins: {},
+    properties: { leftVoltage: 5, rightVoltage: 5 },
+  }
+}
+
 function makeArduino(id = "arduino"): BoardComponent {
   return {
     id,
@@ -351,6 +365,25 @@ describe("generateSchematicLayout — power rails", () => {
     const powerRail = layout.rails.find((r) => r.kind === "power")
     expect(powerRail?.label).toBe("3.3V")
     expect(layout.boardRails.powerLabels).toContain("3.3V")
+  })
+
+  test("external power supply feeds a power rail and is not drawn as a box", () => {
+    const components: Record<string, BoardComponent> = {
+      arduino: makeArduino(),
+      psu: makePowerSupply("psu", 0),
+      led1: makeLed("led1", 5, 0),
+    }
+    // Wire the LED anode (5,0) to the supply's right + rail point (0,11)
+    const wires: Record<string, Wire> = {
+      w1: makeWire("w1", 0, 11, 5, 0),
+    }
+    const layout = generateSchematicLayout(components, wires)
+    // The supply is a source, not a drawn node
+    expect(layout.nodes.some((n) => n.id === "comp-psu")).toBe(false)
+    // The load it feeds gets a power rail labelled with the supply voltage
+    const powerRail = layout.rails.find((r) => r.kind === "power" && r.nodeId === "comp-led1")
+    expect(powerRail).toBeDefined()
+    expect(powerRail!.label).toBe("5V")
   })
 
   test("power connection does not create a shared power column node", () => {

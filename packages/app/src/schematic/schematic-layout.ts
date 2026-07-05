@@ -114,6 +114,15 @@ function getPowerLabel(pin: number): string {
   return "VCC"
 }
 
+/** Rail label for an external power supply, from its configured voltage. */
+function powerSupplyVoltageLabel(comp: BoardComponent): string {
+  const props = comp.properties ?? {}
+  const left = typeof props.leftVoltage === "number" ? props.leftVoltage : 0
+  const right = typeof props.rightVoltage === "number" ? props.rightVoltage : 0
+  const v = Math.max(Math.abs(left), Math.abs(right))
+  return v > 0 ? `${v}V` : "VCC"
+}
+
 function terminalSideForPin(
   compType: string,
   pinName: string,
@@ -222,7 +231,9 @@ export function generateSchematicLayout(
 
   // 1. Filter circuit components (not arduino_uno or wire), then split into
   //    regular (single 2-terminal symbol) vs multi-pin IC components which
-  //    expand into one ic_pin stub per connected signal pin.
+  //    expand into one ic_pin stub per connected signal pin. Power supplies
+  //    are sources, not drawn boxes — they become power/ground rail flags on
+  //    the loads they feed (see net classification below).
   const circuitComponents = allComponents.filter(
     (c) => !isBoardComponentType(c.type) && c.type !== "wire",
   )
@@ -231,8 +242,9 @@ export function generateSchematicLayout(
     return { nodes: [], edges: [], rails: [], boardRails: EMPTY_BOARD_RAILS, width: 0, height: 0 }
   }
 
+  const powerSupplies = circuitComponents.filter((c) => c.type === "power_supply")
   const regularComponents = circuitComponents.filter(
-    (c) => !MULTI_PIN_IC_TYPES.has(c.type),
+    (c) => !MULTI_PIN_IC_TYPES.has(c.type) && c.type !== "power_supply",
   )
   const multiPinComponents = circuitComponents.filter(
     (c) => MULTI_PIN_IC_TYPES.has(c.type),
@@ -359,21 +371,37 @@ export function generateSchematicLayout(
 
   // 5. Build signal edges and distributed power/ground rail flags.
   //    A net that touches an Arduino GND pin is a ground net; one that touches
-  //    a 5V/3.3V pin is a power net. Those get a local flag at every component
-  //    terminal instead of wires to a shared node. Everything else is a signal
-  //    net and is drawn as wires between the driving pin and the components.
+  //    a 5V/3.3V pin — or an external power supply's output — is a power net.
+  //    Those get a local flag at every component terminal instead of wires to a
+  //    shared node. Everything else is a signal net, drawn as wires between the
+  //    driving pin and the components.
   const rails: SchematicRailFlag[] = []
   let edgeId = 0
   let railId = 0
+
+  // Grid points occupied by each external supply, so nets that reach one can be
+  // recognised as power rails (the supply itself is not drawn).
+  const supplyFootprints = powerSupplies.map((ps) => ({
+    comp: ps,
+    points: getComponentFootprint(ps.type, ps.y, ps.x, ps.rotation, ps.properties).points,
+  }))
 
   type PinMapping = { nodeId: string; side: SchematicTerminalSide }
 
   for (const net of nets) {
     const netGroundPins = net.arduinoPins.filter(isGroundPin)
     const netPowerPins = net.arduinoPins.filter(isPowerPin).sort((a, b) => a - b)
+    const supplyOnNet = supplyFootprints.find((sf) =>
+      sf.points.some((fp) => net.points.some((np) => np.row === fp.row && np.col === fp.col)),
+    )
     const isGroundNet = netGroundPins.length > 0
-    const isPowerNet = !isGroundNet && netPowerPins.length > 0
-    const powerLabel = netPowerPins.length > 0 ? getPowerLabel(netPowerPins[0]) : "VCC"
+    const isPowerNet = !isGroundNet && (netPowerPins.length > 0 || supplyOnNet != null)
+    const powerLabel =
+      netPowerPins.length > 0
+        ? getPowerLabel(netPowerPins[0])
+        : supplyOnNet != null
+          ? powerSupplyVoltageLabel(supplyOnNet.comp)
+          : "VCC"
 
     // Component / IC terminals participating in this net. Named pins carry
     // electrical meaning (anode/cathode, signal/vcc/gnd) so terminals stay put
