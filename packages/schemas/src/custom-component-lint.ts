@@ -47,6 +47,11 @@ function checkNumberOrExpr(
   if (typeof value === "string") checkExpr(value, context, path, issues);
 }
 
+/** Escape regex metacharacters so arbitrary ids (e.g. Figma's "Group 3.1") match literally. */
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function signalPinRefs(signal: DslSignal): Array<{ field: string; pin: string }> {
   switch (signal.kind) {
     case "digital":
@@ -143,7 +148,7 @@ export function lintCustomComponentDsl(dsl: CustomComponentDsl): DslLintIssue[] 
   }
   bindings.forEach((binding, i) => {
     const path = `visual.bindings[${i}]`;
-    if (dsl.svg && !new RegExp(`id\\s*=\\s*["']${binding.target}["']`).test(dsl.svg)) {
+    if (dsl.svg && !new RegExp(`id\\s*=\\s*["']${escapeRegExp(binding.target)}["']`).test(dsl.svg)) {
       issues.push({
         severity: "warning",
         path,
