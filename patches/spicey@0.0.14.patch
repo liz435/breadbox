@@ -1,8 +1,240 @@
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 912a32eea8fe4dd3182d92651fcb202677d757b8..c1257e239564114545e6118b7d85482ec33019af 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -71,6 +71,46 @@ type ParsedSwitch = {
+     model: ParsedVSwitchModel | null;
+     isOn: boolean;
+ };
++type ParsedBjtModel = {
++    name: string;
++    type: "npn" | "pnp";
++    Is: number;
++    BF: number;
++    BR: number;
++    NF: number;
++};
++type ParsedBjt = {
++    name: string;
++    nc: number;
++    nb: number;
++    ne: number;
++    modelName: string;
++    model: ParsedBjtModel | null;
++    vbePrev: number;
++    vbcPrev: number;
++    vbeLim?: number;
++    vbcLim?: number;
++};
++type ParsedMosModel = {
++    name: string;
++    type: "nmos" | "pmos";
++    VTO: number;
++    KP: number;
++    LAMBDA: number;
++};
++type ParsedMosfet = {
++    name: string;
++    nd: number;
++    ng: number;
++    ns: number;
++    modelName: string;
++    model: ParsedMosModel | null;
++    region: string;
++    vgsPrev?: number;
++    vdsPrev?: number;
++    vgsLim?: number;
++    vdsLim?: number;
++};
+ type ParsedACAnalysis = {
+     mode: "dec" | "lin";
+     N: number;
+@@ -89,6 +129,8 @@ type ParsedCircuit = {
+     V: ParsedVoltageSource[];
+     S: ParsedSwitch[];
+     D: ParsedDiode[];
++    Q: ParsedBjt[];
++    M: ParsedMosfet[];
+     analyses: {
+         ac: ParsedACAnalysis;
+         tran: ParsedTranAnalysis;
+@@ -100,6 +142,8 @@ type ParsedCircuit = {
+     models: {
+         vswitch: Map<string, ParsedVSwitchModel>;
+         diode: Map<string, ParsedDiodeModel>;
++        bjt: Map<string, ParsedBjtModel>;
++        mos: Map<string, ParsedMosModel>;
+     };
+ };
+ type CircuitNodeIndex = NodeIndex;
 diff --git a/dist/index.js b/dist/index.js
-index ee291ffef3382c1d38479941a709962f8c8f84cc..79c5fa6a6515f10c35f2463b5205527e26653df1 100644
+index ee291ffef3382c1d38479941a709962f8c8f84cc..c01166a9b222cfc14dac11fbfb429171966aac61 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -772,6 +772,23 @@ function simulateAC(ckt) {
+@@ -154,6 +154,8 @@ function requireToken(tokens, index, context) {
+ function parseNetlist(text) {
+   const vswitchModels = /* @__PURE__ */ new Map();
+   const diodeModels = /* @__PURE__ */ new Map();
++  const bjtModels = /* @__PURE__ */ new Map();
++  const mosModels = /* @__PURE__ */ new Map();
+   const ckt = {
+     nodes: new NodeIndex(),
+     R: [],
+@@ -162,10 +164,12 @@ function parseNetlist(text) {
+     V: [],
+     S: [],
+     D: [],
++    Q: [],
++    M: [],
+     analyses: { ac: null, tran: null },
+     probes: { tran: [] },
+     skipped: [],
+-    models: { vswitch: vswitchModels, diode: diodeModels }
++    models: { vswitch: vswitchModels, diode: diodeModels, bjt: bjtModels, mos: mosModels }
+   };
+   const lines = text.split(/\r?\n/);
+   let seenTitle = false;
+@@ -303,6 +307,58 @@ function parseNetlist(text) {
+             }
+           }
+           diodeModels.set(nameToken.toLowerCase(), model);
++        } else if (typeLower === "npn" || typeLower === "pnp") {
++          // Ebers-Moll BJT (transport formulation). BF/BR are forward/
++          // reverse current gains; IS the transport saturation current;
++          // NF the forward ideality factor.
++          const model = {
++            name: nameToken,
++            type: typeLower,
++            Is: 1e-14,
++            BF: 100,
++            BR: 1,
++            NF: 1
++          };
++          if (paramsStr.length > 0) {
++            const assignments = paramsStr.split(/[\s,]+/).filter(Boolean);
++            for (const assignment of assignments) {
++              const [keyRaw, valueRaw] = assignment.split("=");
++              if (!keyRaw || valueRaw == null) continue;
++              const key = keyRaw.toLowerCase();
++              const value = parseNumberWithUnits(valueRaw);
++              if (Number.isNaN(value)) continue;
++              if (key === "is") model.Is = value;
++              else if (key === "bf") model.BF = value;
++              else if (key === "br") model.BR = value;
++              else if (key === "nf" || key === "n") model.NF = value;
++            }
++          }
++          bjtModels.set(nameToken.toLowerCase(), model);
++        } else if (typeLower === "nmos" || typeLower === "pmos") {
++          // Level-1 (Shichman-Hodges) MOSFET: square-law with threshold
++          // VTO and transconductance KP; LAMBDA adds channel-length
++          // modulation in saturation.
++          const model = {
++            name: nameToken,
++            type: typeLower,
++            VTO: 2,
++            KP: 0.1,
++            LAMBDA: 0
++          };
++          if (paramsStr.length > 0) {
++            const assignments = paramsStr.split(/[\s,]+/).filter(Boolean);
++            for (const assignment of assignments) {
++              const [keyRaw, valueRaw] = assignment.split("=");
++              if (!keyRaw || valueRaw == null) continue;
++              const key = keyRaw.toLowerCase();
++              const value = parseNumberWithUnits(valueRaw);
++              if (Number.isNaN(value)) continue;
++              if (key === "vto" || key === "vt") model.VTO = value;
++              else if (key === "kp") model.KP = value;
++              else if (key === "lambda") model.LAMBDA = value;
++            }
++          }
++          mosModels.set(nameToken.toLowerCase(), model);
+         } else {
+           ckt.skipped.push(line);
+         }
+@@ -456,6 +512,57 @@ function parseNetlist(text) {
+         } else {
+           ckt.skipped.push(line);
+         }
++      } else if (typeChar === "q") {
++        // Q<name> <collector> <base> <emitter> <model>
++        if (tokens.length >= 5) {
++          const nc = ckt.nodes.getOrCreate(
++            requireToken(tokens, 1, "BJT missing collector node")
++          );
++          const nb = ckt.nodes.getOrCreate(
++            requireToken(tokens, 2, "BJT missing base node")
++          );
++          const ne = ckt.nodes.getOrCreate(
++            requireToken(tokens, 3, "BJT missing emitter node")
++          );
++          const modelName = requireToken(tokens, 4, "BJT missing model");
++          ckt.Q.push({
++            name,
++            nc,
++            nb,
++            ne,
++            modelName: modelName.toLowerCase(),
++            model: null,
++            vbePrev: 0,
++            vbcPrev: 0
++          });
++        } else {
++          ckt.skipped.push(line);
++        }
++      } else if (typeChar === "m") {
++        // M<name> <drain> <gate> <source> <model>   (bulk tied to source)
++        if (tokens.length >= 5) {
++          const nd = ckt.nodes.getOrCreate(
++            requireToken(tokens, 1, "MOSFET missing drain node")
++          );
++          const ng = ckt.nodes.getOrCreate(
++            requireToken(tokens, 2, "MOSFET missing gate node")
++          );
++          const ns = ckt.nodes.getOrCreate(
++            requireToken(tokens, 3, "MOSFET missing source node")
++          );
++          const modelName = requireToken(tokens, 4, "MOSFET missing model");
++          ckt.M.push({
++            name,
++            nd,
++            ng,
++            ns,
++            modelName: modelName.toLowerCase(),
++            model: null,
++            region: "off"
++          });
++        } else {
++          ckt.skipped.push(line);
++        }
+       } else {
+         ckt.skipped.push(line);
+       }
+@@ -490,6 +597,22 @@ ${err.message}`);
+       );
+     d.model = model;
+   }
++  for (const q of ckt.Q) {
++    const model = bjtModels.get(q.modelName);
++    if (!model)
++      throw new Error(
++        `Unknown .model ${q.modelName} referenced by BJT ${q.name}`
++      );
++    q.model = model;
++  }
++  for (const m of ckt.M) {
++    const model = mosModels.get(m.modelName);
++    if (!model)
++      throw new Error(
++        `Unknown .model ${m.modelName} referenced by MOSFET ${m.name}`
++      );
++    m.model = model;
++  }
+   return ckt;
+ }
+ 
+@@ -772,6 +895,23 @@ function simulateAC(ckt) {
  // lib/constants/physics.ts
  var VT_300K = 0.02585;
  
@@ -26,7 +258,7 @@ index ee291ffef3382c1d38479941a709962f8c8f84cc..79c5fa6a6515f10c35f2463b5205527e
  // lib/math/solveReal.ts
  function solveReal(A, b) {
    const n = A.length;
-@@ -941,11 +958,15 @@ function stampAllElementsAtTime(A, b, ckt, t, dt, x, iter) {
+@@ -941,11 +1081,15 @@ function stampAllElementsAtTime(A, b, ckt, t, dt, x, iter) {
      const v_plus_prev_iter = nPlus === 0 ? 0 : x[vp_idx] ?? 0;
      const v_minus_prev_iter = nMinus === 0 ? 0 : x[vn_idx] ?? 0;
      const vd_prev_iter = v_plus_prev_iter - v_minus_prev_iter;
@@ -46,7 +278,185 @@ index ee291ffef3382c1d38479941a709962f8c8f84cc..79c5fa6a6515f10c35f2463b5205527e
      const exp_val = Math.exp(vd_limited / v_thermal);
      const id = model.Is * (exp_val - 1);
      const gd = Math.max(model.Is / v_thermal * exp_val, 1e-12);
-@@ -975,6 +996,19 @@ function updateSwitchStatesFromSolution(ckt, x) {
+@@ -953,6 +1097,177 @@ function stampAllElementsAtTime(A, b, ckt, t, dt, x, iter) {
+     stampAdmittanceReal(A, ckt.nodes, nPlus, nMinus, gd);
+     stampCurrentReal(b, ckt.nodes, nPlus, nMinus, ieq);
+   }
++  for (const q of ckt.Q) {
++    stampBjt(A, b, ckt, q, x, iter);
++  }
++  for (const m of ckt.M) {
++    stampMosfet(A, b, ckt, m, x, iter);
++  }
++}
++// ── Raw MNA stamp helpers for multi-terminal devices ─────────────────────
++// stampAdmittanceReal only handles two-terminal branches; a BJT/MOSFET needs
++// individual matrix entries (dI_row/dV_col) across three nodes.
++function stampGEntry(A, nidx, nodeRow, nodeCol, g) {
++  const r = nidx.matrixIndexOfNode(nodeRow);
++  const c = nidx.matrixIndexOfNode(nodeCol);
++  if (r < 0 || c < 0) return;
++  const row = A[r];
++  if (!row) throw new Error("Matrix row missing while stamping");
++  row[c] = (row[c] ?? 0) + g;
++}
++function stampIEntry(b, nidx, node, current) {
++  const i = nidx.matrixIndexOfNode(node);
++  if (i < 0) return;
++  b[i] = (b[i] ?? 0) - current;
++}
++// Small leak conductance across semiconductor junctions/channels. Keeps the
++// conductance matrix regular when a device is fully off (gmin, as in SPICE3).
++var GMIN = 1e-12;
++// ── Ebers-Moll BJT (transport formulation) ───────────────────────────────
++//
++// IC = IS·(e^(vbe/NF·Vt) − e^(vbc/Vt)) − (IS/BR)·(e^(vbc/Vt) − 1)
++// IB = (IS/BF)·(e^(vbe/NF·Vt) − 1) + (IS/BR)·(e^(vbc/Vt) − 1)
++//
++// Linearized per Newton iteration around the pnj-limited junction voltages,
++// stamped as a 3×3 conductance block (B/C/E) plus companion currents. PNP is
++// the same device with both junction polarities flipped: the sign appears
++// twice in every matrix entry (d(sign·I)/d(sign·V)) so A entries are
++// unchanged and only the companion currents carry the sign.
++function stampBjt(A, b, ckt, q, x, iter) {
++  const model = q.model;
++  if (!model) return;
++  const sign = model.type === "pnp" ? -1 : 1;
++  const { nc, nb, ne } = q;
++  const nodeV = (n) => n === 0 ? 0 : x[ckt.nodes.matrixIndexOfNode(n)] ?? 0;
++  const vbe_raw = iter === 0 ? q.vbePrev : sign * (nodeV(nb) - nodeV(ne));
++  const vbc_raw = iter === 0 ? q.vbcPrev : sign * (nodeV(nb) - nodeV(nc));
++  const vt = model.NF * VT_300K;
++  const vcrit = vt * Math.log(vt / (Math.SQRT2 * model.Is));
++  const vbe_old = q.vbeLim === void 0 ? vbe_raw : q.vbeLim;
++  const vbc_old = q.vbcLim === void 0 ? vbc_raw : q.vbcLim;
++  let vbe = pnjLimit(vbe_raw, vbe_old, vt, vcrit);
++  let vbc = pnjLimit(vbc_raw, vbc_old, vt, vcrit);
++  if (vbe < -5) vbe = -5;
++  if (vbc < -5) vbc = -5;
++  q.vbeLim = vbe;
++  q.vbcLim = vbc;
++  const expBe = Math.exp(vbe / vt);
++  const expBc = Math.exp(vbc / vt);
++  const Is = model.Is;
++  // Currents at the linearization point (NPN device convention).
++  const ic0 = Is * (expBe - expBc) - Is / model.BR * (expBc - 1);
++  const ib0 = Is / model.BF * (expBe - 1) + Is / model.BR * (expBc - 1);
++  // Partial derivatives.
++  const gcf = Math.max(Is * expBe / vt, GMIN); //  dIC/dVbe
++  const gcr = -(Is * expBc / vt + Is / model.BR * expBc / vt); // dIC/dVbc
++  const gbf = Math.max(Is / model.BF * expBe / vt, GMIN); // dIB/dVbe
++  const gbr = Math.max(Is / model.BR * expBc / vt, GMIN); // dIB/dVbc
++  // Companion currents: I ≈ Σ g·V + Ieq  ⇒  Ieq = I0 − gf·v0f − gr·v0r.
++  const ieqC = sign * (ic0 - gcf * vbe - gcr * vbc);
++  const ieqB = sign * (ib0 - gbf * vbe - gbr * vbc);
++  // Collector row: I_C(Vbe, Vbc), Vbe = ±(Vb−Ve), Vbc = ±(Vb−Vc).
++  stampGEntry(A, ckt.nodes, nc, nb, gcf + gcr);
++  stampGEntry(A, ckt.nodes, nc, ne, -gcf);
++  stampGEntry(A, ckt.nodes, nc, nc, -gcr);
++  stampIEntry(b, ckt.nodes, nc, ieqC);
++  // Base row.
++  stampGEntry(A, ckt.nodes, nb, nb, gbf + gbr);
++  stampGEntry(A, ckt.nodes, nb, ne, -gbf);
++  stampGEntry(A, ckt.nodes, nb, nc, -gbr);
++  stampIEntry(b, ckt.nodes, nb, ieqB);
++  // Emitter row: I_E = −(I_C + I_B).
++  stampGEntry(A, ckt.nodes, ne, nb, -(gcf + gcr + gbf + gbr));
++  stampGEntry(A, ckt.nodes, ne, ne, gcf + gbf);
++  stampGEntry(A, ckt.nodes, ne, nc, gcr + gbr);
++  stampIEntry(b, ckt.nodes, ne, -(ieqC + ieqB));
++  // gmin leaks keep the matrix regular with the device fully off.
++  stampAdmittanceReal(A, ckt.nodes, nb, ne, GMIN);
++  stampAdmittanceReal(A, ckt.nodes, nb, nc, GMIN);
++}
++// ── Level-1 (Shichman-Hodges) MOSFET ─────────────────────────────────────
++//
++// Cutoff:      vgs ≤ VTO             → Id = 0
++// Triode:      vds < vgs − VTO       → Id = KP·((vgs−VTO)·vds − vds²/2)
++// Saturation:  vds ≥ vgs − VTO       → Id = (KP/2)·(vgs−VTO)²·(1+λ·vds)
++//
++// vds < 0 is handled by swapping drain/source (the channel is symmetric);
++// PMOS by flipping both control polarities (signs cancel in A, like the BJT).
++// Maximum per-iteration change in vgs/vds (poor man's SPICE3 DEVfetlim).
++// The square law has no exponential blow-up, but an unbounded Newton step
++// from a wrong region can linearize around a huge overdrive and spiral to a
++// spurious "region-consistent" non-solution. Bounding the step keeps every
++// iterate physical; convergence then requires the solved voltages to match
++// the linearization point (see diodesConverged).
++var MOS_MAX_STEP_V = 0.5;
++function fetLimit(vnew, vold) {
++  if (vnew > vold + MOS_MAX_STEP_V) return vold + MOS_MAX_STEP_V;
++  if (vnew < vold - MOS_MAX_STEP_V) return vold - MOS_MAX_STEP_V;
++  return vnew;
++}
++function stampMosfet(A, b, ckt, m, x, iter) {
++  const model = m.model;
++  if (!model) return;
++  const sign = model.type === "pmos" ? -1 : 1;
++  const nodeV = (n) => n === 0 ? 0 : x[ckt.nodes.matrixIndexOfNode(n)] ?? 0;
++  // Raw voltages in the device frame (sign-normalized so PMOS reads like
++  // NMOS). iter 0 starts from the previous timestep's converged point.
++  const vgsRaw = iter === 0 ? m.vgsPrev ?? 0 : sign * (nodeV(m.ng) - nodeV(m.ns));
++  const vdsRaw = iter === 0 ? m.vdsPrev ?? 0 : sign * (nodeV(m.nd) - nodeV(m.ns));
++  const vgs = fetLimit(vgsRaw, m.vgsLim === void 0 ? vgsRaw : m.vgsLim);
++  const vds = fetLimit(vdsRaw, m.vdsLim === void 0 ? vdsRaw : m.vdsLim);
++  m.vgsLim = vgs;
++  m.vdsLim = vds;
++  // Symmetric channel: with vds < 0 the physical source is the higher-
++  // potential terminal — evaluate the mirrored device. In the mirrored
++  // frame the gate drive is measured from the acting source (the original
++  // drain): vgs' = vgs − vds.
++  let nd = m.nd;
++  let ns = m.ns;
++  let vgsEff = vgs;
++  let vdsEff = vds;
++  let flipped = false;
++  if (vds < 0) {
++    const tmp = nd;
++    nd = ns;
++    ns = tmp;
++    vgsEff = vgs - vds;
++    vdsEff = -vds;
++    flipped = true;
++  }
++  const vov = vgsEff - model.VTO;
++  let id0 = 0;
++  let gm = 0;
++  let gds = GMIN;
++  let region = "off";
++  if (vov > 0) {
++    if (vdsEff < vov) {
++      region = "triode";
++      id0 = model.KP * (vov * vdsEff - vdsEff * vdsEff / 2);
++      gm = model.KP * vdsEff;
++      gds = model.KP * (vov - vdsEff) + GMIN;
++    } else {
++      region = "sat";
++      const lam = 1 + model.LAMBDA * vdsEff;
++      id0 = model.KP / 2 * vov * vov * lam;
++      gm = model.KP * vov * lam;
++      gds = model.KP / 2 * vov * vov * model.LAMBDA + GMIN;
++    }
++  }
++  m.region = flipped ? region + "_rev" : region;
++  // Id flows (acting) drain → source. Companion: Id ≈ gm·Vgs + gds·Vds + Ieq,
++  // stamped in the acting frame; PMOS signs cancel in A, survive in Ieq.
++  const ieq = sign * (id0 - gm * vgsEff - gds * vdsEff);
++  stampGEntry(A, ckt.nodes, nd, m.ng, gm);
++  stampGEntry(A, ckt.nodes, nd, ns, -(gm + gds));
++  stampGEntry(A, ckt.nodes, nd, nd, gds);
++  stampIEntry(b, ckt.nodes, nd, ieq);
++  stampGEntry(A, ckt.nodes, ns, m.ng, -gm);
++  stampGEntry(A, ckt.nodes, ns, ns, gm + gds);
++  stampGEntry(A, ckt.nodes, ns, nd, -gds);
++  stampIEntry(b, ckt.nodes, ns, -ieq);
++  // Leak so a floating gate / off channel can't make the matrix singular.
++  stampAdmittanceReal(A, ckt.nodes, m.nd, m.ns, GMIN);
++  stampAdmittanceReal(A, ckt.nodes, m.ng, m.ns, GMIN);
+ }
+ function updateSwitchStatesFromSolution(ckt, x) {
+   let switched = false;
+@@ -975,6 +1290,78 @@ function updateSwitchStatesFromSolution(ckt, x) {
    }
    return switched;
  }
@@ -54,19 +464,78 @@ index ee291ffef3382c1d38479941a709962f8c8f84cc..79c5fa6a6515f10c35f2463b5205527e
 +// point the stamp linearized around (d.vdLim). Until then the exponential I-V
 +// isn't yet self-consistent and Newton must iterate again.
 +function diodesConverged(ckt, x) {
++  const nodeV = (n) => n === 0 ? 0 : x[n - 1] ?? 0;
 +  for (const d of ckt.D) {
 +    if (!d.model || d.vdLim === void 0) continue;
-+    const vp = d.nPlus === 0 ? 0 : x[d.nPlus - 1] ?? 0;
-+    const vn = d.nMinus === 0 ? 0 : x[d.nMinus - 1] ?? 0;
-+    const vd = vp - vn;
++    const vd = nodeV(d.nPlus) - nodeV(d.nMinus);
 +    if (Math.abs(vd - d.vdLim) > 1e-6 + 1e-4 * Math.abs(vd)) return false;
 +  }
++  // BJTs converge like diodes: both junction voltages must match the point
++  // the stamp linearized around.
++  for (const q of ckt.Q) {
++    if (!q.model || q.vbeLim === void 0 || q.vbcLim === void 0) continue;
++    const sign = q.model.type === "pnp" ? -1 : 1;
++    const vbe = sign * (nodeV(q.nb) - nodeV(q.ne));
++    const vbc = sign * (nodeV(q.nb) - nodeV(q.nc));
++    if (Math.abs(vbe - q.vbeLim) > 1e-6 + 1e-4 * Math.abs(vbe)) return false;
++    if (Math.abs(vbc - q.vbcLim) > 1e-6 + 1e-4 * Math.abs(vbc)) return false;
++  }
++  // A MOSFET converges when the freshly solved terminal voltages match the
++  // point the stamp linearized around — the same criterion as the junction
++  // devices. (Region agreement follows automatically from voltage
++  // agreement, so no separate region check is needed.)
++  for (const m of ckt.M) {
++    if (!m.model || m.vgsLim === void 0 || m.vdsLim === void 0) continue;
++    const sign = m.model.type === "pmos" ? -1 : 1;
++    const nodeV = (n) => n === 0 ? 0 : x[n - 1] ?? 0;
++    const vgs = sign * (nodeV(m.ng) - nodeV(m.ns));
++    const vds = sign * (nodeV(m.nd) - nodeV(m.ns));
++    if (Math.abs(vgs - m.vgsLim) > 1e-6 + 1e-4 * Math.abs(vgs)) return false;
++    if (Math.abs(vds - m.vdsLim) > 1e-6 + 1e-4 * Math.abs(vds)) return false;
++  }
 +  return true;
++}
++function mosDrainCurrent(ckt, m, x) {
++  const model = m.model;
++  const nodeV = (n) => n === 0 ? 0 : x[ckt.nodes.matrixIndexOfNode(n)] ?? 0;
++  const sign = model.type === "pmos" ? -1 : 1;
++  let nd = m.nd;
++  let ns = m.ns;
++  let vds = sign * (nodeV(nd) - nodeV(ns));
++  let flip = 1;
++  if (vds < 0) {
++    const tmp = nd;
++    nd = ns;
++    ns = tmp;
++    vds = -vds;
++    flip = -1;
++  }
++  const vgs = sign * (nodeV(m.ng) - nodeV(ns));
++  const vov = vgs - model.VTO;
++  let id = 0;
++  if (vov > 0) {
++    id = vds < vov
++      ? model.KP * (vov * vds - vds * vds / 2)
++      : model.KP / 2 * vov * vov * (1 + model.LAMBDA * vds);
++  }
++  return sign * flip * id;
++}
++function bjtCollectorCurrent(ckt, q, x) {
++  const model = q.model;
++  const nodeV = (n) => n === 0 ? 0 : x[ckt.nodes.matrixIndexOfNode(n)] ?? 0;
++  const sign = model.type === "pnp" ? -1 : 1;
++  const vt = model.NF * VT_300K;
++  const vbe = sign * (nodeV(q.nb) - nodeV(q.ne));
++  const vbc = sign * (nodeV(q.nb) - nodeV(q.nc));
++  const expBe = Math.exp(Math.min(vbe, 1.2) / vt);
++  const expBc = Math.exp(Math.min(vbc, 1.2) / vt);
++  const ic = model.Is * (expBe - expBc) - model.Is / model.BR * (expBc - 1);
++  return sign * ic;
 +}
  function simulateTRAN(ckt) {
    if (!ckt.analyses.tran) return null;
    const { dt: dtRequested, tstop } = ckt.analyses.tran;
-@@ -992,14 +1026,14 @@ function simulateTRAN(ckt) {
+@@ -992,14 +1379,14 @@ function simulateTRAN(ckt) {
    for (let step = 0; step <= steps; step++, t = step * dt) {
      times.push(t);
      let x = new Array(Nvar).fill(0);
@@ -84,7 +553,43 @@ index ee291ffef3382c1d38479941a709962f8c8f84cc..79c5fa6a6515f10c35f2463b5205527e
      }
      for (let id = 1; id < ckt.nodes.count(); id++) {
        const idx = id - 1;
-@@ -1185,3 +1219,4 @@ export {
+@@ -1053,6 +1440,14 @@ function simulateTRAN(ckt) {
+       const id = model.Is * (exp_val - 1);
+       (elementCurrents[d.name] ||= []).push(id);
+     }
++    for (const q of ckt.Q) {
++      if (!q.model) continue;
++      (elementCurrents[q.name] ||= []).push(bjtCollectorCurrent(ckt, q, x));
++    }
++    for (const m of ckt.M) {
++      if (!m.model) continue;
++      (elementCurrents[m.name] ||= []).push(mosDrainCurrent(ckt, m, x));
++    }
+     for (const c of ckt.C) {
+       const v1 = c.n1 === 0 ? 0 : x[c.n1 - 1] ?? 0;
+       const v2 = c.n2 === 0 ? 0 : x[c.n2 - 1] ?? 0;
+@@ -1069,6 +1464,20 @@ function simulateTRAN(ckt) {
+       const v2 = d.nMinus === 0 ? 0 : x[d.nMinus - 1] ?? 0;
+       d.vdPrev = v1 - v2;
+     }
++    for (const q of ckt.Q) {
++      if (!q.model) continue;
++      const sign = q.model.type === "pnp" ? -1 : 1;
++      const nodeV = (n) => n === 0 ? 0 : x[n - 1] ?? 0;
++      q.vbePrev = sign * (nodeV(q.nb) - nodeV(q.ne));
++      q.vbcPrev = sign * (nodeV(q.nb) - nodeV(q.nc));
++    }
++    for (const m of ckt.M) {
++      if (!m.model) continue;
++      const sign = m.model.type === "pmos" ? -1 : 1;
++      const nodeV = (n) => n === 0 ? 0 : x[n - 1] ?? 0;
++      m.vgsPrev = sign * (nodeV(m.ng) - nodeV(m.ns));
++      m.vdsPrev = sign * (nodeV(m.nd) - nodeV(m.ns));
++    }
+   }
+   if (ckt.probes.tran.length > 0) {
+     const probedVoltages = {};
+@@ -1185,3 +1594,4 @@ export {
    simulateTRAN,
    spiceyTranToVGraphs
  };
