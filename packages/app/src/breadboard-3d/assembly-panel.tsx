@@ -1,13 +1,14 @@
 // ── Assembly panel ──────────────────────────────────────────────────────────
 //
 // DOM overlay listing uploaded bodies with the selected body's mounting
-// controls: parent (world / another body / a component's node), rotation
-// joint (pivot + axis), and delete. Reparenting preserves the body's world
-// pose by rebasing its transform into the new parent's frame.
+// controls: parent (world / another body / a component's node), joint (rotate
+// hinge or slide rail), signal bindings (joint motion + emissive glow), GLB
+// clip playback, and delete. Reparenting preserves the body's world pose by
+// rebasing its transform into the new parent's frame.
 
 import { useSyncExternalStore } from "react"
 import { Euler, Matrix4, Quaternion, Vector3 } from "three"
-import type { AssemblyBody, BodyParent, Vec3 } from "@dreamer/schemas"
+import type { AssemblyBody, AssemblyBinding, BodyParent, Vec3 } from "@dreamer/schemas"
 import { isBoardComponentType, isCustomComponentType } from "@dreamer/schemas"
 import { useBoardSelector } from "@/store/board-context"
 import { getCustomDef } from "@/components/catalog/custom-store"
@@ -83,12 +84,14 @@ function reparentChanges(bodyId: string, next: BodyParent): Partial<AssemblyBody
   const scale = new Vector3()
   local.decompose(position, quaternion, scale)
   const euler = new Euler().setFromQuaternion(quaternion)
+  const uniform =
+    Math.abs(scale.x - scale.y) < 1e-4 && Math.abs(scale.x - scale.z) < 1e-4
   return {
     parent: next,
     transform: {
       position: [position.x, position.y, position.z],
       rotation: [euler.x, euler.y, euler.z],
-      scale: scale.x,
+      scale: uniform ? scale.x : [scale.x, scale.y, scale.z],
     },
   }
 }
@@ -116,9 +119,11 @@ function JointEditor({ body }: { body: AssemblyBody }) {
       <Button
         size="sm"
         variant="ghost"
-        onClick={() => updateBody(body.id, { joint: { pivot: [0, 0, 0], axis: [0, 1, 0] } })}
+        onClick={() =>
+          updateBody(body.id, { joint: { pivot: [0, 0, 0], axis: [0, 1, 0], kind: "rotate" } })
+        }
       >
-        + Add rotation joint
+        + Add joint
       </Button>
     )
   }
@@ -126,11 +131,26 @@ function JointEditor({ body }: { body: AssemblyBody }) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium">Rotation joint</span>
+        <span className="text-xs font-medium">Joint</span>
         <Button size="sm" variant="ghost" onClick={() => updateBody(body.id, { joint: undefined })}>
           Remove
         </Button>
       </div>
+      <label className="block space-y-1">
+        <span className="text-xs text-muted-foreground">Type</span>
+        <select
+          className="w-full rounded-md border border-border bg-background px-2 py-1 text-xs"
+          value={joint.kind}
+          onChange={(e) =>
+            updateBody(body.id, {
+              joint: { ...joint, kind: e.target.value === "slide" ? "slide" : "rotate" },
+            })
+          }
+        >
+          <option value="rotate">Rotate (hinge)</option>
+          <option value="slide">Slide (rail)</option>
+        </select>
+      </label>
       <label className="block space-y-1">
         <span className="text-xs text-muted-foreground">Axis</span>
         <select
@@ -174,17 +194,12 @@ function JointEditor({ body }: { body: AssemblyBody }) {
 
 // ── Signal binding controls ─────────────────────────────────────────────────
 
-/** Drive the body's joint from a simulator signal: a servo's angle or any
- * custom-DSL behavior signal. Value → degrees via a linear map. */
-function BindingEditor({ body }: { body: AssemblyBody }) {
-  const assembly = useAssemblyDoc()
-  const { setBodyBinding } = useAssemblyActions()
+type SignalOption = { value: string; label: string }
+
+/** Every drivable simulator signal: a servo's angle or a custom-DSL signal. */
+function useSignalOptions(): SignalOption[] {
   const components = useBoardSelector((ctx) => ctx.components)
-  if (!body.joint) return null
-
-  const binding = assembly.bindings.find((b) => b.bodyId === body.id)
-
-  const options: { value: string; label: string }[] = []
+  const options: SignalOption[] = []
   for (const component of Object.values(components)) {
     const name = component.name ?? component.type
     if (component.type === "servo") {
@@ -195,6 +210,31 @@ function BindingEditor({ body }: { body: AssemblyBody }) {
       }
     }
   }
+  return options
+}
+
+/** A signal picker + linear map for one binding channel of a body. */
+function BindingRow({
+  body,
+  channel,
+  title,
+  unitHint,
+}: {
+  body: AssemblyBody
+  channel: AssemblyBinding["channel"]
+  title: string
+  unitHint: string
+}) {
+  const assembly = useAssemblyDoc()
+  const { setBodyBinding, clearBodyBinding } = useAssemblyActions()
+  const options = useSignalOptions()
+  const group = channel === "emissive" ? "emissive" : "joint"
+
+  const binding = assembly.bindings.find(
+    (b) =>
+      b.bodyId === body.id &&
+      (group === "emissive" ? b.channel === "emissive" : b.channel !== "emissive"),
+  )
   if (options.length === 0 && !binding) return null
 
   const current = binding ? `${binding.componentId}:${binding.signal}` : ""
@@ -202,25 +242,25 @@ function BindingEditor({ body }: { body: AssemblyBody }) {
   return (
     <div className="space-y-2">
       <label className="block space-y-1">
-        <span className="text-xs text-muted-foreground">Driven by signal</span>
+        <span className="text-xs text-muted-foreground">{title}</span>
         <select
           className="w-full rounded-md border border-border bg-background px-2 py-1 text-xs"
           value={current}
           onChange={(e) => {
             const value = e.target.value
             if (!value) {
-              setBodyBinding(body.id, null)
+              clearBodyBinding(body.id, group)
               return
             }
             const separator = value.indexOf(":")
             const componentId = value.slice(0, separator)
             const signal = value.slice(separator + 1)
-            setBodyBinding(body.id, {
-              id: `bind_${body.id}`,
+            setBodyBinding({
+              id: `bind_${body.id}_${group}`,
               componentId,
               signal,
               bodyId: body.id,
-              channel: "rotate",
+              channel,
               map: binding?.map ?? { scale: 1, offset: 0 },
             })
           }}
@@ -235,21 +275,18 @@ function BindingEditor({ body }: { body: AssemblyBody }) {
       </label>
       {binding && (
         <div className="space-y-1">
-          <span className="text-xs text-muted-foreground">degrees = value × scale + offset</span>
+          <span className="text-xs text-muted-foreground">{unitHint}</span>
           <div className="flex gap-1">
             {(["scale", "offset"] as const).map((key) => (
               <Input
-                key={`${body.id}-${key}-${binding.map[key]}`}
+                key={`${body.id}-${channel}-${key}-${binding.map[key]}`}
                 type="number"
                 className="h-7 text-xs"
                 defaultValue={binding.map[key]}
                 onBlur={(e) => {
                   const value = Number(e.target.value)
                   if (Number.isNaN(value)) return
-                  setBodyBinding(body.id, {
-                    ...binding,
-                    map: { ...binding.map, [key]: value },
-                  })
+                  setBodyBinding({ ...binding, map: { ...binding.map, [key]: value } })
                 }}
               />
             ))}
@@ -257,6 +294,47 @@ function BindingEditor({ body }: { body: AssemblyBody }) {
         </div>
       )}
     </div>
+  )
+}
+
+/** Joint + emissive bindings for the selected body. */
+function BindingEditor({ body }: { body: AssemblyBody }) {
+  const jointChannel = body.joint?.kind === "slide" ? "slide" : "rotate"
+  const jointUnit =
+    jointChannel === "slide" ? "mm = value × scale + offset" : "degrees = value × scale + offset"
+  return (
+    <div className="space-y-3">
+      {body.joint && (
+        <BindingRow
+          body={body}
+          channel={jointChannel}
+          title="Joint driven by signal"
+          unitHint={jointUnit}
+        />
+      )}
+      <BindingRow
+        body={body}
+        channel="emissive"
+        title="Glow driven by signal"
+        unitHint="intensity 0–1 = value × scale + offset"
+      />
+    </div>
+  )
+}
+
+/** Loop baked GLB clips (does nothing for STL bodies or files with no clips). */
+function AnimationsEditor({ body }: { body: AssemblyBody }) {
+  const { updateBody } = useAssemblyActions()
+  if (body.format !== "glb") return null
+  return (
+    <label className="flex items-center gap-2 text-xs text-muted-foreground">
+      <input
+        type="checkbox"
+        checked={body.playAnimations ?? false}
+        onChange={(e) => updateBody(body.id, { playAnimations: e.target.checked })}
+      />
+      Play baked animation clips
+    </label>
   )
 }
 
@@ -365,6 +443,7 @@ export function AssemblyPanel() {
 
           <JointEditor body={selected} />
           <BindingEditor body={selected} />
+          <AnimationsEditor body={selected} />
 
           <div className="flex justify-end">
             <Button

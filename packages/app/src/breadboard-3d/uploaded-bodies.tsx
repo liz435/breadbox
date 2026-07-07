@@ -9,15 +9,19 @@
 import { Component, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react"
 import type { ReactNode } from "react"
 import { createPortal, useLoader } from "@react-three/fiber"
+import { AnimationMixer, Mesh, MeshStandardMaterial } from "three"
 import type { Group, Object3D } from "three"
-import { GLTFLoader, STLLoader } from "three-stdlib"
+import { GLTFLoader, STLLoader, SkeletonUtils } from "three-stdlib"
 import { API_ORIGIN } from "@dreamer/config"
+import { scaleToVec3 } from "@dreamer/schemas"
 import type { AssemblyBody, Vec3 } from "@dreamer/schemas"
 import { useAssemblyDoc } from "./use-assembly"
 import {
   getPartNodes,
   getRegistryVersion,
   registerBodyJoint,
+  registerBodyMaterials,
+  registerBodyMixer,
   registerBodyRoot,
   subscribeRegistry,
 } from "./scene-registry"
@@ -39,25 +43,101 @@ class ModelErrorBoundary extends Component<{ children: ReactNode }, { failed: bo
   }
 }
 
-function StlModel({ url }: { url: string }) {
-  const geometry = useLoader(STLLoader, url)
-  return (
-    <mesh geometry={geometry}>
-      <meshStandardMaterial color="#90a4ae" roughness={0.6} />
-    </mesh>
-  )
+/**
+ * Give every mesh under `root` its own MeshStandardMaterial instance and
+ * collect them — the targets for `emissive` signal bindings. Materials whose
+ * emissive is unset get their base color as the glow color, so a bound body
+ * lights up in its own color.
+ */
+function claimMaterials(root: Object3D): MeshStandardMaterial[] {
+  const materials: MeshStandardMaterial[] = []
+  root.traverse((object) => {
+    if (!(object instanceof Mesh)) return
+    const source = Array.isArray(object.material) ? object.material : [object.material]
+    const cloned = source.map((material) => {
+      if (!(material instanceof MeshStandardMaterial)) return material
+      const own = material.clone()
+      if (own.emissive.getHex() === 0) {
+        own.emissive.copy(own.color)
+        own.emissiveIntensity = 0
+      }
+      materials.push(own)
+      return own
+    })
+    object.material = Array.isArray(object.material) ? cloned : cloned[0]
+  })
+  return materials
 }
 
-function GlbModel({ url, node }: { url: string; node?: string }) {
+function StlModel({ bodyId, url }: { bodyId: string; url: string }) {
+  const geometry = useLoader(STLLoader, url)
+  const material = useMemo(
+    () =>
+      new MeshStandardMaterial({
+        color: "#90a4ae",
+        emissive: "#90a4ae",
+        emissiveIntensity: 0,
+        roughness: 0.6,
+      }),
+    [],
+  )
+  useLayoutEffect(
+    () => registerBodyMaterials(bodyId, [material]),
+    [bodyId, material],
+  )
+  return <mesh geometry={geometry} material={material} />
+}
+
+function GlbModel({
+  bodyId,
+  url,
+  node,
+  playAnimations,
+}: {
+  bodyId: string
+  url: string
+  node?: string
+  playAnimations?: boolean
+}) {
   const gltf = useLoader(GLTFLoader, url)
   // Clone so several bodies can reference the same cached file (or different
-  // nodes of it) without fighting over one Object3D instance.
-  const object = useMemo(() => {
+  // nodes of it) without fighting over one Object3D instance. SkeletonUtils
+  // keeps skinned meshes (rigged models) intact where Object3D.clone breaks
+  // their bone bindings.
+  const build = useMemo(() => {
     const source = node ? gltf.scene.getObjectByName(node) : gltf.scene
-    return source ? source.clone(true) : null
+    if (!source) return null
+    const object = SkeletonUtils.clone(source)
+    return { object, materials: claimMaterials(object) }
   }, [gltf, node])
-  if (!object) return null
-  return <primitive object={object} />
+
+  useLayoutEffect(() => {
+    if (!build) return
+    return registerBodyMaterials(bodyId, build.materials)
+  }, [bodyId, build])
+
+  // Baked animation clips: loop them all through one mixer. The frame loop
+  // advances it only while the body's playAnimations flag is on.
+  useLayoutEffect(() => {
+    if (!build || !playAnimations || gltf.animations.length === 0) return
+    const mixer = new AnimationMixer(build.object)
+    for (const clip of gltf.animations) mixer.clipAction(clip).play()
+    const unregister = registerBodyMixer(bodyId, mixer)
+    return () => {
+      mixer.stopAllAction()
+      unregister()
+    }
+  }, [bodyId, build, gltf.animations, playAnimations])
+
+  if (!build) return null
+  return <primitive object={build.object} />
+}
+
+/** Does the body's GLB file carry baked animation clips? Rendered inside the
+ * loader Suspense, so it reads the cached parse result. */
+export function useGlbHasAnimations(url: string): boolean {
+  const gltf = useLoader(GLTFLoader, url)
+  return gltf.animations.length > 0
 }
 
 /** Import normalisation: unit fix-up and z-up → y-up, applied inside the
@@ -69,14 +149,23 @@ function BodyModel({ body }: { body: AssemblyBody }) {
   return (
     <group rotation={upFix} scale={body.importScale}>
       <ModelErrorBoundary>
-        {body.format === "stl" ? <StlModel url={url} /> : <GlbModel url={url} node={body.node} />}
+        {body.format === "stl" ? (
+          <StlModel bodyId={body.id} url={url} />
+        ) : (
+          <GlbModel
+            bodyId={body.id}
+            url={url}
+            node={body.node}
+            playAnimations={body.playAnimations}
+          />
+        )}
       </ModelErrorBoundary>
     </group>
   )
 }
 
-/** Pivot sandwich: rotate `children` around `pivot` via the registered joint
- * group (the signal loop writes the rotation imperatively). */
+/** Pivot sandwich: move `children` around `pivot` via the registered joint
+ * group (the signal loop writes the rotation/translation imperatively). */
 function JointGroup({
   bodyId,
   pivot,
@@ -127,7 +216,7 @@ function BodyNode({
       name={`assembly-body-${body.id}`}
       position={body.transform.position}
       rotation={body.transform.rotation}
-      scale={body.transform.scale}
+      scale={scaleToVec3(body.transform.scale)}
       onClick={(event) => {
         event.stopPropagation()
         select(body.id)

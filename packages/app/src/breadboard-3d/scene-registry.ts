@@ -10,7 +10,7 @@
 // (e.g. parenting an uploaded body onto a servo horn via portal) can react
 // when a target node appears or disappears.
 
-import type { Object3D, MeshStandardMaterial } from "three"
+import type { AnimationMixer, Object3D, MeshStandardMaterial } from "three"
 
 export type PartSceneNodes = {
   /** The component's root group — mount point for bodies parented on the part itself. */
@@ -85,7 +85,7 @@ export function getBodyRoot(bodyId: string): Object3D | undefined {
   return bodyRoots.get(bodyId)
 }
 
-/** Joint group of an uploaded assembly body (rotated by signal bindings). */
+/** Joint group of an uploaded assembly body (moved by signal bindings). */
 export function registerBodyJoint(bodyId: string, node: Object3D): () => void {
   jointNodes.set(bodyId, node)
   notify()
@@ -99,4 +99,46 @@ export function registerBodyJoint(bodyId: string, node: Object3D): () => void {
 
 export function getBodyJoint(bodyId: string): Object3D | undefined {
   return jointNodes.get(bodyId)
+}
+
+/** Materials of an uploaded body's meshes — targets for `emissive` bindings.
+ * Bodies register per-instance clones, so lighting one body never leaks into
+ * another body sharing the same cached model file. */
+const bodyMaterials = new Map<string, MeshStandardMaterial[]>()
+
+export function registerBodyMaterials(
+  bodyId: string,
+  materials: MeshStandardMaterial[],
+): () => void {
+  bodyMaterials.set(bodyId, materials)
+  notify()
+  return () => {
+    if (bodyMaterials.get(bodyId) === materials) {
+      bodyMaterials.delete(bodyId)
+      notify()
+    }
+  }
+}
+
+export function getBodyMaterials(bodyId: string): MeshStandardMaterial[] | undefined {
+  return bodyMaterials.get(bodyId)
+}
+
+/** Mixer looping a GLB's baked animation clips (advanced by the frame loop
+ * while the body's `playAnimations` flag is on). */
+const bodyMixers = new Map<string, AnimationMixer>()
+
+export function registerBodyMixer(bodyId: string, mixer: AnimationMixer): () => void {
+  bodyMixers.set(bodyId, mixer)
+  notify()
+  return () => {
+    if (bodyMixers.get(bodyId) === mixer) {
+      bodyMixers.delete(bodyId)
+      notify()
+    }
+  }
+}
+
+export function getBodyMixer(bodyId: string): AnimationMixer | undefined {
+  return bodyMixers.get(bodyId)
 }
