@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
-import { BookOpen, Bug, Blocks, LayoutDashboard, type LucideIcon } from "lucide-react"
+import { BookOpen, Bug, Box, Square, type LucideIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { useDockviewApi } from "@/store/dockview-context"
@@ -25,9 +25,9 @@ const TOOL_ACTIVE =
   "bg-primary text-primary-foreground shadow-sm shadow-primary/40 hover:bg-primary/90 hover:text-primary-foreground"
 
 const MODE_ICONS: Record<WorkspaceMode, LucideIcon> = {
-  build: Blocks,
+  "2d": Square,
+  "3d": Box,
   debug: Bug,
-  freeform: LayoutDashboard,
 }
 
 export function EditToolbar() {
@@ -37,8 +37,8 @@ export function EditToolbar() {
   const serialUnread = useSerialUnread()
   const [saveFlash, setSaveFlash] = useState(false)
 
-  // Flash the Build button green on save (Build owns the project/components
-  // panel, so it's the natural anchor for the save cue).
+  // Flash the 2D button green on save (2D owns the project/components panel,
+  // so it's the natural anchor for the save cue).
   useEffect(() => {
     return onSaveFlash(() => {
       setSaveFlash(true)
@@ -81,7 +81,7 @@ export function EditToolbar() {
                       TOOL_BTN,
                       "relative rounded-xl",
                       active && TOOL_ACTIVE,
-                      m.id === "build" && saveFlash && "bg-emerald-500/30 text-emerald-500",
+                      m.id === "2d" && saveFlash && "bg-emerald-500/30 text-emerald-500",
                     )}
                   />
                 }

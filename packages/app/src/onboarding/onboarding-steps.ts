@@ -33,7 +33,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
     id: "modes",
     anchor: "modes",
     title: "Workspace modes",
-    body: "Switch between Build, Debug, and Freeform. Each rearranges the panels for the task at hand — you're in Build now, which is where you wire circuits and write code.",
+    body: "Switch between 2D, 3D, and Debug. Each rearranges the panels for the task at hand — you're in 2D now, which is where you wire circuits and write code.",
   },
   {
     id: "components",

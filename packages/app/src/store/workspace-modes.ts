@@ -4,9 +4,9 @@
 // layout always matches what you're doing. Switching a mode opens that mode's
 // tab set and closes the rest:
 //
-//   • build     — Components, Canvas, Sketch/Libraries, Schematic, Inspector
-//   • debug     — Breadboard/Serial, Sketch, Pin Inspector/Debugger
-//   • freeform  — every panel at once by default, then remembers your layout
+//   • 2d     — 2D breadboard canvas, components, sketch/libraries, schematic & inspector
+//   • 3d     — 3D breadboard canvas, components, sketch/libraries & inspector
+//   • debug  — breadboard/serial, sketch, pin inspector & debugger
 //
 // The mode buttons live in edit-toolbar.tsx. This module owns the (persisted)
 // mode state and the layout transform applied on each switch. Panel metadata
@@ -17,7 +17,7 @@ import { useSyncExternalStore } from "react"
 import type { DockviewApi, IDockviewPanel } from "dockview-react"
 import { VIEW_PANELS, type ViewPanelDirection } from "./view-panels"
 
-export type WorkspaceMode = "build" | "debug" | "freeform"
+export type WorkspaceMode = "2d" | "3d" | "debug"
 
 export type WorkspaceModeMeta = {
   id: WorkspaceMode
@@ -28,19 +28,19 @@ export type WorkspaceModeMeta = {
 // Order here is the order the mode buttons render in the toolbar.
 export const WORKSPACE_MODES: WorkspaceModeMeta[] = [
   {
-    id: "build",
-    label: "Build",
-    hint: "Components, canvas, sketch/libraries, schematic & inspector",
+    id: "2d",
+    label: "2D",
+    hint: "2D breadboard, components, sketch/libraries, schematic & inspector",
+  },
+  {
+    id: "3d",
+    label: "3D",
+    hint: "3D breadboard, components, sketch/libraries & inspector",
   },
   {
     id: "debug",
     label: "Debug",
     hint: "Breadboard/serial, sketch, pin inspector & debugger",
-  },
-  {
-    id: "freeform",
-    label: "Freeform",
-    hint: "Open and arrange any tabs — remembers your layout",
   },
 ]
 
@@ -61,13 +61,12 @@ type ModeSpec = {
   panels: ModePanel[]
 }
 
-// Structured modes only — freeform has no fixed spec.
-const MODE_SPECS: Record<Exclude<WorkspaceMode, "freeform">, ModeSpec> = {
-  build: {
-    primary: "sketchEditor",
-    // Breadboard is the root (it's in every structured mode, so it persists
-    // across switches and never gets re-added into the active group). Project
-    // Files anchors to its left so the two always stay separate columns.
+const MODE_SPECS: Record<WorkspaceMode, ModeSpec> = {
+  // 2D breadboard canvas is the root and the focused panel. Project Files
+  // anchors to its left; Sketch/Libraries and the Schematic+Inspector column
+  // sit to its right.
+  "2d": {
+    primary: "breadboard",
     panels: [
       { id: "breadboard" },
       { id: "projectFiles", position: { referenceId: "breadboard", direction: "left" } },
@@ -75,6 +74,19 @@ const MODE_SPECS: Record<Exclude<WorkspaceMode, "freeform">, ModeSpec> = {
       { id: "libraryManager", position: { referenceId: "sketchEditor", direction: "within" } },
       { id: "schematic", position: { referenceId: "sketchEditor", direction: "right" } },
       { id: "inspector", position: { referenceId: "schematic", direction: "below" } },
+    ],
+  },
+  // Same shell as 2D but with the 3D breadboard as the root/focused canvas.
+  // No Schematic here — it's a 2D artifact; the right column is Sketch over
+  // Inspector so you keep code + component details next to the 3D view.
+  "3d": {
+    primary: "breadboard3d",
+    panels: [
+      { id: "breadboard3d" },
+      { id: "projectFiles", position: { referenceId: "breadboard3d", direction: "left" } },
+      { id: "sketchEditor", position: { referenceId: "breadboard3d", direction: "right" } },
+      { id: "libraryManager", position: { referenceId: "sketchEditor", direction: "within" } },
+      { id: "inspector", position: { referenceId: "sketchEditor", direction: "below" } },
     ],
   },
   // Left column: Breadboard over Serial Monitor. Middle: Sketch, full height.
@@ -91,26 +103,6 @@ const MODE_SPECS: Record<Exclude<WorkspaceMode, "freeform">, ModeSpec> = {
       { id: "serialMonitor", position: { referenceId: "breadboard", direction: "below" } },
     ],
   },
-}
-
-// Freeform's first-run starting point: every working panel on screen at once.
-// Four columns built left→right, then the outer two split vertically and the
-// tabbed groups raise their default tab:
-//   Project Files | Breadboard / Serial | Sketch+Libraries | (Inspector+Schematic) / (Pin Inspector+Debugger+Diagram)
-const FREEFORM_DEFAULT: ModeSpec = {
-  primary: "breadboard",
-  panels: [
-    { id: "breadboard" },
-    { id: "projectFiles", position: { referenceId: "breadboard", direction: "left" } },
-    { id: "sketchEditor", position: { referenceId: "breadboard", direction: "right" }, active: true },
-    { id: "libraryManager", position: { referenceId: "sketchEditor", direction: "within" } },
-    { id: "inspector", position: { referenceId: "sketchEditor", direction: "right" }, active: true },
-    { id: "schematic", position: { referenceId: "inspector", direction: "within" } },
-    { id: "pinInspector", position: { referenceId: "inspector", direction: "below" }, active: true },
-    { id: "debugger", position: { referenceId: "pinInspector", direction: "within" } },
-    { id: "diagram", position: { referenceId: "pinInspector", direction: "within" } },
-    { id: "serialMonitor", position: { referenceId: "breadboard", direction: "below" } },
-  ],
 }
 
 /** Which modes show the Serial Monitor — used to clear the unread serial dot. */
@@ -158,39 +150,17 @@ function buildModeLayout(api: DockviewApi, spec: ModeSpec): void {
   api.getPanel(spec.primary)?.api.setActive()
 }
 
-/** Freeform's starting layout when there's no saved arrangement yet. Cleared
- *  and rebuilt from scratch so the result is exact regardless of the mode we
- *  came from (buildModeLayout alone leaves shared panels in their old spots).
- *  Once the user rearranges and leaves freeform, their snapshot takes over. */
-function buildFreeformDefault(api: DockviewApi): void {
-  api.clear()
-  buildModeLayout(api, FREEFORM_DEFAULT)
-
-  // Approximate the four-column proportions; vertical splits keep Dockview's
-  // default ~50/50. The user can resize freely — freeform remembers it.
-  const w = api.width
-  api.getPanel("projectFiles")?.api.setSize({ width: w * 0.15 })
-  api.getPanel("breadboard")?.api.setSize({ width: w * 0.34 })
-  api.getPanel("sketchEditor")?.api.setSize({ width: w * 0.26 })
-  api.getPanel("inspector")?.api.setSize({ width: w * 0.25 })
-}
-
 // ── Persisted mode state ─────────────────────────────────────────────────
 
 const MODE_KEY = "dreamer:workspace-mode"
-// Suffix bumped (v2) so pre-default snapshots are ignored and the new freeform
-// default shows on next entry.
-const FREEFORM_KEY = "dreamer:workspace-freeform-layout-v2"
-
-type LayoutJSON = ReturnType<DockviewApi["toJSON"]>
 
 function isWorkspaceMode(value: string | null): value is WorkspaceMode {
-  return value === "build" || value === "debug" || value === "freeform"
+  return value === "2d" || value === "3d" || value === "debug"
 }
 
 function readStoredMode(): WorkspaceMode {
   const raw = localStorage.getItem(MODE_KEY)
-  return isWorkspaceMode(raw) ? raw : "build"
+  return isWorkspaceMode(raw) ? raw : "2d"
 }
 
 let currentMode: WorkspaceMode = readStoredMode()
@@ -219,64 +189,19 @@ function setStoredMode(mode: WorkspaceMode): void {
   for (const fn of listeners) fn()
 }
 
-function saveFreeformLayout(api: DockviewApi): void {
-  try {
-    localStorage.setItem(FREEFORM_KEY, JSON.stringify(api.toJSON()))
-  } catch {
-    /* ignore quota / serialization failures — freeform just won't be restored */
-  }
-}
-
-function readFreeformLayout(): LayoutJSON | null {
-  const raw = localStorage.getItem(FREEFORM_KEY)
-  if (!raw) return null
-  try {
-    return JSON.parse(raw) as LayoutJSON
-  } catch {
-    return null
-  }
-}
-
 /**
  * Switch to `target` and reshape the Dockview layout to match.
  *
- * Structured modes (build/debug) enforce their exact tab set, opening
- * their panels and closing everything else while keeping the size of any panel
- * shared with the previous mode. Re-selecting the active structured mode rebuilds
- * its default layout (a handy "reset this view" affordance).
- *
- * Freeform restores your last freeform arrangement if there is one; on the
- * first visit it builds a default "everything open" layout instead. Leaving
- * freeform snapshots it first, so the next visit comes back to the same place.
+ * Every mode enforces its exact tab set, opening its panels and closing
+ * everything else while keeping the size of any panel shared with the previous
+ * mode. Re-selecting the active mode rebuilds its default layout (a handy
+ * "reset this view" affordance).
  */
 export function applyWorkspaceMode(
   api: DockviewApi | null,
   target: WorkspaceMode,
 ): void {
   if (!api) return
-  // Re-clicking freeform is a no-op (don't clobber unsaved freeform edits with
-  // the older snapshot). Re-clicking a structured mode rebuilds it.
-  if (target === currentMode && target === "freeform") return
-
-  // Snapshot freeform as we leave it so re-entering restores the arrangement.
-  if (currentMode === "freeform" && target !== "freeform") {
-    saveFreeformLayout(api)
-  }
-
-  if (target === "freeform") {
-    const saved = readFreeformLayout()
-    if (saved) {
-      try {
-        api.fromJSON(saved)
-      } catch {
-        buildFreeformDefault(api) // corrupt snapshot → fall back to the default
-      }
-    } else {
-      buildFreeformDefault(api) // first visit → lay out every panel at once
-    }
-  } else {
-    buildModeLayout(api, MODE_SPECS[target])
-  }
-
+  buildModeLayout(api, MODE_SPECS[target])
   setStoredMode(target)
 }
