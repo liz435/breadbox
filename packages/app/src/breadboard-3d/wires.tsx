@@ -17,6 +17,7 @@ import {
   type ArduinoPinInfo,
 } from "@/breadboard/breadboard-grid"
 import { ARDUINO_HEADER_TOP_Y, BOARD_SURFACE_Y, pixelToWorld } from "./layout"
+import { distanceToSegment, partObstacles, type PartObstacle } from "./part-obstacles"
 
 /** 22 AWG jumper insulation is ~1.6 mm across. */
 const WIRE_RADIUS_MM = 0.8
@@ -63,14 +64,42 @@ function toEndpoint(wire: Wire): Vector3 {
   return new Vector3(world.x, BOARD_SURFACE_Y, world.z)
 }
 
-function buildCurve(wire: Wire, arduinoPins: ArduinoPinInfo[]): CubicBezierCurve3 | null {
+/** A cubic hop whose control points sit at 3/8 weight, so the apex at t=0.5 is
+ * `avgEndpointY + 0.75·rise`. Used to solve the rise needed to clear a height. */
+const APEX_RISE_WEIGHT = 0.75
+/** Vertical gap kept between the wire's apex and the part it passes over (mm). */
+const WIRE_CLEARANCE_MM = 3
+/** Extra horizontal margin around a part before a wire counts as "over" it. */
+const WIRE_SIDE_MARGIN_MM = 1.5
+
+function buildCurve(
+  wire: Wire,
+  arduinoPins: ArduinoPinInfo[],
+  obstacles: PartObstacle[],
+): CubicBezierCurve3 | null {
   const start = fromEndpoint(wire, arduinoPins)
   if (!start) return null
   const end = toEndpoint(wire)
   const span = start.distanceTo(end)
   // Short on-board jumpers hop low; cross-board runs rise higher. The
   // per-wire jitter keeps side-by-side wires from occupying the same arc.
-  const rise = Math.min(26, 6 + span * 0.18) + idJitter(wire.id) * 5
+  let rise = Math.min(26, 6 + span * 0.18) + idJitter(wire.id) * 5
+
+  // Lift the arc over the tallest part beneath its horizontal segment so the
+  // jumper humps over components instead of passing through them.
+  let tallest = 0
+  for (const obstacle of obstacles) {
+    const distance = distanceToSegment(obstacle.x, obstacle.z, start.x, start.z, end.x, end.z)
+    if (distance <= obstacle.radius + WIRE_SIDE_MARGIN_MM) {
+      tallest = Math.max(tallest, obstacle.topY)
+    }
+  }
+  if (tallest > 0) {
+    const avgEndpointY = (start.y + end.y) / 2
+    const neededRise = (tallest + WIRE_CLEARANCE_MM - avgEndpointY) / APEX_RISE_WEIGHT
+    rise = Math.max(rise, neededRise)
+  }
+
   const control1 = start.clone()
   control1.y += rise
   const control2 = end.clone()
@@ -81,11 +110,16 @@ function buildCurve(wire: Wire, arduinoPins: ArduinoPinInfo[]): CubicBezierCurve
 const WireTube = memo(function WireTube({
   wire,
   arduinoPins,
+  obstacles,
 }: {
   wire: Wire
   arduinoPins: ArduinoPinInfo[]
+  obstacles: PartObstacle[]
 }) {
-  const curve = useMemo(() => buildCurve(wire, arduinoPins), [wire, arduinoPins])
+  const curve = useMemo(
+    () => buildCurve(wire, arduinoPins, obstacles),
+    [wire, arduinoPins, obstacles],
+  )
   if (!curve) return null
   return (
     <mesh>
@@ -98,11 +132,13 @@ const WireTube = memo(function WireTube({
 export function Wires() {
   const wires = useBoardSelector((ctx) => ctx.wires)
   const boardTarget = useBoardSelector((ctx) => ctx.boardTarget)
+  const components = useBoardSelector((ctx) => ctx.components)
   const arduinoPins = getBoardPinLayout(boardTarget).allPins
+  const obstacles = useMemo(() => partObstacles(components), [components])
   return (
     <group name="wires-3d">
       {Object.values(wires).map((wire) => (
-        <WireTube key={wire.id} wire={wire} arduinoPins={arduinoPins} />
+        <WireTube key={wire.id} wire={wire} arduinoPins={arduinoPins} obstacles={obstacles} />
       ))}
     </group>
   )
