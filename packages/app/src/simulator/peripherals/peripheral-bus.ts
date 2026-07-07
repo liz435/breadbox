@@ -19,6 +19,7 @@ import type {
   TwiSlaveHandler,
 } from "./types"
 import { getCustomDef } from "@/components/catalog/custom-store"
+import { isStrictHardwareEnabled } from "../strict-hardware-flag"
 import { createServoPeripheral } from "./servo"
 import { createBuzzerPeripheral } from "./buzzer"
 import { createLcdPeripheral } from "./lcd"
@@ -95,8 +96,13 @@ export class PeripheralBus {
 
   // ── TWI demux state ────────────────────────────────────────────────────
   private twi: AVRTWI | null = null
-  private slavesByAddr = new Map<number, TwiSlaveHandler>()
-  private currentSlave: TwiSlaveHandler | null = null
+  /** All handlers per 7-bit address. >1 entry = an address collision, which
+   *  strict hardware mode simulates (wired-AND bus corruption) instead of
+   *  refusing to attach. */
+  private slavesByAddr = new Map<number, TwiSlaveHandler[]>()
+  private currentSlaves: TwiSlaveHandler[] = []
+  /** Addresses with more than one device attached (strict mode only). */
+  private collidedAddresses = new Set<number>()
 
   /** Re-create peripherals from the current board state. Call on sim start. */
   attachBoard(input: PeripheralBoardInput): void {
@@ -169,7 +175,8 @@ export class PeripheralBus {
     this.scheduledEdges = []
     this.boardPinStore = null
     this.slavesByAddr.clear()
-    this.currentSlave = null
+    this.currentSlaves = []
+    this.collidedAddresses.clear()
     this.twi = null
     this.lastSimMs = 0
   }
@@ -180,6 +187,12 @@ export class PeripheralBus {
    * Register an I²C slave at `slaveAddr` (7-bit). Returns a detach function.
    * Throws if no TWI was passed to attachBoard — peripherals that opt in to
    * I²C only work in AVR mode.
+   *
+   * Address collisions: outside strict hardware mode a second device at the
+   * same address refuses to attach (clear error at sim start). In strict
+   * mode both attach and the bus corrupts realistically — every device at
+   * the address receives writes, and reads are the wired-AND of all
+   * responses (open-drain: any device driving a 0 wins the bit).
    */
   private attachTwi(slaveAddr: number, handler: TwiSlaveHandler): () => void {
     if (!this.twi) {
@@ -188,41 +201,65 @@ export class PeripheralBus {
         `Pass runner.getTwi() into attachBoard (AVR mode only).`,
       )
     }
-    if (this.slavesByAddr.has(slaveAddr)) {
-      throw new Error(
-        `attachTwi(0x${slaveAddr.toString(16)}): another peripheral already owns this I²C address.`,
+    const existing = this.slavesByAddr.get(slaveAddr) ?? []
+    if (existing.length > 0) {
+      if (!isStrictHardwareEnabled()) {
+        throw new Error(
+          `attachTwi(0x${slaveAddr.toString(16)}): another peripheral already owns this I²C address.`,
+        )
+      }
+      this.collidedAddresses.add(slaveAddr)
+      console.warn(
+        `[peripheral-bus] I²C address collision at 0x${slaveAddr.toString(16)} — ` +
+          `strict mode: bus responses are the wired-AND of all devices (corrupted reads).`,
       )
     }
-    this.slavesByAddr.set(slaveAddr, handler)
+    this.slavesByAddr.set(slaveAddr, [...existing, handler])
     return () => {
-      this.slavesByAddr.delete(slaveAddr)
-      if (this.currentSlave === handler) this.currentSlave = null
+      const handlers = (this.slavesByAddr.get(slaveAddr) ?? []).filter((h) => h !== handler)
+      if (handlers.length > 0) this.slavesByAddr.set(slaveAddr, handlers)
+      else this.slavesByAddr.delete(slaveAddr)
+      if (handlers.length < 2) this.collidedAddresses.delete(slaveAddr)
+      this.currentSlaves = this.currentSlaves.filter((h) => h !== handler)
     }
+  }
+
+  /** I²C addresses currently shared by more than one device (strict mode). */
+  get i2cAddressCollisions(): ReadonlyArray<number> {
+    return Array.from(this.collidedAddresses)
   }
 
   private installTwiEventHandler(twi: AVRTWI): void {
     twi.eventHandler = {
-      start: (_repeated) => {
-        this.currentSlave = null
+      start: (repeated) => {
+        // A repeated START keeps the current transaction's slaves selected —
+        // real I²C uses it to switch direction without releasing the bus.
+        // A fresh START clears the selection until the next address byte.
+        if (!repeated) this.currentSlaves = []
         twi.completeStart()
       },
       stop: () => {
-        const slave = this.currentSlave
-        this.currentSlave = null
-        slave?.onStop()
+        const slaves = this.currentSlaves
+        this.currentSlaves = []
+        for (const s of slaves) s.onStop()
         twi.completeStop()
       },
       connectToSlave: (addr, _write) => {
-        const slave = this.slavesByAddr.get(addr) ?? null
-        this.currentSlave = slave
+        const slaves = this.slavesByAddr.get(addr) ?? []
+        this.currentSlaves = [...slaves]
         // ACK if we have a slave at that address, NACK otherwise. Adafruit
         // ignores NACKs on its init burst so this mostly serves correctness
         // for sketches that probe the bus.
-        twi.completeConnect(slave !== null)
+        twi.completeConnect(slaves.length > 0)
       },
       writeByte: (value) => {
-        if (this.currentSlave) {
-          twi.completeWrite(this.currentSlave.onWrite(value))
+        if (this.currentSlaves.length > 0) {
+          // Open-drain ACK: any device pulling SDA low acks the byte.
+          let anyAck = false
+          for (const s of this.currentSlaves) {
+            if (s.onWrite(value)) anyAck = true
+          }
+          twi.completeWrite(anyAck)
         } else {
           // Silent ack so a missing slave at the wrong address doesn't stall
           // the AVR's TWI state machine.
@@ -230,7 +267,11 @@ export class PeripheralBus {
         }
       },
       readByte: (_ack) => {
-        const value = this.currentSlave ? this.currentSlave.onRead() : 0xff
+        // Wired-AND of every responding device: bits driven 0 by ANY device
+        // read as 0. With one device this is just its byte; with a strict-
+        // mode address collision it is the realistic corrupted read.
+        let value = 0xff
+        for (const s of this.currentSlaves) value &= s.onRead()
         twi.completeRead(value)
       },
     }

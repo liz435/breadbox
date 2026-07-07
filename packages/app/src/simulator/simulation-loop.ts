@@ -7,7 +7,14 @@ import React, { useCallback, useEffect, useRef } from "react"
 import { useMachine } from "@xstate/react"
 import { simulationMachine } from "./simulation-machine"
 import { createSketchRunner, type SketchRunner, type SketchRunnerCallbacks } from "./runners"
-import { analyzeCircuit, hasCapacitor, type CircuitAnalysis } from "./circuit-solver"
+import {
+  analyzeCircuit,
+  getTransientSession,
+  hasCapacitor,
+  type CircuitAnalysis,
+} from "./circuit-solver"
+import { isTransientSolverEnabled } from "./transient-flag"
+import { SolverScheduler, publishCircuitRealtimeFactor } from "./solver-scheduler"
 import { snapshotAsPinStates } from "./pin-state-store"
 import { applySensorInputs, resetSensorBuses } from "./sensor-inputs"
 import { RunTokenGate } from "./run-token-gate"
@@ -268,6 +275,20 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
   // (reactive transients need a higher update rate to animate smoothly).
   const lastInlineAtRef = useRef(0)
   const hasReactiveRef = useRef(false)
+  // MCU sim-clock reading (ms) at the last transient analysis. The transient
+  // session advances by the *simulated* elapsed time so the circuit and MCU
+  // share one timeline (the two-clock fix, ROADMAP Phase A).
+  const lastSimMsRef = useRef(0)
+  // Phase B: budgeted scheduler over the shared session + the lockstep
+  // throttle flag it raises when the circuit falls behind the MCU clock.
+  const schedulerRef = useRef<SolverScheduler | null>(null)
+  const throttleMcuRef = useRef(false)
+  function getScheduler(): SolverScheduler {
+    if (!schedulerRef.current) {
+      schedulerRef.current = new SolverScheduler(getTransientSession())
+    }
+    return schedulerRef.current
+  }
 
   /** Run circuit analysis and feed analog voltages into the pin store. */
   function runInlineAnalysis() {
@@ -299,7 +320,9 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     // Real elapsed time since the last analysis, used to step capacitor
     // charge. Clamped so a stall (tab backgrounded, breakpoint) can't make a
     // cap lurch; first frame gets 0 (no step).
-    hasReactiveRef.current = hasCapacitor(ctx.components)
+    hasReactiveRef.current =
+      hasCapacitor(ctx.components) ||
+      Object.values(ctx.components).some((c) => c.type === "inductor")
     const now = performance.now()
     const dtSeconds = lastInlineAtRef.current
       ? Math.min((now - lastInlineAtRef.current) / 1000, 0.25)
@@ -307,13 +330,35 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     lastInlineAtRef.current = now
 
     try {
-      const result = analyzeCircuit(
-        ctx.components,
-        ctx.wires,
-        snapshotAsPinStates(store),
-        shiftRegisterOutputs,
-        { dtSeconds },
-      )
+      let result: CircuitAnalysis
+      if (isTransientSolverEnabled()) {
+        // Robust path (Phase A+B): the scheduler advances the persistent
+        // session toward the MCU's simulated clock within a compute budget.
+        // Circuit physics and sketch share one timeline; if the circuit
+        // can't keep up, throttleMcu pauses the sketch (lockstep) instead
+        // of letting the clocks drift apart.
+        const simMs = runner.getMillis()
+        lastSimMsRef.current = simMs
+        const tick = getScheduler().tick({
+          components: ctx.components,
+          wires: ctx.wires,
+          pinStates: snapshotAsPinStates(store),
+          shiftRegisterOutputs,
+          mcuTimeSeconds: simMs / 1000,
+        })
+        throttleMcuRef.current = tick.throttleMcu
+        publishCircuitRealtimeFactor(tick.realtimeFactor)
+        result = tick.analysis
+      } else {
+        // Legacy operating-point path (education "demo timescale" mode).
+        result = analyzeCircuit(
+          ctx.components,
+          ctx.wires,
+          snapshotAsPinStates(store),
+          shiftRegisterOutputs,
+          { dtSeconds },
+        )
+      }
       analysisResultRef.current = result
 
       if (result.isValid) {
@@ -338,6 +383,14 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
           const arduinoPin = wire.fromCol
           if (!analogPinSet.has(arduinoPin)) continue
           const wireTo = { row: wire.toRow, col: wire.toCol }
+          // Transient path (Phase C): read the exact solved node voltage at
+          // the wire's landing point — what a real ADC probes. Falls back to
+          // the component terminal drop on the legacy path.
+          const nodeVolts = result.nodeVoltageAt?.(wireTo)
+          if (nodeVolts !== null && nodeVolts !== undefined) {
+            store.writeExternal(arduinoPin, { analogValue: voltsToAnalog(nodeVolts) })
+            continue
+          }
           for (const comp of Object.values(ctx.components)) {
             if (isBoardComponentType(comp.type) || comp.type === "wire") continue
             const compState = result.componentStates.get(comp.id)
@@ -389,16 +442,22 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
       // Run circuit analysis every 12 frames (~5 times/sec at 60fps). Boards
       // with a capacitor analyze every 2 frames (~30/sec) so charge/discharge
       // transients animate smoothly instead of snapping. Also run on the very
-      // first frame so analog values are seeded.
+      // first frame so analog values are seeded, and every frame while the
+      // circuit is catching up under the lockstep throttle.
       const interval = hasReactiveRef.current ? 2 : 12
-      if (frameCount === 1 || frameCount % interval === 0) {
+      if (frameCount === 1 || frameCount % interval === 0 || throttleMcuRef.current) {
         runInlineAnalysis()
       }
 
       // Run loop iteration — it may return false if delaying.
       // External digital inputs (button press, etc.) go straight into the
       // PinStateStore via writeExternal() — no per-frame sync loop needed.
-      runner.runLoopIteration()
+      // Lockstep (Phase B): while the circuit is behind the MCU clock, the
+      // MCU waits. Both clocks slow together — honest sub-realtime — rather
+      // than letting analogRead see physics from the past.
+      if (!throttleMcuRef.current) {
+        runner.runLoopIteration()
+      }
 
       // Sync library state (servos, LCD) to board machine
       syncLibraryState()
@@ -447,6 +506,13 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
       const runner = getRunner()
       runner.reset()
       resetSensorBuses()
+      // Fresh run: drop circuit state and re-anchor the shared sim clock
+      // (runner.reset() restarts the MCU clock at 0).
+      schedulerRef.current?.reset()
+      getTransientSession().reset()
+      lastSimMsRef.current = 0
+      throttleMcuRef.current = false
+      publishCircuitRealtimeFactor(null)
 
       const boardCtx = boardActor.getSnapshot().context
       const customLibs = getCustomLibraryMap()
@@ -593,6 +659,13 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     analysisResultRef.current = null
     // Clear sensor input busses so stale values don't leak into the next run.
     resetSensorBuses()
+    // Drop the transient session's circuit state (capacitor charge, inductor
+    // current) so a stopped board doesn't leak charge into the next run.
+    schedulerRef.current?.reset()
+    getTransientSession().reset()
+    lastSimMsRef.current = 0
+    throttleMcuRef.current = false
+    publishCircuitRealtimeFactor(null)
     // Drop debugger run-state (keeps breakpoints for the next run).
     debugStateStore.reset()
     send({ type: "STOP" })

@@ -7,6 +7,7 @@ import { API_ORIGIN } from "@dreamer/config"
 import { useBoard } from "@/store/board-context"
 import { useDockviewApi } from "@/store/dockview-context"
 import type { SimulationActions } from "@/simulator/simulation-loop"
+import { getCircuitRealtimeFactor } from "@/simulator/solver-scheduler"
 import { useBoardConnection } from "@/simulator/use-board-connection"
 import { useElectricalReport } from "@/electrical/power-budget"
 import { cn } from "@/utils/classnames"
@@ -31,16 +32,26 @@ const REALTIME_BADGE_THRESHOLD = 0.9
  * runs a fixed cycle budget per frame with no catch-up, so dropped frames
  * silently slow the MCU — this makes that visible instead of letting users
  * mistake a lagging sim for real-time behavior.
+ *
+ * Two timelines can lag: the MCU (dropped frames) and the circuit solver
+ * (heavy transient integration under the Phase B lockstep). The badge shows
+ * whichever is slower — that is the speed the unified sim actually runs at.
  */
 function useRealtimeFactor(runner: SimulationActions["runner"], isRunning: boolean): number | null {
   const [factor, setFactor] = useState<number | null>(null)
   useEffect(() => {
-    if (!isRunning || !runner?.getRealtimeFactor) {
+    if (!isRunning) {
       setFactor(null)
       return
     }
     const id = setInterval(() => {
-      setFactor(runner.getRealtimeFactor?.() ?? null)
+      const mcu = runner?.getRealtimeFactor?.() ?? null
+      const circuit = getCircuitRealtimeFactor()
+      if (mcu === null && circuit === null) {
+        setFactor(null)
+        return
+      }
+      setFactor(Math.min(mcu ?? 1, circuit ?? 1))
     }, 1000)
     return () => clearInterval(id)
   }, [runner, isRunning])

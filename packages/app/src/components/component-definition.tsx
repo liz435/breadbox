@@ -44,6 +44,12 @@ export type NetlistContext = {
   pinStates: PinState[]
   /** All wires on the board, used by builders that need to trace input pins */
   wires: Record<string, import("@dreamer/schemas").Wire>
+  /**
+   * Emission mode: "op" is the legacy operating-point solve (capacitors as
+   * held V sources); "transient" is the real-physics path (capacitors as C
+   * elements, state integrated by the persistent TransientSession).
+   */
+  mode: "op" | "transient"
 }
 
 export type NetlistOutput = {

@@ -5,6 +5,9 @@ import { LABEL_FONT_SIZE } from "@/breadboard/breadboard-constants";
 import { pinStateStore } from "@/simulator/pin-state-store";
 import { buttonPressStore, useButtonPressed } from "@/simulator/button-press-store";
 import { usePinState } from "@/simulator/use-pin-state";
+import { isStrictHardwareEnabled } from "@/simulator/strict-hardware-flag";
+import { writeWithContactBounce } from "@/simulator/contact-bounce";
+import { simulationRef } from "@/simulator/simulation-ref";
 import { useBoardSelector } from "@/store/board-context";
 import { analyzeButtonWiring } from "@/breadboard/component-pin-resolver";
 import { PinLabel } from "@/breadboard/component-renderers/pin-label";
@@ -49,13 +52,29 @@ function ButtonRendererInner({ component, isSelected }: ButtonRendererProps) {
   const bodyHeight = bottomLeft.y - topLeft.y + 8;
   const capR = Math.min(bodyWidth, bodyHeight) * 0.26;
 
+  // Strict hardware mode: a press/release is a bounce burst, not one clean
+  // edge — scheduled through the running peripheral bus in sim time so
+  // undebounced sketches really do see the chatter.
+  const driveInput = useCallback((pin: number, value: 0 | 1) => {
+    const runner = simulationRef.current?.runner ?? null;
+    if (isStrictHardwareEnabled() && runner) {
+      writeWithContactBounce(pin, value, {
+        bus: runner.getPeripheralBus(),
+        nowSimMs: runner.getMillis(),
+        writeNow: (p, v) => pinStateStore.writeExternal(p, { digitalValue: v }),
+      });
+      return;
+    }
+    pinStateStore.writeExternal(pin, { digitalValue: value });
+  }, []);
+
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     e.stopPropagation();
     buttonPressStore.press(component.id);
     if (canDrivePress && inputPin != null) {
-      pinStateStore.writeExternal(inputPin, { digitalValue: pressedValue });
+      driveInput(inputPin, pressedValue);
     }
-  }, [canDrivePress, component.id, inputPin, pressedValue]);
+  }, [canDrivePress, component.id, driveInput, inputPin, pressedValue]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     e.stopPropagation();
@@ -63,9 +82,9 @@ function ButtonRendererInner({ component, isSelected }: ButtonRendererProps) {
     // Always restore the released state when we know which input this button targets.
     // This clears stale externally-driven values if wiring changed while pressed.
     if (inputPin != null) {
-      pinStateStore.writeExternal(inputPin, { digitalValue: releasedValue });
+      driveInput(inputPin, releasedValue);
     }
-  }, [component.id, inputPin, releasedValue]);
+  }, [component.id, driveInput, inputPin, releasedValue]);
 
   const pins = [topLeft, bottomLeft, topRight, bottomRight];
   const bodyL = centerX - bodyWidth / 2;
