@@ -36,6 +36,7 @@ import {
   DEFAULT_BOARD_TARGET,
   type BoardTarget,
 } from "./board-targets";
+import { createEmptyAssembly } from "./assembly";
 import {
   getArduinoPinFromAnalogIndex,
   getBoardAnalogPins,
@@ -457,6 +458,9 @@ export function diagramToBoardState(
     customLibraries,
     boardTarget,
     environment,
+    // Diagrams don't describe the 3D assembly layer; callers replacing an
+    // existing board should preserve the previous assembly if they want it.
+    assembly: createEmptyAssembly(),
   };
 
   return { ok: true, boardState };

@@ -41,6 +41,11 @@ export type ViewPanel = {
 export const VIEW_PANELS: ViewPanel[] = [
   { id: "breadboard", label: "Breadboard" },
   {
+    id: "breadboard3d",
+    label: "3D Breadboard",
+    defaultPosition: { referencePanel: "breadboard", direction: "within" },
+  },
+  {
     id: "sketchEditor",
     label: "Sketch",
     defaultPosition: { referencePanel: "breadboard", direction: "right" },

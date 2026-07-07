@@ -264,6 +264,23 @@ export {
   type DslBinding,
 } from "./custom-component-dsl";
 export { lintCustomComponentDsl, type DslLintIssue } from "./custom-component-lint";
+export {
+  vec3Schema,
+  assemblyTransformSchema,
+  bodyParentSchema,
+  modelFormatSchema,
+  assemblyBodySchema,
+  assemblyBindingSchema,
+  assemblyDocSchema,
+  createEmptyAssembly,
+  type Vec3,
+  type AssemblyTransform,
+  type BodyParent,
+  type ModelFormat,
+  type AssemblyBody,
+  type AssemblyBinding,
+  type AssemblyDoc,
+} from "./assembly";
 export { evaluateExpression } from "./expr-eval";
 export {
   buildCustomPartPrompt,

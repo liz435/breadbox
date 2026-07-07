@@ -8,6 +8,7 @@ import type {
   BoardTarget,
   Obstacle,
   Environment,
+  AssemblyDoc,
 } from "@dreamer/schemas";
 import { createDefaultBoardState, DEFAULT_BOARD_TARGET, resolveComponentPins } from "@dreamer/schemas";
 import { pinStateStore } from "@/simulator/pin-state-store";
@@ -87,6 +88,7 @@ export type BoardEvent =
   | { type: "UPDATE_OBSTACLE"; id: string; changes: Partial<Obstacle> }
   | { type: "REMOVE_OBSTACLE"; id: string }
   | { type: "UPDATE_ENVIRONMENT"; changes: Partial<Environment> }
+  | { type: "SET_ASSEMBLY"; assembly: AssemblyDoc }
   | { type: "LOAD_BOARD"; state: BoardState }
   | { type: "SNAPSHOT" }
   | { type: "UNDO" }
@@ -131,6 +133,7 @@ function boardData(ctx: BoardMachineContext): BoardState {
     customLibraries: ctx.customLibraries,
     boardTarget: ctx.boardTarget ?? DEFAULT_BOARD_TARGET,
     environment: ctx.environment,
+    assembly: ctx.assembly,
   };
 }
 
@@ -608,6 +611,15 @@ export const boardMachine = setup({
       actions: assign(({ context, event }) => ({
         ...pushHistory(context),
         environment: { ...context.environment, ...event.changes },
+      })),
+    },
+
+    // ── 3D assembly (auto-snapshot) ──
+
+    SET_ASSEMBLY: {
+      actions: assign(({ context, event }) => ({
+        ...pushHistory(context),
+        assembly: event.assembly,
       })),
     },
 

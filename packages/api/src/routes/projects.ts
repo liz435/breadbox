@@ -41,6 +41,7 @@ function mimeToAssetType(mimeType: string, ext: string): Asset["type"] {
   if (mimeType.startsWith("image/") || ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico"].includes(ext)) return "sprite";
   if (mimeType.startsWith("audio/") || ["mp3", "wav", "ogg", "flac", "aac", "m4a", "wma"].includes(ext)) return "audio";
   if (mimeType.startsWith("video/") || ["mp4", "webm", "mov", "avi", "mkv", "m4v"].includes(ext)) return "video";
+  if (mimeType === "model/gltf-binary" || mimeType === "model/stl" || ["glb", "gltf", "stl", "3mf"].includes(ext)) return "model";
   if (["glsl", "wgsl", "frag", "vert", "hlsl"].includes(ext)) return "shader";
   if (["ts", "js", "tsx", "jsx"].includes(ext)) return "script";
   if (["json", "yaml", "yml", "txt", "md"].includes(ext)) return "text";
