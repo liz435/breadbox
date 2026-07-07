@@ -6,7 +6,12 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { z } from "zod"
-import { diagramToolInputSchema, WORKED_EXAMPLE_ACTUATOR } from "@dreamer/schemas"
+import {
+  BREADBOARD_FULL_ROWS,
+  BREADBOARD_TERMINAL_HALF_WIDTH,
+  diagramToolInputSchema,
+  WORKED_EXAMPLE_ACTUATOR,
+} from "@dreamer/schemas"
 import { createLogger } from "@dreamer/api/logger"
 import type { McpSession } from "./context"
 import {
@@ -68,6 +73,10 @@ FACETS — a convincing part usually uses all four:
                                                           (continuous motion, e.g. duty * maxDegPerSec; wrap: 360 for angles)
     { kind: "expr", name, expr: <expr> }                  derived value
   Signal names are identifiers, unique, and must not collide with property names.
+  Signals watch the ARDUINO pin each part pin resolves to through the wiring — parts
+  cannot drive each other's signals. For a multi-part chain (e.g. driver + motor),
+  wire both parts to the same MCU-driven nets so each derives its signals from the
+  same Arduino pin activity.
 - visual.bindings: animate SVG elements from signals. Each binds one element by id:
     { target: "<svg id>", rotate?, originX?, originY?, translateX?, translateY?, scale?, opacity? }
   Values are numbers or expressions over properties + signals. rotate/scale default to
@@ -76,13 +85,29 @@ FACETS — a convincing part usually uses all four:
   Arduino pin wired to that part pin). Emit a minimal working driver for the part so a
   generated sketch demonstrates it — pinMode in setup, motion in loop.
 
+PLACEMENT & WIRING (after saving): place the part with apply_design as
+{ type: "custom:<id>", at: [row, col] }. Pin p occupies grid cell (row + p.dy, col + p.dx).
+The main grid is ${BREADBOARD_FULL_ROWS} rows x ${BREADBOARD_TERMINAL_HALF_WIDTH * 2} cols,
+0-indexed — every pin's cell must land on the board. Cols 0-${BREADBOARD_TERMINAL_HALF_WIDTH - 1}
+of a row are one bus, cols ${BREADBOARD_TERMINAL_HALF_WIDTH}-${BREADBOARD_TERMINAL_HALF_WIDTH * 2 - 1}
+another; pins sharing a bus are already connected, so put pins that must stay isolated on
+separate rows. Wire with endpoints "<componentId>.<pinName>" using your declared pin names.
+Arduino endpoints: "arduino.<n>", "arduino.A<n>", "arduino.D<n>", or "arduino.5V|3V3|GND|VIN|AREF"
+(case-insensitive). Power rails sit beside the grid at cols -1 (left +), -2 (left -),
+${BREADBOARD_TERMINAL_HALF_WIDTH * 2} (right +), ${BREADBOARD_TERMINAL_HALF_WIDTH * 2 + 1} (right -),
+addressed as "grid.<row>,<col>"; each rail splits at row ${BREADBOARD_FULL_ROWS / 2} — its top
+and bottom halves are separate nets.
+
 EXPRESSIONS: sandboxed. Arithmetic + - * / %, comparisons (< > <= >= == !=), parentheses,
 and min, max, abs, clamp, floor, ceil, round, sqrt, pow over properties/signal names.
 No other identifiers or functions.
 
-ART: draw the real component, not a placeholder. Declare a viewBox; layer body, face/
-silkscreen, terminals, and a text label; use gradients for depth; give every animated
-element an id (e.g. a rotor <g>). Detail level to match: ${JSON.stringify(WORKED_EXAMPLE_ACTUATOR.svg)}
+ART: draw the real component, not a placeholder — but keep it economical. SVG length is
+the dominant authoring cost (every path coordinate is generated serially), so DEFAULT to a
+recognizable, modestly detailed drawing (~15-30 elements: body, key face features, terminals,
+a text label) and offer to refine the art afterwards if the user wants more fidelity. Always
+declare a viewBox and give every animated element an id (e.g. a rotor <g>). Only when the
+user explicitly asks for high-fidelity art, match the detail of: ${JSON.stringify(WORKED_EXAMPLE_ACTUATOR.svg)}
 
 WORKED EXAMPLE — a stepper motor whose rotor turns when sketch code pulses STEP:
 ${JSON.stringify(WORKED_EXAMPLE_ACTUATOR)}
