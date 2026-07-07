@@ -264,15 +264,24 @@ export class TransientSession {
  * Matched by element name; new elements start at the parser's zero state.
  */
 function migrateState(from: ParsedCircuit, to: ParsedCircuit): void {
-  const capV = new Map(from.C.map((c) => [c.name, c.vPrev]))
+  // Trapezoidal integration keeps a second history value per reactive
+  // element (capacitor current, inductor voltage) — both halves must move
+  // together or the first post-migration step integrates from a torn pair.
+  const caps = new Map(from.C.map((c) => [c.name, c]))
   for (const c of to.C) {
-    const prev = capV.get(c.name)
-    if (prev !== undefined) c.vPrev = prev
+    const prev = caps.get(c.name)
+    if (prev) {
+      c.vPrev = prev.vPrev
+      c.iPrev = prev.iPrev
+    }
   }
-  const indI = new Map(from.L.map((l) => [l.name, l.iPrev]))
+  const inds = new Map(from.L.map((l) => [l.name, l]))
   for (const l of to.L) {
-    const prev = indI.get(l.name)
-    if (prev !== undefined) l.iPrev = prev
+    const prev = inds.get(l.name)
+    if (prev) {
+      l.iPrev = prev.iPrev
+      l.vPrev = prev.vPrev
+    }
   }
   const diodeV = new Map(from.D.map((d) => [d.name, d.vdPrev]))
   for (const d of to.D) {
