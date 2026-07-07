@@ -35,6 +35,7 @@
 import type { BoardComponent, Wire, Environment } from "@dreamer/schemas"
 import type { PinStateStore } from "./pin-state-store"
 import { irRemoteStore } from "./ir-remote-store"
+import { isTransientSolverEnabled } from "./transient-flag"
 import { findInputPinForComponent, findArduinoPinForComponentPin } from "@/breadboard/component-pin-resolver"
 import {
   sensorRay,
@@ -345,16 +346,24 @@ export function applySensorInputs(
   environment: Environment,
   bus?: import("./peripherals/peripheral-bus").PeripheralBus,
 ): void {
+  // Phase C: with the transient solver on, the potentiometer and the
+  // photoresistor are ELECTRICAL — their netlist elements (divider / light-
+  // dependent resistance) drive the solved node voltage that feeds
+  // analogRead, so wiring mistakes have real consequences. Injection would
+  // overwrite that with a wiring-independent value, so it's skipped. The
+  // non-electrical sensors (temperature, PIR, ultrasonic, DHT, IR) keep the
+  // injection path — their physics isn't in the circuit domain.
+  const electricalSensorsSolved = isTransientSolverEnabled()
   for (const comp of Object.values(components)) {
     switch (comp.type) {
       case "photoresistor":
-        writePhotoresistor(comp, wires, store)
+        if (!electricalSensorsSolved) writePhotoresistor(comp, wires, store)
         break
       case "temperature_sensor":
         writeTemperatureSensor(comp, wires, store)
         break
       case "potentiometer":
-        writePotentiometer(comp, wires, store)
+        if (!electricalSensorsSolved) writePotentiometer(comp, wires, store)
         break
       case "ultrasonic_sensor":
         writeUltrasonic(comp, wires, environment, bus)

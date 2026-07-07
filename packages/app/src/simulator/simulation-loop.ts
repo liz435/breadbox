@@ -383,6 +383,14 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
           const arduinoPin = wire.fromCol
           if (!analogPinSet.has(arduinoPin)) continue
           const wireTo = { row: wire.toRow, col: wire.toCol }
+          // Transient path (Phase C): read the exact solved node voltage at
+          // the wire's landing point — what a real ADC probes. Falls back to
+          // the component terminal drop on the legacy path.
+          const nodeVolts = result.nodeVoltageAt?.(wireTo)
+          if (nodeVolts !== null && nodeVolts !== undefined) {
+            store.writeExternal(arduinoPin, { analogValue: voltsToAnalog(nodeVolts) })
+            continue
+          }
           for (const comp of Object.values(ctx.components)) {
             if (isBoardComponentType(comp.type) || comp.type === "wire") continue
             const compState = result.componentStates.get(comp.id)

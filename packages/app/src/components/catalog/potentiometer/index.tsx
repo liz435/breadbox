@@ -33,10 +33,15 @@ export const potentiometer: ComponentDefinition = {
     // indistinguishable from the end stop at the pot's precision.
     const rawRatio = ((comp.properties.value as number) ?? 50) / 100
     const ratio = Math.max(0.00005, Math.min(0.99995, rawRatio))
+    // Dial convention: value% = fraction of the rail at the wiper, so the
+    // GND-side half carries `ratio` (wiper V = 5 · R_B/(R_A+R_B)) and the
+    // VCC-side half the remainder. Orientation matters on the transient
+    // path, which reads the SOLVED wiper node — the legacy injection path
+    // always overwrote it, which hid this.
     return {
       lines: [
-        `R_${sanitize(comp.id)}_A ${n1} ${n2} ${totalR * ratio}`,
-        `R_${sanitize(comp.id)}_B ${n2} ${n3} ${totalR * (1 - ratio)}`,
+        `R_${sanitize(comp.id)}_A ${n1} ${n2} ${totalR * (1 - ratio)}`,
+        `R_${sanitize(comp.id)}_B ${n2} ${n3} ${totalR * ratio}`,
       ],
       nodeA: n1,
       nodeB: n3,

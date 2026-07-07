@@ -196,6 +196,13 @@ export type CircuitAnalysis = {
   componentStates: Map<string, ComponentElectricalState>
   currentPaths: CurrentPath[]
   warnings: CircuitWarning[]
+  /**
+   * Solved voltage at a breadboard grid point, or null when the point isn't
+   * part of any net. Present on transient-path analyses (ROADMAP Phase C):
+   * lets analogRead be fed the exact node voltage — what a real ADC probes —
+   * instead of a component's terminal drop.
+   */
+  nodeVoltageAt?: (point: { row: number; col: number }) => number | null
 }
 
 export type ComponentElectricalState = {
@@ -488,7 +495,7 @@ export function deriveTransientAnalysis(
   const circuitComponents = Object.values(components).filter(
     (c) => !isBoardComponentType(c.type) && c.type !== "wire",
   )
-  return deriveAnalysis({
+  const analysis = deriveAnalysis({
     circuitComponents,
     netlist: step.netlist,
     componentNodePairs: step.build.componentNodePairs,
@@ -509,6 +516,11 @@ export function deriveTransientAnalysis(
     componentStates: new Map<string, ComponentElectricalState>(),
     currentPaths: [],
   })
+  analysis.nodeVoltageAt = (point) => {
+    const node = step.build.nodeMap.get(`${point.row},${point.col}`)
+    return node === undefined ? null : step.getNodeVoltage(node)
+  }
+  return analysis
 }
 
 // ── Shared solve→analysis derivation ──────────────────────────────────
