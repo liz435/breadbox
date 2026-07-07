@@ -22,6 +22,7 @@ import { customPartsRoutes } from "./routes/custom-parts";
 import { capabilitiesRoutes } from "./routes/capabilities";
 import { authRoutes } from "./routes/auth";
 import { configRoutes } from "./routes/config";
+import { exportRoutes } from "./routes/export";
 import { motionRoutes } from "./routes/motion";
 import { createWebUiStatic } from "./routes/web-ui-static";
 import { stopWorker } from "./serial/serialport-bridge";
@@ -91,6 +92,7 @@ const app = new Elysia()
   .use(requestContextPlugin)
   .use(authRoutes)
   .use(configRoutes)
+  .use(exportRoutes)
   .use(projectRoutes)
   .use(agentRunRoutes)
   .use(chatRoutes)
