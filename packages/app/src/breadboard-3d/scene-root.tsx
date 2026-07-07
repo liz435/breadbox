@@ -7,7 +7,7 @@
 
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from "react"
 import { Canvas, useThree } from "@react-three/fiber"
-import { CameraControls } from "@react-three/drei"
+import { CameraControls, ContactShadows, Environment, Lightformer, RoundedBox } from "@react-three/drei"
 import { Matrix4 } from "three"
 import type { InstancedMesh } from "three"
 import { isBoardComponentType } from "@dreamer/schemas"
@@ -18,6 +18,7 @@ import { UploadedBodies } from "./uploaded-bodies"
 import { TransformGizmo } from "./transform-gizmo"
 import { AnimationDriver } from "./animation-driver"
 import { Wires } from "./wires"
+import { PostEffects } from "./post-effects"
 import { registerExportScene } from "./scene-export"
 import { useEditor } from "./editor-state"
 import {
@@ -169,22 +170,24 @@ function BoardSurfaces() {
     <group name="board-3d">
       <ArduinoBoard />
 
-      {/* Breadboard block */}
+      {/* Breadboard block: rounded body with a recessed centre channel. */}
       <group position={[breadboardCenter.x, 0, breadboardCenter.z]}>
-        <mesh position={[0, BREADBOARD_THICKNESS_MM / 2, 0]}>
-          <boxGeometry
-            args={[
-              pxToMm(BREADBOARD_RECT_PX.width),
-              BREADBOARD_THICKNESS_MM,
-              pxToMm(BREADBOARD_RECT_PX.height),
-            ]}
-          />
-          <meshStandardMaterial color="#efebe2" roughness={0.85} />
-        </mesh>
-        {/* center groove between the two terminal banks */}
-        <mesh position={[0, BREADBOARD_THICKNESS_MM + 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[pxToMm(28), pxToMm(BREADBOARD_RECT_PX.height) * 0.92]} />
-          <meshStandardMaterial color="#d7d2c6" roughness={0.9} />
+        <RoundedBox
+          args={[
+            pxToMm(BREADBOARD_RECT_PX.width),
+            BREADBOARD_THICKNESS_MM,
+            pxToMm(BREADBOARD_RECT_PX.height),
+          ]}
+          radius={1.6}
+          smoothness={4}
+          position={[0, BREADBOARD_THICKNESS_MM / 2, 0]}
+        >
+          <meshStandardMaterial color="#e4dccb" roughness={0.62} metalness={0.02} />
+        </RoundedBox>
+        {/* recessed valley between the two terminal banks (real DIP channel) */}
+        <mesh position={[0, BREADBOARD_THICKNESS_MM - 0.9, 0]}>
+          <boxGeometry args={[pxToMm(12), 1.8, pxToMm(BREADBOARD_RECT_PX.height) * 0.94]} />
+          <meshStandardMaterial color="#b8b1a0" roughness={0.8} />
         </mesh>
       </group>
 
@@ -223,12 +226,29 @@ export function SceneRoot() {
       frameloop="demand"
       dpr={[1, 2]}
       camera={{ position: [40, 140, 160], fov: 40, near: 1, far: 3000 }}
+      gl={{ toneMappingExposure: 1.15 }}
       onPointerMissed={() => select(null)}
     >
-      <color attach="background" args={["#e7e5e4"]} />
-      <hemisphereLight args={["#ffffff", "#8d8478"]} intensity={0.9} />
-      <directionalLight position={[80, 180, 100]} intensity={1.6} />
-      <directionalLight position={[-120, 80, -60]} intensity={0.4} />
+      {/* Dark studio backdrop + a floor a touch darker still, so the board
+          sits in space and its colours read instead of washing out. */}
+      <color attach="background" args={["#232228"]} />
+      <fog attach="fog" args={["#232228", 260, 620]} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.4, 0]}>
+        <planeGeometry args={[1400, 1400]} />
+        <meshStandardMaterial color="#1b1a1f" roughness={1} />
+      </mesh>
+
+      <hemisphereLight args={["#ffffff", "#6b6456"]} intensity={0.5} />
+      <directionalLight position={[80, 180, 100]} intensity={1.5} />
+      <directionalLight position={[-120, 80, -60]} intensity={0.35} />
+      {/* Procedural studio lighting — soft key overhead, warm + cool rims —
+          for real reflections on the metal/plastic parts. No external fetch. */}
+      <Environment resolution={256}>
+        <Lightformer intensity={2.2} position={[0, 60, 0]} scale={[120, 120, 1]} rotation={[Math.PI / 2, 0, 0]} />
+        <Lightformer intensity={1.1} position={[-70, 25, -40]} scale={[50, 50, 1]} color="#ffd9ad" />
+        <Lightformer intensity={0.8} position={[70, 25, 40]} scale={[50, 50, 1]} color="#aecbff" />
+      </Environment>
+
       <BoardSurfaces />
       <Parts />
       <Wires />
@@ -236,9 +256,14 @@ export function SceneRoot() {
       <Suspense fallback={null}>
         <UploadedBodies />
       </Suspense>
+
+      {/* Soft grounding shadow of the board onto the floor. */}
+      <ContactShadows position={[0, 0, 0]} scale={420} resolution={1024} blur={2.6} opacity={0.55} far={80} frames={1} />
+
       <TransformGizmo />
       <AnimationDriver />
       <ExportBridge />
+      <PostEffects />
       <CameraControls makeDefault />
     </Canvas>
   )
