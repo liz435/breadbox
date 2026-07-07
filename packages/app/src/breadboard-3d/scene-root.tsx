@@ -12,6 +12,8 @@ import { isBoardComponentType } from "@dreamer/schemas"
 import { useBoardSelector } from "@/store/board-context"
 import { PartMesh } from "./part-models"
 import { UploadedBodies } from "./uploaded-bodies"
+import { TransformGizmo } from "./transform-gizmo"
+import { useEditor } from "./editor-state"
 import { ARDUINO_RECT_PX, BREADBOARD_RECT_PX, pixelToWorld, pxToMm } from "./layout"
 
 const PCB_THICKNESS_MM = 1.6
@@ -101,11 +103,13 @@ function Parts() {
 }
 
 export function SceneRoot() {
+  const { select } = useEditor()
   return (
     <Canvas
       frameloop="demand"
       dpr={[1, 2]}
       camera={{ position: [40, 140, 160], fov: 40, near: 1, far: 3000 }}
+      onPointerMissed={() => select(null)}
     >
       <color attach="background" args={["#e7e5e4"]} />
       <hemisphereLight args={["#ffffff", "#8d8478"]} intensity={0.9} />
@@ -117,6 +121,7 @@ export function SceneRoot() {
       <Suspense fallback={null}>
         <UploadedBodies />
       </Suspense>
+      <TransformGizmo />
       <CameraControls makeDefault />
     </Canvas>
   )

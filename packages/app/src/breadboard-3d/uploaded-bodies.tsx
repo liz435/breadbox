@@ -18,8 +18,10 @@ import {
   getPartNodes,
   getRegistryVersion,
   registerBodyJoint,
+  registerBodyRoot,
   subscribeRegistry,
 } from "./scene-registry"
+import { useEditor } from "./editor-state"
 
 /** Swallows loader failures (bad file, deleted asset) for a single body so
  * one broken mesh can't blank the whole scene. DOM fallbacks don't render
@@ -105,6 +107,12 @@ function BodyNode({
   body: AssemblyBody
   childrenOf: (id: string) => AssemblyBody[]
 }) {
+  const { select } = useEditor()
+  const rootRef = useRef<Group>(null)
+  useLayoutEffect(() => {
+    if (!rootRef.current) return
+    return registerBodyRoot(body.id, rootRef.current)
+  }, [body.id])
   const content = (
     <>
       <BodyModel body={body} />
@@ -115,10 +123,15 @@ function BodyNode({
   )
   return (
     <group
+      ref={rootRef}
       name={`assembly-body-${body.id}`}
       position={body.transform.position}
       rotation={body.transform.rotation}
       scale={body.transform.scale}
+      onClick={(event) => {
+        event.stopPropagation()
+        select(body.id)
+      }}
     >
       {body.joint ? (
         <JointGroup bodyId={body.id} pivot={body.joint.pivot}>
@@ -132,7 +145,7 @@ function BodyNode({
 }
 
 /** Resolve the Object3D a component-parented body mounts into. */
-function componentTarget(
+export function componentTarget(
   componentId: string,
   node: "body" | "angle" | "spin",
 ): Object3D | undefined {

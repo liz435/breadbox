@@ -67,6 +67,24 @@ export function getPartNodes(componentId: string): PartSceneNodes | undefined {
   return nodes.get(componentId)
 }
 
+/** Transform-root group of an uploaded assembly body (gizmo target). */
+const bodyRoots = new Map<string, Object3D>()
+
+export function registerBodyRoot(bodyId: string, node: Object3D): () => void {
+  bodyRoots.set(bodyId, node)
+  notify()
+  return () => {
+    if (bodyRoots.get(bodyId) === node) {
+      bodyRoots.delete(bodyId)
+      notify()
+    }
+  }
+}
+
+export function getBodyRoot(bodyId: string): Object3D | undefined {
+  return bodyRoots.get(bodyId)
+}
+
 /** Joint group of an uploaded assembly body (rotated by signal bindings). */
 export function registerBodyJoint(bodyId: string, node: Object3D): () => void {
   jointNodes.set(bodyId, node)
