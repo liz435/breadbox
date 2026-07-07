@@ -8,8 +8,9 @@
 import { useSyncExternalStore } from "react"
 import { Euler, Matrix4, Quaternion, Vector3 } from "three"
 import type { AssemblyBody, BodyParent, Vec3 } from "@dreamer/schemas"
-import { isBoardComponentType } from "@dreamer/schemas"
+import { isBoardComponentType, isCustomComponentType } from "@dreamer/schemas"
 import { useBoardSelector } from "@/store/board-context"
+import { getCustomDef } from "@/components/catalog/custom-store"
 import { cn } from "@/utils/classnames"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -171,6 +172,94 @@ function JointEditor({ body }: { body: AssemblyBody }) {
   )
 }
 
+// ── Signal binding controls ─────────────────────────────────────────────────
+
+/** Drive the body's joint from a simulator signal: a servo's angle or any
+ * custom-DSL behavior signal. Value → degrees via a linear map. */
+function BindingEditor({ body }: { body: AssemblyBody }) {
+  const assembly = useAssemblyDoc()
+  const { setBodyBinding } = useAssemblyActions()
+  const components = useBoardSelector((ctx) => ctx.components)
+  if (!body.joint) return null
+
+  const binding = assembly.bindings.find((b) => b.bodyId === body.id)
+
+  const options: { value: string; label: string }[] = []
+  for (const component of Object.values(components)) {
+    const name = component.name ?? component.type
+    if (component.type === "servo") {
+      options.push({ value: `${component.id}:angle`, label: `${name} — angle` })
+    } else if (isCustomComponentType(component.type)) {
+      for (const signal of getCustomDef(component.type)?.signalNames ?? []) {
+        options.push({ value: `${component.id}:${signal}`, label: `${name} — ${signal}` })
+      }
+    }
+  }
+  if (options.length === 0 && !binding) return null
+
+  const current = binding ? `${binding.componentId}:${binding.signal}` : ""
+
+  return (
+    <div className="space-y-2">
+      <label className="block space-y-1">
+        <span className="text-xs text-muted-foreground">Driven by signal</span>
+        <select
+          className="w-full rounded-md border border-border bg-background px-2 py-1 text-xs"
+          value={current}
+          onChange={(e) => {
+            const value = e.target.value
+            if (!value) {
+              setBodyBinding(body.id, null)
+              return
+            }
+            const separator = value.indexOf(":")
+            const componentId = value.slice(0, separator)
+            const signal = value.slice(separator + 1)
+            setBodyBinding(body.id, {
+              id: `bind_${body.id}`,
+              componentId,
+              signal,
+              bodyId: body.id,
+              channel: "rotate",
+              map: binding?.map ?? { scale: 1, offset: 0 },
+            })
+          }}
+        >
+          <option value="">None</option>
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      {binding && (
+        <div className="space-y-1">
+          <span className="text-xs text-muted-foreground">degrees = value × scale + offset</span>
+          <div className="flex gap-1">
+            {(["scale", "offset"] as const).map((key) => (
+              <Input
+                key={`${body.id}-${key}-${binding.map[key]}`}
+                type="number"
+                className="h-7 text-xs"
+                defaultValue={binding.map[key]}
+                onBlur={(e) => {
+                  const value = Number(e.target.value)
+                  if (Number.isNaN(value)) return
+                  setBodyBinding(body.id, {
+                    ...binding,
+                    map: { ...binding.map, [key]: value },
+                  })
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Panel ───────────────────────────────────────────────────────────────────
 
 export function AssemblyPanel() {
@@ -275,6 +364,7 @@ export function AssemblyPanel() {
           </label>
 
           <JointEditor body={selected} />
+          <BindingEditor body={selected} />
 
           <div className="flex justify-end">
             <Button

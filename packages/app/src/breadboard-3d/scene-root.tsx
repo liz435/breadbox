@@ -13,6 +13,7 @@ import { useBoardSelector } from "@/store/board-context"
 import { PartMesh } from "./part-models"
 import { UploadedBodies } from "./uploaded-bodies"
 import { TransformGizmo } from "./transform-gizmo"
+import { AnimationDriver } from "./animation-driver"
 import { useEditor } from "./editor-state"
 import { ARDUINO_RECT_PX, BREADBOARD_RECT_PX, pixelToWorld, pxToMm } from "./layout"
 
@@ -122,6 +123,7 @@ export function SceneRoot() {
         <UploadedBodies />
       </Suspense>
       <TransformGizmo />
+      <AnimationDriver />
       <CameraControls makeDefault />
     </Canvas>
   )

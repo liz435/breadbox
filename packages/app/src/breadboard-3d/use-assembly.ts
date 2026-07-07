@@ -5,7 +5,7 @@
 // view a stable read + focused mutators over that field.
 
 import { useCallback } from "react"
-import type { AssemblyBody, AssemblyDoc } from "@dreamer/schemas"
+import type { AssemblyBinding, AssemblyBody, AssemblyDoc } from "@dreamer/schemas"
 import { createEmptyAssembly } from "@dreamer/schemas"
 import { useBoard, useBoardSelector } from "@/store/board-context"
 
@@ -19,6 +19,7 @@ export function useAssemblyActions(): {
   addBody: (body: AssemblyBody) => void
   updateBody: (id: string, changes: Partial<AssemblyBody>) => void
   removeBody: (id: string) => void
+  setBodyBinding: (bodyId: string, binding: AssemblyBinding | null) => void
 } {
   const { state, send } = useBoard()
   const assembly = state.assembly ?? EMPTY_ASSEMBLY
@@ -71,5 +72,16 @@ export function useAssemblyActions(): {
     [assembly, send],
   )
 
-  return { addBody, updateBody, removeBody }
+  /** Replace (or clear, with null) the signal binding driving a body's joint.
+   * One binding per body — enough for a single rotation joint. */
+  const setBodyBinding = useCallback(
+    (bodyId: string, binding: AssemblyBinding | null) => {
+      const bindings = assembly.bindings.filter((b) => b.bodyId !== bodyId)
+      if (binding) bindings.push(binding)
+      send({ type: "SET_ASSEMBLY", assembly: { ...assembly, bindings } })
+    },
+    [assembly, send],
+  )
+
+  return { addBody, updateBody, removeBody, setBodyBinding }
 }
