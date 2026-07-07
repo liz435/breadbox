@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { boardTargetSchema, DEFAULT_BOARD_TARGET } from "./board-targets";
+import { assemblyDocSchema, createEmptyAssembly } from "./assembly";
 
 // Max pin index used by supported board targets (Mega analog A15 maps to D69).
 export const MAX_ARDUINO_PIN = 69;
@@ -345,6 +346,10 @@ const boardStateBaseSchema = z.object({
   boardTarget: boardTargetSchema.optional(),
   // Environment layer for sensor simulation (obstacles, walls).
   environment: environmentSchema.default({ obstacles: {}, boundaryEnabled: true, boundaryMargin: 100 }),
+  // 3D assembly layer (uploaded meshes + joints/bindings) for the 3D view.
+  // Optional so older saved projects (and BoardState literals that predate
+  // the 3D view) parse unchanged; readers treat absence as empty.
+  assembly: assemblyDocSchema.optional(),
 });
 
 // Accept legacy `pinStates` field but strip it. The final output type
@@ -399,5 +404,6 @@ export function createDefaultBoardState(): BoardState {
     customLibraries: {},
     boardTarget: DEFAULT_BOARD_TARGET,
     environment: { obstacles: {}, boundaryEnabled: true, boundaryMargin: 100 },
+    assembly: createEmptyAssembly(),
   };
 }

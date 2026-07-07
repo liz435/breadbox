@@ -146,6 +146,7 @@ export const assetTypeSchema = z.enum([
   "text",
   "material",
   "font",
+  "model",
 ]);
 
 export const assetSchema = z.object({

@@ -369,6 +369,11 @@ function FallbackBox({ component }: { component: BoardComponent }) {
 export function PartMesh({ component }: { component: BoardComponent }) {
   const center = footprintCenter(component)
   const yaw = rotationYaw(component.rotation)
+  const rootRef = useRef<Group>(null)
+  useLayoutEffect(() => {
+    if (!rootRef.current) return
+    return registerPartNodes(component.id, { rootNode: rootRef.current })
+  }, [component.id])
 
   // Subscribed lookup so a custom part registered after mount (e.g. fetched
   // on demand for an MCP-authored board) swaps in its real body live.
@@ -416,7 +421,7 @@ export function PartMesh({ component }: { component: BoardComponent }) {
   }
 
   return (
-    <group position={[center.x, 0, center.z]} rotation={[0, yaw, 0]}>
+    <group ref={rootRef} position={[center.x, 0, center.z]} rotation={[0, yaw, 0]}>
       {body}
     </group>
   )

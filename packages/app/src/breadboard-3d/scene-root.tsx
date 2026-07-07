@@ -5,11 +5,13 @@
 // the camera moves or React updates the scene; the signal-driven animation
 // loop requests frames explicitly while the simulator runs.
 
+import { Suspense } from "react"
 import { Canvas } from "@react-three/fiber"
 import { CameraControls } from "@react-three/drei"
 import { isBoardComponentType } from "@dreamer/schemas"
 import { useBoardSelector } from "@/store/board-context"
 import { PartMesh } from "./part-models"
+import { UploadedBodies } from "./uploaded-bodies"
 import { ARDUINO_RECT_PX, BREADBOARD_RECT_PX, pixelToWorld, pxToMm } from "./layout"
 
 const PCB_THICKNESS_MM = 1.6
@@ -111,6 +113,10 @@ export function SceneRoot() {
       <directionalLight position={[-120, 80, -60]} intensity={0.4} />
       <BoardSurfaces />
       <Parts />
+      {/* Model files load over Suspense; the rest of the scene stays visible. */}
+      <Suspense fallback={null}>
+        <UploadedBodies />
+      </Suspense>
       <CameraControls makeDefault />
     </Canvas>
   )
