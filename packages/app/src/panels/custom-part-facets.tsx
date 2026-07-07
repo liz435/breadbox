@@ -8,11 +8,15 @@
 // to just that facet.
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import type { ReactNode } from "react"
-import { Box, ChevronRight, Sparkles } from "lucide-react"
+import type { ChangeEvent, ReactNode } from "react"
+import { Box, ChevronRight, ClipboardPaste, Download, Sparkles, Upload } from "lucide-react"
 import type { CustomPartFacet } from "@dreamer/schemas"
+import { toast } from "@/components/ui/toast"
 import { cn } from "@/utils/classnames"
+import { downloadTextFile } from "@/utils/download-file"
 import { svgToDataUrl } from "@/utils/svg-data-url"
+import { SvgImportRemap } from "./svg-import-remap"
+import { useSvgImport } from "./use-svg-import"
 
 /** A parsed DSL document, read defensively — the source may be mid-edit. */
 export type DslDoc = Record<string, unknown>
@@ -52,6 +56,22 @@ function nestedArrLen(doc: DslDoc, key: string, arrayKey: string): number {
     return Array.isArray(arr) ? arr.length : 0
   }
   return 0
+}
+
+/** The visual.bindings target ids, read defensively from a mid-edit document. */
+function bindingTargets(doc: DslDoc): string[] {
+  const visual = doc.visual
+  if (!visual || typeof visual !== "object" || !("bindings" in visual)) return []
+  const bindings = (visual as { bindings?: unknown }).bindings
+  if (!Array.isArray(bindings)) return []
+  const targets: string[] = []
+  for (const binding of bindings) {
+    if (binding && typeof binding === "object" && "target" in binding) {
+      const target = (binding as { target?: unknown }).target
+      if (typeof target === "string" && target.length > 0) targets.push(target)
+    }
+  }
+  return targets
 }
 
 // ── row shell ────────────────────────────────────────────────────────────────
@@ -162,14 +182,95 @@ function JsonSliceEditor({ value, onChange }: { value: unknown; onChange: (v: un
 
 // ── Look (svg) editor with a live preview ─────────────────────────────────────
 
-function SvgFacetEditor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+const TOOL_BUTTON_CLASS =
+  "flex items-center gap-1 rounded-sm border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+
+function SvgFacetEditor({
+  value,
+  onChange,
+  partId,
+  bindingTargets,
+}: {
+  value: string
+  onChange: (v: string) => void
+  partId: string
+  bindingTargets: string[]
+}) {
   const trimmed = value.trim()
   // Reset the broken-SVG flag whenever the markup changes so a fix re-renders.
   const [broken, setBroken] = useState(false)
   useEffect(() => setBroken(false), [trimmed])
   const showPreview = trimmed.length > 0 && !broken
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const importer = useSvgImport({ bindingTargets, onApply: onChange })
+
+  const exportSvg = () => {
+    downloadTextFile(`${partId}.svg`, trimmed, "image/svg+xml")
+    const idNote =
+      bindingTargets.length > 0
+        ? `Keep these ids as named layers/groups: ${bindingTargets.join(", ")}. `
+        : ""
+    toast.info(
+      `Exported ${partId}.svg. ${idNote}When re-exporting from Figma, enable "Include id attribute" in the SVG export settings.`,
+      { duration: 10000 },
+    )
+  }
+
+  const handleFileImport = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ""
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === "string") importer.importRaw(reader.result)
+    }
+    reader.readAsText(file)
+  }
+
+  const pasteImport = () => {
+    void navigator.clipboard.readText().then(
+      (text) => importer.importRaw(text),
+      () => toast.error("Couldn't read the clipboard"),
+    )
+  }
+
   return (
     <div className="space-y-2 px-3 pb-2">
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={exportSvg}
+          disabled={trimmed.length === 0}
+          title="Download the SVG to edit in Figma or another vector tool"
+          className={TOOL_BUTTON_CLASS}
+        >
+          <Download className="size-3" /> Export
+        </button>
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          title="Import an SVG file (it will be sanitized and normalized)"
+          className={TOOL_BUTTON_CLASS}
+        >
+          <Upload className="size-3" /> Import
+        </button>
+        <button
+          type="button"
+          onClick={pasteImport}
+          title="Import SVG markup from the clipboard"
+          className={TOOL_BUTTON_CLASS}
+        >
+          <ClipboardPaste className="size-3" /> Paste
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".svg,image/svg+xml"
+          onChange={handleFileImport}
+          className="hidden"
+        />
+      </div>
       <div className="flex h-24 items-center justify-center rounded-sm border border-border bg-muted/40">
         {showPreview ? (
           <img
@@ -182,6 +283,15 @@ function SvgFacetEditor({ value, onChange }: { value: string; onChange: (v: stri
           <Box className="size-8 text-muted-foreground" aria-label="Default part look" />
         )}
       </div>
+      {importer.state.phase === "remap" && (
+        <SvgImportRemap
+          view={importer.state}
+          onSetActive={importer.setActiveTarget}
+          onPick={importer.pick}
+          onApply={importer.apply}
+          onCancel={importer.cancel}
+        />
+      )}
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -261,6 +371,7 @@ export function FacetEditor({
   onCopyFacetPrompt: (facet: CustomPartFacet) => void
 }) {
   const svg = strField(doc, "svg")
+  const partId = strField(doc, "type").replace(/^custom:/, "") || "part"
   return (
     <>
       <FacetRow
@@ -269,7 +380,12 @@ export function FacetEditor({
         onCopyPrompt={() => onCopyFacetPrompt("look")}
         defaultOpen
       >
-        <SvgFacetEditor value={svg} onChange={(next) => onPatch({ svg: next })} />
+        <SvgFacetEditor
+          value={svg}
+          onChange={(next) => onPatch({ svg: next })}
+          partId={partId}
+          bindingTargets={bindingTargets(doc)}
+        />
       </FacetRow>
 
       <FacetRow
