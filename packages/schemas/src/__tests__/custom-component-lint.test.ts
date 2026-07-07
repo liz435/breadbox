@@ -96,6 +96,30 @@ describe("lintCustomComponentDsl", () => {
     expect(issues.some((i) => i.severity === "warning" && i.message.includes('id="rotor"'))).toBe(true);
   });
 
+  test("binding targets with regex metacharacters match literally", () => {
+    // Figma-style ids: spaces, dots, parens. None of these should throw or
+    // false-match — "rotor.1" must not be satisfied by id="rotorA1".
+    const exact = parse({
+      ...BASE,
+      svg: '<svg viewBox="0 0 10 10"><g id="Group 3 (copy)"/><g id="rotor.1"/></svg>',
+      visual: {
+        bindings: [
+          { target: "Group 3 (copy)", rotate: 90 },
+          { target: "rotor.1", rotate: 90 },
+        ],
+      },
+    });
+    expect(lintCustomComponentDsl(exact).some((i) => i.message.includes("no element"))).toBe(false);
+
+    const falseMatch = parse({
+      ...BASE,
+      svg: '<svg viewBox="0 0 10 10"><g id="rotorA1"/></svg>',
+      visual: { bindings: [{ target: "rotor.1", rotate: 90 }] },
+    });
+    const issues = lintCustomComponentDsl(falseMatch);
+    expect(issues.some((i) => i.severity === "warning" && i.message.includes('id="rotor.1"'))).toBe(true);
+  });
+
   test("warns when an animated svg has no viewBox", () => {
     const dsl = parse({
       ...BASE,
