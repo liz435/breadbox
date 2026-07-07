@@ -1,5 +1,40 @@
 # Simulator Pivot — Robust Transient Simulation
 
+## Status (2026-07-06): Phases A, A′, B, C, D IMPLEMENTED
+
+All five phases landed on `feat/transient-sim` with the full app test
+suite green (820 tests). Summary of what shipped vs. the plan below:
+
+- **A** — `TransientSession` (persistent parsed circuit, vPrev/iPrev
+  carry-over, topology-signature reuse + state migration), real C/L
+  elements, PWM as phase-continuous square waves, event-aware dt policy.
+  Flag: `dreamer.transientSolver` (default ON; OFF = legacy demo-timescale
+  path, unchanged).
+- **A′** — Ebers-Moll BJT + level-1 MOSFET in `patches/spicey@0.0.14.patch`
+  (Q/M elements, NPN/PNP/NMOS/PMOS model cards, per-junction pnjlim,
+  fetlim-style bounded steps, voltage-match convergence, gmin), transistor
+  + mosfet + inductor components end-to-end. 10 analytical golden tests.
+  Upstream PR to tscircuit/spicey still pending.
+- **B** — `SolverScheduler`: wall-budgeted deficit paydown, MCU throttling
+  lockstep (both clocks slow together), circuit realtime factor merged
+  into the lag badge. Dedicated Web Worker host not yet wired — the
+  scheduler abstraction is worker-ready; revisit if the budget proves
+  insufficient in practice.
+- **C** — pot/LDR injection removed on the transient path; analog pins fed
+  the exact solved node voltage (`CircuitAnalysis.nodeVoltageAt`). Exposed
+  and fixed a real divider-orientation bug in the pot def and a genuinely
+  miswired learn board (08-photoresistor GND on the mid node).
+- **D** — strict hardware mode (`dreamer.strictHardware`, default OFF):
+  deterministic contact bounce via scheduled sim-time edges, HD44780 busy
+  window with byte dropping, I2C address-collision wired-AND corruption +
+  repeated-START selection semantics.
+
+Remaining follow-ups: worker host (B), trapezoidal integration + gmin
+stepping ladder (risk 1 mitigations, engine), ngspice cross-check CI for
+the golden tests, upstream spicey PR.
+
+---
+
 Decision (2026-07-06): pivot the simulator from an education-first
 operating-point analyzer to a genuinely robust transient simulator, while
 keeping the existing education surface. Constraints agreed:

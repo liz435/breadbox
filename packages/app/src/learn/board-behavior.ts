@@ -44,8 +44,11 @@ export const LEARN_BOARD_BEHAVIOR: Record<string, ExpectedBehavior> = {
     pinFinalState: [{ pin: 7, state: "HIGH" }],
   },
   "08-photoresistor": {
+    // Solved divider physics (transient solver): default light 50% puts the
+    // LDR at 10 kΩ against the 10 kΩ fixed resistor → 2.5 V → 511 counts.
+    // (The old 362 was the legacy injection curve, not the circuit.)
     simulateMs: 1200,
-    serialContains: "Light: 362",
+    serialContains: "Light: 511",
   },
   "09-buzzer": {
     simulateMs: 400,
