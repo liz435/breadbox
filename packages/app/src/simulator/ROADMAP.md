@@ -29,9 +29,21 @@ suite green (820 tests). Summary of what shipped vs. the plan below:
   window with byte dropping, I2C address-collision wired-AND corruption +
   repeated-START selection semantics.
 
-Remaining follow-ups: worker host (B), trapezoidal integration + gmin
-stepping ladder (risk 1 mitigations, engine), ngspice cross-check CI for
-the golden tests, upstream spicey PR.
+Follow-ups completed on `feat/transient-trapezoidal` (2026-07-06):
+- **Trapezoidal integration** for C/L in the spicey patch — LC ringing
+  frequency within 1% of analytical, decay governed by real R (backward
+  Euler's artificial damping gone); plus the simulateTRAN step-loop
+  off-by-one fix (state advance ≡ tstop exactly).
+- **ngspice cross-checks** — the same netlists run through both engines:
+  6 DC operating points at 1% tolerance + the RLC waveform within
+  150 mV. Skips cleanly without ngspice locally; CI installs it so the
+  checks always run there.
+- **Web Worker solver host** — SolverHost abstraction; worker preferred
+  (non-blocking tick, input coalescing, crashed-worker → inline
+  fallback), inline always available.
+
+Still open: gmin stepping / source stepping rescue ladder (engine —
+needed only if stiff circuits start failing Newton), upstream spicey PR.
 
 ---
 

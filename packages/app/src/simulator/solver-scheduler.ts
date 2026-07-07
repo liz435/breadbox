@@ -61,6 +61,12 @@ export type SchedulerTickResult = {
   throttleMcu: boolean
   /** Session steps spent this tick (diagnostics). */
   stepsUsed: number
+  /**
+   * All "row,col" grid keys that resolved to a circuit node this tick.
+   * Lets a worker host serialize the node-voltage table so nodeVoltageAt
+   * can be reconstructed across the postMessage boundary.
+   */
+  gridKeys: string[]
 }
 
 export class SolverScheduler {
@@ -138,6 +144,7 @@ export class SolverScheduler {
       realtimeFactor: this.emaFactor,
       throttleMcu: deficit > maxLagSeconds,
       stepsUsed,
+      gridKeys: Array.from(step.build.nodeMap.keys()),
     }
   }
 }
