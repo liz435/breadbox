@@ -50,6 +50,13 @@ jobs:
         # frozen. Trade dep-pinning strictness for green CI by default.
         run: bun install
 
+      - name: Install ngspice
+        # Reference oracle for the circuit-engine cross-checks
+        # (spicey-ngspice-crosscheck.test.ts): the same netlists run through
+        # both engines and must agree. The suite skips cleanly when ngspice
+        # is absent, so this step is what makes the checks actually run in CI.
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ngspice
+
       - name: Run tests
         # Use the workspace script (test:schemas → test:app → test:api →
         # test:cli) so each package runs in its own Bun process. A single

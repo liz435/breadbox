@@ -15,6 +15,11 @@ import {
 } from "./circuit-solver"
 import { isTransientSolverEnabled } from "./transient-flag"
 import { SolverScheduler, publishCircuitRealtimeFactor } from "./solver-scheduler"
+import {
+  InlineSolverHost,
+  WorkerSolverHost,
+  type SolverHost,
+} from "./solver-host"
 import { snapshotAsPinStates } from "./pin-state-store"
 import { applySensorInputs, resetSensorBuses } from "./sensor-inputs"
 import { RunTokenGate } from "./run-token-gate"
@@ -22,6 +27,26 @@ import { debugStateStore } from "./debug-state-store"
 import { getBoardPinLayout, getComponentFootprint, areConnected } from "@/breadboard/breadboard-grid"
 import { BoardContext } from "@/store/board-context"
 import { BOARD_TARGETS, DEFAULT_BOARD_TARGET, isBoardComponentType, type LibraryState, type ServoState } from "@dreamer/schemas"
+
+/**
+ * Prefer the Web Worker host (solving costs the render thread nothing);
+ * fall back to inline when Workers are unavailable or construction fails.
+ * The inline host shares the module-level TransientSession so play/stop
+ * resets reach it either way.
+ */
+function createSolverHost(): SolverHost {
+  if (typeof Worker !== "undefined") {
+    try {
+      const worker = new Worker(new URL("./solver.worker.ts", import.meta.url), {
+        type: "module",
+      })
+      return new WorkerSolverHost(worker)
+    } catch (err) {
+      console.warn("[simulation] solver worker unavailable — solving inline:", err)
+    }
+  }
+  return new InlineSolverHost(new SolverScheduler(getTransientSession()))
+}
 
 type SimulationStatus = "stopped" | "compiling" | "running" | "paused" | "error"
 
@@ -279,15 +304,26 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
   // session advances by the *simulated* elapsed time so the circuit and MCU
   // share one timeline (the two-clock fix, ROADMAP Phase A).
   const lastSimMsRef = useRef(0)
-  // Phase B: budgeted scheduler over the shared session + the lockstep
-  // throttle flag it raises when the circuit falls behind the MCU clock.
-  const schedulerRef = useRef<SolverScheduler | null>(null)
+  // Phase B: the solver host runs the budgeted scheduler either in a Web
+  // Worker (preferred — solving costs the render thread nothing) or inline
+  // (fallback). The lockstep throttle flag pauses the MCU when the circuit
+  // falls behind its clock.
+  const solverHostRef = useRef<SolverHost | null>(null)
   const throttleMcuRef = useRef(false)
-  function getScheduler(): SolverScheduler {
-    if (!schedulerRef.current) {
-      schedulerRef.current = new SolverScheduler(getTransientSession())
+  function getSolverHost(): SolverHost {
+    let host = solverHostRef.current
+    // A worker that crashed (host.broken) is swapped for the inline host —
+    // solving continues on the main thread rather than stopping.
+    if (host && host.kind === "worker" && (host as WorkerSolverHost).broken) {
+      host.dispose()
+      host = null
+      console.warn("[simulation] solver worker failed — falling back to inline solving")
     }
-    return schedulerRef.current
+    if (!host) {
+      host = createSolverHost()
+      solverHostRef.current = host
+    }
+    return host
   }
 
   /** Run circuit analysis and feed analog voltages into the pin store. */
@@ -330,25 +366,29 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     lastInlineAtRef.current = now
 
     try {
-      let result: CircuitAnalysis
+      let result: CircuitAnalysis | null
       if (isTransientSolverEnabled()) {
         // Robust path (Phase A+B): the scheduler advances the persistent
         // session toward the MCU's simulated clock within a compute budget.
         // Circuit physics and sketch share one timeline; if the circuit
         // can't keep up, throttleMcu pauses the sketch (lockstep) instead
-        // of letting the clocks drift apart.
+        // of letting the clocks drift apart. With the worker host the
+        // result is the latest COMPLETED solve (one tick stale) — and null
+        // during worker warm-up, in which case last frame's analysis stays.
         const simMs = runner.getMillis()
         lastSimMsRef.current = simMs
-        const tick = getScheduler().tick({
+        const tick = getSolverHost().tick({
           components: ctx.components,
           wires: ctx.wires,
           pinStates: snapshotAsPinStates(store),
           shiftRegisterOutputs,
           mcuTimeSeconds: simMs / 1000,
         })
-        throttleMcuRef.current = tick.throttleMcu
-        publishCircuitRealtimeFactor(tick.realtimeFactor)
-        result = tick.analysis
+        if (tick) {
+          throttleMcuRef.current = tick.throttleMcu
+          publishCircuitRealtimeFactor(tick.realtimeFactor)
+        }
+        result = tick?.analysis ?? null
       } else {
         // Legacy operating-point path (education "demo timescale" mode).
         result = analyzeCircuit(
@@ -359,9 +399,9 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
           { dtSeconds },
         )
       }
-      analysisResultRef.current = result
+      if (result) analysisResultRef.current = result
 
-      if (result.isValid) {
+      if (result?.isValid) {
         const voltsToAnalog = (v: number) =>
           Math.round((Math.min(5, Math.abs(v)) / 5) * 1023)
 
@@ -508,7 +548,7 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
       resetSensorBuses()
       // Fresh run: drop circuit state and re-anchor the shared sim clock
       // (runner.reset() restarts the MCU clock at 0).
-      schedulerRef.current?.reset()
+      solverHostRef.current?.reset()
       getTransientSession().reset()
       lastSimMsRef.current = 0
       throttleMcuRef.current = false
@@ -661,7 +701,7 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     resetSensorBuses()
     // Drop the transient session's circuit state (capacitor charge, inductor
     // current) so a stopped board doesn't leak charge into the next run.
-    schedulerRef.current?.reset()
+    solverHostRef.current?.reset()
     getTransientSession().reset()
     lastSimMsRef.current = 0
     throttleMcuRef.current = false
@@ -676,6 +716,9 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     return () => {
       cancelLoop()
       closeAudioContext()
+      // Terminate the solver worker thread (no-op for the inline host).
+      solverHostRef.current?.dispose()
+      solverHostRef.current = null
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cancelLoop])

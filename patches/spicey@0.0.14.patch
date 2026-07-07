@@ -1,8 +1,26 @@
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 912a32eea8fe4dd3182d92651fcb202677d757b8..c1257e239564114545e6118b7d85482ec33019af 100644
+index 912a32eea8fe4dd3182d92651fcb202677d757b8..b7389ecd0846dfd1bce656d5e5913e3ce096ff4d 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
-@@ -71,6 +71,46 @@ type ParsedSwitch = {
+@@ -23,6 +23,8 @@ type ParsedCapacitor = {
+     n2: number;
+     C: number;
+     vPrev: number;
++    /** Trapezoidal history: element current at the previous timestep. */
++    iPrev: number;
+ };
+ type ParsedInductor = {
+     name: string;
+@@ -30,6 +32,8 @@ type ParsedInductor = {
+     n2: number;
+     L: number;
+     iPrev: number;
++    /** Trapezoidal history: element voltage at the previous timestep. */
++    vPrev: number;
+ };
+ type ParsedDiodeModel = {
+     name: string;
+@@ -71,6 +75,46 @@ type ParsedSwitch = {
      model: ParsedVSwitchModel | null;
      isOn: boolean;
  };
@@ -49,7 +67,7 @@ index 912a32eea8fe4dd3182d92651fcb202677d757b8..c1257e239564114545e6118b7d85482e
  type ParsedACAnalysis = {
      mode: "dec" | "lin";
      N: number;
-@@ -89,6 +129,8 @@ type ParsedCircuit = {
+@@ -89,6 +133,8 @@ type ParsedCircuit = {
      V: ParsedVoltageSource[];
      S: ParsedSwitch[];
      D: ParsedDiode[];
@@ -58,7 +76,7 @@ index 912a32eea8fe4dd3182d92651fcb202677d757b8..c1257e239564114545e6118b7d85482e
      analyses: {
          ac: ParsedACAnalysis;
          tran: ParsedTranAnalysis;
-@@ -100,6 +142,8 @@ type ParsedCircuit = {
+@@ -100,6 +146,8 @@ type ParsedCircuit = {
      models: {
          vswitch: Map<string, ParsedVSwitchModel>;
          diode: Map<string, ParsedDiodeModel>;
@@ -68,7 +86,7 @@ index 912a32eea8fe4dd3182d92651fcb202677d757b8..c1257e239564114545e6118b7d85482e
  };
  type CircuitNodeIndex = NodeIndex;
 diff --git a/dist/index.js b/dist/index.js
-index ee291ffef3382c1d38479941a709962f8c8f84cc..c01166a9b222cfc14dac11fbfb429171966aac61 100644
+index ee291ffef3382c1d38479941a709962f8c8f84cc..779589c88b1d30ed065ec6e5a2092b5dc111ce56 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -154,6 +154,8 @@ function requireToken(tokens, index, context) {
@@ -153,6 +171,24 @@ index ee291ffef3382c1d38479941a709962f8c8f84cc..c01166a9b222cfc14dac11fbfb429171
          } else {
            ckt.skipped.push(line);
          }
+@@ -335,7 +391,7 @@ function parseNetlist(text) {
+         const val = parseNumberWithUnits(
+           requireToken(tokens, 3, "Capacitor missing value")
+         );
+-        ckt.C.push({ name, n1, n2, C: val, vPrev: 0 });
++        ckt.C.push({ name, n1, n2, C: val, vPrev: 0, iPrev: 0 });
+       } else if (typeChar === "l") {
+         const n1 = ckt.nodes.getOrCreate(
+           requireToken(tokens, 1, "Inductor missing node")
+@@ -346,7 +402,7 @@ function parseNetlist(text) {
+         const val = parseNumberWithUnits(
+           requireToken(tokens, 3, "Inductor missing value")
+         );
+-        ckt.L.push({ name, n1, n2, L: val, iPrev: 0 });
++        ckt.L.push({ name, n1, n2, L: val, iPrev: 0, vPrev: 0 });
+       } else if (typeChar === "v") {
+         const n1 = ckt.nodes.getOrCreate(
+           requireToken(tokens, 1, "Voltage source missing node")
 @@ -456,6 +512,57 @@ function parseNetlist(text) {
          } else {
            ckt.skipped.push(line);
@@ -258,7 +294,36 @@ index ee291ffef3382c1d38479941a709962f8c8f84cc..c01166a9b222cfc14dac11fbfb429171
  // lib/math/solveReal.ts
  function solveReal(A, b) {
    const n = A.length;
-@@ -941,11 +1081,15 @@ function stampAllElementsAtTime(A, b, ckt, t, dt, x, iter) {
+@@ -909,16 +1049,24 @@ function stampAllElementsAtTime(A, b, ckt, t, dt, x, iter) {
+     const G = 1 / r.R;
+     stampAdmittanceReal(A, ckt.nodes, r.n1, r.n2, G);
+   }
++  // Trapezoidal companion models (2nd order, no artificial damping). The
++  // previous backward-Euler stamps numerically dissipated energy — LC
++  // ringing decayed faster than physics allows. Trapezoidal averages the
++  // slope across the step:
++  //   C:  i_n = (2C/dt)·(v_n − v_{n−1}) − i_{n−1}
++  //   L:  i_n = i_{n−1} + (dt/2L)·(v_n + v_{n−1})
++  // Both need the element's previous CURRENT (C) / VOLTAGE (L) as history
++  // alongside the state the BE stamps already kept.
+   for (const c of ckt.C) {
+-    const Gc = c.C / Math.max(dt, EPS);
++    const Gc = 2 * c.C / Math.max(dt, EPS);
+     stampAdmittanceReal(A, ckt.nodes, c.n1, c.n2, Gc);
+-    const Ieq = -Gc * c.vPrev;
++    const Ieq = -Gc * c.vPrev - (c.iPrev ?? 0);
+     stampCurrentReal(b, ckt.nodes, c.n1, c.n2, Ieq);
+   }
+   for (const l of ckt.L) {
+-    const Gl = Math.max(dt, EPS) / l.L;
++    const Gl = Math.max(dt, EPS) / (2 * l.L);
+     stampAdmittanceReal(A, ckt.nodes, l.n1, l.n2, Gl);
+-    stampCurrentReal(b, ckt.nodes, l.n1, l.n2, l.iPrev);
++    stampCurrentReal(b, ckt.nodes, l.n1, l.n2, l.iPrev + Gl * (l.vPrev ?? 0));
+   }
+   for (const sw of ckt.S) {
+     const model = sw.model;
+@@ -941,11 +1089,15 @@ function stampAllElementsAtTime(A, b, ckt, t, dt, x, iter) {
      const v_plus_prev_iter = nPlus === 0 ? 0 : x[vp_idx] ?? 0;
      const v_minus_prev_iter = nMinus === 0 ? 0 : x[vn_idx] ?? 0;
      const vd_prev_iter = v_plus_prev_iter - v_minus_prev_iter;
@@ -278,7 +343,7 @@ index ee291ffef3382c1d38479941a709962f8c8f84cc..c01166a9b222cfc14dac11fbfb429171
      const exp_val = Math.exp(vd_limited / v_thermal);
      const id = model.Is * (exp_val - 1);
      const gd = Math.max(model.Is / v_thermal * exp_val, 1e-12);
-@@ -953,6 +1097,177 @@ function stampAllElementsAtTime(A, b, ckt, t, dt, x, iter) {
+@@ -953,6 +1105,177 @@ function stampAllElementsAtTime(A, b, ckt, t, dt, x, iter) {
      stampAdmittanceReal(A, ckt.nodes, nPlus, nMinus, gd);
      stampCurrentReal(b, ckt.nodes, nPlus, nMinus, ieq);
    }
@@ -456,7 +521,7 @@ index ee291ffef3382c1d38479941a709962f8c8f84cc..c01166a9b222cfc14dac11fbfb429171
  }
  function updateSwitchStatesFromSolution(ckt, x) {
    let switched = false;
-@@ -975,6 +1290,78 @@ function updateSwitchStatesFromSolution(ckt, x) {
+@@ -975,6 +1298,78 @@ function updateSwitchStatesFromSolution(ckt, x) {
    }
    return switched;
  }
@@ -535,8 +600,20 @@ index ee291ffef3382c1d38479941a709962f8c8f84cc..c01166a9b222cfc14dac11fbfb429171
  function simulateTRAN(ckt) {
    if (!ckt.analyses.tran) return null;
    const { dt: dtRequested, tstop } = ckt.analyses.tran;
-@@ -992,14 +1379,14 @@ function simulateTRAN(ckt) {
-   for (let step = 0; step <= steps; step++, t = step * dt) {
+@@ -988,18 +1383,24 @@ function simulateTRAN(ckt) {
+     if (id !== 0) nodeVoltages[name] = [];
+   });
+   const elementCurrents = {};
+-  let t = 0;
+-  for (let step = 0; step <= steps; step++, t = step * dt) {
++  let t = dt;
++  // Start at step 1: each iteration advances the reactive state by one dt,
++  // so running steps 0..steps performed steps+1 physics updates while
++  // reporting tstop = steps·dt — every call integrated one extra dt. That
++  // silently skewed session-chunked simulation (the caller's clock and the
++  // circuit's state drifted ~1% per 100-step chunk). Exactly `steps`
++  // updates now: state advance ≡ tstop.
++  for (let step = 1; step <= steps; step++, t = step * dt) {
      times.push(t);
      let x = new Array(Nvar).fill(0);
 -    for (let iter = 0; iter < 20; iter++) {
@@ -553,7 +630,25 @@ index ee291ffef3382c1d38479941a709962f8c8f84cc..c01166a9b222cfc14dac11fbfb429171
      }
      for (let id = 1; id < ckt.nodes.count(); id++) {
        const idx = id - 1;
-@@ -1053,6 +1440,14 @@ function simulateTRAN(ckt) {
+@@ -1018,14 +1419,14 @@ function simulateTRAN(ckt) {
+     for (const c of ckt.C) {
+       const v1 = c.n1 === 0 ? 0 : x[c.n1 - 1] ?? 0;
+       const v2 = c.n2 === 0 ? 0 : x[c.n2 - 1] ?? 0;
+-      const i = c.C * (v1 - v2 - c.vPrev) / Math.max(dt, EPS);
++      const i = 2 * c.C * (v1 - v2 - c.vPrev) / Math.max(dt, EPS) - (c.iPrev ?? 0);
+       (elementCurrents[c.name] ||= []).push(i);
+     }
+     for (const l of ckt.L) {
+       const v1 = l.n1 === 0 ? 0 : x[l.n1 - 1] ?? 0;
+       const v2 = l.n2 === 0 ? 0 : x[l.n2 - 1] ?? 0;
+-      const Gl = Math.max(dt, EPS) / l.L;
+-      const i = Gl * (v1 - v2) + l.iPrev;
++      const Gl = Math.max(dt, EPS) / (2 * l.L);
++      const i = Gl * (v1 - v2 + (l.vPrev ?? 0)) + l.iPrev;
+       (elementCurrents[l.name] ||= []).push(i);
+     }
+     for (const vs of ckt.V) {
+@@ -1053,22 +1454,49 @@ function simulateTRAN(ckt) {
        const id = model.Is * (exp_val - 1);
        (elementCurrents[d.name] ||= []).push(id);
      }
@@ -568,7 +663,24 @@ index ee291ffef3382c1d38479941a709962f8c8f84cc..c01166a9b222cfc14dac11fbfb429171
      for (const c of ckt.C) {
        const v1 = c.n1 === 0 ? 0 : x[c.n1 - 1] ?? 0;
        const v2 = c.n2 === 0 ? 0 : x[c.n2 - 1] ?? 0;
-@@ -1069,6 +1464,20 @@ function simulateTRAN(ckt) {
+-      c.vPrev = v1 - v2;
++      const v = v1 - v2;
++      // Trapezoidal history: current BEFORE overwriting the voltage.
++      c.iPrev = 2 * c.C * (v - c.vPrev) / Math.max(dt, EPS) - (c.iPrev ?? 0);
++      c.vPrev = v;
+     }
+     for (const l of ckt.L) {
+       const v1 = l.n1 === 0 ? 0 : x[l.n1 - 1] ?? 0;
+       const v2 = l.n2 === 0 ? 0 : x[l.n2 - 1] ?? 0;
+-      const Gl = Math.max(dt, EPS) / l.L;
+-      l.iPrev = Gl * (v1 - v2) + l.iPrev;
++      const v = v1 - v2;
++      const Gl = Math.max(dt, EPS) / (2 * l.L);
++      l.iPrev = Gl * (v + (l.vPrev ?? 0)) + l.iPrev;
++      l.vPrev = v;
+     }
+     for (const d of ckt.D) {
+       const v1 = d.nPlus === 0 ? 0 : x[d.nPlus - 1] ?? 0;
        const v2 = d.nMinus === 0 ? 0 : x[d.nMinus - 1] ?? 0;
        d.vdPrev = v1 - v2;
      }
@@ -589,7 +701,7 @@ index ee291ffef3382c1d38479941a709962f8c8f84cc..c01166a9b222cfc14dac11fbfb429171
    }
    if (ckt.probes.tran.length > 0) {
      const probedVoltages = {};
-@@ -1185,3 +1594,4 @@ export {
+@@ -1185,3 +1613,4 @@ export {
    simulateTRAN,
    spiceyTranToVGraphs
  };
