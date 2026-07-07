@@ -54,6 +54,9 @@ const PIN_NAMES: Record<string, string[]> = {
   temperature_sensor: ["vcc", "signal", "gnd"],
   ultrasonic_sensor: ["vcc", "trigger", "echo", "gnd"],
   photoresistor: ["a", "b"],
+  inductor: ["a", "b"],
+  transistor: ["collector", "base", "emitter"],
+  mosfet: ["drain", "gate", "source"],
   ic: [],
 };
 
@@ -117,10 +120,19 @@ export function resolveComponentPins(
     case "photoresistor":
       return { a: { row, col }, b: { row: row + 1, col } };
 
+    case "inductor":
+      return { a: { row, col }, b: { row: row + 1, col } };
+
     // ── Vertical three-terminal ──────────────────────────────────
 
     case "potentiometer":
       return { vcc: { row, col }, signal: { row: row + 1, col }, gnd: { row: row + 2, col } };
+
+    case "transistor":
+      return { collector: { row, col }, base: { row: row + 1, col }, emitter: { row: row + 2, col } };
+
+    case "mosfet":
+      return { drain: { row, col }, gate: { row: row + 1, col }, source: { row: row + 2, col } };
 
     case "servo":
       return { signal: { row, col }, vcc: { row: row + 1, col }, gnd: { row: row + 2, col } };

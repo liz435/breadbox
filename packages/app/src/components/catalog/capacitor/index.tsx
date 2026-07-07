@@ -21,15 +21,25 @@ export const capacitor: ComponentDefinition = {
     </svg>
   ),
   spicePrefix: "V",
-  buildNetlist: (comp, { footprint, resolveNode }) => {
+  buildNetlist: (comp, { footprint, resolveNode, mode }) => {
     const nodeA = resolveNode(footprint.points[0])
     const nodeB = resolveNode(footprint.points[1])
-    // Model the capacitor as a DC voltage source held at its current stored
-    // voltage. The circuit solver reads the resulting branch current to probe
-    // the surrounding circuit (Thevenin) and steps the stored voltage toward
-    // its target on a watchable exponential timescale (see circuit-solver.ts
-    // → evolveCapacitorVoltages). The branch current also drives the charge/
-    // discharge current-path animation.
+    if (mode === "transient") {
+      // Real capacitor element: spicey integrates it (backward-Euler
+      // companion model) and the TransientSession carries vPrev across
+      // steps, so charge evolves at true circuit speed.
+      const farads = ((comp.properties.capacitance as number) ?? 100) * 1e-6
+      return {
+        lines: [`C_${sanitize(comp.id)} ${nodeA} ${nodeB} ${farads}`],
+        nodeA,
+        nodeB,
+      }
+    }
+    // Legacy operating-point mode: model the capacitor as a DC voltage source
+    // held at its current stored voltage. The circuit solver reads the
+    // resulting branch current to probe the surrounding circuit (Thevenin)
+    // and steps the stored voltage toward its target on a watchable
+    // exponential timescale (see circuit-solver.ts → evolveCapacitorVoltages).
     const storedV = getCapVoltage(comp.id)
     return {
       lines: [`V_${sanitize(comp.id)} ${nodeA} ${nodeB} ${storedV}`],

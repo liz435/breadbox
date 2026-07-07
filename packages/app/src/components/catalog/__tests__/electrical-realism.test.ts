@@ -24,6 +24,7 @@ function makeCtx(
     resolveNode: (p) => `n_${p.row}_${p.col}`,
     pinStates: overrides.pinStates ?? createDefaultPinStates(),
     wires: overrides.wires ?? {},
+    mode: "op",
   }
 }
 

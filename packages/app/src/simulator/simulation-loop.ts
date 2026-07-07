@@ -7,7 +7,14 @@ import React, { useCallback, useEffect, useRef } from "react"
 import { useMachine } from "@xstate/react"
 import { simulationMachine } from "./simulation-machine"
 import { createSketchRunner, type SketchRunner, type SketchRunnerCallbacks } from "./runners"
-import { analyzeCircuit, hasCapacitor, type CircuitAnalysis } from "./circuit-solver"
+import {
+  analyzeCircuit,
+  analyzeCircuitTransient,
+  getTransientSession,
+  hasCapacitor,
+  type CircuitAnalysis,
+} from "./circuit-solver"
+import { isTransientSolverEnabled } from "./transient-flag"
 import { snapshotAsPinStates } from "./pin-state-store"
 import { applySensorInputs, resetSensorBuses } from "./sensor-inputs"
 import { RunTokenGate } from "./run-token-gate"
@@ -268,6 +275,10 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
   // (reactive transients need a higher update rate to animate smoothly).
   const lastInlineAtRef = useRef(0)
   const hasReactiveRef = useRef(false)
+  // MCU sim-clock reading (ms) at the last transient analysis. The transient
+  // session advances by the *simulated* elapsed time so the circuit and MCU
+  // share one timeline (the two-clock fix, ROADMAP Phase A).
+  const lastSimMsRef = useRef(0)
 
   /** Run circuit analysis and feed analog voltages into the pin store. */
   function runInlineAnalysis() {
@@ -299,7 +310,9 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     // Real elapsed time since the last analysis, used to step capacitor
     // charge. Clamped so a stall (tab backgrounded, breakpoint) can't make a
     // cap lurch; first frame gets 0 (no step).
-    hasReactiveRef.current = hasCapacitor(ctx.components)
+    hasReactiveRef.current =
+      hasCapacitor(ctx.components) ||
+      Object.values(ctx.components).some((c) => c.type === "inductor")
     const now = performance.now()
     const dtSeconds = lastInlineAtRef.current
       ? Math.min((now - lastInlineAtRef.current) / 1000, 0.25)
@@ -307,13 +320,32 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     lastInlineAtRef.current = now
 
     try {
-      const result = analyzeCircuit(
-        ctx.components,
-        ctx.wires,
-        snapshotAsPinStates(store),
-        shiftRegisterOutputs,
-        { dtSeconds },
-      )
+      let result: CircuitAnalysis
+      if (isTransientSolverEnabled()) {
+        // Robust path: advance the persistent session by the MCU's simulated
+        // elapsed time — circuit physics and sketch share one clock.
+        const simMs = runner.getMillis()
+        const dtSimSeconds = lastSimMsRef.current
+          ? Math.max((simMs - lastSimMsRef.current) / 1000, 0)
+          : 0
+        lastSimMsRef.current = simMs
+        result = analyzeCircuitTransient(
+          ctx.components,
+          ctx.wires,
+          snapshotAsPinStates(store),
+          shiftRegisterOutputs,
+          { dtSimSeconds },
+        )
+      } else {
+        // Legacy operating-point path (education "demo timescale" mode).
+        result = analyzeCircuit(
+          ctx.components,
+          ctx.wires,
+          snapshotAsPinStates(store),
+          shiftRegisterOutputs,
+          { dtSeconds },
+        )
+      }
       analysisResultRef.current = result
 
       if (result.isValid) {
@@ -447,6 +479,10 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
       const runner = getRunner()
       runner.reset()
       resetSensorBuses()
+      // Fresh run: drop circuit state and re-anchor the shared sim clock
+      // (runner.reset() restarts the MCU clock at 0).
+      getTransientSession().reset()
+      lastSimMsRef.current = 0
 
       const boardCtx = boardActor.getSnapshot().context
       const customLibs = getCustomLibraryMap()
@@ -593,6 +629,10 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     analysisResultRef.current = null
     // Clear sensor input busses so stale values don't leak into the next run.
     resetSensorBuses()
+    // Drop the transient session's circuit state (capacitor charge, inductor
+    // current) so a stopped board doesn't leak charge into the next run.
+    getTransientSession().reset()
+    lastSimMsRef.current = 0
     // Drop debugger run-state (keeps breakpoints for the next run).
     debugStateStore.reset()
     send({ type: "STOP" })

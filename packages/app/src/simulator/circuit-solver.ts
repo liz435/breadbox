@@ -10,6 +10,7 @@ import { buildNetlist, type NetlistResult, type ShiftRegisterOutputs } from "./n
 import { gridToPixel, getComponentFootprint } from "@/breadboard/breadboard-grid"
 import { getComponentDef } from "@/components/registry"
 import { getCapVoltage, setCapVoltage } from "./capacitor-state"
+import { TransientSession } from "./transient-session"
 
 type ParsedCircuit = ReturnType<typeof parseNetlist>
 
@@ -345,6 +346,189 @@ export function analyzeCircuit(
     return values[values.length - 1]
   }
 
+  const analysis = deriveAnalysis({
+    circuitComponents,
+    netlist,
+    componentNodePairs,
+    pinSources,
+    railSources,
+    railShorts,
+    getNodeVoltage,
+    getElementCurrent,
+    elementPrefixFor: (comp) => getComponentDef(comp.type)?.spicePrefix ?? "R",
+    warnings,
+    componentStates,
+    currentPaths,
+    decorateStates: (states) => {
+      // Advance capacitor charge for the NEXT frame. The state reported above
+      // reflects the cap at its current displayed voltage; this steps that
+      // voltage toward its target on a watchable exponential timescale.
+      if (!circuit) return
+      const timeScales = evolveCapacitorVoltages(
+        circuit,
+        circuitComponents,
+        options?.dtSeconds ?? 0,
+        getElementCurrent,
+      )
+      // Surface the deliberate time stretch on the capacitor's electrical
+      // state so the UI can label the transient as slowed-down.
+      for (const [componentId, timeScale] of timeScales) {
+        const state = states.get(componentId)
+        if (state) states.set(componentId, { ...state, timeScale })
+      }
+    },
+  })
+  return analysis
+}
+
+// ── Transient path (ROADMAP Phase A) ──────────────────────────────────
+//
+// The robust-sim entry point: a persistent TransientSession advances real
+// C/L elements and square-wave PWM sources by the MCU's simulated elapsed
+// time, then the same derivation as the legacy path turns the solve into
+// per-component states and warnings. No display-timescale stretching — the
+// circuit runs at true speed on the shared sim clock.
+
+const defaultSession = new TransientSession()
+
+/** The module-level session the simulation loop drives. Reset on sim stop. */
+export function getTransientSession(): TransientSession {
+  return defaultSession
+}
+
+export type TransientAnalysis = CircuitAnalysis & {
+  /** Sim seconds actually advanced (may lag requested under the step budget). */
+  advancedSeconds: number
+  requestedSeconds: number
+}
+
+export function analyzeCircuitTransient(
+  components: Record<string, BoardComponent>,
+  wires: Record<string, Wire>,
+  pinStates: PinState[],
+  shiftRegisterOutputs?: ShiftRegisterOutputs,
+  options?: { dtSimSeconds?: number; session?: TransientSession },
+): TransientAnalysis {
+  const componentStates = new Map<string, ComponentElectricalState>()
+  const currentPaths: CurrentPath[] = []
+  const warnings: CircuitWarning[] = []
+  const session = options?.session ?? defaultSession
+
+  const circuitComponents = Object.values(components).filter(
+    (c) => !isBoardComponentType(c.type) && c.type !== "wire",
+  )
+  if (circuitComponents.length === 0) {
+    return {
+      isValid: false,
+      netlist: "",
+      componentStates,
+      currentPaths,
+      warnings,
+      advancedSeconds: 0,
+      requestedSeconds: options?.dtSimSeconds ?? 0,
+    }
+  }
+
+  let step: ReturnType<TransientSession["step"]>
+  try {
+    step = session.step({
+      components,
+      wires,
+      pinStates,
+      shiftRegisterOutputs,
+      dtSimSeconds: options?.dtSimSeconds ?? 0,
+    })
+  } catch (err) {
+    warnings.push({
+      componentId: circuitComponents[0].id,
+      type: "solver_failed",
+      message: `Circuit solver failed: ${err instanceof Error ? err.message : String(err)}`,
+    })
+    console.error("[circuit-solver] transient solve failed:", err)
+    for (const comp of circuitComponents) {
+      componentStates.set(comp.id, {
+        componentId: comp.id,
+        isActive: false,
+        voltage: 0,
+        current: 0,
+        isReversed: false,
+        brightness: 0,
+      })
+    }
+    return {
+      isValid: false,
+      netlist: "",
+      componentStates,
+      currentPaths,
+      warnings,
+      advancedSeconds: 0,
+      requestedSeconds: options?.dtSimSeconds ?? 0,
+    }
+  }
+
+  const analysis = deriveAnalysis({
+    circuitComponents,
+    netlist: step.netlist,
+    componentNodePairs: step.build.componentNodePairs,
+    pinSources: step.build.pinSources,
+    railSources: step.build.railSources,
+    railShorts: step.build.railShorts,
+    getNodeVoltage: step.getNodeVoltage,
+    getElementCurrent: step.getElementCurrent,
+    // Transient mode emits real C/L elements, so their branch currents live
+    // under C_/L_ names regardless of the def's op-mode spicePrefix.
+    elementPrefixFor: (comp) =>
+      comp.type === "capacitor"
+        ? "C"
+        : comp.type === "inductor"
+          ? "L"
+          : getComponentDef(comp.type)?.spicePrefix ?? "R",
+    warnings,
+    componentStates,
+    currentPaths,
+  })
+  return {
+    ...analysis,
+    advancedSeconds: step.advancedSeconds,
+    requestedSeconds: step.requestedSeconds,
+  }
+}
+
+// ── Shared solve→analysis derivation ──────────────────────────────────
+
+type DeriveParams = {
+  circuitComponents: BoardComponent[]
+  netlist: string
+  componentNodePairs: Map<string, { nodeA: string; nodeB: string }>
+  pinSources: NetlistResult["pinSources"]
+  railSources: NetlistResult["railSources"]
+  railShorts: NetlistResult["railShorts"]
+  getNodeVoltage: (node: string) => number
+  getElementCurrent: (element: string) => number
+  elementPrefixFor: (comp: BoardComponent) => string
+  warnings: CircuitWarning[]
+  componentStates: Map<string, ComponentElectricalState>
+  currentPaths: CurrentPath[]
+  /** Optional hook run after component states are computed (cap evolution). */
+  decorateStates?: (states: Map<string, ComponentElectricalState>) => void
+}
+
+function deriveAnalysis(params: DeriveParams): CircuitAnalysis {
+  const {
+    circuitComponents,
+    netlist,
+    componentNodePairs,
+    pinSources,
+    railSources,
+    railShorts,
+    getNodeVoltage,
+    getElementCurrent,
+    elementPrefixFor,
+    warnings,
+    componentStates,
+    currentPaths,
+  } = params
+
   // Process each component
   for (const comp of circuitComponents) {
     const pair = componentNodePairs.get(comp.id)
@@ -367,8 +551,7 @@ export function analyzeCircuit(
 
     const def = getComponentDef(comp.type)
     const sanitizedId = comp.id.replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 20)
-    const spicePrefix = def?.spicePrefix ?? "R"
-    const elementName = `${spicePrefix}_${sanitizedId}`
+    const elementName = `${elementPrefixFor(comp)}_${sanitizedId}`
     // For LEDs the element is the `D_<id>` diode, in series with its Rs; the
     // solved diode branch current is the LED's true through-current. voltageDrop
     // is the terminal drop (junction + I·Rs), the physical LED voltage.
@@ -412,23 +595,7 @@ export function analyzeCircuit(
     }
   }
 
-  // Advance capacitor charge for the NEXT frame. The state reported above
-  // reflects the cap at its current displayed voltage; this steps that voltage
-  // toward its target on a watchable exponential timescale.
-  if (circuit) {
-    const timeScales = evolveCapacitorVoltages(
-      circuit,
-      circuitComponents,
-      options?.dtSeconds ?? 0,
-      getElementCurrent,
-    )
-    // Surface the deliberate time stretch on the capacitor's electrical state
-    // so the UI can label the transient as slowed-down rather than real-time.
-    for (const [componentId, timeScale] of timeScales) {
-      const state = componentStates.get(componentId)
-      if (state) componentStates.set(componentId, { ...state, timeScale })
-    }
-  }
+  params.decorateStates?.(componentStates)
 
   // Check each driven pin against the ATmega328P's current limits. The pin's
   // source branch current is its real load current; warn on the components it
