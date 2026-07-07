@@ -26,13 +26,15 @@ export function TransformGizmo() {
       object={target}
       mode={mode}
       onMouseUp={() => {
+        // Collapse to a single factor when the axes agree (the common case),
+        // else keep the per-axis triple the scale gizmo produced.
+        const { x, y, z } = target.scale
+        const uniform = Math.abs(x - y) < 1e-4 && Math.abs(x - z) < 1e-4
         updateBody(selectedBodyId, {
           transform: {
             position: [target.position.x, target.position.y, target.position.z],
             rotation: [target.rotation.x, target.rotation.y, target.rotation.z],
-            // The gizmo scales uniformly enough for our purposes; the doc
-            // stores a single uniform factor.
-            scale: target.scale.x,
+            scale: uniform ? x : [x, y, z],
           },
         })
       }}

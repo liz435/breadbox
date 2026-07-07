@@ -10,7 +10,7 @@ import type {
   Environment,
   AssemblyDoc,
 } from "@dreamer/schemas";
-import { createDefaultBoardState, DEFAULT_BOARD_TARGET, resolveComponentPins } from "@dreamer/schemas";
+import { createDefaultBoardState, DEFAULT_BOARD_TARGET, repairAssemblyForComponents, resolveComponentPins } from "@dreamer/schemas";
 import { pinStateStore } from "@/simulator/pin-state-store";
 import { getComponentFootprint, areConnected } from "@/breadboard/breadboard-grid";
 import { sensorRay } from "@/simulator/ray-cast";
@@ -632,7 +632,7 @@ export const boardMachine = setup({
     // ── Bulk load ──
 
     LOAD_BOARD: {
-      actions: assign(({ event }) => {
+      actions: assign(({ context, event }) => {
         const s = normalizeLegacyDcMotorWiring(event.state);
         const isEmptyBoard =
           Object.keys(s.components ?? {}).length === 0 &&
@@ -663,9 +663,19 @@ export const boardMachine = setup({
           ? s.components
           : { ...s.components, ...createDefaultBoardState().components };
 
+        // Boards that arrive without a 3D assembly (diagrams never carry
+        // one) keep the current assembly, repaired against the incoming
+        // component set so component mounts never dangle.
+        const assembly =
+          s.assembly ??
+          (context.assembly
+            ? repairAssemblyForComponents(context.assembly, Object.keys(components))
+            : undefined);
+
         return {
           ...s,
           components,
+          assembly,
           libraryState,
           serialOutput: s.serialOutput ?? [],
           sketchCode: normalizedSketch,

@@ -18,6 +18,7 @@ import { resolve } from "path"
 import {
   diagramToBoardState,
   projectFileSchema,
+  repairAssemblyForComponents,
   validateDiagram,
   type DiagramIssue,
   type ProjectFile,
@@ -122,9 +123,21 @@ export async function handleDiagramApply(
   }
 
   const existingProject: ProjectFile = projectParsed.data
+  // Diagrams don't describe the 3D assembly layer — carry the project's
+  // existing assembly forward, repaired against the new component set.
+  const previousAssembly = existingProject.boardState?.assembly
+  const nextBoardState = previousAssembly
+    ? {
+        ...parseResult.boardState,
+        assembly: repairAssemblyForComponents(
+          previousAssembly,
+          Object.keys(parseResult.boardState.components),
+        ),
+      }
+    : parseResult.boardState
   const nextProject: ProjectFile = {
     ...existingProject,
-    boardState: parseResult.boardState,
+    boardState: nextBoardState,
   }
 
   const absoluteProject = resolve(projectFile)

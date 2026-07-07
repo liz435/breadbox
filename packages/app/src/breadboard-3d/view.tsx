@@ -5,11 +5,13 @@
 // with three's loaders), the assembly panel, and the gizmo-mode toolbar.
 
 import { useRef, useState } from "react"
+import { toast } from "@/components/ui/toast"
 import { cn } from "@/utils/classnames"
 import { Button } from "@/components/ui/button"
 import { SceneRoot } from "./scene-root"
 import { ImportModelDialog } from "./import-model-dialog"
 import { AssemblyPanel } from "./assembly-panel"
+import { downloadSceneGlb } from "./scene-export"
 import { EditorProvider, useEditor, type GizmoMode } from "./editor-state"
 
 const GIZMO_MODES: { mode: GizmoMode; label: string }[] = [
@@ -42,7 +44,21 @@ function GizmoModeToolbar() {
 
 export function Breadboard3dView() {
   const [pendingFile, setPendingFile] = useState<File | null>(null)
+  const [exporting, setExporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function handleExport() {
+    setExporting(true)
+    try {
+      await downloadSceneGlb("breadboard-assembly.glb")
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? `Export failed: ${error.message}` : "Export failed",
+      )
+    } finally {
+      setExporting(false)
+    }
+  }
 
   return (
     <EditorProvider>
@@ -52,7 +68,16 @@ export function Breadboard3dView() {
         <AssemblyPanel />
         <GizmoModeToolbar />
 
-        <div className="absolute right-2 top-2">
+        <div className="absolute right-2 top-2 flex gap-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={handleExport}
+            disabled={exporting}
+            title="Download the whole assembly as a .glb (e.g. to check fit in a slicer)"
+          >
+            {exporting ? "Exporting…" : "Export .glb"}
+          </Button>
           <Button
             size="sm"
             onClick={() => fileInputRef.current?.click()}

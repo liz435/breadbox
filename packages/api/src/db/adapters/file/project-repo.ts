@@ -25,6 +25,7 @@ import {
 } from "../../schemas";
 import {
   createDefaultBoardState,
+  repairAssemblyForComponents,
   type BoardState,
 } from "@dreamer/schemas";
 
@@ -611,9 +612,22 @@ function applyBoardOp(project: ProjectFile, op: BoardOp): void {
     case "update_board_settings":
       // Merge settings into board state at top level
       break;
-    case "load_board":
-      project.boardState = structuredClone(op.payload.state);
+    case "load_board": {
+      // Wholesale board replacement (apply_design, load example). Diagrams
+      // don't describe the 3D assembly layer, so when the incoming state
+      // carries none, the previous board's assembly survives the swap —
+      // repaired against the new component set so mounts never dangle.
+      const previousAssembly = board.assembly;
+      const next = structuredClone(op.payload.state);
+      if (!next.assembly && previousAssembly) {
+        next.assembly = repairAssemblyForComponents(
+          previousAssembly,
+          Object.keys(next.components),
+        );
+      }
+      project.boardState = next;
       break;
+    }
   }
 }
 
