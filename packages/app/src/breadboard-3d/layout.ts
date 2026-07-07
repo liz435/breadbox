@@ -30,6 +30,9 @@ export const BREADBOARD_THICKNESS_MM = 8.5
 /** Height of the breadboard's top face — where placed parts sit. */
 export const BOARD_SURFACE_Y = BREADBOARD_THICKNESS_MM
 
+/** Top face of the MCU board's header sockets — where jumper wires plug in. */
+export const ARDUINO_HEADER_TOP_Y = PCB_THICKNESS_MM + 8
+
 /** Pixel rect of the Arduino board in the 2D canvas (see breadboard-grid.ts). */
 export const ARDUINO_RECT_PX = {
   x: 10,
