@@ -388,7 +388,7 @@ export function PlayControls({ sim }: PlayControlsProps) {
         <Tooltip>
           <TooltipTrigger
             render={
-              <span className="rounded-md bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] font-medium text-amber-400" />
+              <span className="rounded-md border border-amber-500/30 bg-amber-500/15 px-1.5 py-0.5 font-mono text-[10px] font-medium text-amber-700" />
             }
           >
             {realtimeFactor.toFixed(1)}×

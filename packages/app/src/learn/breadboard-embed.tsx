@@ -22,7 +22,7 @@
 //   become context-injected instances.
 
 import React, { useEffect, useMemo, useState, useCallback } from "react"
-import type { BoardState } from "@dreamer/schemas"
+import type { BoardState, LibraryState } from "@dreamer/schemas"
 import { AppProviders } from "@/app-providers"
 import { BreadboardCanvas } from "@/breadboard/breadboard-canvas"
 import { BoardContext, useBoardSelector } from "@/store/board-context"
@@ -147,7 +147,16 @@ function EmbedInner({ boardState, panels, autoRun, boardKey, hideOpenInIde }: Em
     boardSend({ type: "LOAD_BOARD", state: boardState })
   }, [boardSend, boardState])
 
-  const sim = useSimulation()
+  // Publish peripheral state (NeoPixel pixels, servo angles, LCD/OLED buffers)
+  // into this embed's board actor. Without this, syncLibraryState early-returns
+  // and library-driven parts (NeoPixel/servo/LCD/OLED) never light or animate.
+  const onLibraryStateChange = useCallback(
+    (changes: Partial<LibraryState>) => {
+      boardSend({ type: "SET_LIBRARY_STATE", changes })
+    },
+    [boardSend],
+  )
+  const sim = useSimulation({ onLibraryStateChange })
   const { status, play, pause, resume, stop } = sim
 
   // Auto-run: start the simulator once the board has been loaded.
@@ -347,6 +356,3 @@ function SerialViewPanel() {
     </div>
   )
 }
-
-// Silence unused imports for props we may add later
-void useCallback

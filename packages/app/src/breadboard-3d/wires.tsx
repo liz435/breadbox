@@ -17,7 +17,7 @@ import {
   type ArduinoPinInfo,
 } from "@/breadboard/breadboard-grid"
 import { ARDUINO_HEADER_TOP_Y, BOARD_SURFACE_Y, pixelToWorld } from "./layout"
-import { distanceToSegment, partObstacles, type PartObstacle } from "./part-obstacles"
+import { segmentClosest, partObstacles, type PartObstacle } from "./part-obstacles"
 
 /** 22 AWG jumper insulation is ~1.6 mm across. */
 const WIRE_RADIUS_MM = 0.8
@@ -64,13 +64,16 @@ function toEndpoint(wire: Wire): Vector3 {
   return new Vector3(world.x, BOARD_SURFACE_Y, world.z)
 }
 
-/** A cubic hop whose control points sit at 3/8 weight, so the apex at t=0.5 is
- * `avgEndpointY + 0.75·rise`. Used to solve the rise needed to clear a height. */
-const APEX_RISE_WEIGHT = 0.75
-/** Vertical gap kept between the wire's apex and the part it passes over (mm). */
+/** Vertical gap kept between the wire and the part it passes over (mm). */
 const WIRE_CLEARANCE_MM = 3
 /** Extra horizontal margin around a part before a wire counts as "over" it. */
 const WIRE_SIDE_MARGIN_MM = 1.5
+/** Floor on the arc height factor so a part sitting almost under an endpoint
+ *  (where the arc is near the board) doesn't demand an unbounded rise. */
+const MIN_ARC_FACTOR = 0.12
+/** Cap on the control-point rise (mm). A part directly under a wire's hole
+ *  can't be arced over by a single hop; clamp rather than shoot to the moon. */
+const MAX_WIRE_RISE_MM = 60
 
 function buildCurve(
   wire: Wire,
@@ -85,19 +88,22 @@ function buildCurve(
   // per-wire jitter keeps side-by-side wires from occupying the same arc.
   let rise = Math.min(26, 6 + span * 0.18) + idJitter(wire.id) * 5
 
-  // Lift the arc over the tallest part beneath its horizontal segment so the
-  // jumper humps over components instead of passing through them.
-  let tallest = 0
+  // Lift the arc so it clears every part it passes over — at the part's ACTUAL
+  // position along the hop, not just the midpoint apex. The arc's height above
+  // the endpoints scales as 3·t·(1−t)·rise (peaking at 0.75·rise at t=0.5), so a
+  // part sitting off-centre is passed over where the arc is lower and needs more
+  // rise than the apex formula alone would give. Using the straight-segment
+  // fraction as t is conservative (the real curve sits at least this high),
+  // so we never under-clear.
+  const avgEndpointY = (start.y + end.y) / 2
   for (const obstacle of obstacles) {
-    const distance = distanceToSegment(obstacle.x, obstacle.z, start.x, start.z, end.x, end.z)
-    if (distance <= obstacle.radius + WIRE_SIDE_MARGIN_MM) {
-      tallest = Math.max(tallest, obstacle.topY)
-    }
-  }
-  if (tallest > 0) {
-    const avgEndpointY = (start.y + end.y) / 2
-    const neededRise = (tallest + WIRE_CLEARANCE_MM - avgEndpointY) / APEX_RISE_WEIGHT
-    rise = Math.max(rise, neededRise)
+    const { distance, t } = segmentClosest(
+      obstacle.x, obstacle.z, start.x, start.z, end.x, end.z,
+    )
+    if (distance > obstacle.radius + WIRE_SIDE_MARGIN_MM) continue
+    const factor = Math.max(MIN_ARC_FACTOR, 3 * t * (1 - t))
+    const neededRise = (obstacle.topY + WIRE_CLEARANCE_MM - avgEndpointY) / factor
+    rise = Math.max(rise, Math.min(neededRise, MAX_WIRE_RISE_MM))
   }
 
   const control1 = start.clone()

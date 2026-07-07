@@ -15,14 +15,16 @@
 // invalidate(), and the loop keeps requesting frames only while something is
 // still moving (servo mid-slew, motor spinning, a clip playing).
 
-import { useEffect, useRef } from "react"
+import { useEffect, useMemo, useRef } from "react"
 import { useFrame, useThree } from "@react-three/fiber"
 import { MathUtils, Vector3 } from "three"
-import type { AssemblyBinding, LibraryState } from "@dreamer/schemas"
+import type { AssemblyBinding, LibraryState, PinState } from "@dreamer/schemas"
 import { isJointBindingChannel } from "@dreamer/schemas"
 import type { CircuitAnalysis } from "@/simulator/circuit-solver"
 import { useBoardSelector } from "@/store/board-context"
 import { useCircuitAnalysis } from "@/simulator/circuit-analysis-hook"
+import { usePinStates } from "@/simulator/use-pin-state"
+import { findArduinoPinForComponentPin } from "@/breadboard/component-pin-resolver"
 import { useAssemblyDoc } from "./use-assembly"
 import {
   getBodyJoint,
@@ -48,24 +50,64 @@ function readSignal(libraryState: LibraryState, binding: AssemblyBinding): numbe
   return libraryState.custom[binding.componentId]?.[binding.signal] ?? 0
 }
 
+/** Per-channel brightness (0..1) off a pin, mirroring the 2D RGB LED renderer:
+ *  PWM duty when the pin is analog-written, else the digital level. */
+function channelBrightness(pin: number | null, pinStates: PinState[]): number {
+  if (pin === null) return 0
+  const state = pinStates[pin]
+  if (!state) return 0
+  return state.isPwm ? state.pwmValue / 255 : state.digitalValue
+}
+
+/** An RGB LED's three colour pins, resolved from the wire graph once (not per
+ *  frame). null when a channel isn't wired to a driver pin. */
+type RgbLedPins = { id: string; red: number | null; green: number | null; blue: number | null }
+
 export function AnimationDriver() {
   const libraryState = useBoardSelector((ctx) => ctx.libraryState)
+  const components = useBoardSelector((ctx) => ctx.components)
+  const wires = useBoardSelector((ctx) => ctx.wires)
   const { analysis } = useCircuitAnalysis()
+  const pinStates = usePinStates()
   const assembly = useAssemblyDoc()
   const invalidate = useThree((state) => state.invalidate)
+
+  // Resolve each RGB LED's colour pins from the wire graph. The mapping only
+  // changes when parts/wires change, so keep it out of the frame loop; the
+  // per-frame work is just reading pinStates at those indices.
+  const rgbLeds = useMemo<RgbLedPins[]>(() => {
+    const out: RgbLedPins[] = []
+    for (const c of Object.values(components)) {
+      if (c.type !== "rgb_led") continue
+      out.push({
+        id: c.id,
+        red: findArduinoPinForComponentPin(c, "red", wires),
+        green: findArduinoPinForComponentPin(c, "green", wires),
+        blue: findArduinoPinForComponentPin(c, "blue", wires),
+      })
+    }
+    return out
+  }, [components, wires])
+  // Ids to skip in the generic emissive loop, so it doesn't clobber the RGB
+  // branch's colour back to red-channel-only brightness every frame.
+  const rgbLedIds = useMemo(() => new Set(rgbLeds.map((r) => r.id)), [rgbLeds])
 
   // Latest sim data for the frame loop, without re-subscribing useFrame.
   const dataRef = useRef<{
     libraryState: LibraryState
     analysis: CircuitAnalysis | null
     assembly: typeof assembly
-  }>({ libraryState, analysis, assembly })
-  dataRef.current = { libraryState, analysis, assembly }
+    pinStates: PinState[]
+    rgbLeds: RgbLedPins[]
+    rgbLedIds: Set<string>
+  }>({ libraryState, analysis, assembly, pinStates, rgbLeds, rgbLedIds })
+  dataRef.current = { libraryState, analysis, assembly, pinStates, rgbLeds, rgbLedIds }
 
-  // Demand frameloop: nudge a frame whenever sim data changes.
+  // Demand frameloop: nudge a frame whenever sim data changes. pinStates is in
+  // here so an RGB LED's green/blue-only pin change still repaints.
   useEffect(() => {
     invalidate()
-  }, [libraryState, analysis, assembly, invalidate])
+  }, [libraryState, analysis, assembly, pinStates, rgbLeds, invalidate])
 
   const axisScratch = useRef(new Vector3())
   // Per-motor current angular velocity (rad/s), ramped toward target for inertia.
@@ -115,7 +157,9 @@ export function AnimationDriver() {
             animating = true
           }
         }
-        if (nodes.emissiveMaterial) {
+        // RGB LEDs are driven per-channel below; skip them here so the generic
+        // (red-current-only) brightness doesn't fight the colour branch.
+        if (nodes.emissiveMaterial && !data.rgbLedIds.has(componentId)) {
           const lit = Math.max(0, Math.min(1, state.brightness)) * EMISSIVE_MAX
           if (Math.abs(nodes.emissiveMaterial.emissiveIntensity - lit) > 0.01) {
             nodes.emissiveMaterial.emissiveIntensity = lit
@@ -125,13 +169,43 @@ export function AnimationDriver() {
       }
     }
 
-    // NeoPixels → emissive color + intensity from the first pixel.
+    // NeoPixels → emissive color + intensity from the brightest lit pixel, so
+    // the single 3D block glows whenever any pixel on the strip is on (a moving
+    // dot / chase would otherwise look dark whenever pixel 0 is off).
     for (const [componentId, neo] of Object.entries(data.libraryState.neopixels)) {
       const material = getPartNodes(componentId)?.emissiveMaterial
-      const pixel = neo.pixels[0]
-      if (!material || !pixel) continue
-      const intensity = (Math.max(pixel.r, pixel.g, pixel.b) / 255) * EMISSIVE_MAX
-      material.emissive.setRGB(pixel.r / 255, pixel.g / 255, pixel.b / 255)
+      if (!material || neo.pixels.length === 0) continue
+      let r = 0
+      let g = 0
+      let b = 0
+      for (const p of neo.pixels) {
+        if (p.r + p.g + p.b > r + g + b) {
+          r = p.r
+          g = p.g
+          b = p.b
+        }
+      }
+      const intensity = (Math.max(r, g, b) / 255) * EMISSIVE_MAX
+      material.emissive.setRGB(r / 255, g / 255, b / 255)
+      if (Math.abs(material.emissiveIntensity - intensity) > 0.01) {
+        material.emissiveIntensity = intensity
+        animating = true
+      }
+    }
+
+    // RGB LEDs → emissive colour mixed from the three driver pins (PWM/digital),
+    // matching the 2D renderer. Hue is normalised to full scale so a dim red
+    // still reads red, and intensity carries the brightness.
+    for (const rgb of data.rgbLeds) {
+      const material = getPartNodes(rgb.id)?.emissiveMaterial
+      if (!material) continue
+      const rBright = channelBrightness(rgb.red, data.pinStates)
+      const gBright = channelBrightness(rgb.green, data.pinStates)
+      const bBright = channelBrightness(rgb.blue, data.pinStates)
+      const maxCh = Math.max(rBright, gBright, bBright)
+      const hueScale = maxCh > 0 ? 1 / maxCh : 0
+      material.emissive.setRGB(rBright * hueScale, gBright * hueScale, bBright * hueScale)
+      const intensity = maxCh * EMISSIVE_MAX
       if (Math.abs(material.emissiveIntensity - intensity) > 0.01) {
         material.emissiveIntensity = intensity
         animating = true
