@@ -50,19 +50,24 @@ export async function exportSceneToGlb(): Promise<Blob> {
   return new Blob([JSON.stringify(result)], { type: "model/gltf+json" })
 }
 
-const savedResponseSchema = z.object({ path: z.string() })
+const saveResponseSchema = z.union([
+  z.object({ path: z.string() }),
+  z.object({ cancelled: z.literal(true) }),
+])
 
-/** Where the export ended up: an absolute path (server-saved) or null (the
- *  browser's own download, whose destination we can't know). */
-export type ExportResult = { savedTo: string | null }
+/** Outcome of an export:
+ *  - savedTo: absolute path (server-saved) or null (browser download / cancel)
+ *  - cancelled: the user dismissed the native Save panel — nothing to report */
+export type ExportResult = { savedTo: string | null; cancelled: boolean }
 
 /** Save the exported assembly, returning where it landed.
  *
  * Prefers a server-side save: the desktop app runs in a WKWebView that ignores
  * `<a download>`, so a client download silently no-ops there. The local server
- * (reachable at API_ORIGIN in every deployment) writes the file and hands back
- * its path. Any failure — endpoint missing, offline, CORS — falls back to the
- * plain-browser anchor download, which works in Chrome/Firefox/Safari. */
+ * (reachable at API_ORIGIN in every deployment) opens a native Save panel,
+ * writes the file, and hands back its path. Any failure — endpoint missing,
+ * offline, CORS — falls back to the plain-browser anchor download, which works
+ * in Chrome/Firefox/Safari. */
 export async function downloadSceneGlb(filename = "assembly.glb"): Promise<ExportResult> {
   const blob = await exportSceneToGlb()
 
@@ -75,15 +80,19 @@ export async function downloadSceneGlb(filename = "assembly.glb"): Promise<Expor
       credentials: "include",
     })
     if (res.ok) {
-      const parsed = savedResponseSchema.safeParse(await res.json())
-      if (parsed.success) return { savedTo: parsed.data.path }
+      const parsed = saveResponseSchema.safeParse(await res.json())
+      if (parsed.success) {
+        return "cancelled" in parsed.data
+          ? { savedTo: null, cancelled: true }
+          : { savedTo: parsed.data.path, cancelled: false }
+      }
     }
   } catch {
     // Server unreachable (e.g. plain browser dev with no API) — fall through.
   }
 
   triggerBrowserDownload(blob, filename)
-  return { savedTo: null }
+  return { savedTo: null, cancelled: false }
 }
 
 /** Browser fallback: click a hidden anchor to download the blob. */
