@@ -24,6 +24,9 @@ import { led } from "./led"
 import { rgbLed } from "./rgb-led"
 import { resistor } from "./resistor"
 import { capacitor } from "./capacitor"
+import { inductor } from "./inductor"
+import { transistor } from "./transistor"
+import { mosfet } from "./mosfet"
 import { button } from "./button"
 import { potentiometer } from "./potentiometer"
 import { buzzer } from "./buzzer"
@@ -57,6 +60,9 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
   rgbLed,
   resistor,
   capacitor,
+  inductor,
+  transistor,
+  mosfet,
   button,
   potentiometer,
   buzzer,

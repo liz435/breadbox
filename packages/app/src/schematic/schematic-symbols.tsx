@@ -212,6 +212,119 @@ export function CapacitorSymbol({ x, y, label, value, voltage, current, isActive
   )
 }
 
+export function InductorSymbol({ x, y, label, value, voltage, current, isActive }: SymbolProps) {
+  const w = 60
+  const stroke = isActive ? "#8b5cf6" : STROKE
+  // Four half-loops between short leads (IEEE style)
+  const loops =
+    `M ${x} ${y} l 10 0 ` +
+    `a 5 5 0 0 1 10 0 a 5 5 0 0 1 10 0 a 5 5 0 0 1 10 0 a 5 5 0 0 1 10 0 ` +
+    `l 10 0`
+
+  return (
+    <g>
+      <path d={loops} fill="none" stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Terminal dots */}
+      <circle cx={x} cy={y} r={3} fill={stroke} />
+      <circle cx={x + w} cy={y} r={3} fill={stroke} />
+      <text x={x + w / 2} y={y - 16} textAnchor="middle" fill="currentColor" style={{ font: FONT_LABEL }}>
+        {label}
+      </text>
+      {value && (
+        <text x={x + w / 2} y={y + 22} textAnchor="middle" fill="currentColor" fillOpacity={0.6} style={{ font: FONT_VALUE }}>
+          {value}
+        </text>
+      )}
+      <Annotation x={x + w / 2} y={y + 34} voltage={voltage} current={current} />
+    </g>
+  )
+}
+
+export function TransistorSymbol({ x, y, label, value, voltage, current, isActive }: SymbolProps) {
+  // NPN BJT, IEEE style: circle body, vertical base bar, angled collector /
+  // emitter with arrow on the emitter. Collector top-right, emitter
+  // bottom-right, base left — matches the breadboard footprint order (C/B/E).
+  const r = 18
+  const cx = x + 30
+  const cy = y
+  const stroke = isActive ? "#f97316" : STROKE
+
+  return (
+    <g>
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Base lead + bar */}
+      <line x1={x} y1={cy} x2={cx - 8} y2={cy} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      <line x1={cx - 8} y1={cy - 10} x2={cx - 8} y2={cy + 10} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Collector (up-right) */}
+      <line x1={cx - 8} y1={cy - 5} x2={cx + 8} y2={cy - 14} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      <line x1={cx + 8} y1={cy - 14} x2={cx + 8} y2={cy - r - 6} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Emitter (down-right, arrow pointing out = NPN) */}
+      <line x1={cx - 8} y1={cy + 5} x2={cx + 8} y2={cy + 14} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      <line x1={cx + 8} y1={cy + 14} x2={cx + 8} y2={cy + r + 6} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      <path
+        d={`M ${cx + 4} ${cy + 7} L ${cx + 8} ${cy + 14} L ${cx + 0.5} ${cy + 12} Z`}
+        fill={stroke}
+      />
+      {/* Terminal dots: base (left), collector (top), emitter (bottom) */}
+      <circle cx={x} cy={cy} r={3} fill={stroke} />
+      <circle cx={cx + 8} cy={cy - r - 6} r={3} fill={stroke} />
+      <circle cx={cx + 8} cy={cy + r + 6} r={3} fill={stroke} />
+      <text x={cx} y={cy - r - 12} textAnchor="middle" fill="currentColor" style={{ font: FONT_LABEL }}>
+        {label}
+      </text>
+      {value && (
+        <text x={cx} y={cy + r + 20} textAnchor="middle" fill="currentColor" fillOpacity={0.6} style={{ font: FONT_VALUE }}>
+          {value}
+        </text>
+      )}
+      <Annotation x={cx} y={cy + r + 32} voltage={voltage} current={current} />
+    </g>
+  )
+}
+
+export function MosfetSymbol({ x, y, label, value, voltage, current, isActive }: SymbolProps) {
+  // N-channel enhancement MOSFET, simplified IEEE style: gate bar on the
+  // left, broken channel bar, drain top-right / source bottom-right.
+  const cx = x + 30
+  const cy = y
+  const stroke = isActive ? "#f97316" : STROKE
+
+  return (
+    <g>
+      {/* Gate lead + gate bar */}
+      <line x1={x} y1={cy} x2={cx - 10} y2={cy} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      <line x1={cx - 10} y1={cy - 12} x2={cx - 10} y2={cy + 12} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Channel bar (three dashes = enhancement mode) */}
+      <line x1={cx - 4} y1={cy - 14} x2={cx - 4} y2={cy - 6} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      <line x1={cx - 4} y1={cy - 4} x2={cx - 4} y2={cy + 4} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      <line x1={cx - 4} y1={cy + 6} x2={cx - 4} y2={cy + 14} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Drain (top) */}
+      <line x1={cx - 4} y1={cy - 10} x2={cx + 10} y2={cy - 10} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      <line x1={cx + 10} y1={cy - 10} x2={cx + 10} y2={cy - 24} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      {/* Source (bottom) with arrow into channel (n-channel) */}
+      <line x1={cx - 4} y1={cy + 10} x2={cx + 10} y2={cy + 10} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      <line x1={cx + 10} y1={cy + 10} x2={cx + 10} y2={cy + 24} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+      <path
+        d={`M ${cx + 4} ${cy + 6} L ${cx - 3} ${cy + 10} L ${cx + 4} ${cy + 14} Z`}
+        fill={stroke}
+      />
+      {/* Terminal dots: gate (left), drain (top), source (bottom) */}
+      <circle cx={x} cy={cy} r={3} fill={stroke} />
+      <circle cx={cx + 10} cy={cy - 24} r={3} fill={stroke} />
+      <circle cx={cx + 10} cy={cy + 24} r={3} fill={stroke} />
+      <text x={cx} y={cy - 30} textAnchor="middle" fill="currentColor" style={{ font: FONT_LABEL }}>
+        {label}
+      </text>
+      {value && (
+        <text x={cx} y={cy + 38} textAnchor="middle" fill="currentColor" fillOpacity={0.6} style={{ font: FONT_VALUE }}>
+          {value}
+        </text>
+      )}
+      <Annotation x={cx} y={cy + 50} voltage={voltage} current={current} />
+    </g>
+  )
+}
+
 export function BuzzerSymbol({ x, y, label, value, voltage, current, isActive }: SymbolProps) {
   const w = 60
   const r = 14
@@ -1021,6 +1134,9 @@ export const SCHEMATIC_SYMBOL_TYPES = [
   "led",
   "button",
   "capacitor",
+  "inductor",
+  "transistor",
+  "mosfet",
   "buzzer",
   "dc_motor",
   "relay",
@@ -1056,6 +1172,12 @@ export function renderSymbol(
       return <ButtonSymbol {...props} />
     case "capacitor":
       return <CapacitorSymbol {...props} />
+    case "inductor":
+      return <InductorSymbol {...props} />
+    case "transistor":
+      return <TransistorSymbol {...props} />
+    case "mosfet":
+      return <MosfetSymbol {...props} />
     case "buzzer":
       return <BuzzerSymbol {...props} />
     case "dc_motor":

@@ -54,6 +54,7 @@ function makeCtx(footprint: NetlistContext["footprint"]): NetlistContext {
     resolveNode: (p) => `n_${p.row}_${p.col}`,
     pinStates: [],
     wires: {},
+    mode: "op" as const,
   }
 }
 

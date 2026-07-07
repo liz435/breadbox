@@ -58,6 +58,16 @@ function resolveNode(
 
 // ── Public API ───────────────────────────────────────────────────────
 
+/**
+ * Netlist emission mode.
+ *  - "op": legacy repeated operating-point solve. Capacitors emit as held
+ *    V sources (see capacitor def), PWM stays duty-averaged DC.
+ *  - "transient": real-physics path. Capacitors emit as C elements,
+ *    inductors as L; PWM sources are flagged for the TransientSession to
+ *    replace with square-wave waveforms phased to session time.
+ */
+export type NetlistMode = "op" | "transient"
+
 export type NetlistResult = {
   netlist: string
   nets: Net[]
@@ -75,8 +85,10 @@ export type NetlistResult = {
    * switching states by flipping each source between `highVolts` and 0 and
    * weight-averaging the results — the physically correct time average for
    * nonlinear loads like LEDs (avg of currents, not current at avg voltage).
+   * In transient mode the session installs a real square wave on the source
+   * at `frequencyHz` instead.
    */
-  pwmSources: Array<{ element: string; duty: number; highVolts: number }>
+  pwmSources: Array<{ element: string; duty: number; highVolts: number; frequencyHz: number }>
   /**
    * The 5V / 3.3V rail sources, for supply-limit checks. Unlike digital pins
    * the rails come from the regulator/polyfuse, so they get their own (small)
@@ -93,6 +105,15 @@ export type NetlistResult = {
 }
 
 const ARDUINO_OUTPUT_SOURCE_RESISTANCE_OHMS = 25
+
+/**
+ * Nominal Uno PWM frequency per pin: Timer0 pins (5, 6) run ~976.56 Hz,
+ * Timer1/Timer2 pins (9, 10, 3, 11) run ~490.2 Hz. Used by the transient
+ * session to synthesize the real square wave.
+ */
+function pwmFrequencyForPin(pin: number): number {
+  return pin === 5 || pin === 6 ? 976.5625 : 490.196
+}
 // The 5V rail on a real Uno comes through a ~0.3Ω polyfuse plus traces (USB)
 // or the regulator; the 3V3 rail is an LP2985 LDO. Small series resistances
 // make rails sag realistically under heavy load instead of holding an ideal
@@ -116,6 +137,7 @@ export function buildNetlist(
   wires: Record<string, Wire>,
   pinStates: PinState[],
   shiftRegisterOutputs?: ShiftRegisterOutputs,
+  mode: NetlistMode = "op",
 ): NetlistResult {
   const nets = resolveNets(components, wires)
   const lines: string[] = []
@@ -345,7 +367,12 @@ export function buildNetlist(
     // can check the pin against the ATmega's current limits.
     if (vs.pin != null) pinSources.push({ pin: vs.pin, element, node: nodeName })
     if (vs.pwmDuty != null) {
-      pwmSources.push({ element, duty: vs.pwmDuty, highVolts: vs.pwmHighVolts ?? 5 })
+      pwmSources.push({
+        element,
+        duty: vs.pwmDuty,
+        highVolts: vs.pwmHighVolts ?? 5,
+        frequencyHz: pwmFrequencyForPin(vs.pin ?? -1),
+      })
     }
     if (vs.rail) railSources.push({ element, rail: vs.rail, node: nodeName })
     vsIndex++
@@ -364,6 +391,7 @@ export function buildNetlist(
         resolveNode: (pt: GridPoint) => resolveNode(nodeMap, pt),
         pinStates,
         wires,
+        mode,
       }
       const result = def.buildNetlist(comp, ctx)
       if (result) {

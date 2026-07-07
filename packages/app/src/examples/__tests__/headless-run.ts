@@ -15,6 +15,11 @@ import {
 import { createAvrSketchRunner } from "../../simulator/runners/avr-runner"
 import { PinStateStore } from "../../simulator/pin-state-store"
 import { applySensorInputs, resetSensorBuses } from "../../simulator/sensor-inputs"
+import { SolverScheduler } from "../../simulator/solver-scheduler"
+import { TransientSession } from "../../simulator/transient-session"
+import { snapshotAsPinStates } from "../../simulator/pin-state-store"
+import { isTransientSolverEnabled } from "../../simulator/transient-flag"
+import { getBoardPinLayout } from "../../breadboard/breadboard-grid"
 import type { PeripheralState } from "../../simulator/peripherals/types"
 import type { ExpectedBehavior } from "../example-meta"
 
@@ -139,8 +144,42 @@ export function runBoardHeadless(
     runner.runSetup()
 
     const bus = runner.getPeripheralBus()
+    // Mirror the app loop's transient path (Phase A–C): the scheduler
+    // advances the circuit on the MCU clock and the solved node voltages
+    // feed the analog pins — this is what makes pot/LDR sketches read real
+    // divider physics in the headless harness too. Generous budget: tests
+    // prefer determinism over frame pacing.
+    const scheduler = new SolverScheduler(new TransientSession(), { budgetMs: 1000 })
+    const analogPinSet = new Set(
+      getBoardPinLayout(board.boardTarget ?? DEFAULT_BOARD_TARGET).analogPins.map((p) => p.pin),
+    )
+    const feedSolvedAnalogVoltages = (): void => {
+      if (!isTransientSolverEnabled()) return
+      const hasCircuit = Object.values(board.components).some(
+        (c) => c.type !== "wire",
+      )
+      if (!hasCircuit) return
+      const tick = scheduler.tick({
+        components: board.components,
+        wires: board.wires,
+        pinStates: snapshotAsPinStates(store),
+        mcuTimeSeconds: runner.getMillis() / 1000,
+      })
+      if (!tick.analysis.isValid) return
+      const voltsToAnalog = (v: number) =>
+        Math.round((Math.min(5, Math.abs(v)) / 5) * 1023)
+      for (const wire of Object.values(board.wires)) {
+        if (wire.fromRow !== -999) continue
+        if (!analogPinSet.has(wire.fromCol)) continue
+        const volts = tick.analysis.nodeVoltageAt?.({ row: wire.toRow, col: wire.toCol })
+        if (volts !== null && volts !== undefined) {
+          store.writeExternal(wire.fromCol, { analogValue: voltsToAnalog(volts) })
+        }
+      }
+    }
     while (runner.getMillis() < simulateMs) {
       if (runtimeErrors.length > 0) break
+      feedSolvedAnalogVoltages()
       applySensorInputs(board.components, board.wires, store, board.environment, bus)
       runner.runLoopIteration()
       bus.tick(runner.getMillis())

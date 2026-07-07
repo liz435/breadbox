@@ -152,9 +152,10 @@ export const EXAMPLE_META: Record<string, ExampleMeta> = {
     primaryType: "photoresistor",
     category: "input",
     expectedBehavior: {
-      // The default environment light level feeds the divider → ~362 counts.
+      // Solved divider physics: default light 50% → LDR 10 kΩ vs 10 kΩ
+      // fixed → 2.5 V → 511 counts. (362 was the legacy injection curve.)
       simulateMs: 1200,
-      serialContains: "Light: 362",
+      serialContains: "Light: 511",
     },
   },
   "ex-temperature-sensor": {

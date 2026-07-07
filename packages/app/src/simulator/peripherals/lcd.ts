@@ -47,6 +47,7 @@
 
 import type { BoardComponent, ComponentType, Wire } from "@dreamer/schemas"
 import { resolveComponentPins } from "@dreamer/schemas"
+import { isStrictHardwareEnabled } from "../strict-hardware-flag"
 import type {
   Peripheral,
   PeripheralCapability,
@@ -159,6 +160,11 @@ export class LcdPeripheral implements Peripheral<LcdStateShape> {
   // Nibble assembly: HD44780 4-bit mode needs two EN pulses per byte. The
   // first captured nibble is the high nibble; the second is the low nibble.
   private pendingHighNibble: number | null = null
+
+  // Strict-mode busy window (sim ms): instructions arriving before this
+  // moment are dropped like on real hardware. Public counter for tests/UI.
+  private busyUntilSimMs = 0
+  droppedBusyBytes = 0
 
   // DDRAM & cursor state.
   private ddram: string[][]
@@ -276,7 +282,7 @@ export class LcdPeripheral implements Peripheral<LcdStateShape> {
     // waits ≥1µs, then pulls it LOW — the high→low transition is when the
     // HD44780 samples D4..D7 and commits the nibble.
     if (name === "en" && prev === 1 && edge.value === 0) {
-      this.latchNibble()
+      this.latchNibble(edge.simMs)
     }
   }
 
@@ -323,6 +329,8 @@ export class LcdPeripheral implements Peripheral<LcdStateShape> {
     this.legacySource = null
     this.levels = { rs: 0, en: 0, d4: 0, d5: 0, d6: 0, d7: 0 }
     this.traces = []
+    this.busyUntilSimMs = 0
+    this.droppedBusyBytes = 0
   }
 
   getTrace(): ReadonlyArray<PeripheralTrace> {
@@ -360,7 +368,7 @@ export class LcdPeripheral implements Peripheral<LcdStateShape> {
     return null
   }
 
-  private latchNibble(): void {
+  private latchNibble(simMs: number): void {
     // Read the current data-pin levels as a 4-bit nibble. D7 is MSB.
     const nibble =
       ((this.levels.d7 & 1) << 3) |
@@ -376,11 +384,34 @@ export class LcdPeripheral implements Peripheral<LcdStateShape> {
     this.pendingHighNibble = null
     this.hasReceivedAnyByte = true
 
+    // Strict hardware mode: the HD44780 is BUSY for ~37 µs after every
+    // instruction (1.52 ms after Clear/Home). A byte arriving inside the
+    // busy window is dropped — the same garbage-on-screen failure a real
+    // panel gives sketches that skip the datasheet delays. (Real hardware
+    // ignores at nibble granularity and can desync the pairing; dropping
+    // whole bytes keeps the failure legible without modelling desync.)
+    if (isStrictHardwareEnabled() && simMs < this.busyUntilSimMs) {
+      this.droppedBusyBytes++
+      this.trace({
+        simMs,
+        kind: "warn",
+        message: "byte dropped: controller busy",
+        detail: {
+          byte,
+          busyForUs: Math.round((this.busyUntilSimMs - simMs) * 1000),
+        },
+      })
+      return
+    }
+
     if (this.levels.rs === 1) {
       this.writeChar(byte)
     } else {
       this.executeCommand(byte)
     }
+    // Clear (0x01) and Home (0x02) take 1.52 ms; everything else ~37 µs.
+    const isSlowCommand = this.levels.rs === 0 && (byte === 0x01 || byte === 0x02)
+    this.busyUntilSimMs = simMs + (isSlowCommand ? 1.52 : 0.037)
   }
 
   private executeCommand(byte: number): void {
