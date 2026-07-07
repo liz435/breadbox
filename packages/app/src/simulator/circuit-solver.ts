@@ -10,7 +10,7 @@ import { buildNetlist, type NetlistResult, type ShiftRegisterOutputs } from "./n
 import { gridToPixel, getComponentFootprint } from "@/breadboard/breadboard-grid"
 import { getComponentDef } from "@/components/registry"
 import { getCapVoltage, setCapVoltage } from "./capacitor-state"
-import { TransientSession } from "./transient-session"
+import { TransientSession, type TransientStepResult } from "./transient-session"
 
 type ParsedCircuit = ReturnType<typeof parseNetlist>
 
@@ -466,7 +466,29 @@ export function analyzeCircuitTransient(
     }
   }
 
-  const analysis = deriveAnalysis({
+  const analysis = deriveTransientAnalysis(step, components, warnings)
+  return {
+    ...analysis,
+    advancedSeconds: step.advancedSeconds,
+    requestedSeconds: step.requestedSeconds,
+  }
+}
+
+/**
+ * Turn a TransientSession step into per-component electrical states and
+ * warnings. Shared by analyzeCircuitTransient (single step) and the
+ * SolverScheduler (which may run several session steps per tick and derives
+ * once from the final state).
+ */
+export function deriveTransientAnalysis(
+  step: TransientStepResult,
+  components: Record<string, BoardComponent>,
+  seedWarnings: CircuitWarning[] = [],
+): CircuitAnalysis {
+  const circuitComponents = Object.values(components).filter(
+    (c) => !isBoardComponentType(c.type) && c.type !== "wire",
+  )
+  return deriveAnalysis({
     circuitComponents,
     netlist: step.netlist,
     componentNodePairs: step.build.componentNodePairs,
@@ -483,15 +505,10 @@ export function analyzeCircuitTransient(
         : comp.type === "inductor"
           ? "L"
           : getComponentDef(comp.type)?.spicePrefix ?? "R",
-    warnings,
-    componentStates,
-    currentPaths,
+    warnings: seedWarnings,
+    componentStates: new Map<string, ComponentElectricalState>(),
+    currentPaths: [],
   })
-  return {
-    ...analysis,
-    advancedSeconds: step.advancedSeconds,
-    requestedSeconds: step.requestedSeconds,
-  }
 }
 
 // ── Shared solve→analysis derivation ──────────────────────────────────
