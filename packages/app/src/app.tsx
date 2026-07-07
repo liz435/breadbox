@@ -21,6 +21,7 @@ import Inspector from "./panels/inspector";
 import { GraphPanel } from "./graph/graph-panel";
 import { ViewportPanel } from "./viewport/viewport-panel";
 import { BreadboardPanel } from "./breadboard/breadboard-panel";
+import { Breadboard3dPanel } from "./breadboard-3d/breadboard-3d-panel";
 import { SerialMonitor } from "./panels/serial-monitor";
 import { PinInspector } from "./panels/pin-inspector";
 import { DebuggerPanel } from "./panels/debugger-panel";
@@ -73,6 +74,10 @@ function BreadboardDockPanel(_props: IDockviewPanelProps) {
   return <ErrorBoundary name="Breadboard"><BreadboardPanel /></ErrorBoundary>;
 }
 
+function Breadboard3dDockPanel(_props: IDockviewPanelProps) {
+  return <ErrorBoundary name="3D Breadboard"><Breadboard3dPanel /></ErrorBoundary>;
+}
+
 function InspectorPanel(_props: IDockviewPanelProps) {
   return <ErrorBoundary name="Inspector"><Inspector /></ErrorBoundary>;
 }
@@ -121,6 +126,7 @@ function DebuggerDockPanel(_props: IDockviewPanelProps) {
 const components = {
   projectFiles: ProjectFilesPanel,
   breadboard: BreadboardDockPanel,
+  breadboard3d: Breadboard3dDockPanel,
   inspector: InspectorPanel,
   graph: GraphEditorPanel,
   viewport: ViewportPanelWrapper,
@@ -425,7 +431,7 @@ function AppInner() {
 
     // Clear stale layouts from before Arduino simulator conversion.
     // The old layout references "canvas" and missing panels — force a fresh default.
-    const LAYOUT_VERSION = "arduino-sim-v17";
+    const LAYOUT_VERSION = "arduino-sim-v18";
     const saved = localStorage.getItem(LAYOUT_STORAGE_KEY);
     const savedVersion = localStorage.getItem(LAYOUT_STORAGE_KEY + ":version");
     if (saved && savedVersion === LAYOUT_VERSION) {
@@ -461,6 +467,16 @@ function AppInner() {
       title: "Breadboard",
       position: { referencePanel: projectFilesPanel, direction: "right" },
     });
+
+    // 3D view lives as a sibling tab of the 2D canvas; re-activate the 2D
+    // canvas so it stays the group's front tab in the default layout.
+    api.addPanel({
+      id: "breadboard3d",
+      component: "breadboard3d",
+      title: "3D Breadboard",
+      position: { referencePanel: canvasPanel, direction: "within" },
+    });
+    canvasPanel.api.setActive();
 
     // Sketch editor in the third column, with Libraries as a sibling tab.
     const sketchPanel = api.addPanel({
@@ -511,7 +527,7 @@ function AppInner() {
       debounceRef.current = setTimeout(() => {
         const layout = api.toJSON();
         localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout));
-        localStorage.setItem(LAYOUT_STORAGE_KEY + ":version", "arduino-sim-v17");
+        localStorage.setItem(LAYOUT_STORAGE_KEY + ":version", "arduino-sim-v18");
       }, 300);
     });
   }

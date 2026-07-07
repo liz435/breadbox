@@ -398,6 +398,7 @@ fn install_menu(app: &AppHandle) -> tauri::Result<HashMap<String, CheckMenuItem<
     // right before the first frontend sync.
     const DEFAULT_OPEN: &[&str] = &[
         "breadboard",
+        "breadboard3d",
         "sketchEditor",
         "schematic",
         "libraryManager",
@@ -407,9 +408,10 @@ fn install_menu(app: &AppHandle) -> tauri::Result<HashMap<String, CheckMenuItem<
         "serialMonitor",
         "projectFiles",
     ];
-    let view_defs: [(&str, &str, Option<&str>, bool); 11] = [
+    let view_defs: [(&str, &str, Option<&str>, bool); 12] = [
         // Build
         ("breadboard", "Breadboard", Some("CmdOrCtrl+1"), false),
+        ("breadboard3d", "3D Breadboard", None, false),
         ("schematic", "Schematic", Some("CmdOrCtrl+2"), false),
         ("diagram", "Diagram", Some("CmdOrCtrl+3"), false),
         // Code
