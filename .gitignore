@@ -6,7 +6,6 @@ dist
 .env.*
 !.env.example
 !**/.env.example
-bun.lock
 arduinoLLM
 # Local Claude Code state stays out of git, but the shared project skills are tracked.
 .claude/*
