@@ -5,6 +5,7 @@
 // until this tab is first shown.
 
 import { Suspense, lazy } from "react"
+import { Scene3dLoading } from "./scene-loading"
 
 const Breadboard3dView = lazy(() =>
   import("./view").then((module) => ({ default: module.Breadboard3dView })),
@@ -12,13 +13,7 @@ const Breadboard3dView = lazy(() =>
 
 export function Breadboard3dPanel() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex h-full items-center justify-center text-sm text-neutral-500">
-          Loading 3D view…
-        </div>
-      }
-    >
+    <Suspense fallback={<Scene3dLoading label="Loading 3D view…" />}>
       <Breadboard3dView />
     </Suspense>
   )

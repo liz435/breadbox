@@ -5,8 +5,8 @@
 // the camera moves or React updates the scene; the signal-driven animation
 // loop requests frames explicitly while the simulator runs.
 
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from "react"
-import { Canvas, useThree } from "@react-three/fiber"
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { Canvas, useFrame, useThree } from "@react-three/fiber"
 import { CameraControls, ContactShadows, Environment, Lightformer, RoundedBox } from "@react-three/drei"
 import { Matrix4 } from "three"
 import type { InstancedMesh } from "three"
@@ -19,6 +19,7 @@ import { TransformGizmo } from "./transform-gizmo"
 import { AnimationDriver } from "./animation-driver"
 import { Wires } from "./wires"
 import { PostEffects } from "./post-effects"
+import { Scene3dLoading } from "./scene-loading"
 import { registerExportScene } from "./scene-export"
 import { useEditor } from "./editor-state"
 import {
@@ -219,52 +220,80 @@ function Parts() {
   )
 }
 
+/** Fires `onReady` once, on the first frame the scene actually renders. */
+function FirstFrameSignal({ onReady }: { onReady: () => void }) {
+  const fired = useRef(false)
+  useFrame(() => {
+    if (fired.current) return
+    fired.current = true
+    onReady()
+  })
+  return null
+}
+
 export function SceneRoot() {
   const { select } = useEditor()
+  // Show a spinner over the canvas until the scene paints its first frame, so
+  // WebGL init + environment baking doesn't read as a blank panel.
+  const [ready, setReady] = useState(false)
+  const handleReady = useCallback(() => setReady(true), [])
+
+  // Safety net: never leave the overlay stuck if the frame signal never fires.
+  useEffect(() => {
+    if (ready) return
+    const timer = setTimeout(() => setReady(true), 6000)
+    return () => clearTimeout(timer)
+  }, [ready])
+
   return (
-    <Canvas
-      frameloop="demand"
-      dpr={[1, 2]}
-      camera={{ position: [40, 140, 160], fov: 40, near: 1, far: 3000 }}
-      gl={{ toneMappingExposure: 1.15 }}
-      onPointerMissed={() => select(null)}
-    >
-      {/* Dark studio backdrop + a floor a touch darker still, so the board
-          sits in space and its colours read instead of washing out. */}
-      <color attach="background" args={["#232228"]} />
-      <fog attach="fog" args={["#232228", 260, 620]} />
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.4, 0]}>
-        <planeGeometry args={[1400, 1400]} />
-        <meshStandardMaterial color="#1b1a1f" roughness={1} />
-      </mesh>
+    <>
+      <Canvas
+        frameloop="demand"
+        dpr={[1, 2]}
+        camera={{ position: [40, 140, 160], fov: 40, near: 1, far: 3000 }}
+        gl={{ toneMappingExposure: 1.15 }}
+        onPointerMissed={() => select(null)}
+      >
+        {/* Dark studio backdrop + a floor a touch darker still, so the board
+            sits in space and its colours read instead of washing out. */}
+        <color attach="background" args={["#232228"]} />
+        <fog attach="fog" args={["#232228", 260, 620]} />
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.4, 0]}>
+          <planeGeometry args={[1400, 1400]} />
+          <meshStandardMaterial color="#1b1a1f" roughness={1} />
+        </mesh>
 
-      <hemisphereLight args={["#ffffff", "#6b6456"]} intensity={0.5} />
-      <directionalLight position={[80, 180, 100]} intensity={1.5} />
-      <directionalLight position={[-120, 80, -60]} intensity={0.35} />
-      {/* Procedural studio lighting — soft key overhead, warm + cool rims —
-          for real reflections on the metal/plastic parts. No external fetch. */}
-      <Environment resolution={256}>
-        <Lightformer intensity={2.2} position={[0, 60, 0]} scale={[120, 120, 1]} rotation={[Math.PI / 2, 0, 0]} />
-        <Lightformer intensity={1.1} position={[-70, 25, -40]} scale={[50, 50, 1]} color="#ffd9ad" />
-        <Lightformer intensity={0.8} position={[70, 25, 40]} scale={[50, 50, 1]} color="#aecbff" />
-      </Environment>
+        <hemisphereLight args={["#ffffff", "#6b6456"]} intensity={0.5} />
+        <directionalLight position={[80, 180, 100]} intensity={1.5} />
+        <directionalLight position={[-120, 80, -60]} intensity={0.35} />
+        {/* Procedural studio lighting — soft key overhead, warm + cool rims —
+            for real reflections on the metal/plastic parts. No external fetch. */}
+        <Environment resolution={256}>
+          <Lightformer intensity={2.2} position={[0, 60, 0]} scale={[120, 120, 1]} rotation={[Math.PI / 2, 0, 0]} />
+          <Lightformer intensity={1.1} position={[-70, 25, -40]} scale={[50, 50, 1]} color="#ffd9ad" />
+          <Lightformer intensity={0.8} position={[70, 25, 40]} scale={[50, 50, 1]} color="#aecbff" />
+        </Environment>
 
-      <BoardSurfaces />
-      <Parts />
-      <Wires />
-      {/* Model files load over Suspense; the rest of the scene stays visible. */}
-      <Suspense fallback={null}>
-        <UploadedBodies />
-      </Suspense>
+        <BoardSurfaces />
+        <Parts />
+        <Wires />
+        {/* Model files load over Suspense; the rest of the scene stays visible. */}
+        <Suspense fallback={null}>
+          <UploadedBodies />
+        </Suspense>
 
-      {/* Soft grounding shadow of the board onto the floor. */}
-      <ContactShadows position={[0, 0, 0]} scale={420} resolution={1024} blur={2.6} opacity={0.55} far={80} frames={1} />
+        {/* Soft grounding shadow of the board onto the floor. */}
+        <ContactShadows position={[0, 0, 0]} scale={420} resolution={1024} blur={2.6} opacity={0.55} far={80} frames={1} />
 
-      <TransformGizmo />
-      <AnimationDriver />
-      <ExportBridge />
-      <PostEffects />
-      <CameraControls makeDefault />
-    </Canvas>
+        <TransformGizmo />
+        <AnimationDriver />
+        <ExportBridge />
+        <PostEffects />
+        <FirstFrameSignal onReady={handleReady} />
+        <CameraControls makeDefault />
+      </Canvas>
+
+      <Scene3dLoading overlay hidden={ready} label="Preparing scene…" />
+    </>
   )
 }
