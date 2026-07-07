@@ -19,7 +19,7 @@ import type { BoardComponent } from "@dreamer/schemas"
 import { isCustomComponentType } from "@dreamer/schemas"
 import { getCustomDef, subscribeCustom } from "@/components/catalog/custom-store"
 import { getComponentFootprint, gridToPixel } from "@/breadboard/breadboard-grid"
-import { pixelToWorld, pxToMm, type WorldPoint } from "./layout"
+import { BOARD_SURFACE_Y, pixelToWorld, pxToMm, type WorldPoint } from "./layout"
 import { registerPartNodes } from "./scene-registry"
 
 /** Extrusion height (mm) for custom-part SVG bodies. */
@@ -421,7 +421,8 @@ export function PartMesh({ component }: { component: BoardComponent }) {
   }
 
   return (
-    <group ref={rootRef} position={[center.x, 0, center.z]} rotation={[0, yaw, 0]}>
+    // Parts sit on the breadboard's top face, not the world floor.
+    <group ref={rootRef} position={[center.x, BOARD_SURFACE_Y, center.z]} rotation={[0, yaw, 0]}>
       {body}
     </group>
   )

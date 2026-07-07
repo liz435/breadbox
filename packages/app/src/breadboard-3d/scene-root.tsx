@@ -15,10 +15,14 @@ import { UploadedBodies } from "./uploaded-bodies"
 import { TransformGizmo } from "./transform-gizmo"
 import { AnimationDriver } from "./animation-driver"
 import { useEditor } from "./editor-state"
-import { ARDUINO_RECT_PX, BREADBOARD_RECT_PX, pixelToWorld, pxToMm } from "./layout"
-
-const PCB_THICKNESS_MM = 1.6
-const BREADBOARD_THICKNESS_MM = 8.5
+import {
+  ARDUINO_RECT_PX,
+  BREADBOARD_RECT_PX,
+  BREADBOARD_THICKNESS_MM,
+  PCB_THICKNESS_MM,
+  pixelToWorld,
+  pxToMm,
+} from "./layout"
 
 /** Static surfaces: the Arduino PCB and the breadboard block. */
 function BoardSurfaces() {
