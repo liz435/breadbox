@@ -249,7 +249,12 @@ export function SceneRoot() {
     <>
       <Canvas
         frameloop="demand"
-        dpr={[1, 2]}
+        // Cap the pixel ratio at 1.5. On a Retina Mac dpr=2 renders 4× the
+        // fragments of dpr=1, and the whole post-processing stack pays that
+        // every frame while orbiting or simulating — costly in the desktop
+        // app's WKWebView. 1.5 keeps edges clean (SMAA smooths the rest) for
+        // ~40% fewer fragment ops than 2.
+        dpr={[1, 1.5]}
         camera={{ position: [40, 140, 160], fov: 40, near: 1, far: 3000 }}
         gl={{ toneMappingExposure: 1.15 }}
         onPointerMissed={() => select(null)}

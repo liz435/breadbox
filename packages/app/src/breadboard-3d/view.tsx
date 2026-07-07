@@ -50,7 +50,12 @@ export function Breadboard3dView() {
   async function handleExport() {
     setExporting(true)
     try {
-      await downloadSceneGlb("breadboard-assembly.glb")
+      const { savedTo, cancelled } = await downloadSceneGlb("breadboard-assembly.glb")
+      if (!cancelled) {
+        toast.success(
+          savedTo ? `Saved to ${savedTo}` : "Exported breadboard-assembly.glb to your downloads",
+        )
+      }
     } catch (error) {
       toast.error(
         error instanceof Error ? `Export failed: ${error.message}` : "Export failed",

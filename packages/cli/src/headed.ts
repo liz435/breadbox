@@ -11,6 +11,7 @@ import { capabilitiesRoutes } from "@dreamer/api/routes/capabilities"
 import { chatRoutes } from "@dreamer/api/routes/chat"
 import { compileRoutes } from "@dreamer/api/routes/compile"
 import { configRoutes } from "@dreamer/api/routes/config"
+import { exportRoutes } from "@dreamer/api/routes/export"
 import { flashRoutes } from "@dreamer/api/routes/flash"
 import { libraryRoutes } from "@dreamer/api/routes/libraries"
 import { customPartsRoutes } from "@dreamer/api/routes/custom-parts"
@@ -130,6 +131,7 @@ export async function startHeadedMode(): Promise<void> {
     .use(authPlugin)
     .use(authRoutes)
     .use(configRoutes)
+    .use(exportRoutes)
     .use(projectRoutes)
     .use(agentRunRoutes)
     .use(chatRoutes)
