@@ -13,6 +13,7 @@ import { ImportModelDialog } from "./import-model-dialog"
 import { AssemblyPanel } from "./assembly-panel"
 import { downloadSceneGlb } from "./scene-export"
 import { EditorProvider, useEditor, type GizmoMode } from "./editor-state"
+import { setPhysicsEnabled, usePhysicsEnabled } from "./physics-flag"
 
 const GIZMO_MODES: { mode: GizmoMode; label: string }[] = [
   { mode: "translate", label: "Move" },
@@ -46,6 +47,7 @@ export function Breadboard3dView() {
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [exporting, setExporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const physicsEnabled = usePhysicsEnabled()
 
   async function handleExport() {
     setExporting(true)
@@ -76,6 +78,14 @@ export function Breadboard3dView() {
         <div className="absolute right-2 top-2 flex gap-2">
           <Button
             size="sm"
+            variant={physicsEnabled ? "default" : "secondary"}
+            onClick={() => setPhysicsEnabled(!physicsEnabled)}
+            title="Toggle Rapier physics: parts drop, settle, and can be dragged; wires drape (experimental)"
+          >
+            {physicsEnabled ? "Physics: On" : "Physics: Off"}
+          </Button>
+          <Button
+            size="sm"
             variant="secondary"
             onClick={handleExport}
             disabled={exporting}
@@ -104,7 +114,9 @@ export function Breadboard3dView() {
         </div>
 
         <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded bg-black/40 px-2 py-0.5 text-[11px] text-white/80">
-          drag to orbit · right-drag to pan · scroll to zoom · click a model to place it
+          {physicsEnabled
+            ? "drag a part to move it (snaps to a hole) · drag empty space to orbit · scroll to zoom"
+            : "drag to orbit · right-drag to pan · scroll to zoom · click a model to place it"}
         </div>
 
         {pendingFile && (

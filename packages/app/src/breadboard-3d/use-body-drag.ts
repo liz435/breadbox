@@ -20,6 +20,13 @@ import { setPhysicsDragging, wakePhysics } from "./physics-activity"
 
 const UP = new Vector3(0, 1, 0)
 
+/** The active camera controls expose `enabled`; we flip it off during a drag so
+ *  grabbing a part doesn't also orbit the camera. */
+type ToggleableControls = { enabled: boolean }
+function isToggleable(controls: unknown): controls is ToggleableControls {
+  return !!controls && typeof (controls as { enabled?: unknown }).enabled === "boolean"
+}
+
 export function useBodyDrag(
   bodyRef: RefObject<RapierRigidBody | null>,
   onRelease: (position: { x: number; y: number; z: number }) => void,
@@ -28,6 +35,7 @@ export function useBodyDrag(
   const camera = useThree((state) => state.camera)
   const gl = useThree((state) => state.gl)
   const raycaster = useThree((state) => state.raycaster)
+  const controls = useThree((state) => state.controls)
   const plane = useMemo(() => new Plane(), [])
   const hit = useMemo(() => new Vector3(), [])
   const ndc = useMemo(() => new Vector2(), [])
@@ -47,6 +55,8 @@ export function useBodyDrag(
       setDragging(true)
       setPhysicsDragging(true)
       planeY.current = body.translation().y
+      // Stop the camera from orbiting while we drag the part.
+      if (isToggleable(controls)) controls.enabled = false
 
       const dom = gl.domElement
       const move = (native: PointerEvent) => {
@@ -81,9 +91,11 @@ export function useBodyDrag(
       cleanup.current = () => {
         dom.removeEventListener("pointermove", move)
         window.removeEventListener("pointerup", up)
+        // Hand control of the camera back — also covers unmount mid-drag.
+        if (isToggleable(controls)) controls.enabled = true
       }
     },
-    [bodyRef, camera, gl, raycaster, plane, hit, ndc, onRelease, endDrag],
+    [bodyRef, camera, gl, raycaster, controls, plane, hit, ndc, onRelease, endDrag],
   )
 
   // Drop listeners if the body unmounts mid-drag.
