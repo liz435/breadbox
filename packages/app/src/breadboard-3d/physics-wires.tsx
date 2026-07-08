@@ -33,6 +33,7 @@ import { getBoardPinLayout, type ArduinoPinInfo } from "@/breadboard/breadboard-
 import type { BoardComponent } from "@dreamer/schemas"
 import { surfaceBoardsOf } from "./board-offsets"
 import { GROUP_WIRE } from "./physics-groups"
+import { partObstacles, segmentClosest, type PartObstacle } from "./part-obstacles"
 import { wakePhysics } from "./physics-activity"
 import { fromEndpoint, toEndpoint, wireColor } from "./wires"
 
@@ -50,6 +51,34 @@ const BEND_DAMPING = 30
 
 const ZERO = new Vector3(0, 0, 0)
 const UP = new Vector3(0, 1, 0)
+
+/** Vertical gap kept between a wire and a part it arcs over (mm). */
+const CLEARANCE_MM = 4
+/** Cap on the arc rise; a part right under an endpoint can't be hopped. */
+const MAX_RISE_MM = 60
+/** A wire whose end lands within a part's pin spread plugs into it — don't try
+ *  to arc over the very part it connects to. */
+const PLUG_TOLERANCE_MM = 0.5
+
+/** Arc rise that clears every part the wire passes over, mirroring the bezier
+ *  renderer. The node arch is `rise · 4t(1−t)` (peak = rise at t=0.5), so the
+ *  clearance factor uses 4t(1−t) to match. */
+function wireArcRise(start: Vector3, end: Vector3, obstacles: PartObstacle[]): number {
+  const span = start.distanceTo(end)
+  let rise = Math.min(24, 6 + span * 0.18)
+  const avgY = (start.y + end.y) / 2
+  for (const o of obstacles) {
+    const plugsStart = Math.hypot(start.x - o.x, start.z - o.z) <= o.coreRadius + PLUG_TOLERANCE_MM
+    const plugsEnd = Math.hypot(end.x - o.x, end.z - o.z) <= o.coreRadius + PLUG_TOLERANCE_MM
+    if (plugsStart || plugsEnd) continue
+    const { distance, t } = segmentClosest(o.x, o.z, start.x, start.z, end.x, end.z)
+    if (distance > o.radius + 1.5) continue
+    const factor = Math.max(0.12, 4 * t * (1 - t))
+    const needed = (o.topY + CLEARANCE_MM - avgY) / factor
+    rise = Math.max(rise, Math.min(needed, MAX_RISE_MM))
+  }
+  return rise
+}
 
 /** One spring between two nodes (a joint hook must live in a component). */
 function SpringLink({
@@ -74,10 +103,12 @@ const WireRope = memo(function WireRope({
   wire,
   start,
   end,
+  obstacles,
 }: {
   wire: Wire
   start: Vector3
   end: Vector3
+  obstacles: PartObstacle[]
 }) {
   const bodies = useRef<RefObject<RapierRigidBody | null>[]>(
     Array.from({ length: NODES }, () => ({ current: null })),
@@ -88,8 +119,7 @@ const WireRope = memo(function WireRope({
   // Rest layout: an arch bowing up off the board between the two holes. Peak
   // rise scales with the span, matching the look of the 2D/bezier jumper.
   const rest = useMemo(() => {
-    const span = start.distanceTo(end)
-    const rise = Math.min(24, 6 + span * 0.18)
+    const rise = wireArcRise(start, end, obstacles)
     const points: Vector3[] = []
     for (let i = 0; i < NODES; i++) {
       const t = i / (NODES - 1)
@@ -102,7 +132,7 @@ const WireRope = memo(function WireRope({
       )
     }
     return points
-  }, [start, end])
+  }, [start, end, obstacles])
 
   // Spring definitions: structural (adjacent) + bending (skip-one). Rest length
   // = the arched distance, so the wire is at rest in its arc.
@@ -221,6 +251,9 @@ export function PhysicsWires() {
     () => surfaceBoardsOf(components),
     [components],
   )
+  // Parts the wires must arc over, so a jumper clears a tall part instead of
+  // spearing through it (physics collision alone is too coarse for thin wires).
+  const obstacles = useMemo(() => partObstacles(components), [components])
 
   return (
     <group name="physics-wires">
@@ -230,6 +263,7 @@ export function PhysicsWires() {
           wire={wire}
           arduinoPins={arduinoPins}
           surfaceBoards={surfaceBoards}
+          obstacles={obstacles}
         />
       ))}
     </group>
@@ -241,10 +275,12 @@ function WireRopeForWire({
   wire,
   arduinoPins,
   surfaceBoards,
+  obstacles,
 }: {
   wire: Wire
   arduinoPins: ArduinoPinInfo[]
   surfaceBoards: BoardComponent[]
+  obstacles: PartObstacle[]
 }) {
   const ends = useMemo(() => {
     const start = fromEndpoint(wire, arduinoPins, surfaceBoards)
@@ -252,5 +288,5 @@ function WireRopeForWire({
     return { start, end: toEndpoint(wire, surfaceBoards) }
   }, [wire, arduinoPins, surfaceBoards])
   if (!ends) return null
-  return <WireRope wire={wire} start={ends.start} end={ends.end} />
+  return <WireRope wire={wire} start={ends.start} end={ends.end} obstacles={obstacles} />
 }
