@@ -846,7 +846,14 @@ function FallbackBox({ component }: { component: BoardComponent }) {
 
 // ── Dispatcher ──────────────────────────────────────────────────────────────
 
-export function PartMesh({ component }: { component: BoardComponent }) {
+export function PartMesh({
+  component,
+  boardOffset,
+}: {
+  component: BoardComponent
+  /** World-mm shift onto the part's parent board (multi-board layouts). */
+  boardOffset?: WorldPoint
+}) {
   const center = footprintCenter(component)
   const yaw = rotationYaw(component.rotation)
   const rootRef = useRef<Group>(null)
@@ -957,7 +964,11 @@ export function PartMesh({ component }: { component: BoardComponent }) {
 
   return (
     // Parts sit on the breadboard's top face, not the world floor.
-    <group ref={rootRef} position={[center.x, BOARD_SURFACE_Y, center.z]} rotation={[0, yaw, 0]}>
+    <group
+      ref={rootRef}
+      position={[center.x + (boardOffset?.x ?? 0), BOARD_SURFACE_Y, center.z + (boardOffset?.z ?? 0)]}
+      rotation={[0, yaw, 0]}
+    >
       {body}
     </group>
   )

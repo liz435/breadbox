@@ -8,6 +8,7 @@
 import type { BoardComponent } from "@dreamer/schemas"
 import { isBoardComponentType } from "@dreamer/schemas"
 import { getComponentFootprint, gridToPixel } from "@/breadboard/breadboard-grid"
+import { offsetToWorld, partBoardOffset, surfaceBoardsOf } from "./board-offsets"
 import { BOARD_SURFACE_Y, pixelToWorld, pxToMm } from "./layout"
 
 /** Approximate part height above the board surface (mm), by component type. */
@@ -45,11 +46,24 @@ export function partHeightMm(type: string): number {
   return PART_HEIGHTS_MM[type] ?? NOMINAL_HEIGHT_MM
 }
 
-/** A part's footprint as a world-space disc plus a top height. */
-export type PartObstacle = { x: number; z: number; radius: number; topY: number }
+/** A part's footprint as a world-space disc plus a top height.
+ *  - `radius` covers the drawn body (used to decide "does a wire pass over it").
+ *  - `coreRadius` is the pin spread (used to decide "does a wire plug into it"):
+ *    a wire whose endpoint lands within it terminates on one of the part's own
+ *    holes, so that part is the wire's destination, not an obstacle. */
+export type PartObstacle = {
+  x: number
+  z: number
+  radius: number
+  coreRadius: number
+  topY: number
+}
 
-/** Build obstacle discs for every placed non-board component. */
+/** Build obstacle discs for every placed non-board component. Each disc is
+ *  shifted onto the part's parent board, so a wire clears parts on a second or
+ *  moved breadboard at their real position (mirrors the part/wire offsets). */
 export function partObstacles(components: Record<string, BoardComponent>): PartObstacle[] {
+  const surfaceBoards = surfaceBoardsOf(components)
   const obstacles: PartObstacle[] = []
   for (const component of Object.values(components)) {
     if (isBoardComponentType(component.type) || component.type === "wire") continue
@@ -73,16 +87,24 @@ export function partObstacles(components: Record<string, BoardComponent>): PartO
     })
     const cx = sx / worldPoints.length
     const cz = sz / worldPoints.length
-    // Radius = the part's footprint reach from its centroid, plus half a hole
-    // so the disc covers the drawn body, not just the pin centers.
-    let radius = pxToMm(7)
+    // Reach = the part's footprint span from its centroid (the pin spread). The
+    // obstacle disc pads it by half a hole so it covers the drawn body, not just
+    // the pin centers; the un-padded reach is kept as coreRadius so wires can
+    // recognise a hole that belongs to this part. Computed on the un-shifted
+    // centroid — the board shift is a uniform translation, so it moves the disc
+    // without changing its size.
+    let reach = pxToMm(7)
     for (const world of worldPoints) {
-      radius = Math.max(radius, Math.hypot(world.x - cx, world.z - cz))
+      reach = Math.max(reach, Math.hypot(world.x - cx, world.z - cz))
     }
+    // Shift the disc onto the part's parent board (matches the part/wire world
+    // offset); coreRadius/radius are size-only and stay board-relative.
+    const boardShift = offsetToWorld(partBoardOffset(component, surfaceBoards))
     obstacles.push({
-      x: cx,
-      z: cz,
-      radius: radius + pxToMm(7),
+      x: cx + boardShift.x,
+      z: cz + boardShift.z,
+      radius: reach + pxToMm(7),
+      coreRadius: reach,
       topY: BOARD_SURFACE_Y + partHeightMm(component.type),
     })
   }
