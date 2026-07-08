@@ -89,6 +89,25 @@ export function partObstacles(components: Record<string, BoardComponent>): PartO
   return obstacles
 }
 
+/** Closest approach of point (px,pz) to segment (ax,az)–(bx,bz), in xz: both the
+ *  distance and the clamped projection parameter t∈[0,1] along the segment. */
+export function segmentClosest(
+  px: number,
+  pz: number,
+  ax: number,
+  az: number,
+  bx: number,
+  bz: number,
+): { distance: number; t: number } {
+  const dx = bx - ax
+  const dz = bz - az
+  const lenSq = dx * dx + dz * dz
+  if (lenSq === 0) return { distance: Math.hypot(px - ax, pz - az), t: 0 }
+  let t = ((px - ax) * dx + (pz - az) * dz) / lenSq
+  t = Math.max(0, Math.min(1, t))
+  return { distance: Math.hypot(px - (ax + t * dx), pz - (az + t * dz)), t }
+}
+
 /** Shortest distance from point (px,pz) to the segment (ax,az)–(bx,bz), in xz. */
 export function distanceToSegment(
   px: number,
@@ -98,11 +117,5 @@ export function distanceToSegment(
   bx: number,
   bz: number,
 ): number {
-  const dx = bx - ax
-  const dz = bz - az
-  const lenSq = dx * dx + dz * dz
-  if (lenSq === 0) return Math.hypot(px - ax, pz - az)
-  let t = ((px - ax) * dx + (pz - az) * dz) / lenSq
-  t = Math.max(0, Math.min(1, t))
-  return Math.hypot(px - (ax + t * dx), pz - (az + t * dz))
+  return segmentClosest(px, pz, ax, az, bx, bz).distance
 }
