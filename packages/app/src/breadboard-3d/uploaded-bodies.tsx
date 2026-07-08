@@ -15,6 +15,8 @@ import { GLTFLoader, STLLoader, SkeletonUtils } from "three-stdlib"
 import { API_ORIGIN } from "@dreamer/config"
 import { scaleToVec3 } from "@dreamer/schemas"
 import type { AssemblyBody, Vec3 } from "@dreamer/schemas"
+import { assemblyBodyPhysicsKind } from "./physics-model"
+import { usePhysicsEnabled } from "./physics-flag"
 import { useAssemblyDoc } from "./use-assembly"
 import {
   getPartNodes,
@@ -142,7 +144,7 @@ export function useGlbHasAnimations(url: string): boolean {
 
 /** Import normalisation: unit fix-up and z-up → y-up, applied inside the
  * user transform so gizmo edits stay in sane mm space. */
-function BodyModel({ body }: { body: AssemblyBody }) {
+export function BodyModel({ body }: { body: AssemblyBody }) {
   const url = `${API_ORIGIN}${body.uri}`
   const upFix: [number, number, number] =
     body.upAxis === "z" ? [-Math.PI / 2, 0, 0] : [0, 0, 0]
@@ -189,7 +191,7 @@ function JointGroup({
   )
 }
 
-function BodyNode({
+export function BodyNode({
   body,
   childrenOf,
 }: {
@@ -247,6 +249,7 @@ export function componentTarget(
 
 export function UploadedBodies() {
   const assembly = useAssemblyDoc()
+  const physicsEnabled = usePhysicsEnabled()
   // Re-render when scene nodes register so component-parented bodies mount
   // as soon as their target part appears.
   useSyncExternalStore(subscribeRegistry, getRegistryVersion, getRegistryVersion)
@@ -259,6 +262,10 @@ export function UploadedBodies() {
     <group name="assembly-bodies">
       {bodies
         .filter((b) => b.parent.kind === "world")
+        // In physics mode, free-standing props are owned by <PhysicsBodies> so
+        // they fall and collide; the jointed/kinematic world bodies stay here
+        // for their signal-driven animation.
+        .filter((b) => !(physicsEnabled && assemblyBodyPhysicsKind(b) === "dynamic"))
         .map((body) => (
           <BodyNode key={body.id} body={body} childrenOf={childrenOf} />
         ))}

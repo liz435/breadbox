@@ -18,6 +18,9 @@ import { UploadedBodies } from "./uploaded-bodies"
 import { TransformGizmo } from "./transform-gizmo"
 import { AnimationDriver } from "./animation-driver"
 import { Wires } from "./wires"
+import { PhysicsScene } from "./physics-scene"
+import { usePhysicsEnabled } from "./physics-flag"
+import { usePhysicsActive } from "./physics-activity"
 import { PostEffects } from "./post-effects"
 import { Scene3dLoading } from "./scene-loading"
 import { registerExportScene } from "./scene-export"
@@ -269,6 +272,8 @@ function FirstFrameSignal({ onReady }: { onReady: () => void }) {
 
 export function SceneRoot() {
   const { select } = useEditor()
+  const physicsEnabled = usePhysicsEnabled()
+  const physicsActive = usePhysicsActive()
   // Show a spinner over the canvas until the scene paints its first frame, so
   // WebGL init + environment baking doesn't read as a blank panel.
   const [ready, setReady] = useState(false)
@@ -284,7 +289,12 @@ export function SceneRoot() {
   return (
     <>
       <Canvas
-        frameloop="demand"
+        // Idle at frameloop="demand" (GPU sleeps until the camera or React
+        // nudges a frame). While physics is awake — a body settling, a drag, a
+        // sim-driven driver moving — switch to "always" so the solver steps
+        // every frame; the physics world puts itself back to sleep when it
+        // comes to rest (see physics-context), returning the canvas to demand.
+        frameloop={physicsActive ? "always" : "demand"}
         // Cap the pixel ratio at 1.5. On a Retina Mac dpr=2 renders 4× the
         // fragments of dpr=1, and the whole post-processing stack pays that
         // every frame while orbiting or simulating — costly in the desktop
@@ -316,9 +326,21 @@ export function SceneRoot() {
         </Environment>
 
         <BoardSurfaces />
-        <Parts />
-        <Wires />
-        {/* Model files load over Suspense; the rest of the scene stays visible. */}
+        {/* Physics owns the parts and wires when enabled (drop, drag, drape);
+            otherwise they render at their exact grid positions. The visible
+            boards above stay grid-driven either way — physics only adds their
+            collision surfaces (inside PhysicsScene). */}
+        {physicsEnabled ? (
+          <PhysicsScene />
+        ) : (
+          <>
+            <Parts />
+            <Wires />
+          </>
+        )}
+        {/* Model files load over Suspense; the rest of the scene stays visible.
+            UploadedBodies renders the non-dynamic uploaded bodies (dynamic ones
+            are owned by PhysicsScene when physics is on). */}
         <Suspense fallback={null}>
           <UploadedBodies />
         </Suspense>

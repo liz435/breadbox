@@ -846,22 +846,10 @@ function FallbackBox({ component }: { component: BoardComponent }) {
 
 // ── Dispatcher ──────────────────────────────────────────────────────────────
 
-export function PartMesh({
-  component,
-  boardOffset,
-}: {
-  component: BoardComponent
-  /** World-mm shift onto the part's parent board (multi-board layouts). */
-  boardOffset?: WorldPoint
-}) {
-  const center = footprintCenter(component)
-  const yaw = rotationYaw(component.rotation)
-  const rootRef = useRef<Group>(null)
-  useLayoutEffect(() => {
-    if (!rootRef.current) return
-    return registerPartNodes(component.id, { rootNode: rootRef.current })
-  }, [component.id])
-
+/** The visual body of a part — the model switch only, with no positioning
+ *  group or scene-registry wiring. `PartMesh` places it on the grid; the
+ *  physics layer places it inside a RigidBody. */
+export function PartBody({ component }: { component: BoardComponent }): ReactNode {
   // Subscribed lookup so a custom part registered after mount (e.g. fetched
   // on demand for an MCP-authored board) swaps in its real body live.
   const lookupCustomDef = () =>
@@ -962,14 +950,42 @@ export function PartMesh({
     }
   }
 
+  return body
+}
+
+/** World-mm placement of a part on the grid: its footprint centroid, plus any
+ *  multi-board offset. Shared by the grid renderer and the physics spawn. */
+export function partPlacement(
+  component: BoardComponent,
+  boardOffset?: WorldPoint,
+): { x: number; z: number; yaw: number } {
+  const center = footprintCenter(component)
+  return {
+    x: center.x + (boardOffset?.x ?? 0),
+    z: center.z + (boardOffset?.z ?? 0),
+    yaw: rotationYaw(component.rotation),
+  }
+}
+
+export function PartMesh({
+  component,
+  boardOffset,
+}: {
+  component: BoardComponent
+  /** World-mm shift onto the part's parent board (multi-board layouts). */
+  boardOffset?: WorldPoint
+}) {
+  const { x, z, yaw } = partPlacement(component, boardOffset)
+  const rootRef = useRef<Group>(null)
+  useLayoutEffect(() => {
+    if (!rootRef.current) return
+    return registerPartNodes(component.id, { rootNode: rootRef.current })
+  }, [component.id])
+
   return (
     // Parts sit on the breadboard's top face, not the world floor.
-    <group
-      ref={rootRef}
-      position={[center.x + (boardOffset?.x ?? 0), BOARD_SURFACE_Y, center.z + (boardOffset?.z ?? 0)]}
-      rotation={[0, yaw, 0]}
-    >
-      {body}
+    <group ref={rootRef} position={[x, BOARD_SURFACE_Y, z]} rotation={[0, yaw, 0]}>
+      <PartBody component={component} />
     </group>
   )
 }

@@ -1,0 +1,93 @@
+// ── Drag a physics body across the board ─────────────────────────────────────
+//
+// Grabbing a body makes it kinematic and slides it along a horizontal plane at
+// its current height (so it rides over other bodies rather than shoving through
+// them); on release the caller decides where it lands and the body goes dynamic
+// again. Pointer-move/up are bound to the canvas + window for the duration of
+// the drag — NOT to the body's mesh — because r3f only fires mesh pointer
+// events while the cursor is actually over that mesh, and a dragged part spends
+// most of the gesture off its own tiny footprint. The move ray is rebuilt from
+// the camera each event. `dragging` is returned so the caller can flip the
+// RigidBody's `type` prop to `kinematicPosition`.
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import type { RefObject } from "react"
+import { Plane, Vector2, Vector3 } from "three"
+import { useThree } from "@react-three/fiber"
+import type { ThreeEvent } from "@react-three/fiber"
+import type { RapierRigidBody } from "@react-three/rapier"
+import { setPhysicsDragging, wakePhysics } from "./physics-activity"
+
+const UP = new Vector3(0, 1, 0)
+
+export function useBodyDrag(
+  bodyRef: RefObject<RapierRigidBody | null>,
+  onRelease: (position: { x: number; y: number; z: number }) => void,
+): { dragging: boolean; onPointerDown: (event: ThreeEvent<PointerEvent>) => void } {
+  const [dragging, setDragging] = useState(false)
+  const camera = useThree((state) => state.camera)
+  const gl = useThree((state) => state.gl)
+  const raycaster = useThree((state) => state.raycaster)
+  const plane = useMemo(() => new Plane(), [])
+  const hit = useMemo(() => new Vector3(), [])
+  const ndc = useMemo(() => new Vector2(), [])
+  const planeY = useRef(0)
+  const cleanup = useRef<(() => void) | null>(null)
+
+  const endDrag = useCallback(() => {
+    cleanup.current?.()
+    cleanup.current = null
+  }, [])
+
+  const onPointerDown = useCallback(
+    (event: ThreeEvent<PointerEvent>) => {
+      const body = bodyRef.current
+      if (!body) return
+      event.stopPropagation()
+      setDragging(true)
+      setPhysicsDragging(true)
+      planeY.current = body.translation().y
+
+      const dom = gl.domElement
+      const move = (native: PointerEvent) => {
+        const dragged = bodyRef.current
+        if (!dragged) return
+        const rect = dom.getBoundingClientRect()
+        ndc.set(
+          ((native.clientX - rect.left) / rect.width) * 2 - 1,
+          -((native.clientY - rect.top) / rect.height) * 2 + 1,
+        )
+        raycaster.setFromCamera(ndc, camera)
+        plane.set(UP, -planeY.current)
+        if (raycaster.ray.intersectPlane(plane, hit)) {
+          dragged.setNextKinematicTranslation({ x: hit.x, y: planeY.current, z: hit.z })
+          wakePhysics()
+        }
+      }
+      const up = () => {
+        const dragged = bodyRef.current
+        setDragging(false)
+        setPhysicsDragging(false)
+        endDrag()
+        if (dragged) {
+          const t = dragged.translation()
+          onRelease({ x: t.x, y: t.y, z: t.z })
+        }
+        wakePhysics()
+      }
+
+      dom.addEventListener("pointermove", move)
+      window.addEventListener("pointerup", up, { once: true })
+      cleanup.current = () => {
+        dom.removeEventListener("pointermove", move)
+        window.removeEventListener("pointerup", up)
+      }
+    },
+    [bodyRef, camera, gl, raycaster, plane, hit, ndc, onRelease, endDrag],
+  )
+
+  // Drop listeners if the body unmounts mid-drag.
+  useEffect(() => endDrag, [endDrag])
+
+  return { dragging, onPointerDown }
+}
