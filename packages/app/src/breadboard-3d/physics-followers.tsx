@@ -20,6 +20,7 @@ import { CuboidCollider, RigidBody, type RapierRigidBody } from "@react-three/ra
 import { useBoardSelector } from "@/store/board-context"
 import { useAssemblyDoc } from "./use-assembly"
 import { assemblyBodyPhysicsKind } from "./physics-model"
+import { GROUP_DRIVER } from "./physics-groups"
 import { wakePhysics } from "./physics-activity"
 import {
   getBodyJoint,
@@ -70,7 +71,7 @@ function KinematicProxy({ getNode }: { getNode: () => Object3D | undefined }) {
 
   if (!half) return null
   return (
-    <RigidBody ref={bodyRef} type="kinematicPosition" colliders={false}>
+    <RigidBody ref={bodyRef} type="kinematicPosition" colliders={false} collisionGroups={GROUP_DRIVER}>
       <CuboidCollider args={half} />
     </RigidBody>
   )

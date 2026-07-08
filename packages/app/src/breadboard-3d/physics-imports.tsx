@@ -18,6 +18,7 @@ import { RigidBody, type RapierRigidBody } from "@react-three/rapier"
 import { scaleToVec3, type AssemblyBody } from "@dreamer/schemas"
 import { useAssemblyActions, useAssemblyDoc } from "./use-assembly"
 import { assemblyBodyPhysicsKind } from "./physics-model"
+import { GROUP_PROP } from "./physics-groups"
 import { wakePhysics } from "./physics-activity"
 import { useBodyDrag } from "./use-body-drag"
 import { useEditor } from "./editor-state"
@@ -63,6 +64,7 @@ function PhysicsBody({
       colliders="hull"
       position={body.transform.position}
       rotation={body.transform.rotation}
+      collisionGroups={GROUP_PROP}
       canSleep
       ccd
     >

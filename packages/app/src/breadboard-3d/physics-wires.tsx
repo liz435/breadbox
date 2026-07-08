@@ -25,6 +25,7 @@ import type { Wire } from "@dreamer/schemas"
 import { useBoardSelector } from "@/store/board-context"
 import { getBoardPinLayout, type ArduinoPinInfo } from "@/breadboard/breadboard-grid"
 import { surfaceBoardsOf } from "./board-offsets"
+import { GROUP_WIRE } from "./physics-groups"
 import { fromEndpoint, toEndpoint, wireColor } from "./wires"
 
 /** 22 AWG jumper insulation is ~1.6 mm across. */
@@ -130,6 +131,7 @@ const WireRope = memo(function WireRope({
           position={point}
           colliders={false}
           linearDamping={0.8}
+          collisionGroups={GROUP_WIRE}
           canSleep
         >
           <BallCollider args={[WIRE_RADIUS_MM]} />

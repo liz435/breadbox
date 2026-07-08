@@ -19,6 +19,7 @@ import type { BoardEvent } from "@/store/board-machine"
 import { offsetToWorld, partBoardOffset, surfaceBoardsOf } from "./board-offsets"
 import { PartBody, partPlacement } from "./part-models"
 import { partColliderBox, PART_REST_Y, resolvePartDrop } from "./physics-model"
+import { GROUP_PART } from "./physics-groups"
 import { wakePhysics } from "./physics-activity"
 import { useBodyDrag } from "./use-body-drag"
 import { registerPartNodes } from "./scene-registry"
@@ -89,6 +90,7 @@ function PhysicsPart({
       rotation={[0, yaw, 0]}
       enabledRotations={[false, false, false]}
       linearDamping={0.4}
+      collisionGroups={GROUP_PART}
       // Continuous collision so a fast drop can't slip through the thin board.
       ccd
     >

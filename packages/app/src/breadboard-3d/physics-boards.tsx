@@ -9,6 +9,7 @@
 import { useMemo } from "react"
 import { CuboidCollider } from "@react-three/rapier"
 import { useBoardSelector } from "@/store/board-context"
+import { GROUP_STATIC } from "./physics-groups"
 import { boardOffset, offsetToWorld, surfaceBoardsOf } from "./board-offsets"
 import {
   ARDUINO_RECT_PX,
@@ -38,6 +39,7 @@ function BreadboardCollider({ offset }: { offset: WorldPoint }) {
   return (
     <CuboidCollider
       args={half}
+      collisionGroups={GROUP_STATIC}
       position={[
         BREADBOARD_CENTER.x + offset.x,
         BREADBOARD_THICKNESS_MM / 2,
@@ -59,11 +61,12 @@ export function PhysicsBoards() {
     <group name="physics-boards">
       {/* Desk floor: a fixed slab whose top sits at y=0 (the board bottoms).
           Thick enough that nothing tunnels through it into the void. */}
-      <CuboidCollider args={[700, 5, 700]} position={[0, -5, 0]} />
+      <CuboidCollider args={[700, 5, 700]} position={[0, -5, 0]} collisionGroups={GROUP_STATIC} />
       {/* Arduino PCB. */}
       <CuboidCollider
         args={[pxToMm(ARDUINO_RECT_PX.width) / 2, PCB_THICKNESS_MM / 2, pxToMm(ARDUINO_RECT_PX.height) / 2]}
         position={[ARDUINO_CENTER.x, PCB_THICKNESS_MM / 2, ARDUINO_CENTER.z]}
+        collisionGroups={GROUP_STATIC}
       />
       {offsets.map((offset, i) => (
         // eslint-disable-next-line react/no-array-index-key -- colliders are positional, rebuilt atomically with the board set
