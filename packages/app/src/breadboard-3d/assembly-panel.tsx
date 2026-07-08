@@ -358,7 +358,7 @@ export function AssemblyPanel() {
   )
 
   return (
-    <div className="pointer-events-auto absolute left-2 top-2 w-60 rounded-lg border border-border bg-background/95 p-2 text-sm shadow-lg backdrop-blur">
+    <div className="pointer-events-auto absolute left-2 top-14 max-h-[calc(100%-5rem)] w-60 overflow-y-auto rounded-lg border border-border bg-background/95 p-2 text-sm shadow-lg backdrop-blur">
       <div className="mb-1 text-xs font-semibold text-muted-foreground">Assembly</div>
       <ul className="max-h-40 space-y-0.5 overflow-y-auto">
         {bodies.map((body) => (
