@@ -1,62 +1,72 @@
 // ── Physics jumper wires ─────────────────────────────────────────────────────
 //
-// The physics-mode replacement for the bezier <Wires>. Each wire is a short
-// rope: a chain of RigidBodies joined by rope joints, with the two endpoints
-// held kinematically at their holes (from the board state, exactly like the
-// bezier renderer resolves them) and the interior nodes sagging under gravity.
-// So a jumper droops and drapes over whatever sits between its ends instead of
-// tracing a computed arc — and the arc-avoidance heuristics aren't needed here.
+// A jumper isn't a limp string — at breadboard scale a 22 AWG wire is stiff
+// enough that gravity barely bends it; it holds an arc between its two holes and
+// only flexes when something pushes it. A pure gravity rope can't do that: with
+// both ends at board level the only place its slack can go is DOWN, so it
+// collapses flat onto the board. So we model each wire as a semi-rigid arc:
 //
-// The node count is fixed and small (rope-of-rigid-bodies is the heavy part of
-// a physics scene); the visible wire is drawn as unit cylinders repositioned
-// between consecutive nodes each frame, so nothing rebuilds geometry.
+//   • nodes are initialised along an arch that bows up off the board,
+//   • gravityScale = 0, so it doesn't droop,
+//   • structural springs (i, i+1) hold node spacing and bending springs
+//     (i, i+2) resist the arch folding — together they hold the shape and
+//     spring back after a part pushes through,
+//   • the two endpoints are kinematic, pinned to their holes (following a
+//     board/part that moved).
+//
+// The visible wire is unit cylinders repositioned between consecutive nodes
+// each frame — no per-frame geometry rebuild.
 
-import { memo, useMemo, useRef } from "react"
+import { memo, useEffect, useMemo, useRef } from "react"
 import type { RefObject } from "react"
 import { Quaternion, Vector3, type Mesh } from "three"
 import { useFrame } from "@react-three/fiber"
 import {
   BallCollider,
   RigidBody,
-  useRopeJoint,
+  useSpringJoint,
   type RapierRigidBody,
 } from "@react-three/rapier"
 import type { Wire } from "@dreamer/schemas"
 import { useBoardSelector } from "@/store/board-context"
 import { getBoardPinLayout, type ArduinoPinInfo } from "@/breadboard/breadboard-grid"
+import type { BoardComponent } from "@dreamer/schemas"
 import { surfaceBoardsOf } from "./board-offsets"
 import { GROUP_WIRE } from "./physics-groups"
+import { wakePhysics } from "./physics-activity"
 import { fromEndpoint, toEndpoint, wireColor } from "./wires"
 
 /** 22 AWG jumper insulation is ~1.6 mm across. */
 const WIRE_RADIUS_MM = 0.8
-/** Nodes per wire (endpoints + interior). Kept low — each is a rigid body. */
-const NODES = 5
-/** Rope slack per segment: >1 lets the wire bow down between its ends. Kept
- *  just over 1 so a jumper bows gently instead of collapsing flat onto the
- *  board. */
-const SLACK = 1.12
+/** Nodes per wire (endpoints + interior). Enough for a smooth arch, few enough
+ *  that a sceneful of wires stays light. */
+const NODES = 7
+/** Spring gains. With gravityScale 0 the resting arch needs no force, so these
+ *  only govern how the wire flexes and recovers when something pushes it. */
+const STRUCT_STIFFNESS = 4000
+const STRUCT_DAMPING = 40
+const BEND_STIFFNESS = 1500
+const BEND_DAMPING = 30
 
-const UP = new Vector3(0, 1, 0)
 const ZERO = new Vector3(0, 0, 0)
+const UP = new Vector3(0, 1, 0)
 
-/** One rope joint between two adjacent nodes (a hook must be a component). */
-function RopeLink({
+/** One spring between two nodes (a joint hook must live in a component). */
+function SpringLink({
   a,
   b,
   length,
+  stiffness,
+  damping,
 }: {
   a: RefObject<RapierRigidBody | null>
   b: RefObject<RapierRigidBody | null>
   length: number
+  stiffness: number
+  damping: number
 }) {
-  // @react-three/rapier 2.2.0's joint hooks still type the body refs as
-  // RefObject<RapierRigidBody> (non-null current), but under React 19's ref
-  // types every freshly-created ref is null until mount — which the hook
-  // handles at runtime. This documents that upstream gap and self-heals if the
-  // library retypes it.
   // @ts-expect-error upstream ref typing predates React 19 non-null RefObject
-  useRopeJoint(a, b, [ZERO, ZERO, length])
+  useSpringJoint(a, b, [ZERO, ZERO, length, stiffness, damping])
   return null
 }
 
@@ -69,33 +79,68 @@ const WireRope = memo(function WireRope({
   start: Vector3
   end: Vector3
 }) {
-  // NODES stable body refs, created once.
   const bodies = useRef<RefObject<RapierRigidBody | null>[]>(
     Array.from({ length: NODES }, () => ({ current: null })),
   ).current
   const segments = useRef<(Mesh | null)[]>([])
   const color = useMemo(() => wireColor(wire), [wire])
 
+  // Rest layout: an arch bowing up off the board between the two holes. Peak
+  // rise scales with the span, matching the look of the 2D/bezier jumper.
   const rest = useMemo(() => {
-    const points: [number, number, number][] = []
+    const span = start.distanceTo(end)
+    const rise = Math.min(24, 6 + span * 0.18)
+    const points: Vector3[] = []
     for (let i = 0; i < NODES; i++) {
       const t = i / (NODES - 1)
-      points.push([
-        start.x + (end.x - start.x) * t,
-        start.y + (end.y - start.y) * t,
-        start.z + (end.z - start.z) * t,
-      ])
+      points.push(
+        new Vector3(
+          start.x + (end.x - start.x) * t,
+          start.y + (end.y - start.y) * t + rise * 4 * t * (1 - t),
+          start.z + (end.z - start.z) * t,
+        ),
+      )
     }
     return points
   }, [start, end])
 
-  const ropeLen = (start.distanceTo(end) / (NODES - 1)) * SLACK
+  // Spring definitions: structural (adjacent) + bending (skip-one). Rest length
+  // = the arched distance, so the wire is at rest in its arc.
+  const springs = useMemo(() => {
+    const list: { key: string; i: number; j: number; length: number; stiffness: number; damping: number }[] = []
+    for (let i = 0; i < NODES - 1; i++) {
+      list.push({
+        key: `s${i}`,
+        i,
+        j: i + 1,
+        length: rest[i].distanceTo(rest[i + 1]),
+        stiffness: STRUCT_STIFFNESS,
+        damping: STRUCT_DAMPING,
+      })
+    }
+    for (let i = 0; i < NODES - 2; i++) {
+      list.push({
+        key: `b${i}`,
+        i,
+        j: i + 2,
+        length: rest[i].distanceTo(rest[i + 2]),
+        stiffness: BEND_STIFFNESS,
+        damping: BEND_DAMPING,
+      })
+    }
+    return list
+  }, [rest])
 
   const dir = useMemo(() => new Vector3(), [])
   const quat = useMemo(() => new Quaternion(), [])
   const mid = useMemo(() => new Vector3(), [])
   const a = useMemo(() => new Vector3(), [])
   const b = useMemo(() => new Vector3(), [])
+
+  // Lay out the wire once on mount.
+  useEffect(() => {
+    wakePhysics()
+  }, [])
 
   useFrame(() => {
     // Pin the endpoints to their holes (follows a board/part that moved).
@@ -128,22 +173,24 @@ const WireRope = memo(function WireRope({
           key={i}
           ref={bodies[i]}
           type={i === 0 || i === NODES - 1 ? "kinematicPosition" : "dynamic"}
-          position={point}
+          position={[point.x, point.y, point.z]}
           colliders={false}
-          linearDamping={0.8}
+          gravityScale={0}
+          linearDamping={2}
           collisionGroups={GROUP_WIRE}
           canSleep
         >
           <BallCollider args={[WIRE_RADIUS_MM]} />
         </RigidBody>
       ))}
-      {Array.from({ length: NODES - 1 }).map((_, i) => (
-        <RopeLink
-          // eslint-disable-next-line react/no-array-index-key -- fixed-length joint chain
-          key={i}
-          a={bodies[i]}
-          b={bodies[i + 1]}
-          length={ropeLen}
+      {springs.map((spring) => (
+        <SpringLink
+          key={spring.key}
+          a={bodies[spring.i]}
+          b={bodies[spring.j]}
+          length={spring.length}
+          stiffness={spring.stiffness}
+          damping={spring.damping}
         />
       ))}
       {Array.from({ length: NODES - 1 }).map((_, i) => (
@@ -166,17 +213,44 @@ export function PhysicsWires() {
   const wires = useBoardSelector((ctx) => ctx.wires)
   const boardTarget = useBoardSelector((ctx) => ctx.boardTarget)
   const components = useBoardSelector((ctx) => ctx.components)
-  const arduinoPins: ArduinoPinInfo[] = getBoardPinLayout(boardTarget).allPins
-  const surfaceBoards = useMemo(() => surfaceBoardsOf(components), [components])
+  const arduinoPins = useMemo<ArduinoPinInfo[]>(
+    () => getBoardPinLayout(boardTarget).allPins,
+    [boardTarget],
+  )
+  const surfaceBoards = useMemo<BoardComponent[]>(
+    () => surfaceBoardsOf(components),
+    [components],
+  )
 
   return (
     <group name="physics-wires">
-      {Object.values(wires).map((wire) => {
-        const start = fromEndpoint(wire, arduinoPins, surfaceBoards)
-        if (!start) return null
-        const end = toEndpoint(wire, surfaceBoards)
-        return <WireRope key={wire.id} wire={wire} start={start} end={end} />
-      })}
+      {Object.values(wires).map((wire) => (
+        <WireRopeForWire
+          key={wire.id}
+          wire={wire}
+          arduinoPins={arduinoPins}
+          surfaceBoards={surfaceBoards}
+        />
+      ))}
     </group>
   )
+}
+
+/** Resolves a wire's endpoints (stable across renders) and renders its rope. */
+function WireRopeForWire({
+  wire,
+  arduinoPins,
+  surfaceBoards,
+}: {
+  wire: Wire
+  arduinoPins: ArduinoPinInfo[]
+  surfaceBoards: BoardComponent[]
+}) {
+  const ends = useMemo(() => {
+    const start = fromEndpoint(wire, arduinoPins, surfaceBoards)
+    if (!start) return null
+    return { start, end: toEndpoint(wire, surfaceBoards) }
+  }, [wire, arduinoPins, surfaceBoards])
+  if (!ends) return null
+  return <WireRope wire={wire} start={ends.start} end={ends.end} />
 }
