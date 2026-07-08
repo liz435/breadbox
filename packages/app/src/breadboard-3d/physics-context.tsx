@@ -13,8 +13,10 @@ import { useFrame } from "@react-three/fiber"
 import { Physics, useRapier } from "@react-three/rapier"
 import { isPhysicsDragging, sleepPhysics } from "./physics-activity"
 
-/** Gravity in mm/s² (the scene is authored in millimeters). */
-const GRAVITY_MM: [number, number, number] = [0, -9810, 0]
+/** Gravity in mm/s². Real g is 9810 mm/s²; dialled down a little so the drop
+ *  reads as a calm settle (and slower impacts are gentler on the solver) rather
+ *  than a snap. */
+const GRAVITY_MM: [number, number, number] = [0, -5000, 0]
 
 /** Frames the world must be fully at rest before the loop is allowed to idle.
  *  A small cushion avoids flapping demand↔always on a body that is momentarily
@@ -40,11 +42,13 @@ function PhysicsSleepWatcher() {
 }
 
 export function PhysicsWorld({ children }: { children: ReactNode }) {
-  // timeStep="vary" integrates with the real frame delta — the right choice
-  // under a frameloop that starts and stops, where a fixed accumulator would
-  // spiral after a long idle gap.
+  // Fixed timestep, NOT "vary". Under our demand↔always frameloop the first
+  // frame after waking carries a huge real delta (all the idle time), and
+  // "vary" feeds that straight to the solver — dynamic bodies then integrate
+  // one giant step and tunnel through the board and floor. A fixed step always
+  // advances the same slice regardless of the wall-clock gap.
   return (
-    <Physics gravity={GRAVITY_MM} timeStep="vary">
+    <Physics gravity={GRAVITY_MM} timeStep={1 / 60}>
       {children}
       <PhysicsSleepWatcher />
     </Physics>

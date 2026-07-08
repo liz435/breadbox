@@ -64,6 +64,7 @@ function PhysicsBody({
       position={body.transform.position}
       rotation={body.transform.rotation}
       canSleep
+      ccd
     >
       <group
         scale={scaleToVec3(body.transform.scale)}

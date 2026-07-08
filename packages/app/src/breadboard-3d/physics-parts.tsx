@@ -24,7 +24,7 @@ import { useBodyDrag } from "./use-body-drag"
 import { registerPartNodes } from "./scene-registry"
 
 /** How far above its resting hole a part is spawned so it visibly drops in. */
-const DROP_HEIGHT_MM = 14
+const DROP_HEIGHT_MM = 8
 
 function PhysicsPart({
   component,
@@ -89,6 +89,8 @@ function PhysicsPart({
       rotation={[0, yaw, 0]}
       enabledRotations={[false, false, false]}
       linearDamping={0.4}
+      // Continuous collision so a fast drop can't slip through the thin board.
+      ccd
     >
       <group ref={rootRef} onPointerDown={onPointerDown}>
         <PartBody component={component} />

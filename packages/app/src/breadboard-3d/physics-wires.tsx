@@ -31,8 +31,10 @@ import { fromEndpoint, toEndpoint, wireColor } from "./wires"
 const WIRE_RADIUS_MM = 0.8
 /** Nodes per wire (endpoints + interior). Kept low — each is a rigid body. */
 const NODES = 5
-/** Rope slack per segment: >1 lets the wire bow down between its ends. */
-const SLACK = 1.4
+/** Rope slack per segment: >1 lets the wire bow down between its ends. Kept
+ *  just over 1 so a jumper bows gently instead of collapsing flat onto the
+ *  board. */
+const SLACK = 1.12
 
 const UP = new Vector3(0, 1, 0)
 const ZERO = new Vector3(0, 0, 0)

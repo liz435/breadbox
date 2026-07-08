@@ -57,8 +57,9 @@ export function PhysicsBoards() {
 
   return (
     <group name="physics-boards">
-      {/* Desk floor: a thin fixed slab whose top sits at y=0 (the board bottoms). */}
-      <CuboidCollider args={[700, 0.5, 700]} position={[0, -0.5, 0]} />
+      {/* Desk floor: a fixed slab whose top sits at y=0 (the board bottoms).
+          Thick enough that nothing tunnels through it into the void. */}
+      <CuboidCollider args={[700, 5, 700]} position={[0, -5, 0]} />
       {/* Arduino PCB. */}
       <CuboidCollider
         args={[pxToMm(ARDUINO_RECT_PX.width) / 2, PCB_THICKNESS_MM / 2, pxToMm(ARDUINO_RECT_PX.height) / 2]}
