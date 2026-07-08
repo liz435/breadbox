@@ -45,8 +45,18 @@ export function partHeightMm(type: string): number {
   return PART_HEIGHTS_MM[type] ?? NOMINAL_HEIGHT_MM
 }
 
-/** A part's footprint as a world-space disc plus a top height. */
-export type PartObstacle = { x: number; z: number; radius: number; topY: number }
+/** A part's footprint as a world-space disc plus a top height.
+ *  - `radius` covers the drawn body (used to decide "does a wire pass over it").
+ *  - `coreRadius` is the pin spread (used to decide "does a wire plug into it"):
+ *    a wire whose endpoint lands within it terminates on one of the part's own
+ *    holes, so that part is the wire's destination, not an obstacle. */
+export type PartObstacle = {
+  x: number
+  z: number
+  radius: number
+  coreRadius: number
+  topY: number
+}
 
 /** Build obstacle discs for every placed non-board component. */
 export function partObstacles(components: Record<string, BoardComponent>): PartObstacle[] {
@@ -73,16 +83,19 @@ export function partObstacles(components: Record<string, BoardComponent>): PartO
     })
     const cx = sx / worldPoints.length
     const cz = sz / worldPoints.length
-    // Radius = the part's footprint reach from its centroid, plus half a hole
-    // so the disc covers the drawn body, not just the pin centers.
-    let radius = pxToMm(7)
+    // Reach = the part's footprint span from its centroid (the pin spread). The
+    // obstacle disc pads it by half a hole so it covers the drawn body, not just
+    // the pin centers; the un-padded reach is kept as coreRadius so wires can
+    // recognise a hole that belongs to this part.
+    let reach = pxToMm(7)
     for (const world of worldPoints) {
-      radius = Math.max(radius, Math.hypot(world.x - cx, world.z - cz))
+      reach = Math.max(reach, Math.hypot(world.x - cx, world.z - cz))
     }
     obstacles.push({
       x: cx,
       z: cz,
-      radius: radius + pxToMm(7),
+      radius: reach + pxToMm(7),
+      coreRadius: reach,
       topY: BOARD_SURFACE_Y + partHeightMm(component.type),
     })
   }

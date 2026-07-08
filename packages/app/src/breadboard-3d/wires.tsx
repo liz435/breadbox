@@ -74,6 +74,22 @@ const MIN_ARC_FACTOR = 0.12
 /** Cap on the control-point rise (mm). A part directly under a wire's hole
  *  can't be arced over by a single hop; clamp rather than shoot to the moon. */
 const MAX_WIRE_RISE_MM = 60
+/** Slack (mm) added to a part's pin-spread when deciding whether a wire endpoint
+ *  belongs to it. Well under one 2.54 mm hole pitch, so an adjacent hole a part
+ *  merely sits near is never mistaken for one of its own pins. */
+const FOOTPRINT_HIT_TOLERANCE_MM = 0.5
+
+/** True when a wire endpoint lands on a part's own footprint — i.e. the wire
+ *  plugs into that part. Such a part is the wire's destination, not an obstacle:
+ *  a tall body can't be arced away at the wire's own terminus (the arc height
+ *  there is ~0), so treating it as one only forces a huge rise that then plunges
+ *  straight back down through the body. */
+function endpointOnObstacle(point: Vector3, obstacle: PartObstacle): boolean {
+  return (
+    Math.hypot(point.x - obstacle.x, point.z - obstacle.z) <=
+    obstacle.coreRadius + FOOTPRINT_HIT_TOLERANCE_MM
+  )
+}
 
 function buildCurve(
   wire: Wire,
@@ -97,6 +113,11 @@ function buildCurve(
   // so we never under-clear.
   const avgEndpointY = (start.y + end.y) / 2
   for (const obstacle of obstacles) {
+    // The part this wire plugs into isn't something to hop over — skip it, or
+    // the arc gets forced up and dives straight back down through its body.
+    if (endpointOnObstacle(start, obstacle) || endpointOnObstacle(end, obstacle)) {
+      continue
+    }
     const { distance, t } = segmentClosest(
       obstacle.x, obstacle.z, start.x, start.z, end.x, end.z,
     )
