@@ -159,16 +159,25 @@ function DcMotorModel({ component }: { component: BoardComponent }) {
         <cylinderGeometry args={[10, 10, 25, 28]} />
         <meshStandardMaterial color="#b0bec5" metalness={0.8} roughness={0.3} />
       </mesh>
-      <group ref={shaftRef} position={[16.5, 10, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <mesh>
-          <cylinderGeometry args={[1, 1, 8, 12]} />
-          <meshStandardMaterial color="#78909c" metalness={0.8} roughness={0.3} />
-        </mesh>
-        {/* small paddle so rotation is visible */}
-        <mesh position={[0, -2.5, 0]}>
-          <boxGeometry args={[6, 1.2, 0.8]} />
-          <meshStandardMaterial color="#eceff1" roughness={0.6} />
-        </mesh>
+      {/* Orientation (lay the shaft along +x) is on the OUTER group; the inner
+          spinNode carries only the driver's rotation. Nesting matters: if the
+          same group held both the π/2 tilt and the spin, three.js's XYZ Euler
+          order would apply the spin before the tilt, swinging the whole shaft
+          through the horizontal plane instead of spinning it about its length.
+          With the tilt outermost, the inner spin is about the already-oriented
+          axis — the shaft rolls about its own length. */}
+      <group position={[16.5, 10, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <group ref={shaftRef}>
+          <mesh>
+            <cylinderGeometry args={[1, 1, 8, 12]} />
+            <meshStandardMaterial color="#78909c" metalness={0.8} roughness={0.3} />
+          </mesh>
+          {/* small paddle so rotation is visible */}
+          <mesh position={[0, -2.5, 0]}>
+            <boxGeometry args={[6, 1.2, 0.8]} />
+            <meshStandardMaterial color="#eceff1" roughness={0.6} />
+          </mesh>
+        </group>
       </group>
     </group>
   )
