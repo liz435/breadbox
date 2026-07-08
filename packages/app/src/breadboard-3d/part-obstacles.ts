@@ -8,6 +8,7 @@
 import type { BoardComponent } from "@dreamer/schemas"
 import { isBoardComponentType } from "@dreamer/schemas"
 import { getComponentFootprint, gridToPixel } from "@/breadboard/breadboard-grid"
+import { offsetToWorld, partBoardOffset, surfaceBoardsOf } from "./board-offsets"
 import { BOARD_SURFACE_Y, pixelToWorld, pxToMm } from "./layout"
 
 /** Approximate part height above the board surface (mm), by component type. */
@@ -58,8 +59,11 @@ export type PartObstacle = {
   topY: number
 }
 
-/** Build obstacle discs for every placed non-board component. */
+/** Build obstacle discs for every placed non-board component. Each disc is
+ *  shifted onto the part's parent board, so a wire clears parts on a second or
+ *  moved breadboard at their real position (mirrors the part/wire offsets). */
 export function partObstacles(components: Record<string, BoardComponent>): PartObstacle[] {
+  const surfaceBoards = surfaceBoardsOf(components)
   const obstacles: PartObstacle[] = []
   for (const component of Object.values(components)) {
     if (isBoardComponentType(component.type) || component.type === "wire") continue
@@ -86,14 +90,19 @@ export function partObstacles(components: Record<string, BoardComponent>): PartO
     // Reach = the part's footprint span from its centroid (the pin spread). The
     // obstacle disc pads it by half a hole so it covers the drawn body, not just
     // the pin centers; the un-padded reach is kept as coreRadius so wires can
-    // recognise a hole that belongs to this part.
+    // recognise a hole that belongs to this part. Computed on the un-shifted
+    // centroid — the board shift is a uniform translation, so it moves the disc
+    // without changing its size.
     let reach = pxToMm(7)
     for (const world of worldPoints) {
       reach = Math.max(reach, Math.hypot(world.x - cx, world.z - cz))
     }
+    // Shift the disc onto the part's parent board (matches the part/wire world
+    // offset); coreRadius/radius are size-only and stay board-relative.
+    const boardShift = offsetToWorld(partBoardOffset(component, surfaceBoards))
     obstacles.push({
-      x: cx,
-      z: cz,
+      x: cx + boardShift.x,
+      z: cz + boardShift.z,
       radius: reach + pxToMm(7),
       coreRadius: reach,
       topY: BOARD_SURFACE_Y + partHeightMm(component.type),

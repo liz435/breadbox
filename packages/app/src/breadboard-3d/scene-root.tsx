@@ -23,6 +23,12 @@ import { Scene3dLoading } from "./scene-loading"
 import { registerExportScene } from "./scene-export"
 import { useEditor } from "./editor-state"
 import {
+  boardOffset,
+  offsetToWorld,
+  partBoardOffset,
+  surfaceBoardsOf,
+} from "./board-offsets"
+import {
   ARDUINO_RECT_PX,
   BREADBOARD_RECT_PX,
   BREADBOARD_THICKNESS_MM,
@@ -161,17 +167,17 @@ function ArduinoBoard() {
   )
 }
 
-/** Static surfaces: the Arduino PCB and the breadboard block. */
-function BoardSurfaces() {
+/** One breadboard: rounded body with a recessed centre channel, its hole grid
+ *  and rail stripes. The interior geometry is authored at the origin board's
+ *  position; the wrapping group shifts the whole board to its world offset so
+ *  a second or moved board lands where the 2D canvas puts it. */
+function BreadboardBlock({ offset }: { offset: WorldPoint }) {
   const breadboardCenter = pixelToWorld(
     BREADBOARD_RECT_PX.x + BREADBOARD_RECT_PX.width / 2,
     BREADBOARD_RECT_PX.y + BREADBOARD_RECT_PX.height / 2,
   )
   return (
-    <group name="board-3d">
-      <ArduinoBoard />
-
-      {/* Breadboard block: rounded body with a recessed centre channel. */}
+    <group position={[offset.x, 0, offset.z]}>
       <group position={[breadboardCenter.x, 0, breadboardCenter.z]}>
         <RoundedBox
           args={[
@@ -199,6 +205,29 @@ function BoardSurfaces() {
   )
 }
 
+/** Static surfaces: the Arduino PCB and every placed breadboard. Reads the live
+ *  board state so multiple (and moved) breadboards each render at their own
+ *  world position, matching the 2D canvas. */
+function BoardSurfaces() {
+  const components = useBoardSelector((ctx) => ctx.components)
+  const boards = useMemo(() => {
+    const surfaces = surfaceBoardsOf(components)
+    // Legacy/empty scenes carry no explicit surface board — keep the single
+    // origin breadboard so the 3D view is never an empty floor.
+    if (surfaces.length === 0) return [{ id: "default", offset: { x: 0, z: 0 } as WorldPoint }]
+    return surfaces.map((board) => ({ id: board.id, offset: offsetToWorld(boardOffset(board)) }))
+  }, [components])
+
+  return (
+    <group name="board-3d">
+      <ArduinoBoard />
+      {boards.map((board) => (
+        <BreadboardBlock key={board.id} offset={board.offset} />
+      ))}
+    </group>
+  )
+}
+
 /** Hands the live three.js scene to the DOM export button (outside the Canvas). */
 function ExportBridge() {
   const scene = useThree((state) => state.scene)
@@ -206,15 +235,22 @@ function ExportBridge() {
   return null
 }
 
-/** All placed discrete parts (surface/MCU boards are drawn by BoardSurfaces). */
+/** All placed discrete parts (surface/MCU boards are drawn by BoardSurfaces).
+ *  Each part is shifted onto its parent board, so parts on a second or moved
+ *  breadboard sit on that board instead of collapsing onto the first. */
 function Parts() {
   const components = useBoardSelector((ctx) => ctx.components)
+  const surfaceBoards = useMemo(() => surfaceBoardsOf(components), [components])
   return (
     <group name="parts-3d">
       {Object.values(components)
         .filter((component) => !isBoardComponentType(component.type))
         .map((component) => (
-          <PartMesh key={component.id} component={component} />
+          <PartMesh
+            key={component.id}
+            component={component}
+            boardOffset={offsetToWorld(partBoardOffset(component, surfaceBoards))}
+          />
         ))}
     </group>
   )

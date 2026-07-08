@@ -9,13 +9,14 @@
 
 import { memo, useMemo } from "react"
 import { CubicBezierCurve3, Vector3 } from "three"
-import type { Wire } from "@dreamer/schemas"
+import type { BoardComponent, Wire } from "@dreamer/schemas"
 import { useBoardSelector } from "@/store/board-context"
 import {
   getBoardPinLayout,
   gridToPixel,
   type ArduinoPinInfo,
 } from "@/breadboard/breadboard-grid"
+import { offsetToWorld, surfaceBoardsOf, wireEndpointOffset } from "./board-offsets"
 import { ARDUINO_HEADER_TOP_Y, BOARD_SURFACE_Y, pixelToWorld } from "./layout"
 import { segmentClosest, partObstacles, type PartObstacle } from "./part-obstacles"
 
@@ -39,7 +40,11 @@ function wireColor(wire: Wire): string {
   return color
 }
 
-function fromEndpoint(wire: Wire, arduinoPins: ArduinoPinInfo[]): Vector3 | null {
+function fromEndpoint(
+  wire: Wire,
+  arduinoPins: ArduinoPinInfo[],
+  surfaceBoards: BoardComponent[],
+): Vector3 | null {
   if (wire.fromRow === -999) {
     const pin =
       (wire.fromPinLabel
@@ -55,13 +60,15 @@ function fromEndpoint(wire: Wire, arduinoPins: ArduinoPinInfo[]): Vector3 | null
   }
   const px = gridToPixel({ row: wire.fromRow, col: wire.fromCol })
   const world = pixelToWorld(px.x, px.y)
-  return new Vector3(world.x, BOARD_SURFACE_Y, world.z)
+  const off = offsetToWorld(wireEndpointOffset(wire.fromBoardId, surfaceBoards))
+  return new Vector3(world.x + off.x, BOARD_SURFACE_Y, world.z + off.z)
 }
 
-function toEndpoint(wire: Wire): Vector3 {
+function toEndpoint(wire: Wire, surfaceBoards: BoardComponent[]): Vector3 {
   const px = gridToPixel({ row: wire.toRow, col: wire.toCol })
   const world = pixelToWorld(px.x, px.y)
-  return new Vector3(world.x, BOARD_SURFACE_Y, world.z)
+  const off = offsetToWorld(wireEndpointOffset(wire.toBoardId, surfaceBoards))
+  return new Vector3(world.x + off.x, BOARD_SURFACE_Y, world.z + off.z)
 }
 
 /** Vertical gap kept between the wire and the part it passes over (mm). */
@@ -95,10 +102,11 @@ function buildCurve(
   wire: Wire,
   arduinoPins: ArduinoPinInfo[],
   obstacles: PartObstacle[],
+  surfaceBoards: BoardComponent[],
 ): CubicBezierCurve3 | null {
-  const start = fromEndpoint(wire, arduinoPins)
+  const start = fromEndpoint(wire, arduinoPins, surfaceBoards)
   if (!start) return null
-  const end = toEndpoint(wire)
+  const end = toEndpoint(wire, surfaceBoards)
   const span = start.distanceTo(end)
   // Short on-board jumpers hop low; cross-board runs rise higher. The
   // per-wire jitter keeps side-by-side wires from occupying the same arc.
@@ -138,14 +146,16 @@ const WireTube = memo(function WireTube({
   wire,
   arduinoPins,
   obstacles,
+  surfaceBoards,
 }: {
   wire: Wire
   arduinoPins: ArduinoPinInfo[]
   obstacles: PartObstacle[]
+  surfaceBoards: BoardComponent[]
 }) {
   const curve = useMemo(
-    () => buildCurve(wire, arduinoPins, obstacles),
-    [wire, arduinoPins, obstacles],
+    () => buildCurve(wire, arduinoPins, obstacles, surfaceBoards),
+    [wire, arduinoPins, obstacles, surfaceBoards],
   )
   if (!curve) return null
   return (
@@ -162,10 +172,17 @@ export function Wires() {
   const components = useBoardSelector((ctx) => ctx.components)
   const arduinoPins = getBoardPinLayout(boardTarget).allPins
   const obstacles = useMemo(() => partObstacles(components), [components])
+  const surfaceBoards = useMemo(() => surfaceBoardsOf(components), [components])
   return (
     <group name="wires-3d">
       {Object.values(wires).map((wire) => (
-        <WireTube key={wire.id} wire={wire} arduinoPins={arduinoPins} obstacles={obstacles} />
+        <WireTube
+          key={wire.id}
+          wire={wire}
+          arduinoPins={arduinoPins}
+          obstacles={obstacles}
+          surfaceBoards={surfaceBoards}
+        />
       ))}
     </group>
   )
