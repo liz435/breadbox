@@ -10,6 +10,7 @@ import {
   createProject,
   fetchLastOpenedProjectId,
   saveLastOpenedProjectId,
+  sweepProjectAssets,
   ApiError,
 } from "./api-client";
 import { API_PORT } from "@dreamer/config";
@@ -69,6 +70,10 @@ export function ProjectLoader({ children }: { children: ReactNode }) {
         if (!isAnonymousPreview()) {
           saveProjectId(projectFile.project.id);
           void saveLastOpenedProjectId(projectFile.project.id);
+          // Reclaim imported-model files no assembly body references anymore.
+          // Fire-and-forget: a stale cache is harmless, so opening the project
+          // never blocks or fails on the sweep.
+          void sweepProjectAssets(projectFile.project.id).catch(() => {});
         }
         setVersion(projectFile.project.version);
         setState({ status: "ready", projectFile });

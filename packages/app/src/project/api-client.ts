@@ -416,3 +416,21 @@ export async function deleteProjectAsset(
     throw new ApiError(res.status, `${res.status} ${text}`);
   }
 }
+
+/**
+ * Reclaim imported 3D-model files that no assembly body references anymore.
+ * Fire-and-forget on project open; a no-op for the preview project (no
+ * server-side assets).
+ */
+export async function sweepProjectAssets(
+  projectId: string,
+): Promise<{ removed: number; bytesReclaimed: number }> {
+  if (isAnonymousPreview()) return { removed: 0, bytesReclaimed: 0 };
+  const url = `${API_ORIGIN}/project/${encodeURIComponent(projectId)}/assets/sweep`;
+  const res = await authedFetch(url, { method: "POST" });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new ApiError(res.status, `${res.status} ${text}`);
+  }
+  return res.json();
+}

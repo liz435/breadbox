@@ -1,6 +1,8 @@
 import { join, resolve, sep } from "path";
+import { createHash } from "crypto";
 import { Elysia } from "elysia";
 import { z, ZodError } from "zod";
+import { findDuplicateAsset, findOrphanModelAssets } from "./asset-cleanup";
 import {
   applyOpsRequestSchema,
   projectGraphSchema,
@@ -306,16 +308,38 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
     }
 
     const ext = file.name.split(".").pop() ?? "bin";
-    const assetId = crypto.randomUUID();
-    const filename = `${assetId}.${ext}`;
     const buffer = await file.arrayBuffer();
+    const sha256 = createHash("sha256").update(Buffer.from(buffer)).digest("hex");
 
-    // Write to filesystem under the project's asset dir.
     const dir = await storage.projects.ensureAssetsDir(params.id, ownerId);
     if (!dir) {
       set.status = 404;
       return { error: "Project not found" };
     }
+
+    // Dedup: if the project already stores this exact file, reuse it instead of
+    // writing a duplicate — re-importing the same model is common and would
+    // otherwise pile identical copies on disk.
+    const duplicate = findDuplicateAsset(project.assets, sha256, ext);
+    if (duplicate) {
+      const dupFilename = duplicate.uri.split("/").pop() ?? "";
+      if (dupFilename && (await Bun.file(join(dir, dupFilename)).exists())) {
+        return {
+          assetId: duplicate.id,
+          filename: dupFilename,
+          uri: duplicate.uri,
+          size:
+            typeof duplicate.meta?.size === "number"
+              ? duplicate.meta.size
+              : buffer.byteLength,
+          assetType: duplicate.type,
+          deduped: true,
+        };
+      }
+    }
+
+    const assetId = crypto.randomUUID();
+    const filename = `${assetId}.${ext}`;
     await Bun.write(join(dir, filename), buffer);
 
     const uri = `/project/${params.id}/assets/${filename}`;
@@ -333,6 +357,7 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
         mimeType: file.type,
         size: buffer.byteLength,
         ext,
+        sha256,
       },
     };
     project.project.updatedAt = new Date().toISOString();
@@ -430,6 +455,53 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
     });
 
     return { deleted: true };
+  })
+  // ── Asset sweep ──────────────────────────────────────────────────────────
+  // Reclaim imported 3D-model assets no assembly body references anymore
+  // (dropped by undo / board reload / apply_design, which don't route through
+  // the per-body delete). Safe to run on project open: it reads the persisted
+  // board, so the referenced set is complete. Only model assets are touched.
+  .post("/:id/assets/sweep", async ({ auth, params, set }) => {
+    const ownerId = requireOwnerId(auth);
+    const project = await storage.projects.readProject(params.id, ownerId);
+    if (!project) {
+      set.status = 404;
+      return { error: "Project not found" };
+    }
+
+    const bodies = Object.values(project.boardState?.assembly?.bodies ?? {});
+    const orphanIds = findOrphanModelAssets(project.assets, bodies);
+    if (orphanIds.length === 0) return { removed: 0, bytesReclaimed: 0 };
+
+    const { unlink } = await import("fs/promises");
+    const dir = storage.projects.projectAssetsDir(params.id);
+    let bytesReclaimed = 0;
+    for (const assetId of orphanIds) {
+      const asset = project.assets[assetId];
+      if (!asset) continue;
+      const size = asset.meta?.size;
+      if (typeof size === "number") bytesReclaimed += size;
+      const filename = asset.uri.split("/").pop();
+      if (filename) {
+        try {
+          await unlink(join(dir, filename));
+        } catch {
+          // Already gone — still drop the JSON entry below.
+        }
+      }
+      delete project.assets[assetId];
+    }
+    project.project.updatedAt = new Date().toISOString();
+    await storage.projects.writeProject(params.id, ownerId, project);
+
+    void auditLog({
+      userId: ownerId,
+      action: "asset.delete",
+      projectId: params.id,
+      extra: { swept: orphanIds.length, bytesReclaimed },
+    });
+
+    return { removed: orphanIds.length, bytesReclaimed };
   })
   // ── Asset serve ─────────────────────────────────────────────────────────
   .get("/:id/assets/:filename", async ({ auth, params, set }) => {
