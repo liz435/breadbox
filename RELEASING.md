@@ -2,9 +2,14 @@
 
 Releases are produced by the **Release (desktop)** GitHub Actions workflow
 (`.github/workflows/release.yml`). Pushing a version tag builds the Tauri
-desktop app on macOS (Apple Silicon + Intel), Windows, and Linux, signs +
+desktop app on macOS (Apple Silicon + Intel) and Windows, signs +
 notarizes the macOS bundles, signs the auto-update artifacts, and uploads
 everything to a **draft** GitHub Release. You review the draft, then publish it.
+
+> **No Linux build.** The AppImage bundler (`linuxdeploy`) can't run on GitHub's
+> Linux runners, and this is a macOS-first app, so the release matrix builds
+> macOS + Windows only. Re-add an `ubuntu-*` matrix entry with deb/rpm targets
+> if Linux distribution is wanted later.
 
 > **One-time setup required.** In-app auto-update is wired in, which means the
 > build now **signs update artifacts and will fail without the updater signing
@@ -29,7 +34,6 @@ finish, a draft release `Breadbox v0.2.0` will exist under **Releases** with:
 
 - macOS: `.dmg` + `.app.tar.gz` (Apple Silicon and Intel)
 - Windows: `.msi` and/or NSIS `.exe`
-- Linux: `.AppImage` and `.deb`
 
 Review the artifacts, edit the notes, and click **Publish release**.
 
@@ -105,12 +109,12 @@ With these set, the macOS jobs sign and notarize automatically — no extra
 config. Without them, the Mac build still runs but is unsigned (users see a
 Gatekeeper warning).
 
-### Windows & Linux — unsigned (intentional)
+### Windows — unsigned (intentional)
 
 We don't have a Windows code-signing certificate, so the Windows build is
 **unsigned**: the `.msi` / `.exe` install fine but show a one-time SmartScreen
-"unknown publisher" warning (users click *More info → Run anyway*). Linux
-`.AppImage` / `.deb` are likewise unsigned. No secrets are needed for either.
+"unknown publisher" warning (users click *More info → Run anyway*). No secrets
+are needed for it.
 
 If a Windows certificate is acquired later, signing can be added — modern CA
 rules (since 2023) require either **Azure Trusted Signing** (sign via a
@@ -133,8 +137,8 @@ key) or a legacy exportable `.pfx` (import in a PowerShell CI step + set
   newer version exists it prompts *Install / Later*, then downloads, verifies the
   signature against the baked-in pubkey, installs, and relaunches. The
   **Breadbox → Check for Updates…** menu item runs the same flow on demand and
-  also reports "up to date". macOS/Linux swap the app bundle in place; Windows
-  runs the new installer in `passive` mode.
+  also reports "up to date". macOS swaps the app bundle in place; Windows runs
+  the new installer in `passive` mode.
 - **Bundle-granular.** The updater replaces the whole app, so the bundled
   `breadbox` + `arduino-cli` sidecars update together with the shell — there's no
   per-file patching to reason about.
@@ -145,7 +149,7 @@ key) or a legacy exportable `.pfx` (import in a PowerShell CI step + set
 ## Notes & caveats
 
 - **Per-OS builds.** Each installer is built on its own runner; you can't
-  produce a Mac `.dmg` from Linux. The matrix handles this.
+  produce a Mac `.dmg` from a Windows runner. The matrix handles this.
 - **Both Mac arches.** `macos-14` builds Apple Silicon, `macos-13` builds
   Intel. The CLI/arduino-cli sidecars are auto-built per runner by
   `prepare:sidecar` (`beforeBuildCommand`).

@@ -4,10 +4,14 @@ name: Release (desktop)
 #
 #   git tag v0.2.0 && git push origin v0.2.0
 #
-# This builds the Tauri desktop app on macOS (Apple Silicon + Intel),
-# Windows, and Linux, signs + notarizes the macOS bundles, and uploads
-# everything to a DRAFT GitHub Release named after the tag. Review the
-# draft, then publish it. See RELEASING.md for required secrets.
+# This builds the Tauri desktop app on macOS (Apple Silicon + Intel) and
+# Windows, signs + notarizes the macOS bundles, and uploads everything to a
+# DRAFT GitHub Release named after the tag. Review the draft, then publish
+# it. See RELEASING.md for required secrets.
+#
+# Linux is intentionally not built: the AppImage bundler (linuxdeploy) can't
+# run on GitHub's Linux runners, and this is a macOS-first desktop app. Re-add
+# an `ubuntu-*` matrix entry (deb/rpm targets) if Linux distribution is wanted.
 
 on:
   push:
@@ -47,8 +51,6 @@ jobs:
             label: macOS (Intel)
           - os: windows-latest
             label: Windows
-          - os: ubuntu-22.04
-            label: Linux
     steps:
       - uses: actions/checkout@v4
 
@@ -72,28 +74,6 @@ jobs:
         with:
           workspaces: packages/desktop/src-tauri
 
-      - name: Install Linux system dependencies
-        if: matrix.os == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf \
-            build-essential \
-            file \
-            libssl-dev \
-            libgtk-3-dev \
-            libfuse2
-          # linuxdeploy (the AppImage bundler tauri downloads) is itself a
-          # FUSE2 AppImage, but ubuntu-22.04 runners ship only libfuse3, so it
-          # can't self-mount. APPIMAGE_EXTRACT_AND_RUN (set on the build step)
-          # is meant to sidestep FUSE by extracting instead, but it isn't
-          # honored reliably here — the bundle step failed with "failed to run
-          # linuxdeploy". Installing libfuse2 lets linuxdeploy mount normally,
-          # which is the dependable fix; extract-and-run stays as a backstop.
-
       # No --frozen-lockfile: matches ci.yml — the binary bun.lockb drifts and
       # would otherwise fail every run.
       - name: Install dependencies
@@ -114,15 +94,6 @@ jobs:
           # The key has no password; leave the PASSWORD secret unset (empty).
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # ── Linux AppImage bundling ────────────────────────────────────
-          # linuxdeploy is itself an AppImage and needs FUSE to self-mount,
-          # which GitHub's Linux runners don't provide → the build fails with
-          # "failed to run linuxdeploy". Force every AppImage (linuxdeploy and
-          # its plugins) to extract-and-run instead of FUSE-mounting, and skip
-          # linuxdeploy's own strip pass (the release profile already strips).
-          # Both are no-ops on the macOS/Windows runners.
-          APPIMAGE_EXTRACT_AND_RUN: 1
-          NO_STRIP: 1
           # ── macOS code signing + notarization ──────────────────────────
           # Tauri reads these on the macOS runners. Empty on other OSes (the
           # build proceeds unsigned there). See RELEASING.md to populate them.
