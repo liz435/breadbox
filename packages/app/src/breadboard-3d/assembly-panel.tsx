@@ -16,9 +16,16 @@ import { cn } from "@/utils/classnames"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAssemblyActions, useAssemblyDoc } from "./use-assembly"
-import { useEditor } from "./editor-state"
+import { useEditor, type GizmoMode } from "./editor-state"
 import { getBodyRoot, getRegistryVersion, subscribeRegistry } from "./scene-registry"
 import { componentTarget } from "./uploaded-bodies"
+
+/** Transform-gizmo modes, shown as a segmented control for the selected body. */
+const GIZMO_MODES: { mode: GizmoMode; label: string }[] = [
+  { mode: "translate", label: "Move" },
+  { mode: "rotate", label: "Rotate" },
+  { mode: "scale", label: "Scale" },
+]
 
 // ── Parent option encoding for the <select> ─────────────────────────────────
 
@@ -343,7 +350,7 @@ function AnimationsEditor({ body }: { body: AssemblyBody }) {
 export function AssemblyPanel() {
   const assembly = useAssemblyDoc()
   const { updateBody, removeBody } = useAssemblyActions()
-  const { selectedBodyId, select } = useEditor()
+  const { selectedBodyId, select, mode, setMode } = useEditor()
   const components = useBoardSelector((ctx) => ctx.components)
   // Parent targets resolve against live scene nodes; refresh when they change.
   useSyncExternalStore(subscribeRegistry, getRegistryVersion, getRegistryVersion)
@@ -379,6 +386,22 @@ export function AssemblyPanel() {
 
       {selected && (
         <div className="mt-2 space-y-3 border-t border-border pt-2">
+          <div className="flex gap-0.5 rounded-md bg-muted/60 p-0.5">
+            {GIZMO_MODES.map((entry) => (
+              <button
+                key={entry.mode}
+                type="button"
+                className={cn(
+                  "flex-1 rounded px-2 py-1 text-xs hover:bg-muted",
+                  mode === entry.mode && "bg-background font-medium shadow-sm",
+                )}
+                onClick={() => setMode(entry.mode)}
+              >
+                {entry.label}
+              </button>
+            ))}
+          </div>
+
           <label className="block space-y-1">
             <span className="text-xs text-muted-foreground">Name</span>
             <Input

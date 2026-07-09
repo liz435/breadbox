@@ -6,42 +6,13 @@
 
 import { useRef, useState } from "react"
 import { toast } from "@/components/ui/toast"
-import { cn } from "@/utils/classnames"
 import { Button } from "@/components/ui/button"
 import { SceneRoot } from "./scene-root"
 import { ImportModelDialog } from "./import-model-dialog"
 import { AssemblyPanel } from "./assembly-panel"
 import { downloadSceneGlb } from "./scene-export"
-import { EditorProvider, useEditor, type GizmoMode } from "./editor-state"
+import { EditorProvider } from "./editor-state"
 import { setPhysicsEnabled, usePhysicsEnabled } from "./physics-flag"
-
-const GIZMO_MODES: { mode: GizmoMode; label: string }[] = [
-  { mode: "translate", label: "Move" },
-  { mode: "rotate", label: "Rotate" },
-  { mode: "scale", label: "Scale" },
-]
-
-function GizmoModeToolbar() {
-  const { selectedBodyId, mode, setMode } = useEditor()
-  if (!selectedBodyId) return null
-  return (
-    <div className="pointer-events-auto absolute left-1/2 top-2 flex -translate-x-1/2 gap-0.5 rounded-lg border border-border bg-background/95 p-0.5 shadow-lg backdrop-blur">
-      {GIZMO_MODES.map((entry) => (
-        <button
-          key={entry.mode}
-          type="button"
-          className={cn(
-            "rounded px-2 py-1 text-xs hover:bg-muted",
-            mode === entry.mode && "bg-muted font-medium",
-          )}
-          onClick={() => setMode(entry.mode)}
-        >
-          {entry.label}
-        </button>
-      ))}
-    </div>
-  )
-}
 
 export function Breadboard3dView() {
   const [pendingFile, setPendingFile] = useState<File | null>(null)
@@ -73,7 +44,6 @@ export function Breadboard3dView() {
         <SceneRoot />
 
         <AssemblyPanel />
-        <GizmoModeToolbar />
 
         <div className="absolute right-2 top-2 flex gap-2">
           <Button
