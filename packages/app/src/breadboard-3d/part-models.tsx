@@ -10,8 +10,8 @@
 // registry (keyed by component id) so the signal loop can drive them without
 // React re-renders.
 
-import { useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react"
-import type { ReactNode } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react"
+import type { DependencyList, ReactNode } from "react"
 import { useThree } from "@react-three/fiber"
 import type { Group } from "three"
 import { Box3, ExtrudeGeometry, MeshStandardMaterial, Vector3 } from "three"
@@ -26,6 +26,23 @@ import { registerPartNodes } from "./scene-registry"
 
 /** Extrusion height (mm) for custom-part SVG bodies. */
 const SVG_BODY_HEIGHT_MM = 3
+
+/**
+ * A material this component owns and must dispose itself.
+ *
+ * r3f auto-disposes objects it created from JSX (`<meshStandardMaterial />`),
+ * but a material constructed in JS and handed over via the `material` prop is
+ * ours. Without this, changing an LED's colour orphans the old material's
+ * compiled shader program, and deleting a part leaks it outright.
+ */
+function useOwnedMaterial(
+  create: () => MeshStandardMaterial,
+  deps: DependencyList,
+): MeshStandardMaterial {
+  const material = useMemo(create, deps)
+  useEffect(() => () => material.dispose(), [material])
+  return material
+}
 
 // ── Shared placement math ───────────────────────────────────────────────────
 
@@ -78,7 +95,7 @@ function LedModel({ component }: { component: BoardComponent }) {
     typeof component.properties.color === "string"
       ? (LED_COLORS[component.properties.color] ?? component.properties.color)
       : LED_COLORS.red
-  const material = useMemo(
+  const material = useOwnedMaterial(
     () =>
       new MeshStandardMaterial({
         color,
@@ -184,7 +201,7 @@ function DcMotorModel({ component }: { component: BoardComponent }) {
 }
 
 function NeopixelModel({ component }: { component: BoardComponent }) {
-  const material = useMemo(
+  const material = useOwnedMaterial(
     () =>
       new MeshStandardMaterial({
         color: "#fafafa",
@@ -526,7 +543,7 @@ function DhtSensorModel(_props: { component: BoardComponent }) {
 
 /** Clear-domed 4-lead RGB LED; its dome glows from the solved brightness. */
 function RgbLedModel({ component }: { component: BoardComponent }) {
-  const material = useMemo(
+  const material = useOwnedMaterial(
     () =>
       new MeshStandardMaterial({
         color: "#e0e0e0",
