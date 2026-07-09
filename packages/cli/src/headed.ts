@@ -39,15 +39,17 @@ function openBrowser(url: string): void {
 }
 
 // Preferred ports. Headed mode uses distinct defaults from `bun run dev`
-// (3000 / 4111) so both can run concurrently. These are only *preferences*
-// now — if a port is taken (another `dreamer headed`, the Tauri desktop
-// sidecar, anything) we fall back to an OS-assigned free port. The frontend
-// learns the actual API port via injected runtime config, so the exact
-// numbers are invisible to the user.
+// (28420 / 28421) so both can run concurrently. Deliberately in a quiet
+// 28xxx range (and below 32768, under both OSes' ephemeral ranges) to dodge
+// the crowded 3000/8080-style dev ports. These are only *preferences* — if a
+// port is taken (another `dreamer headed`, the Tauri desktop sidecar,
+// anything) we fall back to an OS-assigned free port. The frontend learns the
+// actual API port via injected runtime config, so the exact numbers are
+// invisible to the user.
 // Note: use API_PORT (not PORT) — a generic PORT env is commonly set by
 // other dev tools and would collide here.
-const API_PORT_PREF = Number(process.env.API_PORT ?? 4112)
-const APP_PORT_PREF = Number(process.env.APP_PORT ?? 3004)
+const API_PORT_PREF = Number(process.env.API_PORT ?? 28441)
+const APP_PORT_PREF = Number(process.env.APP_PORT ?? 28440)
 // Bind API to loopback so LAN peers and other local processes can't
 // reach /api/*. See `BREADBOX_BIND` in packages/api/src/env.ts.
 const API_HOST = "127.0.0.1"
@@ -164,7 +166,7 @@ export async function startHeadedMode(): Promise<void> {
           ...process.env,
           // vite.config.ts reads ALL of these to derive the client bundle's
           // constants at build time + the dev proxy target. Passing only
-          // API_ORIGIN leaves API_PORT defaulted to 4111 in the bundle.
+          // API_ORIGIN leaves API_PORT defaulted to 28421 in the bundle.
           API_PORT: String(apiPort),
           API_ORIGIN: apiOrigin,
           APP_PORT: String(appPort),
@@ -205,7 +207,7 @@ export async function startHeadedMode(): Promise<void> {
 
   // When running as the Tauri desktop sidecar (BREADBOX_NO_OPEN=1), emit a
   // machine-readable marker so the native shell knows which URL to point its
-  // window at — the port may be OS-assigned, not the 3004 default. One line,
+  // window at — the port may be OS-assigned, not the 28440 default. One line,
   // easy to grep from the child's stdout.
   if (process.env.BREADBOX_NO_OPEN === "1") {
     process.stdout.write(`BREADBOX_URL ${appUrl}\n`)

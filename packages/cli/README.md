@@ -59,7 +59,7 @@ Each step can also be done individually — see subcommands below.
 | `dreamer sketch` | Print current sketch code |
 | `dreamer projects` | List all projects |
 | `dreamer scenes` | List scenes in the current project |
-| `dreamer headed` | REPL + web UI served on port 3004 |
+| `dreamer headed` | REPL + web UI served on port 28440 |
 | `dreamer watch [--port <port>]` | Auto-compile (and optionally flash) on sketch changes |
 | `dreamer setup` | Run all first-time setup steps |
 | `dreamer config [path\|list\|get\|set\|unset] ...` | Manage configuration |
@@ -137,8 +137,8 @@ dreamer config path
 | `DREAMER_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
 | `DREAMER_LOG_FILE` | auto | `1` to force file logging, `0` to disable |
 | `DREAMER_HEADED_MODE` | auto | `static` (binary) or `dev` (spawn Vite) |
-| `API_PORT` | `4112` | API port in headed mode |
-| `APP_PORT` | `3004` | Web UI port in headed mode |
+| `API_PORT` | `28441` | API port in headed mode |
+| `APP_PORT` | `28440` | Web UI port in headed mode |
 | `DATA_DIR` | (legacy) | Alias for `DREAMER_HOME` — used by tests |
 
 ## Exit codes
@@ -195,10 +195,10 @@ Two options:
 **Full source dev (HMR, fast):**
 
 ```bash
-bun run dev          # API on 4111, Vite on 3000
+bun run dev          # API on 28421, Vite on 28420
 ```
 
-**Headed-mode dev (REPL + UI on 4112 / 3004):**
+**Headed-mode dev (REPL + UI on 28441 / 28440):**
 
 ```bash
 bun cli headed                              # serves embedded bundle if built
@@ -222,6 +222,6 @@ After running `bun run build:webui` once, the generated manifest has `ASSET_COUN
 
 **REPL appears to exit immediately**: you're piping stdin to the binary (e.g. from a background shell). The REPL needs a TTY to stay alive. Run it in a real terminal.
 
-**`EADDRINUSE` on 4112 or 3004**: a previous `dreamer headed` didn't shut down cleanly. Kill stragglers: `lsof -iTCP:3004 -iTCP:4112 -sTCP:LISTEN -t | xargs kill`.
+**`EADDRINUSE` on 28441 or 28440**: a previous `dreamer headed` didn't shut down cleanly. Kill stragglers: `lsof -iTCP:28440 -iTCP:28441 -sTCP:LISTEN -t | xargs kill`.
 
 **Web UI shows old content**: Vite's `define` substitutions are baked at build time. Run `bun run build:webui` before `bun build --compile` to pick up latest web changes. Hard-refresh (Cmd+Shift+R) in the browser to clear the cache.

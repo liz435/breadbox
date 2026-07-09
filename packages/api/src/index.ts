@@ -56,10 +56,13 @@ const corsOrigin: string[] = IS_HOSTED
     : [] // same-origin only: no APP_ORIGIN set ⇒ no cross-origin browsers allowed
   : [
       APP_ORIGIN,
-      "http://localhost:3002",
-      "http://127.0.0.1:3002",
-      "http://localhost:3004",
-      "http://127.0.0.1:3004",
+      // Dev (Vite) + headed/desktop app ports and their loopback aliases so
+      // both `localhost` and `127.0.0.1` work. Keep in sync with the APP_PORT
+      // defaults in packages/config and packages/cli/src/headed.ts.
+      "http://localhost:28420",
+      "http://127.0.0.1:28420",
+      "http://localhost:28440",
+      "http://127.0.0.1:28440",
     ];
 
 // ── Ownership migration ─────────────────────────────────────────────────

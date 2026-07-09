@@ -55,7 +55,7 @@ AI SDK docs: https://ai-sdk.dev/docs
 - **Bundler**: Vite (with @vitejs/plugin-react)
 - **CSS**: Tailwind CSS v4 (@tailwindcss/vite plugin)
 - **Language**: TypeScript (strict mode)
-- **API Server**: Elysia — runs on port 4111
+- **API Server**: Elysia — runs on port 28421
 - **AI Agent**: Vercel AI SDK (`ai`, `@ai-sdk/anthropic`) — `streamText` + `tool()` harness
 - **AI Frontend**: Vercel AI SDK React (`@ai-sdk/react`) — `useChat()` + `DefaultChatTransport`
 
@@ -69,13 +69,13 @@ dreamer/
   package.json              ← workspace root
   tsconfig.base.json        ← shared TS config
   packages/
-    app/                    ← React frontend (Vite, port 3000)
+    app/                    ← React frontend (Vite, port 28420)
       src/
         chat/               ← ChatPanel + apply-command bridge
         canvas/             ← PixiJS canvas + sprite rendering
         store/              ← scene state (XState)
         ...
-    api/                    ← Elysia backend (port 4111)
+    api/                    ← Elysia backend (port 28421)
       src/
         index.ts            ← Elysia server
         agent/
@@ -83,16 +83,16 @@ dreamer/
           tools.ts          ← 5 scene tools using AI SDK tool()
 ```
 
-- **Frontend** (Vite, port 3000): React app with canvas sprite editor + chat panel
-- **API server** (Elysia, port 4111): Sprite Agent with tools for scene manipulation
+- **Frontend** (Vite, port 28420): React app with canvas sprite editor + chat panel
+- **API server** (Elysia, port 28421): Sprite Agent with tools for scene manipulation
 - Frontend sends messages via `useChat()` → Elysia's `POST /api/chat` endpoint
 - Agent tool results are structured commands dispatched to the scene reducer
 
 ## Dev Commands
 ```bash
 bun run dev        # Start both frontend + API concurrently
-bun run dev:app    # Start frontend dev server only (port 3000)
-bun run dev:api    # Start Elysia API server only (port 4111)
+bun run dev:app    # Start frontend dev server only (port 28420)
+bun run dev:api    # Start Elysia API server only (port 28421)
 bun run build      # Production build (frontend)
 bun run typecheck  # TypeScript type checking (both packages)
 ```

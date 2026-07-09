@@ -3,8 +3,11 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-const APP_PORT = Number(process.env.APP_PORT ?? 3002)
-const API_PORT = Number(process.env.API_PORT ?? process.env.BREADBOX_API_PORT ?? 4111)
+// Keep these defaults in sync with packages/config — the dev proxy target
+// below must point at whatever port the API server actually binds. Quiet
+// 28xxx range to avoid the crowded 3000/8080-style dev ports.
+const APP_PORT = Number(process.env.APP_PORT ?? 28420)
+const API_PORT = Number(process.env.API_PORT ?? process.env.BREADBOX_API_PORT ?? 28421)
 const APP_ORIGIN = process.env.APP_ORIGIN ?? `http://localhost:${APP_PORT}`
 const API_ORIGIN = process.env.API_ORIGIN ?? process.env.VITE_API_ORIGIN ?? `http://localhost:${API_PORT}`
 
@@ -13,13 +16,13 @@ const API_ORIGIN = process.env.API_ORIGIN ?? process.env.VITE_API_ORIGIN ?? `htt
 // auth cookies set by /auth/callback are attached to every /api request
 // without any cross-origin fetch ceremony. `changeOrigin: true` rewrites
 // the Host header to `127.0.0.1:<API_PORT>`, which matches the
-// authPlugin's LOCAL_HOST_ALLOW set — the app's port (3002/3004) would
+// authPlugin's LOCAL_HOST_ALLOW set — the app's port (28420/28440) would
 // otherwise 403.
 //
 // `configureProxy` adds X-Forwarded-Host / -Proto so that hosted-mode
 // auth in dev (BREADBOX_MODE=hosted) reconstructs the OAuth `redirect_uri`
-// as `http://localhost:3002/auth/callback` instead of
-// `http://127.0.0.1:4111/auth/callback`. Supabase's GitHub provider
+// as `http://localhost:28420/auth/callback` instead of
+// `http://127.0.0.1:28421/auth/callback`. Supabase's GitHub provider
 // requires the redirect_uri at exchange time to byte-match the one used
 // at sign-in init, or the exchange fails.
 const API_PROXY_TARGET = `http://127.0.0.1:${API_PORT}`

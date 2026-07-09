@@ -12,7 +12,7 @@
 //
 // Activation: only mounted when the `dist/` directory actually exists.
 // Dev (`bun run dev:api`) doesn't have a dist/, so this module is inert
-// and Vite keeps serving the frontend on port 3000 as before.
+// and Vite keeps serving the frontend on port 28420 as before.
 
 import { Elysia } from "elysia"
 import { existsSync, readFileSync } from "fs"

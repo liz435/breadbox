@@ -2,7 +2,7 @@
 //!
 //! On launch we spawn the bundled `breadbox` binary (a Tauri *sidecar*) in
 //! `serve` mode. It starts the Elysia API and serves the embedded web UI on
-//! loopback, preferring 3004/4112 but falling back to OS-assigned free ports
+//! loopback, preferring 28440/28441 but falling back to OS-assigned free ports
 //! if those are taken — so the app never collides with another process. The
 //! sidecar prints a `BREADBOX_URL <url>` marker once it's ready; we read it
 //! from the child's stdout and point the window there. While it boots the

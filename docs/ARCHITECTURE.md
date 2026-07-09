@@ -12,8 +12,8 @@ Bun workspaces at `packages/*`.
 ```
 dreamer/
   packages/
-    app/        React 19 + Vite frontend        (dev: port 3000)
-    api/        Elysia HTTP server              (dev: port 4111)
+    app/        React 19 + Vite frontend        (dev: port 28420)
+    api/        Elysia HTTP server              (dev: port 28421)
     cli/        `dreamer` binary (npx)          (spawns api + serves bundle)
     schemas/    Shared zod schemas + types
     config/     Shared TypeScript config + tiny runtime config helper
@@ -66,7 +66,7 @@ Root `package.json` scripts:
 - **Frontend**: Vite serves React 19. All simulation, rendering, and circuit
   analysis run in the browser. The backend is only consulted for compilation,
   flashing, agent chat, and project persistence.
-- **API**: Elysia on port 4111. Hosts the chat endpoint, the arduino-cli
+- **API**: Elysia on port 28421. Hosts the chat endpoint, the arduino-cli
   wrapper (`/api/compile`, `/api/flash`), project CRUD, agent run history, and
   a library auto-install shim. In hosted (`DREAMER_HOSTED=1`) or CLI mode the
   same server also serves the built web UI — see [CLI.md](./CLI.md) and
@@ -164,8 +164,8 @@ See `packages/api/src/toolchain.ts:121` (CLI resolution),
 
 | Port | Process | Source | When |
 | --- | --- | --- | --- |
-| 3000 | Vite dev server | `packages/app` | `bun run dev:app` |
-| 4111 | Elysia API | `packages/api` | `bun run dev:api` |
+| 28420 | Vite dev server | `packages/app` | `bun run dev:app` |
+| 28421 | Elysia API | `packages/api` | `bun run dev:api` |
 | runtime | `dreamer` binary (CLI) static UI | `packages/cli/src/web-ui.ts` | `dreamer headed` |
 
 The frontend learns the API origin via `@dreamer/config`: it reads

@@ -9,8 +9,13 @@
 // index.html at serve time. That runtime value wins so users can run the
 // binary with a custom API_PORT without rebuilding the bundle.
 
-export const APP_PORT = Number(process.env.APP_PORT ?? 3002)
-export const API_PORT = Number(process.env.API_PORT ?? process.env.PORT ?? 4111)
+// Defaults deliberately live in a quiet 28xxx range (and below 32768, so they
+// sit under both macOS's and Linux's ephemeral-port ranges): the common dev
+// ports — 3000/3002/8080/etc. — collide constantly on a busy machine. These are
+// only preferences; the CLI's headed/serve launcher falls back to an
+// OS-assigned free port when one is taken, so a collision never blocks startup.
+export const APP_PORT = Number(process.env.APP_PORT ?? 28420)
+export const API_PORT = Number(process.env.API_PORT ?? process.env.PORT ?? 28421)
 
 declare global {
   interface Window {

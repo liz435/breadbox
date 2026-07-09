@@ -17,7 +17,7 @@ import { createHash } from "node:crypto"
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from "node:fs"
 import { join, basename } from "node:path"
 
-const API_BASE = process.env.BREADBOX_API_BASE ?? "http://localhost:4111"
+const API_BASE = process.env.BREADBOX_API_BASE ?? "http://localhost:28421"
 const APP_SRC = join(import.meta.dir, "..", "packages", "app", "src")
 
 /** Every directory whose *.json files are BoardStates with a sketch. */
