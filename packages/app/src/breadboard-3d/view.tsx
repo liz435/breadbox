@@ -13,12 +13,15 @@ import { AssemblyPanel } from "./assembly-panel"
 import { downloadSceneGlb } from "./scene-export"
 import { EditorProvider } from "./editor-state"
 import { setPhysicsEnabled, usePhysicsEnabled } from "./physics-flag"
+import { setCalibrating, useCalibrating } from "./arduino-calibration"
+import { CalibrationPanel } from "./calibration-panel"
 
 export function Breadboard3dView() {
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [exporting, setExporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const physicsEnabled = usePhysicsEnabled()
+  const calibrating = useCalibrating()
 
   async function handleExport() {
     setExporting(true)
@@ -56,6 +59,14 @@ export function Breadboard3dView() {
           </Button>
           <Button
             size="sm"
+            variant={calibrating ? "default" : "secondary"}
+            onClick={() => setCalibrating(!calibrating)}
+            title="Drag a handle onto each Arduino header pin to align wire attach points with the 3D model"
+          >
+            {calibrating ? "Calibrating…" : "Calibrate pins"}
+          </Button>
+          <Button
+            size="sm"
             variant="secondary"
             onClick={handleExport}
             disabled={exporting}
@@ -82,6 +93,8 @@ export function Breadboard3dView() {
             }}
           />
         </div>
+
+        {calibrating && <CalibrationPanel />}
 
         <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded bg-black/40 px-2 py-0.5 text-[11px] text-white/80">
           {physicsEnabled

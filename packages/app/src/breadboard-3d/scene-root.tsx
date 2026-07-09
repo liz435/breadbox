@@ -7,9 +7,9 @@
 
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { Canvas, useFrame, useThree } from "@react-three/fiber"
-import { CameraControls, ContactShadows, Environment, Lightformer, RoundedBox } from "@react-three/drei"
-import { Matrix4 } from "three"
-import type { InstancedMesh } from "three"
+import { CameraControls, ContactShadows, Environment, Lightformer, RoundedBox, useGLTF } from "@react-three/drei"
+import { Box3, Matrix4, Vector3 } from "three"
+import type { Group, InstancedMesh } from "three"
 import { isBoardComponentType } from "@dreamer/schemas"
 import { useBoardSelector } from "@/store/board-context"
 import { gridToPixel, ROWS } from "@/breadboard/breadboard-grid"
@@ -18,6 +18,8 @@ import { UploadedBodies } from "./uploaded-bodies"
 import { TransformGizmo } from "./transform-gizmo"
 import { AnimationDriver } from "./animation-driver"
 import { Wires } from "./wires"
+import { ArduinoPinCalibrator } from "./arduino-calibrator"
+import { useCalibrating } from "./arduino-calibration"
 import { PhysicsScene } from "./physics-scene"
 import { usePhysicsEnabled } from "./physics-flag"
 import { usePhysicsActive } from "./physics-activity"
@@ -40,6 +42,7 @@ import {
   pxToMm,
   type WorldPoint,
 } from "./layout"
+import arduinoUnoUrl from "@/assets/arduino-uno.glb?url"
 
 /** All hole columns of the clickable grid: terminal cols 0–9 + rail cols. */
 const HOLE_COLS = [-2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
@@ -112,8 +115,9 @@ function RailStripes() {
   )
 }
 
-/** The Arduino PCB with its major landmarks: headers, MCU, jacks, crystal. */
-function ArduinoBoard() {
+/** Fallback Arduino: a procedural PCB with its major landmarks (headers, MCU,
+ *  jacks, crystal). Shown while the GLB model streams in, or if it fails. */
+function ArduinoBoardFallback() {
   const center = pixelToWorld(
     ARDUINO_RECT_PX.x + ARDUINO_RECT_PX.width / 2,
     ARDUINO_RECT_PX.y + ARDUINO_RECT_PX.height / 2,
@@ -170,6 +174,102 @@ function ArduinoBoard() {
   )
 }
 
+// ── Arduino GLB placement tuning ─────────────────────────────────────────────
+// The wire endpoints are fixed to the schematic pinout (digital header on the
+// top long edge, power/analog on the bottom — see breadboard-grid.ts). The
+// auto-fit below lands the model on the right footprint but can't know which of
+// its edges/faces is "digital" or how tall its headers sit, so these knobs
+// orient + seat it. All are applied on top of the auto-fit.
+//
+//  - YAW_TURNS   extra 90° turns about vertical (0..3) to pick the long-edge
+//                orientation that puts digital pins on the top edge.
+//  - FLIP        add a 180° turn (swap the two long edges) if digital/analog
+//                land on the wrong sides.
+//  - NUDGE       fine shift in the board plane (mm): +x right, +z toward viewer.
+//  - LIFT_Y      raise/lower so the header sockets meet the wire ends (mm).
+//  - SCALE       multiplier on the fitted scale (1 = fill the footprint).
+const ARDUINO_MODEL = {
+  yawTurns: 0,
+  flip: false,
+  nudge: { x: 0, z: 0 },
+  liftY: 0,
+  scale: 1,
+}
+
+/** The imported Arduino Uno GLB, auto-fitted to the board's footprint.
+ *
+ *  The model's native units/orientation are unknown, so everything is derived
+ *  at runtime from its measured bounding box: lay the thinnest axis (the PCB
+ *  normal) vertical, align its long side with the Arduino footprint's long
+ *  side, uniform-scale to fit, then recentre over the Arduino rect and rest the
+ *  bottom on the floor. `ARDUINO_MODEL` above applies orientation/seat tweaks
+ *  on top so the header rows line up with the fixed wire attach points. */
+function ArduinoModel() {
+  const { scene } = useGLTF(arduinoUnoUrl)
+  // Clone so this instance owns its graph (useGLTF caches the source scene).
+  const model = useMemo(() => scene.clone(true), [scene])
+  const groupRef = useRef<Group>(null)
+  const invalidate = useThree((state) => state.invalidate)
+
+  const center = pixelToWorld(
+    ARDUINO_RECT_PX.x + ARDUINO_RECT_PX.width / 2,
+    ARDUINO_RECT_PX.y + ARDUINO_RECT_PX.height / 2,
+  )
+  const targetW = pxToMm(ARDUINO_RECT_PX.width)
+  const targetD = pxToMm(ARDUINO_RECT_PX.height)
+
+  useLayoutEffect(() => {
+    const group = groupRef.current
+    if (!group) return
+    group.position.set(0, 0, 0)
+    group.rotation.set(0, 0, 0)
+    group.scale.setScalar(1)
+    group.updateWorldMatrix(true, true)
+
+    const size = new Vector3()
+    const measure = () => new Box3().setFromObject(group).getSize(size)
+
+    // 1. Lay the board flat — rotate its thinnest axis (the PCB normal) to +Y.
+    measure()
+    const min = Math.min(size.x, size.y, size.z)
+    if (size.x === min) group.rotation.z = -Math.PI / 2
+    else if (size.z === min) group.rotation.x = -Math.PI / 2
+    group.updateWorldMatrix(true, true)
+
+    // 2. Align the model's long side with the footprint's long side, then apply
+    //    the manual orientation tweaks (which long edge is "digital", flips).
+    measure()
+    if (size.x >= size.z !== targetW >= targetD) group.rotation.y += Math.PI / 2
+    group.rotation.y += ARDUINO_MODEL.yawTurns * (Math.PI / 2)
+    if (ARDUINO_MODEL.flip) group.rotation.y += Math.PI
+    group.updateWorldMatrix(true, true)
+    measure()
+
+    // 3. Uniform-scale the footprint to fit (preserve aspect ratio).
+    group.scale.setScalar(Math.min(targetW / size.x, targetD / size.z) * ARDUINO_MODEL.scale)
+    group.updateWorldMatrix(true, true)
+
+    // 4. Recentre over the Arduino rect, rest the bottom on the floor, then nudge.
+    const box = new Box3().setFromObject(group)
+    const centroid = box.getCenter(new Vector3())
+    group.position.x += center.x - centroid.x + ARDUINO_MODEL.nudge.x
+    group.position.z += center.z - centroid.z + ARDUINO_MODEL.nudge.z
+    group.position.y += -box.min.y + ARDUINO_MODEL.liftY
+    group.updateWorldMatrix(true, true)
+
+    // frameloop="demand" — nudge a repaint now that the transform is set.
+    invalidate()
+  }, [model, center.x, center.z, targetW, targetD, invalidate])
+
+  return (
+    <group ref={groupRef}>
+      <primitive object={model} />
+    </group>
+  )
+}
+
+useGLTF.preload(arduinoUnoUrl)
+
 /** One breadboard: rounded body with a recessed centre channel, its hole grid
  *  and rail stripes. The interior geometry is authored at the origin board's
  *  position; the wrapping group shifts the whole board to its world offset so
@@ -223,7 +323,9 @@ function BoardSurfaces() {
 
   return (
     <group name="board-3d">
-      <ArduinoBoard />
+      <Suspense fallback={<ArduinoBoardFallback />}>
+        <ArduinoModel />
+      </Suspense>
       {boards.map((board) => (
         <BreadboardBlock key={board.id} offset={board.offset} />
       ))}
@@ -274,6 +376,7 @@ export function SceneRoot() {
   const { select } = useEditor()
   const physicsEnabled = usePhysicsEnabled()
   const physicsActive = usePhysicsActive()
+  const calibrating = useCalibrating()
   // Show a spinner over the canvas until the scene paints its first frame, so
   // WebGL init + environment baking doesn't read as a blank panel.
   const [ready, setReady] = useState(false)
@@ -347,6 +450,10 @@ export function SceneRoot() {
 
         {/* Soft grounding shadow of the board onto the floor. */}
         <ContactShadows position={[0, 0, 0]} scale={420} resolution={1024} blur={2.6} opacity={0.55} far={80} frames={1} />
+
+        {/* Calibration handles: draggable spheres on each Arduino header pin,
+            shown only while calibration mode is on (see the toolbar toggle). */}
+        {calibrating && <ArduinoPinCalibrator />}
 
         <TransformGizmo />
         <AnimationDriver />
