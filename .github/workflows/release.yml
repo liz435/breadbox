@@ -84,7 +84,15 @@ jobs:
             build-essential \
             file \
             libssl-dev \
-            libgtk-3-dev
+            libgtk-3-dev \
+            libfuse2
+          # linuxdeploy (the AppImage bundler tauri downloads) is itself a
+          # FUSE2 AppImage, but ubuntu-22.04 runners ship only libfuse3, so it
+          # can't self-mount. APPIMAGE_EXTRACT_AND_RUN (set on the build step)
+          # is meant to sidestep FUSE by extracting instead, but it isn't
+          # honored reliably here — the bundle step failed with "failed to run
+          # linuxdeploy". Installing libfuse2 lets linuxdeploy mount normally,
+          # which is the dependable fix; extract-and-run stays as a backstop.
 
       # No --frozen-lockfile: matches ci.yml — the binary bun.lockb drifts and
       # would otherwise fail every run.
