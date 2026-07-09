@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Asset } from "../../db/schemas";
-import { findDuplicateAsset, findOrphanModelAssets } from "../asset-cleanup";
+import { findDuplicateAsset, planAssetSweep } from "../asset-cleanup";
 
 function asset(over: Partial<Asset> & { id: string }): Asset {
   return {
@@ -11,6 +11,10 @@ function asset(over: Partial<Asset> & { id: string }): Asset {
     ...over,
   } as Asset;
 }
+
+const DAY = 24 * 60 * 60 * 1000;
+const GRACE = 7 * DAY;
+const NOW = 1_000 * DAY; // arbitrary fixed "now" (Date.now is not injected)
 
 describe("findDuplicateAsset", () => {
   const assets: Record<string, Asset> = {
@@ -31,36 +35,58 @@ describe("findDuplicateAsset", () => {
   });
 });
 
-describe("findOrphanModelAssets", () => {
-  test("keeps referenced models, sweeps unreferenced ones", () => {
-    const assets: Record<string, Asset> = {
-      used: asset({ id: "used", uri: "/project/p/assets/used.glb" }),
-      orphan: asset({ id: "orphan", uri: "/project/p/assets/orphan.glb" }),
-    };
-    const bodies = [{ assetId: "used", uri: "/project/p/assets/used.glb" }];
-    expect(findOrphanModelAssets(assets, bodies)).toEqual(["orphan"]);
+describe("planAssetSweep", () => {
+  function plan(assets: Record<string, Asset>, bodies: { assetId?: string; uri?: string }[]) {
+    return planAssetSweep({ assets, bodies, now: NOW, graceMs: GRACE });
+  }
+
+  test("a newly unreferenced model is marked, never removed on first sight", () => {
+    const assets = { orphan: asset({ id: "orphan" }) };
+    expect(plan(assets, [])).toEqual({ mark: ["orphan"], unmark: [], remove: [] });
   });
 
-  test("a body referencing only by uri still keeps its asset", () => {
-    const assets: Record<string, Asset> = {
-      x: asset({ id: "x", uri: "/project/p/assets/x.glb" }),
+  test("referenced models are left alone", () => {
+    const assets = {
+      byId: asset({ id: "byId" }),
+      byUri: asset({ id: "byUri", uri: "/project/p/assets/byUri.glb" }),
     };
-    expect(findOrphanModelAssets(assets, [{ uri: "/project/p/assets/x.glb" }])).toEqual([]);
+    const bodies = [{ assetId: "byId" }, { uri: "/project/p/assets/byUri.glb" }];
+    expect(plan(assets, bodies)).toEqual({ mark: [], unmark: [], remove: [] });
   });
 
-  test("non-model assets are never swept, even when unreferenced", () => {
-    const assets: Record<string, Asset> = {
+  test("an orphan still within the grace window is kept (not removed)", () => {
+    const assets = {
+      x: asset({ id: "x", meta: { orphanedAt: new Date(NOW - 3 * DAY).toISOString() } }),
+    };
+    expect(plan(assets, [])).toEqual({ mark: [], unmark: [], remove: [] });
+  });
+
+  test("an orphan past the grace window is removed", () => {
+    const assets = {
+      x: asset({ id: "x", meta: { orphanedAt: new Date(NOW - 8 * DAY).toISOString() } }),
+    };
+    expect(plan(assets, [])).toEqual({ mark: [], unmark: [], remove: ["x"] });
+  });
+
+  test("a re-referenced marked asset is unmarked, not removed", () => {
+    const assets = {
+      x: asset({ id: "x", meta: { orphanedAt: new Date(NOW - 8 * DAY).toISOString() } }),
+    };
+    expect(plan(assets, [{ assetId: "x" }])).toEqual({ mark: [], unmark: ["x"], remove: [] });
+  });
+
+  test("non-model assets are never touched, even when unreferenced", () => {
+    const assets = {
       sprite: asset({ id: "sprite", type: "sprite", uri: "/project/p/assets/sprite.png" }),
       model: asset({ id: "model" }),
     };
-    expect(findOrphanModelAssets(assets, []).sort()).toEqual(["model"]);
+    expect(plan(assets, [])).toEqual({ mark: ["model"], unmark: [], remove: [] });
   });
 
-  test("no bodies → every model asset is an orphan", () => {
-    const assets: Record<string, Asset> = {
-      a: asset({ id: "a" }),
-      b: asset({ id: "b" }),
-    };
-    expect(findOrphanModelAssets(assets, []).sort()).toEqual(["a", "b"]);
+  test("no bodies → every model asset is marked (first pass), none removed yet", () => {
+    const assets = { a: asset({ id: "a" }), b: asset({ id: "b" }) };
+    const result = plan(assets, []);
+    expect(result.mark.sort()).toEqual(["a", "b"]);
+    expect(result.remove).toEqual([]);
   });
 });

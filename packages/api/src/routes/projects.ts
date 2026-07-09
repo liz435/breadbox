@@ -2,7 +2,7 @@ import { join, resolve, sep } from "path";
 import { createHash } from "crypto";
 import { Elysia } from "elysia";
 import { z, ZodError } from "zod";
-import { findDuplicateAsset, findOrphanModelAssets } from "./asset-cleanup";
+import { findDuplicateAsset, planAssetSweep } from "./asset-cleanup";
 import {
   applyOpsRequestSchema,
   projectGraphSchema,
@@ -38,6 +38,11 @@ function badRequest(
   if (typeof error === "string") return { error };
   return { error: "Invalid request payload", details: error.flatten() };
 }
+
+// How long an imported-model asset must stay unreferenced before the sweep
+// reclaims it. Long enough to comfortably outlast the debounced board autosave
+// (and a user's undo/redo session), so cleanup never races a fresh import.
+const ORPHAN_ASSET_GRACE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 function mimeToAssetType(mimeType: string, ext: string): Asset["type"] {
   if (mimeType.startsWith("image/") || ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico"].includes(ext)) return "sprite";
@@ -461,6 +466,12 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
   // (dropped by undo / board reload / apply_design, which don't route through
   // the per-body delete). Safe to run on project open: it reads the persisted
   // board, so the referenced set is complete. Only model assets are touched.
+  //
+  // Grace-period mark-and-sweep: a newly-unreferenced asset is *marked* and
+  // kept, and only removed on a later sweep once it has stayed orphaned past
+  // the window. This is deliberate — a model file is written on import before
+  // the debounced board autosave persists its body, so a first-sight deletion
+  // would destroy a just-imported model. See planAssetSweep.
   .post("/:id/assets/sweep", async ({ auth, params, set }) => {
     const ownerId = requireOwnerId(auth);
     const project = await storage.projects.readProject(params.id, ownerId);
@@ -470,14 +481,35 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
     }
 
     const bodies = Object.values(project.boardState?.assembly?.bodies ?? {});
-    const orphanIds = findOrphanModelAssets(project.assets, bodies);
-    if (orphanIds.length === 0) return { removed: 0, bytesReclaimed: 0 };
+    const plan = planAssetSweep({
+      assets: project.assets,
+      bodies,
+      now: Date.now(),
+      graceMs: ORPHAN_ASSET_GRACE_MS,
+    });
+    if (
+      plan.mark.length === 0 &&
+      plan.unmark.length === 0 &&
+      plan.remove.length === 0
+    ) {
+      return { removed: 0, marked: 0, bytesReclaimed: 0 };
+    }
+
+    const nowIso = new Date().toISOString();
+    for (const id of plan.mark) {
+      const asset = project.assets[id];
+      if (asset) asset.meta = { ...asset.meta, orphanedAt: nowIso };
+    }
+    for (const id of plan.unmark) {
+      const asset = project.assets[id];
+      if (asset?.meta) delete asset.meta.orphanedAt;
+    }
 
     const { unlink } = await import("fs/promises");
     const dir = storage.projects.projectAssetsDir(params.id);
     let bytesReclaimed = 0;
-    for (const assetId of orphanIds) {
-      const asset = project.assets[assetId];
+    for (const id of plan.remove) {
+      const asset = project.assets[id];
       if (!asset) continue;
       const size = asset.meta?.size;
       if (typeof size === "number") bytesReclaimed += size;
@@ -489,19 +521,25 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
           // Already gone — still drop the JSON entry below.
         }
       }
-      delete project.assets[assetId];
+      delete project.assets[id];
     }
     project.project.updatedAt = new Date().toISOString();
     await storage.projects.writeProject(params.id, ownerId, project);
 
-    void auditLog({
-      userId: ownerId,
-      action: "asset.delete",
-      projectId: params.id,
-      extra: { swept: orphanIds.length, bytesReclaimed },
-    });
+    if (plan.remove.length > 0) {
+      void auditLog({
+        userId: ownerId,
+        action: "asset.delete",
+        projectId: params.id,
+        extra: { swept: plan.remove.length, bytesReclaimed },
+      });
+    }
 
-    return { removed: orphanIds.length, bytesReclaimed };
+    return {
+      removed: plan.remove.length,
+      marked: plan.mark.length,
+      bytesReclaimed,
+    };
   })
   // ── Asset serve ─────────────────────────────────────────────────────────
   .get("/:id/assets/:filename", async ({ auth, params, set }) => {

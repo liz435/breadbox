@@ -424,8 +424,8 @@ export async function deleteProjectAsset(
  */
 export async function sweepProjectAssets(
   projectId: string,
-): Promise<{ removed: number; bytesReclaimed: number }> {
-  if (isAnonymousPreview()) return { removed: 0, bytesReclaimed: 0 };
+): Promise<{ removed: number; marked: number; bytesReclaimed: number }> {
+  if (isAnonymousPreview()) return { removed: 0, marked: 0, bytesReclaimed: 0 };
   const url = `${API_ORIGIN}/project/${encodeURIComponent(projectId)}/assets/sweep`;
   const res = await authedFetch(url, { method: "POST" });
   if (!res.ok) {
