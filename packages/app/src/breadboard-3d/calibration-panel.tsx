@@ -78,10 +78,10 @@ export function CalibrationPanel() {
           variant="secondary"
           onClick={() => {
             clearCalibration()
-            toast.success("Calibration reset")
+            toast.success("Reset to baked alignment")
           }}
         >
-          Reset
+          Reset to default
         </Button>
         <Button size="sm" onClick={() => setCalibrating(false)}>
           Done
