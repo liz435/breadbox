@@ -215,7 +215,13 @@ const WireRope = memo(function WireRope({
       ))}
       {springs.map((spring) => (
         <SpringLink
-          key={spring.key}
+          // The rest length is baked into the joint at creation — useSpringJoint
+          // builds it once and never reacts to a changed `length` prop. When the
+          // arch is recomputed (a tall part appears under the wire) the nodes
+          // teleport to the new arc but the springs would keep their old rest
+          // lengths and haul the wire back down through the obstacle. Keying on
+          // the length remounts the link so the joint is rebuilt.
+          key={`${spring.key}:${spring.length.toFixed(2)}`}
           a={bodies[spring.i]}
           b={bodies[spring.j]}
           length={spring.length}

@@ -65,15 +65,35 @@ function PhysicsPart({
 
   const { dragging, onPointerDown } = useBodyDrag(bodyRef, onRelease)
 
+  // The part spawns above the board and needs the solver running to drop onto
+  // it. PhysicsParts only wakes on a change in part COUNT, so an equal-count
+  // swap (an agent replacing an LED with a resistor in one commit) would leave
+  // this part frozen in mid-air until some unrelated interaction woke physics.
+  useEffect(() => {
+    wakePhysics()
+  }, [])
+
   // Snap the body to its committed grid position whenever the target moves —
   // our own drag-commit, a 2D-canvas edit, or an MCP tool. Skipped on the first
   // render (the initial spawn is the RigidBody's `position` prop) and while the
   // user is actively dragging.
   const lastTarget = useRef({ x, z })
+  const wasDragging = useRef(false)
   useEffect(() => {
     const body = bodyRef.current
-    if (!body || dragging) return
-    if (lastTarget.current.x === x && lastTarget.current.z === z) return
+    if (!body) return
+    if (dragging) {
+      wasDragging.current = true
+      return
+    }
+    const justDragged = wasDragging.current
+    wasDragging.current = false
+    const targetMoved = lastTarget.current.x !== x || lastTarget.current.z !== z
+    // A drag that ends inside the part's own cell resolves to the same grid
+    // coords, so MOVE_COMPONENT is a no-op and `targetMoved` is false — but the
+    // body is still sitting wherever the pointer dropped it, up to half a pitch
+    // off the hole, disagreeing with the 2D canvas. Re-snap after any drag.
+    if (!justDragged && !targetMoved) return
     lastTarget.current = { x, z }
     body.setTranslation({ x, y: PART_REST_Y + DROP_HEIGHT_MM * 0.5, z }, true)
     body.setLinvel({ x: 0, y: 0, z: 0 }, true)
