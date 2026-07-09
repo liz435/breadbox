@@ -15,8 +15,8 @@ the [`dreamer` CLI binary](../cli):
 │      │                                                               │
 │      │ 1. on launch, spawn the bundled `dreamer` binary as a sidecar │
 │      ▼                                                               │
-│   dreamer serve   ──►  Elysia API   on 127.0.0.1 (prefers :4112)     │
-│   (no REPL,            embedded web UI on 127.0.0.1 (prefers :3004)   │
+│   dreamer serve   ──►  Elysia API   on 127.0.0.1 (prefers :28441)    │
+│   (no REPL,            embedded web UI on 127.0.0.1 (prefers :28440) │
 │    no browser)         → prints `DREAMER_URL <url>` when ready        │
 │      │                                                               │
 │      │ 2. read the marker from stdout, navigate the window to <url>  │
@@ -33,7 +33,7 @@ the [`dreamer` CLI binary](../cli):
 - It runs in `serve` mode (added for the desktop shell): API + web UI only, **no
   REPL** (a REPL on the sidecar's non-TTY stdin would exit and kill the server)
   and **no auto-opened browser** (`DREAMER_NO_OPEN=1`).
-- Ports aren't fixed: the sidecar prefers `3004` (UI) and `4112` (API) but
+- Ports aren't fixed: the sidecar prefers `28440` (UI) and `28441` (API) but
   falls back to OS-assigned free ports if those are taken, so it never
   collides with another process (a running `dreamer headed`, `bun run dev`,
   etc.). It then prints `DREAMER_URL <url>` on stdout.
@@ -123,7 +123,7 @@ self-installs signed updates. It requires a one-time updater signing key — see
 
 ## Caveats
 
-- **Ports prefer 3004/4112 but aren't fixed.** If those are taken the sidecar
+- **Ports prefer 28440/28441 but aren't fixed.** If those are taken the sidecar
   falls back to OS-assigned free ports and reports the actual URL via the
   `DREAMER_URL` marker, so there's no collision to manage. Set `APP_PORT` /
   `API_PORT` to change the preferences.

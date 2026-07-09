@@ -10,7 +10,7 @@
 
 import { defineConfig, devices } from "@playwright/test"
 
-const APP_PORT = Number(process.env.APP_PORT ?? 3002)
+const APP_PORT = Number(process.env.APP_PORT ?? 28420)
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${APP_PORT}`
 
 export default defineConfig({

@@ -1,6 +1,6 @@
 # Frontend
 
-The `packages/app` workspace: React 19 + Vite (port 3000 in dev). Renders
+The `packages/app` workspace: React 19 + Vite (port 28420 in dev). Renders
 the breadboard, the sketch editor, the agent chat, the schematic view, and
 a set of inspector/debug panels.
 

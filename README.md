@@ -31,7 +31,7 @@ git clone https://github.com/liz435/breadbox.git
 cd breadbox
 bun install
 cp .env.example .env        # add your ANTHROPIC_API_KEY
-bun run dev                 # frontend (:3000) + API (:4111)
+bun run dev                 # frontend (:28420) + API (:28421)
 ```
 
 Or run the prebuilt CLI without cloning:
@@ -48,7 +48,7 @@ dreamer                     # interactive session
 ```
 packages/
   app/        React 19 + Vite frontend — breadboard canvas, chat, simulation UI
-  api/        Elysia API (:4111) — agent harness, project/board/chat routes
+  api/        Elysia API (:28421) — agent harness, project/board/chat routes
   cli/        the `dreamer` single-file binary (serve, headed, run, mcp, …)
   desktop/    Tauri 2 native shell that wraps the CLI binary
   config/     shared configuration

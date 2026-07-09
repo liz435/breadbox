@@ -29,7 +29,7 @@ function isAuthedApiPath(pathname: string): boolean {
 
 // Loopback hostnames. We gate on the request's *hostname*, not on a fixed
 // host:port — because headed/serve mode binds an OS-assigned port whenever its
-// preferred one (3004 UI / 4112 API) is taken (e.g. an orphaned sidecar from a
+// preferred one (28440 UI / 28441 API) is taken (e.g. an orphaned sidecar from a
 // prior launch). Pinning specific ports here would 403 every API call in that
 // fallback case. A DNS-rebind attacker still arrives with their own domain in
 // Host/Origin (e.g. "evil.com"), which is not loopback, so the rebind hole
@@ -52,7 +52,7 @@ function extraOriginAllowlist(): Set<string> {
   return new Set<string>([APP_ORIGIN, ...extra])
 }
 
-// The Host header is "hostname" or "hostname:port" ("[::1]:4112" for IPv6).
+// The Host header is "hostname" or "hostname:port" ("[::1]:28441" for IPv6).
 // Strip the port and check the hostname is loopback.
 function hostAllowed(host: string): boolean {
   if (!host) return false

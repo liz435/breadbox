@@ -34,7 +34,7 @@ Two non-obvious bits:
    to `<head>` that sets `window.__DREAMER__ = { apiOrigin, appOrigin,
    preferAvr: true }`. The frontend's `@dreamer/config` reads this before
    the Vite bundle loads, so the React app knows the actual API port
-   (picked at runtime, since the user may not have 4111 free).
+   (picked at runtime, since the user may not have 28421 free).
 2. **`preferAvr: true`** is forced in CLI mode because the shipped binary
    guarantees arduino-cli is available, so real compilation always works
    and the frontend can skip its transpile fallback.

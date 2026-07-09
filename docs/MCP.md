@@ -80,7 +80,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`
 
 ## 3. Watch it build live
 
-1. Open the project in Breadbox (`bun run dev` → http://localhost:3000, the
+1. Open the project in Breadbox (`bun run dev` → http://localhost:28420, the
    `dreamer` CLI, or the desktop app). Note its project id.
 2. Connect Claude to that **same** id (§2).
 3. Chat with Claude — e.g. *"add an LED on pin 13 through a 220Ω resistor and
@@ -145,7 +145,7 @@ Claude makes each call.
 
 - **Canvas doesn't update.** Confirm you're running locally (the bridge is off on
   the hosted deployment), the open project id matches the `--project <id>` you
-  registered, and the tab is still open. The dev server is `http://localhost:3000`;
+  registered, and the tab is still open. The dev server is `http://localhost:28420`;
   the CLI/desktop server is on its own loopback port.
 - **`command not found: dreamer`.** The binary isn't on `PATH`. Use `npx dreamer`,
   the desktop bundle, or the from-source `bun …` form in §2.

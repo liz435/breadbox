@@ -1,4 +1,4 @@
-const port = Number(process.env.PORT ?? 3000)
+const port = Number(process.env.PORT ?? 28460)
 // Use import.meta.dir (Bun's __dirname equivalent) so the path is always
 // resolved relative to this file, not the working directory. This is
 // important when the server is started from the monorepo root via
