@@ -5,12 +5,28 @@ import {
   createProject,
   deleteProject,
   renameProject,
+  fetchProjectStorage,
+  sweepProjectAssets,
   type ProjectSummary,
+  type ProjectStorage,
 } from "@/project/api-client"
 import { saveProjectId } from "@/project/project-context"
 import { Plus, ChevronDown, Loader2, Trash2, Check, Folder, Pencil } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "@/components/ui/toast"
+
+/** Compact human-readable byte size, e.g. 0 B, 940 KB, 12.4 MB. */
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  const units = ["KB", "MB", "GB"]
+  let value = bytes / 1024
+  let unit = 0
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024
+    unit += 1
+  }
+  return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`
+}
 
 export function ProjectSelector() {
   const { projectId, projectFile, switchProject } = useProject()
@@ -22,6 +38,8 @@ export function ProjectSelector() {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [isHeaderRenaming, setIsHeaderRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState("")
+  const [storage, setStorage] = useState<ProjectStorage | null>(null)
+  const [isCleaning, setIsCleaning] = useState(false)
   // Escape must discard the edit, but blur always follows it — this flag
   // lets the blur handler tell an intentional cancel from a commit.
   const renameCancelledRef = useRef(false)
@@ -45,9 +63,36 @@ export function ProjectSelector() {
       .finally(() => setIsLoading(false))
   }, [])
 
+  const refreshStorage = useCallback(() => {
+    fetchProjectStorage(projectId)
+      .then(setStorage)
+      .catch(() => setStorage(null))
+  }, [projectId])
+
   useEffect(() => {
     refresh()
   }, [refresh])
+
+  // Re-read storage each time the dropdown opens (and when switching projects
+  // while it's open), so the figure reflects the latest sweep/import.
+  useEffect(() => {
+    if (isOpen) refreshStorage()
+  }, [isOpen, refreshStorage])
+
+  const handleCleanup = useCallback(async () => {
+    setIsCleaning(true)
+    try {
+      const result = await sweepProjectAssets(projectId)
+      if (result.removed > 0) {
+        toast.success(`Freed ${formatBytes(result.bytesReclaimed)}`)
+      }
+      refreshStorage()
+    } catch {
+      toast.error("Failed to clean up storage")
+    } finally {
+      setIsCleaning(false)
+    }
+  }, [projectId, refreshStorage])
 
   const handleSelect = useCallback(
     (id: string) => {
@@ -360,6 +405,35 @@ export function ProjectSelector() {
                 <span>New Project</span>
               </button>
             </div>
+
+            {storage && storage.totalCount > 0 && (
+              <div className="border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate">
+                    {formatBytes(storage.totalBytes)} · {storage.totalCount}{" "}
+                    imported model{storage.totalCount === 1 ? "" : "s"}
+                  </span>
+                  {storage.reclaimableBytes > 0 && (
+                    <button
+                      type="button"
+                      className="shrink-0 rounded px-1.5 py-0.5 font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+                      onClick={handleCleanup}
+                      disabled={isCleaning}
+                    >
+                      {isCleaning
+                        ? "Cleaning…"
+                        : `Clean up ${formatBytes(storage.reclaimableBytes)}`}
+                    </button>
+                  )}
+                </div>
+                {storage.reclaimableBytes === 0 && storage.pendingBytes > 0 && (
+                  <div className="mt-0.5 text-muted-foreground/70">
+                    {formatBytes(storage.pendingBytes)} from unused models —
+                    auto-clears after a week
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </>
       )}
