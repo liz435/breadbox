@@ -2,23 +2,19 @@
 //
 // The assembly document lives inside BoardState (board machine context), so
 // edits ride the existing undo/persistence paths. These helpers give the 3D
-// view a stable read + focused mutators over that field.
+// view a stable read + focused mutators over that field. The mutation logic
+// itself is pure and lives in `assembly-edits.ts`.
 
 import { useCallback } from "react"
 import type { AssemblyBinding, AssemblyBody, AssemblyDoc } from "@dreamer/schemas"
-import { createEmptyAssembly, isJointBindingChannel } from "@dreamer/schemas"
-import { useBoard, useBoardSelector } from "@/store/board-context"
-import { useProject } from "@/project/project-context"
-import { deleteProjectAsset } from "@/project/api-client"
+import { createEmptyAssembly } from "@dreamer/schemas"
+import { BoardContext, useBoardSelector } from "@/store/board-context"
+import * as edits from "./assembly-edits"
+import type { BindingGroup } from "./assembly-edits"
 
 const EMPTY_ASSEMBLY: AssemblyDoc = createEmptyAssembly()
 
-/** A body has one bindable joint slot and one bindable emissive slot. */
-export type BindingGroup = "joint" | "emissive"
-
-function bindingGroupOf(channel: AssemblyBinding["channel"]): BindingGroup {
-  return isJointBindingChannel(channel) ? "joint" : "emissive"
-}
+export type { BindingGroup }
 
 export function useAssemblyDoc(): AssemblyDoc {
   return useBoardSelector((ctx) => ctx.assembly) ?? EMPTY_ASSEMBLY
@@ -31,88 +27,51 @@ export function useAssemblyActions(): {
   setBodyBinding: (binding: AssemblyBinding) => void
   clearBodyBinding: (bodyId: string, group: BindingGroup) => void
 } {
-  const { state, send } = useBoard()
-  const { projectId } = useProject()
-  const assembly = state.assembly ?? EMPTY_ASSEMBLY
+  const actor = BoardContext.useActorRef()
+
+  // Each mutator replaces the whole document, so it must read the CURRENT one.
+  // Reading a render-time `assembly` would make two dispatches in the same
+  // event turn (e.g. an input's onBlur commit racing a select's onChange) both
+  // spread the same pre-edit snapshot, silently dropping the first edit.
+  const edit = useCallback(
+    (mutate: (current: AssemblyDoc) => AssemblyDoc) => {
+      const current = actor.getSnapshot().context.assembly ?? EMPTY_ASSEMBLY
+      actor.send({ type: "SET_ASSEMBLY", assembly: mutate(current) })
+    },
+    [actor],
+  )
 
   const addBody = useCallback(
-    (body: AssemblyBody) => {
-      send({
-        type: "SET_ASSEMBLY",
-        assembly: { ...assembly, bodies: { ...assembly.bodies, [body.id]: body } },
-      })
-    },
-    [assembly, send],
+    (body: AssemblyBody) => edit((doc) => edits.addBody(doc, body)),
+    [edit],
   )
 
   const updateBody = useCallback(
-    (id: string, changes: Partial<AssemblyBody>) => {
-      const existing = assembly.bodies[id]
-      if (!existing) return
-      send({
-        type: "SET_ASSEMBLY",
-        assembly: {
-          ...assembly,
-          bodies: { ...assembly.bodies, [id]: { ...existing, ...changes } },
-        },
-      })
-    },
-    [assembly, send],
+    (id: string, changes: Partial<AssemblyBody>) =>
+      edit((doc) => edits.updateBody(doc, id, changes)),
+    [edit],
   )
 
+  // The uploaded model file is intentionally NOT deleted here. SET_ASSEMBLY is
+  // undoable, so a hard delete would leave Cmd+Z restoring a body whose mesh
+  // 404s — with the source file already gone. The server's grace-window
+  // mark-and-sweep (POST /project/:id/assets/sweep, run on project open)
+  // reclaims models no surviving body references, and unmarks them if a body
+  // comes back. Deletion is its job, not ours.
   const removeBody = useCallback(
-    (id: string) => {
-      const removed = assembly.bodies[id]
-      const { [id]: _removed, ...remaining } = assembly.bodies
-      // Reparent children of the removed body to the world so they don't
-      // dangle, and drop bindings that referenced it.
-      const bodies: typeof remaining = {}
-      for (const [bodyId, body] of Object.entries(remaining)) {
-        bodies[bodyId] =
-          body.parent.kind === "body" && body.parent.bodyId === id
-            ? { ...body, parent: { kind: "world" } }
-            : body
-      }
-      send({
-        type: "SET_ASSEMBLY",
-        assembly: {
-          bodies,
-          bindings: assembly.bindings.filter((b) => b.bodyId !== id),
-        },
-      })
-      // Garbage-collect the uploaded model file once no surviving body
-      // references it. Best-effort: a failed delete only leaves storage cruft.
-      if (removed && !Object.values(bodies).some((b) => b.assetId === removed.assetId)) {
-        void deleteProjectAsset(projectId, removed.assetId).catch((error) => {
-          console.warn("[breadboard-3d] failed to delete orphaned model asset:", error)
-        })
-      }
-    },
-    [assembly, send, projectId],
+    (id: string) => edit((doc) => edits.removeBody(doc, id)),
+    [edit],
   )
 
-  /** Upsert a signal binding, replacing any existing binding for the same body
-   * in the same channel group (joint vs. emissive). */
   const setBodyBinding = useCallback(
-    (binding: AssemblyBinding) => {
-      const group = bindingGroupOf(binding.channel)
-      const bindings = assembly.bindings.filter(
-        (b) => !(b.bodyId === binding.bodyId && bindingGroupOf(b.channel) === group),
-      )
-      bindings.push(binding)
-      send({ type: "SET_ASSEMBLY", assembly: { ...assembly, bindings } })
-    },
-    [assembly, send],
+    (binding: AssemblyBinding) => edit((doc) => edits.setBodyBinding(doc, binding)),
+    [edit],
   )
 
   const clearBodyBinding = useCallback(
-    (bodyId: string, group: BindingGroup) => {
-      const bindings = assembly.bindings.filter(
-        (b) => !(b.bodyId === bodyId && bindingGroupOf(b.channel) === group),
-      )
-      send({ type: "SET_ASSEMBLY", assembly: { ...assembly, bindings } })
-    },
-    [assembly, send],
+    (bodyId: string, group: BindingGroup) =>
+      edit((doc) => edits.clearBodyBinding(doc, bodyId, group)),
+    [edit],
   )
 
   return { addBody, updateBody, removeBody, setBodyBinding, clearBodyBinding }
