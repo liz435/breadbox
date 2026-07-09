@@ -3,18 +3,35 @@ import { boardMachine, type BoardEvent, type BoardMachineContext } from "./board
 
 export const BoardContext = createActorContext(boardMachine);
 
-function boardEqual(a: BoardMachineContext, b: BoardMachineContext) {
-  return (
-    a.components === b.components &&
-    a.wires === b.wires &&
-    a.libraryState === b.libraryState &&
-    a.serialOutput === b.serialOutput &&
-    a.sketchCode === b.sketchCode &&
-    a.boardTarget === b.boardTarget &&
-    a.environment === b.environment &&
-    a.selectedId === b.selectedId &&
-    a.buildLog === b.buildLog
-  );
+/**
+ * Fields `useBoard()` subscribers are re-rendered for.
+ *
+ * Every persisted board field must appear here. A field the machine mutates
+ * but this list omits is invisible to `useBoard()`: the selector keeps handing
+ * back the previous context object, so subscribers read stale values and any
+ * effect keyed on them never re-runs. `assembly` and `customLibraries` were
+ * both missing — 3D edits never triggered the debounced autosave, and
+ * `useAssemblyActions` kept spreading a stale document.
+ *
+ * `_past`/`_future` are deliberately absent: undo history changes on every
+ * edit and is already implied by the data fields.
+ */
+const OBSERVED_FIELDS = [
+  "components",
+  "wires",
+  "libraryState",
+  "serialOutput",
+  "sketchCode",
+  "customLibraries",
+  "boardTarget",
+  "environment",
+  "assembly",
+  "selectedId",
+  "buildLog",
+] as const satisfies readonly (keyof BoardMachineContext)[];
+
+export function boardEqual(a: BoardMachineContext, b: BoardMachineContext) {
+  return OBSERVED_FIELDS.every((field) => a[field] === b[field]);
 }
 
 export function useBoard(): {
