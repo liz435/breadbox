@@ -28,6 +28,31 @@ export function findDuplicateAsset(
   return null;
 }
 
+// ── Shared reference / orphan primitives ─────────────────────────────────────
+
+/** A predicate that answers "does any body reference this asset?". */
+function referencedBy(bodies: Iterable<AssetRef>): (asset: Asset) => boolean {
+  const refIds = new Set<string>();
+  const refUris = new Set<string>();
+  for (const body of bodies) {
+    if (body.assetId) refIds.add(body.assetId);
+    if (body.uri) refUris.add(body.uri);
+  }
+  return (asset) => refIds.has(asset.id) || refUris.has(asset.uri);
+}
+
+/** Epoch ms of an asset's orphan mark, or NaN if it isn't marked. */
+function orphanStampMs(asset: Asset): number {
+  return typeof asset.meta?.orphanedAt === "string"
+    ? Date.parse(asset.meta.orphanedAt)
+    : Number.NaN;
+}
+
+/** Byte size recorded at upload, or 0 when unknown. */
+function assetSizeBytes(asset: Asset): number {
+  return typeof asset.meta?.size === "number" ? asset.meta.size : 0;
+}
+
 /**
  * What a sweep should do to each MODEL asset, split into three disjoint sets:
  *
@@ -58,26 +83,16 @@ export function planAssetSweep(params: {
   graceMs: number;
 }): SweepPlan {
   const { assets, bodies, now, graceMs } = params;
-
-  const refIds = new Set<string>();
-  const refUris = new Set<string>();
-  for (const body of bodies) {
-    if (body.assetId) refIds.add(body.assetId);
-    if (body.uri) refUris.add(body.uri);
-  }
+  const isReferenced = referencedBy(bodies);
 
   const plan: SweepPlan = { mark: [], unmark: [], remove: [] };
   for (const [id, asset] of Object.entries(assets)) {
     if (asset.type !== "model") continue;
 
-    const referenced = refIds.has(id) || refUris.has(asset.uri);
-    const stamp =
-      typeof asset.meta?.orphanedAt === "string"
-        ? Date.parse(asset.meta.orphanedAt)
-        : Number.NaN;
+    const stamp = orphanStampMs(asset);
     const marked = !Number.isNaN(stamp);
 
-    if (referenced) {
+    if (isReferenced(asset)) {
       if (marked) plan.unmark.push(id);
       continue;
     }
@@ -89,4 +104,56 @@ export function planAssetSweep(params: {
     // else: still within the grace window — leave the mark untouched.
   }
   return plan;
+}
+
+/**
+ * Per-project model-storage breakdown for the UI. `total` is every imported
+ * model; `reclaimable` is what a sweep would delete right now (orphaned past
+ * grace); `pending` is orphaned-but-recent models that will become reclaimable
+ * once the grace window elapses. `total = inUse + reclaimable + pending`.
+ */
+export type StorageSummary = {
+  totalBytes: number;
+  totalCount: number;
+  reclaimableBytes: number;
+  reclaimableCount: number;
+  pendingBytes: number;
+  pendingCount: number;
+};
+
+export function summarizeModelStorage(params: {
+  assets: Record<string, Asset>;
+  bodies: Iterable<AssetRef>;
+  now: number;
+  graceMs: number;
+}): StorageSummary {
+  const { assets, bodies, now, graceMs } = params;
+  const isReferenced = referencedBy(bodies);
+
+  const summary: StorageSummary = {
+    totalBytes: 0,
+    totalCount: 0,
+    reclaimableBytes: 0,
+    reclaimableCount: 0,
+    pendingBytes: 0,
+    pendingCount: 0,
+  };
+  for (const asset of Object.values(assets)) {
+    if (asset.type !== "model") continue;
+    const size = assetSizeBytes(asset);
+    summary.totalBytes += size;
+    summary.totalCount += 1;
+    if (isReferenced(asset)) continue;
+
+    const stamp = orphanStampMs(asset);
+    const pastGrace = !Number.isNaN(stamp) && now - stamp >= graceMs;
+    if (pastGrace) {
+      summary.reclaimableBytes += size;
+      summary.reclaimableCount += 1;
+    } else {
+      summary.pendingBytes += size;
+      summary.pendingCount += 1;
+    }
+  }
+  return summary;
 }

@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import type { Asset } from "../../db/schemas";
-import { findDuplicateAsset, planAssetSweep } from "../asset-cleanup";
+import {
+  findDuplicateAsset,
+  planAssetSweep,
+  summarizeModelStorage,
+} from "../asset-cleanup";
 
 function asset(over: Partial<Asset> & { id: string }): Asset {
   return {
@@ -88,5 +92,65 @@ describe("planAssetSweep", () => {
     const result = plan(assets, []);
     expect(result.mark.sort()).toEqual(["a", "b"]);
     expect(result.remove).toEqual([]);
+  });
+});
+
+describe("summarizeModelStorage", () => {
+  function summarize(
+    assets: Record<string, Asset>,
+    bodies: { assetId?: string; uri?: string }[],
+  ) {
+    return summarizeModelStorage({ assets, bodies, now: NOW, graceMs: GRACE });
+  }
+
+  test("sums total bytes/count across model assets only", () => {
+    const assets = {
+      m1: asset({ id: "m1", meta: { size: 1000 } }),
+      m2: asset({ id: "m2", meta: { size: 500 } }),
+      png: asset({ id: "png", type: "sprite", meta: { size: 9999 } }),
+    };
+    const s = summarize(assets, [{ assetId: "m1" }, { assetId: "m2" }]);
+    expect(s.totalBytes).toBe(1500);
+    expect(s.totalCount).toBe(2);
+    expect(s.reclaimableBytes).toBe(0);
+    expect(s.pendingBytes).toBe(0);
+  });
+
+  test("an orphan past grace counts as reclaimable, not pending", () => {
+    const assets = {
+      x: asset({
+        id: "x",
+        meta: { size: 800, orphanedAt: new Date(NOW - 8 * DAY).toISOString() },
+      }),
+    };
+    const s = summarize(assets, []);
+    expect(s).toMatchObject({
+      totalBytes: 800,
+      reclaimableBytes: 800,
+      reclaimableCount: 1,
+      pendingBytes: 0,
+      pendingCount: 0,
+    });
+  });
+
+  test("a recent orphan (or unmarked) counts as pending, not reclaimable", () => {
+    const assets = {
+      recent: asset({
+        id: "recent",
+        meta: { size: 200, orphanedAt: new Date(NOW - 2 * DAY).toISOString() },
+      }),
+      unmarked: asset({ id: "unmarked", meta: { size: 300 } }),
+    };
+    const s = summarize(assets, []);
+    expect(s.pendingBytes).toBe(500);
+    expect(s.pendingCount).toBe(2);
+    expect(s.reclaimableBytes).toBe(0);
+  });
+
+  test("assets with unknown size contribute 0 bytes but still count", () => {
+    const assets = { nosize: asset({ id: "nosize", meta: {} }) };
+    const s = summarize(assets, [{ assetId: "nosize" }]);
+    expect(s.totalBytes).toBe(0);
+    expect(s.totalCount).toBe(1);
   });
 });

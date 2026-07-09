@@ -417,6 +417,12 @@ export async function deleteProjectAsset(
   }
 }
 
+const sweepResultSchema = z.object({
+  removed: z.number(),
+  marked: z.number(),
+  bytesReclaimed: z.number(),
+});
+
 /**
  * Reclaim imported 3D-model files that no assembly body references anymore.
  * Fire-and-forget on project open; a no-op for the preview project (no
@@ -424,7 +430,7 @@ export async function deleteProjectAsset(
  */
 export async function sweepProjectAssets(
   projectId: string,
-): Promise<{ removed: number; marked: number; bytesReclaimed: number }> {
+): Promise<z.infer<typeof sweepResultSchema>> {
   if (isAnonymousPreview()) return { removed: 0, marked: 0, bytesReclaimed: 0 };
   const url = `${API_ORIGIN}/project/${encodeURIComponent(projectId)}/assets/sweep`;
   const res = await authedFetch(url, { method: "POST" });
@@ -432,5 +438,43 @@ export async function sweepProjectAssets(
     const text = await res.text().catch(() => res.statusText);
     throw new ApiError(res.status, `${res.status} ${text}`);
   }
-  return res.json();
+  return sweepResultSchema.parse(await res.json());
+}
+
+const projectStorageSchema = z.object({
+  totalBytes: z.number(),
+  totalCount: z.number(),
+  reclaimableBytes: z.number(),
+  reclaimableCount: z.number(),
+  pendingBytes: z.number(),
+  pendingCount: z.number(),
+});
+
+export type ProjectStorage = z.infer<typeof projectStorageSchema>;
+
+const EMPTY_STORAGE: ProjectStorage = {
+  totalBytes: 0,
+  totalCount: 0,
+  reclaimableBytes: 0,
+  reclaimableCount: 0,
+  pendingBytes: 0,
+  pendingCount: 0,
+};
+
+/**
+ * Imported-model disk usage for a project: total, reclaimable-now, and
+ * pending (recently unused, still within the grace window). Zeroed for the
+ * preview project, which has no server-side assets.
+ */
+export async function fetchProjectStorage(
+  projectId: string,
+): Promise<ProjectStorage> {
+  if (isAnonymousPreview()) return EMPTY_STORAGE;
+  const url = `${API_ORIGIN}/project/${encodeURIComponent(projectId)}/storage`;
+  const res = await authedFetch(url, { method: "GET" });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new ApiError(res.status, `${res.status} ${text}`);
+  }
+  return projectStorageSchema.parse(await res.json());
 }

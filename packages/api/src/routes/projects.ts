@@ -2,7 +2,11 @@ import { join, resolve, sep } from "path";
 import { createHash } from "crypto";
 import { Elysia } from "elysia";
 import { z, ZodError } from "zod";
-import { findDuplicateAsset, planAssetSweep } from "./asset-cleanup";
+import {
+  findDuplicateAsset,
+  planAssetSweep,
+  summarizeModelStorage,
+} from "./asset-cleanup";
 import {
   applyOpsRequestSchema,
   projectGraphSchema,
@@ -540,6 +544,24 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
       marked: plan.mark.length,
       bytesReclaimed,
     };
+  })
+  // ── Storage summary ──────────────────────────────────────────────────────
+  // Per-project imported-model disk usage for the settings/project UI: total
+  // vs. what a sweep would reclaim now vs. recently-unused (pending grace).
+  .get("/:id/storage", async ({ auth, params, set }) => {
+    const ownerId = requireOwnerId(auth);
+    const project = await storage.projects.readProject(params.id, ownerId);
+    if (!project) {
+      set.status = 404;
+      return { error: "Project not found" };
+    }
+    const bodies = Object.values(project.boardState?.assembly?.bodies ?? {});
+    return summarizeModelStorage({
+      assets: project.assets,
+      bodies,
+      now: Date.now(),
+      graceMs: ORPHAN_ASSET_GRACE_MS,
+    });
   })
   // ── Asset serve ─────────────────────────────────────────────────────────
   .get("/:id/assets/:filename", async ({ auth, params, set }) => {
