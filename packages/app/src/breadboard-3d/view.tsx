@@ -13,12 +13,18 @@ import { AssemblyPanel } from "./assembly-panel"
 import { downloadSceneGlb } from "./scene-export"
 import { EditorProvider } from "./editor-state"
 import { setPhysicsEnabled, usePhysicsEnabled } from "./physics-flag"
+import {
+  setBreadboardCalibrating,
+  useBreadboardCalibrating,
+} from "./breadboard-calibration"
+import { BreadboardCalibrationPanel } from "./breadboard-calibration-panel"
 
 export function Breadboard3dView() {
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [exporting, setExporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const physicsEnabled = usePhysicsEnabled()
+  const calibrating = useBreadboardCalibrating()
 
   async function handleExport() {
     setExporting(true)
@@ -56,6 +62,14 @@ export function Breadboard3dView() {
           </Button>
           <Button
             size="sm"
+            variant={calibrating ? "default" : "secondary"}
+            onClick={() => setBreadboardCalibrating(!calibrating)}
+            title="Drag/scale/rotate the breadboard model to line it up under the fixed hole grid"
+          >
+            {calibrating ? "Calibrating…" : "Calibrate breadboard"}
+          </Button>
+          <Button
+            size="sm"
             variant="secondary"
             onClick={handleExport}
             disabled={exporting}
@@ -82,6 +96,8 @@ export function Breadboard3dView() {
             }}
           />
         </div>
+
+        {calibrating && <BreadboardCalibrationPanel />}
 
         <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded bg-black/40 px-2 py-0.5 text-[11px] text-white/80">
           {physicsEnabled

@@ -7,8 +7,9 @@
 
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { Canvas, useFrame, useThree } from "@react-three/fiber"
+import type { ThreeEvent } from "@react-three/fiber"
 import { CameraControls, ContactShadows, Environment, Lightformer, RoundedBox, useGLTF } from "@react-three/drei"
-import { Box3, Matrix4, Vector3 } from "three"
+import { Box3, Matrix4, Plane, Vector2, Vector3 } from "three"
 import type { Group, InstancedMesh } from "three"
 import { isBoardComponentType } from "@dreamer/schemas"
 import { useBoardSelector } from "@/store/board-context"
@@ -40,7 +41,14 @@ import {
   pxToMm,
   type WorldPoint,
 } from "./layout"
+import {
+  getBreadboardTransform,
+  setBreadboardTransform,
+  useBreadboardCalibrating,
+  useBreadboardTransform,
+} from "./breadboard-calibration"
 import arduinoUnoUrl from "@/assets/arduino-uno.glb?url"
+import breadboardUrl from "@/assets/breadboard.glb?url"
 
 /** All hole columns of the clickable grid: terminal cols 0–9 + rail cols. */
 const HOLE_COLS = [-2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
@@ -268,10 +276,159 @@ function ArduinoModel() {
 
 useGLTF.preload(arduinoUnoUrl)
 
-/** One breadboard: rounded body with a recessed centre channel, its hole grid
- *  and rail stripes. The interior geometry is authored at the origin board's
- *  position; the wrapping group shifts the whole board to its world offset so
- *  a second or moved board lands where the 2D canvas puts it. */
+/** Fallback breadboard: a procedural rounded body with a recessed centre
+ *  channel. Shown while the GLB model streams in, or if it fails to load. */
+function BreadboardBodyFallback() {
+  return (
+    <>
+      <RoundedBox
+        args={[
+          pxToMm(BREADBOARD_RECT_PX.width),
+          BREADBOARD_THICKNESS_MM,
+          pxToMm(BREADBOARD_RECT_PX.height),
+        ]}
+        radius={1.6}
+        smoothness={4}
+        position={[0, BREADBOARD_THICKNESS_MM / 2, 0]}
+      >
+        <meshStandardMaterial color="#e4dccb" roughness={0.62} metalness={0.02} />
+      </RoundedBox>
+      {/* recessed valley between the two terminal banks (real DIP channel) */}
+      <mesh position={[0, BREADBOARD_THICKNESS_MM - 0.9, 0]}>
+        <boxGeometry args={[pxToMm(12), 1.8, pxToMm(BREADBOARD_RECT_PX.height) * 0.94]} />
+        <meshStandardMaterial color="#b8b1a0" roughness={0.8} />
+      </mesh>
+    </>
+  )
+}
+
+/** The active camera controls expose `enabled`; flip it off during a drag so
+ *  grabbing the model doesn't also orbit the camera. */
+type ToggleableControls = { enabled: boolean }
+function isToggleable(controls: unknown): controls is ToggleableControls {
+  return !!controls && typeof (controls as { enabled?: unknown }).enabled === "boolean"
+}
+
+const UP = new Vector3(0, 1, 0)
+
+/** The imported breadboard GLB, auto-fitted to the footprint (same measured-bbox
+ *  approach as the Arduino: thinnest axis up, long-side aligned, uniform-scaled,
+ *  seated on the floor). The `useBreadboardTransform` store layers a live offset,
+ *  height, yaw and scale on top — the fit runs in the inner group; the calibrated
+ *  in-plane offset/lift is a cheap outer-group translation so dragging the model
+ *  doesn't re-measure every frame. In calibration mode the model is draggable. */
+function BreadboardModel({ center }: { center: WorldPoint }) {
+  const { scene } = useGLTF(breadboardUrl)
+  // Clone so this instance owns its graph (useGLTF caches the source scene).
+  const model = useMemo(() => scene.clone(true), [scene])
+  const fitRef = useRef<Group>(null)
+  const invalidate = useThree((state) => state.invalidate)
+  const cal = useBreadboardTransform()
+
+  const targetW = pxToMm(BREADBOARD_RECT_PX.width)
+  const targetD = pxToMm(BREADBOARD_RECT_PX.height)
+
+  useLayoutEffect(() => {
+    const group = fitRef.current
+    if (!group) return
+    group.position.set(0, 0, 0)
+    group.rotation.set(0, 0, 0)
+    group.scale.setScalar(1)
+    group.updateWorldMatrix(true, true)
+
+    const size = new Vector3()
+    const measure = () => new Box3().setFromObject(group).getSize(size)
+
+    // 1. Lay the board flat — rotate its thinnest axis (the PCB normal) to +Y.
+    measure()
+    const min = Math.min(size.x, size.y, size.z)
+    if (size.x === min) group.rotation.z = -Math.PI / 2
+    else if (size.z === min) group.rotation.x = -Math.PI / 2
+    group.updateWorldMatrix(true, true)
+
+    // 2. Align the long side with the footprint, then apply the calibrated yaw.
+    measure()
+    if (size.x >= size.z !== targetW >= targetD) group.rotation.y += Math.PI / 2
+    group.rotation.y += cal.yaw
+    group.updateWorldMatrix(true, true)
+    measure()
+
+    // 3. Uniform-scale to fill the footprint, times the calibrated scale.
+    group.scale.setScalar(Math.min(targetW / size.x, targetD / size.z) * cal.scale)
+    group.updateWorldMatrix(true, true)
+
+    // 4. Recentre over the breadboard rect and rest the bottom on the floor.
+    //    The calibrated in-plane offset + lift are applied by the outer group.
+    const box = new Box3().setFromObject(group)
+    const centroid = box.getCenter(new Vector3())
+    group.position.x += center.x - centroid.x
+    group.position.z += center.z - centroid.z
+    group.position.y += -box.min.y
+    group.updateWorldMatrix(true, true)
+    invalidate()
+  }, [model, center.x, center.z, targetW, targetD, cal.yaw, cal.scale, invalidate])
+
+  const camera = useThree((state) => state.camera)
+  const gl = useThree((state) => state.gl)
+  const raycaster = useThree((state) => state.raycaster)
+  const controls = useThree((state) => state.controls)
+  const plane = useMemo(() => new Plane(), [])
+  const hit = useMemo(() => new Vector3(), [])
+  const ndc = useMemo(() => new Vector2(), [])
+
+  const onPointerDown = useCallback(
+    (event: ThreeEvent<PointerEvent>) => {
+      event.stopPropagation()
+      if (isToggleable(controls)) controls.enabled = false
+      const dom = gl.domElement
+      const t0 = getBreadboardTransform()
+      // Drag on a horizontal plane at the board's top; record a pure delta so
+      // the grab point stays under the cursor regardless of where it was hit.
+      plane.set(UP, -(BREADBOARD_THICKNESS_MM + t0.y))
+      const toPlane = (native: PointerEvent) => {
+        const rect = dom.getBoundingClientRect()
+        ndc.set(
+          ((native.clientX - rect.left) / rect.width) * 2 - 1,
+          -((native.clientY - rect.top) / rect.height) * 2 + 1,
+        )
+        raycaster.setFromCamera(ndc, camera)
+        return raycaster.ray.intersectPlane(plane, hit) ? { x: hit.x, z: hit.z } : null
+      }
+      const p0 = toPlane(event.nativeEvent)
+      const move = (native: PointerEvent) => {
+        const p = toPlane(native)
+        if (!p0 || !p) return
+        setBreadboardTransform({ x: t0.x + (p.x - p0.x), z: t0.z + (p.z - p0.z) })
+      }
+      const up = () => {
+        dom.removeEventListener("pointermove", move)
+        if (isToggleable(controls)) controls.enabled = true
+      }
+      dom.addEventListener("pointermove", move)
+      window.addEventListener("pointerup", up, { once: true })
+    },
+    [camera, gl, raycaster, controls, plane, hit, ndc],
+  )
+
+  const calibrating = useBreadboardCalibrating()
+  return (
+    <group
+      position={[cal.x, cal.y, cal.z]}
+      onPointerDown={calibrating ? onPointerDown : undefined}
+    >
+      <group ref={fitRef}>
+        <primitive object={model} />
+      </group>
+    </group>
+  )
+}
+
+useGLTF.preload(breadboardUrl)
+
+/** One breadboard: the GLB model (procedural body as the streaming fallback),
+ *  its hole grid and rail stripes. The interior geometry is authored at the
+ *  origin board's position; the wrapping group shifts the whole board to its
+ *  world offset so a second or moved board lands where the 2D canvas puts it. */
 function BreadboardBlock({ offset }: { offset: WorldPoint }) {
   const breadboardCenter = pixelToWorld(
     BREADBOARD_RECT_PX.x + BREADBOARD_RECT_PX.width / 2,
@@ -280,23 +437,9 @@ function BreadboardBlock({ offset }: { offset: WorldPoint }) {
   return (
     <group position={[offset.x, 0, offset.z]}>
       <group position={[breadboardCenter.x, 0, breadboardCenter.z]}>
-        <RoundedBox
-          args={[
-            pxToMm(BREADBOARD_RECT_PX.width),
-            BREADBOARD_THICKNESS_MM,
-            pxToMm(BREADBOARD_RECT_PX.height),
-          ]}
-          radius={1.6}
-          smoothness={4}
-          position={[0, BREADBOARD_THICKNESS_MM / 2, 0]}
-        >
-          <meshStandardMaterial color="#e4dccb" roughness={0.62} metalness={0.02} />
-        </RoundedBox>
-        {/* recessed valley between the two terminal banks (real DIP channel) */}
-        <mesh position={[0, BREADBOARD_THICKNESS_MM - 0.9, 0]}>
-          <boxGeometry args={[pxToMm(12), 1.8, pxToMm(BREADBOARD_RECT_PX.height) * 0.94]} />
-          <meshStandardMaterial color="#b8b1a0" roughness={0.8} />
-        </mesh>
+        <Suspense fallback={<BreadboardBodyFallback />}>
+          <BreadboardModel center={{ x: 0, z: 0 }} />
+        </Suspense>
       </group>
 
       {/* hole grid + rail stripes live in world space (same px→mm mapping) */}
