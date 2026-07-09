@@ -38,6 +38,7 @@ const PART_HEIGHTS_MM: Record<string, number> = {
   dht_sensor: 12,
   photoresistor: 5,
   inductor: 6,
+  power_supply: 12,
 }
 
 const NOMINAL_HEIGHT_MM = 6

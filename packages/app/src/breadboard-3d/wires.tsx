@@ -33,14 +33,14 @@ function idJitter(id: string): number {
 }
 
 /** Same power/ground color normalisation the 2D renderer applies. */
-function wireColor(wire: Wire): string {
+export function wireColor(wire: Wire): string {
   const color = wire.color ?? "#22c55e"
   if (color === "#ef4444" || color === "#ff0000" || color === "red") return "#ef4444"
   if (color === "#000000" || color === "black") return "#1a1a1a"
   return color
 }
 
-function fromEndpoint(
+export function fromEndpoint(
   wire: Wire,
   arduinoPins: ArduinoPinInfo[],
   surfaceBoards: BoardComponent[],
@@ -64,7 +64,7 @@ function fromEndpoint(
   return new Vector3(world.x + off.x, BOARD_SURFACE_Y, world.z + off.z)
 }
 
-function toEndpoint(wire: Wire, surfaceBoards: BoardComponent[]): Vector3 {
+export function toEndpoint(wire: Wire, surfaceBoards: BoardComponent[]): Vector3 {
   const px = gridToPixel({ row: wire.toRow, col: wire.toCol })
   const world = pixelToWorld(px.x, px.y)
   const off = offsetToWorld(wireEndpointOffset(wire.toBoardId, surfaceBoards))

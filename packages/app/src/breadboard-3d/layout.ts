@@ -66,6 +66,16 @@ export function pixelToWorld(px: number, py: number): WorldPoint {
   }
 }
 
+/** Inverse of {@link pixelToWorld}: world mm (on the board plane) → 2D canvas
+ *  pixels. Used to resolve where a physics-dragged part lands back onto the
+ *  grid (world position → pixel → nearest hole). */
+export function worldToPixel(x: number, z: number): { x: number; y: number } {
+  return {
+    x: x / MM_PER_PX + CENTER_PX.x,
+    y: z / MM_PER_PX + CENTER_PX.y,
+  }
+}
+
 /** Map a breadboard grid point to world mm on the board plane. */
 export function gridPointToWorld(point: GridPoint): WorldPoint {
   const { x, y } = gridToPixel(point)

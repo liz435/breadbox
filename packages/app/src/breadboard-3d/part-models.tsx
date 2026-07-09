@@ -159,16 +159,25 @@ function DcMotorModel({ component }: { component: BoardComponent }) {
         <cylinderGeometry args={[10, 10, 25, 28]} />
         <meshStandardMaterial color="#b0bec5" metalness={0.8} roughness={0.3} />
       </mesh>
-      <group ref={shaftRef} position={[16.5, 10, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <mesh>
-          <cylinderGeometry args={[1, 1, 8, 12]} />
-          <meshStandardMaterial color="#78909c" metalness={0.8} roughness={0.3} />
-        </mesh>
-        {/* small paddle so rotation is visible */}
-        <mesh position={[0, -2.5, 0]}>
-          <boxGeometry args={[6, 1.2, 0.8]} />
-          <meshStandardMaterial color="#eceff1" roughness={0.6} />
-        </mesh>
+      {/* Orientation (lay the shaft along +x) is on the OUTER group; the inner
+          spinNode carries only the driver's rotation. Nesting matters: if the
+          same group held both the π/2 tilt and the spin, three.js's XYZ Euler
+          order would apply the spin before the tilt, swinging the whole shaft
+          through the horizontal plane instead of spinning it about its length.
+          With the tilt outermost, the inner spin is about the already-oriented
+          axis — the shaft rolls about its own length. */}
+      <group position={[16.5, 10, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <group ref={shaftRef}>
+          <mesh>
+            <cylinderGeometry args={[1, 1, 8, 12]} />
+            <meshStandardMaterial color="#78909c" metalness={0.8} roughness={0.3} />
+          </mesh>
+          {/* small paddle so rotation is visible */}
+          <mesh position={[0, -2.5, 0]}>
+            <boxGeometry args={[6, 1.2, 0.8]} />
+            <meshStandardMaterial color="#eceff1" roughness={0.6} />
+          </mesh>
+        </group>
       </group>
     </group>
   )
@@ -593,6 +602,80 @@ function InductorModel(_props: { component: BoardComponent }) {
   )
 }
 
+/** MB102 breadboard power module: a green PCB that straddles the top rails with
+ *  a barrel jack + USB input at one end, a per-side 3.3V/5V jumper selector
+ *  (the blue cap sits over the chosen voltage, mirroring the 2D renderer),
+ *  output header pins, and a lit power indicator. */
+function PowerSupplyModel({ component }: { component: BoardComponent }) {
+  const fp = componentFootprint(component)
+  const width = Math.max(40, pxToMm(fp.width))
+  const depth = Math.max(14, pxToMm(fp.height))
+  const top = 2
+  const leftV = numberProp(component, "leftVoltage", 5)
+  const rightV = numberProp(component, "rightVoltage", 3.3)
+  // Blue jumper cap sits toward the 5 V or 3.3 V side of its 3-pin header.
+  const capOffset = (v: number) => (v === 5 ? -2 : 2)
+
+  return (
+    <group>
+      {/* PCB */}
+      <mesh position={[0, 1, 0]}>
+        <boxGeometry args={[width, 2, depth]} />
+        <meshStandardMaterial color="#0c4a3a" roughness={0.6} metalness={0.05} />
+      </mesh>
+      {/* barrel jack at the left end */}
+      <mesh position={[-width / 2 + 7, top + 3, 0]}>
+        <boxGeometry args={[10, 6, 9]} />
+        <meshStandardMaterial color="#1a1a1a" roughness={0.5} />
+      </mesh>
+      <mesh position={[-width / 2 + 1.5, top + 3, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[2.2, 2.2, 3, 16]} />
+        <meshStandardMaterial color="#0a0a0a" roughness={0.5} />
+      </mesh>
+      {/* USB-A input jack */}
+      <mesh position={[-width / 2 + 17, top + 2, -depth / 4]}>
+        <boxGeometry args={[8, 4, 6]} />
+        <meshStandardMaterial color="#b0bec5" metalness={0.75} roughness={0.35} />
+      </mesh>
+      {/* power switch */}
+      <mesh position={[-width / 2 + 17, top + 1.5, depth / 4]}>
+        <boxGeometry args={[5, 3, 4]} />
+        <meshStandardMaterial color="#c62828" roughness={0.5} />
+      </mesh>
+      {/* per-side voltage selector (header + jumper cap) and output pins */}
+      {[
+        { x: -width * 0.12, v: leftV },
+        { x: width * 0.28, v: rightV },
+      ].map((side) => (
+        <group key={side.x} position={[side.x, top, 0]}>
+          {/* 3-pin selector header */}
+          <mesh position={[0, 1, -depth * 0.22]}>
+            <boxGeometry args={[8, 2, 3]} />
+            <meshStandardMaterial color="#1a1a1a" roughness={0.6} />
+          </mesh>
+          {/* blue jumper cap over the chosen voltage */}
+          <mesh position={[capOffset(side.v), 2.4, -depth * 0.22]}>
+            <boxGeometry args={[3, 2.6, 3.4]} />
+            <meshStandardMaterial color="#1e3a8a" roughness={0.5} />
+          </mesh>
+          {/* two output male header pins */}
+          {[-1.3, 1.3].map((dx) => (
+            <mesh key={dx} position={[dx, 2, depth * 0.3]}>
+              <boxGeometry args={[0.8, 4, 0.8]} />
+              <meshStandardMaterial color="#d4af37" metalness={0.7} roughness={0.35} />
+            </mesh>
+          ))}
+        </group>
+      ))}
+      {/* lit power indicator */}
+      <mesh position={[width / 2 - 5, top + 1, -depth / 4]}>
+        <cylinderGeometry args={[1.2, 1.2, 1.5, 12]} />
+        <meshStandardMaterial color="#ff3b30" emissive="#ff3b30" emissiveIntensity={1.4} />
+      </mesh>
+    </group>
+  )
+}
+
 // ── Tier 2: extruded custom-part SVG ────────────────────────────────────────
 //
 // Custom DSL parts carry raw SVG plus optional `visual.bindings` that animate
@@ -846,22 +929,10 @@ function FallbackBox({ component }: { component: BoardComponent }) {
 
 // ── Dispatcher ──────────────────────────────────────────────────────────────
 
-export function PartMesh({
-  component,
-  boardOffset,
-}: {
-  component: BoardComponent
-  /** World-mm shift onto the part's parent board (multi-board layouts). */
-  boardOffset?: WorldPoint
-}) {
-  const center = footprintCenter(component)
-  const yaw = rotationYaw(component.rotation)
-  const rootRef = useRef<Group>(null)
-  useLayoutEffect(() => {
-    if (!rootRef.current) return
-    return registerPartNodes(component.id, { rootNode: rootRef.current })
-  }, [component.id])
-
+/** The visual body of a part — the model switch only, with no positioning
+ *  group or scene-registry wiring. `PartMesh` places it on the grid; the
+ *  physics layer places it inside a RigidBody. */
+export function PartBody({ component }: { component: BoardComponent }): ReactNode {
   // Subscribed lookup so a custom part registered after mount (e.g. fetched
   // on demand for an MCP-authored board) swaps in its real body live.
   const lookupCustomDef = () =>
@@ -947,6 +1018,9 @@ export function PartMesh({
     case "inductor":
       body = <InductorModel component={component} />
       break
+    case "power_supply":
+      body = <PowerSupplyModel component={component} />
+      break
     default: {
       const customSvg = customDef?.svg
       body = customSvg ? (
@@ -962,14 +1036,42 @@ export function PartMesh({
     }
   }
 
+  return body
+}
+
+/** World-mm placement of a part on the grid: its footprint centroid, plus any
+ *  multi-board offset. Shared by the grid renderer and the physics spawn. */
+export function partPlacement(
+  component: BoardComponent,
+  boardOffset?: WorldPoint,
+): { x: number; z: number; yaw: number } {
+  const center = footprintCenter(component)
+  return {
+    x: center.x + (boardOffset?.x ?? 0),
+    z: center.z + (boardOffset?.z ?? 0),
+    yaw: rotationYaw(component.rotation),
+  }
+}
+
+export function PartMesh({
+  component,
+  boardOffset,
+}: {
+  component: BoardComponent
+  /** World-mm shift onto the part's parent board (multi-board layouts). */
+  boardOffset?: WorldPoint
+}) {
+  const { x, z, yaw } = partPlacement(component, boardOffset)
+  const rootRef = useRef<Group>(null)
+  useLayoutEffect(() => {
+    if (!rootRef.current) return
+    return registerPartNodes(component.id, { rootNode: rootRef.current })
+  }, [component.id])
+
   return (
     // Parts sit on the breadboard's top face, not the world floor.
-    <group
-      ref={rootRef}
-      position={[center.x + (boardOffset?.x ?? 0), BOARD_SURFACE_Y, center.z + (boardOffset?.z ?? 0)]}
-      rotation={[0, yaw, 0]}
-    >
-      {body}
+    <group ref={rootRef} position={[x, BOARD_SURFACE_Y, z]} rotation={[0, yaw, 0]}>
+      <PartBody component={component} />
     </group>
   )
 }
