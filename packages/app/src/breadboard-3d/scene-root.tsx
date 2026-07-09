@@ -18,8 +18,6 @@ import { UploadedBodies } from "./uploaded-bodies"
 import { TransformGizmo } from "./transform-gizmo"
 import { AnimationDriver } from "./animation-driver"
 import { Wires } from "./wires"
-import { ArduinoPinCalibrator } from "./arduino-calibrator"
-import { useCalibrating } from "./arduino-calibration"
 import { PhysicsScene } from "./physics-scene"
 import { usePhysicsEnabled } from "./physics-flag"
 import { usePhysicsActive } from "./physics-activity"
@@ -376,7 +374,6 @@ export function SceneRoot() {
   const { select } = useEditor()
   const physicsEnabled = usePhysicsEnabled()
   const physicsActive = usePhysicsActive()
-  const calibrating = useCalibrating()
   // Show a spinner over the canvas until the scene paints its first frame, so
   // WebGL init + environment baking doesn't read as a blank panel.
   const [ready, setReady] = useState(false)
@@ -450,10 +447,6 @@ export function SceneRoot() {
 
         {/* Soft grounding shadow of the board onto the floor. */}
         <ContactShadows position={[0, 0, 0]} scale={420} resolution={1024} blur={2.6} opacity={0.55} far={80} frames={1} />
-
-        {/* Calibration handles: draggable spheres on each Arduino header pin,
-            shown only while calibration mode is on (see the toolbar toggle). */}
-        {calibrating && <ArduinoPinCalibrator />}
 
         <TransformGizmo />
         <AnimationDriver />

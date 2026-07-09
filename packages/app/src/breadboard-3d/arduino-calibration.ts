@@ -1,15 +1,13 @@
-// ── Arduino header-pin calibration ───────────────────────────────────────────
+// ── Arduino header-pin alignment ─────────────────────────────────────────────
 //
-// The 3D Arduino is now an imported GLB whose header sockets don't line up
-// exactly with the schematic pin layout that wire endpoints key off. Rather
-// than guess a transform, this store lets the user drag a handle onto each real
-// socket (see arduino-calibration.tsx) and records the corrected world x/z per
-// pin plus one shared header height. Wire endpoint resolution reads it live, so
-// jumper wires follow the calibrated sockets. Persisted to localStorage so a
-// calibration survives reloads; `getCalibration()` seeds from BAKED_CALIBRATION
-// (filled in once a good pass is exported via the panel's "Copy JSON").
-
-import { useSyncExternalStore } from "react"
+// The 3D Arduino is an imported GLB (arduino-uno.glb) whose header sockets don't
+// line up with the schematic pin layout that wire endpoints key off. These baked
+// offsets — produced once with an interactive drag calibrator (since removed) —
+// correct each pin's in-plane world x/z, plus one shared plug-depth height, so
+// jumper wires attach on the model's real sockets. `calibratedPinXZ()` is what
+// wire endpoint resolution calls; every pin was hand-anchored at each strip's
+// two ends and linearly interpolated in between, so each header is a straight,
+// evenly-spaced line.
 
 /** Corrected in-plane position of one header socket (world mm). */
 export type PinOverride = { x: number; z: number }
@@ -21,16 +19,9 @@ export type Calibration = {
   overrides: Record<number, PinOverride>
 }
 
-/** Baked defaults from a completed calibration pass — paste an exported map
- *  here to ship it as the out-of-the-box alignment. Empty = uncalibrated.
- *
- *  Aligned to arduino-uno.glb: the user hand-placed each header strip's two end
- *  pins onto the model's real sockets (AREF/D8, D7/D0, IOREF/VIN, A0/A5); every
- *  pin in between is linearly interpolated along that straight, evenly-spaced
- *  header line. Re-run the "Calibrate pins" panel and "Copy JSON" to refresh. */
 const BAKED_CALIBRATION: Calibration = {
   // Plug depth: where jumper wire ends meet the header sockets (world mm).
-  headerY: 6.6,
+  headerY: 5.6,
   overrides: {
     // Digital header, left strip — AREF, GND, D13…D8 (top edge).
     [-7]: { x: -64.407, z: -39.041 }, // AREF
@@ -68,106 +59,16 @@ const BAKED_CALIBRATION: Calibration = {
   },
 }
 
-const STORAGE_KEY = "dreamer:arduino-pin-calibration"
-
-function load(): Calibration {
-  if (typeof localStorage === "undefined") return BAKED_CALIBRATION
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return BAKED_CALIBRATION
-    const parsed = JSON.parse(raw) as Partial<Calibration>
-    return {
-      headerY: typeof parsed.headerY === "number" ? parsed.headerY : BAKED_CALIBRATION.headerY,
-      overrides: parsed.overrides ?? {},
-    }
-  } catch {
-    return BAKED_CALIBRATION
-  }
-}
-
-let state: Calibration = load()
-const listeners = new Set<() => void>()
-
-function commit(next: Calibration) {
-  state = next
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-  } catch {
-    // Non-fatal: calibration just won't persist across reloads.
-  }
-  for (const fn of listeners) fn()
-}
-
-export function getCalibration(): Calibration {
-  return state
-}
-
-export function setPinOverride(pin: number, override: PinOverride): void {
-  commit({ ...state, overrides: { ...state.overrides, [pin]: override } })
-}
-
-export function setHeaderY(headerY: number): void {
-  commit({ ...state, headerY })
-}
-
-/** Restore the shipped baked alignment (not an empty map — that would drop
- *  every wire back onto the raw schematic pinout the GLB doesn't match). */
-export function clearCalibration(): void {
-  commit({
-    headerY: BAKED_CALIBRATION.headerY,
-    overrides: { ...BAKED_CALIBRATION.overrides },
-  })
-}
-
-export function subscribeCalibration(fn: () => void): () => void {
-  listeners.add(fn)
-  return () => listeners.delete(fn)
-}
-
-export function useCalibration(): Calibration {
-  return useSyncExternalStore(subscribeCalibration, getCalibration, getCalibration)
-}
-
-/** World position a wire should attach to for an Arduino pin: the calibrated
- *  override when present, else the supplied schematic fallback, at headerY. */
+/** World position a wire should attach to for an Arduino pin: the baked
+ *  override when present, else the supplied schematic fallback, at plug depth. */
 export function calibratedPinXZ(
   pinId: number,
   fallback: { x: number; z: number },
 ): { x: number; y: number; z: number } {
-  const override = state.overrides[pinId]
+  const override = BAKED_CALIBRATION.overrides[pinId]
   return {
     x: override?.x ?? fallback.x,
-    y: state.headerY,
+    y: BAKED_CALIBRATION.headerY,
     z: override?.z ?? fallback.z,
   }
-}
-
-// ── Calibration mode toggle ──────────────────────────────────────────────────
-
-const MODE_KEY = "dreamer:arduino-calibrate"
-let calibrating =
-  typeof localStorage !== "undefined" && localStorage.getItem(MODE_KEY) === "1"
-const modeListeners = new Set<() => void>()
-
-export function isCalibrating(): boolean {
-  return calibrating
-}
-
-export function setCalibrating(on: boolean): void {
-  calibrating = on
-  try {
-    localStorage.setItem(MODE_KEY, on ? "1" : "0")
-  } catch {
-    // ignore
-  }
-  for (const fn of modeListeners) fn()
-}
-
-function subscribeCalibrating(fn: () => void): () => void {
-  modeListeners.add(fn)
-  return () => modeListeners.delete(fn)
-}
-
-export function useCalibrating(): boolean {
-  return useSyncExternalStore(subscribeCalibrating, isCalibrating, isCalibrating)
 }

@@ -18,7 +18,7 @@ import {
 } from "@/breadboard/breadboard-grid"
 import { offsetToWorld, surfaceBoardsOf, wireEndpointOffset } from "./board-offsets"
 import { BOARD_SURFACE_Y, pixelToWorld } from "./layout"
-import { calibratedPinXZ, useCalibration } from "./arduino-calibration"
+import { calibratedPinXZ } from "./arduino-calibration"
 import { segmentClosest, partObstacles, type PartObstacle } from "./part-obstacles"
 
 /** 22 AWG jumper insulation is ~1.6 mm across. */
@@ -148,19 +148,15 @@ const WireTube = memo(function WireTube({
   arduinoPins,
   obstacles,
   surfaceBoards,
-  calibration,
 }: {
   wire: Wire
   arduinoPins: ArduinoPinInfo[]
   obstacles: PartObstacle[]
   surfaceBoards: BoardComponent[]
-  // Passed only to invalidate the curve memo when the user recalibrates an
-  // Arduino pin; buildCurve reads the live values through calibratedPinXZ.
-  calibration: unknown
 }) {
   const curve = useMemo(
     () => buildCurve(wire, arduinoPins, obstacles, surfaceBoards),
-    [wire, arduinoPins, obstacles, surfaceBoards, calibration],
+    [wire, arduinoPins, obstacles, surfaceBoards],
   )
   if (!curve) return null
   return (
@@ -178,8 +174,6 @@ export function Wires() {
   const arduinoPins = getBoardPinLayout(boardTarget).allPins
   const obstacles = useMemo(() => partObstacles(components), [components])
   const surfaceBoards = useMemo(() => surfaceBoardsOf(components), [components])
-  // Re-render (and re-tube) whenever a pin override or the header height moves.
-  const calibration = useCalibration()
   return (
     <group name="wires-3d">
       {Object.values(wires).map((wire) => (
@@ -189,7 +183,6 @@ export function Wires() {
           arduinoPins={arduinoPins}
           obstacles={obstacles}
           surfaceBoards={surfaceBoards}
-          calibration={calibration}
         />
       ))}
     </group>
