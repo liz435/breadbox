@@ -18,7 +18,7 @@
 // refine it further.
 
 import { useSyncExternalStore } from "react"
-import { gridToPixel, isRailRow, railRows } from "@/breadboard/breadboard-grid"
+import { gridToPixel, isPositiveRailCol, isRailRow, railRows } from "@/breadboard/breadboard-grid"
 import { ROWS } from "@/breadboard/breadboard-constants"
 import { pixelToWorld } from "./layout"
 
@@ -219,8 +219,7 @@ export function useSelectedAnchor(): AnchorRef | null {
 /** Human label for the selected anchor, shown in the fine-tune panel. */
 export function anchorLabel(ref: AnchorRef): string {
   if (ref.kind === "rail") {
-    const isPositive = ref.col === -2 || ref.col === 11
-    return `${isPositive ? "+" : "−"} rail · col ${ref.col}`
+    return `${isPositiveRailCol(ref.col) ? "+" : "−"} rail · col ${ref.col}`
   }
   const cs = ref.bank === "L" ? 0 : 5
   const ce = ref.bank === "L" ? 4 : 9

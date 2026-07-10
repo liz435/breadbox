@@ -16,6 +16,7 @@ import { Html } from "@react-three/drei"
 import { useThree } from "@react-three/fiber"
 import type { ThreeEvent } from "@react-three/fiber"
 import { ROWS } from "@/breadboard/breadboard-constants"
+import { isPositiveRailCol } from "@/breadboard/breadboard-grid"
 import {
   RAIL_COLS,
   anchorKey,
@@ -163,7 +164,7 @@ export function BreadboardGridCalibrator() {
         })
       })}
       {RAIL_COLS.map((col) => {
-        const isPositive = col === -2 || col === 11
+        const isPositive = isPositiveRailCol(col)
         const anchor: AnchorRef = { kind: "rail", col }
         return (
           <AnchorHandle

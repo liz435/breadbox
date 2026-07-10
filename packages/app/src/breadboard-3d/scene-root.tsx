@@ -12,7 +12,7 @@ import { Box3, Matrix4, Vector3 } from "three"
 import type { Group, InstancedMesh } from "three"
 import { isBoardComponentType } from "@dreamer/schemas"
 import { useBoardSelector } from "@/store/board-context"
-import { gridToPixel, isRailRow, ROWS } from "@/breadboard/breadboard-grid"
+import { gridToPixel, isPositiveRailCol, isRailRow, ROWS } from "@/breadboard/breadboard-grid"
 import { PartMesh } from "./part-models"
 import { UploadedBodies } from "./uploaded-bodies"
 import { TransformGizmo } from "./transform-gizmo"
@@ -99,13 +99,19 @@ function RailStripes() {
     const zEnd = pixelToWorld(bottom.x, bottom.y).z
     const length = Math.abs(zEnd - zStart) + 6
     const zCenter = (zStart + zEnd) / 2
-    // Each stripe sits just outside its hole column: + rails red, − rails blue.
-    const entries: { x: number; color: string }[] = [
-      { x: pixelToWorld(gridToPixel({ row: 0, col: -2 }).x, 0).x - 2.2, color: "#c62828" },
-      { x: pixelToWorld(gridToPixel({ row: 0, col: -1 }).x, 0).x + 2.2, color: "#1565c0" },
-      { x: pixelToWorld(gridToPixel({ row: 0, col: 10 }).x, 0).x - 2.2, color: "#c62828" },
-      { x: pixelToWorld(gridToPixel({ row: 0, col: 11 }).x, 0).x + 2.2, color: "#1565c0" },
+    // Each stripe sits just outside its hole column; colour follows polarity
+    // (isPositiveRailCol): + rails red, − rails blue. dx nudges the stripe onto
+    // the board-edge side of its column so the pair doesn't overlap.
+    const cols: { col: number; dx: number }[] = [
+      { col: -2, dx: -2.2 },
+      { col: -1, dx: 2.2 },
+      { col: 10, dx: -2.2 },
+      { col: 11, dx: 2.2 },
     ]
+    const entries = cols.map(({ col, dx }) => ({
+      x: pixelToWorld(gridToPixel({ row: 0, col }).x, 0).x + dx,
+      color: isPositiveRailCol(col) ? "#c62828" : "#1565c0",
+    }))
     return { entries, length, zCenter }
   }, [])
 

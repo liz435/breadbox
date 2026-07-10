@@ -27,7 +27,9 @@ import { getComponentDef } from "@/components/registry";
  * Grid coordinates use (row, col) where:
  * - row: 0-29 for terminal strips (30-row half-size breadboard)
  * - col: 0-9 for terminal strips (0-4 = left side a-e, 5-9 = right side f-j)
- * - Power rails use special col values: -2 (+ rail), -1 (- rail), 10 (+ rail), 11 (- rail)
+ * - Power rails use special col values: -2, -1 (left rail pair) and 10, 11
+ *   (right rail pair). Polarity is by `isPositiveRailCol`: the inner column of
+ *   each pair (-1, 10) is + and the outer edge column (-2, 11) is −.
  */
 
 export type GridPoint = { row: number; col: number };
@@ -83,6 +85,16 @@ export function isRailRow(row: number): boolean {
 /** Which power-rail rows carry a hole, in order (for renderers that iterate). */
 export function railRows(): number[] {
   return [...RAIL_ROWS].sort((a, b) => a - b)
+}
+
+/** Polarity of a power-rail column. The inner column of each rail pair (−1 on
+ *  the left, 10 on the right — nearest the terminal strips) is positive; the
+ *  outer edge column (−2, 11) is negative. So with the MCU off one end of the
+ *  board, the + rail sits on the inner side, away from it. Single source of
+ *  truth for the 3D rail stripes and calibrator labels; matches the strip-id
+ *  net polarity in @dreamer/schemas. */
+export function isPositiveRailCol(col: number): boolean {
+  return col === -1 || col === 10
 }
 
 // Breadboard offset: starts after the Arduino board
