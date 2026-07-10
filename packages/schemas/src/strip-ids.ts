@@ -15,8 +15,12 @@
 
 // ── breadboard_full (830-tie, split rails) ───────────────────────
 
-/** Number of terminal rows on the main grid (0-indexed). Full-size board. */
-export const BREADBOARD_FULL_ROWS = 65;
+/**
+ * Number of terminal rows on the main grid (0-indexed). Full-size "830
+ * tie-point" board: 63 rows × 10 terminal holes (630) + 4 rails × 50 (200) =
+ * 830. Kept in sync with the app renderer's ROWS (see breadboard-constants).
+ */
+export const BREADBOARD_FULL_ROWS = 63;
 
 /** Cols 0–4 = left terminal strip; cols 5–9 = right terminal strip. */
 export const BREADBOARD_TERMINAL_HALF_WIDTH = 5;

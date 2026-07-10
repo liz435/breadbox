@@ -3,7 +3,10 @@
 // Extracted into a separate file so both breadboard-grid.ts and the
 // component registry can import them without circular dependencies.
 
-export const ROWS = 65
+// 63 terminal rows matches a real full-size "830 tie-point" breadboard:
+// 63 rows × 10 terminal holes (630) + 4 rails × 50 (200) = 830. Kept in sync
+// with @dreamer/schemas' BREADBOARD_FULL_ROWS (see breadboard-constants.test).
+export const ROWS = 63
 export const COLS = 10
 export const HOLE_SPACING = 14
 export const HOLE_RADIUS = 2.5
