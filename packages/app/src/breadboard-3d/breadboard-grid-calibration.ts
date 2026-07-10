@@ -18,7 +18,7 @@
 // refine it further.
 
 import { useSyncExternalStore } from "react"
-import { gridToPixel } from "@/breadboard/breadboard-grid"
+import { gridToPixel, isRailRow, railRows } from "@/breadboard/breadboard-grid"
 import { ROWS } from "@/breadboard/breadboard-constants"
 import { pixelToWorld } from "./layout"
 
@@ -264,19 +264,40 @@ function projectU(p: XZ, a: XZ, b: XZ): number {
   return ((p.x - a.x) * abx + (p.z - a.z) * abz) / denom
 }
 
+/** Rail hole rows, precomputed once (static block/skip pattern). */
+const RAIL_HOLE_ROWS = railRows()
+
+/** Nearest row that actually carries a rail hole. Power rails only have holes in
+ *  the block/skip pattern, but the whole rail is one electrical net, so a wire
+ *  may reference any row along it. Snapping to the nearest hole row lets a rail
+ *  jumper plug into a real hole instead of floating in a gap — purely visual. */
+function nearestRailHoleRow(row: number): number {
+  if (RAIL_HOLE_ROWS.length === 0 || isRailRow(row)) return row
+  let best = RAIL_HOLE_ROWS[0]
+  for (const r of RAIL_HOLE_ROWS) {
+    if (Math.abs(r - row) < Math.abs(best - row)) best = r
+  }
+  return best
+}
+
 /** World position a hole/wire attaches to for a breadboard grid cell, warped by
  *  the live calibration. Every column rides one bank's bilinear warp: terminal
  *  columns at a fixed parameter u across the bank, rail columns at a u set by
- *  their width anchor (extrapolated past the bank edge). Rows follow the warp. */
+ *  their width anchor (extrapolated past the bank edge). Rows follow the warp;
+ *  rail rows snap to the nearest physical hole row (see `nearestRailHoleRow`). */
 export function warpedGridXZ(row: number, col: number): { x: number; y: number; z: number } {
   const cal = state
-  const v = ROW_MAX > 0 ? row / ROW_MAX : 0
   // Left bank (cols 0-4) also carries the two left rails (-2,-1); right bank
   // (cols 5-9) carries the two right rails (10,11).
   const useRight = col >= 5
   const bank = useRight ? cal.banks.R : cal.banks.L
+  const isTerminal = col >= 0 && col <= 9
+  // Terminal columns have a hole on every row; rail rows snap to the block
+  // pattern so a jumper lands in a real hole, not a skipped gap.
+  const gridRow = isTerminal ? row : nearestRailHoleRow(row)
+  const v = ROW_MAX > 0 ? gridRow / ROW_MAX : 0
   let u: number
-  if (col >= 0 && col <= 9) {
+  if (isTerminal) {
     const cs = useRight ? 5 : 0
     u = (col - cs) / 4 // 0..1 across the bank's 5 cols
   } else {
