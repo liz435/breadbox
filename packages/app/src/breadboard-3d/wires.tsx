@@ -24,12 +24,12 @@ import { segmentClosest, partObstacles, type PartObstacle } from "./part-obstacl
 /** Slim jumper insulation radius (mm). */
 const WIRE_RADIUS_MM = 0.5
 
-// Dupont jumper end connector, matched to wire.glb: a small black plastic
-// housing the wire emerges from, plus a thin metal pin that plugs into the hole.
-// HOUSING_LEN stays under the minimum arc rise (~6 mm) so trimming the tube back
-// to the housing top never inverts a short wire's curve.
+// Dupont jumper end connector, matched to wire.glb: a black plastic housing the
+// wire emerges from, plus a thin metal pin that plugs into the hole. buildCurve
+// floors the arc rise above HOUSING_LEN so trimming the tube back to the housing
+// top never inverts a short wire's curve.
 const HOUSING_R = 0.85
-const HOUSING_LEN = 4
+const HOUSING_LEN = 7
 const PIN_R = 0.28
 const PIN_LEN = 2.4
 const Y_AXIS = new Vector3(0, 1, 0)
@@ -170,6 +170,10 @@ function buildCurve(
     const neededRise = (obstacle.topY + WIRE_CLEARANCE_MM - avgEndpointY) / factor
     rise = Math.max(rise, Math.min(neededRise, MAX_WIRE_RISE_MM))
   }
+
+  // Keep the arc taller than the end connectors so the tube (trimmed back to
+  // each housing top by HOUSING_LEN) still curves up out of them.
+  rise = Math.max(rise, HOUSING_LEN + 2)
 
   const control1 = start.clone()
   control1.y += rise
