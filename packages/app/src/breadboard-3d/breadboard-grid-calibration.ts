@@ -45,14 +45,15 @@ function worldOf(row: number, col: number): XZ {
 }
 
 /**
- * Baked calibration measured on the imported breadboard model, then squared up
- * so the warped grid is axis-aligned: every row shares one top/bottom z and
- * every column shares one x (the raw drag was skewed by ~0.3mm). This is the
- * grid the calibrator opens from; drag the anchors to refine, "Reset" returns
- * here. Bump STORAGE_KEY when these change so stale saved edits don't shadow it.
+ * Baked calibration: measured on the imported breadboard model and fine-tuned
+ * anchor-by-anchor until the warped grid sits on the molded holes. Rows share a
+ * top/bottom z; columns are near-vertical (the right edge tapers ~0.1mm to match
+ * the model). This is the grid the calibrator opens from; drag/nudge the anchors
+ * to refine, "Reset" returns here. Bump STORAGE_KEY when these change so stale
+ * saved edits don't shadow it.
  */
 const BAKED_CALIBRATION: GridCalibration = {
-  height: 9,
+  height: 8.5,
   banks: {
     L: {
       c00: { x: -13.554479718728802, z: -73.3598624553862 },
@@ -62,15 +63,15 @@ const BAKED_CALIBRATION: GridCalibration = {
     },
     R: {
       c00: { x: 2.667922635701583, z: -73.3598624553862 },
-      c10: { x: 12.376230161314459, z: -73.3598624553862 },
+      c10: { x: 12.07623016131446, z: -73.3598624553862 },
       c01: { x: 2.667922635701583, z: 73.47133484660077 },
-      c11: { x: 12.376230161314459, z: 73.47133484660077 },
+      c11: { x: 11.97623016131446, z: 73.47133484660077 },
     },
   },
   rails: {
     [-2]: { x: -22.618492272982685, z: -73.3598624553862 },
     [-1]: { x: -20.15363647564775, z: -73.3598624553862 },
-    [10]: { x: 18.99393002280706, z: -73.3598624553862 },
+    [10]: { x: 18.89393002280706, z: -73.3598624553862 },
     [11]: { x: 21.10847280592963, z: -73.3598624553862 },
   },
 }
@@ -96,7 +97,7 @@ function defaultCalibration(): GridCalibration {
   }
 }
 
-const STORAGE_KEY = "dreamer:breadboard-grid-calibration:v2"
+const STORAGE_KEY = "dreamer:breadboard-grid-calibration:v3"
 
 function load(): GridCalibration {
   const base = defaultCalibration()
