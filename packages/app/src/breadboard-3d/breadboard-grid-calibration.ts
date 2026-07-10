@@ -13,13 +13,14 @@
 //     with the terminals. (Which rows carry a rail hole is `isRailRow`.)
 //
 // `warpedGridXZ(row,col)` is what the 3D hole render and wire endpoints call.
-// Uncalibrated defaults reproduce the schematic positions exactly, so turning
-// this on changes nothing until an anchor is moved.
+// The default is a baked calibration measured on the model (see
+// BAKED_CALIBRATION), so the warp is active out of the box; drag the anchors to
+// refine it further.
 
 import { useSyncExternalStore } from "react"
 import { gridToPixel } from "@/breadboard/breadboard-grid"
 import { ROWS } from "@/breadboard/breadboard-constants"
-import { pixelToWorld, BOARD_SURFACE_Y } from "./layout"
+import { pixelToWorld } from "./layout"
 
 export type XZ = { x: number; z: number }
 
@@ -43,21 +44,59 @@ function worldOf(row: number, col: number): XZ {
   return { x: w.x, z: w.z }
 }
 
-/** Identity calibration derived from the schematic positions. */
-function defaultCalibration(): GridCalibration {
-  const rails: Record<number, XZ> = {}
-  for (const col of RAIL_COLS) rails[col] = worldOf(0, col)
-  return {
-    height: BOARD_SURFACE_Y,
-    banks: {
-      L: { c00: worldOf(0, 0), c10: worldOf(0, 4), c01: worldOf(ROW_MAX, 0), c11: worldOf(ROW_MAX, 4) },
-      R: { c00: worldOf(0, 5), c10: worldOf(0, 9), c01: worldOf(ROW_MAX, 5), c11: worldOf(ROW_MAX, 9) },
+/**
+ * Baked calibration measured on the imported breadboard model, then squared up
+ * so the warped grid is axis-aligned: every row shares one top/bottom z and
+ * every column shares one x (the raw drag was skewed by ~0.3mm). This is the
+ * grid the calibrator opens from; drag the anchors to refine, "Reset" returns
+ * here. Bump STORAGE_KEY when these change so stale saved edits don't shadow it.
+ */
+const BAKED_CALIBRATION: GridCalibration = {
+  height: 9,
+  banks: {
+    L: {
+      c00: { x: -13.554479718728802, z: -73.3598624553862 },
+      c10: { x: -4.184160060530952, z: -73.3598624553862 },
+      c01: { x: -13.554479718728802, z: 73.47133484660077 },
+      c11: { x: -4.184160060530952, z: 73.47133484660077 },
     },
+    R: {
+      c00: { x: 2.667922635701583, z: -73.3598624553862 },
+      c10: { x: 12.376230161314459, z: -73.3598624553862 },
+      c01: { x: 2.667922635701583, z: 73.47133484660077 },
+      c11: { x: 12.376230161314459, z: 73.47133484660077 },
+    },
+  },
+  rails: {
+    [-2]: { x: -22.618492272982685, z: -73.3598624553862 },
+    [-1]: { x: -20.15363647564775, z: -73.3598624553862 },
+    [10]: { x: 18.99393002280706, z: -73.3598624553862 },
+    [11]: { x: 21.10847280592963, z: -73.3598624553862 },
+  },
+}
+
+/** Starting calibration the store loads and "Reset" returns to: a fresh deep
+ *  copy of the baked grid so callers can't mutate the constant. */
+function defaultCalibration(): GridCalibration {
+  const cloneBank = (bank: BankCorners): BankCorners => ({
+    c00: { ...bank.c00 },
+    c10: { ...bank.c10 },
+    c01: { ...bank.c01 },
+    c11: { ...bank.c11 },
+  })
+  const rails: Record<number, XZ> = {}
+  for (const col of RAIL_COLS) {
+    const r = BAKED_CALIBRATION.rails[col] ?? worldOf(0, col)
+    rails[col] = { x: r.x, z: r.z }
+  }
+  return {
+    height: BAKED_CALIBRATION.height,
+    banks: { L: cloneBank(BAKED_CALIBRATION.banks.L), R: cloneBank(BAKED_CALIBRATION.banks.R) },
     rails,
   }
 }
 
-const STORAGE_KEY = "dreamer:breadboard-grid-calibration"
+const STORAGE_KEY = "dreamer:breadboard-grid-calibration:v2"
 
 function load(): GridCalibration {
   const base = defaultCalibration()

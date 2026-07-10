@@ -76,10 +76,10 @@ export function BreadboardGridCalibrationPanel() {
           variant="secondary"
           onClick={() => {
             resetGridCalibration()
-            toast.success("Grid reset to schematic")
+            toast.success("Grid reset to baked")
           }}
         >
-          Reset to schematic
+          Reset to baked
         </Button>
         <Button size="sm" onClick={() => setBreadboardCalibrating(false)}>
           Done
