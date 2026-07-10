@@ -16,8 +16,11 @@
 import { useSyncExternalStore } from "react"
 import type { P2 } from "./similarity-2d"
 
-/** Captured model-frame pin positions per component type, in footprint order. */
-export type PinCalibrations = Record<string, P2[]>
+/** Per-type calibration: captured pin positions (normalized frame, footprint
+ *  order) plus an optional pin-gap override — the number of holes between
+ *  consecutive pins. No gaps → the fit targets the footprint's own spacing. */
+export type PinCalibration = { pins: P2[]; gaps?: number[] }
+export type PinCalibrations = Record<string, PinCalibration>
 
 /** Baked defaults — dialed in via the calibrator and pasted here with Copy JSON.
  *  Empty until the first type is calibrated. */
@@ -34,6 +37,22 @@ function isP2(v: unknown): v is P2 {
   )
 }
 
+function parseEntry(value: unknown): PinCalibration | null {
+  // Legacy shape: a bare P2[] (pins only, no gaps).
+  if (Array.isArray(value) && value.every(isP2)) {
+    return { pins: value.map((p) => ({ x: p.x, z: p.z })) }
+  }
+  if (typeof value !== "object" || value === null) return null
+  const v = value as { pins?: unknown; gaps?: unknown }
+  if (!Array.isArray(v.pins) || !v.pins.every(isP2)) return null
+  const pins = v.pins.map((p) => ({ x: p.x, z: p.z }))
+  const gaps =
+    Array.isArray(v.gaps) && v.gaps.every((n) => typeof n === "number")
+      ? (v.gaps as number[]).slice()
+      : undefined
+  return gaps ? { pins, gaps } : { pins }
+}
+
 function load(): PinCalibrations {
   const base = { ...BAKED_PIN_CALIBRATION }
   if (typeof localStorage === "undefined") return base
@@ -42,8 +61,9 @@ function load(): PinCalibrations {
     if (!raw) return base
     const parsed = JSON.parse(raw) as Record<string, unknown>
     const out: PinCalibrations = { ...base }
-    for (const [type, pins] of Object.entries(parsed)) {
-      if (Array.isArray(pins) && pins.every(isP2)) out[type] = pins.map((p) => ({ x: p.x, z: p.z }))
+    for (const [type, value] of Object.entries(parsed)) {
+      const entry = parseEntry(value)
+      if (entry) out[type] = entry
     }
     return out
   } catch {
@@ -68,36 +88,45 @@ export function getPinCalibrations(): PinCalibrations {
   return state
 }
 
-export function getPinCalibration(type: string): P2[] | undefined {
+export function getPinCalibration(type: string): PinCalibration | undefined {
   return state[type]
 }
 
 /** Seed `count` anchors for a type if absent or the wrong length — spread along
- *  x so they're visible and draggable before the user places them. */
+ *  x so they're visible before the user places them. Preserves any gaps. */
 export function ensurePinAnchors(type: string, count: number): void {
   const existing = state[type]
-  if (existing && existing.length === count) return
+  if (existing && existing.pins.length === count) return
   const pins: P2[] = Array.from({ length: count }, (_, i) => ({
     x: (i - (count - 1) / 2) * 4,
     z: 0,
   }))
-  commit({ ...state, [type]: pins })
+  commit({ ...state, [type]: { ...existing, pins } })
 }
 
 export function setPinAnchor(type: string, index: number, xz: P2): void {
-  const pins = state[type] ? [...state[type]] : []
+  const existing = state[type]
+  const pins = existing ? [...existing.pins] : []
   pins[index] = { x: xz.x, z: xz.z }
-  commit({ ...state, [type]: pins })
+  commit({ ...state, [type]: { ...existing, pins } })
 }
 
 export function getPinAnchor(type: string, index: number): P2 | undefined {
-  return state[type]?.[index]
+  return state[type]?.pins[index]
 }
 
 /** Nudge one pin anchor by a delta in the model's board plane (fine-tune). */
 export function nudgePinAnchor(type: string, index: number, dx: number, dz: number): void {
-  const cur = state[type]?.[index] ?? { x: 0, z: 0 }
+  const cur = state[type]?.pins[index] ?? { x: 0, z: 0 }
   setPinAnchor(type, index, { x: cur.x + dx, z: cur.z + dz })
+}
+
+/** Override the hole gaps between consecutive pins; undefined clears the
+ *  override so the fit falls back to the footprint's own spacing. */
+export function setPinGaps(type: string, gaps: number[] | undefined): void {
+  const existing = state[type] ?? { pins: [] }
+  const next: PinCalibration = gaps ? { pins: existing.pins, gaps } : { pins: existing.pins }
+  commit({ ...state, [type]: next })
 }
 
 export function clearPinCalibration(type: string): void {

@@ -137,7 +137,7 @@ export function ComponentPinCalibrator() {
 
   if (!mode.on || !type || !config || count < 2) return null
 
-  const stored = cals[type]
+  const stored = cals[type]?.pins
   const anchors = stored && stored.length === count ? stored : defaultSpread(count)
   const base = pins[0]
 

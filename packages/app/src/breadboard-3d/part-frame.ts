@@ -9,7 +9,7 @@
 // hole — the target the pin calibration fits the model's pins onto.
 
 import type { BoardComponent } from "@dreamer/schemas"
-import { getComponentFootprint, gridToPixel } from "@/breadboard/breadboard-grid"
+import { getComponentFootprint, gridToPixel, type GridPoint } from "@/breadboard/breadboard-grid"
 import { pixelToWorld, type WorldPoint } from "./layout"
 import { warpedGridXZ } from "./breadboard-grid-calibration"
 
@@ -53,6 +53,54 @@ export function footprintPinTargets(component: BoardComponent): WorldPoint[] {
   const fp = componentFootprint(component)
   return fp.points.map((p) => {
     const w = warpedGridXZ(p.row, p.col)
+    return { x: w.x, z: w.z }
+  })
+}
+
+/** Which grid axis the pins run along (row vs col) and the step direction. */
+function pinAxis(points: GridPoint[]): { alongRow: boolean; sign: number } {
+  const first = points[0]
+  const last = points[points.length - 1]
+  const dR = last.row - first.row
+  const dC = last.col - first.col
+  const alongRow = Math.abs(dR) >= Math.abs(dC)
+  const sign = (alongRow ? Math.sign(dR) : Math.sign(dC)) || 1
+  return { alongRow, sign }
+}
+
+/** Default (footprint) hole gaps between consecutive pins of a nominal
+ *  placement — what the panel shows before the user overrides them. */
+export function footprintGaps(type: string): number[] {
+  const pts = getComponentFootprint(type, 0, 0, 0).points
+  if (pts.length < 2) return []
+  const { alongRow } = pinAxis(pts)
+  const gaps: number[] = []
+  for (let i = 1; i < pts.length; i++) {
+    const prev = pts[i - 1]
+    const cur = pts[i]
+    gaps.push(Math.abs(alongRow ? cur.row - prev.row : cur.col - prev.col))
+  }
+  return gaps
+}
+
+/** Warped world targets with the footprint spacing replaced by explicit hole
+ *  `gaps` between consecutive pins. Pins step along the footprint's pin axis
+ *  from pin 0; the perpendicular coordinate is kept from the footprint. */
+export function footprintPinTargetsWithGaps(
+  component: BoardComponent,
+  gaps: number[],
+): WorldPoint[] {
+  const fp = componentFootprint(component)
+  const pts = fp.points
+  if (pts.length < 2) return footprintPinTargets(component)
+  const { alongRow, sign } = pinAxis(pts)
+  const base = pts[0]
+  let cum = 0
+  return pts.map((p, i) => {
+    if (i > 0) cum += gaps[i - 1] ?? 1
+    const row = alongRow ? base.row + sign * cum : p.row
+    const col = alongRow ? p.col : base.col + sign * cum
+    const w = warpedGridXZ(row, col)
     return { x: w.x, z: w.z }
   })
 }

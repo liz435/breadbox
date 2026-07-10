@@ -11,12 +11,14 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/utils/classnames"
 import { getComponentFootprint } from "@/breadboard/breadboard-grid"
 import { GLB_PARTS } from "./glb-parts"
+import { footprintGaps } from "./part-frame"
 import {
   clearPinCalibration,
   getPinCalibrations,
   nudgePinAnchor,
   setPinCalibrating,
   setPinCalibrationType,
+  setPinGaps,
   setSelectedPin,
   usePinCalibrationMode,
   usePinCalibrations,
@@ -64,6 +66,16 @@ export function ComponentPinCalibrationPanel() {
     () => (type ? getComponentFootprint(type, 0, 0, 0).points.length : 0),
     [type],
   )
+  const defaultGaps = useMemo(() => (type ? footprintGaps(type) : []), [type])
+  const overrideGaps = type ? cals[type]?.gaps : undefined
+  const gaps = overrideGaps ?? defaultGaps
+
+  function bumpGap(i: number, delta: number) {
+    if (!type) return
+    const next = (overrideGaps ?? defaultGaps).slice()
+    next[i] = Math.max(0, (next[i] ?? 1) + delta)
+    setPinGaps(type, next)
+  }
 
   // Arrow keys nudge the selected pin in the model's board plane.
   useEffect(() => {
@@ -94,7 +106,7 @@ export function ComponentPinCalibrationPanel() {
     }
   }
 
-  const pos = type && selected != null ? cals[type]?.[selected] : undefined
+  const pos = type && selected != null ? cals[type]?.pins[selected] : undefined
 
   return (
     <div className="absolute right-2 top-12 w-60 rounded-lg border border-white/10 bg-black/70 p-3 text-white shadow-lg backdrop-blur">
@@ -109,7 +121,7 @@ export function ComponentPinCalibrationPanel() {
 
       <div className="mb-3 max-h-32 overflow-y-auto rounded border border-white/10">
         {TYPES.map((t) => {
-          const done = Array.isArray(cals[t]) && cals[t].length >= 2
+          const done = (cals[t]?.pins.length ?? 0) >= 2
           return (
             <button
               key={t}
@@ -181,6 +193,37 @@ export function ComponentPinCalibrationPanel() {
                 Arrow keys nudge by one step.
               </p>
             </>
+          )}
+        </div>
+      )}
+
+      {type && pinCount >= 2 && (
+        <div className="mb-3 rounded-md border border-white/10 bg-white/5 p-2">
+          <div className="mb-1.5 flex items-center justify-between">
+            <span className="text-[11px] font-medium text-white/80">Pin gaps (holes)</span>
+            <span className="text-[10px] text-white/40">{overrideGaps ? "override" : "auto"}</span>
+          </div>
+          {gaps.map((g, i) => (
+            <div key={i} className="mb-1 flex items-center gap-1">
+              <span className="w-8 text-[11px] text-white/60">{i}–{i + 1}</span>
+              <Button size="sm" variant="secondary" className="h-6 flex-1 px-0" onClick={() => bumpGap(i, -1)}>
+                −
+              </Button>
+              <span className="w-8 text-center text-[11px] tabular-nums text-white/80">{g}</span>
+              <Button size="sm" variant="secondary" className="h-6 flex-1 px-0" onClick={() => bumpGap(i, 1)}>
+                +
+              </Button>
+            </div>
+          ))}
+          {overrideGaps && type && (
+            <Button
+              size="sm"
+              variant="secondary"
+              className="mt-1 h-6 w-full"
+              onClick={() => setPinGaps(type, undefined)}
+            >
+              Reset to footprint
+            </Button>
           )}
         </div>
       )}

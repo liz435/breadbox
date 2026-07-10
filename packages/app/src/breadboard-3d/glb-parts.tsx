@@ -18,7 +18,12 @@ import type { BoardComponent } from "@dreamer/schemas"
 import { registerPartNodes } from "./scene-registry"
 import { resolveLedColor } from "./led-colors"
 import { fitSimilarity2D } from "./similarity-2d"
-import { footprintCenter, footprintPinTargets, rotationYaw } from "./part-frame"
+import {
+  footprintCenter,
+  footprintPinTargets,
+  footprintPinTargetsWithGaps,
+  rotationYaw,
+} from "./part-frame"
 import { usePinCalibrations } from "./component-pin-calibration"
 import { useGridCalibration } from "./breadboard-grid-calibration"
 
@@ -202,12 +207,14 @@ export function GlbPartModel({
   // PartMesh-local frame (undo its centroid + yaw) so the outer group below,
   // sitting inside PartMesh, lands each pin on its hole. Falls back to the plain
   // height-scaled placement when a type isn't calibrated.
-  const pinCal = usePinCalibrations()[component.type]
+  const cal = usePinCalibrations()[component.type]
   const grid = useGridCalibration()
   const fit = useMemo(() => {
-    if (!pinCal || pinCal.length < 2) return null
-    const targets = footprintPinTargets(component)
-    if (targets.length !== pinCal.length) return null
+    if (!cal || cal.pins.length < 2) return null
+    const targets = cal.gaps
+      ? footprintPinTargetsWithGaps(component, cal.gaps)
+      : footprintPinTargets(component)
+    if (targets.length !== cal.pins.length) return null
     const center = footprintCenter(component)
     const yaw = rotationYaw(component.rotation)
     const cosY = Math.cos(yaw)
@@ -218,10 +225,10 @@ export function GlbPartModel({
       // R_y(-yaw) · rel — undo PartMesh's yaw so the fit is in its local frame.
       return { x: rx * cosY - rz * sinY, z: rx * sinY + rz * cosY }
     })
-    return fitSimilarity2D(pinCal, dst)
-    // grid drives warpedGridXZ inside footprintPinTargets — recompute on warp.
+    return fitSimilarity2D(cal.pins, dst)
+    // grid drives warpedGridXZ inside the targets — recompute on warp.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pinCal, component, grid])
+  }, [cal, component, grid])
 
   const normalized = (
     <group position={position}>
