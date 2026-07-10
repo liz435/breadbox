@@ -345,25 +345,53 @@ export async function saveProjectState(
   }
 }
 
+// The upload response feeds straight into a persisted AssemblyBody (assetId +
+// uri). An unvalidated `res.json()` here would let a server shape change write
+// `uri: undefined` into the board, producing a body that silently never
+// renders. Parse at the boundary instead.
+const uploadedAssetSchema = z.object({
+  assetId: z.string().min(1),
+  filename: z.string(),
+  uri: z.string().min(1),
+  size: z.number(),
+  assetType: z.string(),
+  deduped: z.boolean().optional(),
+});
+
+export type UploadedAsset = z.infer<typeof uploadedAssetSchema>;
+
 export async function uploadProjectAsset(
   projectId: string,
-  file: File
-): Promise<{ assetId: string; filename: string; uri: string; size: number; assetType: string }> {
+  file: File,
+  options?: { signal?: AbortSignal },
+): Promise<UploadedAsset> {
   blockMutationIfPreview("upload assets");
   const url = `${API_ORIGIN}/project/${encodeURIComponent(projectId)}/assets`;
   const formData = new FormData();
   formData.append("file", file);
-  const res = await authedFetch(url, { method: "POST", body: formData });
+  const res = await authedFetch(url, {
+    method: "POST",
+    body: formData,
+    signal: options?.signal,
+  });
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
     throw new ApiError(res.status, `${res.status} ${text}`);
   }
-  return res.json();
+  return uploadedAssetSchema.parse(await res.json());
 }
+
+const projectAssetSchema = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  type: z.string(),
+  uri: z.string(),
+  meta: z.record(z.string(), z.unknown()).default({}),
+});
 
 export async function listProjectAssets(
   projectId: string,
-): Promise<Array<{ id: string; projectId: string; type: string; uri: string; meta: Record<string, unknown> }>> {
+): Promise<Array<z.infer<typeof projectAssetSchema>>> {
   // Preview project has no server-side assets; skip the 401 round-trip.
   if (isAnonymousPreview()) return [];
   const url = `${API_ORIGIN}/project/${encodeURIComponent(projectId)}/assets`;
@@ -372,7 +400,7 @@ export async function listProjectAssets(
     const text = await res.text().catch(() => res.statusText);
     throw new ApiError(res.status, `${res.status} ${text}`);
   }
-  return res.json();
+  return projectAssetSchema.array().parse(await res.json());
 }
 
 export async function renameProjectAsset(
@@ -404,6 +432,15 @@ export async function deleteProject(projectId: string): Promise<void> {
   }
 }
 
+/**
+ * Hard-delete an asset: unlinks the file immediately, bypassing the
+ * grace-window mark-and-sweep.
+ *
+ * Do NOT call this from an undoable edit. Removing an assembly body is
+ * undoable, so deleting its model here leaves Cmd+Z restoring a body whose
+ * mesh 404s. Let `sweepProjectAssets` reclaim unreferenced models instead;
+ * it re-marks and can unmark them if a body comes back.
+ */
 export async function deleteProjectAsset(
   projectId: string,
   assetId: string,
