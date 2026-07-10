@@ -5,8 +5,10 @@
 //     labelled (row,col).
 //   • 4 rail width anchors (1 per rail col) — drag each left/right onto its rail
 //     column; only the sideways position matters (it sets the rail's width).
-// Dragging records the handle's world x/z into the grid-calibration store, which
-// the 3D holes and wire endpoints read live. Height comes from the panel.
+// Click a handle to select it (highlighted yellow), then fine-tune it from the
+// panel — X/Z steppers or arrow keys, finer than dragging. Dragging records the
+// handle's world x/z into the store, which the 3D holes and wire endpoints read
+// live. Height comes from the panel. Shift-drag reframes the camera.
 
 import { useCallback, useMemo, useState } from "react"
 import { Plane, Vector2, Vector3 } from "three"
@@ -16,9 +18,12 @@ import type { ThreeEvent } from "@react-three/fiber"
 import { ROWS } from "@/breadboard/breadboard-constants"
 import {
   RAIL_COLS,
-  setBankCorner,
-  setRailAnchor,
+  anchorKey,
+  setAnchor,
+  setSelectedAnchor,
   useGridCalibration,
+  useSelectedAnchor,
+  type AnchorRef,
   type BankCorners,
   type XZ,
 } from "./breadboard-grid-calibration"
@@ -32,17 +37,19 @@ function isToggleable(controls: unknown): controls is ToggleableControls {
 }
 
 function AnchorHandle({
+  anchor,
   pos,
   height,
   color,
   label,
-  onDrag,
+  selected,
 }: {
+  anchor: AnchorRef
   pos: XZ
   height: number
   color: string
   label: string
-  onDrag: (xz: XZ) => void
+  selected: boolean
 }) {
   const camera = useThree((s) => s.camera)
   const gl = useThree((s) => s.gl)
@@ -60,6 +67,7 @@ function AnchorHandle({
       // orbit/pan even when a handle sits under the cursor.
       if (event.nativeEvent.shiftKey) return
       event.stopPropagation()
+      setSelectedAnchor(anchor)
       setDragging(true)
       if (isToggleable(controls)) controls.enabled = false
       const dom = gl.domElement
@@ -71,7 +79,7 @@ function AnchorHandle({
           -((native.clientY - rect.top) / rect.height) * 2 + 1,
         )
         raycaster.setFromCamera(ndc, camera)
-        if (raycaster.ray.intersectPlane(plane, hit)) onDrag({ x: hit.x, z: hit.z })
+        if (raycaster.ray.intersectPlane(plane, hit)) setAnchor(anchor, { x: hit.x, z: hit.z })
       }
       const up = () => {
         setDragging(false)
@@ -81,15 +89,27 @@ function AnchorHandle({
       dom.addEventListener("pointermove", move)
       window.addEventListener("pointerup", up, { once: true })
     },
-    [camera, gl, raycaster, controls, plane, hit, ndc, height, onDrag],
+    [anchor, camera, gl, raycaster, controls, plane, hit, ndc, height],
   )
 
   return (
     <group position={[pos.x, height, pos.z]}>
       <mesh onPointerDown={onPointerDown}>
-        <sphereGeometry args={[dragging ? 1.8 : 1.2, 16, 16]} />
+        <sphereGeometry args={[dragging ? 1.8 : selected ? 1.5 : 1.2, 16, 16]} />
         <meshBasicMaterial color={dragging ? "#ffffff" : color} depthTest={false} />
       </mesh>
+      {selected && (
+        <mesh>
+          <sphereGeometry args={[2.4, 16, 16]} />
+          <meshBasicMaterial
+            color="#fde047"
+            wireframe
+            transparent
+            opacity={0.85}
+            depthTest={false}
+          />
+        </mesh>
+      )}
       <Html center distanceFactor={120} zIndexRange={[10, 0]} style={{ pointerEvents: "none" }}>
         <div
           style={{
@@ -98,7 +118,7 @@ function AnchorHandle({
             fontWeight: 600,
             lineHeight: 1,
             color: "#fff",
-            background: "rgba(0,0,0,0.6)",
+            background: selected ? "rgba(202,138,4,0.85)" : "rgba(0,0,0,0.6)",
             padding: "1px 3px",
             borderRadius: 3,
             whiteSpace: "nowrap",
@@ -113,6 +133,8 @@ function AnchorHandle({
 
 export function BreadboardGridCalibrator() {
   const cal = useGridCalibration()
+  const selected = useSelectedAnchor()
+  const selKey = selected ? anchorKey(selected) : null
 
   return (
     <group name="bb-grid-calibrator">
@@ -125,27 +147,33 @@ export function BreadboardGridCalibrator() {
           { key: "c01", row: ROW_MAX, col: cs },
           { key: "c11", row: ROW_MAX, col: ce },
         ]
-        return corners.map((c) => (
-          <AnchorHandle
-            key={`${bank}-${c.key}`}
-            pos={cal.banks[bank][c.key]}
-            height={cal.height}
-            color="#22c55e"
-            label={`${c.row},${c.col}`}
-            onDrag={(xz) => setBankCorner(bank, c.key, xz)}
-          />
-        ))
+        return corners.map((c) => {
+          const anchor: AnchorRef = { kind: "bank", bank, corner: c.key }
+          return (
+            <AnchorHandle
+              key={`${bank}-${c.key}`}
+              anchor={anchor}
+              pos={cal.banks[bank][c.key]}
+              height={cal.height}
+              color="#22c55e"
+              label={`${c.row},${c.col}`}
+              selected={selKey === anchorKey(anchor)}
+            />
+          )
+        })
       })}
       {RAIL_COLS.map((col) => {
         const isPositive = col === -2 || col === 11
+        const anchor: AnchorRef = { kind: "rail", col }
         return (
           <AnchorHandle
             key={`rail-${col}`}
+            anchor={anchor}
             pos={cal.rails[col]}
             height={cal.height}
             color={isPositive ? "#ef4444" : "#3b82f6"}
             label={isPositive ? "+ rail" : "− rail"}
-            onDrag={(xz) => setRailAnchor(col, xz)}
+            selected={selKey === anchorKey(anchor)}
           />
         )
       })}

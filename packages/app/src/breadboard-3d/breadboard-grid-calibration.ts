@@ -172,6 +172,80 @@ export function useGridCalibration(): GridCalibration {
   return useSyncExternalStore(subscribe, getGridCalibration, getGridCalibration)
 }
 
+// ── Anchor selection + fine-tune ──────────────────────────────────────────────
+//
+// The calibrator lets you click one anchor to select it, then nudge it by exact
+// world-mm steps (panel X/Z steppers or arrow keys) — finer than dragging. This
+// selection is transient UI state and is deliberately not persisted.
+
+/** Which anchor the calibrator has selected for fine-tuning. */
+export type AnchorRef =
+  | { kind: "bank"; bank: "L" | "R"; corner: keyof BankCorners }
+  | { kind: "rail"; col: number }
+
+/** Stable string key for an anchor — identity + React/selection comparison. */
+export function anchorKey(ref: AnchorRef): string {
+  return ref.kind === "bank" ? `bank:${ref.bank}:${ref.corner}` : `rail:${ref.col}`
+}
+
+function sameAnchor(a: AnchorRef | null, b: AnchorRef | null): boolean {
+  if (!a || !b) return a === b
+  return anchorKey(a) === anchorKey(b)
+}
+
+let selected: AnchorRef | null = null
+const selectionListeners = new Set<() => void>()
+
+export function getSelectedAnchor(): AnchorRef | null {
+  return selected
+}
+
+export function setSelectedAnchor(ref: AnchorRef | null): void {
+  if (sameAnchor(selected, ref)) return
+  selected = ref
+  for (const fn of selectionListeners) fn()
+}
+
+function subscribeSelection(fn: () => void): () => void {
+  selectionListeners.add(fn)
+  return () => selectionListeners.delete(fn)
+}
+
+export function useSelectedAnchor(): AnchorRef | null {
+  return useSyncExternalStore(subscribeSelection, getSelectedAnchor, getSelectedAnchor)
+}
+
+/** Human label for the selected anchor, shown in the fine-tune panel. */
+export function anchorLabel(ref: AnchorRef): string {
+  if (ref.kind === "rail") {
+    const isPositive = ref.col === -2 || ref.col === 11
+    return `${isPositive ? "+" : "−"} rail · col ${ref.col}`
+  }
+  const cs = ref.bank === "L" ? 0 : 5
+  const ce = ref.bank === "L" ? 4 : 9
+  const row = ref.corner === "c00" || ref.corner === "c10" ? 0 : ROW_MAX
+  const col = ref.corner === "c00" || ref.corner === "c01" ? cs : ce
+  return `${ref.bank} bank · ${row},${col}`
+}
+
+/** Current world XZ of an anchor (bank corner or rail width anchor). */
+export function anchorXZ(ref: AnchorRef): XZ {
+  if (ref.kind === "bank") return state.banks[ref.bank][ref.corner]
+  return state.rails[ref.col] ?? worldOf(0, ref.col)
+}
+
+/** Write an anchor's absolute world XZ — the drag path and fine-tune share this. */
+export function setAnchor(ref: AnchorRef, xz: XZ): void {
+  if (ref.kind === "bank") setBankCorner(ref.bank, ref.corner, xz)
+  else setRailAnchor(ref.col, xz)
+}
+
+/** Nudge an anchor by a world-space delta (fine-tune steppers / arrow keys). */
+export function nudgeAnchor(ref: AnchorRef, dx: number, dz: number): void {
+  const p = anchorXZ(ref)
+  setAnchor(ref, { x: p.x + dx, z: p.z + dz })
+}
+
 // ── The warp ─────────────────────────────────────────────────────────────────
 
 function lerp(p: XZ, q: XZ, t: number): XZ {
