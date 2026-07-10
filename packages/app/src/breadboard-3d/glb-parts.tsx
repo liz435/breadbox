@@ -68,9 +68,10 @@ export const GLB_PARTS: Partial<Record<string, GlbPartConfig>> = {
   lcd_16x2: { url: lcdUrl, rotation: [0, 0, 0], heightMm: 12, liftMm: 0 },
   oled_display: { url: oledUrl, rotation: [0, 0, 0], heightMm: 15, liftMm: 0 },
   servo: { url: servoUrl, rotation: [0, 0, 0], heightMm: 23, liftMm: 0, behavior: "servo" },
-  // MB102 imports Y-up with its long edge along Z; +90°Y lays it landscape
-  // along X to match the footprint.
-  power_supply: { url: powerModuleUrl, rotation: [0, Math.PI / 2, 0], heightMm: 22, liftMm: 0 },
+  // MB102 imports Y-up with its long edge along Z; −90°Y lays it landscape
+  // along X to match the footprint (sign picked so the jack/USB end faces the
+  // right way — +90°Y had it turned 180°).
+  power_supply: { url: powerModuleUrl, rotation: [0, -Math.PI / 2, 0], heightMm: 22, liftMm: 0 },
 }
 
 /** Upright + height-normalize + centre-in-XZ + rest-on-Y=0. The "normalized

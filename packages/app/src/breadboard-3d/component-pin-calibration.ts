@@ -72,14 +72,14 @@ const BAKED_PIN_CALIBRATION: PinCalibrations = {
   // instead of being dragged down by the unmatchable z spread.
   power_supply: {
     pins: [
-      { x: -22.83, z: -8.11 },
-      { x: -20.32, z: -8.11 },
-      { x: 20.11, z: -8.05 },
-      { x: 22.6, z: -8.05 },
-      { x: -22.83, z: -8.11 },
-      { x: -20.32, z: -8.11 },
-      { x: 20.11, z: -8.05 },
-      { x: 22.6, z: -8.05 },
+      { x: -22.6, z: 8.05 },
+      { x: -20.11, z: 8.05 },
+      { x: 20.32, z: 8.11 },
+      { x: 22.83, z: 8.11 },
+      { x: -22.6, z: 8.05 },
+      { x: -20.11, z: 8.05 },
+      { x: 20.32, z: 8.11 },
+      { x: 22.83, z: 8.11 },
     ],
   },
 }
