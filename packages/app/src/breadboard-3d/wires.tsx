@@ -8,7 +8,7 @@
 // wires don't z-fight through each other.
 
 import { memo, useMemo } from "react"
-import { CubicBezierCurve3, Vector3 } from "three"
+import { CubicBezierCurve3, Quaternion, Vector3 } from "three"
 import type { BoardComponent, Wire } from "@dreamer/schemas"
 import { useBoardSelector } from "@/store/board-context"
 import {
@@ -23,6 +23,39 @@ import { segmentClosest, partObstacles, type PartObstacle } from "./part-obstacl
 
 /** 22 AWG jumper insulation is ~1.6 mm across. */
 const WIRE_RADIUS_MM = 0.8
+
+// Dupont jumper end connector, matched to wire.glb: a black plastic housing the
+// wire base sleeves into, plus a thin metal pin that plugs down into the hole.
+const HOUSING_R = 1.3
+const HOUSING_LEN = 9
+const PIN_R = 0.4
+const PIN_LEN = 3.4
+const Y_AXIS = new Vector3(0, 1, 0)
+
+/** Quaternion (as an array prop) that rotates the connector's local +Y onto
+ *  `dir` — the direction the wire leaves the hole. */
+function endQuaternion(dir: Vector3): [number, number, number, number] {
+  const q = new Quaternion().setFromUnitVectors(Y_AXIS, dir.clone().normalize())
+  return [q.x, q.y, q.z, q.w]
+}
+
+/** One jumper end: the black housing extends up along the wire, the metal pin
+ *  drops into the hole below the endpoint. */
+function WireEndConnector({ at, dir }: { at: Vector3; dir: Vector3 }) {
+  const quaternion = useMemo(() => endQuaternion(dir), [dir.x, dir.y, dir.z])
+  return (
+    <group position={[at.x, at.y, at.z]} quaternion={quaternion}>
+      <mesh position={[0, HOUSING_LEN / 2, 0]}>
+        <cylinderGeometry args={[HOUSING_R, HOUSING_R, HOUSING_LEN, 12]} />
+        <meshStandardMaterial color="#141414" roughness={0.55} metalness={0.05} />
+      </mesh>
+      <mesh position={[0, -PIN_LEN / 2, 0]}>
+        <cylinderGeometry args={[PIN_R, PIN_R, PIN_LEN, 8]} />
+        <meshStandardMaterial color="#c9ccd1" metalness={0.9} roughness={0.35} />
+      </mesh>
+    </group>
+  )
+}
 
 /** Deterministic 0..1 jitter per wire so arc heights differ but stay stable. */
 function idJitter(id: string): number {
@@ -158,12 +191,27 @@ const WireTube = memo(function WireTube({
     () => buildCurve(wire, arduinoPins, obstacles, surfaceBoards),
     [wire, arduinoPins, obstacles, surfaceBoards],
   )
-  if (!curve) return null
+  // Endpoints + the direction the wire leaves each hole, for the end connectors.
+  // getTangent(1) points into the end hole, so negate it to face back up the wire.
+  const ends = useMemo(() => {
+    if (!curve) return null
+    return {
+      start: curve.getPoint(0),
+      startDir: curve.getTangent(0),
+      end: curve.getPoint(1),
+      endDir: curve.getTangent(1).negate(),
+    }
+  }, [curve])
+  if (!curve || !ends) return null
   return (
-    <mesh>
-      <tubeGeometry args={[curve, 24, WIRE_RADIUS_MM, 8, false]} />
-      <meshStandardMaterial color={wireColor(wire)} roughness={0.45} />
-    </mesh>
+    <group>
+      <mesh>
+        <tubeGeometry args={[curve, 24, WIRE_RADIUS_MM, 8, false]} />
+        <meshStandardMaterial color={wireColor(wire)} roughness={0.45} />
+      </mesh>
+      <WireEndConnector at={ends.start} dir={ends.startDir} />
+      <WireEndConnector at={ends.end} dir={ends.endDir} />
+    </group>
   )
 })
 
