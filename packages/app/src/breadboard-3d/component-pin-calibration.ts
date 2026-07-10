@@ -64,6 +64,24 @@ const BAKED_PIN_CALIBRATION: PinCalibrations = {
       { x: 3, z: -7 },
     ],
   },
+  // Derived from the GLB's pin-tip vertex clusters (not hand-dropped): the
+  // model has a 2×2 pin group per side whose rows sit ~9.8mm apart, but the
+  // footprint's warped rail targets collapse both rows onto one z — so each
+  // side's rows are averaged to their mean z. Keeps the similarity fit's scale
+  // driven by the rail-to-rail x span (pins land within ~0.8mm of the holes)
+  // instead of being dragged down by the unmatchable z spread.
+  power_supply: {
+    pins: [
+      { x: -22.83, z: -8.11 },
+      { x: -20.32, z: -8.11 },
+      { x: 20.11, z: -8.05 },
+      { x: 22.6, z: -8.05 },
+      { x: -22.83, z: -8.11 },
+      { x: -20.32, z: -8.11 },
+      { x: 20.11, z: -8.05 },
+      { x: 22.6, z: -8.05 },
+    ],
+  },
 }
 
 const STORAGE_KEY = "dreamer:component-pin-calibration"
