@@ -20,9 +20,10 @@ import { SVGLoader } from "three-stdlib"
 import type { BoardComponent, DslBinding } from "@dreamer/schemas"
 import { evaluateExpression, isCustomComponentType } from "@dreamer/schemas"
 import { getCustomDef, subscribeCustom } from "@/components/catalog/custom-store"
-import { getComponentFootprint, gridToPixel } from "@/breadboard/breadboard-grid"
+import { gridToPixel } from "@/breadboard/breadboard-grid"
 import { useBoardSelector } from "@/store/board-context"
 import { BOARD_SURFACE_Y, pixelToWorld, pxToMm, type WorldPoint } from "./layout"
+import { componentFootprint, footprintCenter, rotationYaw } from "./part-frame"
 import { registerPartNodes } from "./scene-registry"
 import { resistorBands } from "./resistor-color-code"
 import { resolveLedColor } from "./led-colors"
@@ -32,40 +33,7 @@ import resistorBaseUrl from "@/assets/resistor-base.glb?url"
 /** Extrusion height (mm) for custom-part SVG bodies. */
 const SVG_BODY_HEIGHT_MM = 3
 
-// ── Shared placement math ───────────────────────────────────────────────────
-
-function componentFootprint(component: BoardComponent) {
-  return getComponentFootprint(
-    component.type,
-    component.y,
-    component.x,
-    component.rotation,
-    component.properties,
-  )
-}
-
-/** World-space centroid of the holes a component occupies. */
-function footprintCenter(component: BoardComponent): WorldPoint {
-  const fp = componentFootprint(component)
-  if (fp.points.length === 0) {
-    const anchor = gridToPixel({ row: component.y, col: component.x })
-    return pixelToWorld(anchor.x, anchor.y)
-  }
-  let sx = 0
-  let sy = 0
-  for (const point of fp.points) {
-    const px = gridToPixel(point)
-    sx += px.x
-    sy += px.y
-  }
-  return pixelToWorld(sx / fp.points.length, sy / fp.points.length)
-}
-
-/** Yaw for the component's 90°-step rotation (2D rotates CW; world y-rotation is CCW). */
-function rotationYaw(rotation: number): number {
-  const steps = ((rotation % 4) + 4) % 4
-  return -steps * (Math.PI / 2)
-}
+// ── Shared placement math (footprintCenter / rotationYaw live in part-frame) ──
 
 // ── Tier 1: hero primitives ─────────────────────────────────────────────────
 

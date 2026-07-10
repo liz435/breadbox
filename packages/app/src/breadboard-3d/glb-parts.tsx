@@ -17,6 +17,10 @@ import { useGLTF } from "@react-three/drei"
 import type { BoardComponent } from "@dreamer/schemas"
 import { registerPartNodes } from "./scene-registry"
 import { resolveLedColor } from "./led-colors"
+import { fitSimilarity2D } from "./similarity-2d"
+import { footprintCenter, footprintPinTargets, rotationYaw } from "./part-frame"
+import { usePinCalibrations } from "./component-pin-calibration"
+import { useGridCalibration } from "./breadboard-grid-calibration"
 
 import ledUrl from "@/assets/led.glb?url"
 import rgbLedUrl from "@/assets/rgb-led.glb?url"
@@ -62,6 +66,45 @@ export const GLB_PARTS: Partial<Record<string, GlbPartConfig>> = {
   lcd_16x2: { url: lcdUrl, rotation: [0, 0, 0], heightMm: 12, liftMm: 0 },
   oled_display: { url: oledUrl, rotation: [0, 0, 0], heightMm: 15, liftMm: 0 },
   servo: { url: servoUrl, rotation: [0, 0, 0], heightMm: 23, liftMm: 0, behavior: "servo" },
+}
+
+/** Upright + height-normalize + centre-in-XZ + rest-on-Y=0. The "normalized
+ *  frame": what both the renderer and the pin calibrator place the model in, so
+ *  captured pin anchors and the render-time fit share one coordinate system. */
+export function glbNormalize(
+  model: Object3D,
+  config: GlbPartConfig,
+): { scale: number; position: [number, number, number] } {
+  const probe = model.clone(true)
+  probe.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2])
+  probe.updateMatrixWorld(true)
+  const box = new Box3().setFromObject(probe)
+  const size = new Vector3()
+  const center = new Vector3()
+  box.getSize(size)
+  box.getCenter(center)
+  const factor = config.heightMm / (size.y || size.x || size.z || 1)
+  return {
+    scale: factor,
+    position: [-center.x * factor, -box.min.y * factor + config.liftMm, -center.z * factor],
+  }
+}
+
+/** The bare normalized model (no pin fit, no dome/servo rigging) — the calibrator
+ *  renders this and lets the user drop anchors on its pins. */
+export function GlbNormalizedModel({ config }: { config: GlbPartConfig }) {
+  const { scene } = useGLTF(config.url)
+  const model = useMemo(() => scene.clone(true), [scene])
+  const { scale, position } = useMemo(() => glbNormalize(model, config), [model, config])
+  return (
+    <group position={position}>
+      <group scale={scale}>
+        <group rotation={config.rotation}>
+          <primitive object={model} />
+        </group>
+      </group>
+    </group>
+  )
 }
 
 function isMesh(object: Object3D): object is Mesh {
@@ -149,34 +192,55 @@ export function GlbPartModel({
   }, [component.id, hornPivot])
 
   // Orient upright, scale to the target height, centre in X/Z, rest the base on
-  // the board (Y=0), plus any per-part lift.
-  const { scale, position } = useMemo(() => {
-    const probe = model.clone(true)
-    probe.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2])
-    probe.updateMatrixWorld(true)
-    const box = new Box3().setFromObject(probe)
-    const size = new Vector3()
-    const center = new Vector3()
-    box.getSize(size)
-    box.getCenter(center)
-    const factor = config.heightMm / (size.y || size.x || size.z || 1)
-    return {
-      scale: factor,
-      position: [
-        -center.x * factor,
-        -box.min.y * factor + config.liftMm,
-        -center.z * factor,
-      ] as [number, number, number],
-    }
-  }, [model, config])
+  // the board (Y=0). This normalized frame is also what the pin calibrator
+  // captures anchors in, so the fit below can map them onto the holes.
+  const { scale, position } = useMemo(() => glbNormalize(model, config), [model, config])
 
-  return (
+  // Pin calibration: fit the captured model pins onto this instance's warped
+  // footprint holes (uniform scale + rotation + translation). The captured pins
+  // live in the normalized frame above; the targets are expressed in the
+  // PartMesh-local frame (undo its centroid + yaw) so the outer group below,
+  // sitting inside PartMesh, lands each pin on its hole. Falls back to the plain
+  // height-scaled placement when a type isn't calibrated.
+  const pinCal = usePinCalibrations()[component.type]
+  const grid = useGridCalibration()
+  const fit = useMemo(() => {
+    if (!pinCal || pinCal.length < 2) return null
+    const targets = footprintPinTargets(component)
+    if (targets.length !== pinCal.length) return null
+    const center = footprintCenter(component)
+    const yaw = rotationYaw(component.rotation)
+    const cosY = Math.cos(yaw)
+    const sinY = Math.sin(yaw)
+    const dst = targets.map((t) => {
+      const rx = t.x - center.x
+      const rz = t.z - center.z
+      // R_y(-yaw) · rel — undo PartMesh's yaw so the fit is in its local frame.
+      return { x: rx * cosY - rz * sinY, z: rx * sinY + rz * cosY }
+    })
+    return fitSimilarity2D(pinCal, dst)
+    // grid drives warpedGridXZ inside footprintPinTargets — recompute on warp.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pinCal, component, grid])
+
+  const normalized = (
     <group position={position}>
       <group scale={scale}>
         <group rotation={config.rotation}>
           <primitive object={model} />
         </group>
       </group>
+    </group>
+  )
+
+  if (!fit) return normalized
+  return (
+    <group
+      position={[fit.tx, 0, fit.tz]}
+      rotation={[0, -fit.rotation, 0]}
+      scale={fit.scale}
+    >
+      {normalized}
     </group>
   )
 }

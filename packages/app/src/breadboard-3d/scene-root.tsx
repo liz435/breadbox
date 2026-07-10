@@ -44,6 +44,8 @@ import {
 import { useBreadboardCalibrating, useBreadboardTransform } from "./breadboard-calibration"
 import { useGridCalibration, warpedGridXZ } from "./breadboard-grid-calibration"
 import { BreadboardGridCalibrator } from "./breadboard-grid-calibrator"
+import { usePinCalibrationMode } from "./component-pin-calibration"
+import { ComponentPinCalibrator } from "./component-pin-calibrator"
 import arduinoUnoUrl from "@/assets/arduino-uno.glb?url"
 import breadboardUrl from "@/assets/breadboard.glb?url"
 
@@ -474,6 +476,7 @@ export function SceneRoot() {
   const physicsEnabled = usePhysicsEnabled()
   const physicsActive = usePhysicsActive()
   const calibrating = useBreadboardCalibrating()
+  const pinCalibrating = usePinCalibrationMode().on
   // Show a spinner over the canvas until the scene paints its first frame, so
   // WebGL init + environment baking doesn't read as a blank panel.
   const [ready, setReady] = useState(false)
@@ -558,6 +561,7 @@ export function SceneRoot() {
         {/* Grid calibration handles: drag onto the model's holes to warp the
             hole grid + wire endpoints (see the toolbar toggle). */}
         {calibrating && <BreadboardGridCalibrator />}
+        {pinCalibrating && <ComponentPinCalibrator />}
 
         <TransformGizmo />
         <AnimationDriver />

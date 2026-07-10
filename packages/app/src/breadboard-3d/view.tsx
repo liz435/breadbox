@@ -18,6 +18,14 @@ import {
   useBreadboardCalibrating,
 } from "./breadboard-calibration"
 import { BreadboardGridCalibrationPanel } from "./breadboard-grid-calibration-panel"
+import {
+  setPinCalibrating,
+  usePinCalibrationMode,
+} from "./component-pin-calibration"
+import { ComponentPinCalibrationPanel } from "./component-pin-calibration-panel"
+import { GLB_PARTS } from "./glb-parts"
+
+const FIRST_GLB_TYPE = Object.keys(GLB_PARTS).sort()[0] ?? null
 
 export function Breadboard3dView() {
   const [pendingFile, setPendingFile] = useState<File | null>(null)
@@ -25,6 +33,7 @@ export function Breadboard3dView() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const physicsEnabled = usePhysicsEnabled()
   const calibrating = useBreadboardCalibrating()
+  const pinMode = usePinCalibrationMode()
 
   async function handleExport() {
     setExporting(true)
@@ -70,6 +79,14 @@ export function Breadboard3dView() {
           </Button>
           <Button
             size="sm"
+            variant={pinMode.on ? "default" : "secondary"}
+            onClick={() => setPinCalibrating(!pinMode.on, pinMode.type ?? FIRST_GLB_TYPE)}
+            title="Drag anchors onto a part model's pins so it's sized + seated by its pin spacing"
+          >
+            {pinMode.on ? "Pins…" : "Calibrate pins"}
+          </Button>
+          <Button
+            size="sm"
             variant="secondary"
             onClick={handleExport}
             disabled={exporting}
@@ -98,6 +115,7 @@ export function Breadboard3dView() {
         </div>
 
         {calibrating && <BreadboardGridCalibrationPanel />}
+        {pinMode.on && <ComponentPinCalibrationPanel />}
 
         <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded bg-black/40 px-2 py-0.5 text-[11px] text-white/80">
           {physicsEnabled
