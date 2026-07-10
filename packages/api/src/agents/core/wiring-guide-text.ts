@@ -30,7 +30,7 @@ export const WIRING_GUIDE_TEXT = `## Wire Colors (always follow this convention)
 - Pins that share a bus (same row, cols 0-4 or cols 5-9) are already connected — put pins that must stay isolated on separate rows.
 - Wire endpoints for custom parts are "<componentId>.<pinName>", using the pin names declared in the part's DSL spec.
 - Arduino endpoints (DSL wires): "arduino.<n>", "arduino.A<n>", "arduino.D<n>", or "arduino.5V|3V3|GND|VIN|AREF" (case-insensitive).
-- Power rails sit beside the grid at cols -1 (left +), -2 (left -), ${COLS} (right +), ${COLS + 1} (right -), addressed as "grid.<row>,<col>". Each rail splits at row ${ROWS / 2}: its top and bottom halves are separate nets — bridge them explicitly if one rail must serve both halves.
+- Power rails sit beside the grid at cols -1 (left +), -2 (left -), ${COLS} (right +), ${COLS + 1} (right -), addressed as "grid.<row>,<col>". Each rail splits at row ${Math.ceil(ROWS / 2)}: its top and bottom halves are separate nets — bridge them explicitly if one rail must serve both halves.
 - Custom-part behavior signals watch the ARDUINO pin each part pin resolves to through the wiring; parts cannot drive each other's signals. Chain parts (e.g. driver + motor) by wiring both to the same MCU-driven nets.
 
 ## Footprints

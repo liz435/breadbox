@@ -95,7 +95,7 @@ separate rows. Wire with endpoints "<componentId>.<pinName>" using your declared
 Arduino endpoints: "arduino.<n>", "arduino.A<n>", "arduino.D<n>", or "arduino.5V|3V3|GND|VIN|AREF"
 (case-insensitive). Power rails sit beside the grid at cols -1 (left +), -2 (left -),
 ${BREADBOARD_TERMINAL_HALF_WIDTH * 2} (right +), ${BREADBOARD_TERMINAL_HALF_WIDTH * 2 + 1} (right -),
-addressed as "grid.<row>,<col>"; each rail splits at row ${BREADBOARD_FULL_ROWS / 2} — its top
+addressed as "grid.<row>,<col>"; each rail splits at row ${Math.ceil(BREADBOARD_FULL_ROWS / 2)} — its top
 and bottom halves are separate nets.
 
 EXPRESSIONS: sandboxed. Arithmetic + - * / %, comparisons (< > <= >= == !=), parentheses,

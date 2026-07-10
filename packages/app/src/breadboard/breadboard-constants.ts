@@ -3,7 +3,7 @@
 // Extracted into a separate file so both breadboard-grid.ts and the
 // component registry can import them without circular dependencies.
 
-export const ROWS = 30
+export const ROWS = 65
 export const COLS = 10
 export const HOLE_SPACING = 14
 export const HOLE_RADIUS = 2.5
