@@ -109,7 +109,7 @@ export function ComponentPinCalibrationPanel() {
   const pos = type && selected != null ? cals[type]?.pins[selected] : undefined
 
   return (
-    <div className="absolute right-2 top-12 w-60 rounded-lg border border-white/10 bg-black/70 p-3 text-white shadow-lg backdrop-blur">
+    <div className="absolute right-2 top-12 max-h-[calc(100vh-4rem)] w-60 overflow-y-auto rounded-lg border border-white/10 bg-black/70 p-3 text-white shadow-lg backdrop-blur">
       <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/70">
         Pin calibration
       </div>
@@ -203,18 +203,20 @@ export function ComponentPinCalibrationPanel() {
             <span className="text-[11px] font-medium text-white/80">Pin gaps (holes)</span>
             <span className="text-[10px] text-white/40">{overrideGaps ? "override" : "auto"}</span>
           </div>
-          {gaps.map((g, i) => (
-            <div key={i} className="mb-1 flex items-center gap-1">
-              <span className="w-8 text-[11px] text-white/60">{i}–{i + 1}</span>
-              <Button size="sm" variant="secondary" className="h-6 flex-1 px-0" onClick={() => bumpGap(i, -1)}>
-                −
-              </Button>
-              <span className="w-8 text-center text-[11px] tabular-nums text-white/80">{g}</span>
-              <Button size="sm" variant="secondary" className="h-6 flex-1 px-0" onClick={() => bumpGap(i, 1)}>
-                +
-              </Button>
-            </div>
-          ))}
+          <div className="max-h-40 overflow-y-auto">
+            {gaps.map((g, i) => (
+              <div key={i} className="mb-1 flex items-center gap-1 pr-1">
+                <span className="w-8 text-[11px] text-white/60">{i}–{i + 1}</span>
+                <Button size="sm" variant="secondary" className="h-6 flex-1 px-0" onClick={() => bumpGap(i, -1)}>
+                  −
+                </Button>
+                <span className="w-8 text-center text-[11px] tabular-nums text-white/80">{g}</span>
+                <Button size="sm" variant="secondary" className="h-6 flex-1 px-0" onClick={() => bumpGap(i, 1)}>
+                  +
+                </Button>
+              </div>
+            ))}
+          </div>
           {overrideGaps && type && (
             <Button
               size="sm"
