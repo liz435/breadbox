@@ -13,7 +13,7 @@ import { Box3, Matrix4, Plane, Vector2, Vector3 } from "three"
 import type { Group, InstancedMesh } from "three"
 import { isBoardComponentType } from "@dreamer/schemas"
 import { useBoardSelector } from "@/store/board-context"
-import { gridToPixel, ROWS } from "@/breadboard/breadboard-grid"
+import { gridToPixel, isRailRow, ROWS } from "@/breadboard/breadboard-grid"
 import { PartMesh } from "./part-models"
 import { UploadedBodies } from "./uploaded-bodies"
 import { TransformGizmo } from "./transform-gizmo"
@@ -60,6 +60,9 @@ function BreadboardHoles() {
     const list: WorldPoint[] = []
     for (let row = 0; row < ROWS; row++) {
       for (const col of HOLE_COLS) {
+        // Power rails only carry holes inside their 5-hole blocks.
+        const isRail = col < 0 || col > 9
+        if (isRail && !isRailRow(row)) continue
         const px = gridToPixel({ row, col })
         list.push(pixelToWorld(px.x, px.y))
       }

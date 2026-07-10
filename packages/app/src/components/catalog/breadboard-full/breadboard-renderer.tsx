@@ -14,6 +14,7 @@ import {
   POWER_RAIL_HEIGHT,
   RAIL_OFFSET,
   gridToPixel,
+  isRailRow,
 } from "@/breadboard/breadboard-grid";
 
 /**
@@ -132,6 +133,7 @@ function buildHolesAndLabels(): React.ReactElement[] {
   const railCols = [-2, -1, 10, 11];
   for (const col of railCols) {
     for (let row = 0; row < ROWS; row++) {
+      if (!isRailRow(row)) continue;
       const { x, y } = gridToPixel({ row, col });
       elements.push(<Hole key={`r-${row}-${col}`} x={x} y={y} />);
     }

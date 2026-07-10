@@ -51,11 +51,37 @@ import {
   GAP_WIDTH,
   RAIL_OFFSET,
   RAIL_PAIR_SPACING,
+  RAIL_BLOCK_HOLES,
+  RAIL_BLOCK_GAP,
+  RAIL_BLOCKS,
   ARDUINO_BOARD_WIDTH,
   ARDUINO_BOARD_HEIGHT,
   ARDUINO_BOARD_MARGIN,
   BOARD_PADDING,
 } from "@/breadboard/breadboard-constants"
+
+/** Rows between the start of consecutive rail blocks (holes + one gap row). */
+const RAIL_STRIDE = RAIL_BLOCK_HOLES + RAIL_BLOCK_GAP
+
+/** True if a power-rail hole exists on this row. Rail holes come in blocks of
+ *  RAIL_BLOCK_HOLES with RAIL_BLOCK_GAP gap rows between blocks; gap rows and
+ *  rows past the last block have no rail hole. Terminal cols are unaffected. */
+export function isRailRow(row: number): boolean {
+  return (
+    row >= 0 &&
+    row < RAIL_BLOCKS * RAIL_STRIDE &&
+    row % RAIL_STRIDE < RAIL_BLOCK_HOLES
+  )
+}
+
+/** Which power-rail rows carry a hole, in order (for renderers that iterate). */
+export function railRows(): number[] {
+  const rows: number[] = []
+  for (let row = 0; row < ROWS; row++) {
+    if (isRailRow(row)) rows.push(row)
+  }
+  return rows
+}
 
 // Breadboard offset: starts after the Arduino board
 export const BREADBOARD_OFFSET_X =
@@ -607,7 +633,8 @@ export function isOnBoard(point: GridPoint): boolean {
   const { row, col } = point;
   if (row < 0 || row >= ROWS) return false;
   if (col >= 0 && col <= 9) return true;
-  if (col === -2 || col === -1 || col === 10 || col === 11) return true;
+  // Power rails only carry holes inside their 5-hole blocks (gap rows don't).
+  if (col === -2 || col === -1 || col === 10 || col === 11) return isRailRow(row);
   return false;
 }
 
