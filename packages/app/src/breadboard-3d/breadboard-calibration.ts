@@ -24,14 +24,14 @@ export type BreadboardTransform = {
   scale: number
 }
 
-/** Baked default placement — identity means "use the auto-fit as-is". Paste an
- *  exported transform here to ship a dialed-in placement out of the box. */
+/** Baked default placement — dialed in against breadboard.glb via the calibrator
+ *  and exported with "Copy JSON". Layered on top of the runtime auto-fit. */
 const DEFAULT_TRANSFORM: BreadboardTransform = {
-  x: 0,
-  z: 0,
-  y: 0,
+  x: -0.171,
+  z: -13.583,
+  y: 1,
   yaw: 0,
-  scale: 1,
+  scale: 1.46,
 }
 
 const STORAGE_KEY = "dreamer:breadboard-calibration"
