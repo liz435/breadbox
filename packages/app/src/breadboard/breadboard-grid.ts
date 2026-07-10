@@ -58,26 +58,19 @@ import {
   BOARD_PADDING,
 } from "@/breadboard/breadboard-constants"
 
-/** Empty rows kept at the very top and very bottom of each rail line. */
+/** Empty rows kept at the very top of each rail line before the first block. */
 const RAIL_END_SKIP = 2
 
-/** Rows carrying a power-rail hole. Matches a full-size breadboard's segmented
- *  rail: a RAIL_END_SKIP-row margin at each end, blocks of RAIL_BLOCK_HOLES
- *  holes separated by a single skipped row, and a wider break in the centre
- *  where the rail splits into its upper/lower half. The rail holes otherwise
- *  track the terminal rows one-to-one. */
+/** Rows carrying a power-rail hole. Matches this model's segmented rail: a
+ *  RAIL_END_SKIP-row margin at the top, then blocks of RAIL_BLOCK_HOLES holes
+ *  separated by a single skipped row, uniformly down the full length (no wider
+ *  break in the middle). Only whole blocks are placed, so the leftover rows at
+ *  the bottom form the bottom margin. */
 const RAIL_ROWS: ReadonlySet<number> = (() => {
   const rows = new Set<number>()
-  const period = RAIL_BLOCK_HOLES + 1 // 5 holes + 1 gap row
-  const mid = Math.ceil(ROWS / 2)
-  // Upper half: full blocks packed down from the top margin, staying above mid.
-  for (let start = RAIL_END_SKIP; start + RAIL_BLOCK_HOLES <= mid; start += period) {
+  const period = RAIL_BLOCK_HOLES + 1 // 5 holes + 1 skipped row
+  for (let start = RAIL_END_SKIP; start + RAIL_BLOCK_HOLES <= ROWS; start += period) {
     for (let h = 0; h < RAIL_BLOCK_HOLES; h++) rows.add(start + h)
-  }
-  // Lower half: full blocks packed up from the bottom margin, staying below mid.
-  const bottom = ROWS - 1 - RAIL_END_SKIP
-  for (let end = bottom; end - RAIL_BLOCK_HOLES + 1 >= mid; end -= period) {
-    for (let h = 0; h < RAIL_BLOCK_HOLES; h++) rows.add(end - h)
   }
   return rows
 })()

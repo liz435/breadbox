@@ -19,9 +19,8 @@ export const RAIL_PAIR_SPACING = 10
 
 /**
  * Power-rail holes are grouped into blocks of 5, matching a full-size
- * breadboard's segmented rails: a small margin at each end, five holes then one
- * skipped row, and a wider break in the centre where the rail splits into its
- * upper/lower half (see `isRailRow`).
+ * breadboard's segmented rails: a small margin at the top, then five holes and
+ * one skipped row repeating uniformly down the length (see `isRailRow`).
  */
 export const RAIL_BLOCK_HOLES = 5
 
