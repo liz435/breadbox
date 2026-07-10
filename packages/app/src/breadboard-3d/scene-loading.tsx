@@ -30,18 +30,18 @@ export function Scene3dLoading({
       role="status"
       aria-live="polite"
       aria-hidden={hidden}
-      // Same backdrop as the scene (#232228) so there's no flash when the
-      // overlay hands off to the first rendered frame.
+      // Same warm paper backdrop as the scene (#efe7d6) so there's no flash
+      // when the overlay hands off to the first rendered frame.
       className={cn(
-        "flex flex-col items-center justify-center gap-3 bg-[#232228] text-neutral-300",
+        "flex flex-col items-center justify-center gap-3 bg-[#efe7d6] text-muted-foreground",
         overlay
           ? "absolute inset-0 z-40 transition-opacity duration-500"
           : "h-full w-full",
         hidden && "pointer-events-none opacity-0",
       )}
     >
-      <div className="size-7 animate-spin rounded-full border-2 border-white/15 border-t-white/70" />
-      <p className="text-xs tracking-wide text-neutral-400">{label}</p>
+      <div className="size-7 animate-spin rounded-full border-2 border-black/10 border-t-black/45" />
+      <p className="text-xs tracking-wide text-muted-foreground">{label}</p>
     </div>
   )
 }

@@ -25,6 +25,7 @@ packages/api/data/projects/*.json
 packages/api/data/runs/*.json
 packages/api/data/threads/*.json
 packages/api/data/tests/*.json
+packages/api/data/last-opened.json
 packages/api/data/audit/
 
 # Motion + character runtime media/state (see packages/api/src/paths.ts) —
