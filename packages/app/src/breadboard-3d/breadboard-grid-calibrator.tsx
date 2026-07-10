@@ -55,6 +55,10 @@ function AnchorHandle({
 
   const onPointerDown = useCallback(
     (event: ThreeEvent<PointerEvent>) => {
+      // Shift-drag reframes the camera instead of moving the handle: leave the
+      // event to CameraControls (don't stop it or disable them) so the user can
+      // orbit/pan even when a handle sits under the cursor.
+      if (event.nativeEvent.shiftKey) return
       event.stopPropagation()
       setDragging(true)
       if (isToggleable(controls)) controls.enabled = false

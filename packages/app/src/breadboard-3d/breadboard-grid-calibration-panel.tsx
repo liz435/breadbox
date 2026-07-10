@@ -39,7 +39,7 @@ export function BreadboardGridCalibrationPanel() {
       <p className="mb-3 text-[11px] leading-snug text-white/60">
         Drag each green corner onto its model hole (labelled row,col) — the
         terminal grid fills in between. Drag the red/blue rail handles sideways
-        to set each power rail's width.
+        to set each power rail's width. Hold Shift and drag to move the camera.
       </p>
 
       <div className="mb-3">
