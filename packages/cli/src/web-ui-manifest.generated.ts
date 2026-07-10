@@ -4,23 +4,55 @@
 // runtime, but TS typings infer bundle types from extensions. Runtime
 // behavior is correct; silencing the type-check noise here.
 
-import asset__assets_arduino_uno_board_DzaMf6jI_svg from "../../app/dist/assets/arduino-uno-board-DzaMf6jI.svg" with { type: "file" }
+import asset__assets_arduino_uno_Paxsb4st_glb from "../../app/dist/assets/arduino-uno-Paxsb4st.glb" with { type: "file" }
+import asset__assets_arduino_uno_board_DBpS0kIP_svg from "../../app/dist/assets/arduino-uno-board-DBpS0kIP.svg" with { type: "file" }
+import asset__assets_breadboard_vcPcRDW__glb from "../../app/dist/assets/breadboard-vcPcRDW_.glb" with { type: "file" }
+import asset__assets_buzzer_Bo1_Vaqm_glb from "../../app/dist/assets/buzzer-Bo1-Vaqm.glb" with { type: "file" }
+import asset__assets_index_ApY9tPW__js from "../../app/dist/assets/index-ApY9tPW_.js" with { type: "file" }
 import asset__assets_index_CCUjAQjo_js from "../../app/dist/assets/index-CCUjAQjo.js" with { type: "file" }
-import asset__assets_index_DFGBPA_U_js from "../../app/dist/assets/index-DFGBPA_U.js" with { type: "file" }
-import asset__assets_index_DNamI1Fi_css from "../../app/dist/assets/index-DNamI1Fi.css" with { type: "file" }
+import asset__assets_index_DJFZBDPi_css from "../../app/dist/assets/index-DJFZBDPi.css" with { type: "file" }
+import asset__assets_lcd_CwnbX7Fb_glb from "../../app/dist/assets/lcd-CwnbX7Fb.glb" with { type: "file" }
+import asset__assets_led_CfD3Necv_glb from "../../app/dist/assets/led-CfD3Necv.glb" with { type: "file" }
+import asset__assets_oled_ConnZ0Jh_glb from "../../app/dist/assets/oled-ConnZ0Jh.glb" with { type: "file" }
+import asset__assets_potentiometer_Dvgnit5f_glb from "../../app/dist/assets/potentiometer-Dvgnit5f.glb" with { type: "file" }
+import asset__assets_power_module_MqYH1PPU_glb from "../../app/dist/assets/power-module-MqYH1PPU.glb" with { type: "file" }
+import asset__assets_relay_BaIZ2dhE_glb from "../../app/dist/assets/relay-BaIZ2dhE.glb" with { type: "file" }
+import asset__assets_resistor_base_BsWPF4Kg_glb from "../../app/dist/assets/resistor-base-BsWPF4Kg.glb" with { type: "file" }
+import asset__assets_rgb_led_Dr70QQ75_glb from "../../app/dist/assets/rgb-led-Dr70QQ75.glb" with { type: "file" }
 import asset__assets_rp2040_bootrom_data_BpBHbl0R_js from "../../app/dist/assets/rp2040-bootrom-data-BpBHbl0R.js" with { type: "file" }
+import asset__assets_servo_2wR3Hze7_glb from "../../app/dist/assets/servo-2wR3Hze7.glb" with { type: "file" }
+import asset__assets_solver_worker_740GhH6Y_js from "../../app/dist/assets/solver.worker-740GhH6Y.js" with { type: "file" }
+import asset__assets_temperature_sensor_Bn8KUiHh_glb from "../../app/dist/assets/temperature-sensor-Bn8KUiHh.glb" with { type: "file" }
+import asset__assets_ultrasonic_miVV1WUv_glb from "../../app/dist/assets/ultrasonic-miVV1WUv.glb" with { type: "file" }
+import asset__assets_view_VurnUmJm_js from "../../app/dist/assets/view-VurnUmJm.js" with { type: "file" }
 import asset__favicon_png from "../../app/dist/favicon.png" with { type: "file" }
 import asset__index_html from "../../app/dist/index.html" with { type: "file" }
 
 export const EMBEDDED_ASSETS: Record<string, string> = {
-  "/assets/arduino-uno-board-DzaMf6jI.svg": asset__assets_arduino_uno_board_DzaMf6jI_svg as unknown as string,
+  "/assets/arduino-uno-Paxsb4st.glb": asset__assets_arduino_uno_Paxsb4st_glb as unknown as string,
+  "/assets/arduino-uno-board-DBpS0kIP.svg": asset__assets_arduino_uno_board_DBpS0kIP_svg as unknown as string,
+  "/assets/breadboard-vcPcRDW_.glb": asset__assets_breadboard_vcPcRDW__glb as unknown as string,
+  "/assets/buzzer-Bo1-Vaqm.glb": asset__assets_buzzer_Bo1_Vaqm_glb as unknown as string,
+  "/assets/index-ApY9tPW_.js": asset__assets_index_ApY9tPW__js as unknown as string,
   "/assets/index-CCUjAQjo.js": asset__assets_index_CCUjAQjo_js as unknown as string,
-  "/assets/index-DFGBPA_U.js": asset__assets_index_DFGBPA_U_js as unknown as string,
-  "/assets/index-DNamI1Fi.css": asset__assets_index_DNamI1Fi_css as unknown as string,
+  "/assets/index-DJFZBDPi.css": asset__assets_index_DJFZBDPi_css as unknown as string,
+  "/assets/lcd-CwnbX7Fb.glb": asset__assets_lcd_CwnbX7Fb_glb as unknown as string,
+  "/assets/led-CfD3Necv.glb": asset__assets_led_CfD3Necv_glb as unknown as string,
+  "/assets/oled-ConnZ0Jh.glb": asset__assets_oled_ConnZ0Jh_glb as unknown as string,
+  "/assets/potentiometer-Dvgnit5f.glb": asset__assets_potentiometer_Dvgnit5f_glb as unknown as string,
+  "/assets/power-module-MqYH1PPU.glb": asset__assets_power_module_MqYH1PPU_glb as unknown as string,
+  "/assets/relay-BaIZ2dhE.glb": asset__assets_relay_BaIZ2dhE_glb as unknown as string,
+  "/assets/resistor-base-BsWPF4Kg.glb": asset__assets_resistor_base_BsWPF4Kg_glb as unknown as string,
+  "/assets/rgb-led-Dr70QQ75.glb": asset__assets_rgb_led_Dr70QQ75_glb as unknown as string,
   "/assets/rp2040-bootrom-data-BpBHbl0R.js": asset__assets_rp2040_bootrom_data_BpBHbl0R_js as unknown as string,
+  "/assets/servo-2wR3Hze7.glb": asset__assets_servo_2wR3Hze7_glb as unknown as string,
+  "/assets/solver.worker-740GhH6Y.js": asset__assets_solver_worker_740GhH6Y_js as unknown as string,
+  "/assets/temperature-sensor-Bn8KUiHh.glb": asset__assets_temperature_sensor_Bn8KUiHh_glb as unknown as string,
+  "/assets/ultrasonic-miVV1WUv.glb": asset__assets_ultrasonic_miVV1WUv_glb as unknown as string,
+  "/assets/view-VurnUmJm.js": asset__assets_view_VurnUmJm_js as unknown as string,
   "/favicon.png": asset__favicon_png as unknown as string,
   "/index.html": asset__index_html as unknown as string,
   "/": asset__index_html as unknown as string,
 }
 
-export const ASSET_COUNT = 7
+export const ASSET_COUNT = 23
