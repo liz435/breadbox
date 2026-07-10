@@ -21,15 +21,17 @@ import { BOARD_SURFACE_Y, pixelToWorld } from "./layout"
 import { calibratedPinXZ } from "./arduino-calibration"
 import { segmentClosest, partObstacles, type PartObstacle } from "./part-obstacles"
 
-/** 22 AWG jumper insulation is ~1.6 mm across. */
-const WIRE_RADIUS_MM = 0.8
+/** Slim jumper insulation radius (mm). */
+const WIRE_RADIUS_MM = 0.5
 
-// Dupont jumper end connector, matched to wire.glb: a black plastic housing the
-// wire base sleeves into, plus a thin metal pin that plugs down into the hole.
-const HOUSING_R = 1.3
-const HOUSING_LEN = 9
-const PIN_R = 0.4
-const PIN_LEN = 3.4
+// Dupont jumper end connector, matched to wire.glb: a small black plastic
+// housing the wire emerges from, plus a thin metal pin that plugs into the hole.
+// HOUSING_LEN stays under the minimum arc rise (~6 mm) so trimming the tube back
+// to the housing top never inverts a short wire's curve.
+const HOUSING_R = 0.85
+const HOUSING_LEN = 4
+const PIN_R = 0.28
+const PIN_LEN = 2.4
 const Y_AXIS = new Vector3(0, 1, 0)
 
 /** Quaternion (as an array prop) that rotates the connector's local +Y onto
@@ -187,30 +189,33 @@ const WireTube = memo(function WireTube({
   obstacles: PartObstacle[]
   surfaceBoards: BoardComponent[]
 }) {
-  const curve = useMemo(
-    () => buildCurve(wire, arduinoPins, obstacles, surfaceBoards),
-    [wire, arduinoPins, obstacles, surfaceBoards],
-  )
-  // Endpoints + the direction the wire leaves each hole, for the end connectors.
-  // getTangent(1) points into the end hole, so negate it to face back up the wire.
-  const ends = useMemo(() => {
+  // Build the arc, then trim the tube back to the top of each connector so the
+  // wire emerges from the housing instead of running through it. getTangent(1)
+  // points into the end hole, so negate it to face back up the wire.
+  const geom = useMemo(() => {
+    const curve = buildCurve(wire, arduinoPins, obstacles, surfaceBoards)
     if (!curve) return null
-    return {
-      start: curve.getPoint(0),
-      startDir: curve.getTangent(0),
-      end: curve.getPoint(1),
-      endDir: curve.getTangent(1).negate(),
-    }
-  }, [curve])
-  if (!curve || !ends) return null
+    const start = curve.getPoint(0)
+    const end = curve.getPoint(1)
+    const startDir = curve.getTangent(0)
+    const endDir = curve.getTangent(1).negate()
+    const tubeCurve = new CubicBezierCurve3(
+      start.clone().addScaledVector(startDir, HOUSING_LEN),
+      curve.v1,
+      curve.v2,
+      end.clone().addScaledVector(endDir, HOUSING_LEN),
+    )
+    return { tubeCurve, start, startDir, end, endDir }
+  }, [wire, arduinoPins, obstacles, surfaceBoards])
+  if (!geom) return null
   return (
     <group>
       <mesh>
-        <tubeGeometry args={[curve, 24, WIRE_RADIUS_MM, 8, false]} />
+        <tubeGeometry args={[geom.tubeCurve, 24, WIRE_RADIUS_MM, 8, false]} />
         <meshStandardMaterial color={wireColor(wire)} roughness={0.45} />
       </mesh>
-      <WireEndConnector at={ends.start} dir={ends.startDir} />
-      <WireEndConnector at={ends.end} dir={ends.endDir} />
+      <WireEndConnector at={geom.start} dir={geom.startDir} />
+      <WireEndConnector at={geom.end} dir={geom.endDir} />
     </group>
   )
 })
