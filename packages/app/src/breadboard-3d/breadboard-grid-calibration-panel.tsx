@@ -1,9 +1,10 @@
 // ── Breadboard grid calibration panel (DOM overlay) ──────────────────────────
 //
-// Controls for the anchor warp: drag the 8 terminal-corner handles in the scene
-// onto the model's holes; this panel sets the shared surface height, exports the
-// result ("Copy JSON" → paste into a baked default), resets to the schematic
-// grid, and leaves the mode. Everything reads/writes the live grid store.
+// Controls for the anchor warp: drag the 8 terminal corners + 4 rail width
+// handles in the scene onto the model's holes; this panel sets the shared
+// surface height, exports the result ("Copy JSON" → paste into a baked default),
+// resets to the schematic grid, and leaves the mode. Everything reads/writes the
+// live grid store.
 
 import { toast } from "@/components/ui/toast"
 import { Button } from "@/components/ui/button"
@@ -36,9 +37,9 @@ export function BreadboardGridCalibrationPanel() {
       </div>
 
       <p className="mb-3 text-[11px] leading-snug text-white/60">
-        Drag each green corner handle onto its model hole (labelled row,col).
-        The terminal grid fills in between and the power rails follow
-        automatically.
+        Drag each green corner onto its model hole (labelled row,col) — the
+        terminal grid fills in between. Drag the red/blue rail handles sideways
+        to set each power rail's width.
       </p>
 
       <div className="mb-3">

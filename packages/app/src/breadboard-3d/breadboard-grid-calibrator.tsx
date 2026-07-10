@@ -1,8 +1,10 @@
 // ── Breadboard grid calibrator (drag anchors onto the model's holes) ─────────
 //
-// Renders the 8 draggable anchor handles that drive the grid warp: 4 terminal
-// corners per bank, each dragged onto the model hole at the labelled (row,col).
-// The power rails carry no handles — they're extrapolated from the same warp.
+// Renders the 12 draggable anchor handles that drive the grid warp:
+//   • 8 terminal corners (4 per bank) — drag each onto the model hole at the
+//     labelled (row,col).
+//   • 4 rail width anchors (1 per rail col) — drag each left/right onto its rail
+//     column; only the sideways position matters (it sets the rail's width).
 // Dragging records the handle's world x/z into the grid-calibration store, which
 // the 3D holes and wire endpoints read live. Height comes from the panel.
 
@@ -13,7 +15,9 @@ import { useThree } from "@react-three/fiber"
 import type { ThreeEvent } from "@react-three/fiber"
 import { ROWS } from "@/breadboard/breadboard-constants"
 import {
+  RAIL_COLS,
   setBankCorner,
+  setRailAnchor,
   useGridCalibration,
   type BankCorners,
   type XZ,
@@ -127,6 +131,19 @@ export function BreadboardGridCalibrator() {
             onDrag={(xz) => setBankCorner(bank, c.key, xz)}
           />
         ))
+      })}
+      {RAIL_COLS.map((col) => {
+        const isPositive = col === -2 || col === 11
+        return (
+          <AnchorHandle
+            key={`rail-${col}`}
+            pos={cal.rails[col]}
+            height={cal.height}
+            color={isPositive ? "#ef4444" : "#3b82f6"}
+            label={isPositive ? "+ rail" : "− rail"}
+            onDrag={(xz) => setRailAnchor(col, xz)}
+          />
+        )
       })}
     </group>
   )
