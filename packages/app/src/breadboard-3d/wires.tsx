@@ -103,15 +103,18 @@ export function toEndpoint(wire: Wire, surfaceBoards: BoardComponent[]): Vector3
 }
 
 /** Vertical gap kept between the wire and the part it passes over (mm). */
-const WIRE_CLEARANCE_MM = 3
+const WIRE_CLEARANCE_MM = 2
 /** Extra horizontal margin around a part before a wire counts as "over" it. */
 const WIRE_SIDE_MARGIN_MM = 1.5
 /** Floor on the arc height factor so a part sitting almost under an endpoint
- *  (where the arc is near the board) doesn't demand an unbounded rise. */
-const MIN_ARC_FACTOR = 0.12
+ *  (where the arc is near the board) doesn't demand an unbounded rise. Kept
+ *  fairly high so a tall part right beside an endpoint hole nudges the arc up a
+ *  little rather than launching it into a tall spike. */
+const MIN_ARC_FACTOR = 0.3
 /** Cap on the control-point rise (mm). A part directly under a wire's hole
- *  can't be arced over by a single hop; clamp rather than shoot to the moon. */
-const MAX_WIRE_RISE_MM = 60
+ *  can't be arced over by a single hop; clamp rather than shoot to the moon.
+ *  Deliberately low — real jumpers drape close to the board, not in tall loops. */
+const MAX_WIRE_RISE_MM = 26
 /** Slack (mm) added to a part's pin-spread when deciding whether a wire endpoint
  *  belongs to it. Well under one 2.54 mm hole pitch, so an adjacent hole a part
  *  merely sits near is never mistaken for one of its own pins. */
@@ -139,9 +142,10 @@ function buildCurve(
   if (!start) return null
   const end = toEndpoint(wire, surfaceBoards)
   const span = start.distanceTo(end)
-  // Short on-board jumpers hop low; cross-board runs rise higher. The
-  // per-wire jitter keeps side-by-side wires from occupying the same arc.
-  let rise = Math.min(26, 6 + span * 0.18) + idJitter(wire.id) * 5
+  // Short on-board jumpers hop low; cross-board runs rise a little higher. The
+  // per-wire jitter keeps side-by-side wires from occupying the same arc. Kept
+  // shallow so jumpers drape near the board instead of arcing up in tall loops.
+  let rise = Math.min(16, 4 + span * 0.1) + idJitter(wire.id) * 3
 
   // Lift the arc so it clears every part it passes over — at the part's ACTUAL
   // position along the hop, not just the midpoint apex. The arc's height above
