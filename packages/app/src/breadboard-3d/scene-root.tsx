@@ -23,6 +23,7 @@ import { usePhysicsEnabled } from "./physics-flag"
 import { usePhysicsActive } from "./physics-activity"
 import { PostEffects } from "./post-effects"
 import { Scene3dLoading } from "./scene-loading"
+import { attachContextRecovery } from "./webgl-recovery"
 import { registerExportScene } from "./scene-export"
 import { useEditor } from "./editor-state"
 import {
@@ -270,6 +271,26 @@ function FirstFrameSignal({ onReady }: { onReady: () => void }) {
   return null
 }
 
+/**
+ * Survive a dropped WebGL context. WKWebView drops it under memory pressure;
+ * without `preventDefault()` the browser never restores it, and without an
+ * `invalidate()` after restore the demand frameloop leaves the panel frozen.
+ */
+function ContextRecovery() {
+  const gl = useThree((state) => state.gl)
+  const invalidate = useThree((state) => state.invalidate)
+
+  useEffect(
+    () =>
+      attachContextRecovery(gl.domElement, invalidate, {
+        onLost: () => console.warn("[breadboard-3d] WebGL context lost — awaiting restore"),
+        onRestored: () => console.info("[breadboard-3d] WebGL context restored"),
+      }),
+    [gl, invalidate],
+  )
+  return null
+}
+
 export function SceneRoot() {
   const { select } = useEditor()
   const physicsEnabled = usePhysicsEnabled()
@@ -352,6 +373,7 @@ export function SceneRoot() {
         <AnimationDriver />
         <ExportBridge />
         <PostEffects />
+        <ContextRecovery />
         <FirstFrameSignal onReady={handleReady} />
         <CameraControls makeDefault />
       </Canvas>
