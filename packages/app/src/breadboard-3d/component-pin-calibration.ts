@@ -90,6 +90,16 @@ export function setPinAnchor(type: string, index: number, xz: P2): void {
   commit({ ...state, [type]: pins })
 }
 
+export function getPinAnchor(type: string, index: number): P2 | undefined {
+  return state[type]?.[index]
+}
+
+/** Nudge one pin anchor by a delta in the model's board plane (fine-tune). */
+export function nudgePinAnchor(type: string, index: number, dx: number, dz: number): void {
+  const cur = state[type]?.[index] ?? { x: 0, z: 0 }
+  setPinAnchor(type, index, { x: cur.x + dx, z: cur.z + dz })
+}
+
 export function clearPinCalibration(type: string): void {
   const next = { ...state }
   delete next[type]
@@ -119,11 +129,14 @@ export function getPinCalibrationMode(): { on: boolean; type: string | null } {
 }
 
 export function setPinCalibrating(on: boolean, type?: string | null): void {
-  mode = { on, type: type !== undefined ? type : mode.type }
+  const nextType = type !== undefined ? type : mode.type
+  if (nextType !== mode.type) setSelectedPin(null)
+  mode = { on, type: nextType }
   for (const fn of modeListeners) fn()
 }
 
 export function setPinCalibrationType(type: string | null): void {
+  if (type !== mode.type) setSelectedPin(null)
   mode = { ...mode, type }
   for (const fn of modeListeners) fn()
 }
@@ -135,4 +148,28 @@ function subscribeMode(fn: () => void): () => void {
 
 export function usePinCalibrationMode(): { on: boolean; type: string | null } {
   return useSyncExternalStore(subscribeMode, getPinCalibrationMode, getPinCalibrationMode)
+}
+
+// ── Selected pin (for fine-tune) ─────────────────────────────────────────────
+
+let selectedPin: number | null = null
+const selPinListeners = new Set<() => void>()
+
+export function getSelectedPin(): number | null {
+  return selectedPin
+}
+
+export function setSelectedPin(index: number | null): void {
+  if (selectedPin === index) return
+  selectedPin = index
+  for (const fn of selPinListeners) fn()
+}
+
+function subscribeSelPin(fn: () => void): () => void {
+  selPinListeners.add(fn)
+  return () => selPinListeners.delete(fn)
+}
+
+export function useSelectedPin(): number | null {
+  return useSyncExternalStore(subscribeSelPin, getSelectedPin, getSelectedPin)
 }

@@ -16,8 +16,10 @@ import { GLB_PARTS, GlbNormalizedModel } from "./glb-parts"
 import {
   ensurePinAnchors,
   setPinAnchor,
+  setSelectedPin,
   usePinCalibrationMode,
   usePinCalibrations,
+  useSelectedPin,
 } from "./component-pin-calibration"
 import type { P2 } from "./similarity-2d"
 
@@ -37,10 +39,14 @@ function defaultSpread(count: number): P2[] {
 function PinAnchor({
   pos,
   label,
+  selected,
+  onSelect,
   onDrag,
 }: {
   pos: P2
   label: string
+  selected: boolean
+  onSelect: () => void
   onDrag: (xz: P2) => void
 }) {
   const camera = useThree((s) => s.camera)
@@ -56,6 +62,7 @@ function PinAnchor({
     (event: ThreeEvent<PointerEvent>) => {
       if (event.nativeEvent.shiftKey) return
       event.stopPropagation()
+      onSelect()
       setDragging(true)
       if (isToggleable(controls)) controls.enabled = false
       const dom = gl.domElement
@@ -77,15 +84,21 @@ function PinAnchor({
       dom.addEventListener("pointermove", move)
       window.addEventListener("pointerup", up, { once: true })
     },
-    [camera, gl, raycaster, controls, plane, hit, ndc, onDrag],
+    [camera, gl, raycaster, controls, plane, hit, ndc, onDrag, onSelect],
   )
 
   return (
     <group position={[pos.x, LIFT_Y, pos.z]}>
       <mesh onPointerDown={onPointerDown}>
-        <sphereGeometry args={[dragging ? 1.6 : 1.1, 16, 16]} />
+        <sphereGeometry args={[dragging ? 1.6 : selected ? 1.4 : 1.1, 16, 16]} />
         <meshBasicMaterial color={dragging ? "#ffffff" : "#f472b6"} depthTest={false} />
       </mesh>
+      {selected && (
+        <mesh>
+          <sphereGeometry args={[2.1, 16, 16]} />
+          <meshBasicMaterial color="#fde047" wireframe transparent opacity={0.85} depthTest={false} />
+        </mesh>
+      )}
       <Html center distanceFactor={120} zIndexRange={[10, 0]} style={{ pointerEvents: "none" }}>
         <div
           style={{
@@ -110,6 +123,7 @@ function PinAnchor({
 export function ComponentPinCalibrator() {
   const mode = usePinCalibrationMode()
   const cals = usePinCalibrations()
+  const selected = useSelectedPin()
   const type = mode.type
   const config = type ? GLB_PARTS[type] : undefined
 
@@ -142,6 +156,8 @@ export function ComponentPinCalibrator() {
             key={i}
             pos={a}
             label={label}
+            selected={selected === i}
+            onSelect={() => setSelectedPin(i)}
             onDrag={(xz) => setPinAnchor(type, i, xz)}
           />
         )
