@@ -18,13 +18,13 @@ export const RAIL_OFFSET = 38
 export const RAIL_PAIR_SPACING = 10
 
 /**
- * Power-rail holes are grouped into blocks of 5 with a 1-row gap between blocks
- * (10 blocks per rail line = 50 holes), matching a full-size breadboard's
- * segmented rails. A rail hole only exists on a row that falls inside a block;
- * gap rows have no rail hole (see `isRailRow`).
+ * Power-rail holes are grouped into blocks of 5 (10 blocks per rail line = 50
+ * holes), matching a full-size breadboard's segmented rails. The blocks are
+ * spread evenly across the full row range so the rails run top-to-bottom like
+ * the terminal columns; gap rows between blocks have no rail hole (see
+ * `isRailRow`).
  */
 export const RAIL_BLOCK_HOLES = 5
-export const RAIL_BLOCK_GAP = 1
 export const RAIL_BLOCKS = 10
 
 export const ARDUINO_BOARD_WIDTH = 340

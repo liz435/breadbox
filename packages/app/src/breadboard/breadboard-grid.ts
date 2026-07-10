@@ -52,7 +52,6 @@ import {
   RAIL_OFFSET,
   RAIL_PAIR_SPACING,
   RAIL_BLOCK_HOLES,
-  RAIL_BLOCK_GAP,
   RAIL_BLOCKS,
   ARDUINO_BOARD_WIDTH,
   ARDUINO_BOARD_HEIGHT,
@@ -60,27 +59,28 @@ import {
   BOARD_PADDING,
 } from "@/breadboard/breadboard-constants"
 
-/** Rows between the start of consecutive rail blocks (holes + one gap row). */
-const RAIL_STRIDE = RAIL_BLOCK_HOLES + RAIL_BLOCK_GAP
+/** Rows carrying a power-rail hole. The RAIL_BLOCKS blocks of RAIL_BLOCK_HOLES
+ *  are spread evenly across the full row range so the rails run top-to-bottom
+ *  like the terminal columns, with a small gap between blocks. The split falls
+ *  in the gap between the two middle blocks (5 blocks per rail half). */
+const RAIL_ROWS: ReadonlySet<number> = (() => {
+  const rows = new Set<number>()
+  const lastBlockStart = ROWS - RAIL_BLOCK_HOLES
+  for (let block = 0; block < RAIL_BLOCKS; block++) {
+    const start = Math.round((block * lastBlockStart) / (RAIL_BLOCKS - 1))
+    for (let h = 0; h < RAIL_BLOCK_HOLES; h++) rows.add(start + h)
+  }
+  return rows
+})()
 
-/** True if a power-rail hole exists on this row. Rail holes come in blocks of
- *  RAIL_BLOCK_HOLES with RAIL_BLOCK_GAP gap rows between blocks; gap rows and
- *  rows past the last block have no rail hole. Terminal cols are unaffected. */
+/** True if a power-rail hole exists on this row (inside a block, not a gap). */
 export function isRailRow(row: number): boolean {
-  return (
-    row >= 0 &&
-    row < RAIL_BLOCKS * RAIL_STRIDE &&
-    row % RAIL_STRIDE < RAIL_BLOCK_HOLES
-  )
+  return RAIL_ROWS.has(row)
 }
 
 /** Which power-rail rows carry a hole, in order (for renderers that iterate). */
 export function railRows(): number[] {
-  const rows: number[] = []
-  for (let row = 0; row < ROWS; row++) {
-    if (isRailRow(row)) rows.push(row)
-  }
-  return rows
+  return [...RAIL_ROWS].sort((a, b) => a - b)
 }
 
 // Breadboard offset: starts after the Arduino board
