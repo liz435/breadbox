@@ -37,6 +37,23 @@ export function sleepPhysics(): void {
   notify()
 }
 
+/**
+ * Tear down the activity signal when the physics tree unmounts (flag toggled
+ * off, panel closed).
+ *
+ * `sleepPhysics` is only ever called by the stepper, which lives INSIDE the
+ * physics tree. Unmounting while the world is awake would therefore strand
+ * `active === true` with nothing left to clear it, pinning the canvas at
+ * frameloop="always" — the GPU spinning forever on an idle scene. A drag
+ * interrupted by that unmount would likewise strand `dragging === true`.
+ */
+export function resetPhysicsActivity(): void {
+  dragging = false
+  if (!active) return
+  active = false
+  notify()
+}
+
 /** A drag keeps the solver awake regardless of whether bodies are asleep. */
 export function setPhysicsDragging(next: boolean): void {
   dragging = next

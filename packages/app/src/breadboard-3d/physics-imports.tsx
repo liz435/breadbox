@@ -51,7 +51,10 @@ function PhysicsBody({
     })
   }, [body.id, body.transform.scale, updateBody])
 
-  const { onPointerDown } = useBodyDrag(bodyRef, onRelease)
+  // `dragging` must drive the body's type: setNextKinematicTranslation is a
+  // no-op on a dynamic body, so without this the prop simply doesn't move
+  // under the cursor — while release still committed its settled pose.
+  const { dragging, onPointerDown } = useBodyDrag(bodyRef, onRelease)
 
   // Let the freshly-mounted body settle under gravity.
   useEffect(() => {
@@ -61,6 +64,7 @@ function PhysicsBody({
   return (
     <RigidBody
       ref={bodyRef}
+      type={dragging ? "kinematicPosition" : "dynamic"}
       colliders="hull"
       position={body.transform.position}
       rotation={body.transform.rotation}

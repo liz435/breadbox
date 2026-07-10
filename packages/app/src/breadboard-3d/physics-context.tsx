@@ -7,11 +7,11 @@
 // frameloop="demand" and the GPU idles. Waking is handled elsewhere (spawns,
 // drags, and state syncs call wakePhysics()).
 
-import { useRef } from "react"
+import { useEffect, useRef } from "react"
 import type { ReactNode } from "react"
 import { useFrame } from "@react-three/fiber"
 import { Physics, useRapier } from "@react-three/rapier"
-import { isPhysicsDragging, sleepPhysics } from "./physics-activity"
+import { isPhysicsDragging, resetPhysicsActivity, sleepPhysics } from "./physics-activity"
 
 /** Gravity in mm/s². Real g is 9810 mm/s²; dialled down a little so the drop
  *  reads as a calm settle (and slower impacts are gentler on the solver) rather
@@ -42,6 +42,12 @@ function PhysicsSleepWatcher() {
 }
 
 export function PhysicsWorld({ children }: { children: ReactNode }) {
+  // The sleep watcher below is the ONLY caller of sleepPhysics, and it dies
+  // with this subtree. Toggling physics off mid-settle (or closing the panel)
+  // would otherwise leave the activity signal stuck awake and the canvas
+  // stuck at frameloop="always" for the rest of the session.
+  useEffect(() => resetPhysicsActivity, [])
+
   // Fixed timestep, NOT "vary". Under our demand↔always frameloop the first
   // frame after waking carries a huge real delta (all the idle time), and
   // "vary" feeds that straight to the solver — dynamic bodies then integrate
