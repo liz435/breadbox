@@ -19,6 +19,7 @@ import { TransformGizmo } from "./transform-gizmo"
 import { AnimationDriver } from "./animation-driver"
 import { Wires } from "./wires"
 import { PhysicsScene } from "./physics-scene"
+import { PhysicsErrorBoundary } from "./physics-boundary"
 import { usePhysicsEnabled } from "./physics-flag"
 import { usePhysicsActive } from "./physics-activity"
 import { PostEffects } from "./post-effects"
@@ -352,7 +353,14 @@ export function SceneRoot() {
             boards above stay grid-driven either way — physics only adds their
             collision surfaces (inside PhysicsScene). */}
         {physicsEnabled ? (
-          <PhysicsScene />
+          // Rapier's WASM load suspends and can reject; contain both so a
+          // physics failure can't take down the whole 3D view (and with it the
+          // toggle that would turn physics back off).
+          <PhysicsErrorBoundary>
+            <Suspense fallback={null}>
+              <PhysicsScene />
+            </Suspense>
+          </PhysicsErrorBoundary>
         ) : (
           <>
             <Parts />
