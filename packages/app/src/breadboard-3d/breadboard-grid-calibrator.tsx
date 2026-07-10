@@ -13,8 +13,7 @@ import { Plane, Vector2, Vector3 } from "three"
 import { Html } from "@react-three/drei"
 import { useThree } from "@react-three/fiber"
 import type { ThreeEvent } from "@react-three/fiber"
-import { ROWS, RAIL_BLOCK_HOLES } from "@/breadboard/breadboard-constants"
-import { railRows } from "@/breadboard/breadboard-grid"
+import { ROWS } from "@/breadboard/breadboard-constants"
 import {
   RAIL_COLS,
   setBankCorner,
@@ -111,10 +110,6 @@ function AnchorHandle({
 
 export function BreadboardGridCalibrator() {
   const cal = useGridCalibration()
-  const anchorRows = useMemo(() => {
-    const rr = railRows()
-    return { a: rr[0], b: rr[RAIL_BLOCK_HOLES - 1], c: rr[RAIL_BLOCK_HOLES], d: rr[2 * RAIL_BLOCK_HOLES - 1] }
-  }, [])
 
   return (
     <group name="bb-grid-calibrator">
@@ -142,10 +137,8 @@ export function BreadboardGridCalibrator() {
         const isPlus = col === -2 || col === 10
         const color = isPlus ? "#ef4444" : "#3b82f6"
         const keys: { key: keyof RailAnchors; row: number }[] = [
-          { key: "a", row: anchorRows.a },
-          { key: "b", row: anchorRows.b },
-          { key: "c", row: anchorRows.c },
-          { key: "d", row: anchorRows.d },
+          { key: "a", row: 0 },
+          { key: "b", row: ROW_MAX },
         ]
         return keys.map((k) => (
           <AnchorHandle
