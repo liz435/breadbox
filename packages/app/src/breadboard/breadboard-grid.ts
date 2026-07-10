@@ -52,23 +52,21 @@ import {
   RAIL_OFFSET,
   RAIL_PAIR_SPACING,
   RAIL_BLOCK_HOLES,
-  RAIL_BLOCKS,
   ARDUINO_BOARD_WIDTH,
   ARDUINO_BOARD_HEIGHT,
   ARDUINO_BOARD_MARGIN,
   BOARD_PADDING,
 } from "@/breadboard/breadboard-constants"
 
-/** Rows carrying a power-rail hole. The RAIL_BLOCKS blocks of RAIL_BLOCK_HOLES
- *  are spread evenly across the full row range so the rails run top-to-bottom
- *  like the terminal columns, with a small gap between blocks. The split falls
- *  in the gap between the two middle blocks (5 blocks per rail half). */
+/** Rows carrying a power-rail hole. Matches a real breadboard's segmented rail:
+ *  blocks of RAIL_BLOCK_HOLES holes with a single skipped row between blocks
+ *  (i.e. skip one every RAIL_BLOCK_HOLES). The rail holes otherwise track the
+ *  terminal rows one-to-one, top to bottom. */
 const RAIL_ROWS: ReadonlySet<number> = (() => {
   const rows = new Set<number>()
-  const lastBlockStart = ROWS - RAIL_BLOCK_HOLES
-  for (let block = 0; block < RAIL_BLOCKS; block++) {
-    const start = Math.round((block * lastBlockStart) / (RAIL_BLOCKS - 1))
-    for (let h = 0; h < RAIL_BLOCK_HOLES; h++) rows.add(start + h)
+  const period = RAIL_BLOCK_HOLES + 1 // 5 holes + 1 gap row
+  for (let row = 0; row < ROWS; row++) {
+    if (row % period !== RAIL_BLOCK_HOLES) rows.add(row)
   }
   return rows
 })()
