@@ -87,6 +87,17 @@ export function railRows(): number[] {
   return [...RAIL_ROWS].sort((a, b) => a - b)
 }
 
+/** Row of each rail block's first hole, in order (block layout single source
+ *  of truth for parts that seat onto whole blocks, e.g. the power supply). */
+export function railBlockStarts(): number[] {
+  const period = RAIL_BLOCK_HOLES + 1
+  const starts: number[] = []
+  for (let start = RAIL_END_SKIP; start + RAIL_BLOCK_HOLES <= ROWS; start += period) {
+    starts.push(start)
+  }
+  return starts
+}
+
 /** Polarity of a power-rail column. The inner column of each rail pair (−1 on
  *  the left, 10 on the right — nearest the terminal strips) is positive; the
  *  outer edge column (−2, 11) is negative. So with the MCU off one end of the
@@ -201,6 +212,25 @@ function makeDigitalPins(): ArduinoPinInfo[] {
     category: "power",
     labelSide: "top",
   });
+  // R3 dedicated I2C sockets, left of AREF (order left→right: SCL, SDA, AREF).
+  // Electrically SDA≡A4 / SCL≡A5; exposed as their own sockets so the 3D model's
+  // header is complete. Not yet net-aliased to A4/A5 in the solver.
+  pins.push({
+    label: "SDA",
+    pin: -10,
+    x: artX(UNO_AREF_X - UNO_PITCH),
+    y: pinY,
+    category: "digital",
+    labelSide: "top",
+  });
+  pins.push({
+    label: "SCL",
+    pin: -11,
+    x: artX(UNO_AREF_X - 2 * UNO_PITCH),
+    y: pinY,
+    category: "digital",
+    labelSide: "top",
+  });
   return pins;
 }
 
@@ -238,7 +268,7 @@ function makePowerPins(): ArduinoPinInfo[] {
     { label: "GND", pin: -4 },
     { label: "VIN", pin: -5 },
   ];
-  return labels.map(({ label, pin }, i) => ({
+  const pins = labels.map(({ label, pin }, i) => ({
     label,
     pin,
     x: artX(UNO_IOREF_X + i * UNO_PITCH),
@@ -246,6 +276,18 @@ function makePowerPins(): ArduinoPinInfo[] {
     category: "power" as const,
     labelSide: "bottom" as const,
   }));
+  // Corner socket left of IOREF — a second usable 5V (a stock Uno R3 leaves this
+  // reserved/NC). Distinct label "5V2" so it doesn't collide with the mid-strip
+  // 5V in label-based wire resolution; it's treated as the 5V rail by pin id.
+  pins.unshift({
+    label: "5V2",
+    pin: -12,
+    x: artX(UNO_IOREF_X - UNO_PITCH),
+    y: pinY,
+    category: "power" as const,
+    labelSide: "bottom" as const,
+  });
+  return pins;
 }
 
 export const ARDUINO_DIGITAL_PINS = makeDigitalPins();

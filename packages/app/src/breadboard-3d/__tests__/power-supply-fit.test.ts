@@ -37,8 +37,8 @@ describe("power_supply baked pin fit", () => {
     expect(Math.abs(fit.rotation)).toBeLessThan(0.05)
 
     // Every calibrated pin lands within a hole radius (~1.25mm) of its warped
-    // rail target in x. (z is intentionally approximate: the model's two pin
-    // rows straddle the single warped rail row.)
+    // rail target. The footprint rows are a rail block's 1st and 5th holes —
+    // the same 4-hole gap as the model's pin rows — so both axes must fit.
     const center = footprintCenter(component)
     const targets = footprintPinTargets(component)
     expect(targets.length).toBe(cal.pins.length)
@@ -46,6 +46,7 @@ describe("power_supply baked pin fit", () => {
       const applied = applySimilarity2D(fit, pin)
       const target = { x: targets[i].x - center.x, z: targets[i].z - center.z }
       expect(Math.abs(applied.x - target.x)).toBeLessThan(1.25)
+      expect(Math.abs(applied.z - target.z)).toBeLessThan(1.25)
     })
   })
 })

@@ -1,12 +1,15 @@
 import { HOLE_SPACING } from "@/breadboard/breadboard-constants"
 import type { ComponentDefinition } from "@/components/component-definition"
 import { sanitize } from "@/components/catalog/_shared"
+import { powerSupplyPinRows } from "./pin-rows"
 
 // Drops onto the top of the breadboard and feeds all four power rails.
 // Each side (left/right) has its own voltage selector (5V or 3.3V).
 // Footprint ignores the click column — pins are anchored to the four
 // rail columns (-2, -1, 10, 11), so wherever the user clicks horizontally
-// the module always lands across both rail pairs.
+// the module always lands across both rail pairs. The click row snaps to a
+// rail block (see powerSupplyPinRows): pins land on the block's 1st and 5th
+// holes, matching the real MB102's 4-hole pin-row gap.
 export const powerSupply: ComponentDefinition = {
   type: "power_supply",
   category: "other",
@@ -15,20 +18,23 @@ export const powerSupply: ComponentDefinition = {
   defaultPins: {},
   defaultProperties: { leftVoltage: 5, rightVoltage: 3.3 },
   accentColor: "#10b981",
-  footprint: (row) => ({
-    points: [
-      { row, col: -2 },
-      { row, col: -1 },
-      { row, col: 10 },
-      { row, col: 11 },
-      { row: row + 1, col: -2 },
-      { row: row + 1, col: -1 },
-      { row: row + 1, col: 10 },
-      { row: row + 1, col: 11 },
-    ],
-    width: HOLE_SPACING * 18,
-    height: HOLE_SPACING * 2,
-  }),
+  footprint: (row) => {
+    const [top, bottom] = powerSupplyPinRows(row)
+    return {
+      points: [
+        { row: top, col: -2 },
+        { row: top, col: -1 },
+        { row: top, col: 10 },
+        { row: top, col: 11 },
+        { row: bottom, col: -2 },
+        { row: bottom, col: -1 },
+        { row: bottom, col: 10 },
+        { row: bottom, col: 11 },
+      ],
+      width: HOLE_SPACING * 18,
+      height: HOLE_SPACING * 6,
+    }
+  },
   paletteIcon: (
     <svg viewBox="0 0 24 24" width={20} height={20}>
       <rect x={2} y={6} width={20} height={12} rx={2} fill="#0c4a3a" stroke="#0e6b51" strokeWidth={1} />
