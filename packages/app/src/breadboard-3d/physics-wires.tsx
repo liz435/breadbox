@@ -34,6 +34,8 @@ import type { BoardComponent } from "@dreamer/schemas"
 import { surfaceBoardsOf } from "./board-offsets"
 import { GROUP_WIRE } from "./physics-groups"
 import { partObstacles, segmentClosest, type PartObstacle } from "./part-obstacles"
+import { obbSegmentInterval, useBoundsVersion } from "./part-volume"
+import { usePinCalibrations } from "./component-pin-calibration"
 import { wakePhysics } from "./physics-activity"
 import { fromEndpoint, toEndpoint, wireColor } from "./wires"
 
@@ -70,12 +72,31 @@ function wireArcRise(start: Vector3, end: Vector3, obstacles: PartObstacle[]): n
   for (const o of obstacles) {
     const plugsStart = Math.hypot(start.x - o.x, start.z - o.z) <= o.coreRadius + PLUG_TOLERANCE_MM
     const plugsEnd = Math.hypot(end.x - o.x, end.z - o.z) <= o.coreRadius + PLUG_TOLERANCE_MM
-    if (plugsStart || plugsEnd) continue
-    const { distance, t } = segmentClosest(o.x, o.z, start.x, start.z, end.x, end.z)
-    if (distance > o.radius + 1.5) continue
-    const factor = Math.max(0.12, 4 * t * (1 - t))
-    const needed = (o.topY + CLEARANCE_MM - avgY) / factor
-    rise = Math.max(rise, Math.min(needed, MAX_RISE_MM))
+    if (o.kind === "disc") {
+      if (plugsStart || plugsEnd) continue
+      const { distance, t } = segmentClosest(o.x, o.z, start.x, start.z, end.x, end.z)
+      if (distance > o.radius + 1.5) continue
+      const factor = Math.max(0.12, 4 * t * (1 - t))
+      const needed = (o.topY + CLEARANCE_MM - avgY) / factor
+      rise = Math.max(rise, Math.min(needed, MAX_RISE_MM))
+      continue
+    }
+    // Oriented body box: clear it over the span the wire crosses it, keeping the
+    // required clearance out of the header zone of an endpoint that plugs in.
+    const interval = obbSegmentInterval(o.obb, start.x, start.z, end.x, end.z, 1.5)
+    if (!interval) continue
+    let { t0, t1 } = interval
+    if (plugsStart || plugsEnd) {
+      const clampFrac =
+        span > 1e-6 ? Math.min(0.49, (o.coreRadius + PLUG_TOLERANCE_MM) / span) : 0.49
+      if (plugsStart) t0 = Math.max(t0, clampFrac)
+      if (plugsEnd) t1 = Math.min(t1, 1 - clampFrac)
+      if (t0 >= t1) continue
+    }
+    const tWorst = Math.abs(t0 - 0.5) >= Math.abs(t1 - 0.5) ? t0 : t1
+    const factor = Math.max(0.12, 4 * tWorst * (1 - tWorst))
+    const clearance = o.obb.topY + CLEARANCE_MM - avgY
+    rise = Math.max(rise, Math.min(clearance / factor, Math.max(MAX_RISE_MM, clearance + 4)))
   }
   return rise
 }
@@ -259,7 +280,12 @@ export function PhysicsWires() {
   )
   // Parts the wires must arc over, so a jumper clears a tall part instead of
   // spearing through it (physics collision alone is too coarse for thin wires).
-  const obstacles = useMemo(() => partObstacles(components), [components])
+  const pinCals = usePinCalibrations()
+  const boundsVersion = useBoundsVersion()
+  const obstacles = useMemo(
+    () => partObstacles(components, pinCals),
+    [components, pinCals, boundsVersion],
+  )
 
   return (
     <group name="physics-wires">

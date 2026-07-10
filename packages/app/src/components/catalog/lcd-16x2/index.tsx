@@ -9,12 +9,11 @@ export const lcd16x2: ComponentDefinition = {
   description: "16x2 character LCD display",
   label: "LCD 16×2",
   defaultPins: { rs: null, en: null, d4: null, d5: null, d6: null, d7: null },
-  // Full HD44780 12-pin header (vss/vdd/vo/rs/rw/en/d4/d5/d6/d7/a/k) —
+  // Full HD44780 16-pin header (vss/vdd/vo/rs/rw/en/d0..d3/d4..d7/a/k) —
   // canonical layout owned by @dreamer/schemas so the breadboard render,
   // the SPICE netlist, and the simulator peripheral all resolve pins from
-  // the same source. A 6-pin simplified footprint was here before and
-  // silently disagreed with the peripheral's resolveComponentPins map.
-  footprint: (row, col) => footprintFromPins("lcd_16x2", row, col, HOLE_SPACING * 6, HOLE_SPACING * 12),
+  // the same source. D0–D3 are no-connect in 4-bit mode but occupy real holes.
+  footprint: (row, col) => footprintFromPins("lcd_16x2", row, col, HOLE_SPACING * 6, HOLE_SPACING * 16),
   paletteIcon: (
     // HD44780 16×2 module: dark green PCB, yellow-green character panel,
     // corner mounting holes, bezel frame, silver trim pot.
@@ -55,7 +54,7 @@ export const lcd16x2: ComponentDefinition = {
   // Model the 6 control/data pins as high-impedance 10kΩ pull-downs.
   // This gives the SPICE solver a DC path without drawing meaningful
   // current. Resolved by name from the canonical pin map so the footprint
-  // can carry its full 12-pin header without the netlist re-shuffling.
+  // can carry its full 16-pin header without the netlist re-shuffling.
   spicePrefix: "R",
   buildNetlist: (comp, { resolveNode }) => {
     const pinMap = resolveComponentPins("lcd_16x2", comp.y, comp.x, comp.properties)

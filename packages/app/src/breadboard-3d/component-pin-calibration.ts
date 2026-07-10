@@ -23,8 +23,48 @@ export type PinCalibration = { pins: P2[]; gaps?: number[] }
 export type PinCalibrations = Record<string, PinCalibration>
 
 /** Baked defaults — dialed in via the calibrator and pasted here with Copy JSON.
- *  Empty until the first type is calibrated. */
-const BAKED_PIN_CALIBRATION: PinCalibrations = {}
+ *  A user's own localStorage entries (see load) override these per type. Types
+ *  still being tuned (lcd_16x2, potentiometer, relay, temperature_sensor, servo)
+ *  are intentionally absent until their anchors are finalised. */
+const BAKED_PIN_CALIBRATION: PinCalibrations = {
+  buzzer: {
+    pins: [
+      { x: 3.7649682495641343, z: 0.03303914149344678 },
+      { x: -3.939751215526556, z: 0.31981413803300995 },
+    ],
+    gaps: [2],
+  },
+  led: {
+    pins: [
+      { x: 0.036950692634412974, z: 1.7058775912822817 },
+      { x: -0.3597704037698719, z: -1.4620880982067863 },
+    ],
+  },
+  rgb_led: {
+    pins: [
+      { x: -1, z: 0 },
+      { x: 0, z: 0 },
+      { x: 0, z: 0 },
+      { x: 1, z: 0 },
+    ],
+  },
+  oled_display: {
+    pins: [
+      { x: -4.75, z: -16 },
+      { x: -1.75, z: -16 },
+      { x: 1.5, z: -16 },
+      { x: 4.75, z: -16 },
+    ],
+  },
+  ultrasonic_sensor: {
+    pins: [
+      { x: -3, z: -7 },
+      { x: -1, z: -7 },
+      { x: 1, z: -7 },
+      { x: 3, z: -7 },
+    ],
+  },
+}
 
 const STORAGE_KEY = "dreamer:component-pin-calibration"
 

@@ -14,9 +14,11 @@ import { useBoardSelector } from "@/store/board-context"
 import { getBoardPinLayout, type ArduinoPinInfo } from "@/breadboard/breadboard-grid"
 import { offsetToWorld, surfaceBoardsOf, wireEndpointOffset } from "./board-offsets"
 import { pixelToWorld } from "./layout"
-import { calibratedPinXZ } from "./arduino-calibration"
+import { calibratedPinXZ, useCalibration } from "./arduino-calibration"
 import { useGridCalibration, warpedGridXZ } from "./breadboard-grid-calibration"
 import { segmentClosest, partObstacles, type PartObstacle } from "./part-obstacles"
+import { obbSegmentInterval, useBoundsVersion } from "./part-volume"
+import { usePinCalibrations } from "./component-pin-calibration"
 
 /** Slim jumper insulation radius (mm). */
 const WIRE_RADIUS_MM = 0.5
@@ -132,6 +134,52 @@ function endpointOnObstacle(point: Vector3, obstacle: PartObstacle): boolean {
   )
 }
 
+/** Raise `rise` so the arc clears an oriented body box over the stretch where the
+ *  wire actually passes across it. Unlike a disc, a wire may plug into this same
+ *  part's header (endpoint inside the box) yet still need to clear its offset body:
+ *  we clamp the cleared interval out of the plugged endpoint's header zone, then
+ *  clear the box top at the interval's lowest-arc end. */
+function clearObb(
+  obstacle: Extract<PartObstacle, { kind: "obb" }>,
+  start: Vector3,
+  end: Vector3,
+  span: number,
+  rise: number,
+  avgEndpointY: number,
+): number {
+  const interval = obbSegmentInterval(
+    obstacle.obb, start.x, start.z, end.x, end.z, WIRE_SIDE_MARGIN_MM,
+  )
+  if (!interval) return rise
+  let { t0, t1 } = interval
+
+  const startPlug = endpointOnObstacle(start, obstacle)
+  const endPlug = endpointOnObstacle(end, obstacle)
+  if (startPlug || endPlug) {
+    // Keep the required clearance out of the header zone around a plugged
+    // endpoint (~one pin spread), so the arc drops onto its own pin instead of
+    // spiking up and diving back down. The offset body past it is still cleared.
+    const clampFrac =
+      span > 1e-6
+        ? Math.min(0.49, (obstacle.coreRadius + FOOTPRINT_HIT_TOLERANCE_MM) / span)
+        : 0.49
+    if (startPlug) t0 = Math.max(t0, clampFrac)
+    if (endPlug) t1 = Math.min(t1, 1 - clampFrac)
+    if (t0 >= t1) return rise // the whole crossing is header — nothing to hop
+  }
+
+  // The arc is concave (peaks at t=0.5), so its lowest point over [t0,t1] is at
+  // whichever end sits farther from the apex. Clear the box top there.
+  const tWorst = Math.abs(t0 - 0.5) >= Math.abs(t1 - 0.5) ? t0 : t1
+  const factor = Math.max(MIN_ARC_FACTOR, 3 * tWorst * (1 - tWorst))
+  const clearance = obstacle.obb.topY + WIRE_CLEARANCE_MM - avgEndpointY
+  const neededRise = clearance / factor
+  // Let genuinely tall modules push the arc a little past the default cap so the
+  // wire drapes over the body rather than skimming through it.
+  const cap = Math.max(MAX_WIRE_RISE_MM, clearance + 4)
+  return Math.max(rise, Math.min(neededRise, cap))
+}
+
 function buildCurve(
   wire: Wire,
   arduinoPins: ArduinoPinInfo[],
@@ -156,18 +204,22 @@ function buildCurve(
   // so we never under-clear.
   const avgEndpointY = (start.y + end.y) / 2
   for (const obstacle of obstacles) {
-    // The part this wire plugs into isn't something to hop over — skip it, or
-    // the arc gets forced up and dives straight back down through its body.
-    if (endpointOnObstacle(start, obstacle) || endpointOnObstacle(end, obstacle)) {
+    if (obstacle.kind === "disc") {
+      // The part this wire plugs into isn't something to hop over — skip it, or
+      // the arc gets forced up and dives straight back down through its body.
+      if (endpointOnObstacle(start, obstacle) || endpointOnObstacle(end, obstacle)) {
+        continue
+      }
+      const { distance, t } = segmentClosest(
+        obstacle.x, obstacle.z, start.x, start.z, end.x, end.z,
+      )
+      if (distance > obstacle.radius + WIRE_SIDE_MARGIN_MM) continue
+      const factor = Math.max(MIN_ARC_FACTOR, 3 * t * (1 - t))
+      const neededRise = (obstacle.topY + WIRE_CLEARANCE_MM - avgEndpointY) / factor
+      rise = Math.max(rise, Math.min(neededRise, MAX_WIRE_RISE_MM))
       continue
     }
-    const { distance, t } = segmentClosest(
-      obstacle.x, obstacle.z, start.x, start.z, end.x, end.z,
-    )
-    if (distance > obstacle.radius + WIRE_SIDE_MARGIN_MM) continue
-    const factor = Math.max(MIN_ARC_FACTOR, 3 * t * (1 - t))
-    const neededRise = (obstacle.topY + WIRE_CLEARANCE_MM - avgEndpointY) / factor
-    rise = Math.max(rise, Math.min(neededRise, MAX_WIRE_RISE_MM))
+    rise = clearObb(obstacle, start, end, span, rise, avgEndpointY)
   }
 
   // Keep the arc taller than the end connectors so the tube (trimmed back to
@@ -187,14 +239,17 @@ const WireTube = memo(function WireTube({
   obstacles,
   surfaceBoards,
   calibration,
+  arduinoCal,
 }: {
   wire: Wire
   arduinoPins: ArduinoPinInfo[]
   obstacles: PartObstacle[]
   surfaceBoards: BoardComponent[]
-  // Only invalidates the geom memo when a grid anchor / height moves; the
-  // endpoint resolvers read the live warp through warpedGridXZ.
+  // These only invalidate the geom memo when a calibration moves; the endpoint
+  // resolvers read live values (warpedGridXZ / calibratedPinXZ). `calibration`
+  // is the breadboard grid warp; `arduinoCal` is the Arduino header alignment.
   calibration: unknown
+  arduinoCal: unknown
 }) {
   // Build the arc, then trim the tube back to the top of each connector so the
   // wire emerges from the housing instead of running through it. getTangent(1)
@@ -213,7 +268,7 @@ const WireTube = memo(function WireTube({
       end.clone().addScaledVector(endDir, HOUSING_LEN),
     )
     return { tubeCurve, start, startDir, end, endDir }
-  }, [wire, arduinoPins, obstacles, surfaceBoards, calibration])
+  }, [wire, arduinoPins, obstacles, surfaceBoards, calibration, arduinoCal])
   if (!geom) return null
   return (
     <group>
@@ -232,10 +287,18 @@ export function Wires() {
   const boardTarget = useBoardSelector((ctx) => ctx.boardTarget)
   const components = useBoardSelector((ctx) => ctx.components)
   const arduinoPins = getBoardPinLayout(boardTarget).allPins
-  const obstacles = useMemo(() => partObstacles(components), [components])
+  const pinCals = usePinCalibrations()
+  // GLB body extents arrive as parts render; rebuild obstacles when they do (and
+  // when a calibration moves a part) so the OBBs track the rendered geometry.
+  const boundsVersion = useBoundsVersion()
+  const obstacles = useMemo(
+    () => partObstacles(components, pinCals),
+    [components, pinCals, boundsVersion],
+  )
   const surfaceBoards = useMemo(() => surfaceBoardsOf(components), [components])
-  // Re-tube whenever a grid anchor or the surface height moves.
+  // Re-tube whenever a grid anchor / surface height or an Arduino pin moves.
   const calibration = useGridCalibration()
+  const arduinoCal = useCalibration()
   return (
     <group name="wires-3d">
       {Object.values(wires).map((wire) => (
@@ -246,6 +309,7 @@ export function Wires() {
           obstacles={obstacles}
           surfaceBoards={surfaceBoards}
           calibration={calibration}
+          arduinoCal={arduinoCal}
         />
       ))}
     </group>

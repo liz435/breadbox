@@ -12,6 +12,7 @@ import type { BoardComponent } from "@dreamer/schemas"
 import { getComponentFootprint, gridToPixel, type GridPoint } from "@/breadboard/breadboard-grid"
 import { pixelToWorld, type WorldPoint } from "./layout"
 import { warpedGridXZ } from "./breadboard-grid-calibration"
+import { fitSimilarity2D, type P2, type Similarity2D } from "./similarity-2d"
 
 export function componentFootprint(component: BoardComponent) {
   return getComponentFootprint(
@@ -103,4 +104,32 @@ export function footprintPinTargetsWithGaps(
     const w = warpedGridXZ(row, col)
     return { x: w.x, z: w.z }
   })
+}
+
+/** Fit that maps a type's captured model pins (normalized frame) onto this
+ *  instance's warped footprint holes — the calibration transform glb-parts
+ *  renders with. Expressed in the PartMesh-local frame (footprint centroid + yaw
+ *  undone) so it composes under the PartMesh group. Null when uncalibrated or
+ *  the anchor count doesn't match the footprint. Shared by the renderer and the
+ *  wire-obstacle volume so both place a part identically. */
+export function computePinFit(
+  component: BoardComponent,
+  cal: { pins: P2[]; gaps?: number[] } | undefined,
+): Similarity2D | null {
+  if (!cal || cal.pins.length < 2) return null
+  const targets = cal.gaps
+    ? footprintPinTargetsWithGaps(component, cal.gaps)
+    : footprintPinTargets(component)
+  if (targets.length !== cal.pins.length) return null
+  const center = footprintCenter(component)
+  const yaw = rotationYaw(component.rotation)
+  const cosY = Math.cos(yaw)
+  const sinY = Math.sin(yaw)
+  const dst = targets.map((t) => {
+    const rx = t.x - center.x
+    const rz = t.z - center.z
+    // R_y(-yaw) · rel — undo PartMesh's yaw so the fit is in its local frame.
+    return { x: rx * cosY - rz * sinY, z: rx * sinY + rz * cosY }
+  })
+  return fitSimilarity2D(cal.pins, dst)
 }

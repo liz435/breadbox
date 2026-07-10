@@ -17,13 +17,8 @@ import { useGLTF } from "@react-three/drei"
 import type { BoardComponent } from "@dreamer/schemas"
 import { registerPartNodes } from "./scene-registry"
 import { resolveLedColor } from "./led-colors"
-import { fitSimilarity2D } from "./similarity-2d"
-import {
-  footprintCenter,
-  footprintPinTargets,
-  footprintPinTargetsWithGaps,
-  rotationYaw,
-} from "./part-frame"
+import { computePinFit } from "./part-frame"
+import { recordNormBounds } from "./part-volume"
 import { usePinCalibrations } from "./component-pin-calibration"
 import { useGridCalibration } from "./breadboard-grid-calibration"
 
@@ -37,6 +32,7 @@ import relayUrl from "@/assets/relay.glb?url"
 import lcdUrl from "@/assets/lcd.glb?url"
 import oledUrl from "@/assets/oled.glb?url"
 import servoUrl from "@/assets/servo.glb?url"
+import powerModuleUrl from "@/assets/power-module.glb?url"
 
 type GlbBehavior = "led" | "rgb" | "servo"
 
@@ -62,15 +58,19 @@ export const GLB_PARTS: Partial<Record<string, GlbPartConfig>> = {
   led: { url: ledUrl, rotation: [0, 0, 0], heightMm: 11, liftMm: 0, behavior: "led" },
   rgb_led: { url: rgbLedUrl, rotation: [0, 0, 0], heightMm: 11, liftMm: 0, behavior: "rgb" },
   buzzer: { url: buzzerUrl, rotation: [0, 0, 0], heightMm: 16, liftMm: 0 },
-  // Pot & temp are authored face-forward (+Z) with pins down; −90°X stands the
-  // face/knob up (+Y) so it reads like the old procedural knob-up part.
-  potentiometer: { url: potentiometerUrl, rotation: [-Math.PI / 2, 0, 0], heightMm: 20, liftMm: 0 },
+  // Pot & temp are authored pins-down (−Y), so no rotation keeps the legs
+  // dropping into the board. (The earlier −90°X stood the face up but laid the
+  // pins out sideways in +Z, so they no longer plugged into the holes.)
+  potentiometer: { url: potentiometerUrl, rotation: [0, 0, 0], heightMm: 20, liftMm: 0 },
   ultrasonic_sensor: { url: ultrasonicUrl, rotation: [0, 0, 0], heightMm: 20, liftMm: 0 },
-  temperature_sensor: { url: temperatureUrl, rotation: [-Math.PI / 2, 0, 0], heightMm: 12, liftMm: 0 },
+  temperature_sensor: { url: temperatureUrl, rotation: [0, 0, 0], heightMm: 12, liftMm: 0 },
   relay: { url: relayUrl, rotation: [0, 0, 0], heightMm: 20, liftMm: 0 },
   lcd_16x2: { url: lcdUrl, rotation: [0, 0, 0], heightMm: 12, liftMm: 0 },
   oled_display: { url: oledUrl, rotation: [0, 0, 0], heightMm: 15, liftMm: 0 },
   servo: { url: servoUrl, rotation: [0, 0, 0], heightMm: 23, liftMm: 0, behavior: "servo" },
+  // MB102 imports Y-up with its long edge along Z; +90°Y lays it landscape
+  // along X to match the footprint.
+  power_supply: { url: powerModuleUrl, rotation: [0, Math.PI / 2, 0], heightMm: 22, liftMm: 0 },
 }
 
 /** Upright + height-normalize + centre-in-XZ + rest-on-Y=0. The "normalized
@@ -79,7 +79,11 @@ export const GLB_PARTS: Partial<Record<string, GlbPartConfig>> = {
 export function glbNormalize(
   model: Object3D,
   config: GlbPartConfig,
-): { scale: number; position: [number, number, number] } {
+): {
+  scale: number
+  position: [number, number, number]
+  bounds: { halfX: number; halfZ: number; height: number }
+} {
   const probe = model.clone(true)
   probe.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2])
   probe.updateMatrixWorld(true)
@@ -92,6 +96,9 @@ export function glbNormalize(
   return {
     scale: factor,
     position: [-center.x * factor, -box.min.y * factor + config.liftMm, -center.z * factor],
+    // Normalized-frame extents (post-scale): the wire-obstacle OBB is built from
+    // these carried through the pin-calibration fit. See part-volume.ts.
+    bounds: { halfX: (size.x * factor) / 2, halfZ: (size.z * factor) / 2, height: size.y * factor },
   }
 }
 
@@ -199,36 +206,26 @@ export function GlbPartModel({
   // Orient upright, scale to the target height, centre in X/Z, rest the base on
   // the board (Y=0). This normalized frame is also what the pin calibrator
   // captures anchors in, so the fit below can map them onto the holes.
-  const { scale, position } = useMemo(() => glbNormalize(model, config), [model, config])
+  const { scale, position, bounds } = useMemo(() => glbNormalize(model, config), [model, config])
+
+  // Publish this type's normalized body extents so the wire router can build an
+  // oriented obstacle box for it (part-volume.ts) instead of a pin-sized disc.
+  useLayoutEffect(() => {
+    recordNormBounds(component.type, bounds)
+  }, [component.type, bounds.halfX, bounds.halfZ, bounds.height])
 
   // Pin calibration: fit the captured model pins onto this instance's warped
-  // footprint holes (uniform scale + rotation + translation). The captured pins
-  // live in the normalized frame above; the targets are expressed in the
-  // PartMesh-local frame (undo its centroid + yaw) so the outer group below,
-  // sitting inside PartMesh, lands each pin on its hole. Falls back to the plain
-  // height-scaled placement when a type isn't calibrated.
+  // footprint holes (uniform scale + rotation + translation). Falls back to the
+  // plain height-scaled placement when a type isn't calibrated. Shared with the
+  // obstacle OBB via computePinFit so both place the part identically.
   const cal = usePinCalibrations()[component.type]
   const grid = useGridCalibration()
-  const fit = useMemo(() => {
-    if (!cal || cal.pins.length < 2) return null
-    const targets = cal.gaps
-      ? footprintPinTargetsWithGaps(component, cal.gaps)
-      : footprintPinTargets(component)
-    if (targets.length !== cal.pins.length) return null
-    const center = footprintCenter(component)
-    const yaw = rotationYaw(component.rotation)
-    const cosY = Math.cos(yaw)
-    const sinY = Math.sin(yaw)
-    const dst = targets.map((t) => {
-      const rx = t.x - center.x
-      const rz = t.z - center.z
-      // R_y(-yaw) · rel — undo PartMesh's yaw so the fit is in its local frame.
-      return { x: rx * cosY - rz * sinY, z: rx * sinY + rz * cosY }
-    })
-    return fitSimilarity2D(cal.pins, dst)
-    // grid drives warpedGridXZ inside the targets — recompute on warp.
+  const fit = useMemo(
+    () => computePinFit(component, cal),
+    // grid drives warpedGridXZ inside the fit targets — recompute on warp.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cal, component, grid])
+    [cal, component, grid],
+  )
 
   const normalized = (
     <group position={position}>

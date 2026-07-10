@@ -46,6 +46,9 @@ import { useGridCalibration, warpedGridXZ } from "./breadboard-grid-calibration"
 import { BreadboardGridCalibrator } from "./breadboard-grid-calibrator"
 import { usePinCalibrationMode } from "./component-pin-calibration"
 import { ComponentPinCalibrator } from "./component-pin-calibrator"
+import { useCalibrating as useArduinoCalibrating } from "./arduino-calibration"
+import { ArduinoPinCalibrator } from "./arduino-calibrator"
+import { ObstacleDebug, useObstacleDebug } from "./obstacle-debug"
 import arduinoUnoUrl from "@/assets/arduino-uno.glb?url"
 import breadboardUrl from "@/assets/breadboard.glb?url"
 
@@ -394,15 +397,27 @@ function BreadboardBlock({ offset }: { offset: WorldPoint }) {
   )
   return (
     <group position={[offset.x, 0, offset.z]}>
-      <group position={[breadboardCenter.x, 0, breadboardCenter.z]}>
-        <Suspense fallback={<BreadboardBodyFallback />}>
+      {/* The GLB has printed rail stripes; the procedural RailStripes only
+          accompany the fallback body, else their overhang pokes out of the
+          model's end faces. They live in world space (same px→mm mapping),
+          hence outside the centred group. */}
+      <Suspense
+        fallback={
+          <>
+            <group position={[breadboardCenter.x, 0, breadboardCenter.z]}>
+              <BreadboardBodyFallback />
+            </group>
+            <RailStripes />
+          </>
+        }
+      >
+        <group position={[breadboardCenter.x, 0, breadboardCenter.z]}>
           <BreadboardModel center={{ x: 0, z: 0 }} />
-        </Suspense>
-      </group>
+        </group>
+      </Suspense>
 
-      {/* hole grid + rail stripes live in world space (same px→mm mapping) */}
+      {/* hole grid lives in world space too */}
       <BreadboardHoles />
-      <RailStripes />
     </group>
   )
 }
@@ -477,6 +492,8 @@ export function SceneRoot() {
   const physicsActive = usePhysicsActive()
   const calibrating = useBreadboardCalibrating()
   const pinCalibrating = usePinCalibrationMode().on
+  const arduinoCalibrating = useArduinoCalibrating()
+  const obstacleDebug = useObstacleDebug()
   // Show a spinner over the canvas until the scene paints its first frame, so
   // WebGL init + environment baking doesn't read as a blank panel.
   const [ready, setReady] = useState(false)
@@ -508,13 +525,17 @@ export function SceneRoot() {
         gl={{ toneMappingExposure: 1.15 }}
         onPointerMissed={() => select(null)}
       >
-        {/* Dark studio backdrop + a floor a touch darker still, so the board
-            sits in space and its colours read instead of washing out. */}
-        <color attach="background" args={["#232228"]} />
-        <fog attach="fog" args={["#232228", 260, 620]} />
+        {/* Warm paper backdrop matching the app's sepia theme (--background
+            cream), with a floor a touch darker (--muted tan) so the board still
+            grounds without a harsh dark slab. Fog fades distance into the page. */}
+        <color attach="background" args={["#efe7d6"]} />
+        {/* Fog kicks in well past the board so it only melts the far floor edge
+            into the horizon — a tight range would wash out the board itself,
+            which is very visible now the fog fades to cream instead of dark. */}
+        <fog attach="fog" args={["#efe7d6", 700, 1500]} />
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.4, 0]}>
           <planeGeometry args={[1400, 1400]} />
-          <meshStandardMaterial color="#1b1a1f" roughness={1} />
+          <meshStandardMaterial color="#dfd4c0" roughness={1} />
         </mesh>
 
         <hemisphereLight args={["#ffffff", "#6b6456"]} intensity={0.5} />
@@ -562,6 +583,8 @@ export function SceneRoot() {
             hole grid + wire endpoints (see the toolbar toggle). */}
         {calibrating && <BreadboardGridCalibrator />}
         {pinCalibrating && <ComponentPinCalibrator />}
+        {arduinoCalibrating && <ArduinoPinCalibrator />}
+        {obstacleDebug && <ObstacleDebug />}
 
         <TransformGizmo />
         <AnimationDriver />

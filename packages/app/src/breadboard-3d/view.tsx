@@ -23,6 +23,12 @@ import {
   usePinCalibrationMode,
 } from "./component-pin-calibration"
 import { ComponentPinCalibrationPanel } from "./component-pin-calibration-panel"
+import {
+  setCalibrating as setArduinoCalibrating,
+  useCalibrating as useArduinoCalibrating,
+} from "./arduino-calibration"
+import { CalibrationPanel } from "./calibration-panel"
+import { setObstacleDebug, useObstacleDebug } from "./obstacle-debug"
 import { GLB_PARTS } from "./glb-parts"
 
 const FIRST_GLB_TYPE = Object.keys(GLB_PARTS).sort()[0] ?? null
@@ -34,6 +40,8 @@ export function Breadboard3dView() {
   const physicsEnabled = usePhysicsEnabled()
   const calibrating = useBreadboardCalibrating()
   const pinMode = usePinCalibrationMode()
+  const arduinoCalibrating = useArduinoCalibrating()
+  const obstacleDebug = useObstacleDebug()
 
   async function handleExport() {
     setExporting(true)
@@ -87,6 +95,22 @@ export function Breadboard3dView() {
           </Button>
           <Button
             size="sm"
+            variant={arduinoCalibrating ? "default" : "secondary"}
+            onClick={() => setArduinoCalibrating(!arduinoCalibrating)}
+            title="Drag a handle onto each Arduino header pin to align wire attach points with the 3D model"
+          >
+            {arduinoCalibrating ? "Arduino…" : "Calibrate Arduino"}
+          </Button>
+          <Button
+            size="sm"
+            variant={obstacleDebug ? "default" : "secondary"}
+            onClick={() => setObstacleDebug(!obstacleDebug)}
+            title="Show the wire-routing hitboxes: cyan = a part's oriented bounding box (OBB), amber = disc fallback. Wires should drape over them, not through them."
+          >
+            {obstacleDebug ? "Hitboxes: On" : "Show hitboxes"}
+          </Button>
+          <Button
+            size="sm"
             variant="secondary"
             onClick={handleExport}
             disabled={exporting}
@@ -116,6 +140,7 @@ export function Breadboard3dView() {
 
         {calibrating && <BreadboardGridCalibrationPanel />}
         {pinMode.on && <ComponentPinCalibrationPanel />}
+        {arduinoCalibrating && <CalibrationPanel />}
 
         <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded bg-black/40 px-2 py-0.5 text-[11px] text-white/80">
           {physicsEnabled
