@@ -7,9 +7,8 @@
 
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { Canvas, useFrame, useThree } from "@react-three/fiber"
-import type { ThreeEvent } from "@react-three/fiber"
 import { CameraControls, ContactShadows, Environment, Lightformer, RoundedBox, useGLTF } from "@react-three/drei"
-import { Box3, Matrix4, Plane, Vector2, Vector3 } from "three"
+import { Box3, Matrix4, Vector3 } from "three"
 import type { Group, InstancedMesh } from "three"
 import { isBoardComponentType } from "@dreamer/schemas"
 import { useBoardSelector } from "@/store/board-context"
@@ -41,45 +40,47 @@ import {
   pxToMm,
   type WorldPoint,
 } from "./layout"
-import {
-  getBreadboardTransform,
-  setBreadboardTransform,
-  useBreadboardCalibrating,
-  useBreadboardTransform,
-} from "./breadboard-calibration"
+import { useBreadboardCalibrating, useBreadboardTransform } from "./breadboard-calibration"
+import { useGridCalibration, warpedGridXZ } from "./breadboard-grid-calibration"
+import { BreadboardGridCalibrator } from "./breadboard-grid-calibrator"
 import arduinoUnoUrl from "@/assets/arduino-uno.glb?url"
 import breadboardUrl from "@/assets/breadboard.glb?url"
 
 /** All hole columns of the clickable grid: terminal cols 0–9 + rail cols. */
 const HOLE_COLS = [-2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 
-/** One instanced draw call for the breadboard's ~420 hole cutouts. */
+/** One instanced draw call for the breadboard's hole cutouts. Positions come
+ *  from the live grid warp so the holes follow the calibrated model sockets. */
 function BreadboardHoles() {
   const meshRef = useRef<InstancedMesh>(null)
+  const invalidate = useThree((state) => state.invalidate)
+  // Re-place every instance when an anchor (or the height) moves.
+  const calibration = useGridCalibration()
   const positions = useMemo(() => {
-    const list: WorldPoint[] = []
+    const list: { x: number; y: number; z: number }[] = []
     for (let row = 0; row < ROWS; row++) {
       for (const col of HOLE_COLS) {
         // Power rails only carry holes inside their 5-hole blocks.
         const isRail = col < 0 || col > 9
         if (isRail && !isRailRow(row)) continue
-        const px = gridToPixel({ row, col })
-        list.push(pixelToWorld(px.x, px.y))
+        list.push(warpedGridXZ(row, col))
       }
     }
     return list
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calibration])
 
   useLayoutEffect(() => {
     const mesh = meshRef.current
     if (!mesh) return
     const matrix = new Matrix4()
     positions.forEach((point, index) => {
-      matrix.setPosition(point.x, BREADBOARD_THICKNESS_MM, point.z)
+      matrix.setPosition(point.x, point.y, point.z)
       mesh.setMatrixAt(index, matrix)
     })
     mesh.instanceMatrix.needsUpdate = true
-  }, [positions])
+    invalidate()
+  }, [positions, invalidate])
 
   return (
     <instancedMesh ref={meshRef} args={[undefined, undefined, positions.length]}>
@@ -305,21 +306,12 @@ function BreadboardBodyFallback() {
   )
 }
 
-/** The active camera controls expose `enabled`; flip it off during a drag so
- *  grabbing the model doesn't also orbit the camera. */
-type ToggleableControls = { enabled: boolean }
-function isToggleable(controls: unknown): controls is ToggleableControls {
-  return !!controls && typeof (controls as { enabled?: unknown }).enabled === "boolean"
-}
-
-const UP = new Vector3(0, 1, 0)
-
 /** The imported breadboard GLB, auto-fitted to the footprint (same measured-bbox
  *  approach as the Arduino: thinnest axis up, long-side aligned, uniform-scaled,
- *  seated on the floor). The `useBreadboardTransform` store layers a live offset,
- *  height, yaw and scale on top — the fit runs in the inner group; the calibrated
- *  in-plane offset/lift is a cheap outer-group translation so dragging the model
- *  doesn't re-measure every frame. In calibration mode the model is draggable. */
+ *  seated on the floor). The baked `useBreadboardTransform` placement (offset,
+ *  height, yaw, scale) is layered on top — the fit runs in the inner group, the
+ *  offset/lift on the outer group. Hole alignment is handled by the grid warp,
+ *  not by moving the model. */
 function BreadboardModel({ center }: { center: WorldPoint }) {
   const { scene } = useGLTF(breadboardUrl)
   // Clone so this instance owns its graph (useGLTF caches the source scene).
@@ -371,54 +363,8 @@ function BreadboardModel({ center }: { center: WorldPoint }) {
     invalidate()
   }, [model, center.x, center.z, targetW, targetD, cal.yaw, cal.scale, invalidate])
 
-  const camera = useThree((state) => state.camera)
-  const gl = useThree((state) => state.gl)
-  const raycaster = useThree((state) => state.raycaster)
-  const controls = useThree((state) => state.controls)
-  const plane = useMemo(() => new Plane(), [])
-  const hit = useMemo(() => new Vector3(), [])
-  const ndc = useMemo(() => new Vector2(), [])
-
-  const onPointerDown = useCallback(
-    (event: ThreeEvent<PointerEvent>) => {
-      event.stopPropagation()
-      if (isToggleable(controls)) controls.enabled = false
-      const dom = gl.domElement
-      const t0 = getBreadboardTransform()
-      // Drag on a horizontal plane at the board's top; record a pure delta so
-      // the grab point stays under the cursor regardless of where it was hit.
-      plane.set(UP, -(BREADBOARD_THICKNESS_MM + t0.y))
-      const toPlane = (native: PointerEvent) => {
-        const rect = dom.getBoundingClientRect()
-        ndc.set(
-          ((native.clientX - rect.left) / rect.width) * 2 - 1,
-          -((native.clientY - rect.top) / rect.height) * 2 + 1,
-        )
-        raycaster.setFromCamera(ndc, camera)
-        return raycaster.ray.intersectPlane(plane, hit) ? { x: hit.x, z: hit.z } : null
-      }
-      const p0 = toPlane(event.nativeEvent)
-      const move = (native: PointerEvent) => {
-        const p = toPlane(native)
-        if (!p0 || !p) return
-        setBreadboardTransform({ x: t0.x + (p.x - p0.x), z: t0.z + (p.z - p0.z) })
-      }
-      const up = () => {
-        dom.removeEventListener("pointermove", move)
-        if (isToggleable(controls)) controls.enabled = true
-      }
-      dom.addEventListener("pointermove", move)
-      window.addEventListener("pointerup", up, { once: true })
-    },
-    [camera, gl, raycaster, controls, plane, hit, ndc],
-  )
-
-  const calibrating = useBreadboardCalibrating()
   return (
-    <group
-      position={[cal.x, cal.y, cal.z]}
-      onPointerDown={calibrating ? onPointerDown : undefined}
-    >
+    <group position={[cal.x, cal.y, cal.z]}>
       <group ref={fitRef}>
         <primitive object={model} />
       </group>
@@ -520,6 +466,7 @@ export function SceneRoot() {
   const { select } = useEditor()
   const physicsEnabled = usePhysicsEnabled()
   const physicsActive = usePhysicsActive()
+  const calibrating = useBreadboardCalibrating()
   // Show a spinner over the canvas until the scene paints its first frame, so
   // WebGL init + environment baking doesn't read as a blank panel.
   const [ready, setReady] = useState(false)
@@ -593,6 +540,10 @@ export function SceneRoot() {
 
         {/* Soft grounding shadow of the board onto the floor. */}
         <ContactShadows position={[0, 0, 0]} scale={420} resolution={1024} blur={2.6} opacity={0.55} far={80} frames={1} />
+
+        {/* Grid calibration handles: drag onto the model's holes to warp the
+            hole grid + wire endpoints (see the toolbar toggle). */}
+        {calibrating && <BreadboardGridCalibrator />}
 
         <TransformGizmo />
         <AnimationDriver />

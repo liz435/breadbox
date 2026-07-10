@@ -11,14 +11,11 @@ import { memo, useMemo } from "react"
 import { CubicBezierCurve3, Quaternion, Vector3 } from "three"
 import type { BoardComponent, Wire } from "@dreamer/schemas"
 import { useBoardSelector } from "@/store/board-context"
-import {
-  getBoardPinLayout,
-  gridToPixel,
-  type ArduinoPinInfo,
-} from "@/breadboard/breadboard-grid"
+import { getBoardPinLayout, type ArduinoPinInfo } from "@/breadboard/breadboard-grid"
 import { offsetToWorld, surfaceBoardsOf, wireEndpointOffset } from "./board-offsets"
-import { BOARD_SURFACE_Y, pixelToWorld } from "./layout"
+import { pixelToWorld } from "./layout"
 import { calibratedPinXZ } from "./arduino-calibration"
+import { useGridCalibration, warpedGridXZ } from "./breadboard-grid-calibration"
 import { segmentClosest, partObstacles, type PartObstacle } from "./part-obstacles"
 
 /** Slim jumper insulation radius (mm). */
@@ -94,17 +91,15 @@ export function fromEndpoint(
     const p = calibratedPinXZ(pin.pin, pixelToWorld(pin.x, pin.y))
     return new Vector3(p.x, p.y, p.z)
   }
-  const px = gridToPixel({ row: wire.fromRow, col: wire.fromCol })
-  const world = pixelToWorld(px.x, px.y)
+  const p = warpedGridXZ(wire.fromRow, wire.fromCol)
   const off = offsetToWorld(wireEndpointOffset(wire.fromBoardId, surfaceBoards))
-  return new Vector3(world.x + off.x, BOARD_SURFACE_Y, world.z + off.z)
+  return new Vector3(p.x + off.x, p.y, p.z + off.z)
 }
 
 export function toEndpoint(wire: Wire, surfaceBoards: BoardComponent[]): Vector3 {
-  const px = gridToPixel({ row: wire.toRow, col: wire.toCol })
-  const world = pixelToWorld(px.x, px.y)
+  const p = warpedGridXZ(wire.toRow, wire.toCol)
   const off = offsetToWorld(wireEndpointOffset(wire.toBoardId, surfaceBoards))
-  return new Vector3(world.x + off.x, BOARD_SURFACE_Y, world.z + off.z)
+  return new Vector3(p.x + off.x, p.y, p.z + off.z)
 }
 
 /** Vertical gap kept between the wire and the part it passes over (mm). */
@@ -187,11 +182,15 @@ const WireTube = memo(function WireTube({
   arduinoPins,
   obstacles,
   surfaceBoards,
+  calibration,
 }: {
   wire: Wire
   arduinoPins: ArduinoPinInfo[]
   obstacles: PartObstacle[]
   surfaceBoards: BoardComponent[]
+  // Only invalidates the geom memo when a grid anchor / height moves; the
+  // endpoint resolvers read the live warp through warpedGridXZ.
+  calibration: unknown
 }) {
   // Build the arc, then trim the tube back to the top of each connector so the
   // wire emerges from the housing instead of running through it. getTangent(1)
@@ -210,7 +209,7 @@ const WireTube = memo(function WireTube({
       end.clone().addScaledVector(endDir, HOUSING_LEN),
     )
     return { tubeCurve, start, startDir, end, endDir }
-  }, [wire, arduinoPins, obstacles, surfaceBoards])
+  }, [wire, arduinoPins, obstacles, surfaceBoards, calibration])
   if (!geom) return null
   return (
     <group>
@@ -231,6 +230,8 @@ export function Wires() {
   const arduinoPins = getBoardPinLayout(boardTarget).allPins
   const obstacles = useMemo(() => partObstacles(components), [components])
   const surfaceBoards = useMemo(() => surfaceBoardsOf(components), [components])
+  // Re-tube whenever a grid anchor or the surface height moves.
+  const calibration = useGridCalibration()
   return (
     <group name="wires-3d">
       {Object.values(wires).map((wire) => (
@@ -240,6 +241,7 @@ export function Wires() {
           arduinoPins={arduinoPins}
           obstacles={obstacles}
           surfaceBoards={surfaceBoards}
+          calibration={calibration}
         />
       ))}
     </group>

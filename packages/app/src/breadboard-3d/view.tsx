@@ -17,7 +17,7 @@ import {
   setBreadboardCalibrating,
   useBreadboardCalibrating,
 } from "./breadboard-calibration"
-import { BreadboardCalibrationPanel } from "./breadboard-calibration-panel"
+import { BreadboardGridCalibrationPanel } from "./breadboard-grid-calibration-panel"
 
 export function Breadboard3dView() {
   const [pendingFile, setPendingFile] = useState<File | null>(null)
@@ -64,9 +64,9 @@ export function Breadboard3dView() {
             size="sm"
             variant={calibrating ? "default" : "secondary"}
             onClick={() => setBreadboardCalibrating(!calibrating)}
-            title="Drag/scale/rotate the breadboard model to line it up under the fixed hole grid"
+            title="Drag the anchor handles onto the model's holes to warp the grid + wires onto it"
           >
-            {calibrating ? "Calibrating…" : "Calibrate breadboard"}
+            {calibrating ? "Calibrating…" : "Calibrate grid"}
           </Button>
           <Button
             size="sm"
@@ -97,7 +97,7 @@ export function Breadboard3dView() {
           />
         </div>
 
-        {calibrating && <BreadboardCalibrationPanel />}
+        {calibrating && <BreadboardGridCalibrationPanel />}
 
         <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded bg-black/40 px-2 py-0.5 text-[11px] text-white/80">
           {physicsEnabled
