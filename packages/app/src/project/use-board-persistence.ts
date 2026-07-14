@@ -6,45 +6,19 @@ import { saveProjectState } from "./api-client"
 import { BoardContext } from "@/store/board-context"
 import { GraphContext } from "@/store/graph-context"
 import { saveRef, editorContentRef, notifySaveFlash } from "./save-ref"
+import { boardSlice } from "./board-slice"
 import { toast } from "@/components/ui/toast"
 import { API_ORIGIN } from "@dreamer/config"
 import { isAnonymousPreview } from "@/auth/use-current-user"
-import type {
-  BoardComponent,
-  Wire,
-  CustomLibrary,
-  BoardTarget,
-  GraphNode,
-  Edge,
-} from "@dreamer/schemas"
+import type { BoardPersistable } from "./board-slice"
+import type { GraphNode, Edge } from "@dreamer/schemas"
 
 const SAVE_DEBOUNCE_MS = 2000
 const HYDRATION_GRACE_MS = 3000
 
-type BoardPersistable = {
-  components: Record<string, BoardComponent>
-  wires: Record<string, Wire>
-  sketchCode: string
-  customLibraries: Record<string, CustomLibrary>
-  boardTarget?: BoardTarget
-}
-
 type GraphPersistable = {
   nodes: Record<string, GraphNode>
   edges: Record<string, Edge>
-}
-
-// Helper: extract just the persistable subset of board context.
-// Centralizing this prevents the dirty-check and the save payload from
-// drifting apart — both must read from the same shape.
-function boardSlice(ctx: BoardPersistable): BoardPersistable {
-  return {
-    components: ctx.components,
-    wires: ctx.wires,
-    sketchCode: ctx.sketchCode,
-    customLibraries: ctx.customLibraries,
-    boardTarget: ctx.boardTarget,
-  }
 }
 
 function graphSlice(ctx: GraphPersistable): GraphPersistable {
@@ -173,6 +147,8 @@ export function useBoardPersistence(): { saveNow: () => void } {
     boardState.sketchCode,
     boardState.customLibraries,
     boardState.boardTarget,
+    boardState.environment,
+    boardState.assembly,
     graphState.nodes,
     graphState.edges,
     projectId,

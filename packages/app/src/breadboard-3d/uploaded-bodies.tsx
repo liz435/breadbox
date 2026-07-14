@@ -6,7 +6,7 @@
 // Object3D, so simulator-driven motion carries the body — and everything
 // bolted to it — for free.
 
-import { Component, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react"
+import { Component, useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react"
 import type { ReactNode } from "react"
 import { createPortal, useLoader } from "@react-three/fiber"
 import { AnimationMixer, Mesh, MeshStandardMaterial } from "three"
@@ -72,6 +72,8 @@ function claimMaterials(root: Object3D): MeshStandardMaterial[] {
 }
 
 function StlModel({ bodyId, url }: { bodyId: string; url: string }) {
+  // `geometry` belongs to useLoader's cache and is shared with every other
+  // body loading the same URL — never dispose it here.
   const geometry = useLoader(STLLoader, url)
   const material = useMemo(
     () =>
@@ -87,6 +89,9 @@ function StlModel({ bodyId, url }: { bodyId: string; url: string }) {
     () => registerBodyMaterials(bodyId, [material]),
     [bodyId, material],
   )
+  // The material is constructed here, so this component owns it. r3f only
+  // auto-disposes materials it created from JSX.
+  useEffect(() => () => material.dispose(), [material])
   return <mesh geometry={geometry} material={material} />
 }
 
@@ -117,6 +122,18 @@ function GlbModel({
     if (!build) return
     return registerBodyMaterials(bodyId, build.materials)
   }, [bodyId, build])
+
+  // `claimMaterials` cloned a material per mesh, so this component owns them
+  // and must dispose them when the body unmounts or the clone is rebuilt.
+  // The cloned subtree's GEOMETRIES are deliberately left alone: SkeletonUtils
+  // shares them with the cached GLTF, so disposing one would break every other
+  // body loaded from the same file.
+  useEffect(() => {
+    if (!build) return
+    return () => {
+      for (const material of build.materials) material.dispose()
+    }
+  }, [build])
 
   // Baked animation clips: loop them all through one mixer. The frame loop
   // advances it only while the body's playAnimations flag is on.

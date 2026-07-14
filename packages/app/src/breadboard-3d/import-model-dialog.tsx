@@ -5,7 +5,7 @@
 // meters by spec) and the up axis, then uploads the file as a project asset
 // and adds an assembly body referencing it.
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Dialog } from "@base-ui/react/dialog"
 import type { AssemblyBody, ModelFormat } from "@dreamer/schemas"
 import { uploadProjectAsset } from "@/project/api-client"
@@ -63,11 +63,30 @@ export function ImportModelDialog({ file, onClose }: { file: File; onClose: () =
     }
   }, [file, format])
 
+  // Cancelling (Escape, backdrop, Cancel) must abort an in-flight upload.
+  // Without this the request runs to completion after the dialog is gone, and
+  // its continuation drops a body into the scene the user thought they'd
+  // cancelled — along with an asset on the server.
+  const uploadRef = useRef<AbortController | null>(null)
+
+  const cancel = useCallback(() => {
+    uploadRef.current?.abort()
+    onClose()
+  }, [onClose])
+
+  useEffect(() => () => uploadRef.current?.abort(), [])
+
   async function importModel(fmt: ModelFormat) {
     setSaving(true)
     setError(null)
+    const controller = new AbortController()
+    uploadRef.current = controller
     try {
-      const uploaded = await uploadProjectAsset(projectId, file)
+      const uploaded = await uploadProjectAsset(projectId, file, {
+        signal: controller.signal,
+      })
+      // The dialog may have closed while the upload was in flight.
+      if (controller.signal.aborted) return
       const body: AssemblyBody = {
         id: `body_${uploaded.assetId.slice(0, 8)}`,
         name: name.trim() || file.name,
@@ -82,8 +101,12 @@ export function ImportModelDialog({ file, onClose }: { file: File; onClose: () =
       addBody(body)
       onClose()
     } catch (err) {
+      // An abort is a user action, not a failure — the dialog is already gone.
+      if (controller.signal.aborted) return
       setError(err instanceof Error ? err.message : "Upload failed")
       setSaving(false)
+    } finally {
+      if (uploadRef.current === controller) uploadRef.current = null
     }
   }
 
@@ -99,7 +122,7 @@ export function ImportModelDialog({ file, onClose }: { file: File; onClose: () =
     <Dialog.Root
       open
       onOpenChange={(next) => {
-        if (!next) onClose()
+        if (!next) cancel()
       }}
     >
       <Dialog.Portal>
@@ -169,7 +192,7 @@ export function ImportModelDialog({ file, onClose }: { file: File; onClose: () =
             {error && dims && <div className="text-xs text-red-500">{error}</div>}
 
             <div className="flex justify-end gap-2 pt-1">
-              <Button variant="ghost" onClick={onClose} disabled={saving}>
+              <Button variant="ghost" onClick={cancel}>
                 Cancel
               </Button>
               <Button

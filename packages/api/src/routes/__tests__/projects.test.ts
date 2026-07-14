@@ -229,6 +229,145 @@ describe("POST /project/:id/state", () => {
     expect(Object.keys(full.graph.edges)).toHaveLength(0);
   });
 
+  // The 3D assembly must survive the save route untouched. `boardState` is
+  // parsed with `boardStateSchema`, and zod strips unknown keys — so a schema
+  // that lost `assembly` would silently drop every uploaded model *and* make
+  // the orphan-asset sweep reclaim the files it references.
+  test("round-trips the 3D assembly document", async () => {
+    const p = await postProject("Assembly Save");
+    const assembly = {
+      bodies: {
+        b1: {
+          id: "b1",
+          name: "bracket",
+          assetId: "asset-1",
+          uri: "/project/x/assets/asset-1",
+          format: "glb",
+          parent: { kind: "world" },
+          transform: { position: [1, 2, 3], rotation: [0, 0, 0], scale: 2 },
+          importScale: 1000,
+          upAxis: "z",
+        },
+      },
+      bindings: [],
+    };
+
+    const res = await req(`/project/${p.project.id}/state`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ boardState: { ...testBoardState, assembly } }),
+    });
+    expect(res.status).toBe(200);
+
+    const full = typed<{ boardState: { assembly?: typeof assembly } }>(
+      await json(await req(`/project/${p.project.id}`))
+    );
+    expect(full.boardState.assembly).toEqual(assembly);
+  });
+
+  test("round-trips the environment layer", async () => {
+    const p = await postProject("Environment Save");
+    const environment = {
+      obstacles: {
+        o1: { id: "o1", shape: "wall", x1: 5, y1: 6, x2: 10, y2: 2, label: "" },
+      },
+      boundaryEnabled: false,
+      boundaryMargin: 42,
+    };
+
+    const res = await req(`/project/${p.project.id}/state`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ boardState: { ...testBoardState, environment } }),
+    });
+    expect(res.status).toBe(200);
+
+    const full = typed<{ boardState: { environment: typeof environment } }>(
+      await json(await req(`/project/${p.project.id}`))
+    );
+    expect(full.boardState.environment.boundaryMargin).toBe(42);
+    expect(full.boardState.environment.boundaryEnabled).toBe(false);
+    expect(Object.keys(full.boardState.environment.obstacles)).toEqual(["o1"]);
+  });
+
+  // End-to-end guard for the two halves of the same bug: the client saves the
+  // assembly, and the sweep reads it back to decide what is still in use. When
+  // `assembly` was missing from the save payload the sweep saw zero bodies, so
+  // it marked every imported model orphaned and deleted the files after the
+  // grace window. Upload → reference → sweep must leave the asset untouched.
+  test("a model referenced by a saved assembly body survives the sweep", async () => {
+    const p = await postProject("Sweep Referenced");
+    const pid = p.project.id;
+
+    const form = new FormData();
+    form.append("file", new Blob([new Uint8Array([1, 2, 3, 4])]), "part.glb");
+    const uploaded = typed<{ assetId: string; uri: string; assetType: string }>(
+      await json(await req(`/project/${pid}/assets`, { method: "POST", body: form }))
+    );
+    expect(uploaded.assetType).toBe("model");
+
+    const assembly = {
+      bodies: {
+        b1: {
+          id: "b1",
+          name: "part",
+          assetId: uploaded.assetId,
+          uri: uploaded.uri,
+          format: "glb",
+          parent: { kind: "world" },
+          transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: 1 },
+          importScale: 1,
+          upAxis: "y",
+        },
+      },
+      bindings: [],
+    };
+    const saved = await req(`/project/${pid}/state`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ boardState: { ...testBoardState, assembly } }),
+    });
+    expect(saved.status).toBe(200);
+
+    const sweep = typed<{ removed: number; marked: number }>(
+      await json(await req(`/project/${pid}/assets/sweep`, { method: "POST" }))
+    );
+    expect(sweep.marked).toBe(0);
+    expect(sweep.removed).toBe(0);
+
+    const after = typed<{ assets: Record<string, { meta?: { orphanedAt?: string } }> }>(
+      await json(await req(`/project/${pid}`))
+    );
+    expect(after.assets[uploaded.assetId]).toBeDefined();
+    expect(after.assets[uploaded.assetId]?.meta?.orphanedAt).toBeUndefined();
+  });
+
+  // Control for the test above: with no assembly referencing it, the very same
+  // upload IS marked. This is what every project used to look like on the
+  // server, which is why the sweep was reclaiming live models.
+  test("an unreferenced model is marked orphaned by the sweep", async () => {
+    const p = await postProject("Sweep Unreferenced");
+    const pid = p.project.id;
+
+    const form = new FormData();
+    form.append("file", new Blob([new Uint8Array([5, 6, 7, 8])]), "stray.glb");
+    const uploaded = typed<{ assetId: string }>(
+      await json(await req(`/project/${pid}/assets`, { method: "POST", body: form }))
+    );
+
+    const sweep = typed<{ marked: number; removed: number }>(
+      await json(await req(`/project/${pid}/assets/sweep`, { method: "POST" }))
+    );
+    expect(sweep.marked).toBe(1);
+    // Grace window: marked, but the file is kept on this first sweep.
+    expect(sweep.removed).toBe(0);
+
+    const after = typed<{ assets: Record<string, { meta?: { orphanedAt?: string } }> }>(
+      await json(await req(`/project/${pid}`))
+    );
+    expect(after.assets[uploaded.assetId]?.meta?.orphanedAt).toBeString();
+  });
+
   test("returns 400 when payload is empty", async () => {
     const p = await postProject("Empty");
     const res = await req(`/project/${p.project.id}/state`, {
