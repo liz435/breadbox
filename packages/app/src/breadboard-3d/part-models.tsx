@@ -10,9 +10,10 @@
 // registry (keyed by component id) so the signal loop can drive them without
 // React re-renders.
 
-import { useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react"
+import { useCallback, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react"
 import type { ReactNode } from "react"
 import { useThree } from "@react-three/fiber"
+import type { ThreeEvent } from "@react-three/fiber"
 import { useGLTF } from "@react-three/drei"
 import type { Group, Mesh, Object3D } from "three"
 import { Box3, ExtrudeGeometry, MeshStandardMaterial, Vector3 } from "three"
@@ -24,7 +25,8 @@ import { gridToPixel } from "@/breadboard/breadboard-grid"
 import { useBoardSelector } from "@/store/board-context"
 import { BOARD_SURFACE_Y, pixelToWorld, pxToMm, type WorldPoint } from "./layout"
 import { componentFootprint, footprintCenter, rotationYaw } from "./part-frame"
-import { registerPartNodes } from "./scene-registry"
+import { registerPartNodes, SEVEN_SEGMENT_ORDER } from "./scene-registry"
+import { buttonPressStore, useButtonPressed } from "@/simulator/button-press-store"
 import { resistorBands } from "./resistor-color-code"
 import { resolveLedColor } from "./led-colors"
 import { GLB_PARTS, GlbPartModel } from "./glb-parts"
@@ -189,16 +191,43 @@ function UltrasonicModel(_props: { component: BoardComponent }) {
   )
 }
 
-function ButtonModel(_props: { component: BoardComponent }) {
+function ButtonModel({ component }: { component: BoardComponent }) {
+  // Same press store the 2D button uses — the circuit-analysis hook subscribes to
+  // it and re-solves, so pressing in 3D closes the contacts in the running sketch.
+  const pressed = useButtonPressed(component.id)
+  const press = useCallback(
+    (e: ThreeEvent<PointerEvent>) => {
+      e.stopPropagation() // don't also start a body drag in physics mode
+      buttonPressStore.press(component.id)
+      // Release on the next global pointer-up wherever it lands, so sliding off
+      // the cap mid-press (or the cap sinking out from under the cursor) doesn't
+      // strand it held. A stray onPointerOut can't; window pointerup always fires.
+      const release = () => buttonPressStore.release(component.id)
+      window.addEventListener("pointerup", release, { once: true })
+      window.addEventListener("pointercancel", release, { once: true })
+    },
+    [component.id],
+  )
+  // Cap sinks ~0.6 mm and reddens while held so the press reads in 3D.
   return (
     <group>
       <mesh position={[0, 1.75, 0]}>
         <boxGeometry args={[6, 3.5, 6]} />
         <meshStandardMaterial color="#37474f" roughness={0.6} />
       </mesh>
-      <mesh position={[0, 4, 0]}>
+      <mesh
+        position={[0, pressed ? 3.4 : 4, 0]}
+        onPointerDown={press}
+        onPointerOver={(e) => {
+          e.stopPropagation()
+          document.body.style.cursor = "pointer"
+        }}
+        onPointerOut={() => {
+          document.body.style.cursor = ""
+        }}
+      >
         <cylinderGeometry args={[1.75, 1.75, 1.5, 16]} />
-        <meshStandardMaterial color="#111111" roughness={0.5} />
+        <meshStandardMaterial color={pressed ? "#c62828" : "#111111"} roughness={0.5} />
       </mesh>
     </group>
   )
@@ -270,9 +299,14 @@ function numberProp(component: BoardComponent, key: string, fallback: number): n
 const RESISTOR_BODY_LEN_MM = 6.03
 const RESISTOR_BODY_R_MM = 1.2
 const RESISTOR_BAND_FRACTIONS = [0.23, 0.4, 0.67] as const
-/** Lift the body centre this far above the board so the leads drop into it,
- *  matching AxialModel's ~2 mm body height. */
-const RESISTOR_LIFT_MM = 2
+/** Lift the body centre this far (mm) above the board so the resistor rests up on
+ *  its leads like a real axial part, instead of sitting flush and reading as sunk
+ *  into the board. The GLB's baked leads reach ~6 mm below the body centre, so at
+ *  4 mm the tips still plunge ~2 mm into the holes (board is 8.5 mm thick). */
+const RESISTOR_LIFT_MM = 4
+/** Height (mm) of the full-span lead wire — coaxial with the body so it looks like
+ *  the resistor's own axial wire running through it and out to both holes. */
+const RESISTOR_LEAD_Y_MM = RESISTOR_LIFT_MM
 /** The ceramic-body mesh in resistor-base.glb (material "Material.058"). */
 const RESISTOR_BODY_MATERIAL = "058"
 
@@ -318,9 +352,19 @@ function ResistorModel({ component }: { component: BoardComponent }) {
   const b = pixelToWorld(last.x, last.y)
   // Orient the body along the line between the two end holes (as AxialModel).
   const yaw = Math.atan2(-(b.z - a.z), b.x - a.x)
+  const span = Math.hypot(b.x - a.x, b.z - a.z)
 
   return (
     <group rotation={[0, yaw, 0]}>
+      {/* Full-span lead wire bridging the two holes. The resistor straddles the
+          center gap (legs at col 3 and col 6, ~10 mm apart) but the GLB body is a
+          fixed ~6 mm and its baked leads only drop straight down at the body ends,
+          so nothing crossed the trench — the raised body read as "disconnected in
+          the middle". This wire spans hole-to-hole so the part is continuous. */}
+      <mesh position={[0, RESISTOR_LEAD_Y_MM, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.4, 0.4, span, 10]} />
+        <meshStandardMaterial color="#b0b0b0" metalness={0.75} roughness={0.35} />
+      </mesh>
       <group position={[0, RESISTOR_LIFT_MM, 0]}>
         <group scale={fit.scale} position={fit.offset}>
           <primitive object={base} />
@@ -492,21 +536,70 @@ function ScreenModuleModel({
 }
 
 /** Seven-segment display: dark block with lit-red segment bars. */
+const SEG_BAR = 1.2 // segment thickness (short dimension), mm
+const SEG_THICK = 0.7 // segment height above the display face, mm
+const SEG_FACE_Y = 6 // top of the display body, mm
+const SEG_Y = SEG_FACE_Y + SEG_THICK / 2 + 0.05
+
+type SegmentPiece = { key: string; pos: [number, number, number]; size: [number, number, number] }
+
 function SevenSegmentModel({ component }: { component: BoardComponent }) {
   const fp = componentFootprint(component)
   const width = Math.max(12, pxToMm(fp.width))
   const depth = Math.max(16, pxToMm(fp.height))
+
+  // Standard digit-8 laid on the top face: a/g/d horizontals, f/b upper verticals,
+  // e/c lower verticals, dp dot at lower-right.
+  const halfW = (width * 0.42) / 2
+  const halfH = (depth * 0.5) / 2
+  const hLen = halfW * 2 - SEG_BAR // horizontal bar length (x)
+  const vLen = halfH - SEG_BAR // vertical bar length (z)
+  const segments = useMemo<SegmentPiece[]>(
+    () => [
+      { key: "a", pos: [0, SEG_Y, -halfH], size: [hLen, SEG_THICK, SEG_BAR] },
+      { key: "b", pos: [halfW, SEG_Y, -halfH / 2], size: [SEG_BAR, SEG_THICK, vLen] },
+      { key: "c", pos: [halfW, SEG_Y, halfH / 2], size: [SEG_BAR, SEG_THICK, vLen] },
+      { key: "d", pos: [0, SEG_Y, halfH], size: [hLen, SEG_THICK, SEG_BAR] },
+      { key: "e", pos: [-halfW, SEG_Y, halfH / 2], size: [SEG_BAR, SEG_THICK, vLen] },
+      { key: "f", pos: [-halfW, SEG_Y, -halfH / 2], size: [SEG_BAR, SEG_THICK, vLen] },
+      { key: "g", pos: [0, SEG_Y, 0], size: [hLen, SEG_THICK, SEG_BAR] },
+      { key: "dp", pos: [halfW + SEG_BAR * 1.6, SEG_Y, halfH], size: [SEG_BAR, SEG_THICK, SEG_BAR] },
+    ],
+    [halfW, halfH, hLen, vLen],
+  )
+
+  // One material per segment: dark red when off; the animation driver raises the
+  // emissive intensity to glow when the segment's driver pin lights it. Order
+  // follows SEVEN_SEGMENT_ORDER so the driver can index into segmentMaterials.
+  const materials = useMemo(
+    () =>
+      SEVEN_SEGMENT_ORDER.map(
+        () =>
+          new MeshStandardMaterial({
+            color: "#360a0a",
+            emissive: "#ff3b30",
+            emissiveIntensity: 0,
+            roughness: 0.4,
+          }),
+      ),
+    [],
+  )
+  useLayoutEffect(
+    () => registerPartNodes(component.id, { segmentMaterials: materials }),
+    [component.id, materials],
+  )
+
   return (
     <group>
       <mesh position={[0, 3, 0]}>
         <boxGeometry args={[width, 6, depth]} />
         <meshStandardMaterial color="#1a1a1a" roughness={0.5} />
       </mesh>
-      {/* two horizontal + implied segments as a red panel inset */}
-      <mesh position={[0, 6.1, 0]}>
-        <boxGeometry args={[width * 0.55, 0.4, depth * 0.7]} />
-        <meshStandardMaterial color="#5a0f0f" emissive="#c62828" emissiveIntensity={0.25} />
-      </mesh>
+      {segments.map((seg, i) => (
+        <mesh key={seg.key} position={seg.pos} material={materials[i]}>
+          <boxGeometry args={seg.size} />
+        </mesh>
+      ))}
     </group>
   )
 }

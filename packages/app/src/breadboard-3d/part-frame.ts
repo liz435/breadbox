@@ -4,13 +4,13 @@
 // part renderer (part-models.tsx) and the GLB pin-fit (glb-parts.tsx) can use
 // them without a circular import.
 //
-// `footprintCenter`/`rotationYaw` drive the PartMesh group placement (unwarped
+// `footprintCenter`/`rotationYaw` drive the PartMesh group placement (warped
 // centroid + 90° yaw). `footprintPinTargets` returns each pin's *warped* world
 // hole — the target the pin calibration fits the model's pins onto.
 
 import type { BoardComponent } from "@dreamer/schemas"
-import { getComponentFootprint, gridToPixel, type GridPoint } from "@/breadboard/breadboard-grid"
-import { pixelToWorld, type WorldPoint } from "./layout"
+import { getComponentFootprint, type GridPoint } from "@/breadboard/breadboard-grid"
+import type { WorldPoint } from "./layout"
 import { warpedGridXZ } from "./breadboard-grid-calibration"
 import { fitSimilarity2D, type P2, type Similarity2D } from "./similarity-2d"
 
@@ -24,22 +24,25 @@ export function componentFootprint(component: BoardComponent) {
   )
 }
 
-/** World-space centroid of the holes a component occupies (unwarped — matches
- *  the grid the PartMesh group is placed on). */
+/** World-space centroid of the holes a component occupies, on the *warped*
+ *  (calibrated) grid — so a non-pin-fitted part (e.g. the LED, sized by heightMm)
+ *  seats on the same holes the pin fit targets. For pin-fitted parts this centroid
+ *  cancels out of the fit (the fit subtracts it and PartMesh adds it back), so it
+ *  is only load-bearing for the non-fit placement. */
 export function footprintCenter(component: BoardComponent): WorldPoint {
   const fp = componentFootprint(component)
   if (fp.points.length === 0) {
-    const anchor = gridToPixel({ row: component.y, col: component.x })
-    return pixelToWorld(anchor.x, anchor.y)
+    const w = warpedGridXZ(component.y, component.x)
+    return { x: w.x, z: w.z }
   }
   let sx = 0
-  let sy = 0
+  let sz = 0
   for (const point of fp.points) {
-    const px = gridToPixel(point)
-    sx += px.x
-    sy += px.y
+    const w = warpedGridXZ(point.row, point.col)
+    sx += w.x
+    sz += w.z
   }
-  return pixelToWorld(sx / fp.points.length, sy / fp.points.length)
+  return { x: sx / fp.points.length, z: sz / fp.points.length }
 }
 
 /** Yaw for the component's 90°-step rotation (2D rotates CW; world y is CCW). */
@@ -131,5 +134,16 @@ export function computePinFit(
     // R_y(-yaw) · rel — undo PartMesh's yaw so the fit is in its local frame.
     return { x: rx * cosY - rz * sinY, z: rx * sinY + rz * cosY }
   })
-  return fitSimilarity2D(cal.pins, dst)
+  const fit = fitSimilarity2D(cal.pins, dst)
+  // A degenerate calibration (targets collapsed onto one hole, junk pins)
+  // fits to a near-zero or absurd scale, rendering the part invisible or
+  // enormous. An honest model→holes fit is near 1; outside a generous band,
+  // fall back to the uncalibrated (visible) placement instead.
+  const sane =
+    Number.isFinite(fit.scale) &&
+    Number.isFinite(fit.tx) &&
+    Number.isFinite(fit.tz) &&
+    fit.scale > 0.2 &&
+    fit.scale < 5
+  return sane ? fit : null
 }

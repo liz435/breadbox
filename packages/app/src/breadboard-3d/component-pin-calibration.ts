@@ -24,8 +24,8 @@ export type PinCalibrations = Record<string, PinCalibration>
 
 /** Baked defaults — dialed in via the calibrator and pasted here with Copy JSON.
  *  A user's own localStorage entries (see load) override these per type. Types
- *  still being tuned (lcd_16x2, potentiometer, relay, temperature_sensor, servo)
- *  are intentionally absent until their anchors are finalised. */
+ *  still being tuned (potentiometer, relay, temperature_sensor, servo) are
+ *  intentionally absent until their anchors are finalised. */
 const BAKED_PIN_CALIBRATION: PinCalibrations = {
   buzzer: {
     pins: [
@@ -34,12 +34,12 @@ const BAKED_PIN_CALIBRATION: PinCalibrations = {
     ],
     gaps: [2],
   },
-  led: {
-    pins: [
-      { x: 0.036950692634412974, z: 1.7058775912822817 },
-      { x: -0.3597704037698719, z: -1.4620880982067863 },
-    ],
-  },
+  // led is intentionally NOT pin-calibrated. Its two legs are one hole apart, so
+  // fitting them onto the footprint holes pins the whole-model scale to that ~2.5
+  // mm span — and because the led.glb is ~84% leg by height, that leaves a tiny
+  // ~1.5 mm dome on a long stalk. Sizing it by heightMm (see GLB_PARTS.led) and
+  // sinking the legs into the board reads far better; the pin fit adds nothing but
+  // a bad scale for this leg-dominated model.
   rgb_led: {
     pins: [
       { x: -1, z: 0 },
@@ -56,12 +56,53 @@ const BAKED_PIN_CALIBRATION: PinCalibrations = {
       { x: 4.75, z: -16 },
     ],
   },
+  // Derived from the GLB's 16-pin header line (mesh "metal", +z edge) in the
+  // model's normalized frame at rotation [0, π, 0]: 16 sockets evenly spaced
+  // across the detected 24.8 mm header span at z≈10.2 mm (the header sits on one
+  // long edge, offset from centre — which is why the flat 4 mm default spread
+  // looked far too wide). Pin 0 (vss) is the −x end; if the module ends up
+  // flipped end-for-end, reverse this array. Real HD44780 pins are evenly
+  // pitched, so even spacing across the span is faithful.
+  lcd_16x2: {
+    pins: [
+      { x: -4.16, z: 10.23 }, // pin 0 · vss
+      { x: -2.51, z: 10.23 },
+      { x: -0.86, z: 10.23 },
+      { x: 0.79, z: 10.23 },
+      { x: 2.44, z: 10.23 },
+      { x: 4.09, z: 10.23 },
+      { x: 5.74, z: 10.23 },
+      { x: 7.39, z: 10.23 },
+      { x: 9.04, z: 10.23 },
+      { x: 10.69, z: 10.23 },
+      { x: 12.34, z: 10.23 },
+      { x: 13.99, z: 10.23 },
+      { x: 15.64, z: 10.23 },
+      { x: 17.29, z: 10.23 },
+      { x: 18.94, z: 10.23 },
+      { x: 20.59, z: 10.23 }, // pin 15 · k
+    ],
+  },
   ultrasonic_sensor: {
     pins: [
       { x: -3, z: -7 },
       { x: -1, z: -7 },
       { x: 1, z: -7 },
       { x: 3, z: -7 },
+    ],
+  },
+  // VIRTUAL pins (the SG90 has no board pins — its cable ends in a connector):
+  // three points under the body's base centre at true 2.54mm pitch, in the
+  // normalized frame (heightMm 67 ≈ scale 1). glbNormalize centres on the full
+  // bbox, and the bundled cable (z→92mm) drags that centre ~35mm off the body —
+  // this fit puts the BODY back over its 3 footprint holes at real scale, with
+  // the cable draping down-board. Derived from per-node GLB bounds, not dropped
+  // by hand.
+  servo: {
+    pins: [
+      { x: 0, z: -43.3 },
+      { x: 0, z: -40.8 },
+      { x: 0, z: -38.3 },
     ],
   },
   // Derived from the GLB's pin-tip vertex clusters (not hand-dropped): a 2×2
@@ -83,7 +124,11 @@ const BAKED_PIN_CALIBRATION: PinCalibrations = {
   },
 }
 
-const STORAGE_KEY = "dreamer:component-pin-calibration"
+// Bump the version suffix whenever BAKED_PIN_CALIBRATION is re-baked against
+// new models: older keys hold a snapshot of the baked data of their era, and
+// letting that stale copy shadow the fresh bake mis-fits (or zero-scales)
+// every instance of the affected types.
+const STORAGE_KEY = "dreamer:component-pin-calibration:v2"
 
 function isP2(v: unknown): v is P2 {
   return (
@@ -103,10 +148,15 @@ function parseEntry(value: unknown): PinCalibration | null {
   const v = value as { pins?: unknown; gaps?: unknown }
   if (!Array.isArray(v.pins) || !v.pins.every(isP2)) return null
   const pins = v.pins.map((p) => ({ x: p.x, z: p.z }))
+  if (!pins.every((p) => Number.isFinite(p.x) && Number.isFinite(p.z))) return null
+  // A gap is the hole count between consecutive pins along the pin axis — a
+  // value below 1 collapses fit targets onto one hole, which zero-scales the
+  // model (invisible part). Drop the whole entry rather than guess.
   const gaps =
     Array.isArray(v.gaps) && v.gaps.every((n) => typeof n === "number")
       ? (v.gaps as number[]).slice()
       : undefined
+  if (gaps && !gaps.every((n) => Number.isFinite(n) && n >= 1)) return null
   return gaps ? { pins, gaps } : { pins }
 }
 
@@ -134,7 +184,17 @@ const listeners = new Set<() => void>()
 function commit(next: PinCalibrations) {
   state = next
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+    // Persist only entries that differ from the baked data. Writing the whole
+    // merged state would snapshot today's bake into localStorage, where it
+    // shadows every future re-bake (the exact staleness the version suffix
+    // exists to escape).
+    const overrides: PinCalibrations = {}
+    for (const [type, entry] of Object.entries(next)) {
+      if (JSON.stringify(entry) !== JSON.stringify(BAKED_PIN_CALIBRATION[type])) {
+        overrides[type] = entry
+      }
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(overrides))
   } catch {
     // Non-fatal: calibration just won't persist across reloads.
   }
@@ -186,9 +246,14 @@ export function setPinGaps(type: string, gaps: number[] | undefined): void {
   commit({ ...state, [type]: next })
 }
 
+/** Drop the user's localStorage anchors for a type, reverting to the baked
+ *  calibration when one exists (a stale local override otherwise shadows a
+ *  newer baked default until the next full reload). */
 export function clearPinCalibration(type: string): void {
   const next = { ...state }
-  delete next[type]
+  const baked = BAKED_PIN_CALIBRATION[type]
+  if (baked) next[type] = baked
+  else delete next[type]
   commit(next)
 }
 

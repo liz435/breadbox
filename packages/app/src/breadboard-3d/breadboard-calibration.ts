@@ -34,7 +34,7 @@ const DEFAULT_TRANSFORM: BreadboardTransform = {
   scale: 1.46,
 }
 
-const STORAGE_KEY = "dreamer:breadboard-calibration"
+const STORAGE_KEY = "dreamer:breadboard-calibration:v2"
 
 function load(): BreadboardTransform {
   if (typeof localStorage === "undefined") return DEFAULT_TRANSFORM

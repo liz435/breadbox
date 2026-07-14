@@ -31,6 +31,7 @@ import {
   getBodyMaterials,
   getBodyMixer,
   getPartNodes,
+  SEVEN_SEGMENT_ORDER,
 } from "./scene-registry"
 
 /** SG90 no-load speed is ~600°/s; a loaded horn is slower. */
@@ -63,6 +64,11 @@ function channelBrightness(pin: number | null, pinStates: PinState[]): number {
  *  frame). null when a channel isn't wired to a driver pin. */
 type RgbLedPins = { id: string; red: number | null; green: number | null; blue: number | null }
 
+/** A 7-segment display's 8 segment pins, resolved from the wire graph once, in
+ *  {@link SEVEN_SEGMENT_ORDER} so index i lights segmentMaterials[i].
+ *  anode = common-anode wiring (a segment lights when its pin is driven LOW). */
+type SevenSegPins = { id: string; pins: (number | null)[]; anode: boolean }
+
 export function AnimationDriver() {
   const libraryState = useBoardSelector((ctx) => ctx.libraryState)
   const components = useBoardSelector((ctx) => ctx.components)
@@ -92,6 +98,34 @@ export function AnimationDriver() {
   // branch's colour back to red-channel-only brightness every frame.
   const rgbLedIds = useMemo(() => new Set(rgbLeds.map((r) => r.id)), [rgbLeds])
 
+  // LCD component ids (there's one live LCD state, but the panel is per-part).
+  const lcdIds = useMemo(
+    () => Object.values(components).filter((c) => c.type === "lcd_16x2").map((c) => c.id),
+    [components],
+  )
+
+  // OLED component ids — each has its own SSD1306 framebuffer in libraryState.oled.
+  const oledIds = useMemo(
+    () => Object.values(components).filter((c) => c.type === "oled_display").map((c) => c.id),
+    [components],
+  )
+
+  // Each 7-segment display's segment pins, resolved from the wire graph. Like
+  // the RGB LED mapping, this only changes when parts/wires change; per frame we
+  // just read pinStates at these indices.
+  const sevenSegs = useMemo<SevenSegPins[]>(() => {
+    const out: SevenSegPins[] = []
+    for (const c of Object.values(components)) {
+      if (c.type !== "seven_segment") continue
+      out.push({
+        id: c.id,
+        pins: SEVEN_SEGMENT_ORDER.map((seg) => findArduinoPinForComponentPin(c, seg, wires)),
+        anode: c.properties.commonType === "anode",
+      })
+    }
+    return out
+  }, [components, wires])
+
   // Latest sim data for the frame loop, without re-subscribing useFrame.
   const dataRef = useRef<{
     libraryState: LibraryState
@@ -100,14 +134,25 @@ export function AnimationDriver() {
     pinStates: PinState[]
     rgbLeds: RgbLedPins[]
     rgbLedIds: Set<string>
-  }>({ libraryState, analysis, assembly, pinStates, rgbLeds, rgbLedIds })
-  dataRef.current = { libraryState, analysis, assembly, pinStates, rgbLeds, rgbLedIds }
+    lcdIds: string[]
+    oledIds: string[]
+    sevenSegs: SevenSegPins[]
+  }>({ libraryState, analysis, assembly, pinStates, rgbLeds, rgbLedIds, lcdIds, oledIds, sevenSegs })
+  dataRef.current = { libraryState, analysis, assembly, pinStates, rgbLeds, rgbLedIds, lcdIds, oledIds, sevenSegs }
+
+  // Last LCD state painted onto each panel, so the frame loop only repaints the
+  // texture when the buffer actually changes (not every animating frame).
+  const lastLcd = useRef(new Map<string, LibraryState["lcd"]>())
+  // Last OLED state painted per panel, so we only redraw when its framebuffer
+  // reference actually changes (the peripheral hands out a fresh object on flush).
+  const lastOled = useRef(new Map<string, LibraryState["oled"][string] | undefined>())
 
   // Demand frameloop: nudge a frame whenever sim data changes. pinStates is in
-  // here so an RGB LED's green/blue-only pin change still repaints.
+  // here so an RGB LED's green/blue-only pin change still repaints; lcdIds so a
+  // newly-mounted LCD panel paints the current buffer.
   useEffect(() => {
     invalidate()
-  }, [libraryState, analysis, assembly, pinStates, rgbLeds, invalidate])
+  }, [libraryState, analysis, assembly, pinStates, rgbLeds, lcdIds, oledIds, sevenSegs, invalidate])
 
   const axisScratch = useRef(new Vector3())
   // Per-motor current angular velocity (rad/s), ramped toward target for inertia.
@@ -134,6 +179,42 @@ export function AnimationDriver() {
         node.rotation.y += Math.sign(diff) * maxServoStep
         animating = true
       }
+    }
+
+    // Steppers → rotate the output shaft to the sim's accumulated rotor angle.
+    // The peripheral already produces a smooth, direction-correct angle, so we
+    // track it directly (no rate-limit). angleNode is spun about its local Y.
+    for (const [componentId, stepper] of Object.entries(data.libraryState.steppers)) {
+      const node = getPartNodes(componentId)?.angleNode
+      if (!node) continue
+      const target = MathUtils.degToRad(stepper.angle)
+      if (Math.abs(node.rotation.y - target) > 1e-4) {
+        node.rotation.y = target
+        animating = true
+      }
+    }
+
+    // Character LCD → repaint the 3D panel when the HD44780 buffer changes.
+    // libraryState.lcd is a fresh object on each mutation, so a reference check
+    // skips the (cheap but not free) canvas redraw on idle frames.
+    for (const id of data.lcdIds) {
+      const screen = getPartNodes(id)?.lcdScreen
+      if (!screen) continue
+      if (lastLcd.current.get(id) === data.libraryState.lcd) continue
+      lastLcd.current.set(id, data.libraryState.lcd)
+      screen.paint(data.libraryState.lcd)
+    }
+
+    // SSD1306 OLED → repaint the 3D panel when its framebuffer changes. Each OLED
+    // has its own state entry; the peripheral swaps in a fresh object on flush, so
+    // a reference check skips the redraw on idle frames.
+    for (const id of data.oledIds) {
+      const screen = getPartNodes(id)?.oledScreen
+      if (!screen) continue
+      const oled = data.libraryState.oled[id]
+      if (lastOled.current.get(id) === oled) continue
+      lastOled.current.set(id, oled)
+      screen.paint(oled ?? null)
     }
 
     // Solved electrical states → motor spin (with inertia) + LED emissive.
@@ -210,6 +291,33 @@ export function AnimationDriver() {
         material.emissiveIntensity = intensity
         animating = true
       }
+    }
+
+    // 7-segment displays → light each segment from its driver pin. Common
+    // cathode (default): a segment lights when its pin is HIGH; common anode:
+    // when LOW. An unwired segment (null pin) stays dark either way. The
+    // procedural model exposes `segmentMaterials` (emissive bars); the GLB module
+    // exposes `sevenSegScreen` (a painted overlay) — drive whichever is present.
+    for (const seg of data.sevenSegs) {
+      const partNodes = getPartNodes(seg.id)
+      const materials = partNodes?.segmentMaterials
+      const screen = partNodes?.sevenSegScreen
+      if (!materials && !screen) continue
+      const levels: number[] = []
+      for (let i = 0; i < SEVEN_SEGMENT_ORDER.length; i++) {
+        const pin = seg.pins[i]
+        const level = channelBrightness(pin, data.pinStates)
+        const on = pin === null ? 0 : seg.anode ? 1 - level : level
+        levels.push(on)
+        if (materials) {
+          const lit = on * EMISSIVE_MAX
+          if (Math.abs(materials[i].emissiveIntensity - lit) > 0.01) {
+            materials[i].emissiveIntensity = lit
+            animating = true
+          }
+        }
+      }
+      if (screen && screen.paint(levels)) animating = true
     }
 
     // Assembly bindings: component signals → uploaded-body joints + emissive.

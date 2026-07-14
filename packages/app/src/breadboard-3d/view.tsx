@@ -73,7 +73,7 @@ export function Breadboard3dView() {
             size="sm"
             variant={physicsEnabled ? "default" : "secondary"}
             onClick={() => setPhysicsEnabled(!physicsEnabled)}
-            title="Toggle Rapier physics: parts drop, settle, and can be dragged; wires drape (experimental)"
+            title="Toggle Rapier physics: parts drop, settle, and can be dragged; wires drape and can be grabbed to reshape — double-click a wire to reset (experimental)"
           >
             {physicsEnabled ? "Physics: On" : "Physics: Off"}
           </Button>

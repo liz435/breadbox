@@ -11,6 +11,12 @@
 // when a target node appears or disappears.
 
 import type { AnimationMixer, Object3D, MeshStandardMaterial } from "three"
+import type { LcdState, OledState } from "@dreamer/schemas"
+
+/** The 7-segment display's lit segments, in the order the display model builds
+ *  and registers its `segmentMaterials` and the animation loop resolves pins.
+ *  Both sides index this array, so it's the single source of that ordering. */
+export const SEVEN_SEGMENT_ORDER = ["a", "b", "c", "d", "e", "f", "g", "dp"] as const
 
 export type PartSceneNodes = {
   /** The component's root group — mount point for bodies parented on the part itself. */
@@ -21,6 +27,17 @@ export type PartSceneNodes = {
   spinNode?: Object3D
   /** Material whose emissive intensity follows a 0..1 signal (LED dome, NeoPixel). */
   emissiveMaterial?: MeshStandardMaterial
+  /** 7-segment display: the 8 segment materials in {@link SEVEN_SEGMENT_ORDER}.
+   *  The animation loop lights each from its driver pin's digital/PWM level. */
+  segmentMaterials?: MeshStandardMaterial[]
+  /** Live 7-segment overlay (GLB display module): repaint its texture from the 8
+   *  per-segment levels (0..1) in {@link SEVEN_SEGMENT_ORDER}. Returns true when
+   *  the drawing changed, so the loop invalidates only on a real change. */
+  sevenSegScreen?: { paint: (levels: number[]) => boolean }
+  /** Live character-LCD panel: repaint its texture from the sim's LCD state. */
+  lcdScreen?: { paint: (state: LcdState | null) => void }
+  /** Live SSD1306 OLED panel: repaint its texture from the sim's OLED state. */
+  oledScreen?: { paint: (state: OledState | null) => void }
 }
 
 const nodes = new Map<string, PartSceneNodes>()

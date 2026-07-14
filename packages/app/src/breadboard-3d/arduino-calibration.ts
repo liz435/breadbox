@@ -13,7 +13,6 @@
 // model, then "Copy JSON" from the panel to bake a new default in here.
 
 import { useSyncExternalStore } from "react"
-import { ARDUINO_HEADER_TOP_Y } from "./layout"
 
 /** Corrected in-plane position of one header socket (world mm). */
 export type PinOverride = { x: number; z: number }
@@ -25,15 +24,56 @@ export type Calibration = {
   overrides: Record<number, PinOverride>
 }
 
-/** Baked defaults from a completed calibration pass — paste an exported map
- *  here to ship it as the out-of-the-box alignment. Empty overrides = wires use
- *  the true schematic pin positions (the current model is accurately scaled). */
+/** Baked defaults from a completed calibration pass — paste an exported map here
+ *  to ship it as the out-of-the-box alignment. Aligned to arduino-uno.glb: every
+ *  socket in a header strip was hand-dragged roughly onto the model, then each
+ *  strip was straightened — a least-squares line fit through its sockets with the
+ *  pins re-spaced evenly between the strip's two ends. Re-run the "Calibrate
+ *  Arduino" panel + "Copy JSON" to refresh. */
 const BAKED_CALIBRATION: Calibration = {
-  headerY: ARDUINO_HEADER_TOP_Y,
-  overrides: {},
+  // Plug depth (world mm) where jumper ends meet the header sockets.
+  headerY: 9.1,
+  overrides: {
+    // Digital header, left strip — SCL, SDA, AREF, GND, D13…D8 (top edge).
+    [-11]: { x: -64.294, z: -81.546 }, // SCL
+    [-10]: { x: -62.406, z: -81.552 }, // SDA
+    [-7]: { x: -60.519, z: -81.557 }, // AREF
+    [-6]: { x: -58.631, z: -81.562 }, // GND
+    [13]: { x: -56.743, z: -81.568 },
+    [12]: { x: -54.856, z: -81.573 },
+    [11]: { x: -52.968, z: -81.579 },
+    [10]: { x: -51.08, z: -81.584 },
+    [9]: { x: -49.193, z: -81.589 },
+    [8]: { x: -47.305, z: -81.595 },
+    // Digital header, right strip — D7…D0 (top edge).
+    [7]: { x: -44.012, z: -81.574 },
+    [6]: { x: -42.117, z: -81.581 },
+    [5]: { x: -40.221, z: -81.588 },
+    [4]: { x: -38.326, z: -81.595 },
+    [3]: { x: -36.431, z: -81.602 },
+    [2]: { x: -34.536, z: -81.609 },
+    [1]: { x: -32.64, z: -81.616 },
+    [0]: { x: -30.745, z: -81.623 },
+    // Power header — IOREF, 5V2, RESET, 3V3, 5V, GND, GND, VIN (bottom edge).
+    [-8]: { x: -57.771, z: -45.286 }, // IOREF
+    [-12]: { x: -55.842, z: -45.293 }, // 5V2 (second usable 5V, placed right of IOREF)
+    [-9]: { x: -53.913, z: -45.299 }, // RESET
+    [-2]: { x: -51.984, z: -45.305 }, // 3V3
+    [-1]: { x: -50.054, z: -45.312 }, // 5V
+    [-3]: { x: -48.125, z: -45.318 }, // GND
+    [-4]: { x: -46.196, z: -45.324 }, // GND
+    [-5]: { x: -44.267, z: -45.331 }, // VIN
+    // Analog header — A0…A5 (bottom edge).
+    [14]: { x: -40.19, z: -45.275 }, // A0
+    [15]: { x: -38.251, z: -45.259 },
+    [16]: { x: -36.312, z: -45.244 },
+    [17]: { x: -34.372, z: -45.229 },
+    [18]: { x: -32.433, z: -45.214 },
+    [19]: { x: -30.494, z: -45.198 }, // A5
+  },
 }
 
-const STORAGE_KEY = "dreamer:arduino-pin-calibration"
+const STORAGE_KEY = "dreamer:arduino-pin-calibration:v2"
 
 function load(): Calibration {
   if (typeof localStorage === "undefined") return BAKED_CALIBRATION
