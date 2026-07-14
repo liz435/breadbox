@@ -12,6 +12,7 @@ const BOARD_ANALOG_PIN_NUMBERS: Record<BoardTarget, readonly number[]> = {
 
 const POWER_PIN_LABELS: Record<number, string> = {
   [-1]: "5V",
+  [-12]: "5V2", // second usable 5V (Uno corner socket)
   [-2]: "3V3",
   [-3]: "GND",
   [-4]: "GND",

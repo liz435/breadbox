@@ -186,8 +186,8 @@ export function buildNetlist(
   for (const net of nets) {
     for (const arduinoPin of net.arduinoPins) {
       // Power pins
-      if (arduinoPin === -1) {
-        // 5V pin
+      if (arduinoPin === -1 || arduinoPin === -12) {
+        // 5V pins (mid-strip -1 and the corner socket -12)
         voltageSourceNets.push({
           label: "V_5V",
           netId: net.id,

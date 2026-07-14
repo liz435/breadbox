@@ -36,7 +36,7 @@ export function isGroundPin(pin: number): boolean {
   return pin === -3 || pin === -4 || pin === -6;
 }
 export function isPowerPin(pin: number): boolean {
-  return pin === -1 || pin === -2;
+  return pin === -1 || pin === -12 || pin === -2;
 }
 export function isSignalPin(pin: number): boolean {
   return pin >= 0;
@@ -61,7 +61,7 @@ export function resolveComponentPinTarget(
 // ── Board state summary for system prompt injection ─────────────────────
 
 export function formatArduinoPin(pin: number): string {
-  if (pin === -1) return "5V";
+  if (pin === -1 || pin === -12) return "5V";
   if (pin === -2) return "3V3";
   if (pin === -3 || pin === -4 || pin === -6) return "GND";
   if (pin >= 14 && pin <= 19) return `A${pin - 14}`;

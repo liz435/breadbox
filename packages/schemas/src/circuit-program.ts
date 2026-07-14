@@ -224,6 +224,7 @@ function parseProgramPinToken(token: string, board: BoardTarget): number | null 
   const upper = token.trim().toUpperCase();
   if (upper === "GND") return -3;
   if (upper === "5V") return -1;
+  if (upper === "5V2") return -12;
   if (upper === "3V3") return -2;
   return parseArduinoPinToken(token, board);
 }
@@ -232,7 +233,7 @@ function arduinoEndpointFromToken(token: string, board: BoardTarget): string | n
   const parsed = parseProgramPinToken(token, board);
   if (parsed === -3) return "arduino.GND";
   if (parsed === -2) return "arduino.3V3";
-  if (parsed === -1) return "arduino.5V";
+  if (parsed === -1 || parsed === -12) return "arduino.5V";
   if (parsed == null) return null;
   return parsed >= 14 ? `arduino.A${parsed - 14}` : `arduino.${parsed}`;
 }
