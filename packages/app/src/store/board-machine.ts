@@ -643,6 +643,7 @@ export const boardMachine = setup({
             : s.sketchCode;
         const libraryState = Object.assign({} as LibraryState, {
           servos: {},
+          steppers: {},
           lcd: null,
           serialBaud: 0,
           oled: {},

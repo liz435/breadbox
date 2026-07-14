@@ -64,6 +64,7 @@ describe("component completeness — schematic symbols", () => {
     "oled_display",
     "power_supply",
     "shift_register",
+    "stepper_motor",
   ].sort()
 
   test("every other placeable type declares a schematic symbol", () => {

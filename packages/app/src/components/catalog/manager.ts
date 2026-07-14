@@ -40,6 +40,7 @@ import { neopixel } from "./neopixel"
 import { pirSensor } from "./pir-sensor"
 import { relay } from "./relay"
 import { dcMotor } from "./dc-motor"
+import { stepperMotor } from "./stepper-motor"
 import { dhtSensor } from "./dht-sensor"
 import { irReceiver } from "./ir-receiver"
 import { irRemote } from "./ir-remote"
@@ -76,6 +77,7 @@ export const COMPONENT_REGISTRY: ComponentDefinition[] = [
   pirSensor,
   relay,
   dcMotor,
+  stepperMotor,
   dhtSensor,
   irReceiver,
   irRemote,

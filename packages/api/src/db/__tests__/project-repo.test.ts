@@ -183,7 +183,7 @@ describe("projectRepo — saveBoardAndGraph", () => {
   const boardState = {
     components: {},
     wires: {},
-    libraryState: { servos: {}, lcd: null, serialBaud: 9600, oled: {}, neopixels: {}, custom: {} },
+    libraryState: { servos: {}, steppers: {}, lcd: null, serialBaud: 9600, oled: {}, neopixels: {}, custom: {} },
     serialOutput: [],
     sketchCode: "// saved",
     customLibraries: {},
@@ -350,7 +350,7 @@ describe("projectRepo — applyBoardOps", () => {
                   color: "#eab308",
                 },
               },
-              libraryState: { servos: {}, lcd: null, serialBaud: 0, oled: {}, neopixels: {}, custom: {} },
+              libraryState: { servos: {}, steppers: {}, lcd: null, serialBaud: 0, oled: {}, neopixels: {}, custom: {} },
               serialOutput: [],
               sketchCode: "void setup(){}\nvoid loop(){}\n",
               customLibraries: {
@@ -439,6 +439,7 @@ describe("projectRepo — runtime-only state stripping (OLED framebuffer)", () =
       wires: {},
       libraryState: {
         servos: {},
+        steppers: {},
         lcd: null,
         serialBaud: 0,
         oled: {
@@ -474,6 +475,7 @@ describe("projectRepo — runtime-only state stripping (OLED framebuffer)", () =
       // libraryState parses fine because libraryStateSchema.oled has .default({}).
       libraryState: {
         servos: {},
+        steppers: {},
         lcd: null,
         serialBaud: 0,
         oled: {},

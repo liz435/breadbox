@@ -69,6 +69,7 @@ export const componentTypeSchema = z.enum([
   "pir_sensor",
   "relay",
   "dc_motor",
+  "stepper_motor",
   "dht_sensor",
   "ir_receiver",
   "ir_remote",
@@ -163,6 +164,12 @@ export const servoStateSchema = z.object({
 });
 export type ServoState = z.infer<typeof servoStateSchema>;
 
+export const stepperStateSchema = z.object({
+  // Accumulated rotor angle in degrees (unbounded — can spin many turns).
+  angle: z.number(),
+});
+export type StepperState = z.infer<typeof stepperStateSchema>;
+
 export const lcdStateSchema = z.object({
   pins: z.array(z.number()),
   cols: z.number(),
@@ -213,6 +220,8 @@ export type NeoPixelState = z.infer<typeof neoPixelStateSchema>;
 
 export const libraryStateSchema = z.object({
   servos: z.record(z.string(), servoStateSchema),
+  // Stepper rotor angles, keyed by componentId (mirrors `servos`).
+  steppers: z.record(z.string(), stepperStateSchema).default({}),
   lcd: lcdStateSchema.nullable().default(null),
   serialBaud: z.number().default(0),
   // Keyed by componentId (mirrors `servos`). I²C addresses aren't unique
@@ -322,7 +331,7 @@ export type Environment = z.infer<typeof environmentSchema>;
 const boardStateBaseSchema = z.object({
   components: z.record(z.string(), boardComponentSchema),
   wires: z.record(z.string(), wireSchema),
-  libraryState: libraryStateSchema.default({ servos: {}, lcd: null, serialBaud: 0, oled: {}, neopixels: {}, custom: {} }),
+  libraryState: libraryStateSchema.default({ servos: {}, steppers: {}, lcd: null, serialBaud: 0, oled: {}, neopixels: {}, custom: {} }),
   // Supports legacy string[] format from old saves, normalises to {text, ts}.
   // `source` (optional, added v2.x) lets the Serial Monitor filter output by
   // origin when both the simulator AND a paired real board are emitting at
@@ -401,7 +410,7 @@ export function createDefaultBoardState(): BoardState {
       },
     },
     wires: {},
-    libraryState: { servos: {}, lcd: null, serialBaud: 0, oled: {}, neopixels: {}, custom: {} },
+    libraryState: { servos: {}, steppers: {}, lcd: null, serialBaud: 0, oled: {}, neopixels: {}, custom: {} },
     serialOutput: [],
     sketchCode: DEFAULT_SKETCH_CODE,
     customLibraries: {},

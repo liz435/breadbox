@@ -45,6 +45,9 @@ const PIN_NAMES: Record<string, string[]> = {
   pir_sensor: ["vcc", "signal", "gnd"],
   relay: ["vcc", "signal", "gnd", "com", "no", "nc"],
   dc_motor: ["vcc", "signal"],
+  // 28BYJ-48 + ULN2003 driver: IN1–IN4 control the coil phases, vplus/gnd power
+  // the driver board (5V).
+  stepper_motor: ["in1", "in2", "in3", "in4", "vplus", "gnd"],
   dht_sensor: ["vcc", "data", "gnd"],
   ir_receiver: ["out", "gnd", "vcc"],
   shift_register: ["data", "clock", "latch"],
@@ -171,6 +174,18 @@ export function resolveComponentPins(
 
     case "dc_motor":
       return { vcc: { row, col }, signal: { row: row + 1, col } };
+
+    // ── Stepper motor + ULN2003 driver (6 pins vertical) ─────────
+
+    case "stepper_motor":
+      return {
+        in1: { row, col },
+        in2: { row: row + 1, col },
+        in3: { row: row + 2, col },
+        in4: { row: row + 3, col },
+        vplus: { row: row + 4, col },
+        gnd: { row: row + 5, col },
+      };
 
     // ── RGB LED (4 pins vertical) ────────────────────────────────
 

@@ -30,6 +30,7 @@ import { DhtSensorLesson } from "@/learn/lessons/dht-sensor"
 import { IrReceiverLesson } from "@/learn/lessons/ir-receiver"
 import { RelayLesson } from "@/learn/lessons/relay"
 import { DcMotorLesson } from "@/learn/lessons/dc-motor"
+import { StepperLesson } from "@/learn/lessons/stepper"
 import { ShiftRegisterLesson } from "@/learn/lessons/shift-register"
 import { NeopixelLesson } from "@/learn/lessons/neopixel"
 import { OledDisplayLesson } from "@/learn/lessons/oled-display"
@@ -59,6 +60,7 @@ const LESSON_ROUTES: Record<string, () => React.JSX.Element> = {
   "/learn/shift-register": ShiftRegisterLesson,
   "/learn/neopixel": NeopixelLesson,
   "/learn/oled-display": OledDisplayLesson,
+  "/learn/stepper": StepperLesson,
 }
 
 function LearnIndexPage() {
