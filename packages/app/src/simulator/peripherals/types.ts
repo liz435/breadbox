@@ -28,6 +28,7 @@ export type PinEdge = {
 
 export type PeripheralState =
   | { kind: "servo"; pin: number; angle: number; attached: boolean }
+  | { kind: "stepper"; angle: number }
   | { kind: "buzzer"; pin: number; frequencyHz: number | null; playing: boolean }
   | { kind: "led"; pin: number; brightness: number }
   | { kind: "rgb_led"; pins: { r: number; g: number; b: number }; brightness: { r: number; g: number; b: number } }

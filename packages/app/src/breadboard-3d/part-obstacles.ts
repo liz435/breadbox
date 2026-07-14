@@ -10,6 +10,12 @@ import { isBoardComponentType } from "@dreamer/schemas"
 import { getComponentFootprint, gridToPixel } from "@/breadboard/breadboard-grid"
 import { offsetToWorld, partBoardOffset, surfaceBoardsOf } from "./board-offsets"
 import { BOARD_SURFACE_Y, pixelToWorld, pxToMm } from "./layout"
+import { buildPartObb, getNormBounds, type Obb2 } from "./part-volume"
+import type { P2 } from "./similarity-2d"
+
+/** Per-type captured pin calibrations, passed through so the OBB tracks whatever
+ *  the calibration does. Kept structural to avoid coupling to the store module. */
+export type PinCalibrationLookup = Record<string, { pins: P2[]; gaps?: number[] } | undefined>
 
 /** Approximate part height above the board surface (mm), by component type. */
 const PART_HEIGHTS_MM: Record<string, number> = {
@@ -47,23 +53,33 @@ export function partHeightMm(type: string): number {
   return PART_HEIGHTS_MM[type] ?? NOMINAL_HEIGHT_MM
 }
 
-/** A part's footprint as a world-space disc plus a top height.
- *  - `radius` covers the drawn body (used to decide "does a wire pass over it").
- *  - `coreRadius` is the pin spread (used to decide "does a wire plug into it"):
- *    a wire whose endpoint lands within it terminates on one of the part's own
- *    holes, so that part is the wire's destination, not an obstacle. */
-export type PartObstacle = {
+/** The pin region every obstacle carries: its footprint centre `(x,z)` and
+ *  `coreRadius` (the pin spread). A wire endpoint within it plugs into the part,
+ *  so the part is that wire's destination — not something to arc over there. */
+type PlugRegion = {
   x: number
   z: number
-  radius: number
   coreRadius: number
-  topY: number
 }
+
+/** A placed part as a wire obstacle. Simple parts (body sits over their pins) use
+ *  a `disc`; GLB parts whose real body is a large, possibly offset box (LCD, OLED)
+ *  use an `obb` derived from the calibrated model bounds (see part-volume.ts).
+ *  - disc.`radius` covers the drawn body ("does a wire pass over it").
+ *  - obb.`obb` is the oriented body box; clearance is checked along the segment's
+ *    overlap with it, so an offset display is arced over even when the wire plugs
+ *    into the same part's header. */
+export type PartObstacle =
+  | (PlugRegion & { kind: "disc"; radius: number; topY: number })
+  | (PlugRegion & { kind: "obb"; obb: Obb2 })
 
 /** Build obstacle discs for every placed non-board component. Each disc is
  *  shifted onto the part's parent board, so a wire clears parts on a second or
  *  moved breadboard at their real position (mirrors the part/wire offsets). */
-export function partObstacles(components: Record<string, BoardComponent>): PartObstacle[] {
+export function partObstacles(
+  components: Record<string, BoardComponent>,
+  pinCals: PinCalibrationLookup = {},
+): PartObstacle[] {
   const surfaceBoards = surfaceBoardsOf(components)
   const obstacles: PartObstacle[] = []
   for (const component of Object.values(components)) {
@@ -101,13 +117,30 @@ export function partObstacles(components: Record<string, BoardComponent>): PartO
     // Shift the disc onto the part's parent board (matches the part/wire world
     // offset); coreRadius/radius are size-only and stay board-relative.
     const boardShift = offsetToWorld(partBoardOffset(component, surfaceBoards))
-    obstacles.push({
+    const plug: PlugRegion = {
       x: cx + boardShift.x,
       z: cz + boardShift.z,
-      radius: reach + pxToMm(7),
       coreRadius: reach,
-      topY: BOARD_SURFACE_Y + partHeightMm(component.type),
-    })
+    }
+
+    // A GLB part whose body extents are known → oriented box built from the
+    // calibrated model bounds (accurate for large/offset panel modules). Until a
+    // type's GLB has rendered once (no bounds yet), fall back to the pin disc.
+    const bounds = getNormBounds(component.type)
+    if (bounds) {
+      obstacles.push({
+        kind: "obb",
+        ...plug,
+        obb: buildPartObb(component, bounds, pinCals[component.type], boardShift),
+      })
+    } else {
+      obstacles.push({
+        kind: "disc",
+        ...plug,
+        radius: reach + pxToMm(7),
+        topY: BOARD_SURFACE_Y + partHeightMm(component.type),
+      })
+    }
   }
   return obstacles
 }

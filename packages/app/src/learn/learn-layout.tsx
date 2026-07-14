@@ -274,6 +274,13 @@ export const LESSONS: readonly LessonMeta[] = [
     summary: "Draw text on a 128x64 OLED display over I2C.",
     difficulty: "advanced",
   },
+  {
+    slug: "stepper",
+    board: "23-stepper",
+    title: "Drive a Stepper Motor",
+    summary: "Turn a 28BYJ-48 stepper precisely with the Stepper library.",
+    difficulty: "advanced",
+  },
 ]
 
 function getLessonIndex(slug: string): number {

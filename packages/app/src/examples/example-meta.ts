@@ -255,6 +255,21 @@ export const EXAMPLE_META: Record<string, ExampleMeta> = {
       pinToggles: [{ pin: 9, minToggles: 100 }],
     },
   },
+  "ex-stepper": {
+    label: "Stepper Motor",
+    description: "Turn a 28BYJ-48 stepper one revolution each way.",
+    primaryType: "stepper_motor",
+    category: "output",
+    expectedBehavior: {
+      // Stepper.h bit-bangs the four IN pins as it steps — hundreds of edges
+      // per second, so each coil line toggles many times in 600ms.
+      simulateMs: 600,
+      pinToggles: [
+        { pin: 8, minToggles: 4 },
+        { pin: 11, minToggles: 4 },
+      ],
+    },
+  },
   "ex-dht-sensor": {
     label: "Temp + Humidity",
     description: "Read a DHT sensor and print to Serial.",

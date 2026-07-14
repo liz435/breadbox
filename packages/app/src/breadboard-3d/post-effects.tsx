@@ -12,7 +12,6 @@ import {
   Bloom,
   HueSaturation,
   BrightnessContrast,
-  Vignette,
   SMAA,
 } from "@react-three/postprocessing"
 
@@ -30,7 +29,6 @@ export function PostEffects() {
       {/* Take the wash out — richer colour, a touch more contrast. */}
       <HueSaturation saturation={0.18} />
       <BrightnessContrast brightness={-0.02} contrast={0.12} />
-      <Vignette darkness={0.42} offset={0.32} />
       <SMAA />
     </EffectComposer>
   )

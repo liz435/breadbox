@@ -227,6 +227,7 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     // Single source of truth: the peripheral bus. Servo angles, LCD text
     // buffers, and OLED framebuffers all flow out of bus peripherals.
     const servos: Record<string, ServoState> = {}
+    const steppers: LibraryState["steppers"] = {}
     let lcd: LibraryState["lcd"] = null
     const oled: LibraryState["oled"] = {}
     const neopixels: LibraryState["neopixels"] = {}
@@ -235,6 +236,10 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     for (const [id, s] of Object.entries(peripherals)) {
       if (s.kind === "servo") {
         servos[id] = { pin: s.pin, angle: s.angle }
+        continue
+      }
+      if (s.kind === "stepper") {
+        steppers[id] = { angle: s.angle }
         continue
       }
       if (s.kind === "custom") {
@@ -282,11 +287,11 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     // framebuffer is a number[] (not Uint8Array) precisely so this comparison
     // is meaningful — Uint8Array would JSON.stringify to `{}` and changes
     // would be silently dropped.
-    const serialized = JSON.stringify({ servos, lcd, oled, neopixels, custom })
+    const serialized = JSON.stringify({ servos, steppers, lcd, oled, neopixels, custom })
     if (serialized === prevLibStateRef.current) return
     prevLibStateRef.current = serialized
 
-    onLibChange({ servos, lcd, oled, neopixels, custom })
+    onLibChange({ servos, steppers, lcd, oled, neopixels, custom })
   }, [])
 
   // Shared analysis result — updated inside the tick loop.

@@ -45,11 +45,16 @@ const PIN_NAMES: Record<string, string[]> = {
   pir_sensor: ["vcc", "signal", "gnd"],
   relay: ["vcc", "signal", "gnd", "com", "no", "nc"],
   dc_motor: ["vcc", "signal"],
+  // 28BYJ-48 + ULN2003 driver: IN1–IN4 control the coil phases, vplus/gnd power
+  // the driver board (5V).
+  stepper_motor: ["in1", "in2", "in3", "in4", "vplus", "gnd"],
   dht_sensor: ["vcc", "data", "gnd"],
   ir_receiver: ["out", "gnd", "vcc"],
   shift_register: ["data", "clock", "latch"],
   oled_display: ["gnd", "vcc", "scl", "sda"],
-  lcd_16x2: ["vss", "vdd", "vo", "rs", "rw", "en", "d4", "d5", "d6", "d7", "a", "k"],
+  // Full 16-pin HD44780 header. D0–D3 are physically present but unused in the
+  // 4-bit wiring the simulator/netlist model (they stay no-connect).
+  lcd_16x2: ["vss", "vdd", "vo", "rs", "rw", "en", "d0", "d1", "d2", "d3", "d4", "d5", "d6", "d7", "a", "k"],
   seven_segment: ["a", "b", "c", "d", "e", "f", "g", "dp", "gnd"],
   temperature_sensor: ["vcc", "signal", "gnd"],
   ultrasonic_sensor: ["vcc", "trigger", "echo", "gnd"],
@@ -170,6 +175,18 @@ export function resolveComponentPins(
     case "dc_motor":
       return { vcc: { row, col }, signal: { row: row + 1, col } };
 
+    // ── Stepper motor + ULN2003 driver (6 pins vertical) ─────────
+
+    case "stepper_motor":
+      return {
+        in1: { row, col },
+        in2: { row: row + 1, col },
+        in3: { row: row + 2, col },
+        in4: { row: row + 3, col },
+        vplus: { row: row + 4, col },
+        gnd: { row: row + 5, col },
+      };
+
     // ── RGB LED (4 pins vertical) ────────────────────────────────
 
     case "rgb_led":
@@ -205,7 +222,9 @@ export function resolveComponentPins(
         sda: { row: row + 3, col },
       };
 
-    // ── LCD 16x2 (12 pins vertical — full HD44780 pinout) ───────
+    // ── LCD 16x2 (16 pins vertical — full HD44780 header) ───────
+    // D0–D3 sit between EN and D4 (real header order) but are no-connect in the
+    // 4-bit wiring; they exist so the footprint occupies the real 16 holes.
 
     case "lcd_16x2":
       return {
@@ -215,12 +234,16 @@ export function resolveComponentPins(
         rs: { row: row + 3, col },
         rw: { row: row + 4, col },
         en: { row: row + 5, col },
-        d4: { row: row + 6, col },
-        d5: { row: row + 7, col },
-        d6: { row: row + 8, col },
-        d7: { row: row + 9, col },
-        a: { row: row + 10, col },
-        k: { row: row + 11, col },
+        d0: { row: row + 6, col },
+        d1: { row: row + 7, col },
+        d2: { row: row + 8, col },
+        d3: { row: row + 9, col },
+        d4: { row: row + 10, col },
+        d5: { row: row + 11, col },
+        d6: { row: row + 12, col },
+        d7: { row: row + 13, col },
+        a: { row: row + 14, col },
+        k: { row: row + 15, col },
       };
 
     // ── Ultrasonic sensor (4 pins vertical) ──────────────────────

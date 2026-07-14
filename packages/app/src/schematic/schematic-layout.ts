@@ -110,12 +110,12 @@ function isGroundPin(pin: number): boolean {
 }
 
 function isPowerPin(pin: number): boolean {
-  // 5V: -1, 3.3V: -2
-  return pin === -1 || pin === -2
+  // 5V: -1 (and the corner socket -12), 3.3V: -2
+  return pin === -1 || pin === -12 || pin === -2
 }
 
 function getPowerLabel(pin: number): string {
-  if (pin === -1) return "5V"
+  if (pin === -1 || pin === -12) return "5V"
   if (pin === -2) return "3.3V"
   return "VCC"
 }
@@ -175,6 +175,9 @@ function terminalSideForPin(
       return pinName === "signal" || pinName === "out" ? "left" : "right"
     case "relay":
       return pinName === "signal" ? "left" : "right"
+    case "stepper_motor":
+      // Control lines IN1–IN4 on the left; V+/GND exit right toward the rails.
+      return pinName === "vplus" || pinName === "gnd" ? "right" : "left"
     case "oled_display":
       return pinName === "sda" || pinName === "scl" ? "left" : "right"
     case "lcd_16x2":

@@ -27,7 +27,9 @@ import { getComponentDef } from "@/components/registry";
  * Grid coordinates use (row, col) where:
  * - row: 0-29 for terminal strips (30-row half-size breadboard)
  * - col: 0-9 for terminal strips (0-4 = left side a-e, 5-9 = right side f-j)
- * - Power rails use special col values: -2 (+ rail), -1 (- rail), 10 (+ rail), 11 (- rail)
+ * - Power rails use special col values: -2, -1 (left rail pair) and 10, 11
+ *   (right rail pair). Polarity is by `isPositiveRailCol`: the inner column of
+ *   each pair (-1, 10) is + and the outer edge column (-2, 11) is −.
  */
 
 export type GridPoint = { row: number; col: number };
@@ -51,11 +53,60 @@ import {
   GAP_WIDTH,
   RAIL_OFFSET,
   RAIL_PAIR_SPACING,
+  RAIL_BLOCK_HOLES,
   ARDUINO_BOARD_WIDTH,
   ARDUINO_BOARD_HEIGHT,
   ARDUINO_BOARD_MARGIN,
   BOARD_PADDING,
 } from "@/breadboard/breadboard-constants"
+
+/** Empty rows kept at the very top of each rail line before the first block. */
+const RAIL_END_SKIP = 2
+
+/** Rows carrying a power-rail hole. Matches this model's segmented rail: a
+ *  RAIL_END_SKIP-row margin at the top, then blocks of RAIL_BLOCK_HOLES holes
+ *  separated by a single skipped row, uniformly down the full length (no wider
+ *  break in the middle). Only whole blocks are placed, so the leftover rows at
+ *  the bottom form the bottom margin. */
+const RAIL_ROWS: ReadonlySet<number> = (() => {
+  const rows = new Set<number>()
+  const period = RAIL_BLOCK_HOLES + 1 // 5 holes + 1 skipped row
+  for (let start = RAIL_END_SKIP; start + RAIL_BLOCK_HOLES <= ROWS; start += period) {
+    for (let h = 0; h < RAIL_BLOCK_HOLES; h++) rows.add(start + h)
+  }
+  return rows
+})()
+
+/** True if a power-rail hole exists on this row (inside a block, not a gap). */
+export function isRailRow(row: number): boolean {
+  return RAIL_ROWS.has(row)
+}
+
+/** Which power-rail rows carry a hole, in order (for renderers that iterate). */
+export function railRows(): number[] {
+  return [...RAIL_ROWS].sort((a, b) => a - b)
+}
+
+/** Row of each rail block's first hole, in order (block layout single source
+ *  of truth for parts that seat onto whole blocks, e.g. the power supply). */
+export function railBlockStarts(): number[] {
+  const period = RAIL_BLOCK_HOLES + 1
+  const starts: number[] = []
+  for (let start = RAIL_END_SKIP; start + RAIL_BLOCK_HOLES <= ROWS; start += period) {
+    starts.push(start)
+  }
+  return starts
+}
+
+/** Polarity of a power-rail column. The inner column of each rail pair (−1 on
+ *  the left, 10 on the right — nearest the terminal strips) is positive; the
+ *  outer edge column (−2, 11) is negative. So with the MCU off one end of the
+ *  board, the + rail sits on the inner side, away from it. Single source of
+ *  truth for the 3D rail stripes and calibrator labels; matches the strip-id
+ *  net polarity in @dreamer/schemas. */
+export function isPositiveRailCol(col: number): boolean {
+  return col === -1 || col === 10
+}
 
 // Breadboard offset: starts after the Arduino board
 export const BREADBOARD_OFFSET_X =
@@ -161,6 +212,25 @@ function makeDigitalPins(): ArduinoPinInfo[] {
     category: "power",
     labelSide: "top",
   });
+  // R3 dedicated I2C sockets, left of AREF (order left→right: SCL, SDA, AREF).
+  // Electrically SDA≡A4 / SCL≡A5; exposed as their own sockets so the 3D model's
+  // header is complete. Not yet net-aliased to A4/A5 in the solver.
+  pins.push({
+    label: "SDA",
+    pin: -10,
+    x: artX(UNO_AREF_X - UNO_PITCH),
+    y: pinY,
+    category: "digital",
+    labelSide: "top",
+  });
+  pins.push({
+    label: "SCL",
+    pin: -11,
+    x: artX(UNO_AREF_X - 2 * UNO_PITCH),
+    y: pinY,
+    category: "digital",
+    labelSide: "top",
+  });
   return pins;
 }
 
@@ -198,7 +268,7 @@ function makePowerPins(): ArduinoPinInfo[] {
     { label: "GND", pin: -4 },
     { label: "VIN", pin: -5 },
   ];
-  return labels.map(({ label, pin }, i) => ({
+  const pins = labels.map(({ label, pin }, i) => ({
     label,
     pin,
     x: artX(UNO_IOREF_X + i * UNO_PITCH),
@@ -206,6 +276,18 @@ function makePowerPins(): ArduinoPinInfo[] {
     category: "power" as const,
     labelSide: "bottom" as const,
   }));
+  // Corner socket left of IOREF — a second usable 5V (a stock Uno R3 leaves this
+  // reserved/NC). Distinct label "5V2" so it doesn't collide with the mid-strip
+  // 5V in label-based wire resolution; it's treated as the 5V rail by pin id.
+  pins.unshift({
+    label: "5V2",
+    pin: -12,
+    x: artX(UNO_IOREF_X - UNO_PITCH),
+    y: pinY,
+    category: "power" as const,
+    labelSide: "bottom" as const,
+  });
+  return pins;
 }
 
 export const ARDUINO_DIGITAL_PINS = makeDigitalPins();
@@ -607,7 +689,8 @@ export function isOnBoard(point: GridPoint): boolean {
   const { row, col } = point;
   if (row < 0 || row >= ROWS) return false;
   if (col >= 0 && col <= 9) return true;
-  if (col === -2 || col === -1 || col === 10 || col === 11) return true;
+  // Power rails only carry holes inside their 5-hole blocks (gap rows don't).
+  if (col === -2 || col === -1 || col === 10 || col === 11) return isRailRow(row);
   return false;
 }
 

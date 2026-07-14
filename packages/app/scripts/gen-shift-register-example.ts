@@ -204,7 +204,7 @@ void loop() {
 const board: BoardState = {
   components,
   wires,
-  libraryState: { servos: {}, lcd: null, serialBaud: 0, oled: {}, neopixels: {} },
+  libraryState: { servos: {}, steppers: {}, lcd: null, serialBaud: 0, oled: {}, neopixels: {} },
   serialOutput: [],
   sketchCode,
   customLibraries: {},
@@ -214,7 +214,7 @@ const board: BoardState = {
 const out = {
   components: board.components,
   wires: board.wires,
-  libraryState: { servos: {}, lcd: null, serialBaud: 0 },
+  libraryState: { servos: {}, steppers: {}, lcd: null, serialBaud: 0 },
   serialOutput: [],
   sketchCode: board.sketchCode,
   customLibraries: {},

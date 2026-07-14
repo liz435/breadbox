@@ -55,8 +55,12 @@ describe("partObstacles coreRadius", () => {
 
   test("coreRadius is the pin spread, radius pads it for the body", () => {
     expect(obstacle).toBeDefined()
+    // No GLB renders under the test runner, so parts fall back to the pin disc.
+    expect(obstacle.kind).toBe("disc")
     expect(obstacle.coreRadius).toBeGreaterThan(0)
-    expect(obstacle.radius).toBeGreaterThan(obstacle.coreRadius)
+    if (obstacle.kind === "disc") {
+      expect(obstacle.radius).toBeGreaterThan(obstacle.coreRadius)
+    }
   })
 
   test("every one of the part's own pin holes falls within coreRadius", () => {

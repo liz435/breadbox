@@ -119,4 +119,12 @@ export const LEARN_BOARD_BEHAVIOR: Record<string, ExpectedBehavior> = {
     simulateMs: 1200,
     oledMinLitPixels: 100,
   },
+  "23-stepper": {
+    // Stepper.h bit-bangs the four IN pins — many edges per coil in 600ms.
+    simulateMs: 600,
+    pinToggles: [
+      { pin: 8, minToggles: 4 },
+      { pin: 11, minToggles: 4 },
+    ],
+  },
 }

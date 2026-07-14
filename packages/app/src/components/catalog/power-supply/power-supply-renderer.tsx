@@ -10,6 +10,7 @@ import React from "react"
 import type { BoardComponent } from "@dreamer/schemas"
 import { gridToPixel } from "@/breadboard/breadboard-grid"
 import { LABEL_FONT_SIZE } from "@/breadboard/breadboard-constants"
+import { powerSupplyPinRows } from "./pin-rows"
 
 type PowerSupplyRendererProps = {
   component: BoardComponent
@@ -20,19 +21,20 @@ function PowerSupplyRendererInner({
   component,
   isSelected,
 }: PowerSupplyRendererProps) {
-  // Anchor row — the module spans rows [row, row+1].
-  const row = component.y
+  // Anchor row snaps to a rail block — the pins span the block's 1st and 5th
+  // holes, same rows the footprint occupies.
+  const [topRow, bottomRow] = powerSupplyPinRows(component.y)
 
   // Pin positions on each rail. The module always pins to all four rails
   // regardless of where the user clicked horizontally.
-  const lPlusTop = gridToPixel({ row, col: -2 })
-  const lMinusTop = gridToPixel({ row, col: -1 })
-  const rMinusTop = gridToPixel({ row, col: 10 })
-  const rPlusTop = gridToPixel({ row, col: 11 })
-  const lPlusBot = gridToPixel({ row: row + 1, col: -2 })
-  const lMinusBot = gridToPixel({ row: row + 1, col: -1 })
-  const rMinusBot = gridToPixel({ row: row + 1, col: 10 })
-  const rPlusBot = gridToPixel({ row: row + 1, col: 11 })
+  const lPlusTop = gridToPixel({ row: topRow, col: -2 })
+  const lMinusTop = gridToPixel({ row: topRow, col: -1 })
+  const rMinusTop = gridToPixel({ row: topRow, col: 10 })
+  const rPlusTop = gridToPixel({ row: topRow, col: 11 })
+  const lPlusBot = gridToPixel({ row: bottomRow, col: -2 })
+  const lMinusBot = gridToPixel({ row: bottomRow, col: -1 })
+  const rMinusBot = gridToPixel({ row: bottomRow, col: 10 })
+  const rPlusBot = gridToPixel({ row: bottomRow, col: 11 })
 
   // Body extents — span from outer left rail to outer right rail.
   const bodyLeft = lPlusTop.x - 6

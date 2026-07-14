@@ -14,12 +14,13 @@
 
 import { isBoardComponentType } from "./arduino";
 import { resolveComponentPins } from "./component-pins";
+import { BREADBOARD_FULL_ROWS } from "./strip-ids";
 
 const GAP = 2; // empty rows between independent components
 const DEFAULT_COL = 2; // base column for vertical-footprint parts (left bus, cols 0–4)
 const STRADDLE_COL = 3; // resistor/button straddle the center gap; the resolver forces their cols
 const STRADDLE_TYPES = new Set(["resistor", "button"]);
-const BOARD_ROWS = 30;
+const BOARD_ROWS = BREADBOARD_FULL_ROWS;
 
 /** Footprint height (rows) derived from the canonical pin resolver, so it can't
  *  drift from real component geometry. Falls back to 1 row on any failure. */

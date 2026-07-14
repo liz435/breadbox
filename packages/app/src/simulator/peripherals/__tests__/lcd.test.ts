@@ -9,13 +9,14 @@ import type { BoardComponent, Wire } from "@dreamer/schemas"
 import { LcdPeripheral } from "../lcd"
 import type { PeripheralContext, PeripheralState, PinEdge } from "../types"
 
-// LCD footprint in the canonical example: x=5, y=5. That puts:
-//   rs  at (y+3, x) = (8, 5)
-//   en  at (y+5, x) = (10, 5)
-//   d4  at (y+6, x) = (11, 5)
-//   d5  at (y+7, x) = (12, 5)
-//   d6  at (y+8, x) = (13, 5)
-//   d7  at (y+9, x) = (14, 5)
+// LCD footprint in the canonical example: x=5, y=5. With the full 16-pin header
+// (D0–D3 sit between EN and D4 as no-connects), that puts:
+//   rs  at (y+3, x)  = (8, 5)
+//   en  at (y+5, x)  = (10, 5)
+//   d4  at (y+10, x) = (15, 5)
+//   d5  at (y+11, x) = (16, 5)
+//   d6  at (y+12, x) = (17, 5)
+//   d7  at (y+13, x) = (18, 5)
 //
 // We wire each footprint hole to a distinct Arduino pin so the peripheral's
 // wire-topology resolver can reconstruct the (sign, arduino-pin) mapping.
@@ -52,10 +53,10 @@ function makeWires(): Record<string, Wire> {
   return {
     "w-rs": mk("w-rs", RS_PIN, 8),
     "w-en": mk("w-en", EN_PIN, 10),
-    "w-d4": mk("w-d4", D4_PIN, 11),
-    "w-d5": mk("w-d5", D5_PIN, 12),
-    "w-d6": mk("w-d6", D6_PIN, 13),
-    "w-d7": mk("w-d7", D7_PIN, 14),
+    "w-d4": mk("w-d4", D4_PIN, 15),
+    "w-d5": mk("w-d5", D5_PIN, 16),
+    "w-d6": mk("w-d6", D6_PIN, 17),
+    "w-d7": mk("w-d7", D7_PIN, 18),
   }
 }
 

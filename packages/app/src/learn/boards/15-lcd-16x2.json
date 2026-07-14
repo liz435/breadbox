@@ -55,7 +55,7 @@
       "id": "wire-d5-d4",
       "fromRow": -999,
       "fromCol": 5,
-      "toRow": 11,
+      "toRow": 15,
       "toCol": 5,
       "color": "#22c55e"
     },
@@ -63,7 +63,7 @@
       "id": "wire-d4-d5",
       "fromRow": -999,
       "fromCol": 4,
-      "toRow": 12,
+      "toRow": 16,
       "toCol": 5,
       "color": "#22c55e"
     },
@@ -71,7 +71,7 @@
       "id": "wire-d3-d6",
       "fromRow": -999,
       "fromCol": 3,
-      "toRow": 13,
+      "toRow": 17,
       "toCol": 5,
       "color": "#3b82f6"
     },
@@ -79,7 +79,7 @@
       "id": "wire-d2-d7",
       "fromRow": -999,
       "fromCol": 2,
-      "toRow": 14,
+      "toRow": 18,
       "toCol": 5,
       "color": "#3b82f6"
     },
@@ -87,7 +87,7 @@
       "id": "wire-5v-a",
       "fromRow": -999,
       "fromCol": -1,
-      "toRow": 15,
+      "toRow": 19,
       "toCol": 5,
       "color": "#ef4444"
     },
@@ -95,7 +95,7 @@
       "id": "wire-gnd-k",
       "fromRow": -999,
       "fromCol": -3,
-      "toRow": 16,
+      "toRow": 20,
       "toCol": 5,
       "color": "#1a1a1a"
     }

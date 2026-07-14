@@ -10,19 +10,27 @@
 // registry (keyed by component id) so the signal loop can drive them without
 // React re-renders.
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react"
 import type { DependencyList, ReactNode } from "react"
 import { useThree } from "@react-three/fiber"
-import type { Group } from "three"
+import type { ThreeEvent } from "@react-three/fiber"
+import { useGLTF } from "@react-three/drei"
+import type { Group, Mesh, Object3D } from "three"
 import { Box3, ExtrudeGeometry, MeshStandardMaterial, Vector3 } from "three"
 import { SVGLoader } from "three-stdlib"
 import type { BoardComponent, DslBinding } from "@dreamer/schemas"
 import { evaluateExpression, isCustomComponentType } from "@dreamer/schemas"
 import { getCustomDef, subscribeCustom } from "@/components/catalog/custom-store"
-import { getComponentFootprint, gridToPixel } from "@/breadboard/breadboard-grid"
+import { gridToPixel } from "@/breadboard/breadboard-grid"
 import { useBoardSelector } from "@/store/board-context"
 import { BOARD_SURFACE_Y, pixelToWorld, pxToMm, type WorldPoint } from "./layout"
-import { registerPartNodes } from "./scene-registry"
+import { componentFootprint, footprintCenter, rotationYaw } from "./part-frame"
+import { registerPartNodes, SEVEN_SEGMENT_ORDER } from "./scene-registry"
+import { buttonPressStore, useButtonPressed } from "@/simulator/button-press-store"
+import { resistorBands } from "./resistor-color-code"
+import { resolveLedColor } from "./led-colors"
+import { GLB_PARTS, GlbPartModel } from "./glb-parts"
+import resistorBaseUrl from "@/assets/resistor-base.glb?url"
 
 /** Extrusion height (mm) for custom-part SVG bodies. */
 const SVG_BODY_HEIGHT_MM = 3
@@ -44,57 +52,12 @@ function useOwnedMaterial(
   return material
 }
 
-// ── Shared placement math ───────────────────────────────────────────────────
-
-function componentFootprint(component: BoardComponent) {
-  return getComponentFootprint(
-    component.type,
-    component.y,
-    component.x,
-    component.rotation,
-    component.properties,
-  )
-}
-
-/** World-space centroid of the holes a component occupies. */
-function footprintCenter(component: BoardComponent): WorldPoint {
-  const fp = componentFootprint(component)
-  if (fp.points.length === 0) {
-    const anchor = gridToPixel({ row: component.y, col: component.x })
-    return pixelToWorld(anchor.x, anchor.y)
-  }
-  let sx = 0
-  let sy = 0
-  for (const point of fp.points) {
-    const px = gridToPixel(point)
-    sx += px.x
-    sy += px.y
-  }
-  return pixelToWorld(sx / fp.points.length, sy / fp.points.length)
-}
-
-/** Yaw for the component's 90°-step rotation (2D rotates CW; world y-rotation is CCW). */
-function rotationYaw(rotation: number): number {
-  const steps = ((rotation % 4) + 4) % 4
-  return -steps * (Math.PI / 2)
-}
+// ── Shared placement math (componentFootprint / footprintCenter / rotationYaw live in part-frame) ──
 
 // ── Tier 1: hero primitives ─────────────────────────────────────────────────
 
-const LED_COLORS: Record<string, string> = {
-  red: "#e53935",
-  green: "#43a047",
-  blue: "#1e88e5",
-  yellow: "#fdd835",
-  orange: "#fb8c00",
-  white: "#f5f5f5",
-}
-
 function LedModel({ component }: { component: BoardComponent }) {
-  const color =
-    typeof component.properties.color === "string"
-      ? (LED_COLORS[component.properties.color] ?? component.properties.color)
-      : LED_COLORS.red
+  const color = resolveLedColor(component.properties.color)
   const material = useOwnedMaterial(
     () =>
       new MeshStandardMaterial({
@@ -245,16 +208,43 @@ function UltrasonicModel(_props: { component: BoardComponent }) {
   )
 }
 
-function ButtonModel(_props: { component: BoardComponent }) {
+function ButtonModel({ component }: { component: BoardComponent }) {
+  // Same press store the 2D button uses — the circuit-analysis hook subscribes to
+  // it and re-solves, so pressing in 3D closes the contacts in the running sketch.
+  const pressed = useButtonPressed(component.id)
+  const press = useCallback(
+    (e: ThreeEvent<PointerEvent>) => {
+      e.stopPropagation() // don't also start a body drag in physics mode
+      buttonPressStore.press(component.id)
+      // Release on the next global pointer-up wherever it lands, so sliding off
+      // the cap mid-press (or the cap sinking out from under the cursor) doesn't
+      // strand it held. A stray onPointerOut can't; window pointerup always fires.
+      const release = () => buttonPressStore.release(component.id)
+      window.addEventListener("pointerup", release, { once: true })
+      window.addEventListener("pointercancel", release, { once: true })
+    },
+    [component.id],
+  )
+  // Cap sinks ~0.6 mm and reddens while held so the press reads in 3D.
   return (
     <group>
       <mesh position={[0, 1.75, 0]}>
         <boxGeometry args={[6, 3.5, 6]} />
         <meshStandardMaterial color="#37474f" roughness={0.6} />
       </mesh>
-      <mesh position={[0, 4, 0]}>
+      <mesh
+        position={[0, pressed ? 3.4 : 4, 0]}
+        onPointerDown={press}
+        onPointerOver={(e) => {
+          e.stopPropagation()
+          document.body.style.cursor = "pointer"
+        }}
+        onPointerOut={() => {
+          document.body.style.cursor = ""
+        }}
+      >
         <cylinderGeometry args={[1.75, 1.75, 1.5, 16]} />
-        <meshStandardMaterial color="#111111" roughness={0.5} />
+        <meshStandardMaterial color={pressed ? "#c62828" : "#111111"} roughness={0.5} />
       </mesh>
     </group>
   )
@@ -311,6 +301,108 @@ function numberProp(component: BoardComponent, key: string, fallback: number): n
   const value = component.properties[key]
   return typeof value === "number" && Number.isFinite(value) ? value : fallback
 }
+
+// ── Resistor: shared base GLB + procedural colour-code bands ─────────────────
+//
+// One canonical resistor-base.glb (tan body + leads, body along local X centred
+// at the origin, leads dropping −Y, in mm) serves every resistor. The value's
+// colour-code bands (see resistorBands) are generated as rings snapped into the
+// body's three grooves and coloured from `properties.resistance`, so any value
+// renders from the one asset with no per-value model.
+
+// The colour bands (mm). resistor-base.glb ships the ceramic body 6.03 mm long
+// on +X (⌀2.4, r≈1.2); grooves sit at these fractions of the body length from
+// the −X end, so a ring at x = (fraction − 0.5)·length drops into each groove.
+const RESISTOR_BODY_LEN_MM = 6.03
+const RESISTOR_BODY_R_MM = 1.2
+const RESISTOR_BAND_FRACTIONS = [0.23, 0.4, 0.67] as const
+/** Lift the body centre this far (mm) above the board so the resistor rests up on
+ *  its leads like a real axial part, instead of sitting flush and reading as sunk
+ *  into the board. The GLB's baked leads reach ~6 mm below the body centre, so at
+ *  4 mm the tips still plunge ~2 mm into the holes (board is 8.5 mm thick). */
+const RESISTOR_LIFT_MM = 4
+/** Height (mm) of the full-span lead wire — coaxial with the body so it looks like
+ *  the resistor's own axial wire running through it and out to both holes. */
+const RESISTOR_LEAD_Y_MM = RESISTOR_LIFT_MM
+/** The ceramic-body mesh in resistor-base.glb (material "Material.058"). */
+const RESISTOR_BODY_MATERIAL = "058"
+
+function isMesh(object: Object3D): object is Mesh {
+  return (object as Mesh).isMesh === true
+}
+
+function ResistorModel({ component }: { component: BoardComponent }) {
+  const { scene } = useGLTF(resistorBaseUrl)
+  const base = useMemo(() => scene.clone(true), [scene])
+  const ohms = numberProp(component, "resistance", 220)
+  const bands = useMemo(() => resistorBands(ohms), [ohms])
+
+  // resistor-base.glb is authored in metres, off-centre, body along +X with the
+  // leads already dropping into −Y. Scale so the body is RESISTOR_BODY_LEN_MM
+  // long and slide the body centre to the origin, so the mm-space colour bands
+  // below line up on it — no baked-in canonicalisation needed.
+  const fit = useMemo(() => {
+    let box: Box3 | null = null
+    base.traverse((object) => {
+      if (!isMesh(object)) return
+      const material = object.material
+      const name = Array.isArray(material) ? "" : (material.name ?? "")
+      if (name.includes(RESISTOR_BODY_MATERIAL)) box = new Box3().setFromObject(object)
+    })
+    const bodyBox = box ?? new Box3().setFromObject(base)
+    const size = new Vector3()
+    const center = new Vector3()
+    bodyBox.getSize(size)
+    bodyBox.getCenter(center)
+    const scale = RESISTOR_BODY_LEN_MM / (size.x || 1)
+    return {
+      scale,
+      offset: [-center.x * scale, -center.y * scale, -center.z * scale] as [number, number, number],
+    }
+  }, [base])
+
+  const fp = componentFootprint(component)
+  if (fp.points.length < 2) return <FallbackBox component={component} />
+  const first = gridToPixel(fp.points[0])
+  const last = gridToPixel(fp.points[fp.points.length - 1])
+  const a = pixelToWorld(first.x, first.y)
+  const b = pixelToWorld(last.x, last.y)
+  // Orient the body along the line between the two end holes (as AxialModel).
+  const yaw = Math.atan2(-(b.z - a.z), b.x - a.x)
+  const span = Math.hypot(b.x - a.x, b.z - a.z)
+
+  return (
+    <group rotation={[0, yaw, 0]}>
+      {/* Full-span lead wire bridging the two holes. The resistor straddles the
+          center gap (legs at col 3 and col 6, ~10 mm apart) but the GLB body is a
+          fixed ~6 mm and its baked leads only drop straight down at the body ends,
+          so nothing crossed the trench — the raised body read as "disconnected in
+          the middle". This wire spans hole-to-hole so the part is continuous. */}
+      <mesh position={[0, RESISTOR_LEAD_Y_MM, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.4, 0.4, span, 10]} />
+        <meshStandardMaterial color="#b0b0b0" metalness={0.75} roughness={0.35} />
+      </mesh>
+      <group position={[0, RESISTOR_LIFT_MM, 0]}>
+        <group scale={fit.scale} position={fit.offset}>
+          <primitive object={base} />
+        </group>
+        {RESISTOR_BAND_FRACTIONS.map((fraction, i) => (
+          <mesh
+            key={fraction}
+            position={[(fraction - 0.5) * RESISTOR_BODY_LEN_MM, 0, 0]}
+            rotation={[0, 0, Math.PI / 2]}
+          >
+            <cylinderGeometry
+              args={[RESISTOR_BODY_R_MM + 0.03, RESISTOR_BODY_R_MM + 0.03, 0.5, 24]}
+            />
+            <meshStandardMaterial color={bands[i]} roughness={0.5} />
+          </mesh>
+        ))}
+      </group>
+    </group>
+  )
+}
+useGLTF.preload(resistorBaseUrl)
 
 /** DIP chip (IC, shift register): black body with a pin-1 notch + two leg rows. */
 function DipChipModel({ component, defaultPins }: { component: BoardComponent; defaultPins: number }) {
@@ -461,21 +553,70 @@ function ScreenModuleModel({
 }
 
 /** Seven-segment display: dark block with lit-red segment bars. */
+const SEG_BAR = 1.2 // segment thickness (short dimension), mm
+const SEG_THICK = 0.7 // segment height above the display face, mm
+const SEG_FACE_Y = 6 // top of the display body, mm
+const SEG_Y = SEG_FACE_Y + SEG_THICK / 2 + 0.05
+
+type SegmentPiece = { key: string; pos: [number, number, number]; size: [number, number, number] }
+
 function SevenSegmentModel({ component }: { component: BoardComponent }) {
   const fp = componentFootprint(component)
   const width = Math.max(12, pxToMm(fp.width))
   const depth = Math.max(16, pxToMm(fp.height))
+
+  // Standard digit-8 laid on the top face: a/g/d horizontals, f/b upper verticals,
+  // e/c lower verticals, dp dot at lower-right.
+  const halfW = (width * 0.42) / 2
+  const halfH = (depth * 0.5) / 2
+  const hLen = halfW * 2 - SEG_BAR // horizontal bar length (x)
+  const vLen = halfH - SEG_BAR // vertical bar length (z)
+  const segments = useMemo<SegmentPiece[]>(
+    () => [
+      { key: "a", pos: [0, SEG_Y, -halfH], size: [hLen, SEG_THICK, SEG_BAR] },
+      { key: "b", pos: [halfW, SEG_Y, -halfH / 2], size: [SEG_BAR, SEG_THICK, vLen] },
+      { key: "c", pos: [halfW, SEG_Y, halfH / 2], size: [SEG_BAR, SEG_THICK, vLen] },
+      { key: "d", pos: [0, SEG_Y, halfH], size: [hLen, SEG_THICK, SEG_BAR] },
+      { key: "e", pos: [-halfW, SEG_Y, halfH / 2], size: [SEG_BAR, SEG_THICK, vLen] },
+      { key: "f", pos: [-halfW, SEG_Y, -halfH / 2], size: [SEG_BAR, SEG_THICK, vLen] },
+      { key: "g", pos: [0, SEG_Y, 0], size: [hLen, SEG_THICK, SEG_BAR] },
+      { key: "dp", pos: [halfW + SEG_BAR * 1.6, SEG_Y, halfH], size: [SEG_BAR, SEG_THICK, SEG_BAR] },
+    ],
+    [halfW, halfH, hLen, vLen],
+  )
+
+  // One material per segment: dark red when off; the animation driver raises the
+  // emissive intensity to glow when the segment's driver pin lights it. Order
+  // follows SEVEN_SEGMENT_ORDER so the driver can index into segmentMaterials.
+  const materials = useMemo(
+    () =>
+      SEVEN_SEGMENT_ORDER.map(
+        () =>
+          new MeshStandardMaterial({
+            color: "#360a0a",
+            emissive: "#ff3b30",
+            emissiveIntensity: 0,
+            roughness: 0.4,
+          }),
+      ),
+    [],
+  )
+  useLayoutEffect(
+    () => registerPartNodes(component.id, { segmentMaterials: materials }),
+    [component.id, materials],
+  )
+
   return (
     <group>
       <mesh position={[0, 3, 0]}>
         <boxGeometry args={[width, 6, depth]} />
         <meshStandardMaterial color="#1a1a1a" roughness={0.5} />
       </mesh>
-      {/* two horizontal + implied segments as a red panel inset */}
-      <mesh position={[0, 6.1, 0]}>
-        <boxGeometry args={[width * 0.55, 0.4, depth * 0.7]} />
-        <meshStandardMaterial color="#5a0f0f" emissive="#c62828" emissiveIntensity={0.25} />
-      </mesh>
+      {segments.map((seg, i) => (
+        <mesh key={seg.key} position={seg.pos} material={materials[i]}>
+          <boxGeometry args={seg.size} />
+        </mesh>
+      ))}
     </group>
   )
 }
@@ -956,8 +1097,13 @@ export function PartBody({ component }: { component: BoardComponent }): ReactNod
     isCustomComponentType(component.type) ? getCustomDef(component.type) : undefined
   const customDef = useSyncExternalStore(subscribeCustom, lookupCustomDef, lookupCustomDef)
 
+  // Real GLB models replace the procedural bodies for the mapped types; the
+  // switch below stays as the fallback for everything else.
   let body: ReactNode
-  switch (component.type) {
+  const glbConfig = GLB_PARTS[component.type]
+  if (glbConfig) {
+    body = <GlbPartModel component={component} config={glbConfig} />
+  } else switch (component.type) {
     case "led":
       body = <LedModel component={component} />
       break
@@ -980,7 +1126,7 @@ export function PartBody({ component }: { component: BoardComponent }): ReactNod
       body = <BuzzerModel component={component} />
       break
     case "resistor":
-      body = <AxialModel component={component} color="#d7b98c" thickness={3} />
+      body = <ResistorModel component={component} />
       break
     case "capacitor":
       body = <AxialModel component={component} color="#3949ab" thickness={5} />

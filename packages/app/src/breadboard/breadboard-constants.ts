@@ -3,7 +3,10 @@
 // Extracted into a separate file so both breadboard-grid.ts and the
 // component registry can import them without circular dependencies.
 
-export const ROWS = 30
+// 63 terminal rows matches a real full-size "830 tie-point" breadboard:
+// 63 rows × 10 terminal holes (630) + 4 rails × 50 (200) = 830. Kept in sync
+// with @dreamer/schemas' BREADBOARD_FULL_ROWS (see breadboard-constants.test).
+export const ROWS = 63
 export const COLS = 10
 export const HOLE_SPACING = 14
 export const HOLE_RADIUS = 2.5
@@ -16,6 +19,14 @@ export const RAIL_OFFSET = 38
  * block (more breathing room) and the pair reads as a grouped rail.
  */
 export const RAIL_PAIR_SPACING = 10
+
+/**
+ * Power-rail holes are grouped into blocks of 5, matching a full-size
+ * breadboard's segmented rails: a small margin at the top, then five holes and
+ * one skipped row repeating uniformly down the length (see `isRailRow`).
+ */
+export const RAIL_BLOCK_HOLES = 5
+
 export const ARDUINO_BOARD_WIDTH = 340
 export const ARDUINO_BOARD_HEIGHT = 220
 export const ARDUINO_BOARD_MARGIN = 20

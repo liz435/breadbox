@@ -190,7 +190,7 @@ describe("PATCH /project/:id", () => {
 const testBoardState = {
   components: {},
   wires: {},
-  libraryState: { servos: {}, lcd: null, serialBaud: 9600 },
+  libraryState: { servos: {}, steppers: {}, lcd: null, serialBaud: 9600 },
   serialOutput: [],
   sketchCode: "// saved via /state",
   customLibraries: {},
