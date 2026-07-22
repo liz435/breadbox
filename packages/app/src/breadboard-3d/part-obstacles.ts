@@ -73,15 +73,27 @@ export type PartObstacle =
   | (PlugRegion & { kind: "disc"; radius: number; topY: number })
   | (PlugRegion & { kind: "obb"; obb: Obb2 })
 
+/**
+ * Renderer-independent physical facts for a placed part. The 3D mesh, the
+ * wire router, and physics all consume this record; none has to rediscover a
+ * part's parent board or clearance volume from a mounted Object3D.
+ */
+export type PhysicalPartInstance = {
+  componentId: string
+  componentType: string
+  parentBoardId: string | null
+  clearance: PartObstacle
+}
+
 /** Build obstacle discs for every placed non-board component. Each disc is
  *  shifted onto the part's parent board, so a wire clears parts on a second or
  *  moved breadboard at their real position (mirrors the part/wire offsets). */
-export function partObstacles(
+export function resolvePhysicalPartInstances(
   components: Record<string, BoardComponent>,
   pinCals: PinCalibrationLookup = {},
-): PartObstacle[] {
+): PhysicalPartInstance[] {
   const surfaceBoards = surfaceBoardsOf(components)
-  const obstacles: PartObstacle[] = []
+  const instances: PhysicalPartInstance[] = []
   for (const component of Object.values(components)) {
     if (isBoardComponentType(component.type) || component.type === "wire") continue
     const fp = getComponentFootprint(
@@ -128,21 +140,40 @@ export function partObstacles(
     // type's GLB has rendered once (no bounds yet), fall back to the pin disc.
     const bounds = getNormBounds(component.type)
     if (bounds) {
-      obstacles.push({
-        kind: "obb",
-        ...plug,
-        obb: buildPartObb(component, bounds, pinCals[component.type], boardShift),
+      instances.push({
+        componentId: component.id,
+        componentType: component.type,
+        parentBoardId: component.parentId ?? null,
+        clearance: {
+          kind: "obb",
+          ...plug,
+          obb: buildPartObb(component, bounds, pinCals[component.type], boardShift),
+        },
       })
     } else {
-      obstacles.push({
-        kind: "disc",
-        ...plug,
-        radius: reach + pxToMm(7),
-        topY: BOARD_SURFACE_Y + partHeightMm(component.type),
+      instances.push({
+        componentId: component.id,
+        componentType: component.type,
+        parentBoardId: component.parentId ?? null,
+        clearance: {
+          kind: "disc",
+          ...plug,
+          radius: reach + pxToMm(7),
+          topY: BOARD_SURFACE_Y + partHeightMm(component.type),
+        },
       })
     }
   }
-  return obstacles
+  return instances
+}
+
+/** Compatibility projection for existing consumers. Prefer physical instances
+ * when a consumer needs ownership/pose as well as the clearance shape. */
+export function partObstacles(
+  components: Record<string, BoardComponent>,
+  pinCals: PinCalibrationLookup = {},
+): PartObstacle[] {
+  return resolvePhysicalPartInstances(components, pinCals).map((instance) => instance.clearance)
 }
 
 /** Closest approach of point (px,pz) to segment (ax,az)–(bx,bz), in xz: both the

@@ -3,8 +3,11 @@ import type { AssemblyBinding, AssemblyBody, AssemblyDoc } from "@dreamer/schema
 import {
   addBody,
   clearBodyBinding,
+  duplicateBody,
   removeBody,
+  reorderBody,
   setBodyBinding,
+  uniqueBodyId,
   updateBody,
 } from "../assembly-edits"
 
@@ -117,6 +120,111 @@ describe("removeBody", () => {
     removeBody(before, "a")
     expect(Object.keys(before.bodies).sort()).toEqual(["a", "b"])
     expect(before.bindings).toHaveLength(1)
+  })
+})
+
+describe("duplicateBody", () => {
+  test("clones with a fresh id, copy name, and an offset position", () => {
+    const before = doc([
+      body("a", { transform: { position: [5, 0, 3], rotation: [0, 0, 0], scale: 1 } }),
+    ])
+    const after = duplicateBody(before, "a")
+    expect(Object.keys(after.bodies)).toEqual(["a", "a-copy"])
+    const copy = after.bodies["a-copy"]
+    expect(copy?.name).toBe("a copy")
+    // Reuses the same uploaded asset — no re-upload.
+    expect(copy?.assetId).toBe("asset-a")
+    expect(copy?.uri).toBe("/models/a.glb")
+    expect(copy?.transform.position).toEqual([7, 0, 5])
+  })
+
+  test("copies the joint but starts visible + unlocked", () => {
+    const before = doc([
+      body("a", {
+        joint: { pivot: [1, 2, 3], axis: [0, 1, 0], kind: "rotate" },
+        hidden: true,
+        locked: true,
+      }),
+    ])
+    const copy = duplicateBody(before, "a").bodies["a-copy"]
+    expect(copy?.joint).toEqual({ pivot: [1, 2, 3], axis: [0, 1, 0], kind: "rotate" })
+    expect(copy?.hidden).toBe(false)
+    expect(copy?.locked).toBe(false)
+  })
+
+  test("does not copy the source's signal bindings", () => {
+    const before = doc([body("a")], [jointBinding("a")])
+    const after = duplicateBody(before, "a")
+    expect(after.bindings).toHaveLength(1)
+    expect(after.bindings[0]?.bodyId).toBe("a")
+  })
+
+  test("derives a unique id when the -copy name is taken", () => {
+    const before = doc([body("a"), body("a-copy")])
+    const after = duplicateBody(before, "a")
+    expect(Object.keys(after.bodies)).toContain("a-copy-2")
+  })
+
+  test("missing id returns the document unchanged", () => {
+    const before = doc([body("a")])
+    expect(duplicateBody(before, "ghost")).toBe(before)
+  })
+
+  test("does not mutate the input document", () => {
+    const before = doc([body("a")])
+    duplicateBody(before, "a")
+    expect(Object.keys(before.bodies)).toEqual(["a"])
+  })
+})
+
+describe("reorderBody", () => {
+  test("moves a body up", () => {
+    const after = reorderBody(doc([body("a"), body("b"), body("c")]), "b", "up")
+    expect(Object.keys(after.bodies)).toEqual(["b", "a", "c"])
+  })
+
+  test("moves a body down", () => {
+    const after = reorderBody(doc([body("a"), body("b"), body("c")]), "b", "down")
+    expect(Object.keys(after.bodies)).toEqual(["a", "c", "b"])
+  })
+
+  test("is a no-op at the top edge", () => {
+    const before = doc([body("a"), body("b")])
+    expect(reorderBody(before, "a", "up")).toBe(before)
+  })
+
+  test("is a no-op at the bottom edge", () => {
+    const before = doc([body("a"), body("b")])
+    expect(reorderBody(before, "b", "down")).toBe(before)
+  })
+
+  test("missing id returns the document unchanged", () => {
+    const before = doc([body("a")])
+    expect(reorderBody(before, "ghost", "up")).toBe(before)
+  })
+
+  test("preserves body contents while reordering", () => {
+    const after = reorderBody(doc([body("a", { name: "First" }), body("b")]), "b", "up")
+    expect(after.bodies.a?.name).toBe("First")
+  })
+})
+
+describe("uniqueBodyId", () => {
+  test("returns the base when free", () => {
+    expect(uniqueBodyId({}, "body_x")).toBe("body_x")
+  })
+
+  test("suffixes the next free number when taken", () => {
+    const { bodies } = doc([body("body_x"), body("body_x-2")])
+    expect(uniqueBodyId(bodies, "body_x")).toBe("body_x-3")
+  })
+})
+
+describe("visibility + lock flags", () => {
+  test("updateBody round-trips hidden and locked", () => {
+    const after = updateBody(doc([body("a")]), "a", { hidden: true, locked: true })
+    expect(after.bodies.a?.hidden).toBe(true)
+    expect(after.bodies.a?.locked).toBe(true)
   })
 })
 

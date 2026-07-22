@@ -332,15 +332,15 @@ export function GlbPartModel({
     return registerPartNodes(component.id, { emissiveMaterial: domeMaterial })
   }, [component.id, domeMaterial])
 
-  // Servo horn: reparent the horn (Protoboard.*) under a pivot at the shaft and
-  // hand the sim the inner node as the angle node. This SG90 GLB imports with
-  // its shaft along +Z, and config.rotation (−90°X) stands it up so the shaft
-  // points world +Y. A NESTED pivot handles the spin: the outer group tilts +90°X
-  // so the inner group's local Y lands back on the shaft; the sim sets only the
-  // inner node's rotation.y. (Tilt + spin on one node would compose through XYZ
-  // Euler order and swing the horn through an arc instead — same reason DcMotor
-  // nests its shaft.) If the horn tips over instead of spinning flat, flip the
-  // outer tilt sign to match the model's config.rotation.
+  // Servo horn: reparent the horn meshes (Protoboard.*) under a single pivot at
+  // the horn centre and register that as the angle node — the sim sets its
+  // rotation.y. This SG90 GLB imports Y-up (Sketchfab Z-up->Y-up root, config
+  // rotation [0,0,0]), so the output shaft already points world +Y and the
+  // pivot's local Y IS the shaft axis: the horn spins flat. (An earlier
+  // re-export lacked that root and imported the shaft along +Z, which needed a
+  // nested tilt pivot; the current model does not. If the horn ever tumbles
+  // instead of spinning flat, its shaft isn't +Y and the pivot must re-align to
+  // it — same single-pivot pattern as the stepper shaft.)
   const hornPivot = useMemo(() => {
     if (config.behavior !== "servo") return null
     const horns: Mesh[] = []
@@ -352,15 +352,12 @@ export function GlbPartModel({
     model.updateWorldMatrix(true, true)
     const center = new Vector3()
     new Box3().setFromObject(horns[0]).getCenter(center)
-    const outer = new Group()
-    outer.position.copy(center)
-    outer.rotation.x = Math.PI / 2
-    const spin = new Group()
-    outer.add(spin)
-    model.add(outer)
-    // attach() preserves each part's world pose while reparenting under the spin.
-    for (const part of horns) spin.attach(part)
-    return spin
+    const pivot = new Group()
+    pivot.position.copy(center)
+    model.add(pivot)
+    // attach() preserves each horn's world pose while reparenting under the pivot.
+    for (const part of horns) pivot.attach(part)
+    return pivot
   }, [model, config.behavior])
 
   useLayoutEffect(() => {
@@ -474,6 +471,37 @@ export function GlbPartModel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [cal, component, grid],
   )
+
+  // Unit-scale mount anchor: a child of the moving node (servo horn / stepper
+  // shaft) whose scale cancels the model's normalize + fit scale so its world
+  // scale is ~1. A body parented onto the part's motion mounts here and lands at
+  // mm scale — mounting on the raw scaled pivot bakes a tiny fraction (≈0.001)
+  // into the body's transform and it renders invisibly small. The anchor rides
+  // the pivot's rotation, so the mounted body still turns with the shaft.
+  const movingPivot = hornPivot ?? stepperPivot
+  const mountAnchor = useMemo(() => {
+    if (!movingPivot) return null
+    const anchor = new Group()
+    anchor.name = "mount-anchor"
+    movingPivot.add(anchor)
+    return anchor
+  }, [movingPivot])
+
+  useLayoutEffect(() => {
+    if (!mountAnchor || !movingPivot) return
+    // Read the pivot's true world scale (normalize × fit × any GLB-internal
+    // scale) and invert it, so the anchor sits at unit world scale. Re-runs when
+    // fit/grid warp changes the pivot's scale.
+    movingPivot.updateWorldMatrix(true, false)
+    const worldScale = new Vector3()
+    movingPivot.matrixWorld.decompose(new Vector3(), new Quaternion(), worldScale)
+    mountAnchor.scale.setScalar(worldScale.x > 1e-9 ? 1 / worldScale.x : 1)
+  }, [mountAnchor, movingPivot, scale, fit])
+
+  useLayoutEffect(() => {
+    if (!mountAnchor) return
+    return registerPartNodes(component.id, { mountNode: mountAnchor })
+  }, [component.id, mountAnchor])
 
   const normalized = (
     <group position={position}>

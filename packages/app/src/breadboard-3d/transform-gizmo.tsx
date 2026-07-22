@@ -7,19 +7,23 @@
 
 import { useSyncExternalStore } from "react"
 import { TransformControls } from "@react-three/drei"
-import { useAssemblyActions } from "./use-assembly"
+import { useAssemblyActions, useAssemblyDoc } from "./use-assembly"
 import { useEditor } from "./editor-state"
 import { getBodyRoot, getRegistryVersion, subscribeRegistry } from "./scene-registry"
 
 export function TransformGizmo() {
   const { selectedBodyId, mode } = useEditor()
   const { updateBody } = useAssemblyActions()
+  const assembly = useAssemblyDoc()
   // Re-render when scene nodes change so the gizmo attaches/detaches as
   // bodies mount and unmount.
   useSyncExternalStore(subscribeRegistry, getRegistryVersion, getRegistryVersion)
 
+  const body = selectedBodyId ? assembly.bodies[selectedBodyId] : undefined
   const target = selectedBodyId ? getBodyRoot(selectedBodyId) : undefined
-  if (!target || !selectedBodyId) return null
+  // A hidden or locked body can be selected (to unhide/unlock it) but never
+  // dragged — no gizmo attaches while either flag is set.
+  if (!target || !selectedBodyId || body?.hidden || body?.locked) return null
 
   return (
     <TransformControls

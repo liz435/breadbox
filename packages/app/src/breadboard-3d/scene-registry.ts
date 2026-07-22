@@ -25,6 +25,11 @@ export type PartSceneNodes = {
   angleNode?: Object3D
   /** Node spun continuously; receives accumulated rotation in degrees (motor shaft). */
   spinNode?: Object3D
+  /** Unit-scale child of the moving node — the mount point for a body parented
+   *  onto the part's motion. It rides the angle/spin node but cancels the GLB's
+   *  normalize scale, so a mounted body lands at mm scale instead of a tiny
+   *  fraction (which renders it invisibly small). */
+  mountNode?: Object3D
   /** Material whose emissive intensity follows a 0..1 signal (LED dome, NeoPixel). */
   emissiveMaterial?: MeshStandardMaterial
   /** 7-segment display: the 8 segment materials in {@link SEVEN_SEGMENT_ORDER}.
@@ -86,6 +91,10 @@ export function getPartNodes(componentId: string): PartSceneNodes | undefined {
 
 /** Transform-root group of an uploaded assembly body (gizmo target). */
 const bodyRoots = new Map<string, Object3D>()
+/** Render roots used for measured wire obstacles. Kept separate from bodyRoots:
+ * physics bodies need volume tracking but must not become transform-gizmo
+ * targets while their RigidBody owns their pose. */
+const bodyVolumeRoots = new Map<string, Object3D>()
 
 export function registerBodyRoot(bodyId: string, node: Object3D): () => void {
   bodyRoots.set(bodyId, node)
@@ -100,6 +109,21 @@ export function registerBodyRoot(bodyId: string, node: Object3D): () => void {
 
 export function getBodyRoot(bodyId: string): Object3D | undefined {
   return bodyRoots.get(bodyId)
+}
+
+export function registerBodyVolumeRoot(bodyId: string, node: Object3D): () => void {
+  bodyVolumeRoots.set(bodyId, node)
+  notify()
+  return () => {
+    if (bodyVolumeRoots.get(bodyId) === node) {
+      bodyVolumeRoots.delete(bodyId)
+      notify()
+    }
+  }
+}
+
+export function getBodyVolumeRoot(bodyId: string): Object3D | undefined {
+  return bodyVolumeRoots.get(bodyId)
 }
 
 /** Joint group of an uploaded assembly body (moved by signal bindings). */

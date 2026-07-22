@@ -119,7 +119,7 @@ export function ComponentPinCalibrationPanel() {
         (or drag its pink anchor). Shift-drag moves the camera.
       </p>
 
-      <div className="mb-3 max-h-32 overflow-y-auto rounded border border-white/10">
+      <div className="mb-3 max-h-64 overflow-y-auto rounded border border-white/10">
         {TYPES.map((t) => {
           const done = (cals[t]?.pins.length ?? 0) >= 2
           return (

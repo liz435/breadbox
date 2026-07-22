@@ -23,6 +23,8 @@ export function useAssemblyDoc(): AssemblyDoc {
 export function useAssemblyActions(): {
   addBody: (body: AssemblyBody) => void
   updateBody: (id: string, changes: Partial<AssemblyBody>) => void
+  duplicateBody: (id: string) => void
+  reorderBody: (id: string, dir: "up" | "down") => void
   removeBody: (id: string) => void
   setBodyBinding: (binding: AssemblyBinding) => void
   clearBodyBinding: (bodyId: string, group: BindingGroup) => void
@@ -52,6 +54,16 @@ export function useAssemblyActions(): {
     [edit],
   )
 
+  const duplicateBody = useCallback(
+    (id: string) => edit((doc) => edits.duplicateBody(doc, id)),
+    [edit],
+  )
+
+  const reorderBody = useCallback(
+    (id: string, dir: "up" | "down") => edit((doc) => edits.reorderBody(doc, id, dir)),
+    [edit],
+  )
+
   // The uploaded model file is intentionally NOT deleted here. SET_ASSEMBLY is
   // undoable, so a hard delete would leave Cmd+Z restoring a body whose mesh
   // 404s — with the source file already gone. The server's grace-window
@@ -74,5 +86,13 @@ export function useAssemblyActions(): {
     [edit],
   )
 
-  return { addBody, updateBody, removeBody, setBodyBinding, clearBodyBinding }
+  return {
+    addBody,
+    updateBody,
+    duplicateBody,
+    reorderBody,
+    removeBody,
+    setBodyBinding,
+    clearBodyBinding,
+  }
 }
