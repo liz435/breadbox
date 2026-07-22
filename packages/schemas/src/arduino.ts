@@ -320,6 +320,11 @@ export const environmentSchema = z.object({
 });
 export type Environment = z.infer<typeof environmentSchema>;
 
+/** Declares which physical shortcuts a simulation may take. Persisted with the
+ * project so collaborators, tests, and replays share the same truth claims. */
+export const realismProfileSchema = z.enum(["learn", "electrical", "hardware"]);
+export type RealismProfile = z.infer<typeof realismProfileSchema>;
+
 // ── Board State ──────────────────────────────────────────────────
 //
 // `pinStates` was previously part of the persisted board state. It is now
@@ -358,6 +363,9 @@ const boardStateBaseSchema = z.object({
   boardTarget: boardTargetSchema.optional(),
   // Environment layer for sensor simulation (obstacles, walls).
   environment: environmentSchema.default({ obstacles: {}, boundaryEnabled: true, boundaryMargin: 100 }),
+  // Learn preserves the existing guided behavior. Electrical/Hardware refuse
+  // sensor and power shortcuts that a real circuit could not produce.
+  realismProfile: realismProfileSchema.optional(),
   // 3D assembly layer (uploaded meshes + joints/bindings) for the 3D view.
   // Optional so older saved projects (and BoardState literals that predate
   // the 3D view) parse unchanged; readers treat absence as empty.
@@ -416,6 +424,7 @@ export function createDefaultBoardState(): BoardState {
     customLibraries: {},
     boardTarget: DEFAULT_BOARD_TARGET,
     environment: { obstacles: {}, boundaryEnabled: true, boundaryMargin: 100 },
+    realismProfile: "learn",
     assembly: createEmptyAssembly(),
   };
 }

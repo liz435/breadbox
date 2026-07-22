@@ -7,6 +7,7 @@ export const irReceiver: ComponentDefinition = {
   description: "Infrared receiver for remote control signals (38kHz)",
   label: "IR Receiver",
   defaultPins: { signal: null },
+  power: { supply: ["vcc", "power"], return: ["gnd", "ground"], minOperatingVolts: 2.7 },
   defaultProperties: {},
   accentColor: "#dc2626",
   // Vertical pin column: out / gnd / vcc — matches the TSOP38238 pinout

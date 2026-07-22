@@ -32,10 +32,13 @@
 //   All buses are cleared by `resetSensorBuses()`, which simulation-loop.ts
 //   should call on sim stop so stale values don't leak between runs.
 
-import type { BoardComponent, Wire, Environment } from "@dreamer/schemas"
+import type { BoardComponent, Wire, Environment, RealismProfile } from "@dreamer/schemas"
 import type { PinStateStore } from "./pin-state-store"
 import { irRemoteStore } from "./ir-remote-store"
 import { isTransientSolverEnabled } from "./transient-flag"
+import { isComponentPowered } from "./power-availability"
+import { powerModelFor } from "./power-model"
+import type { PowerDomain } from "./power-domain"
 import { findInputPinForComponent, findArduinoPinForComponentPin } from "@/breadboard/component-pin-resolver"
 import {
   sensorRay,
@@ -232,10 +235,11 @@ function writePir(
   comp: BoardComponent,
   wires: Record<string, Wire>,
   store: PinStateStore,
+  simMs: number,
 ): void {
   const pin = resolveNamedPin(comp, "signal", wires)
   if (pin == null) return
-  const now = performance.now()
+  const now = simMs
   let state = pirState.get(comp.id)
   if (!state) {
     state = { warmupStartedAt: now, lastMotionAt: Number.NEGATIVE_INFINITY }
@@ -345,6 +349,9 @@ export function applySensorInputs(
   store: PinStateStore,
   environment: Environment,
   bus?: import("./peripherals/peripheral-bus").PeripheralBus,
+  realismProfile: RealismProfile = "learn",
+  simMs = 0,
+  powerDomain?: Pick<PowerDomain, "isComponentOperating">,
 ): void {
   // Phase C: with the transient solver on, the potentiometer and the
   // photoresistor are ELECTRICAL — their netlist elements (divider / light-
@@ -354,28 +361,41 @@ export function applySensorInputs(
   // non-electrical sensors (temperature, PIR, ultrasonic, DHT, IR) keep the
   // injection path — their physics isn't in the circuit domain.
   const electricalSensorsSolved = isTransientSolverEnabled()
+  const requiresPower = realismProfile !== "learn"
   for (const comp of Object.values(components)) {
+    // Electrical and Hardware profiles use the previous completed solve as
+    // their electrical authority. Topology only tells us which nodes belong
+    // together; it cannot distinguish 5V from a brownout rail. Keep the
+    // topology fallback for the first solve and low-level callers that do
+    // not own a SimulationSession yet.
+    const powered = !requiresPower || (
+      powerDomain
+        ? powerDomain.isComponentOperating(comp.id, comp.type)
+        : isComponentPowered(comp, components, wires, powerModelFor(comp.type))
+    )
     switch (comp.type) {
       case "photoresistor":
         if (!electricalSensorsSolved) writePhotoresistor(comp, wires, store)
         break
       case "temperature_sensor":
-        writeTemperatureSensor(comp, wires, store)
+        // The TMP36 source is emitted by its netlist model in strict modes;
+        // Learn preserves the immediate inspector-driven teaching path.
+        if (realismProfile === "learn") writeTemperatureSensor(comp, wires, store)
         break
       case "potentiometer":
         if (!electricalSensorsSolved) writePotentiometer(comp, wires, store)
         break
       case "ultrasonic_sensor":
-        writeUltrasonic(comp, wires, environment, bus)
+        if (powered) writeUltrasonic(comp, wires, environment, bus)
         break
       case "pir_sensor":
-        writePir(comp, wires, store)
+        if (powered) writePir(comp, wires, store, simMs)
         break
       case "dht_sensor":
-        writeDht(comp, wires, bus)
+        if (powered) writeDht(comp, wires, bus)
         break
       case "ir_receiver":
-        writeIrReceiver(comp, bus)
+        if (powered) writeIrReceiver(comp, bus)
         break
       default:
         break

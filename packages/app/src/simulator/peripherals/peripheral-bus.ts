@@ -7,7 +7,7 @@
 // instance.
 
 import type { AVRTWI } from "avr8js"
-import type { BoardComponent, ComponentType, Wire } from "@dreamer/schemas"
+import type { BoardComponent, BoardTargetInfo, ComponentType, Wire } from "@dreamer/schemas"
 import type { PinStateStore } from "../pin-state-store"
 import type {
   Peripheral,
@@ -20,6 +20,7 @@ import type {
 } from "./types"
 import { getCustomDef } from "@/components/catalog/custom-store"
 import { isStrictHardwareEnabled } from "../strict-hardware-flag"
+import { requiredTargetCapabilityFor } from "../simulation-capabilities"
 import { createServoPeripheral } from "./servo"
 import { createBuzzerPeripheral } from "./buzzer"
 import { createLcdPeripheral } from "./lcd"
@@ -30,6 +31,8 @@ import { createOledPeripheral } from "./ssd1306-oled"
 import { createNeoPixelPeripheral } from "./neopixel"
 import { createShiftRegisterPeripheral } from "./shift-register"
 import { createStepperPeripheral } from "./stepper"
+import { createRelayPeripheral } from "./relay"
+import { createDcMotorPeripheral } from "./dc-motor"
 
 const FACTORIES = new Map<ComponentType, PeripheralFactory>()
 
@@ -51,11 +54,16 @@ registerPeripheralFactory("oled_display", createOledPeripheral)
 registerPeripheralFactory("neopixel", createNeoPixelPeripheral)
 registerPeripheralFactory("shift_register", createShiftRegisterPeripheral)
 registerPeripheralFactory("stepper_motor", createStepperPeripheral)
+registerPeripheralFactory("relay", createRelayPeripheral)
+registerPeripheralFactory("dc_motor", createDcMotorPeripheral)
 
 export type PeripheralBoardInput = {
   components: Record<string, BoardComponent>
   wires: Record<string, Wire>
   pinStore: PinStateStore
+  /** Selected board's declared emulator surface. Omitted by low-level tests
+   * and callers that intentionally want the factory's native behaviour. */
+  targetCapabilities?: BoardTargetInfo["simulationCapabilities"]
   /**
    * Optional TWI peripheral from the AVR runner. When present, the bus
    * installs a single eventHandler that demuxes by slave address; when
@@ -115,6 +123,15 @@ export class PeripheralBus {
     if (this.twi) this.installTwiEventHandler(this.twi)
     for (const component of Object.values(input.components)) {
       try {
+        const requiredCapability = requiredTargetCapabilityFor(component.type)
+        if (requiredCapability && input.targetCapabilities?.[requiredCapability] === false) {
+          this.skips.push({
+            componentId: component.id,
+            componentType: component.type,
+            reason: `selected target does not simulate ${requiredCapability.toUpperCase()}`,
+          })
+          continue
+        }
         // Built-in factory first; custom parts carry their own factory on the
         // runtime definition (compiled from the DSL's behavior.signals facet).
         const factory = FACTORIES.get(component.type as ComponentType)
@@ -125,6 +142,7 @@ export class PeripheralBus {
         peripheral.attach({
           componentId: component.id,
           component,
+          components: input.components,
           wires: input.wires,
           pinStore: input.pinStore,
           trace: (entry) => this.recordTrace(component.id, entry),
@@ -327,6 +345,15 @@ export class PeripheralBus {
   tick(simMs: number): void {
     this.lastSimMs = simMs
     for (const p of this.peripherals.values()) p.onTick(simMs)
+  }
+
+  /** Propagate solved local supply state without giving peripherals direct
+   * access to the netlist or circuit solver. Components absent from the map
+   * retain their attach-time behaviour (for dynamic/peripheral-only parts). */
+  setPowerStates(states: ReadonlyMap<string, boolean>): void {
+    for (const [componentId, powered] of states) {
+      this.peripherals.get(componentId)?.setPowered?.(powered)
+    }
   }
 
   /** Look up a peripheral by componentId. */

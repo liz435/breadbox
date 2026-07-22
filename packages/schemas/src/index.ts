@@ -179,6 +179,8 @@ export {
   type Obstacle,
   environmentSchema,
   type Environment,
+  realismProfileSchema,
+  type RealismProfile,
   MAX_ARDUINO_PIN,
   DEFAULT_SKETCH_CODE,
   createDefaultPinStates,

@@ -16,6 +16,8 @@ import type {
   PinEdge,
 } from "./types"
 import { findArduinoPinForComponentPin } from "@/breadboard/component-pin-resolver"
+import { isComponentPowered } from "../power-availability"
+import { powerModelFor } from "../power-model"
 
 const SERVO_MIN_ANGLE = 0
 const SERVO_MAX_ANGLE = 180
@@ -35,6 +37,7 @@ const PULSE_MAX_US = 2600
 // servo library stops driving the pin entirely when detached, so a quiet
 // period of this duration flips the peripheral back to "no PWM signal".
 const SILENCE_TIMEOUT_MS = 150
+const SERVO_DEGREES_PER_SECOND = 300
 
 const TRACE_RING_SIZE = 32
 
@@ -51,7 +54,10 @@ export class ServoPeripheral implements Peripheral<ServoStateShape> {
   private ctx: PeripheralContext | null = null
   private readonly component: BoardComponent
   private angle = 0
+  private motionEndsAtSimMs = 0
+  private moving = false
   private attached = false
+  private powered = true
   private boundPin: number | null = null
 
   // AVR-path pulse-width measurement state.
@@ -82,6 +88,11 @@ export class ServoPeripheral implements Peripheral<ServoStateShape> {
 
   attach(ctx: PeripheralContext): void {
     this.ctx = ctx
+    if (ctx.components) {
+      this.powered = isComponentPowered(
+        this.component, ctx.components, ctx.wires, powerModelFor(this.component.type),
+      )
+    }
     if (this.boundPin === null) {
       const resolved = findArduinoPinForComponentPin(this.component, "signal", ctx.wires)
       if (resolved !== null) {
@@ -89,6 +100,28 @@ export class ServoPeripheral implements Peripheral<ServoStateShape> {
         this._watchedPins.add(resolved)
       }
     }
+  }
+
+  /** The power domain is the authority after the first completed solve. */
+  setPowered(powered: boolean): void {
+    if (this.powered === powered) return
+    this.powered = powered
+    if (!powered) {
+      // A depowered servo no longer holds its requested position. Preserve
+      // the last angle for the renderer, but report it detached and discard
+      // partial pulse timing so a brownout cannot manufacture a command when
+      // power returns.
+      this.attached = false
+      this.lastRisingSimMs = 0
+      this.ringCount = 0
+      this.moving = false
+    }
+    this.trace({
+      simMs: 0,
+      kind: "derive",
+      message: powered ? "supply restored" : "supply below operating voltage",
+      detail: { powered },
+    })
   }
 
   /** Transpile-mode call from the stdlib Servo.attach(pin). */
@@ -108,8 +141,12 @@ export class ServoPeripheral implements Peripheral<ServoStateShape> {
 
   /** Transpile-mode call from the stdlib Servo.write(angle). */
   onExplicitWrite(angle: number): void {
+    if (!this.powered) return
     const clamped = Math.max(SERVO_MIN_ANGLE, Math.min(SERVO_MAX_ANGLE, angle))
+    const travelMs = Math.abs(clamped - this.angle) / SERVO_DEGREES_PER_SECOND * 1000
     this.angle = clamped
+    this.moving = travelMs > 0
+    this.motionEndsAtSimMs = (this.ctx?.nowSimMs() ?? 0) + travelMs
     if (this.boundPin !== null) this.attached = true
     this.trace({
       simMs: 0,
@@ -135,6 +172,7 @@ export class ServoPeripheral implements Peripheral<ServoStateShape> {
   }
 
   onPinEdge(edge: PinEdge): void {
+    if (!this.powered) return
     if (edge.pin !== this.boundPin && !this._watchedPins.has(edge.pin)) return
     if (this.boundPin === null) this.boundPin = edge.pin
 
@@ -176,8 +214,11 @@ export class ServoPeripheral implements Peripheral<ServoStateShape> {
     )
     const angle = Math.round(((clampedPulse - MIN_PULSE_US) / span) * SERVO_MAX_ANGLE)
     if (this.angle !== angle) {
+      const travelMs = Math.abs(angle - this.angle) / SERVO_DEGREES_PER_SECOND * 1000
       this.angle = angle
       this.attached = true
+      this.moving = travelMs > 0
+      this.motionEndsAtSimMs = edge.simMs + travelMs
       this.trace({
         simMs: edge.simMs,
         kind: "derive",
@@ -188,6 +229,7 @@ export class ServoPeripheral implements Peripheral<ServoStateShape> {
   }
 
   onTick(simMs: number): void {
+    if (this.moving && simMs >= this.motionEndsAtSimMs) this.moving = false
     // AVR-only: if the pin goes silent, treat the servo as still attached at
     // its last commanded angle (real servos hold position). No state change.
     if (this.lastEdgeSimMs === 0) return
@@ -203,12 +245,16 @@ export class ServoPeripheral implements Peripheral<ServoStateShape> {
       pin: this.boundPin,
       angle: this.angle,
       attached: this.attached,
+      moving: this.moving,
     }
   }
 
   reset(): void {
     this.angle = 0
+    this.motionEndsAtSimMs = 0
+    this.moving = false
     this.attached = false
+    this.powered = true
     this.lastRisingSimMs = 0
     this.lastFallingSimMs = 0
     this.lastPulseWidthUs = 0

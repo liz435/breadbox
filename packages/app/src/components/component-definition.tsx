@@ -17,6 +17,7 @@ import type { ComponentFootprint, GridPoint } from "@/breadboard/breadboard-grid
 import type { ComponentRendererProps } from "@/breadboard/component-renderers/renderer-types"
 import type { SchematicSymbolType } from "@/schematic/schematic-symbols"
 import type { Peripheral } from "@/simulator/peripherals/types"
+import type { PartSpec } from "./part-spec"
 
 // ── Sketch generation ─────────────────────────────────────────────────────
 
@@ -44,6 +45,12 @@ export type NetlistContext = {
   pinStates: PinState[]
   /** All wires on the board, used by builders that need to trace input pins */
   wires: Record<string, import("@dreamer/schemas").Wire>
+  /** The complete board topology. Optional for isolated catalog tests; the
+   * solver always supplies it so power-aware models share one resolver. */
+  components?: Record<string, BoardComponent>
+  /** Latest peripheral state. Stateful electrical models consume this
+   * read-only snapshot; they never reach into a runner or renderer directly. */
+  peripheralStates?: Record<string, import("@/simulator/peripherals/types").PeripheralState>
   /**
    * Emission mode: "op" is the legacy operating-point solve (capacitors as
    * held V sources); "transient" is the real-physics path (capacitors as C
@@ -61,6 +68,18 @@ export type NetlistOutput = {
   nodeA: string
   /** Primary node B */
   nodeB: string
+  /** Supply metadata emitted with a component's SPICE elements. */
+  supplySources?: Array<{
+    id: string
+    label: string
+    element: string
+    node: string
+    /** The source's own return node — see PartNetlistOutput.supplySources. */
+    returnNode?: string
+    nominalVoltage: number
+    currentLimitMa: number
+    sourceResistanceOhms?: number
+  }>
 }
 
 // ── Electrical state ──────────────────────────────────────────────────────
@@ -90,7 +109,7 @@ export type ElectricalOutput = {
 
 // ── Component Definition ──────────────────────────────────────────────────
 
-export type ComponentDefinition = {
+export type ComponentDefinition = PartSpec & {
   // ── Identity ──────────────────────────────────────────────────────────
 
   /** Must match the zod enum in @dreamer/schemas */

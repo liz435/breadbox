@@ -5,6 +5,7 @@ import type {
   BoardTarget,
   Environment,
   AssemblyDoc,
+  RealismProfile,
 } from "@dreamer/schemas"
 
 /**
@@ -28,6 +29,7 @@ export type BoardPersistable = {
   customLibraries: Record<string, CustomLibrary>
   boardTarget?: BoardTarget
   environment: Environment
+  realismProfile?: RealismProfile
   assembly?: AssemblyDoc
 }
 
@@ -47,6 +49,7 @@ export function boardSlice(ctx: BoardPersistable): BoardPersistable {
     customLibraries: ctx.customLibraries,
     boardTarget: ctx.boardTarget,
     environment: ctx.environment,
+    realismProfile: ctx.realismProfile,
     assembly: ctx.assembly,
   }
 }

@@ -10,6 +10,7 @@
 import type { BoardComponent } from "@dreamer/schemas"
 import { evaluateExpression, type CustomComponentDsl, type DslElement } from "@dreamer/schemas"
 import type { ComponentDefinition, NetlistOutput, SketchOutput } from "@/components/component-definition"
+import type { PartPowerModel } from "@/components/part-spec"
 import { createPluginHost, type PluginNetlistApi } from "@/components/catalog/plugin-host"
 import { createCustomDslPeripheral } from "@/simulator/peripherals/custom-dsl"
 
@@ -82,6 +83,29 @@ function buildSketch(
   return { globalLines, setupLines, loopLines, hasPin }
 }
 
+/**
+ * Derive the part's power model from the pin roles it already declares. A part
+ * with no `role: "power"` pin gets no model and stays ungated — the same
+ * treatment a built-in with no supply pin receives, rather than being reported
+ * permanently unpowered.
+ *
+ * The threshold is a blunt default: the DSL has no way to state an operating
+ * voltage yet, and 3.0V admits both 3.3V and 5V parts while still catching a
+ * genuinely collapsed rail.
+ */
+const DSL_DEFAULT_MIN_OPERATING_VOLTS = 3.0
+
+function powerModelFromPins(dsl: CustomComponentDsl): PartPowerModel | undefined {
+  const supply = dsl.pins.filter((pin) => pin.role === "power").map((pin) => pin.name)
+  if (supply.length === 0) return undefined
+  const ret = dsl.pins.filter((pin) => pin.role === "ground").map((pin) => pin.name)
+  return {
+    supply,
+    ...(ret.length > 0 ? { return: ret } : {}),
+    minOperatingVolts: DSL_DEFAULT_MIN_OPERATING_VOLTS,
+  }
+}
+
 /** Compile a declarative custom-component DSL into a runtime ComponentDefinition. */
 export function dslToComponentDefinition(dsl: CustomComponentDsl): ComponentDefinition {
   const host = createPluginHost()
@@ -99,6 +123,7 @@ export function dslToComponentDefinition(dsl: CustomComponentDsl): ComponentDefi
     size: dsl.size,
     accentColor: dsl.accentColor,
     svg: dsl.svg,
+    power: powerModelFromPins(dsl),
     buildNetlist:
       elements.length === 0
         ? undefined

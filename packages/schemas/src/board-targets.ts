@@ -59,6 +59,16 @@ export type BoardTargetInfo = {
    * one path or the other. See simulator/uf2-download.ts.
    */
   uf2Download?: boolean;
+  /** Explicit runtime truth contract. UI and diagnostics use this rather than
+   * inferring support from whether a target happens to compile. */
+  simulationCapabilities: {
+    fidelity: "full" | "best-effort";
+    gpio: boolean;
+    pwm: boolean;
+    analog: boolean;
+    i2c: boolean;
+    serial: boolean;
+  };
 };
 
 export const BOARD_TARGETS: Record<BoardTarget, BoardTargetInfo> = {
@@ -68,6 +78,7 @@ export const BOARD_TARGETS: Record<BoardTarget, BoardTargetInfo> = {
     mcu: "ATmega328P @ 16 MHz",
     fqbn: "arduino:avr:uno",
     runner: "avr",
+    simulationCapabilities: { fidelity: "full", gpio: true, pwm: true, analog: true, i2c: true, serial: true },
     webSerialUpload: { protocol: "stk500v1", baudRate: 115200, pageSize: 128 },
   },
   arduino_nano: {
@@ -76,6 +87,7 @@ export const BOARD_TARGETS: Record<BoardTarget, BoardTargetInfo> = {
     mcu: "ATmega328P @ 16 MHz",
     fqbn: "arduino:avr:nano",
     runner: "avr",
+    simulationCapabilities: { fidelity: "full", gpio: true, pwm: true, analog: true, i2c: true, serial: true },
   },
   arduino_mega_2560: {
     id: "arduino_mega_2560",
@@ -86,6 +98,7 @@ export const BOARD_TARGETS: Record<BoardTarget, BoardTargetInfo> = {
     // (Timer3/4/5, USART1–3, pins 20–53) aren't modeled — users hitting
     // those should flash to real hardware instead.
     runner: "avr",
+    simulationCapabilities: { fidelity: "best-effort", gpio: true, pwm: true, analog: true, i2c: true, serial: true },
   },
   rpi_pico: {
     id: "rpi_pico",
@@ -97,6 +110,7 @@ export const BOARD_TARGETS: Record<BoardTarget, BoardTargetInfo> = {
     // without it the handoff is synthesised and only GPIO-only sketches work.
     // See runners/rp2040-runner.ts header.
     runner: "rp2040",
+    simulationCapabilities: { fidelity: "best-effort", gpio: true, pwm: true, analog: true, i2c: false, serial: false },
     // Flashed by dropping a .uf2 onto the BOOTSEL drive — not a serial
     // bootloader — so no webSerialUpload.
     uf2Download: true,

@@ -1,6 +1,6 @@
 import { HOLE_SPACING } from "@/breadboard/breadboard-constants"
 import type { ComponentDefinition } from "@/components/component-definition"
-import { servoVarName } from "@/components/catalog/_shared"
+import { sanitize, servoVarName } from "@/components/catalog/_shared"
 
 export const servo: ComponentDefinition = {
   type: "servo",
@@ -8,6 +8,7 @@ export const servo: ComponentDefinition = {
   description: "Servo motor — rotate to a precise angle (0-180°)",
   label: "Servo Motor",
   defaultPins: { signal: null, vcc: null, gnd: null },
+  power: { supply: ["vcc", "power"], return: ["gnd", "ground"], minOperatingVolts: 4.8 },
   defaultProperties: { angle: 90 },
   accentColor: "#22c55e",
   footprint: (row, col) => ({
@@ -22,8 +23,24 @@ export const servo: ComponentDefinition = {
       <line x1={12} y1={12} x2={12} y2={7} stroke="#fff" strokeWidth={1.5} strokeLinecap="round" />
     </svg>
   ),
-  // Visual only — not in SPICE
-  buildNetlist: () => null,
+  // A servo's command comes through the peripheral bus, while its controller
+  // and motor load live in the circuit. Moving load is intentionally much
+  // heavier than the hold controller, so a commanded sweep can sag a weak
+  // rail and affect the same solve that drives brownout behavior.
+  buildNetlist: (comp, { footprint, resolveNode, peripheralStates }) => {
+    const vcc = resolveNode(footprint.points[1] ?? footprint.points[0])
+    const gnd = resolveNode(footprint.points[2] ?? footprint.points[0])
+    const state = peripheralStates?.[comp.id]
+    const moving = state?.kind === "servo" && state.moving && state.attached
+    // ~15mA hold electronics at 5V; ~170mA representative unloaded motion.
+    // The source impedance/current limit determines the actual current.
+    const resistance = moving ? 30 : 330
+    return {
+      lines: [`R_${sanitize(comp.id)} ${vcc} ${gnd} ${resistance}`],
+      nodeA: vcc,
+      nodeB: gnd,
+    }
+  },
   generateSketch: (comp) => {
     const pin = comp.pins.signal
     if (pin == null) return null

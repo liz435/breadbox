@@ -2,6 +2,7 @@ import {
   DEFAULT_BOARD_TARGET,
   type BoardTarget,
   isBoardComponentType,
+  isSurfaceBoardType,
   type BoardComponent,
   type Wire,
 } from "@dreamer/schemas";
@@ -33,7 +34,39 @@ import { getComponentDef } from "@/components/registry";
  */
 
 export type GridPoint = { row: number; col: number };
-export type Net = { id: string; points: GridPoint[]; arduinoPins: number[] };
+/** A grid point with the surface board that owns it. This is the electrical
+ * identity used by the resolver; row/column alone are only local coordinates. */
+export type TerminalAddress = GridPoint & { boardId: string };
+export type Net = { id: string; points: TerminalAddress[]; arduinoPins: number[] };
+export const LEGACY_SURFACE_BOARD_ID = "__legacy_surface_board__";
+
+function surfaceBoardIds(components: Record<string, BoardComponent>): string[] {
+  return Object.values(components)
+    .filter((component) => isSurfaceBoardType(component.type))
+    .map((component) => component.id);
+}
+
+/** Resolve a persisted component's surface board, retaining legacy single-board files. */
+export function componentSurfaceBoardId(
+  component: BoardComponent,
+  components: Record<string, BoardComponent>,
+): string {
+  if (component.parentId) return component.parentId;
+  const surfaces = surfaceBoardIds(components);
+  return surfaces.length === 1 ? surfaces[0] : LEGACY_SURFACE_BOARD_ID;
+}
+
+/** Resolve one wire endpoint to the surface board it physically lands on. */
+export function wireSurfaceBoardId(
+  wire: Wire,
+  endpoint: "from" | "to",
+  components: Record<string, BoardComponent>,
+): string {
+  const explicit = endpoint === "from" ? wire.fromBoardId : wire.toBoardId;
+  if (explicit) return explicit;
+  const surfaces = surfaceBoardIds(components);
+  return surfaces.length === 1 ? surfaces[0] : LEGACY_SURFACE_BOARD_ID;
+}
 
 // ── Breadboard constants (re-exported from breadboard-constants for back-compat) ──
 export {
@@ -847,7 +880,8 @@ export function getComponentFootprint(
  * equality before applying the bus-equivalence rules below. See the design
  * note in CLAUDE.md / branch web-bb-component (task #7).
  */
-export function areConnected(a: GridPoint, b: GridPoint): boolean {
+export function areConnected(a: GridPoint | TerminalAddress, b: GridPoint | TerminalAddress): boolean {
+  if ("boardId" in a && "boardId" in b && a.boardId !== b.boardId) return false;
   // Same point
   if (a.row === b.row && a.col === b.col) return true;
 
@@ -879,8 +913,8 @@ export function areConnected(a: GridPoint, b: GridPoint): boolean {
 
 // ── Net resolution (union-find) ───────────────────────────────
 
-function pointKey(p: GridPoint): string {
-  return `${p.row},${p.col}`;
+export function terminalAddressKey(p: GridPoint | TerminalAddress): string {
+  return "boardId" in p ? `${p.boardId}\u0000${p.row},${p.col}` : `${p.row},${p.col}`;
 }
 
 class UnionFind {
@@ -952,25 +986,35 @@ export function resolveNets(
   wires: Record<string, Wire>
 ): Net[] {
   const uf = new UnionFind();
+  const addresses = new Map<string, TerminalAddress>();
+  const boards = surfaceBoardIds(components);
+  // A board-less legacy project remains one electrical surface. In a project
+  // with several surfaces, only explicitly parented parts/endpoints can join
+  // those surfaces; this prevents same-coordinate cross-board shorts.
+  if (boards.length === 0) boards.push(LEGACY_SURFACE_BOARD_ID);
+  const key = (address: TerminalAddress) => {
+    const result = terminalAddressKey(address);
+    addresses.set(result, address);
+    return result;
+  };
 
   // 1. Internal breadboard connections: each row of 5 on same side
-  for (let row = 0; row < ROWS; row++) {
-    // Left side: cols 0-4
-    for (let col = 1; col <= 4; col++) {
-      uf.union(pointKey({ row, col: 0 }), pointKey({ row, col }));
+  for (const boardId of boards) {
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 1; col <= 4; col++) {
+        uf.union(key({ boardId, row, col: 0 }), key({ boardId, row, col }));
+      }
+      for (let col = 6; col <= 9; col++) {
+        uf.union(key({ boardId, row, col: 5 }), key({ boardId, row, col }));
+      }
     }
-    // Right side: cols 5-9
-    for (let col = 6; col <= 9; col++) {
-      uf.union(pointKey({ row, col: 5 }), pointKey({ row, col }));
+    // Power rails: each rail is fully connected along its length.
+    for (let row = 1; row < ROWS; row++) {
+      uf.union(key({ boardId, row: 0, col: -2 }), key({ boardId, row, col: -2 }));
+      uf.union(key({ boardId, row: 0, col: -1 }), key({ boardId, row, col: -1 }));
+      uf.union(key({ boardId, row: 0, col: 10 }), key({ boardId, row, col: 10 }));
+      uf.union(key({ boardId, row: 0, col: 11 }), key({ boardId, row, col: 11 }));
     }
-  }
-
-  // Power rails: each rail is fully connected along its length
-  for (let row = 1; row < ROWS; row++) {
-    uf.union(pointKey({ row: 0, col: -2 }), pointKey({ row, col: -2 }));
-    uf.union(pointKey({ row: 0, col: -1 }), pointKey({ row, col: -1 }));
-    uf.union(pointKey({ row: 0, col: 10 }), pointKey({ row, col: 10 }));
-    uf.union(pointKey({ row: 0, col: 11 }), pointKey({ row, col: 11 }));
   }
 
   // 2. Wire connections
@@ -983,8 +1027,8 @@ export function resolveNets(
       // Union the target breadboard point with a virtual key for the Arduino pin,
       // so the target net gets the Arduino pin number injected.
       const arduinoPinNumber = wire.fromCol;
-      const toKey = pointKey({ row: wire.toRow, col: wire.toCol });
-      const virtualKey = `arduino-pin:${arduinoPinNumber}`;
+      const toKey = key({ boardId: wireSurfaceBoardId(wire, "to", components), row: wire.toRow, col: wire.toCol });
+      const virtualKey = `arduino-pin:${wire.fromBoardId ?? "default"}:${arduinoPinNumber}`;
       uf.union(virtualKey, toKey);
 
       // Track this association so we can inject the pin number into the net later
@@ -993,8 +1037,8 @@ export function resolveNets(
       }
       arduinoPinToGridKeys.get(arduinoPinNumber)!.push(toKey);
     } else {
-      const from = pointKey({ row: wire.fromRow, col: wire.fromCol });
-      const to = pointKey({ row: wire.toRow, col: wire.toCol });
+      const from = key({ boardId: wireSurfaceBoardId(wire, "from", components), row: wire.fromRow, col: wire.fromCol });
+      const to = key({ boardId: wireSurfaceBoardId(wire, "to", components), row: wire.toRow, col: wire.toCol });
       uf.union(from, to);
     }
   }
@@ -1019,9 +1063,10 @@ export function resolveNets(
   const componentFootprintPoints = new Set<string>();
   for (const comp of Object.values(components)) {
     if (isBoardComponentType(comp.type) || comp.type === "wire") continue;
+    const boardId = componentSurfaceBoardId(comp, components);
     const fp = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties);
     for (const pt of fp.points) {
-      componentFootprintPoints.add(pointKey(pt));
+      componentFootprintPoints.add(key({ ...pt, boardId }));
     }
   }
 
@@ -1032,25 +1077,25 @@ export function resolveNets(
   for (const [, keys] of groups) {
     // Filter out virtual arduino-pin keys — they're not real grid points
     const realKeys = keys.filter((k) => !k.startsWith("arduino-pin:"));
-    const points = realKeys.map((k) => {
-      const [row, col] = k.split(",").map(Number);
-      return { row, col };
-    });
+    const points = realKeys.map((k) => addresses.get(k)).filter((point): point is TerminalAddress => !!point);
     const arduinoPins: number[] = [];
     for (const key of keys) {
       // Check real grid keys for component pin mappings
       const pins = pinMap.get(key);
       if (pins) arduinoPins.push(...pins);
-      // Check virtual arduino-pin keys — extract the pin number directly
+      // Check virtual arduino-pin keys — extract the pin number directly.
+      // Key shape is `arduino-pin:<boardId>:<pin>`, so the pin is the LAST
+      // segment; a board id is free to contain digits or colons.
       if (key.startsWith("arduino-pin:")) {
-        const pinNum = parseInt(key.split(":")[1], 10);
+        const segments = key.split(":");
+        const pinNum = parseInt(segments[segments.length - 1], 10);
         if (!isNaN(pinNum)) arduinoPins.push(pinNum);
       }
     }
     // Include nets that have Arduino pins OR that touch a component footprint point.
     // Previously filtered to realKeys.length > 5, which excluded single-row bus nets
     // critical for component-to-component connections (e.g., LED cathode row = resistor pin A row).
-    const touchesComponent = points.some((pt) => componentFootprintPoints.has(pointKey(pt)));
+    const touchesComponent = points.some((pt) => componentFootprintPoints.has(key(pt)));
     if (arduinoPins.length > 0 || touchesComponent) {
       nets.push({ id: `net-${netId++}`, points, arduinoPins: [...new Set(arduinoPins)] });
     }

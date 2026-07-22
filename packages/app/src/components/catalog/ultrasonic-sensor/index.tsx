@@ -8,6 +8,7 @@ export const ultrasonicSensor: ComponentDefinition = {
   description: "HC-SR04 distance sensor — measures 2-400cm via echo",
   label: "Ultrasonic Sensor",
   defaultPins: { trigger: null, echo: null, vcc: null, gnd: null },
+  power: { supply: ["vcc", "power"], return: ["gnd", "ground"], minOperatingVolts: 4.5 },
   // Vertical pin column: vcc → trig → echo → gnd, each in its own row.
   footprint: (row, col) => ({
     points: [

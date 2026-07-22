@@ -27,6 +27,7 @@ import type {
   SketchOutput,
 } from "@/components/component-definition"
 import type { ComponentRendererProps } from "@/breadboard/component-renderers/renderer-types"
+import type { PartPowerModel } from "@/components/part-spec"
 import { sanitize } from "@/components/catalog/_shared"
 
 export type PluginPinRole = "power" | "ground" | "digital" | "analog" | "io"
@@ -66,6 +67,8 @@ export type PluginComponentSpec = {
   svg?: string
   paletteIcon?: ReactNode
   spicePrefix?: string
+  /** Supply requirement. Omit to leave the part ungated by the power model. */
+  power?: PartPowerModel
   buildNetlist?: (comp: BoardComponent, ctx: NetlistContext, api: PluginNetlistApi) => NetlistOutput | null
   computeElectricalState?: (comp: BoardComponent, ctx: ElectricalContext) => ElectricalOutput | null
   generateSketch?: (comp: BoardComponent) => SketchOutput | null
@@ -214,6 +217,7 @@ export function createPluginHost(): PluginHost {
         paletteIcon:
           spec.paletteIcon ?? (spec.svg ? svgPaletteIcon(spec.svg) : defaultPaletteIcon()),
         spicePrefix: spec.spicePrefix,
+        power: spec.power,
         buildNetlist,
         computeElectricalState,
         generateSketch,

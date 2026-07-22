@@ -22,8 +22,11 @@ import {
 } from "./solver-host"
 import { snapshotAsPinStates } from "./pin-state-store"
 import { applySensorInputs, resetSensorBuses } from "./sensor-inputs"
+import { powerModelFor } from "./power-model"
 import { RunTokenGate } from "./run-token-gate"
 import { debugStateStore } from "./debug-state-store"
+import { createSimulationSession, type SimulationSession } from "./simulation-session"
+import { advanceBrownout, MCU_3V3_POWER_PROFILE, MCU_5V_POWER_PROFILE } from "./power-domain"
 import { getBoardPinLayout, getComponentFootprint, areConnected } from "@/breadboard/breadboard-grid"
 import { BoardContext } from "@/store/board-context"
 import { BOARD_TARGETS, DEFAULT_BOARD_TARGET, isBoardComponentType, type LibraryState, type ServoState } from "@dreamer/schemas"
@@ -75,6 +78,8 @@ export type SimulationActions = {
   stepInto: () => void
   /** Step until the source line changes (best-effort). */
   stepOver: () => void
+  /** The project-owned runtime session; presentation modules should not create one. */
+  session: SimulationSession
 }
 
 type SimulationHookOptions = {
@@ -93,6 +98,8 @@ type SimulationHookOptions = {
 export function useSimulation(options: SimulationHookOptions = {}): SimulationActions {
   const [state, send] = useMachine(simulationMachine)
   const runnerRef = useRef<SketchRunner | null>(null)
+  const sessionRef = useRef<SimulationSession | null>(null)
+  if (!sessionRef.current) sessionRef.current = createSimulationSession()
   const runnerBoardTargetRef = useRef(DEFAULT_BOARD_TARGET)
   const rafRef = useRef<number | null>(null)
   // Board actor for reading live state in the tick loop
@@ -315,6 +322,10 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
   // falls behind its clock.
   const solverHostRef = useRef<SolverHost | null>(null)
   const throttleMcuRef = useRef(false)
+  const brownoutRef = useRef<{ tripped: boolean; recoveredAtWallMs: number | null }>({
+    tripped: false,
+    recoveredAtWallMs: null,
+  })
   function getSolverHost(): SolverHost {
     let host = solverHostRef.current
     // A worker that crashed (host.broken) is swapped for the inline host —
@@ -334,6 +345,21 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
   /** Run circuit analysis and feed analog voltages into the pin store. */
   function runInlineAnalysis() {
     const ctx = boardActor.getSnapshot().context
+    const runner = runnerRef.current
+    if (!runner) return
+    // Inputs must be available before the electrical solve and the next MCU
+    // quantum. Applying them after both (the old order) made a sensor change
+    // take an extra frame and let firmware observe stale physical state.
+    applySensorInputs(
+      ctx.components,
+      ctx.wires,
+      runner.getPinStore(),
+      ctx.environment,
+      runner.getPeripheralBus(),
+      ctx.realismProfile ?? "learn",
+      runner.getMillis(),
+      sessionRef.current?.powerDomain,
+    )
     const hasCircuitComponents = Object.values(ctx.components).some(
       c => !isBoardComponentType(c.type) && c.type !== "wire"
     )
@@ -342,8 +368,6 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
       return
     }
 
-    const runner = runnerRef.current
-    if (!runner) return
     const store = runner.getPinStore()
     const boardTarget = ctx.boardTarget ?? DEFAULT_BOARD_TARGET
     const analogPinSet = new Set(
@@ -354,7 +378,8 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     // light up. The chip's Q0..Q7 are not Arduino pins, so the netlist builder
     // can only drive them from the peripheral's latched byte.
     const shiftRegisterOutputs = new Map<string, readonly boolean[]>()
-    for (const [id, s] of Object.entries(runner.getPeripheralBus().snapshot())) {
+    const peripheralStates = runner.getPeripheralBus().snapshot()
+    for (const [id, s] of Object.entries(peripheralStates)) {
       if (s.kind === "shift_register") shiftRegisterOutputs.set(id, s.outputs)
     }
 
@@ -387,6 +412,7 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
           wires: ctx.wires,
           pinStates: snapshotAsPinStates(store),
           shiftRegisterOutputs,
+          peripheralStates,
           mcuTimeSeconds: simMs / 1000,
         })
         if (tick) {
@@ -401,14 +427,39 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
           ctx.wires,
           snapshotAsPinStates(store),
           shiftRegisterOutputs,
-          { dtSeconds },
+          { dtSeconds, peripheralStates },
         )
       }
-      if (result) analysisResultRef.current = result
+      if (result) {
+        analysisResultRef.current = result
+        sessionRef.current?.powerDomain.update(result.supplies, result.componentPower)
+        const profile = ctx.realismProfile ?? "learn"
+        // Sparse by contract: only parts that declare a power model get a
+        // verdict. Anything else keeps its attach-time state rather than being
+        // reported permanently dead.
+        const powerStates = new Map(
+          Object.values(ctx.components)
+            .filter((component) => powerModelFor(component.type) !== undefined)
+            .map((component) => [
+              component.id,
+              profile === "learn" || sessionRef.current?.powerDomain.isComponentOperating(component.id, component.type) === true,
+            ]),
+        )
+        runner.getPeripheralBus().setPowerStates(powerStates)
+      }
 
       if (result?.isValid) {
+        // ADC counts are ratiometric to the MCU's reference rail. A sagging
+        // Uno 5V supply (or the Pico's 3V3 domain) must therefore change both
+        // the admissible input range and the count scale; hard-coding 5V hid
+        // exactly the brownout/measurement interaction Hardware mode models.
+        const nominalAdcReference = BOARD_TARGETS[boardTarget].runner === "rp2040" ? 3.3 : 5
+        const solvedAdcReference = result.supplies.find(
+          (supply) => supply.label === (nominalAdcReference === 3.3 ? "Arduino 3V3" : "Arduino 5V"),
+        )?.voltage
+        const adcReferenceVolts = Math.max(0.1, solvedAdcReference ?? nominalAdcReference)
         const voltsToAnalog = (v: number) =>
-          Math.round((Math.min(5, Math.abs(v)) / 5) * 1023)
+          Math.round((Math.min(adcReferenceVolts, Math.max(0, v)) / adcReferenceVolts) * 1023)
 
         // Feed component voltages to analog pins.
         // 1. Explicit pin assignments
@@ -456,19 +507,39 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
       analysisResultRef.current = null
     }
 
-    // 3. Apply sensor-driven inputs LAST. Runs unconditionally — even when
-    // circuit analysis fails or the board has no power rails — so active
-    // sensors (ultrasonic, DHT, IR, photoresistor, PIR) still push their
-    // inspector-driven values into the peripheral bus + pin store. Pass
-    // the bus so `UltrasonicPeripheral.setDistance` runs and the AVR's
-    // `pulseIn()` sees a real echo pulse.
-    applySensorInputs(
-      ctx.components,
-      ctx.wires,
-      store,
-      ctx.environment,
-      runner.getPeripheralBus(),
+  }
+
+  /** Hardware-mode MCU brownout. The rail is solved by SPICE; this is only
+   * the MCU's response to that state. Recovery reattaches peripherals because
+   * runner.reset() intentionally clears its bus. */
+  function reconcileBrownout(runner: SketchRunner, ctx: ReturnType<typeof boardActor.getSnapshot>["context"]): boolean {
+    if ((ctx.realismProfile ?? "learn") !== "hardware") return false
+    const is3v3Mcu = runner.kind === "rp2040"
+    const supply = sessionRef.current?.powerDomain.primaryBoardSupply(is3v3Mcu ? 3.3 : 5)
+    if (!supply) return false // no modeled board rail: retain compatibility
+    const transition = advanceBrownout(
+      brownoutRef.current,
+      supply,
+      is3v3Mcu ? MCU_3V3_POWER_PROFILE : MCU_5V_POWER_PROFILE,
+      performance.now(),
     )
+    brownoutRef.current = transition.state
+    if (transition.action === "trip") {
+      runner.reset()
+      return true
+    }
+    if (transition.action === "hold") return true
+    if (transition.action === "none") return false
+
+    const boardTarget = ctx.boardTarget ?? DEFAULT_BOARD_TARGET
+    runner.attachBoard({
+      components: ctx.components,
+      wires: ctx.wires,
+      pinStore: runner.getPinStore(),
+      targetCapabilities: BOARD_TARGETS[boardTarget].simulationCapabilities,
+    })
+    runner.runSetup()
+    return false
   }
 
   const startLoop = useCallback(() => {
@@ -484,15 +555,22 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
 
       frameCount++
 
-      // Run circuit analysis every 12 frames (~5 times/sec at 60fps). Boards
+      // Learn mode runs circuit analysis every 12 frames (~5 times/sec). In
+      // Electrical/Hardware profiles pin writes, loads, and MCU reads must
+      // stay close to the solved circuit, so analyse every animation frame.
+      // Boards
       // with a capacitor analyze every 2 frames (~30/sec) so charge/discharge
       // transients animate smoothly instead of snapping. Also run on the very
       // first frame so analog values are seeded, and every frame while the
       // circuit is catching up under the lockstep throttle.
-      const interval = hasReactiveRef.current ? 2 : 12
+      const profile = boardActor.getSnapshot().context.realismProfile ?? "learn"
+      const interval = profile === "learn" ? (hasReactiveRef.current ? 2 : 12) : 1
       if (frameCount === 1 || frameCount % interval === 0 || throttleMcuRef.current) {
         runInlineAnalysis()
       }
+
+      const boardCtx = boardActor.getSnapshot().context
+      const brownoutActive = reconcileBrownout(runner, boardCtx)
 
       // Run loop iteration — it may return false if delaying.
       // External digital inputs (button press, etc.) go straight into the
@@ -500,7 +578,7 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
       // Lockstep (Phase B): while the circuit is behind the MCU clock, the
       // MCU waits. Both clocks slow together — honest sub-realtime — rather
       // than letting analogRead see physics from the past.
-      if (!throttleMcuRef.current) {
+      if (!throttleMcuRef.current && !brownoutActive) {
         runner.runLoopIteration()
       }
 
@@ -555,9 +633,11 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
       // (runner.reset() restarts the MCU clock at 0).
       solverHostRef.current?.reset()
       getTransientSession().reset()
+      sessionRef.current?.powerDomain.reset()
       lastSimMsRef.current = 0
       throttleMcuRef.current = false
       publishCircuitRealtimeFactor(null)
+      brownoutRef.current = { tripped: false, recoveredAtWallMs: null }
 
       const boardCtx = boardActor.getSnapshot().context
       const customLibs = getCustomLibraryMap()
@@ -589,6 +669,7 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
           components: boardCtx.components,
           wires: boardCtx.wires,
           pinStore: runner.getPinStore(),
+          targetCapabilities: BOARD_TARGETS[boardTarget].simulationCapabilities,
         })
         // A peripheral that couldn't attach (I²C device with no TWI bridge,
         // address collision, …) means a placed component will sit idle all
@@ -711,6 +792,7 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     lastSimMsRef.current = 0
     throttleMcuRef.current = false
     publishCircuitRealtimeFactor(null)
+    brownoutRef.current = { tripped: false, recoveredAtWallMs: null }
     // Drop debugger run-state (keeps breakpoints for the next run).
     debugStateStore.reset()
     send({ type: "STOP" })
@@ -737,7 +819,7 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
 
   const status = state.value as SimulationStatus
 
-  return {
+  const actions: SimulationActions = {
     status,
     error: state.context.errorMessage,
     play,
@@ -750,5 +832,8 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     continueRun,
     stepInto,
     stepOver,
+    session: sessionRef.current,
   }
+  sessionRef.current.attach(actions, analysisResultRef)
+  return actions
 }

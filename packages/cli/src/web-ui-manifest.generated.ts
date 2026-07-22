@@ -9,9 +9,9 @@ import asset__assets_arduino_uno_board_DBpS0kIP_svg from "../../app/dist/assets/
 import asset__assets_breadboard_vcPcRDW__glb from "../../app/dist/assets/breadboard-vcPcRDW_.glb" with { type: "file" }
 import asset__assets_buzzer_Bo1_Vaqm_glb from "../../app/dist/assets/buzzer-Bo1-Vaqm.glb" with { type: "file" }
 import asset__assets_dht_sensor_Bn8KUiHh_glb from "../../app/dist/assets/dht-sensor-Bn8KUiHh.glb" with { type: "file" }
-import asset__assets_index_B_DEbrfw_js from "../../app/dist/assets/index-B-DEbrfw.js" with { type: "file" }
+import asset__assets_index_B5z0GkrN_css from "../../app/dist/assets/index-B5z0GkrN.css" with { type: "file" }
+import asset__assets_index_BouSKjIW_js from "../../app/dist/assets/index-BouSKjIW.js" with { type: "file" }
 import asset__assets_index_CCUjAQjo_js from "../../app/dist/assets/index-CCUjAQjo.js" with { type: "file" }
-import asset__assets_index_DJFZBDPi_css from "../../app/dist/assets/index-DJFZBDPi.css" with { type: "file" }
 import asset__assets_lcd_CwnbX7Fb_glb from "../../app/dist/assets/lcd-CwnbX7Fb.glb" with { type: "file" }
 import asset__assets_led_DLyppEoJ_glb from "../../app/dist/assets/led-DLyppEoJ.glb" with { type: "file" }
 import asset__assets_oled_ConnZ0Jh_glb from "../../app/dist/assets/oled-ConnZ0Jh.glb" with { type: "file" }
@@ -23,11 +23,11 @@ import asset__assets_rgb_led_Dr70QQ75_glb from "../../app/dist/assets/rgb-led-Dr
 import asset__assets_rp2040_bootrom_data_BpBHbl0R_js from "../../app/dist/assets/rp2040-bootrom-data-BpBHbl0R.js" with { type: "file" }
 import asset__assets_servo_CSNkeUgo_glb from "../../app/dist/assets/servo-CSNkeUgo.glb" with { type: "file" }
 import asset__assets_seven_segment_Cyg70YAB_glb from "../../app/dist/assets/seven-segment-Cyg70YAB.glb" with { type: "file" }
-import asset__assets_solver_worker_BUKsE2zi_js from "../../app/dist/assets/solver.worker-BUKsE2zi.js" with { type: "file" }
+import asset__assets_solver_worker_Bj34uFii_js from "../../app/dist/assets/solver.worker-Bj34uFii.js" with { type: "file" }
 import asset__assets_stepper_uln2003_CLGN_ZSq_glb from "../../app/dist/assets/stepper-uln2003-CLGN-ZSq.glb" with { type: "file" }
 import asset__assets_temperature_sensor_CfLXnMPY_glb from "../../app/dist/assets/temperature-sensor-CfLXnMPY.glb" with { type: "file" }
 import asset__assets_ultrasonic_miVV1WUv_glb from "../../app/dist/assets/ultrasonic-miVV1WUv.glb" with { type: "file" }
-import asset__assets_view_DX_9b5K8_js from "../../app/dist/assets/view-DX-9b5K8.js" with { type: "file" }
+import asset__assets_view_2EzX6qsQ_js from "../../app/dist/assets/view-2EzX6qsQ.js" with { type: "file" }
 import asset__favicon_png from "../../app/dist/favicon.png" with { type: "file" }
 import asset__index_html from "../../app/dist/index.html" with { type: "file" }
 
@@ -37,9 +37,9 @@ export const EMBEDDED_ASSETS: Record<string, string> = {
   "/assets/breadboard-vcPcRDW_.glb": asset__assets_breadboard_vcPcRDW__glb as unknown as string,
   "/assets/buzzer-Bo1-Vaqm.glb": asset__assets_buzzer_Bo1_Vaqm_glb as unknown as string,
   "/assets/dht-sensor-Bn8KUiHh.glb": asset__assets_dht_sensor_Bn8KUiHh_glb as unknown as string,
-  "/assets/index-B-DEbrfw.js": asset__assets_index_B_DEbrfw_js as unknown as string,
+  "/assets/index-B5z0GkrN.css": asset__assets_index_B5z0GkrN_css as unknown as string,
+  "/assets/index-BouSKjIW.js": asset__assets_index_BouSKjIW_js as unknown as string,
   "/assets/index-CCUjAQjo.js": asset__assets_index_CCUjAQjo_js as unknown as string,
-  "/assets/index-DJFZBDPi.css": asset__assets_index_DJFZBDPi_css as unknown as string,
   "/assets/lcd-CwnbX7Fb.glb": asset__assets_lcd_CwnbX7Fb_glb as unknown as string,
   "/assets/led-DLyppEoJ.glb": asset__assets_led_DLyppEoJ_glb as unknown as string,
   "/assets/oled-ConnZ0Jh.glb": asset__assets_oled_ConnZ0Jh_glb as unknown as string,
@@ -51,11 +51,11 @@ export const EMBEDDED_ASSETS: Record<string, string> = {
   "/assets/rp2040-bootrom-data-BpBHbl0R.js": asset__assets_rp2040_bootrom_data_BpBHbl0R_js as unknown as string,
   "/assets/servo-CSNkeUgo.glb": asset__assets_servo_CSNkeUgo_glb as unknown as string,
   "/assets/seven-segment-Cyg70YAB.glb": asset__assets_seven_segment_Cyg70YAB_glb as unknown as string,
-  "/assets/solver.worker-BUKsE2zi.js": asset__assets_solver_worker_BUKsE2zi_js as unknown as string,
+  "/assets/solver.worker-Bj34uFii.js": asset__assets_solver_worker_Bj34uFii_js as unknown as string,
   "/assets/stepper-uln2003-CLGN-ZSq.glb": asset__assets_stepper_uln2003_CLGN_ZSq_glb as unknown as string,
   "/assets/temperature-sensor-CfLXnMPY.glb": asset__assets_temperature_sensor_CfLXnMPY_glb as unknown as string,
   "/assets/ultrasonic-miVV1WUv.glb": asset__assets_ultrasonic_miVV1WUv_glb as unknown as string,
-  "/assets/view-DX-9b5K8.js": asset__assets_view_DX_9b5K8_js as unknown as string,
+  "/assets/view-2EzX6qsQ.js": asset__assets_view_2EzX6qsQ_js as unknown as string,
   "/favicon.png": asset__favicon_png as unknown as string,
   "/index.html": asset__index_html as unknown as string,
   "/": asset__index_html as unknown as string,

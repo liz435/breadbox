@@ -9,8 +9,15 @@
 import React from "react"
 import type { BoardComponent } from "@dreamer/schemas"
 import { gridToPixel } from "@/breadboard/breadboard-grid"
-import { LABEL_FONT_SIZE } from "@/breadboard/breadboard-constants"
+import { HOLE_SPACING, LABEL_FONT_SIZE } from "@/breadboard/breadboard-constants"
 import { powerSupplyPinRows } from "./pin-rows"
+
+/** How far the PCB extends past the pin rows, in hole rows. The real MB102's
+ *  body hangs ~7 rows up-board past its top pin row (toward the board end) and
+ *  ~1 row past the bottom one — same extents the 3D GLB shows, so the two views
+ *  read the same. */
+const BODY_OVERHANG_TOP_ROWS = 7
+const BODY_OVERHANG_BOTTOM_ROWS = 1
 
 type PowerSupplyRendererProps = {
   component: BoardComponent
@@ -36,11 +43,12 @@ function PowerSupplyRendererInner({
   const rMinusBot = gridToPixel({ row: bottomRow, col: 10 })
   const rPlusBot = gridToPixel({ row: bottomRow, col: 11 })
 
-  // Body extents — span from outer left rail to outer right rail.
+  // Body extents — span from outer left rail to outer right rail, with the
+  // real module's up-board overhang so the 2D silhouette matches the 3D model.
   const bodyLeft = lPlusTop.x - 6
   const bodyRight = rPlusTop.x + 6
-  const bodyTop = lPlusTop.y - 10
-  const bodyBottom = lPlusBot.y + 10
+  const bodyTop = lPlusTop.y - BODY_OVERHANG_TOP_ROWS * HOLE_SPACING
+  const bodyBottom = lPlusBot.y + BODY_OVERHANG_BOTTOM_ROWS * HOLE_SPACING
   const bodyW = bodyRight - bodyLeft
   const bodyH = bodyBottom - bodyTop
   const bodyCx = (bodyLeft + bodyRight) / 2
@@ -262,34 +270,9 @@ function PowerSupplyRendererInner({
         R: {rightVoltage}V
       </text>
 
-      {/* Pin legs from the body down/up to each rail hole */}
-      {[
-        lPlusTop,
-        lMinusTop,
-        rMinusTop,
-        rPlusTop,
-        lPlusBot,
-        lMinusBot,
-        rMinusBot,
-        rPlusBot,
-      ].map((p, i) => {
-        const isTop = i < 4
-        const yEnd = isTop ? bodyTop : bodyBottom
-        return (
-          <line
-            key={`leg-${i}`}
-            x1={p.x}
-            y1={p.y}
-            x2={p.x}
-            y2={yEnd}
-            stroke="#c0c0c0"
-            strokeWidth={1.2}
-            strokeLinecap="round"
-          />
-        )
-      })}
-
-      {/* Pin hole rings — colored by polarity */}
+      {/* Pin hole rings — colored by polarity. The pins plug straight down
+          under the PCB (both rows sit inside the body), so rings on top of the
+          body are the only leg visual. */}
       {[
         { p: lPlusTop, color: "#ef4444" },
         { p: lMinusTop, color: "#3b82f6" },

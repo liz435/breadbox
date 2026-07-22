@@ -2,12 +2,18 @@ import { HOLE_SPACING } from "@/breadboard/breadboard-constants"
 import type { ComponentDefinition } from "@/components/component-definition"
 import { sanitize } from "@/components/catalog/_shared"
 
+const TMP36_MIN_TEMP_C = -40
+const TMP36_MAX_TEMP_C = 125
+const TMP36_OUTPUT_RESISTANCE_OHMS = 200
+const TMP36_QUIESCENT_RESISTANCE_OHMS = 200_000
+
 export const temperatureSensor: ComponentDefinition = {
   type: "temperature_sensor",
   category: "input",
   description: "Analog temperature sensor (TMP36)",
   label: "Temperature Sensor",
   defaultPins: { vcc: null, signal: null, gnd: null },
+  power: { supply: ["vcc", "power"], return: ["gnd", "ground"], minOperatingVolts: 2.7 },
   defaultProperties: { temperature: 25 },
   footprint: (row, col) => ({
     points: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }],
@@ -40,23 +46,37 @@ export const temperatureSensor: ComponentDefinition = {
       <path d="M6 11 A6 6 0 0 1 18 11" fill="none" stroke="#505050" strokeWidth={0.5} />
     </svg>
   ),
-  // TMP36: 3-pin analog sensor (VCC, Signal, GND).
-  // Model as 10kΩ input impedance per pin.
+  // TMP36: a finite-impedance temperature voltage source, a small supply
+  // load, and an output clamp. This makes the signal participate in the
+  // actual net solve (including ADC loading and wiring mistakes) rather than
+  // writing an unrelated value into the MCU pin store.
   spicePrefix: "R",
   buildNetlist: (comp, { footprint, resolveNode }) => {
-    const pinNames = ["vcc", "signal", "gnd"]
-    const lines: string[] = []
-    let nodeA = "0"
-    let nodeB = "0"
-    for (let i = 0; i < 3; i++) {
-      const node = resolveNode(footprint.points[i])
-      if (i === 0) nodeA = node
-      if (i === 2) nodeB = node
-      if (node !== "0") {
-        lines.push(`R_${sanitize(comp.id)}_${pinNames[i]} ${node} 0 10000`)
-      }
+    const vcc = resolveNode(footprint.points[0])
+    const signal = resolveNode(footprint.points[1] ?? footprint.points[0])
+    const gnd = resolveNode(footprint.points[2] ?? footprint.points[0])
+    const id = sanitize(comp.id)
+    const tempC = Math.max(
+      TMP36_MIN_TEMP_C,
+      Math.min(TMP36_MAX_TEMP_C, Number(comp.properties.temperature) || 25),
+    )
+    // TMP36 transfer: 500mV at 0°C, 10mV/°C. A series resistor represents
+    // its finite output impedance. The diode keeps an unpowered/miswired
+    // sensor from unrealistically driving a signal far above its VCC rail.
+    const outputVolts = 0.5 + tempC * 0.01
+    const raw = `tmp36_${id}_raw`
+    const model = `DTMP36_${id}`
+    return {
+      lines: [
+        `R_${id}_iq ${vcc} ${gnd} ${TMP36_QUIESCENT_RESISTANCE_OHMS}`,
+        `V_${id}_temp ${raw} ${gnd} ${outputVolts}`,
+        `R_${id}_out ${raw} ${signal} ${TMP36_OUTPUT_RESISTANCE_OHMS}`,
+        `D_${id}_clamp ${signal} ${vcc} ${model}`,
+      ],
+      modelLines: [`.model ${model} D(IS=1e-14 N=1 RS=2)`],
+      nodeA: vcc,
+      nodeB: gnd,
     }
-    return { lines, nodeA, nodeB }
   },
   computeElectricalState: (comp) => {
     // TMP36: output voltage = (temperature × 10mV) + 500mV

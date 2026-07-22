@@ -11,6 +11,7 @@ import { gridToPixel, getComponentFootprint } from "@/breadboard/breadboard-grid
 import { getComponentDef } from "@/components/registry"
 import { getCapVoltage, setCapVoltage } from "./capacitor-state"
 import { TransientSession, type TransientStepResult } from "./transient-session"
+import type { PeripheralState } from "./peripherals/types"
 
 type ParsedCircuit = ReturnType<typeof parseNetlist>
 
@@ -196,6 +197,11 @@ export type CircuitAnalysis = {
   componentStates: Map<string, ComponentElectricalState>
   currentPaths: CurrentPath[]
   warnings: CircuitWarning[]
+  /** Authoritative solved supply outputs — board rails and external sources
+   * such as MB102 channels alike, carrying the operating limits the runtime
+   * power domain and the fault diagnostics both read. */
+  supplies: SolvedSupply[]
+  componentPower: Map<string, ComponentPowerState>
   /**
    * Solved voltage at a breadboard grid point, or null when the point isn't
    * part of any net. Present on transient-path analyses (ROADMAP Phase C):
@@ -203,6 +209,33 @@ export type CircuitAnalysis = {
    * instead of a component's terminal drop.
    */
   nodeVoltageAt?: (point: { row: number; col: number }) => number | null
+}
+
+export type SolvedSupply = {
+  id: string
+  label: string
+  voltage: number
+  currentMa: number
+  nominalVoltage: number
+  currentLimitMa: number
+  sourceResistanceOhms?: number
+}
+
+export type ComponentPowerState = {
+  componentId: string
+  /** Ground-referenced voltage at the part's declared supply node. This, not
+   * the drop across the part, is what decides whether it can operate — a part
+   * whose return is its driven pin (DC motor) has no meaningful drop when
+   * idle or during a PWM low phase. */
+  supplyVoltage: number
+  /** Whether the declared return actually reaches ground. Null when the part
+   * declares no return pin. A plain positive−ground subtraction cannot answer
+   * this: getNodeVoltage falls back to 0 for unknown nodes, so an unwired
+   * ground reads identically to a wired one. */
+  returnGrounded: boolean | null
+  /** Supplies feeding this part, so a collapsed source disqualifies it even
+   * when its own node still reads above threshold. */
+  supplyIds: string[]
 }
 
 export type ComponentElectricalState = {
@@ -235,6 +268,7 @@ export type CircuitWarning = {
     | "overcurrent"
     | "open_circuit"
     | "short_circuit"
+    | "undervoltage"
     | "solver_failed"
   message: string
 }
@@ -246,7 +280,7 @@ export function analyzeCircuit(
   wires: Record<string, Wire>,
   pinStates: PinState[],
   shiftRegisterOutputs?: ShiftRegisterOutputs,
-  options?: { dtSeconds?: number },
+  options?: { dtSeconds?: number; peripheralStates?: Record<string, PeripheralState> },
 ): CircuitAnalysis {
   const componentStates = new Map<string, ComponentElectricalState>()
   const currentPaths: CurrentPath[] = []
@@ -264,15 +298,19 @@ export function analyzeCircuit(
       componentStates,
       currentPaths,
       warnings,
+      supplies: [],
+      componentPower: new Map(),
     }
   }
 
   // Build the SPICE netlist
-  const { netlist, componentNodePairs, pinSources, pwmSources, railSources, railShorts } = buildNetlist(
+  const { netlist, componentNodePairs, componentPowerBindings, pinSources, pwmSources, powerSources, railShorts } = buildNetlist(
     components,
     wires,
     pinStates,
     shiftRegisterOutputs,
+    "op",
+    options?.peripheralStates,
   )
 
   if (netlist.trim().length === 0) {
@@ -282,6 +320,8 @@ export function analyzeCircuit(
       componentStates,
       currentPaths,
       warnings,
+      supplies: [],
+      componentPower: new Map(),
     }
   }
 
@@ -320,6 +360,8 @@ export function analyzeCircuit(
       componentStates,
       currentPaths,
       warnings,
+      supplies: [],
+      componentPower: new Map(),
     }
   }
 
@@ -357,8 +399,9 @@ export function analyzeCircuit(
     circuitComponents,
     netlist,
     componentNodePairs,
+    componentPowerBindings,
     pinSources,
-    railSources,
+    powerSources,
     railShorts,
     getNodeVoltage,
     getElementCurrent,
@@ -431,6 +474,8 @@ export function analyzeCircuitTransient(
       componentStates,
       currentPaths,
       warnings,
+      supplies: [],
+      componentPower: new Map(),
       advancedSeconds: 0,
       requestedSeconds: options?.dtSimSeconds ?? 0,
     }
@@ -468,6 +513,8 @@ export function analyzeCircuitTransient(
       componentStates,
       currentPaths,
       warnings,
+      supplies: [],
+      componentPower: new Map(),
       advancedSeconds: 0,
       requestedSeconds: options?.dtSimSeconds ?? 0,
     }
@@ -499,8 +546,9 @@ export function deriveTransientAnalysis(
     circuitComponents,
     netlist: step.netlist,
     componentNodePairs: step.build.componentNodePairs,
+    componentPowerBindings: step.build.componentPowerBindings,
     pinSources: step.build.pinSources,
-    railSources: step.build.railSources,
+    powerSources: step.build.powerSources,
     railShorts: step.build.railShorts,
     getNodeVoltage: step.getNodeVoltage,
     getElementCurrent: step.getElementCurrent,
@@ -529,8 +577,9 @@ type DeriveParams = {
   circuitComponents: BoardComponent[]
   netlist: string
   componentNodePairs: Map<string, { nodeA: string; nodeB: string }>
+  componentPowerBindings: NetlistResult["componentPowerBindings"]
   pinSources: NetlistResult["pinSources"]
-  railSources: NetlistResult["railSources"]
+  powerSources: NetlistResult["powerSources"]
   railShorts: NetlistResult["railShorts"]
   getNodeVoltage: (node: string) => number
   getElementCurrent: (element: string) => number
@@ -547,8 +596,9 @@ function deriveAnalysis(params: DeriveParams): CircuitAnalysis {
     circuitComponents,
     netlist,
     componentNodePairs,
+    componentPowerBindings,
     pinSources,
-    railSources,
+    powerSources,
     railShorts,
     getNodeVoltage,
     getElementCurrent,
@@ -636,9 +686,10 @@ function deriveAnalysis(params: DeriveParams): CircuitAnalysis {
     warnings,
   )
 
-  // Rail-level checks: hard shorts detected at build time, plus solved rail
-  // currents against the board's supply limits (polyfuse / LDO).
-  flagRailFaults(railShorts, railSources, circuitComponents, componentNodePairs, getElementCurrent, getNodeVoltage, warnings)
+  // Supply-level checks: hard shorts detected at build time, plus solved
+  // current for every source — board rails and external modules alike —
+  // against the limits each source declares.
+  flagSupplyFaults(railShorts, powerSources, circuitComponents, componentNodePairs, getElementCurrent, getNodeVoltage, warnings)
 
   // Port-group and whole-chip limits: the ATmega's real constraint isn't just
   // per-pin — each port group and the VCC/GND pins have their own budgets.
@@ -652,6 +703,25 @@ function deriveAnalysis(params: DeriveParams): CircuitAnalysis {
       : warnings.filter(
           (w) => !(w.type === "no_resistor" && overcurrentComponentIds.has(w.componentId)),
         )
+
+  const supplies: SolvedSupply[] = powerSources.map((source) => ({
+    id: source.id,
+    label: source.label,
+    voltage: getNodeVoltage(source.node),
+    currentMa: Math.abs(getElementCurrent(source.element)) * 1000,
+    nominalVoltage: source.nominalVoltage,
+    currentLimitMa: source.currentLimitMa,
+    sourceResistanceOhms: source.sourceResistanceOhms,
+  }))
+  const componentPower = new Map<string, ComponentPowerState>()
+  for (const [componentId, binding] of componentPowerBindings) {
+    componentPower.set(componentId, {
+      componentId,
+      supplyVoltage: getNodeVoltage(binding.supply),
+      returnGrounded: binding.returnGrounded,
+      supplyIds: binding.supplyIds,
+    })
+  }
 
   // Check for open circuits: if no component has current flowing
   const anyActive = Array.from(componentStates.values()).some((s) => s.isActive)
@@ -677,6 +747,8 @@ function deriveAnalysis(params: DeriveParams): CircuitAnalysis {
     componentStates,
     currentPaths,
     warnings: dedupedWarnings,
+    supplies,
+    componentPower,
   }
 }
 
@@ -716,10 +788,9 @@ function flagPinOvercurrent(
 }
 
 // ── Supply-rail limits (Arduino Uno) ──────────────────────────────────
-const RAIL_5V_LIMIT_MA = 500 // USB polyfuse trip current
-const RAIL_3V3_LIMIT_MA = 50 // official 3.3V pin budget (LP2985 LDO)
 /** A rail sagging below this fraction of nominal reads as a collapsed/shorted rail. */
 const RAIL_COLLAPSE_FRACTION = 0.6
+const RAIL_UNDERVOLTAGE_FRACTION = 0.9
 
 /**
  * Emit short_circuit / overcurrent warnings for the supply rails: hard shorts
@@ -727,9 +798,9 @@ const RAIL_COLLAPSE_FRACTION = 0.6
  * source never makes it into the netlist) and solved rail currents beyond the
  * board's supply limits.
  */
-function flagRailFaults(
+function flagSupplyFaults(
   railShorts: NetlistResult["railShorts"],
-  railSources: NetlistResult["railSources"],
+  powerSources: NetlistResult["powerSources"],
   circuitComponents: BoardComponent[],
   componentNodePairs: Map<string, { nodeA: string; nodeB: string }>,
   getElementCurrent: (elementName: string) => number,
@@ -748,27 +819,36 @@ function flagRailFaults(
     }
   }
 
-  for (const rail of railSources) {
-    const currentMa = Math.abs(getElementCurrent(rail.element)) * 1000
-    const nominal = rail.rail === "5V" ? 5 : 3.3
-    const limitMa = rail.rail === "5V" ? RAIL_5V_LIMIT_MA : RAIL_3V3_LIMIT_MA
-    const railVolts = getNodeVoltage(rail.node)
-    const collapsed = currentMa > 1 && railVolts < nominal * RAIL_COLLAPSE_FRACTION
+  // Every solved supply, not just the MCU board rails: an MB102 channel can
+  // sag, overload, or collapse exactly like the 5V pin, and its limits are
+  // carried on the source itself rather than assumed from a rail constant.
+  for (const supply of powerSources) {
+    const currentMa = Math.abs(getElementCurrent(supply.element)) * 1000
+    const nominal = supply.nominalVoltage
+    const volts = getNodeVoltage(supply.node)
+    const collapsed = currentMa > 1 && nominal > 0 && volts < nominal * RAIL_COLLAPSE_FRACTION
+    // Board rails fail through specific hardware; an external module just sags.
+    const overloadConsequence = supply.rail
+      ? `the ${supply.rail === "5V" ? "polyfuse would trip" : "regulator would overheat"}`
+      : "the supply would current-limit or shut down"
 
     let type: CircuitWarning["type"] | null = null
     let message = ""
     if (collapsed) {
       type = "short_circuit"
-      message = `${rail.rail} rail has collapsed to ${railVolts.toFixed(2)}V under a ${currentMa.toFixed(0)}mA load — effectively a short circuit. On a real board the supply would shut down or the polyfuse would trip.`
-    } else if (currentMa > limitMa) {
+      message = `${supply.label} has collapsed to ${volts.toFixed(2)}V under a ${currentMa.toFixed(0)}mA load — effectively a short circuit. On a real board the supply would shut down or the polyfuse would trip.`
+    } else if (currentMa > supply.currentLimitMa) {
       type = "overcurrent"
-      message = `${rail.rail} rail sources ${currentMa.toFixed(0)}mA — over its ~${limitMa}mA supply limit. On real hardware the rail would sag or the ${rail.rail === "5V" ? "polyfuse would trip" : "regulator would overheat"}.`
+      message = `${supply.label} sources ${currentMa.toFixed(0)}mA — over its ~${supply.currentLimitMa}mA supply limit. On real hardware the rail would sag or ${overloadConsequence}.`
+    } else if (currentMa > 1 && nominal > 0 && volts < nominal * RAIL_UNDERVOLTAGE_FRACTION) {
+      type = "undervoltage"
+      message = `${supply.label} is ${volts.toFixed(2)}V under a ${currentMa.toFixed(0)}mA load — below its usable voltage range. Peripherals may misbehave and an MCU can brown out.`
     }
     if (!type) continue
 
     let attached = false
     for (const [id, pair] of componentNodePairs) {
-      if (pair.nodeA === rail.node || pair.nodeB === rail.node) {
+      if (pair.nodeA === supply.node || pair.nodeB === supply.node) {
         warnings.push({ componentId: id, type, message })
         attached = true
       }

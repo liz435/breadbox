@@ -26,6 +26,7 @@ const FULL: BoardPersistable = {
   customLibraries: { lib: { name: "lib", code: "", description: "" } },
   boardTarget: "arduino_uno",
   environment: { obstacles: {}, boundaryEnabled: true, boundaryMargin: 100 },
+  realismProfile: "hardware",
   assembly: {
     bodies: {
       b1: {

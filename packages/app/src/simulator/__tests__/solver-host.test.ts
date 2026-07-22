@@ -67,6 +67,7 @@ describe("analysis DTO round-trip", () => {
     expect(revived.isValid).toBe(tick.analysis.isValid)
     expect(revived.netlist).toBe(tick.analysis.netlist)
     expect(revived.componentStates.size).toBe(tick.analysis.componentStates.size)
+    expect(revived.supplies).toEqual(tick.analysis.supplies)
     const capBefore = tick.analysis.componentStates.get("c1")
     const capAfter = revived.componentStates.get("c1")
     expect(capAfter?.voltage).toBe(capBefore?.voltage)

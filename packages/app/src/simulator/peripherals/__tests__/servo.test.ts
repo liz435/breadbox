@@ -17,6 +17,11 @@ function makeComponent(pin: number): BoardComponent {
   }
 }
 
+const SERVO_POWER_WIRES = {
+  "servo-5v": { id: "servo-5v", fromRow: -999, fromCol: -1, toRow: 6, toCol: 7, color: "#ef4444" },
+  "servo-gnd": { id: "servo-gnd", fromRow: -999, fromCol: -3, toRow: 7, toCol: 7, color: "#111827" },
+}
+
 describe("ServoPeripheral — explicit (transpile-mode) API", () => {
   test("write(angle) updates state angle", () => {
     const p = new ServoPeripheral(makeComponent(9))
@@ -117,7 +122,7 @@ describe("PeripheralBus — servo integration", () => {
       components: {
         "servo-1": makeComponent(9),
       },
-      wires: {},
+      wires: SERVO_POWER_WIRES,
       pinStore: new PinStateStore(),
     })
     expect(bus.get("servo-1")).toBeDefined()
@@ -132,7 +137,7 @@ describe("PeripheralBus — servo integration", () => {
       components: {
         "servo-1": makeComponent(9),
       },
-      wires: {},
+      wires: SERVO_POWER_WIRES,
       pinStore: new PinStateStore(),
     })
     let t = 0
@@ -173,6 +178,22 @@ describe("PeripheralBus — servo integration", () => {
     expect(Object.keys(bus.snapshot())).toHaveLength(0)
   })
 
+  test("unpowered servo ignores PWM commands", () => {
+    const bus = new PeripheralBus()
+    bus.attachBoard({
+      components: { "servo-1": makeComponent(9) },
+      wires: {},
+      pinStore: new PinStateStore(),
+    })
+    for (let frame = 0; frame < 4; frame++) {
+      const t = frame * 20
+      bus.dispatchEdge({ pin: 9, value: 1, simMs: t, source: "avr" })
+      bus.dispatchEdge({ pin: 9, value: 0, simMs: t + 1.5, source: "avr" })
+    }
+    const state = bus.snapshot()["servo-1"]
+    expect(state?.kind === "servo" ? state.angle : 0).toBe(0)
+  })
+
   test("resolves signal pin from wire topology when component.pins.signal is null", () => {
     const bus = new PeripheralBus()
     bus.attachBoard({
@@ -189,6 +210,7 @@ describe("PeripheralBus — servo integration", () => {
         },
       },
       wires: {
+        ...SERVO_POWER_WIRES,
         "wire-d9": {
           id: "wire-d9",
           fromRow: -999,

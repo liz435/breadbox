@@ -143,4 +143,22 @@ describe("resolveNets", () => {
       expect(net13.id).not.toBe(net12.id);
     }
   });
+
+  test("does not merge identical local coordinates on separate surface boards", () => {
+    const board = (id: string): BoardComponent => ({
+      id, type: "breadboard_full", name: id, x: 0, y: 0, rotation: 0,
+      pins: {}, properties: {}, parentId: null,
+    });
+    const led = (id: string, parentId: string): BoardComponent => ({
+      id, type: "led", name: id, x: 0, y: 5, rotation: 0,
+      pins: { anode: null }, properties: {}, parentId,
+    });
+    const nets = resolveNets(
+      { "bb-a": board("bb-a"), "bb-b": board("bb-b"), a: led("a", "bb-a"), b: led("b", "bb-b") },
+      {},
+    );
+    const onA = nets.find((net) => net.points.some((point) => point.boardId === "bb-a" && point.row === 5 && point.col === 0));
+    const onB = nets.find((net) => net.points.some((point) => point.boardId === "bb-b" && point.row === 5 && point.col === 0));
+    expect(onA?.id).not.toBe(onB?.id);
+  });
 });
