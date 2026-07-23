@@ -111,10 +111,14 @@ export function perfboardGenericStripIds(): string[] {
  * Legacy col conventions (from the boardComponent schema doc):
  * - Cols 0–9: main terminal grid (left half 0-4, right half 5-9)
  * - Cols -2, -1: top power rail (negative=-2, positive=-1) — split half: row mod
- * - Cols 10, 11: bottom power rail (positive=10, negative=11) — split half: row mod
+ * - Cols 10, 11: bottom power rail (negative=10, positive=11) — split half: row mod
  *
- * For rail half selection: rows 0–14 = left half, rows 15–29 = right half.
- * This matches the typical break in the centre of a full-size BB.
+ * Rail polarity follows the board silkscreen: every pair reads − then +
+ * left to right, so -2/10 are negative and -1/11 positive (the same
+ * convention as isPositiveRailCol in the app's breadboard-grid).
+ *
+ * For rail half selection: rows below the board's midpoint are the left
+ * half, the rest the right half.
  */
 export function legacyRowColToStripId(row: number, col: number): string | null {
   if (row >= 0 && row < BREADBOARD_FULL_ROWS && col >= 0 && col <= 9) {
@@ -122,7 +126,7 @@ export function legacyRowColToStripId(row: number, col: number): string | null {
   }
   // Power rails: cols -2, -1, 10, 11 (legacy convention).
   if (col === -2 || col === -1 || col === 10 || col === 11) {
-    const polarity: RailPolarity = col === -1 || col === 10 ? "pos" : "neg";
+    const polarity: RailPolarity = col === -1 || col === 11 ? "pos" : "neg";
     const side: RailSide = col < 0 ? "top" : "bot";
     const half: RailHalf = row < BREADBOARD_FULL_ROWS / 2 ? "l" : "r";
     return breadboardRailStripId(side, polarity, half);

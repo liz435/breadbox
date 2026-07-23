@@ -19,7 +19,7 @@
       "type": "neopixel",
       "name": "NeoPixel Strip",
       "x": 7,
-      "y": 5,
+      "y": 15,
       "rotation": 0,
       "pins": {
         "din": null,
@@ -61,37 +61,37 @@
       "id": "wire-d6",
       "fromRow": -999,
       "fromCol": 6,
-      "toRow": 5,
+      "toRow": 15,
       "toCol": 7,
       "color": "#22c55e",
       "fromBoardId": "arduino-1",
       "fromStrip": "d6",
       "toBoardId": "breadboard-1",
-      "toStrip": "term_5_right"
+      "toStrip": "term_15_right"
     },
     "wire-vcc": {
       "id": "wire-vcc",
-      "fromRow": 0,
+      "fromRow": 16,
       "fromCol": 11,
-      "toRow": 6,
+      "toRow": 16,
       "toCol": 7,
       "color": "#ef4444",
       "fromBoardId": "breadboard-1",
-      "fromStrip": "pwr_bot_neg_l",
+      "fromStrip": "pwr_bot_pos_l",
       "toBoardId": "breadboard-1",
-      "toStrip": "term_6_right"
+      "toStrip": "term_16_right"
     },
     "wire-gnd": {
       "id": "wire-gnd",
-      "fromRow": 0,
+      "fromRow": 16,
       "fromCol": 10,
-      "toRow": 7,
+      "toRow": 17,
       "toCol": 7,
       "color": "#1a1a1a",
       "fromBoardId": "breadboard-1",
-      "fromStrip": "pwr_bot_pos_l",
+      "fromStrip": "pwr_bot_neg_l",
       "toBoardId": "breadboard-1",
-      "toStrip": "term_7_right"
+      "toStrip": "term_17_right"
     },
     "wire-common-gnd": {
       "id": "wire-common-gnd",
@@ -103,7 +103,7 @@
       "fromBoardId": "arduino-1",
       "fromStrip": "gnd",
       "toBoardId": "breadboard-1",
-      "toStrip": "pwr_bot_pos_l"
+      "toStrip": "pwr_bot_neg_l"
     }
   },
   "libraryState": {

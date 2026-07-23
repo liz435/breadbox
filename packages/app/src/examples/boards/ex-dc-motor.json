@@ -19,7 +19,7 @@
       "type": "dc_motor",
       "name": "DC Motor",
       "x": 7,
-      "y": 5,
+      "y": 15,
       "rotation": 0,
       "pins": {
         "signal": 9
@@ -59,25 +59,25 @@
       "id": "wire-d9",
       "fromRow": -999,
       "fromCol": 9,
-      "toRow": 6,
+      "toRow": 16,
       "toCol": 7,
       "color": "#fbbf24",
       "fromBoardId": "arduino-1",
       "fromStrip": "d9",
       "toBoardId": "breadboard-1",
-      "toStrip": "term_6_right"
+      "toStrip": "term_16_right"
     },
     "wire-vcc": {
       "id": "wire-vcc",
-      "fromRow": 0,
+      "fromRow": 16,
       "fromCol": 11,
-      "toRow": 5,
+      "toRow": 15,
       "toCol": 7,
       "color": "#ef4444",
       "fromBoardId": "breadboard-1",
-      "fromStrip": "pwr_bot_neg_l",
+      "fromStrip": "pwr_bot_pos_l",
       "toBoardId": "breadboard-1",
-      "toStrip": "term_5_right"
+      "toStrip": "term_15_right"
     },
     "wire-common-gnd": {
       "id": "wire-common-gnd",
@@ -89,7 +89,7 @@
       "fromBoardId": "arduino-1",
       "fromStrip": "gnd",
       "toBoardId": "breadboard-1",
-      "toStrip": "pwr_bot_pos_l"
+      "toStrip": "pwr_bot_neg_l"
     }
   },
   "libraryState": {
