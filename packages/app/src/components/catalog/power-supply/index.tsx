@@ -50,13 +50,14 @@ export const powerSupply: ComponentDefinition = {
     </svg>
   ),
   buildNetlist: (comp, { footprint, resolveNode }) => {
-    // The 8 footprint points correspond to:
-    //   0,4: left + rail (red)
-    //   1,5: left − rail (blue, ground)
-    //   2,6: right − rail (blue, ground)
-    //   3,7: right + rail (red)
-    const lPlusNode = resolveNode(footprint.points[0])
-    const lMinusNode = resolveNode(footprint.points[1])
+    // The 8 footprint points correspond to (polarity per isPositiveRailCol:
+    // every rail pair reads − then + left to right, like real silkscreen):
+    //   0,4: col −2, left − rail (blue, ground)
+    //   1,5: col −1, left + rail (red)
+    //   2,6: col 10, right − rail (blue, ground)
+    //   3,7: col 11, right + rail (red)
+    const lMinusNode = resolveNode(footprint.points[0])
+    const lPlusNode = resolveNode(footprint.points[1])
     const rMinusNode = resolveNode(footprint.points[2])
     const rPlusNode = resolveNode(footprint.points[3])
 

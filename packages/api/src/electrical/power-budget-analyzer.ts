@@ -85,12 +85,13 @@ function componentPinPoints(
 
 function powerSupplyPositivePoints(component: BoardComponent): Point[] {
   // Legacy model: treat component (x,y) as positive pin anchor.
-  // MB102 model: positive rails at cols -2 and 11 on rows y/y+1.
+  // MB102 model: positive rails on cols -1 and 11 (matching the app's
+  // isPositiveRailCol — each pair reads − then + left to right) on rows y/y+1.
   return [
     { row: component.y, col: component.x },
     { row: component.y + 1, col: component.x },
-    { row: component.y, col: -2 },
-    { row: component.y + 1, col: -2 },
+    { row: component.y, col: -1 },
+    { row: component.y + 1, col: -1 },
     { row: component.y, col: 11 },
     { row: component.y + 1, col: 11 },
   ];
@@ -98,11 +99,11 @@ function powerSupplyPositivePoints(component: BoardComponent): Point[] {
 
 function powerSupplyNegativePoints(component: BoardComponent): Point[] {
   // Legacy model: treat (x, y+1) as negative anchor.
-  // MB102 model: negative rails at cols -1 and 10 on rows y/y+1.
+  // MB102 model: negative rails on cols -2 and 10.
   return [
     { row: component.y + 1, col: component.x },
-    { row: component.y, col: -1 },
-    { row: component.y + 1, col: -1 },
+    { row: component.y, col: -2 },
+    { row: component.y + 1, col: -2 },
     { row: component.y, col: 10 },
     { row: component.y + 1, col: 10 },
   ];
@@ -152,16 +153,18 @@ function parseConnectedArduinoPins(net: string, arduinoNetMap: Map<string, Set<n
 }
 
 function netHasGroundRail(ds: DisjointSet, net: string): boolean {
+  // Ground rails are cols -2 and 10 (first column of each pair).
   for (let row = 0; row < 30; row++) {
-    if (ds.find(keyForGrid({ row, col: -1 })) === net) return true;
+    if (ds.find(keyForGrid({ row, col: -2 })) === net) return true;
     if (ds.find(keyForGrid({ row, col: 10 })) === net) return true;
   }
   return false;
 }
 
 function netHasPowerRail(ds: DisjointSet, net: string): boolean {
+  // Power (+) rails are cols -1 and 11 (second column of each pair).
   for (let row = 0; row < 30; row++) {
-    if (ds.find(keyForGrid({ row, col: -2 })) === net) return true;
+    if (ds.find(keyForGrid({ row, col: -1 })) === net) return true;
     if (ds.find(keyForGrid({ row, col: 11 })) === net) return true;
   }
   return false;

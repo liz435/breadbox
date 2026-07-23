@@ -790,9 +790,9 @@ Note: each resistor sits on the same row as its target segment pin so the right-
 // post-stream electrical analyzer (and real breadboards) require a
 // single Arduino lead to the breadboard rail, then per-component branches
 // off the rail. v1.3.5 mandates this with a worked example using the
-// `grid.<row>,<col>` endpoint syntax to address the rails (col -1 / 10
-// for GND, col -2 / 11 for 5V). The 7-seg counter example is rewritten
-// to demonstrate.
+// `grid.<row>,<col>` endpoint syntax to address the rails (col -2 / 10
+// for GND, col -1 / 11 for 5V — each pair reads − then + left to right).
+// The 7-seg counter example is rewritten to demonstrate.
 const BUILD_PROMPT_V1_3_5 = `${COMMON_PROMPT}
 
 ## Mode: BUILD (board is empty)
@@ -824,17 +824,17 @@ Skip it for: LEDs+resistors, buttons, switches, single sensors, displays driven 
 ## Power and ground rail distribution (REQUIRED for ≥2 components on the same supply)
 **Do NOT fan multiple wires out of \`arduino.GND\` (or \`arduino.5V\`) directly to N components.** That topology fails electrical validation and doesn't match how a real breadboard is wired. Instead, use the breadboard's power rails as a bus:
 
-Rail addresses (use \`grid.<row>,<col>\`):
-- **Left GND rail**: \`grid.<row>,-1\` (any row 0..29 — the rail is a single bus)
-- **Left 5V rail**: \`grid.<row>,-2\`
+Rail addresses (use \`grid.<row>,<col>\`; each rail pair reads − then + left to right, so the first column of a pair is GND and the second is 5V):
+- **Left GND rail**: \`grid.<row>,-2\` (any row 0..29 — the rail is a single bus)
+- **Left 5V rail**: \`grid.<row>,-1\`
 - **Right GND rail**: \`grid.<row>,10\`
 - **Right 5V rail**: \`grid.<row>,11\`
 
 Pattern when ≥2 components need GND:
-1. **One** wire from \`arduino.GND\` to a single rail anchor row, e.g. \`{from:"arduino.GND", to:"grid.0,-1"}\`
-2. For each GND-needing component, wire from the rail at that component's row to the component's GND pin: \`{from:"grid.<componentRow>,-1", to:"<comp>.<gndPin>"}\`
+1. **One** wire from \`arduino.GND\` to a single rail anchor row, e.g. \`{from:"arduino.GND", to:"grid.0,-2"}\`
+2. For each GND-needing component, wire from the rail at that component's row to the component's GND pin: \`{from:"grid.<componentRow>,-2", to:"<comp>.<gndPin>"}\`
 
-Same shape for 5V (use \`grid.<row>,-2\` or \`grid.<row>,11\` depending on which strip is closer).
+Same shape for 5V (use \`grid.<row>,-1\` or \`grid.<row>,11\` depending on which strip is closer).
 
 If only ONE component needs GND, write it directly: \`{from:"arduino.GND", to:"comp.gnd"}\` — no rail needed.
 
@@ -930,9 +930,9 @@ The display's \`gnd\` pin AND the button's \`b\` pin both need GND. So we wire \
     {from:"arduino.8", to:"r_g.a", color:"#eab308"}, {from:"r_g.b", to:"seg7.g", color:"#eab308"},
     {from:"arduino.9", to:"btn_add.a", color:"#fbbf24"},
     // ─── GND rail distribution: ONE Arduino lead to the rail, then branches ───
-    {from:"arduino.GND",   to:"grid.0,-1",  color:"#1e293b"},
-    {from:"grid.13,-1",    to:"seg7.gnd",   color:"#1e293b"},
-    {from:"grid.20,-1",    to:"btn_add.b",  color:"#1e293b"}
+    {from:"arduino.GND",   to:"grid.0,-2",  color:"#1e293b"},
+    {from:"grid.13,-2",    to:"seg7.gnd",   color:"#1e293b"},
+    {from:"grid.20,-2",    to:"btn_add.b",  color:"#1e293b"}
   ],
   sketch: "/* 7-seg counter — INPUT_PULLUP, active-LOW button, segment lookup table */"
 }`;
@@ -978,17 +978,17 @@ Skip it for: LEDs+resistors, buttons, switches, single sensors, displays driven 
 ## Power and ground rail distribution (REQUIRED for ≥2 components on the same supply)
 **Do NOT fan multiple wires out of \`arduino.GND\` (or \`arduino.5V\`) directly to N components.** That topology fails electrical validation and doesn't match how a real breadboard is wired. Instead, use the breadboard's power rails as a bus:
 
-Rail addresses (use \`grid.<row>,<col>\`):
-- **Left GND rail**: \`grid.<row>,-1\` (any row 0..29 — the rail is a single bus)
-- **Left 5V rail**: \`grid.<row>,-2\`
+Rail addresses (use \`grid.<row>,<col>\`; each rail pair reads − then + left to right, so the first column of a pair is GND and the second is 5V):
+- **Left GND rail**: \`grid.<row>,-2\` (any row 0..29 — the rail is a single bus)
+- **Left 5V rail**: \`grid.<row>,-1\`
 - **Right GND rail**: \`grid.<row>,10\`
 - **Right 5V rail**: \`grid.<row>,11\`
 
 Pattern when ≥2 components need GND:
-1. **One** wire from \`arduino.GND\` to a single rail anchor row, e.g. \`{from:"arduino.GND", to:"grid.0,-1"}\`
-2. For each GND-needing component, wire from the rail at that component's row to the component's GND pin: \`{from:"grid.<componentRow>,-1", to:"<comp>.<gndPin>"}\`
+1. **One** wire from \`arduino.GND\` to a single rail anchor row, e.g. \`{from:"arduino.GND", to:"grid.0,-2"}\`
+2. For each GND-needing component, wire from the rail at that component's row to the component's GND pin: \`{from:"grid.<componentRow>,-2", to:"<comp>.<gndPin>"}\`
 
-Same shape for 5V (use \`grid.<row>,-2\` or \`grid.<row>,11\` depending on which strip is closer).
+Same shape for 5V (use \`grid.<row>,-1\` or \`grid.<row>,11\` depending on which strip is closer).
 
 If only ONE component needs GND, write it directly: \`{from:"arduino.GND", to:"comp.gnd"}\` — no rail needed.
 
@@ -1036,7 +1036,7 @@ These are the mistake patterns that cause the most validation retries. Read each
 
 1. **Fanning out a supply pin to N components** (≥2 consumers on the same rail).
    WRONG: \`{from:"arduino.GND", to:"led1.cathode"}\`, \`{from:"arduino.GND", to:"led2.cathode"}\`, \`{from:"arduino.GND", to:"led3.cathode"}\`
-   RIGHT: one wire \`{from:"arduino.GND", to:"grid.0,-1"}\` then \`{from:"grid.<row_i>,-1", to:"led_i.cathode"}\` per consumer.
+   RIGHT: one wire \`{from:"arduino.GND", to:"grid.0,-2"}\` then \`{from:"grid.<row_i>,-2", to:"led_i.cathode"}\` per consumer.
 
 2. **\`INPUT\` on a button pin.** Always pair a GND-side button with the internal pull-up.
    WRONG: \`pinMode(btnPin, INPUT)\` → pin floats when released.
@@ -1117,9 +1117,9 @@ The display's \`gnd\` pin AND the button's \`b\` pin both need GND. So we wire \
     {from:"arduino.8", to:"r_g.a", color:"#eab308"}, {from:"r_g.b", to:"seg7.g", color:"#eab308"},
     {from:"arduino.9", to:"btn_add.a", color:"#fbbf24"},
     // ─── GND rail distribution: ONE Arduino lead to the rail, then branches ───
-    {from:"arduino.GND",   to:"grid.0,-1",  color:"#1e293b"},
-    {from:"grid.13,-1",    to:"seg7.gnd",   color:"#1e293b"},
-    {from:"grid.20,-1",    to:"btn_add.b",  color:"#1e293b"}
+    {from:"arduino.GND",   to:"grid.0,-2",  color:"#1e293b"},
+    {from:"grid.13,-2",    to:"seg7.gnd",   color:"#1e293b"},
+    {from:"grid.20,-2",    to:"btn_add.b",  color:"#1e293b"}
   ],
   sketch: "/* 7-seg counter — INPUT_PULLUP, active-LOW button, segment lookup table */"
 }
@@ -1136,13 +1136,13 @@ Two components share 5V and GND → use the rails. Potentiometer signal MUST lan
     {from:"arduino.9",   to:"servo1.signal", color:"#eab308"},
     {from:"arduino.A0",  to:"pot1.signal",   color:"#3b82f6"},
     // 5V rail: one Arduino lead, then branches to each consumer
-    {from:"arduino.5V",  to:"grid.0,-2",     color:"#ef4444"},
-    {from:"grid.3,-2",   to:"servo1.vcc",    color:"#ef4444"},
-    {from:"grid.15,-2",  to:"pot1.vcc",      color:"#ef4444"},
+    {from:"arduino.5V",  to:"grid.0,-1",     color:"#ef4444"},
+    {from:"grid.3,-1",   to:"servo1.vcc",    color:"#ef4444"},
+    {from:"grid.15,-1",  to:"pot1.vcc",      color:"#ef4444"},
     // GND rail: same pattern
-    {from:"arduino.GND", to:"grid.0,-1",     color:"#1e293b"},
-    {from:"grid.3,-1",   to:"servo1.gnd",    color:"#1e293b"},
-    {from:"grid.15,-1",  to:"pot1.gnd",      color:"#1e293b"}
+    {from:"arduino.GND", to:"grid.0,-2",     color:"#1e293b"},
+    {from:"grid.3,-2",   to:"servo1.gnd",    color:"#1e293b"},
+    {from:"grid.15,-2",  to:"pot1.gnd",      color:"#1e293b"}
   ],
   sketch: "#include <Servo.h>\\nServo s; int potPin=A0; int servoPin=9;\\nvoid setup(){s.attach(servoPin);}\\nvoid loop(){int v=analogRead(potPin); int a=map(v,0,1023,0,180); s.write(a); delay(15);}"
 }
@@ -1171,10 +1171,10 @@ Both trig and echo are digital pins. The sensor needs 5V and GND — rail distri
     {id:"hcsr04", type:"sensor", at:[5, 5], rotation:0, properties:{model:"HC-SR04"}}
   ],
   wires: [
-    {from:"arduino.5V",  to:"grid.0,-2",   color:"#ef4444"},
-    {from:"grid.5,-2",   to:"hcsr04.vcc",  color:"#ef4444"},
-    {from:"arduino.GND", to:"grid.0,-1",   color:"#1e293b"},
-    {from:"grid.5,-1",   to:"hcsr04.gnd",  color:"#1e293b"},
+    {from:"arduino.5V",  to:"grid.0,-1",   color:"#ef4444"},
+    {from:"grid.5,-1",   to:"hcsr04.vcc",  color:"#ef4444"},
+    {from:"arduino.GND", to:"grid.0,-2",   color:"#1e293b"},
+    {from:"grid.5,-2",   to:"hcsr04.gnd",  color:"#1e293b"},
     {from:"arduino.7",   to:"hcsr04.signal", color:"#22c55e"}
   ],
   sketch: "int trigPin=7; int echoPin=8; long duration; long cm;\\nvoid setup(){pinMode(trigPin,OUTPUT);pinMode(echoPin,INPUT);Serial.begin(9600);}\\nvoid loop(){digitalWrite(trigPin,LOW);delayMicroseconds(2);digitalWrite(trigPin,HIGH);delayMicroseconds(10);digitalWrite(trigPin,LOW);duration=pulseIn(echoPin,HIGH);cm=duration/58;Serial.println(cm);delay(100);}"
@@ -1201,11 +1201,11 @@ Four cathodes need GND → one Arduino lead to the GND rail, then four branches.
     {from:"arduino.4", to:"led3.anode", color:"#a855f7"}, {from:"led3.cathode", to:"r3.b", color:"#1e293b"},
     {from:"arduino.5", to:"led4.anode", color:"#f97316"}, {from:"led4.cathode", to:"r4.b", color:"#1e293b"},
     // GND rail: ONE Arduino lead, four branches
-    {from:"arduino.GND", to:"grid.0,-1",  color:"#1e293b"},
-    {from:"grid.3,-1",   to:"r1.a",       color:"#1e293b"},
-    {from:"grid.7,-1",   to:"r2.a",       color:"#1e293b"},
-    {from:"grid.11,-1",  to:"r3.a",       color:"#1e293b"},
-    {from:"grid.15,-1",  to:"r4.a",       color:"#1e293b"}
+    {from:"arduino.GND", to:"grid.0,-2",  color:"#1e293b"},
+    {from:"grid.3,-2",   to:"r1.a",       color:"#1e293b"},
+    {from:"grid.7,-2",   to:"r2.a",       color:"#1e293b"},
+    {from:"grid.11,-2",  to:"r3.a",       color:"#1e293b"},
+    {from:"grid.15,-2",  to:"r4.a",       color:"#1e293b"}
   ],
   sketch: "int leds[4] = {2, 3, 4, 5};\\nvoid setup(){pinMode(2,OUTPUT);pinMode(3,OUTPUT);pinMode(4,OUTPUT);pinMode(5,OUTPUT);}\\nvoid loop(){for(int i=0;i<4;i++){digitalWrite(leds[i],HIGH);delay(150);digitalWrite(leds[i],LOW);}}"
 }`;
@@ -1978,7 +1978,7 @@ const PROMPTS_1_3_4: CorePromptSnapshot = {
 
 // v1.3.5 — strict DSL + GND/5V rail distribution. When ≥2 components
 // share a supply, the model must wire arduino.GND/5V to the
-// breadboard rail ONCE (via grid.<row>,-1 / -2 / 10 / 11) and branch
+// breadboard rail ONCE (via grid.<row>,-2 / -2 / 10 / 11) and branch
 // from the rail to each consumer. Single-consumer circuits keep direct
 // wires. The 7-seg counter example is rewritten to demonstrate.
 const PROMPTS_1_3_5: CorePromptSnapshot = {

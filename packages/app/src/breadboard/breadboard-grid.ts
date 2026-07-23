@@ -29,8 +29,8 @@ import { getComponentDef } from "@/components/registry";
  * - row: 0-29 for terminal strips (30-row half-size breadboard)
  * - col: 0-9 for terminal strips (0-4 = left side a-e, 5-9 = right side f-j)
  * - Power rails use special col values: -2, -1 (left rail pair) and 10, 11
- *   (right rail pair). Polarity is by `isPositiveRailCol`: the inner column of
- *   each pair (-1, 10) is + and the outer edge column (-2, 11) is −.
+ *   (right rail pair). Polarity is by `isPositiveRailCol`: each pair reads
+ *   − then + left to right, so -2/10 are − and -1/11 are +.
  */
 
 export type GridPoint = { row: number; col: number };
@@ -131,14 +131,14 @@ export function railBlockStarts(): number[] {
   return starts
 }
 
-/** Polarity of a power-rail column. The inner column of each rail pair (−1 on
- *  the left, 10 on the right — nearest the terminal strips) is positive; the
- *  outer edge column (−2, 11) is negative. So with the MCU off one end of the
- *  board, the + rail sits on the inner side, away from it. Single source of
- *  truth for the 3D rail stripes and calibrator labels; matches the strip-id
- *  net polarity in @dreamer/schemas. */
+/** Polarity of a power-rail column. Like a real board's silkscreen, every
+ *  rail pair reads − then + from left to right: the first column of each pair
+ *  (−2 on the left pair, 10 on the right pair) is negative, the second column
+ *  (−1, 11) is positive. The pattern repeats — it is NOT mirrored about the
+ *  board's centre. Single source of truth for the 2D/3D rail stripes,
+ *  calibrator labels, and the PSU netlist polarity. */
 export function isPositiveRailCol(col: number): boolean {
-  return col === -1 || col === 10
+  return col === -1 || col === 11
 }
 
 // Breadboard offset: starts after the Arduino board

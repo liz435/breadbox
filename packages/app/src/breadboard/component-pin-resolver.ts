@@ -213,8 +213,10 @@ function analyzeButtonSide(
       if (POWER_PINS.has(pin)) hasPowerReference = true
     }
     for (const point of net.points) {
-      if (point.col === -1 || point.col === 10) hasGroundReference = true
-      if (point.col === -2 || point.col === 11) hasPowerReference = true
+      // Rail polarity per isPositiveRailCol: every pair reads − then + left
+      // to right, so −2/10 are the − rails and −1/11 the + rails.
+      if (point.col === -2 || point.col === 10) hasGroundReference = true
+      if (point.col === -1 || point.col === 11) hasPowerReference = true
     }
   }
 

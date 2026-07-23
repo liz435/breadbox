@@ -143,10 +143,12 @@ function buildHolesAndLabels(): React.ReactElement[] {
 }
 
 function PowerRailStripes() {
-  const leftPlusX = gridToPixel({ row: 0, col: -2 }).x;
-  const leftMinusX = gridToPixel({ row: 0, col: -1 }).x;
-  const rightPlusX = gridToPixel({ row: 0, col: 10 }).x;
-  const rightMinusX = gridToPixel({ row: 0, col: 11 }).x;
+  // Polarity follows isPositiveRailCol: every pair reads − then + left to
+  // right (like real silkscreen), so −2/10 are − and −1/11 are +.
+  const leftMinusX = gridToPixel({ row: 0, col: -2 }).x;
+  const leftPlusX = gridToPixel({ row: 0, col: -1 }).x;
+  const rightMinusX = gridToPixel({ row: 0, col: 10 }).x;
+  const rightPlusX = gridToPixel({ row: 0, col: 11 }).x;
 
   const topY = gridToPixel({ row: 0, col: -2 }).y;
   const bottomY = gridToPixel({ row: ROWS - 1, col: -2 }).y;
@@ -215,10 +217,10 @@ function PowerRailStripes() {
 
   return (
     <g>
-      {renderRail(leftPlusX, "#dc2626", "outer", "+", "left-plus")}
-      {renderRail(leftMinusX, "#2563eb", "inner", "−", "left-minus")}
-      {renderRail(rightPlusX, "#2563eb", "outer", "−", "right-minus")}
-      {renderRail(rightMinusX, "#dc2626", "inner", "+", "right-plus")}
+      {renderRail(leftMinusX, "#2563eb", "outer", "−", "left-minus")}
+      {renderRail(leftPlusX, "#dc2626", "inner", "+", "left-plus")}
+      {renderRail(rightMinusX, "#2563eb", "outer", "−", "right-minus")}
+      {renderRail(rightPlusX, "#dc2626", "inner", "+", "right-plus")}
     </g>
   );
 }

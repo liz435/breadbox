@@ -26,11 +26,12 @@ function boardWithPsuLoad(loadOhms: number): {
     },
   }
   // The resistor lands on holes (10,3) and (10,6) — opposite bus clusters.
-  // Bridge each cluster to one side of the PSU's left channel: col -2 is the
-  // + rail, col -1 the − rail (rails are continuous along their length).
+  // Bridge each cluster to one side of the PSU's left channel: col -1 (inner)
+  // is the + rail, col -2 (outer edge) the − rail (rails are continuous
+  // along their length).
   const wires: Record<string, Wire> = {
-    wPlus: { id: "wPlus", fromRow: 10, fromCol: 3, toRow: 0, toCol: -2, color: "red" },
-    wMinus: { id: "wMinus", fromRow: 10, fromCol: 6, toRow: 0, toCol: -1, color: "black" },
+    wPlus: { id: "wPlus", fromRow: 10, fromCol: 3, toRow: 0, toCol: -1, color: "red" },
+    wMinus: { id: "wMinus", fromRow: 10, fromCol: 6, toRow: 0, toCol: -2, color: "black" },
   }
   return { components, wires }
 }

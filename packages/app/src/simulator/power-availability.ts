@@ -25,14 +25,17 @@ function powerSupplyNets(
     if (component.type !== "power_supply") continue
     const boardId = componentSurfaceBoardId(component, components)
     const points = getComponentFootprint(component.type, component.y, component.x, component.rotation, component.properties).points
-    for (const index of [0, 3, 4, 7]) {
+    // Footprint polarity mirrors the PSU's buildNetlist: indices 1,3,5,7 are
+    // the + rail columns (−1, 11 — the second column of each pair), indices
+    // 0,2,4,6 the − columns (−2, 10).
+    for (const index of [1, 3, 5, 7]) {
       const point = points[index]
       if (point) {
         const net = pointToNet.get(terminalAddressKey({ ...point, boardId }))
         if (net) positive.add(net)
       }
     }
-    for (const index of [1, 2, 5, 6]) {
+    for (const index of [0, 2, 4, 6]) {
       const point = points[index]
       if (point) {
         const net = pointToNet.get(terminalAddressKey({ ...point, boardId }))
