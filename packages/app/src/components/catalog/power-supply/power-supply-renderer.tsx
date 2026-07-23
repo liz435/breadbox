@@ -1,14 +1,17 @@
 // ── Power Supply Renderer ───────────────────────────────────────────
 //
-// Visual for the MB102-style breadboard power-supply module. Sits across
-// the top of the breadboard, dropping pins onto all four power rails.
-// Each side (left/right) has its own voltage selector that the user
-// changes via the inspector — the on-board jumper visual mirrors that
-// selection so the breadboard view stays in sync with the netlist.
+// Visual for the HW-131-style breadboard power-supply module (the same
+// black-PCB module the 3D GLB renders). Sits across the top of the
+// breadboard, dropping pins onto all four power rails. Each side
+// (left/right) has its own voltage selector that the user changes via
+// the inspector — the on-board jumper visual mirrors that selection so
+// the breadboard view stays in sync with the netlist.
 //
-// Drawn as a realistic top-down PCB: shaded connectors with drop
-// shadows, gold pads, faint copper traces + vias, SMD passives, and
-// minimal white silkscreen — no component is drawn in front view.
+// Drawn as a realistic top-down PCB matched to the 3D model: black
+// solder mask, barrel jack + blue push switch + lit power LED along the
+// off-board edge, USB-A with a pale tongue on the right, yellow voltage
+// jumpers at the side edges, blue bulk electrolytic between the pin
+// rows, and "HW-131" silk running down the right edge.
 
 import React from "react"
 import type { BoardComponent } from "@dreamer/schemas"
@@ -28,22 +31,23 @@ type PowerSupplyRendererProps = {
   isSelected: boolean
 }
 
-/** A passive SMD chip (resistor/cap): dark body with tinned terminals. */
-function Smd({ x, y, tone = "#3f3f46", vertical = false }: { x: number; y: number; tone?: string; vertical?: boolean }) {
-  const w = vertical ? 2.4 : 4.6
-  const h = vertical ? 4.6 : 2.4
+/** A passive SMD part: pale ceramic body with tinned terminals — the small
+ *  white rectangles scattered over the black PCB. */
+function Smd({ x, y, vertical = false }: { x: number; y: number; vertical?: boolean }) {
+  const w = vertical ? 2.6 : 5
+  const h = vertical ? 5 : 2.6
   return (
     <g>
-      <rect x={x - w / 2} y={y - h / 2} width={w} height={h} rx={0.3} fill={tone} />
+      <rect x={x - w / 2} y={y - h / 2} width={w} height={h} rx={0.3} fill="#e3e6e9" />
       {vertical ? (
         <>
-          <rect x={x - w / 2} y={y - h / 2} width={w} height={1.1} fill="#d6d3d1" />
-          <rect x={x - w / 2} y={y + h / 2 - 1.1} width={w} height={1.1} fill="#d6d3d1" />
+          <rect x={x - w / 2} y={y - h / 2} width={w} height={1.2} fill="#9aa0a6" />
+          <rect x={x - w / 2} y={y + h / 2 - 1.2} width={w} height={1.2} fill="#9aa0a6" />
         </>
       ) : (
         <>
-          <rect x={x - w / 2} y={y - h / 2} width={1.1} height={h} fill="#d6d3d1" />
-          <rect x={x + w / 2 - 1.1} y={y - h / 2} width={1.1} height={h} fill="#d6d3d1" />
+          <rect x={x - w / 2} y={y - h / 2} width={1.2} height={h} fill="#9aa0a6" />
+          <rect x={x + w / 2 - 1.2} y={y - h / 2} width={1.2} height={h} fill="#9aa0a6" />
         </>
       )}
     </g>
@@ -98,22 +102,6 @@ function VoltageJumper({
   )
 }
 
-/** AMS1117 regulator: SOT-223 black body, wide metal tab, three gull leads. */
-function Regulator({ cx, cy, ids, shadow }: { cx: number; cy: number; ids: { metal: string; plastic: string }; shadow: string }) {
-  return (
-    <g filter={`url(#${shadow})`}>
-      <rect x={cx - 8} y={cy - 9.5} width={16} height={5} rx={0.6} fill={`url(#${ids.metal})`} stroke="#7d838c" strokeWidth={0.3} />
-      <rect x={cx - 9} y={cy - 5.5} width={18} height={11.5} rx={0.8} fill={`url(#${ids.plastic})`} stroke="#0a0a0a" strokeWidth={0.4} />
-      {[-5.5, 0, 5.5].map((dx) => (
-        <rect key={dx} x={cx + dx - 1} y={cy + 6} width={2} height={2.8} rx={0.3} fill={`url(#${ids.metal})`} />
-      ))}
-      <text x={cx} y={cy + 2.6} textAnchor="middle" fontSize={3.4} fill="#a1a1aa" fontFamily={MONO}>
-        1117
-      </text>
-    </g>
-  )
-}
-
 function PowerSupplyRendererInner({
   component,
   isSelected,
@@ -152,25 +140,26 @@ function PowerSupplyRendererInner({
   const ids = {
     pcb: `psu-pcb-${uid}`,
     metal: `psu-metal-${uid}`,
-    plastic: `psu-plastic-${uid}`,
     jack: `psu-jack-${uid}`,
-    capTop: `psu-captop-${uid}`,
+    blueBtn: `psu-bluebtn-${uid}`,
+    capBlue: `psu-capblue-${uid}`,
     led: `psu-led-${uid}`,
     yellow: `psu-yellow-${uid}`,
     shadow: `psu-shadow-${uid}`,
   }
 
-  // Connector strip along the board-end (top) edge.
-  const jackCx = bodyLeft + bodyW * 0.22
-  const usbCx = bodyLeft + bodyW * 0.78
-  const connectorY = bodyTop + 16
-  // Everything else — jumpers, regulators, bulk cap — shares the strip between
-  // the two pin rows, so the body needs no dead space of its own.
+  // Connector strip along the board-end (top) edge, mirroring the model:
+  // barrel jack, blue push switch, power LED over a round cap, then USB-A.
+  const jackCx = bodyLeft + bodyW * 0.14
+  const switchCx = bodyLeft + bodyW * 0.35
+  const ledCx = bodyLeft + bodyW * 0.5
+  const usbCx = bodyRight - bodyW * 0.17
+  // Yellow voltage jumpers hug the side edges; the bulk cap and passives
+  // share the strip between the two pin rows.
   const midY = (lPlusTop.y + lPlusBot.y) / 2
-  const leftJumperCx = bodyLeft + bodyW * 0.17
-  const rightJumperCx = bodyRight - bodyW * 0.17
-  const regLeftCx = bodyLeft + bodyW * 0.36
-  const regRightCx = bodyRight - bodyW * 0.36
+  const jumperY = bodyTop + bodyH * 0.52
+  const leftJumperCx = bodyLeft + bodyW * 0.15
+  const rightJumperCx = bodyRight - bodyW * 0.15
 
   const pads = [
     { p: lPlusTop, plus: true },
@@ -190,88 +179,63 @@ function PowerSupplyRendererInner({
     { x: bodyRight - 7, y: bodyBottom - 7 },
   ]
 
-  const vias = [
-    { x: bodyCx - 22, y: bodyTop + 34 },
-    { x: bodyCx + 18, y: bodyTop + 30 },
-    { x: regLeftCx + 14, y: midY - 14 },
-    { x: regRightCx - 14, y: midY + 13 },
-    { x: bodyCx - 8, y: midY + 16 },
-    { x: bodyCx + 30, y: midY - 17 },
-  ]
-
   return (
     <g>
       <defs>
         <linearGradient id={ids.pcb} x1="0" y1="0" x2="0.4" y2="1">
-          <stop offset="0%" stopColor="#1d6b3c" />
-          <stop offset="50%" stopColor="#175c33" />
-          <stop offset="100%" stopColor="#124b29" />
+          <stop offset="0%" stopColor="#232328" />
+          <stop offset="50%" stopColor="#141417" />
+          <stop offset="100%" stopColor="#0c0c0e" />
         </linearGradient>
         <linearGradient id={ids.metal} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#eceef0" />
           <stop offset="45%" stopColor="#c3c8cd" />
           <stop offset="100%" stopColor="#94999f" />
         </linearGradient>
-        <linearGradient id={ids.plastic} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#2e2e33" />
-          <stop offset="100%" stopColor="#101013" />
-        </linearGradient>
         <linearGradient id={ids.jack} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#3a3a40" />
-          <stop offset="30%" stopColor="#232327" />
-          <stop offset="100%" stopColor="#0c0c0e" />
+          <stop offset="0%" stopColor="#48484f" />
+          <stop offset="30%" stopColor="#2a2a2f" />
+          <stop offset="100%" stopColor="#111113" />
+        </linearGradient>
+        <linearGradient id={ids.blueBtn} x1="0" y1="0" x2="0.3" y2="1">
+          <stop offset="0%" stopColor="#7d9df2" />
+          <stop offset="55%" stopColor="#4a6fd4" />
+          <stop offset="100%" stopColor="#2c4aa8" />
+        </linearGradient>
+        <linearGradient id={ids.capBlue} x1="0" y1="0" x2="0.5" y2="1">
+          <stop offset="0%" stopColor="#5561e0" />
+          <stop offset="55%" stopColor="#3340bf" />
+          <stop offset="100%" stopColor="#1f2a8f" />
         </linearGradient>
         <linearGradient id={ids.yellow} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#fbcf3c" />
           <stop offset="55%" stopColor="#e9a812" />
           <stop offset="100%" stopColor="#b97e0a" />
         </linearGradient>
-        <radialGradient id={ids.capTop} cx="0.38" cy="0.34" r="0.75">
-          <stop offset="0%" stopColor="#f4f5f6" />
-          <stop offset="60%" stopColor="#c6cbd0" />
-          <stop offset="100%" stopColor="#8f959c" />
-        </radialGradient>
         <radialGradient id={ids.led} cx="0.4" cy="0.35" r="0.8">
           <stop offset="0%" stopColor="#eafbe7" />
           <stop offset="45%" stopColor="#5fd77a" />
           <stop offset="100%" stopColor="#1c7f3d" />
         </radialGradient>
         <filter id={ids.shadow} x="-30%" y="-30%" width="160%" height="160%">
-          <feDropShadow dx="0.7" dy="1.3" stdDeviation="0.9" floodColor="#000000" floodOpacity="0.4" />
+          <feDropShadow dx="0.7" dy="1.3" stdDeviation="0.9" floodColor="#000000" floodOpacity="0.5" />
         </filter>
       </defs>
 
       {/* PCB with edge shading */}
-      <rect x={bodyLeft + 1.6} y={bodyTop + 2.4} width={bodyW} height={bodyH} rx={3.5} fill="#000000" opacity={0.35} />
+      <rect x={bodyLeft + 1.6} y={bodyTop + 2.4} width={bodyW} height={bodyH} rx={4} fill="#000000" opacity={0.35} />
       <rect
         x={bodyLeft}
         y={bodyTop}
         width={bodyW}
         height={bodyH}
-        rx={3.5}
+        rx={4}
         fill={`url(#${ids.pcb})`}
-        stroke={isSelected ? "#3b82f6" : "#0c391f"}
+        stroke={isSelected ? "#3b82f6" : "#000000"}
         strokeWidth={isSelected ? 1.5 : 1}
       />
       {/* Bevel light on the top edge */}
-      <rect x={bodyLeft + 1.5} y={bodyTop + 1} width={bodyW - 3} height={1.4} rx={0.7} fill="#3d9b63" opacity={0.5} />
-
-      {/* Copper traces under the solder mask (faint) */}
-      <g stroke="#0e4f2a" strokeWidth={2.2} fill="none" opacity={0.85} strokeLinecap="round">
-        <path d={`M ${jackCx} ${connectorY + 14} V ${midY - 16} H ${bodyCx} V ${midY - 10}`} />
-        <path d={`M ${usbCx} ${connectorY + 13} V ${midY} H ${regRightCx + 9}`} />
-        <path d={`M ${regLeftCx - 9} ${midY} H ${leftJumperCx + 17}`} />
-        <path d={`M ${regRightCx - 9} ${midY} H ${bodyCx + 10}`} />
-        <path d={`M ${leftJumperCx} ${midY + 8} V ${lPlusBot.y - 6}`} />
-        <path d={`M ${rightJumperCx} ${midY + 8} V ${rMinusBot.y - 6}`} />
-      </g>
-      {/* Vias */}
-      {vias.map((via, i) => (
-        <g key={`via-${i}`}>
-          <circle cx={via.x} cy={via.y} r={1.2} fill="#2c8a52" />
-          <circle cx={via.x} cy={via.y} r={0.5} fill="#0b3a1f" />
-        </g>
-      ))}
+      <rect x={bodyLeft + 2} y={bodyTop + 1} width={bodyW - 4} height={1.4} rx={0.7} fill="#5a5a63" opacity={0.5} />
 
       {/* Corner mounting holes — bare annular rings */}
       {mountingHoles.map((hole, i) => (
@@ -281,71 +245,79 @@ function PowerSupplyRendererInner({
         </g>
       ))}
 
-      {/* Barrel jack — black block with the barrel poking past the PCB edge */}
+      {/* Barrel jack — tall black block, barrel poking past the PCB edge */}
       <g filter={`url(#${ids.shadow})`}>
-        <rect x={jackCx - 8} y={bodyTop - 5} width={16} height={9} rx={2.5} fill="#0e0e10" />
-        <ellipse cx={jackCx} cy={bodyTop - 4.4} rx={6.2} ry={1.6} fill="#000000" />
-        <ellipse cx={jackCx} cy={bodyTop - 4.4} rx={4.2} ry={1} fill="#26262a" />
-        <rect x={jackCx - 19} y={bodyTop + 3} width={38} height={25} rx={1.8} fill={`url(#${ids.jack})`} stroke="#000000" strokeWidth={0.5} />
-        <rect x={jackCx - 16.5} y={bodyTop + 6} width={33} height={2} rx={1} fill="#4b4b52" opacity={0.8} />
-        <rect x={jackCx - 16.5} y={bodyTop + 23.5} width={33} height={1.6} rx={0.8} fill="#000000" opacity={0.6} />
+        <ellipse cx={jackCx} cy={bodyTop - 3.4} rx={6.4} ry={2} fill="#000000" />
+        <ellipse cx={jackCx} cy={bodyTop - 3.4} rx={4.2} ry={1.2} fill="#2e2e33" />
+        <rect x={jackCx - 15} y={bodyTop + 2} width={30} height={54} rx={4} fill={`url(#${ids.jack})`} stroke="#000000" strokeWidth={0.6} />
+        <rect x={jackCx - 11.5} y={bodyTop + 6} width={23} height={46} rx={2.5} fill="none" stroke="#55555e" strokeWidth={0.8} opacity={0.7} />
+        <rect x={jackCx - 11.5} y={bodyTop + 6} width={23} height={3} rx={1.5} fill="#5c5c66" opacity={0.6} />
       </g>
 
-      {/* USB-A shell — brushed metal with crimp dimples */}
+      {/* Push switch — black base, blue square cap */}
       <g filter={`url(#${ids.shadow})`}>
-        <rect x={usbCx - 16} y={bodyTop + 4} width={32} height={23} rx={1.2} fill={`url(#${ids.metal})`} stroke="#767c84" strokeWidth={0.5} />
-        <rect x={usbCx - 13} y={bodyTop + 4} width={26} height={2.4} fill="#5c6167" opacity={0.7} />
-        {[-9, 9].map((dx) => (
-          <rect key={dx} x={usbCx + dx - 2.6} y={bodyTop + 12} width={5.2} height={6.5} rx={1.6} fill="#a9aeb4" stroke="#7d838c" strokeWidth={0.4} />
+        <rect x={switchCx - 13} y={bodyTop + 8} width={26} height={26} rx={2} fill="#131316" stroke="#000000" strokeWidth={0.5} />
+        {[[-10, 10], [10, 10], [-10, -10], [10, -10]].map(([dx, dy], i) => (
+          <circle key={`swpin-${i}`} cx={switchCx + dx} cy={bodyTop + 21 + dy} r={1.3} fill="#a9aeb4" />
         ))}
-        <circle cx={usbCx - 12.5} cy={bodyTop + 23} r={0.9} fill="#71767d" />
-        <circle cx={usbCx + 12.5} cy={bodyTop + 23} r={0.9} fill="#71767d" />
+        <rect x={switchCx - 8} y={bodyTop + 13} width={16} height={16} rx={1.6} fill={`url(#${ids.blueBtn})`} stroke="#1d3684" strokeWidth={0.6} />
+        <rect x={switchCx - 6} y={bodyTop + 15} width={12} height={4} rx={1.2} fill="#a7bdf7" opacity={0.55} />
+        {/* Solder strip under the switch */}
+        <rect x={switchCx - 9} y={bodyTop + 38} width={18} height={5} rx={0.8} fill="#3a3a41" />
       </g>
 
-      {/* Slide switch — cream body, ridged actuator */}
+      {/* Power LED — lit green dome with a round cap below it */}
+      <circle cx={ledCx} cy={bodyTop + 14} r={8} fill="#4ade80" opacity={0.2} />
+      <circle cx={ledCx} cy={bodyTop + 14} r={4.4} fill={`url(#${ids.led})`} stroke="#166534" strokeWidth={0.5} />
+      <circle cx={ledCx - 1.2} cy={bodyTop + 12.8} r={1.2} fill="#ffffff" opacity={0.85} />
       <g filter={`url(#${ids.shadow})`}>
-        <rect x={bodyCx - 13} y={connectorY - 8} width={26} height={16} rx={1.6} fill="#ddd9d2" stroke="#a39e94" strokeWidth={0.6} />
-        <rect x={bodyCx - 10} y={connectorY - 5} width={20} height={10} rx={1} fill="#b9b4aa" />
-        <rect x={bodyCx + 0.5} y={connectorY - 5} width={9.5} height={10} rx={1} fill="#f4f1ec" stroke="#a39e94" strokeWidth={0.4} />
-        {[2.8, 5.3, 7.8].map((dx) => (
-          <line key={dx} x1={bodyCx + dx} y1={connectorY - 3.4} x2={bodyCx + dx} y2={connectorY + 3.4} stroke="#c9c4ba" strokeWidth={0.7} />
-        ))}
+        <circle cx={ledCx} cy={bodyTop + 34} r={7.2} fill="#0e0e10" />
+        <circle cx={ledCx} cy={bodyTop + 34} r={7.1} fill="none" stroke="#84888f" strokeWidth={1} />
+        <circle cx={ledCx} cy={bodyTop + 34} r={4.6} fill="#26262b" />
+        <path d={`M ${ledCx - 4.6} ${bodyTop + 31.6} A 5 5 0 0 1 ${ledCx + 1} ${bodyTop + 29.6}`} fill="none" stroke="#b9bdc3" strokeWidth={1.1} opacity={0.6} />
       </g>
 
-      {/* Power LED — lit green dome */}
-      <circle cx={bodyCx + 22} cy={connectorY - 1} r={5.5} fill="#4ade80" opacity={0.18} />
-      <circle cx={bodyCx + 22} cy={connectorY - 1} r={2.6} fill={`url(#${ids.led})`} stroke="#166534" strokeWidth={0.4} />
-      <circle cx={bodyCx + 21.2} cy={connectorY - 1.8} r={0.8} fill="#ffffff" opacity={0.85} />
+      {/* USB-A shell — brushed metal with the pale tongue showing */}
+      <g filter={`url(#${ids.shadow})`}>
+        <rect x={usbCx - 17} y={bodyTop + 5} width={34} height={38} rx={1.4} fill={`url(#${ids.metal})`} stroke="#767c84" strokeWidth={0.5} />
+        <rect x={usbCx - 13} y={bodyTop + 9} width={26} height={30} rx={1} fill="#ded9cf" />
+        <rect x={usbCx - 13} y={bodyTop + 9} width={26} height={7} fill="#b9b2a4" opacity={0.8} />
+        <circle cx={usbCx - 13.8} cy={bodyTop + 24} r={1} fill="#71767d" />
+        <circle cx={usbCx + 13.8} cy={bodyTop + 24} r={1} fill="#71767d" />
+      </g>
+
+      {/* Model silk running down the right edge */}
+      <text
+        x={bodyRight - 8}
+        y={bodyTop + bodyH * 0.42}
+        textAnchor="middle"
+        fontSize={9}
+        fill={SILK}
+        fontFamily={MONO}
+        opacity={0.9}
+        letterSpacing={1.5}
+        transform={`rotate(90 ${bodyRight - 8} ${bodyTop + bodyH * 0.42})`}
+      >
+        HW-131
+      </text>
 
       {/* SMD passives sprinkled where the real board carries them */}
-      <Smd x={bodyCx - 24} y={connectorY + 3} />
-      <Smd x={bodyCx - 24} y={connectorY - 4} tone="#57534e" />
-      <Smd x={bodyCx + 30} y={connectorY + 4} vertical />
-      <Smd x={regLeftCx + 15} y={midY - 8} vertical tone="#57534e" />
-      <Smd x={regRightCx - 15} y={midY + 8} vertical />
-      <Smd x={bodyCx + 14} y={midY + 14} />
-      <Smd x={bodyCx - 14} y={midY - 15} tone="#78350f" />
+      <Smd x={bodyCx - 26} y={bodyTop + 62} />
+      <Smd x={bodyCx - 4} y={bodyTop + 58} />
+      <Smd x={bodyCx + 16} y={bodyTop + 62} vertical />
+      <Smd x={bodyCx - 16} y={midY - 16} vertical />
+      <Smd x={bodyCx + 22} y={midY - 14} />
 
-      {/* Silkscreen title + section line */}
-      <text x={bodyCx} y={bodyTop + 45} textAnchor="middle" fontSize={5} fill={SILK} fontFamily={MONO} opacity={0.85} letterSpacing={1}>
-        MB102
-      </text>
-      <line x1={bodyLeft + 14} y1={bodyTop + 49} x2={bodyCx - 22} y2={bodyTop + 49} stroke={SILK} strokeWidth={0.4} opacity={0.35} />
-      <line x1={bodyCx + 22} y1={bodyTop + 49} x2={bodyRight - 14} y2={bodyTop + 49} stroke={SILK} strokeWidth={0.4} opacity={0.35} />
-
-      {/* Between the pin rows: jumpers at the edges over their output rails,
-          regulators inboard of them, bulk electrolytic in the middle. */}
-      <Regulator cx={regLeftCx} cy={midY} ids={ids} shadow={ids.shadow} />
-      <Regulator cx={regRightCx} cy={midY} ids={ids} shadow={ids.shadow} />
+      {/* Voltage jumpers at the side edges, bulk electrolytic in the middle */}
+      <VoltageJumper cx={leftJumperCx} cy={jumperY} voltage={leftVoltage} ids={{ cap: ids.yellow }} shadow={ids.shadow} />
+      <VoltageJumper cx={rightJumperCx} cy={jumperY} voltage={rightVoltage} ids={{ cap: ids.yellow }} shadow={ids.shadow} />
       <g filter={`url(#${ids.shadow})`}>
-        <circle cx={bodyCx} cy={midY} r={9} fill="#131417" />
-        <circle cx={bodyCx} cy={midY} r={8.9} fill="none" stroke="#33363b" strokeWidth={0.8} />
-        <circle cx={bodyCx} cy={midY} r={7} fill={`url(#${ids.capTop})`} />
-        <path d={`M ${bodyCx - 5} ${midY} H ${bodyCx + 5} M ${bodyCx} ${midY - 5} V ${midY + 5}`} stroke="#9aa0a6" strokeWidth={0.8} opacity={0.8} />
-        <path d={`M ${bodyCx - 9} ${midY - 3} A 9 9 0 0 0 ${bodyCx - 9} ${midY + 3}`} fill="none" stroke="#d8dadd" strokeWidth={1.6} opacity={0.5} />
+        <circle cx={bodyCx} cy={midY} r={10.4} fill="#0d0d10" />
+        <circle cx={bodyCx} cy={midY} r={9.6} fill={`url(#${ids.capBlue})`} />
+        <circle cx={bodyCx} cy={midY} r={5.8} fill="#101223" />
+        <path d={`M ${bodyCx - 5.2} ${midY} H ${bodyCx + 5.2} M ${bodyCx} ${midY - 5.2} V ${midY + 5.2}`} stroke="#3c4ac9" strokeWidth={0.9} opacity={0.9} />
+        <path d={`M ${bodyCx - 9.6} ${midY - 3.4} A 9.6 9.6 0 0 1 ${bodyCx - 3.4} ${midY - 9.6}`} fill="none" stroke="#8f9af0" strokeWidth={1.6} opacity={0.55} />
       </g>
-      <VoltageJumper cx={leftJumperCx} cy={midY} voltage={leftVoltage} ids={{ cap: ids.yellow }} shadow={ids.shadow} />
-      <VoltageJumper cx={rightJumperCx} cy={midY} voltage={rightVoltage} ids={{ cap: ids.yellow }} shadow={ids.shadow} />
 
       {/* Output voltage silk, one per side */}
       <text x={bodyLeft + bodyW * 0.32} y={bodyBottom - 4} textAnchor="middle" fontSize={5} fill={leftVoltage === 5 ? "#fcd34d" : "#7dd3fc"} fontFamily={MONO} opacity={0.95}>
@@ -364,7 +336,7 @@ function PowerSupplyRendererInner({
           <g key={`pad-${i}`}>
             <circle cx={p.x} cy={p.y} r={3.3} fill="#c8a24a" stroke="#8f6d2a" strokeWidth={0.6} />
             <circle cx={p.x} cy={p.y} r={1.5} fill="#191512" />
-            <text x={p.x} y={silkY} textAnchor="middle" fontSize={5} fill={plus ? "#f2a09b" : "#9fc3ef"} fontFamily={MONO} fontWeight={700}>
+            <text x={p.x} y={silkY} textAnchor="middle" fontSize={5} fill={SILK} fontFamily={MONO} fontWeight={700}>
               {plus ? "+" : "−"}
             </text>
           </g>
