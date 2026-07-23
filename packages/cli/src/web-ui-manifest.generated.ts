@@ -4,58 +4,58 @@
 // runtime, but TS typings infer bundle types from extensions. Runtime
 // behavior is correct; silencing the type-check noise here.
 
-import asset__assets_arduino_uno_Paxsb4st_glb from "../../app/dist/assets/arduino-uno-Paxsb4st.glb" with { type: "file" }
 import asset__assets_arduino_uno_board_DBpS0kIP_svg from "../../app/dist/assets/arduino-uno-board-DBpS0kIP.svg" with { type: "file" }
-import asset__assets_breadboard_vcPcRDW__glb from "../../app/dist/assets/breadboard-vcPcRDW_.glb" with { type: "file" }
-import asset__assets_buzzer_Bo1_Vaqm_glb from "../../app/dist/assets/buzzer-Bo1-Vaqm.glb" with { type: "file" }
-import asset__assets_dht_sensor_Bn8KUiHh_glb from "../../app/dist/assets/dht-sensor-Bn8KUiHh.glb" with { type: "file" }
+import asset__assets_arduino_uno_kCi3RRpb_glb from "../../app/dist/assets/arduino-uno-kCi3RRpb.glb" with { type: "file" }
+import asset__assets_breadboard_y7uWtgLV_glb from "../../app/dist/assets/breadboard-y7uWtgLV.glb" with { type: "file" }
+import asset__assets_buzzer_DGOKUXsp_glb from "../../app/dist/assets/buzzer-DGOKUXsp.glb" with { type: "file" }
+import asset__assets_dht_sensor_CLBu3U18_glb from "../../app/dist/assets/dht-sensor-CLBu3U18.glb" with { type: "file" }
 import asset__assets_index_B5z0GkrN_css from "../../app/dist/assets/index-B5z0GkrN.css" with { type: "file" }
-import asset__assets_index_BouSKjIW_js from "../../app/dist/assets/index-BouSKjIW.js" with { type: "file" }
 import asset__assets_index_CCUjAQjo_js from "../../app/dist/assets/index-CCUjAQjo.js" with { type: "file" }
-import asset__assets_lcd_CwnbX7Fb_glb from "../../app/dist/assets/lcd-CwnbX7Fb.glb" with { type: "file" }
-import asset__assets_led_DLyppEoJ_glb from "../../app/dist/assets/led-DLyppEoJ.glb" with { type: "file" }
-import asset__assets_oled_ConnZ0Jh_glb from "../../app/dist/assets/oled-ConnZ0Jh.glb" with { type: "file" }
-import asset__assets_potentiometer_Dvgnit5f_glb from "../../app/dist/assets/potentiometer-Dvgnit5f.glb" with { type: "file" }
-import asset__assets_power_module_MqYH1PPU_glb from "../../app/dist/assets/power-module-MqYH1PPU.glb" with { type: "file" }
-import asset__assets_relay_BaIZ2dhE_glb from "../../app/dist/assets/relay-BaIZ2dhE.glb" with { type: "file" }
-import asset__assets_resistor_base_BsWPF4Kg_glb from "../../app/dist/assets/resistor-base-BsWPF4Kg.glb" with { type: "file" }
-import asset__assets_rgb_led_Dr70QQ75_glb from "../../app/dist/assets/rgb-led-Dr70QQ75.glb" with { type: "file" }
+import asset__assets_index_eM5pbTec_js from "../../app/dist/assets/index-eM5pbTec.js" with { type: "file" }
+import asset__assets_lcd_Di_2TIwU_glb from "../../app/dist/assets/lcd-Di_2TIwU.glb" with { type: "file" }
+import asset__assets_led_Cc7YdEOQ_glb from "../../app/dist/assets/led-Cc7YdEOQ.glb" with { type: "file" }
+import asset__assets_oled_Bg_R0EOj_glb from "../../app/dist/assets/oled-Bg_R0EOj.glb" with { type: "file" }
+import asset__assets_potentiometer_BPxLCK2l_glb from "../../app/dist/assets/potentiometer-BPxLCK2l.glb" with { type: "file" }
+import asset__assets_power_module_CaqOm76q_glb from "../../app/dist/assets/power-module-CaqOm76q.glb" with { type: "file" }
+import asset__assets_relay_C6U0biqb_glb from "../../app/dist/assets/relay-C6U0biqb.glb" with { type: "file" }
+import asset__assets_resistor_base_BCd3d56__glb from "../../app/dist/assets/resistor-base-BCd3d56_.glb" with { type: "file" }
+import asset__assets_rgb_led_BNqvG13a_glb from "../../app/dist/assets/rgb-led-BNqvG13a.glb" with { type: "file" }
 import asset__assets_rp2040_bootrom_data_BpBHbl0R_js from "../../app/dist/assets/rp2040-bootrom-data-BpBHbl0R.js" with { type: "file" }
-import asset__assets_servo_CSNkeUgo_glb from "../../app/dist/assets/servo-CSNkeUgo.glb" with { type: "file" }
-import asset__assets_seven_segment_Cyg70YAB_glb from "../../app/dist/assets/seven-segment-Cyg70YAB.glb" with { type: "file" }
-import asset__assets_solver_worker_Bj34uFii_js from "../../app/dist/assets/solver.worker-Bj34uFii.js" with { type: "file" }
-import asset__assets_stepper_uln2003_CLGN_ZSq_glb from "../../app/dist/assets/stepper-uln2003-CLGN-ZSq.glb" with { type: "file" }
-import asset__assets_temperature_sensor_CfLXnMPY_glb from "../../app/dist/assets/temperature-sensor-CfLXnMPY.glb" with { type: "file" }
-import asset__assets_ultrasonic_miVV1WUv_glb from "../../app/dist/assets/ultrasonic-miVV1WUv.glb" with { type: "file" }
-import asset__assets_view_2EzX6qsQ_js from "../../app/dist/assets/view-2EzX6qsQ.js" with { type: "file" }
+import asset__assets_servo_N0VYQt54_glb from "../../app/dist/assets/servo-N0VYQt54.glb" with { type: "file" }
+import asset__assets_seven_segment_DFe3gICx_glb from "../../app/dist/assets/seven-segment-DFe3gICx.glb" with { type: "file" }
+import asset__assets_solver_worker_CjLTxc_R_js from "../../app/dist/assets/solver.worker-CjLTxc_R.js" with { type: "file" }
+import asset__assets_stepper_uln2003_CImAjb64_glb from "../../app/dist/assets/stepper-uln2003-CImAjb64.glb" with { type: "file" }
+import asset__assets_temperature_sensor_iAUUFiLW_glb from "../../app/dist/assets/temperature-sensor-iAUUFiLW.glb" with { type: "file" }
+import asset__assets_ultrasonic_CfjxpiZb_glb from "../../app/dist/assets/ultrasonic-CfjxpiZb.glb" with { type: "file" }
+import asset__assets_view_vjYXiR3__js from "../../app/dist/assets/view-vjYXiR3_.js" with { type: "file" }
 import asset__favicon_png from "../../app/dist/favicon.png" with { type: "file" }
 import asset__index_html from "../../app/dist/index.html" with { type: "file" }
 
 export const EMBEDDED_ASSETS: Record<string, string> = {
-  "/assets/arduino-uno-Paxsb4st.glb": asset__assets_arduino_uno_Paxsb4st_glb as unknown as string,
   "/assets/arduino-uno-board-DBpS0kIP.svg": asset__assets_arduino_uno_board_DBpS0kIP_svg as unknown as string,
-  "/assets/breadboard-vcPcRDW_.glb": asset__assets_breadboard_vcPcRDW__glb as unknown as string,
-  "/assets/buzzer-Bo1-Vaqm.glb": asset__assets_buzzer_Bo1_Vaqm_glb as unknown as string,
-  "/assets/dht-sensor-Bn8KUiHh.glb": asset__assets_dht_sensor_Bn8KUiHh_glb as unknown as string,
+  "/assets/arduino-uno-kCi3RRpb.glb": asset__assets_arduino_uno_kCi3RRpb_glb as unknown as string,
+  "/assets/breadboard-y7uWtgLV.glb": asset__assets_breadboard_y7uWtgLV_glb as unknown as string,
+  "/assets/buzzer-DGOKUXsp.glb": asset__assets_buzzer_DGOKUXsp_glb as unknown as string,
+  "/assets/dht-sensor-CLBu3U18.glb": asset__assets_dht_sensor_CLBu3U18_glb as unknown as string,
   "/assets/index-B5z0GkrN.css": asset__assets_index_B5z0GkrN_css as unknown as string,
-  "/assets/index-BouSKjIW.js": asset__assets_index_BouSKjIW_js as unknown as string,
   "/assets/index-CCUjAQjo.js": asset__assets_index_CCUjAQjo_js as unknown as string,
-  "/assets/lcd-CwnbX7Fb.glb": asset__assets_lcd_CwnbX7Fb_glb as unknown as string,
-  "/assets/led-DLyppEoJ.glb": asset__assets_led_DLyppEoJ_glb as unknown as string,
-  "/assets/oled-ConnZ0Jh.glb": asset__assets_oled_ConnZ0Jh_glb as unknown as string,
-  "/assets/potentiometer-Dvgnit5f.glb": asset__assets_potentiometer_Dvgnit5f_glb as unknown as string,
-  "/assets/power-module-MqYH1PPU.glb": asset__assets_power_module_MqYH1PPU_glb as unknown as string,
-  "/assets/relay-BaIZ2dhE.glb": asset__assets_relay_BaIZ2dhE_glb as unknown as string,
-  "/assets/resistor-base-BsWPF4Kg.glb": asset__assets_resistor_base_BsWPF4Kg_glb as unknown as string,
-  "/assets/rgb-led-Dr70QQ75.glb": asset__assets_rgb_led_Dr70QQ75_glb as unknown as string,
+  "/assets/index-eM5pbTec.js": asset__assets_index_eM5pbTec_js as unknown as string,
+  "/assets/lcd-Di_2TIwU.glb": asset__assets_lcd_Di_2TIwU_glb as unknown as string,
+  "/assets/led-Cc7YdEOQ.glb": asset__assets_led_Cc7YdEOQ_glb as unknown as string,
+  "/assets/oled-Bg_R0EOj.glb": asset__assets_oled_Bg_R0EOj_glb as unknown as string,
+  "/assets/potentiometer-BPxLCK2l.glb": asset__assets_potentiometer_BPxLCK2l_glb as unknown as string,
+  "/assets/power-module-CaqOm76q.glb": asset__assets_power_module_CaqOm76q_glb as unknown as string,
+  "/assets/relay-C6U0biqb.glb": asset__assets_relay_C6U0biqb_glb as unknown as string,
+  "/assets/resistor-base-BCd3d56_.glb": asset__assets_resistor_base_BCd3d56__glb as unknown as string,
+  "/assets/rgb-led-BNqvG13a.glb": asset__assets_rgb_led_BNqvG13a_glb as unknown as string,
   "/assets/rp2040-bootrom-data-BpBHbl0R.js": asset__assets_rp2040_bootrom_data_BpBHbl0R_js as unknown as string,
-  "/assets/servo-CSNkeUgo.glb": asset__assets_servo_CSNkeUgo_glb as unknown as string,
-  "/assets/seven-segment-Cyg70YAB.glb": asset__assets_seven_segment_Cyg70YAB_glb as unknown as string,
-  "/assets/solver.worker-Bj34uFii.js": asset__assets_solver_worker_Bj34uFii_js as unknown as string,
-  "/assets/stepper-uln2003-CLGN-ZSq.glb": asset__assets_stepper_uln2003_CLGN_ZSq_glb as unknown as string,
-  "/assets/temperature-sensor-CfLXnMPY.glb": asset__assets_temperature_sensor_CfLXnMPY_glb as unknown as string,
-  "/assets/ultrasonic-miVV1WUv.glb": asset__assets_ultrasonic_miVV1WUv_glb as unknown as string,
-  "/assets/view-2EzX6qsQ.js": asset__assets_view_2EzX6qsQ_js as unknown as string,
+  "/assets/servo-N0VYQt54.glb": asset__assets_servo_N0VYQt54_glb as unknown as string,
+  "/assets/seven-segment-DFe3gICx.glb": asset__assets_seven_segment_DFe3gICx_glb as unknown as string,
+  "/assets/solver.worker-CjLTxc_R.js": asset__assets_solver_worker_CjLTxc_R_js as unknown as string,
+  "/assets/stepper-uln2003-CImAjb64.glb": asset__assets_stepper_uln2003_CImAjb64_glb as unknown as string,
+  "/assets/temperature-sensor-iAUUFiLW.glb": asset__assets_temperature_sensor_iAUUFiLW_glb as unknown as string,
+  "/assets/ultrasonic-CfjxpiZb.glb": asset__assets_ultrasonic_CfjxpiZb_glb as unknown as string,
+  "/assets/view-vjYXiR3_.js": asset__assets_view_vjYXiR3__js as unknown as string,
   "/favicon.png": asset__favicon_png as unknown as string,
   "/index.html": asset__index_html as unknown as string,
   "/": asset__index_html as unknown as string,
