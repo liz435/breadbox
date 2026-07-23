@@ -2,7 +2,7 @@ import React from "react";
 import type { BoardComponent, PinState } from "@dreamer/schemas";
 import type { ComponentElectricalState } from "@/simulator/circuit-solver";
 import { gridToPixel } from "@/breadboard/breadboard-grid";
-import { LABEL_FONT_SIZE } from "@/breadboard/breadboard-constants";
+import { LABEL_FONT_SIZE, PX_PER_MM } from "@/breadboard/breadboard-constants";
 import { PinLabel } from "@/breadboard/component-renderers/pin-label";
 
 type CapacitorRendererProps = {
@@ -77,88 +77,93 @@ function CapacitorRendererInner({ component, isSelected, electricalState }: Capa
     );
   }
 
-  // Electrolytic capacitor (default)
-  const bodyWidth = 8;
-  const bodyHeight = 14;
-  const bodyTopY = centerY - bodyHeight / 2;
+  // Electrolytic capacitor (default) — a real radial can, drawn top-down.
+  const CAN_RADIUS = 3.15 * PX_PER_MM; // 6.3mm-dia aluminium can
+  const leadInset = CAN_RADIUS * 0.34; // visible lead stub from each hole into the can
+  const clipId = `cap-clip-${component.id}`;
 
   return (
     <g>
       <defs>
-        <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#1e3a5f" />
-          <stop offset="50%" stopColor="#1e40af" />
-          <stop offset="100%" stopColor="#1e3a5f" />
-        </linearGradient>
+        {/* Can top — aluminium, lit from the upper-left */}
+        <radialGradient id={gradientId} cx="38%" cy="32%" r="75%">
+          <stop offset="0%" stopColor="#3b5a86" />
+          <stop offset="60%" stopColor="#22406b" />
+          <stop offset="100%" stopColor="#152e4d" />
+        </radialGradient>
+        <clipPath id={clipId}>
+          <circle cx={centerX} cy={centerY} r={CAN_RADIUS} />
+        </clipPath>
       </defs>
 
-      {/* Top leg */}
-      <line
-        x1={pinA.x}
-        y1={pinA.y}
-        x2={centerX}
-        y2={bodyTopY + bodyHeight}
-        stroke="#a0a0a0"
-        strokeWidth={1.2}
-        strokeLinecap="round"
-      />
-      {/* Bottom leg */}
-      <line
-        x1={pinB.x}
-        y1={pinB.y}
-        x2={centerX}
-        y2={bodyTopY + bodyHeight}
-        stroke="#a0a0a0"
-        strokeWidth={1.2}
-        strokeLinecap="round"
-      />
-
-      {/* Cylindrical body */}
-      <rect
-        x={centerX - bodyWidth / 2}
-        y={bodyTopY}
-        width={bodyWidth}
-        height={bodyHeight}
-        rx={1}
-        ry={0}
+      {/* Can body */}
+      <circle
+        cx={centerX}
+        cy={centerY}
+        r={CAN_RADIUS}
         fill={`url(#${gradientId})`}
         stroke={isSelected ? "#3b82f6" : "#1e3a5f"}
         strokeWidth={isSelected ? 1.5 : 0.8}
       />
 
-      {/* Rounded top cap */}
+      {/* Negative stripe down the negative (bottom / pinB) side, with minus marks */}
+      <g clipPath={`url(#${clipId})`}>
+        <rect
+          x={centerX - CAN_RADIUS}
+          y={centerY + CAN_RADIUS * 0.34}
+          width={CAN_RADIUS * 2}
+          height={CAN_RADIUS * 0.66}
+          fill="#cdd8e6"
+          opacity={0.9}
+        />
+        {[-0.42, 0, 0.42].map((f) => (
+          <rect
+            key={f}
+            x={centerX + f * CAN_RADIUS - CAN_RADIUS * 0.11}
+            y={centerY + CAN_RADIUS * 0.62}
+            width={CAN_RADIUS * 0.22}
+            height={CAN_RADIUS * 0.09}
+            rx={0.4}
+            fill="#1e3a5f"
+          />
+        ))}
+      </g>
+
+      {/* Pressure-relief vent cross scored into the top */}
+      <g stroke="#16283f" strokeWidth={1} opacity={0.7} strokeLinecap="round">
+        <line x1={centerX - CAN_RADIUS * 0.6} y1={centerY} x2={centerX + CAN_RADIUS * 0.6} y2={centerY} />
+        <line x1={centerX} y1={centerY - CAN_RADIUS * 0.6} x2={centerX} y2={centerY + CAN_RADIUS * 0.6} />
+      </g>
+
+      {/* Specular highlight on the metal top */}
       <ellipse
-        cx={centerX}
-        cy={bodyTopY}
-        rx={bodyWidth / 2}
-        ry={2}
-        fill="#2563eb"
-        stroke={isSelected ? "#3b82f6" : "#1e3a5f"}
-        strokeWidth={0.5}
+        cx={centerX - CAN_RADIUS * 0.32}
+        cy={centerY - CAN_RADIUS * 0.36}
+        rx={CAN_RADIUS * 0.3}
+        ry={CAN_RADIUS * 0.2}
+        fill="#ffffff"
+        opacity={0.25}
       />
 
-      {/* Negative stripe (silver band near bottom) */}
-      <rect
-        x={centerX - bodyWidth / 2}
-        y={bodyTopY + bodyHeight - 4}
-        width={bodyWidth}
-        height={3}
-        fill="#c0c0c0"
-        opacity={0.6}
+      {/* Two leads — silver stubs from each hole toward the can body */}
+      <line
+        x1={pinA.x}
+        y1={pinA.y}
+        x2={centerX}
+        y2={pinA.y + leadInset}
+        stroke="#a0a0a0"
+        strokeWidth={1.2}
+        strokeLinecap="round"
       />
-
-      {/* "-" marking */}
-      <text
-        x={centerX - bodyWidth / 2 - 4}
-        y={bodyTopY + bodyHeight - 1}
-        textAnchor="middle"
-        fontSize={5}
-        fill="#888"
-        fontWeight="bold"
-        fontFamily="monospace"
-      >
-        -
-      </text>
+      <line
+        x1={pinB.x}
+        y1={pinB.y}
+        x2={centerX}
+        y2={pinB.y - leadInset}
+        stroke="#a0a0a0"
+        strokeWidth={1.2}
+        strokeLinecap="round"
+      />
 
       {/* Pin hole indicators */}
       <circle cx={pinA.x} cy={pinA.y} r={2} fill="#3b82f6" opacity={0.5} />
@@ -170,7 +175,7 @@ function CapacitorRendererInner({ component, isSelected, electricalState }: Capa
 
       {/* Label */}
       <text
-        x={centerX + bodyWidth / 2 + 4}
+        x={centerX + CAN_RADIUS + 4}
         y={centerY + 2}
         textAnchor="start"
         fontSize={LABEL_FONT_SIZE}

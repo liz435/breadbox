@@ -2,7 +2,7 @@ import React from "react";
 import type { BoardComponent, PinState } from "@dreamer/schemas";
 import type { ComponentElectricalState } from "@/simulator/circuit-solver";
 import { gridToPixel } from "@/breadboard/breadboard-grid";
-import { LABEL_FONT_SIZE, ANNOTATION_FONT_SIZE } from "@/breadboard/breadboard-constants";
+import { LABEL_FONT_SIZE, ANNOTATION_FONT_SIZE, PX_PER_MM } from "@/breadboard/breadboard-constants";
 import { PinLabel } from "@/breadboard/component-renderers/pin-label";
 
 type ResistorRendererProps = {
@@ -54,12 +54,14 @@ function ResistorRendererInner({ component, isSelected, electricalState }: Resis
 
   const centerX = (pinA.x + pinB.x) / 2;
   const centerY = pinA.y;
-  const bodyW = Math.abs(pinB.x - pinA.x) * 0.52;
-  const bodyH = 10;
+  // True-size 1/4W axial resistor body, centred between the two lead holes with
+  // thin leads bending out to the holes (the body is shorter than the hole span).
+  const bodyW = 6.3 * PX_PER_MM; // 6.3mm body length
+  const bodyH = 2.3 * PX_PER_MM; // 2.3mm body diameter
   const halfH = bodyH / 2;
   const bodyL = centerX - bodyW / 2;
   const bodyR = centerX + bodyW / 2;
-  const endR = 3; // radius of the rounded ends
+  const endR = 0.6 * PX_PER_MM; // ~0.6mm rounded body ends
 
   const gradientId = `res-grad-${component.id}`;
   const highlightId = `res-hi-${component.id}`;

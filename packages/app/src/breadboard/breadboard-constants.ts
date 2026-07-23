@@ -41,8 +41,15 @@ export const BOARD_PADDING = 16
 // All component dimensions should derive from HOLE_SPACING so visuals
 // stay proportional at any zoom level.
 
-/** Standard dome radius for LEDs — half of HOLE_SPACING */
-export const LED_DOME_RADIUS = HOLE_SPACING / 2
+/**
+ * Pixels per millimetre at board scale: hole pitch is 2.54mm = HOLE_SPACING px.
+ * Part renderers size their bodies as `mm * PX_PER_MM` so every part is drawn
+ * at its true physical size relative to the board (and to the 3D view).
+ */
+export const PX_PER_MM = HOLE_SPACING / 2.54
+
+/** Standard dome radius for LEDs — a real 5mm dome at board scale */
+export const LED_DOME_RADIUS = 2.5 * PX_PER_MM
 
 /** Buzzer/potentiometer radius — slightly less than HOLE_SPACING */
 export const KNOB_RADIUS = Math.round(HOLE_SPACING * 0.72)

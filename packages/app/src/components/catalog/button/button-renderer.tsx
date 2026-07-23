@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo } from "react";
 import type { BoardComponent, PinState } from "@dreamer/schemas";
 import { gridToPixel } from "@/breadboard/breadboard-grid";
-import { LABEL_FONT_SIZE } from "@/breadboard/breadboard-constants";
+import { LABEL_FONT_SIZE, PX_PER_MM } from "@/breadboard/breadboard-constants";
 import { pinStateStore } from "@/simulator/pin-state-store";
 import { buttonPressStore, useButtonPressed } from "@/simulator/button-press-store";
 import { usePinState } from "@/simulator/use-pin-state";
@@ -48,9 +48,11 @@ function ButtonRendererInner({ component, isSelected }: ButtonRendererProps) {
 
   const centerX = (topLeft.x + topRight.x) / 2;
   const centerY = (topLeft.y + bottomLeft.y) / 2;
-  const bodyWidth = topRight.x - topLeft.x + 8;
-  const bodyHeight = bottomLeft.y - topLeft.y + 8;
-  const capR = Math.min(bodyWidth, bodyHeight) * 0.26;
+  // True-size 6×6mm tactile switch: the body is fixed at real scale and the
+  // four metal legs bend out to the holes (real leg pitch differs from the grid).
+  const bodyWidth = 6 * PX_PER_MM; // 6mm switch body
+  const bodyHeight = 6 * PX_PER_MM; // 6mm switch body
+  const capR = 1.75 * PX_PER_MM; // 3.5mm-dia round plunger cap
 
   // Strict hardware mode: a press/release is a bounce burst, not one clean
   // edge — scheduled through the running peripheral bus in sim time so

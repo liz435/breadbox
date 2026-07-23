@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import type { BoardComponent } from "@dreamer/schemas";
 import { gridToPixel } from "@/breadboard/breadboard-grid";
-import { LABEL_FONT_SIZE } from "@/breadboard/breadboard-constants";
+import { LABEL_FONT_SIZE, PX_PER_MM } from "@/breadboard/breadboard-constants";
 import { irRemoteStore } from "@/simulator/ir-remote-store";
 
 type IrRemoteRendererProps = {
@@ -21,12 +21,18 @@ const REMOTE_BUTTONS: ReadonlyArray<{ label: string; code: number }> = [
 ];
 
 const COLS = 2;
-const BODY_W = 44;
-const BODY_H = 88;
-const PAD_X = 6;
-const PAD_TOP = 22;
-const GAP = 4;
-const BTN_H = 16;
+// ── Handheld card remote, drawn at true physical size (14px = 2.54mm pitch) ──
+const BODY_W = 40 * PX_PER_MM;          // card width
+const BODY_H = 86 * PX_PER_MM;          // card length
+const CORNER_R = 4 * PX_PER_MM;         // rounded card corners
+const PAD_X = 6 * PX_PER_MM;            // side margin to the button grid
+const PAD_TOP = 24 * PX_PER_MM;         // emitter + label zone above the buttons
+const GAP = 4 * PX_PER_MM;              // spacing between buttons
+const BTN_H = 14 * PX_PER_MM;           // button height
+const BTN_R = 2 * PX_PER_MM;            // button corner radius
+const EMITTER_FROM_TOP = 8 * PX_PER_MM; // IR LED window, down from the top edge
+const EMITTER_R = 2.4 * PX_PER_MM;      // IR LED window radius
+const PRESS_SHIFT = 0.4 * PX_PER_MM;    // key travel while a button is held
 
 function IrRemoteRendererInner({ component, isSelected }: IrRemoteRendererProps) {
   const [pressedIdx, setPressedIdx] = useState<number | null>(null);
@@ -35,7 +41,7 @@ function IrRemoteRendererInner({ component, isSelected }: IrRemoteRendererProps)
   const bodyL = x;
   const bodyT = y;
   const emitterX = bodyL + BODY_W / 2;
-  const emitterY = bodyT + 7;
+  const emitterY = bodyT + EMITTER_FROM_TOP;
   const btnW = (BODY_W - PAD_X * 2 - GAP * (COLS - 1)) / COLS;
   const energized = pressedIdx !== null;
 
@@ -61,13 +67,13 @@ function IrRemoteRendererInner({ component, isSelected }: IrRemoteRendererProps)
       </defs>
 
       {/* Body shadow + shell */}
-      <rect x={bodyL + 1} y={bodyT + 1.5} width={BODY_W} height={BODY_H} rx={6} fill="#00000055" />
+      <rect x={bodyL + 1.5} y={bodyT + 2} width={BODY_W} height={BODY_H} rx={CORNER_R} fill="#00000055" />
       <rect
         x={bodyL}
         y={bodyT}
         width={BODY_W}
         height={BODY_H}
-        rx={6}
+        rx={CORNER_R}
         fill={`url(#${bodyGradId})`}
         stroke={isSelected ? "#3b82f6" : "#4b5563"}
         strokeWidth={isSelected ? 1.5 : 0.8}
@@ -76,10 +82,10 @@ function IrRemoteRendererInner({ component, isSelected }: IrRemoteRendererProps)
       {/* IR emitter LED at the top. IR is near-invisible: while a button is
           held the die shows only the faint dim-red you'd catch by eye on a
           real remote — no rings, no bloom. */}
-      <circle cx={emitterX} cy={emitterY} r={2.6} fill={energized ? "#4f1d1d" : "#3f1d1d"} />
-      <circle cx={emitterX} cy={emitterY} r={1.7} fill={energized ? "#9f2626" : "#7f1d1d"} />
+      <circle cx={emitterX} cy={emitterY} r={EMITTER_R} fill={energized ? "#4f1d1d" : "#3f1d1d"} />
+      <circle cx={emitterX} cy={emitterY} r={EMITTER_R * 0.62} fill={energized ? "#9f2626" : "#7f1d1d"} />
 
-      <text x={emitterX} y={bodyT + 15} textAnchor="middle" fontSize={3} fill="#9ca3af" fontFamily="monospace">
+      <text x={emitterX} y={emitterY + EMITTER_R + 3 * PX_PER_MM} textAnchor="middle" fontSize={2 * PX_PER_MM} fill="#9ca3af" fontFamily="monospace">
         IR REMOTE
       </text>
 
@@ -106,19 +112,19 @@ function IrRemoteRendererInner({ component, isSelected }: IrRemoteRendererProps)
           >
             <rect
               x={bx}
-              y={by + (isDown ? 0.6 : 0)}
+              y={by + (isDown ? PRESS_SHIFT : 0)}
               width={btnW}
-              height={BTN_H - (isDown ? 0.6 : 0)}
-              rx={3}
+              height={BTN_H - (isDown ? PRESS_SHIFT : 0)}
+              rx={BTN_R}
               fill={isDown ? "#b91c1c" : "#dc2626"}
               stroke={isDown ? "#fca5a5" : "#7f1d1d"}
               strokeWidth={0.6}
             />
             <text
               x={bx + btnW / 2}
-              y={by + BTN_H / 2 + 1.6}
+              y={by + BTN_H / 2 + 0.5 * PX_PER_MM}
               textAnchor="middle"
-              fontSize={4.2}
+              fontSize={2.6 * PX_PER_MM}
               fill="#fee2e2"
               fontFamily="monospace"
               fontWeight="bold"

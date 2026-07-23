@@ -1,7 +1,7 @@
 import React from "react";
 import type { BoardComponent, PinState, Wire } from "@dreamer/schemas";
 import { gridToPixel } from "@/breadboard/breadboard-grid";
-import { LED_DOME_RADIUS, LEG_WIDTH, LABEL_FONT_SIZE } from "@/breadboard/breadboard-constants";
+import { LED_DOME_RADIUS, LEG_WIDTH, LABEL_FONT_SIZE, PX_PER_MM } from "@/breadboard/breadboard-constants";
 import { findArduinoPinForComponentPin } from "@/breadboard/component-pin-resolver";
 import { PinLabel } from "@/breadboard/component-renderers/pin-label";
 
@@ -67,7 +67,10 @@ function RgbLedRendererInner({ component, pinStates, wires, isSelected }: RgbLed
   const cx = pR.x;
   const cy = (pR.y + pK.y) / 2;
 
-  const R = LED_DOME_RADIUS + 1.5;
+  // Same 5mm dome/flange geometry as the single LED, at true board scale —
+  // the four legs bend out to the four holes.
+  const R = LED_DOME_RADIUS; // 5mm epoxy dome (2.5mm radius)
+  const FLANGE_RADIUS = 2.9 * PX_PER_MM; // 5.8mm-dia base flange ring
   const filterId = `rgb-led-glow-${component.id}`;
   const gradId = `rgb-led-grad-${component.id}`;
   const rimGradId = `rgb-led-rim-${component.id}`;
@@ -82,7 +85,7 @@ function RgbLedRendererInner({ component, pinStates, wires, isSelected }: RgbLed
   const domeTop = cy - R - 1;
   const domeBottom = cy + R;
   const flangeY = domeBottom;
-  const flangeH = 2.8;
+  const flangeH = 0.9 * PX_PER_MM; // ~0.9mm plastic rim lip at the flange base
 
   const domePath = [
     `M ${cx - R} ${flangeY}`,
@@ -196,11 +199,11 @@ function RgbLedRendererInner({ component, pinStates, wires, isSelected }: RgbLed
         />
       </g>
 
-      {/* Flange / rim at base — with 4 pin notches to hint at the leg spacing */}
+      {/* Flange / rim at base — 5.8mm dia, wider than the dome */}
       <rect
-        x={cx - R - 0.8}
+        x={cx - FLANGE_RADIUS}
         y={flangeY}
-        width={R * 2 + 1.6}
+        width={FLANGE_RADIUS * 2}
         height={flangeH}
         rx={0.6}
         fill={`url(#${bodyGradId})`}
