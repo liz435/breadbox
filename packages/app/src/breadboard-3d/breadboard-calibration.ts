@@ -34,7 +34,10 @@ const DEFAULT_TRANSFORM: BreadboardTransform = {
   scale: 1.46,
 }
 
-const STORAGE_KEY = "dreamer:breadboard-calibration:v2"
+// Bumped v2 → v3: a stale saved transform (missing the 1.46 fit scale / offset)
+// was shadowing the baked default on desktop, shrinking the board out from under
+// the hole grid. Bumping discards the stale value so the baked placement loads.
+const STORAGE_KEY = "dreamer:breadboard-calibration:v3"
 
 function load(): BreadboardTransform {
   if (typeof localStorage === "undefined") return DEFAULT_TRANSFORM

@@ -50,11 +50,17 @@ import { ComponentPinCalibrator } from "./component-pin-calibrator"
 import { useCalibrating as useArduinoCalibrating } from "./arduino-calibration"
 import { ArduinoPinCalibrator } from "./arduino-calibrator"
 import { ObstacleDebug, useObstacleDebug } from "./obstacle-debug"
+import { enableShadows } from "./glb-parts"
 import arduinoUnoUrl from "@/assets/arduino-uno.glb?url"
 import breadboardUrl from "@/assets/breadboard.glb?url"
 
 /** All hole columns of the clickable grid: terminal cols 0–9 + rail cols. */
 const HOLE_COLS = [-2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+
+/** Half-extent (mm) the key light's shadow camera frames: the breadboard plus
+ *  the Arduino hanging off −x and room for a couple more surface boards. Keeping
+ *  this tight is what buys usable shadow-map resolution — see the light below. */
+const SHADOW_EXTENT_MM = pxToMm(BREADBOARD_RECT_PX.width) * 1.6
 
 /** One instanced draw call for the breadboard's hole cutouts. Positions come
  *  from the live grid warp so the holes follow the calibrated model sockets. */
@@ -90,7 +96,7 @@ function BreadboardHoles() {
   }, [positions, invalidate])
 
   return (
-    <instancedMesh ref={meshRef} args={[undefined, undefined, positions.length]}>
+    <instancedMesh ref={meshRef} args={[undefined, undefined, positions.length]} receiveShadow>
       <boxGeometry args={[1.7, 1.2, 1.7]} />
       <meshStandardMaterial color="#37342c" roughness={0.9} />
     </instancedMesh>
@@ -129,6 +135,7 @@ function RailStripes() {
           key={stripe.x}
           position={[stripe.x, BREADBOARD_THICKNESS_MM + 0.05, stripes.zCenter]}
           rotation={[-Math.PI / 2, 0, 0]}
+          receiveShadow
         >
           <planeGeometry args={[1, stripes.length]} />
           <meshStandardMaterial color={stripe.color} roughness={0.8} />
@@ -230,7 +237,7 @@ const ARDUINO_MODEL = {
 function ArduinoModel() {
   const { scene } = useGLTF(arduinoUnoUrl)
   // Clone so this instance owns its graph (useGLTF caches the source scene).
-  const model = useMemo(() => scene.clone(true), [scene])
+  const model = useMemo(() => enableShadows(scene.clone(true)), [scene])
   const groupRef = useRef<Group>(null)
   const invalidate = useThree((state) => state.invalidate)
 
@@ -307,11 +314,13 @@ function BreadboardBodyFallback() {
         radius={1.6}
         smoothness={4}
         position={[0, BREADBOARD_THICKNESS_MM / 2, 0]}
+        castShadow
+        receiveShadow
       >
         <meshStandardMaterial color="#e4dccb" roughness={0.62} metalness={0.02} />
       </RoundedBox>
       {/* recessed valley between the two terminal banks (real DIP channel) */}
-      <mesh position={[0, BREADBOARD_THICKNESS_MM - 0.9, 0]}>
+      <mesh position={[0, BREADBOARD_THICKNESS_MM - 0.9, 0]} receiveShadow>
         <boxGeometry args={[pxToMm(12), 1.8, pxToMm(BREADBOARD_RECT_PX.height) * 0.94]} />
         <meshStandardMaterial color="#b8b1a0" roughness={0.8} />
       </mesh>
@@ -325,10 +334,10 @@ function BreadboardBodyFallback() {
  *  height, yaw, scale) is layered on top — the fit runs in the inner group, the
  *  offset/lift on the outer group. Hole alignment is handled by the grid warp,
  *  not by moving the model. */
-function BreadboardModel({ center }: { center: WorldPoint }) {
+function BreadboardModel({ center, offset }: { center: WorldPoint; offset: WorldPoint }) {
   const { scene } = useGLTF(breadboardUrl)
   // Clone so this instance owns its graph (useGLTF caches the source scene).
-  const model = useMemo(() => scene.clone(true), [scene])
+  const model = useMemo(() => enableShadows(scene.clone(true)), [scene])
   const fitRef = useRef<Group>(null)
   const invalidate = useThree((state) => state.invalidate)
   const cal = useBreadboardTransform()
@@ -366,15 +375,21 @@ function BreadboardModel({ center }: { center: WorldPoint }) {
     group.updateWorldMatrix(true, true)
 
     // 4. Recentre over the breadboard rect and rest the bottom on the floor.
+    //    Box3.setFromObject measures in WORLD space, so the target must be the
+    //    parent group's world position (which carries the board's world offset)
+    //    — aiming at the raw world origin cancels that offset for the model
+    //    alone, and a moved board's holes/parts/wires drift off its body.
     //    The calibrated in-plane offset + lift are applied by the outer group.
+    const parentWorld =
+      group.parent?.getWorldPosition(new Vector3()) ?? new Vector3()
     const box = new Box3().setFromObject(group)
     const centroid = box.getCenter(new Vector3())
-    group.position.x += center.x - centroid.x
-    group.position.z += center.z - centroid.z
-    group.position.y += -box.min.y
+    group.position.x += parentWorld.x + center.x - centroid.x
+    group.position.z += parentWorld.z + center.z - centroid.z
+    group.position.y += parentWorld.y - box.min.y
     group.updateWorldMatrix(true, true)
     invalidate()
-  }, [model, center.x, center.z, targetW, targetD, cal.yaw, cal.scale, invalidate])
+  }, [model, center.x, center.z, offset.x, offset.z, targetW, targetD, cal.yaw, cal.scale, invalidate])
 
   return (
     <group position={[cal.x, cal.y, cal.z]}>
@@ -413,7 +428,7 @@ function BreadboardBlock({ offset }: { offset: WorldPoint }) {
         }
       >
         <group position={[breadboardCenter.x, 0, breadboardCenter.z]}>
-          <BreadboardModel center={{ x: 0, z: 0 }} />
+          <BreadboardModel center={{ x: 0, z: 0 }} offset={offset} />
         </group>
       </Suspense>
 
@@ -542,6 +557,11 @@ export function SceneRoot() {
         // app's WKWebView. 1.5 keeps edges clean (SMAA smooths the rest) for
         // ~40% fewer fragment ops than 2.
         dpr={[1, 1.5]}
+        // Soft (PCF) shadow maps. A part casting onto the board it sits on — and
+        // onto its neighbours — is the strongest cue that it is seated rather
+        // than floating; ContactShadows below only grounds the board on the
+        // floor and is baked at frames={1}, so it can say nothing about parts.
+        shadows="soft"
         camera={{ position: [40, 140, 160], fov: 40, near: 1, far: 3000 }}
         gl={{ toneMappingExposure: 1.15 }}
         onPointerMissed={() => select(null)}
@@ -554,13 +574,36 @@ export function SceneRoot() {
             into the horizon — a tight range would wash out the board itself,
             which is very visible now the fog fades to cream instead of dark. */}
         <fog attach="fog" args={["#efe7d6", 700, 1500]} />
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.4, 0]}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.4, 0]} receiveShadow>
           <planeGeometry args={[1400, 1400]} />
           <meshStandardMaterial color="#dfd4c0" roughness={1} />
         </mesh>
 
         <hemisphereLight args={["#ffffff", "#6b6456"]} intensity={0.5} />
-        <directionalLight position={[80, 180, 100]} intensity={1.5} />
+        {/* Only the key light casts. Its orthographic shadow camera is framed to
+            the board rather than the 1400mm floor: at 2048² over the board that
+            is ~5 texels/mm, where framing the whole floor would leave <1.5 and
+            turn every part's shadow into a stair-stepped blob. The fill light
+            deliberately does not cast — a second shadow pass doubles the cost
+            for a soft rim that reads fine without one. */}
+        <directionalLight
+          position={[80, 180, 100]}
+          intensity={1.5}
+          castShadow
+          shadow-mapSize={[2048, 2048]}
+          shadow-camera-left={-SHADOW_EXTENT_MM}
+          shadow-camera-right={SHADOW_EXTENT_MM}
+          shadow-camera-top={SHADOW_EXTENT_MM}
+          shadow-camera-bottom={-SHADOW_EXTENT_MM}
+          shadow-camera-near={40}
+          shadow-camera-far={420}
+          // Parts sit flush on the board, the classic shadow-acne case. Normal
+          // bias offsets along the surface normal, which fixes acne on the flat
+          // board without the peter-panning a large constant bias would cause
+          // under a part's footprint.
+          shadow-normalBias={0.35}
+          shadow-bias={-0.0006}
+        />
         <directionalLight position={[-120, 80, -60]} intensity={0.35} />
         {/* Procedural studio lighting — soft key overhead, warm + cool rims —
             for real reflections on the metal/plastic parts. No external fetch. */}

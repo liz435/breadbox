@@ -20,7 +20,7 @@ import { partObstacles, type PartObstacle } from "./part-obstacles"
 import { useBoundsVersion } from "./part-volume"
 import { usePinCalibrations } from "./component-pin-calibration"
 import { useAssemblyObstacles } from "./assembly-obstacles"
-import { resolveWireArcRise } from "./wire-routing"
+import { bezierArcFactor, resolveWireArcRise } from "./wire-routing"
 
 /** Slim jumper insulation radius (mm). */
 const WIRE_RADIUS_MM = 0.5
@@ -115,10 +115,11 @@ const WIRE_SIDE_MARGIN_MM = 1.5
  *  fairly high so a tall part right beside an endpoint hole nudges the arc up a
  *  little rather than launching it into a tall spike. */
 const MIN_ARC_FACTOR = 0.3
-/** Cap on the control-point rise (mm). A part directly under a wire's hole
- *  can't be arced over by a single hop; clamp rather than shoot to the moon.
- *  Deliberately low — real jumpers drape close to the board, not in tall loops. */
-const MAX_WIRE_RISE_MM = 26
+/** Cap on the control-point rise (mm). High enough that the tallest catalog
+ *  part (the 24 mm servo) still clears a mid-span crossing, low enough that an
+ *  oversized uploaded model saturates into a normal-looking hop instead of a
+ *  half-circle to the ceiling. */
+const MAX_WIRE_RISE_MM = 35
 /** Slack (mm) added to a part's pin-spread when deciding whether a wire endpoint
  *  belongs to it. Well under one 2.54 mm hole pitch, so an adjacent hole a part
  *  merely sits near is never mistaken for one of its own pins. */
@@ -141,7 +142,7 @@ function buildCurve(
     baseRise: Math.min(16, 4 + span * 0.1) + idJitter(wire.id) * 3,
     clearanceMm: WIRE_CLEARANCE_MM, maxRiseMm: MAX_WIRE_RISE_MM,
     sideMarginMm: WIRE_SIDE_MARGIN_MM, plugToleranceMm: FOOTPRINT_HIT_TOLERANCE_MM,
-    minArcFactor: MIN_ARC_FACTOR, arcFactor: (t) => 3 * t * (1 - t),
+    minArcFactor: MIN_ARC_FACTOR, arcFactor: bezierArcFactor,
   })
 
   // Keep the arc taller than the end connectors so the tube (trimmed back to
@@ -194,7 +195,10 @@ const WireTube = memo(function WireTube({
   if (!geom) return null
   return (
     <group>
-      <mesh>
+      {/* Jumpers arcing over the board are exactly what a viewer uses to judge
+          how high a wire is riding, so they cast. They do not receive — a thin
+          tube self-shadowing at this radius reads as noise, not shading. */}
+      <mesh castShadow>
         <tubeGeometry args={[geom.tubeCurve, 24, WIRE_RADIUS_MM, 8, false]} />
         <meshStandardMaterial color={wireColor(wire)} roughness={0.45} />
       </mesh>

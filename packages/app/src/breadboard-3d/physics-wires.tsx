@@ -82,8 +82,10 @@ const UP = new Vector3(0, 1, 0)
 
 /** Vertical gap kept between a wire and a part it arcs over (mm). */
 const CLEARANCE_MM = 4
-/** Cap on the arc rise; a part right under an endpoint can't be hopped. */
-const MAX_RISE_MM = 60
+/** Cap on the arc rise: past this the initial drape reads as a comedy loop
+ *  (oversized uploaded models otherwise demand ceiling-height hops). Gravity
+ *  settles the rope afterwards, so the cap only shapes the starting pose. */
+const MAX_RISE_MM = 40
 /** A wire whose end lands within a part's pin spread plugs into it — don't try
  *  to arc over the very part it connects to. */
 const PLUG_TOLERANCE_MM = 0.5
