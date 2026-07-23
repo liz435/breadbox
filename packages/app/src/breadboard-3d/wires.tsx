@@ -21,6 +21,7 @@ import { useBoundsVersion } from "./part-volume"
 import { usePinCalibrations } from "./component-pin-calibration"
 import { useAssemblyObstacles } from "./assembly-obstacles"
 import { bezierArcFactor, resolveWireArcRise } from "./wire-routing"
+import { remapWireEndpoints } from "./wire-endpoint-clearance"
 
 /** Slim jumper insulation radius (mm). */
 const WIRE_RADIUS_MM = 0.5
@@ -209,9 +210,16 @@ const WireTube = memo(function WireTube({
 })
 
 export function Wires() {
-  const wires = useBoardSelector((ctx) => ctx.wires)
+  const storedWires = useBoardSelector((ctx) => ctx.wires)
   const boardTarget = useBoardSelector((ctx) => ctx.boardTarget)
   const components = useBoardSelector((ctx) => ctx.components)
+  // Slide endpoints that share a hole with a part pin (or sit under a part
+  // body) to a free hole on the same strip — same net, no more wire-through-
+  // part clipping at the plug (see wire-endpoint-clearance.ts).
+  const wires = useMemo(
+    () => remapWireEndpoints(storedWires, components),
+    [storedWires, components],
+  )
   const arduinoPins = getBoardPinLayout(boardTarget).allPins
   const pinCals = usePinCalibrations()
   const uploadedObstacles = useAssemblyObstacles()

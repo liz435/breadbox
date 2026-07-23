@@ -47,6 +47,7 @@ import { useBoundsVersion } from "./part-volume"
 import { usePinCalibrations } from "./component-pin-calibration"
 import { setPhysicsDragging, wakePhysics } from "./physics-activity"
 import { fromEndpoint, toEndpoint, wireColor } from "./wires"
+import { remapWireEndpoints } from "./wire-endpoint-clearance"
 import { useAssemblyObstacles } from "./assembly-obstacles"
 import { resolveWireArcRise } from "./wire-routing"
 
@@ -438,9 +439,14 @@ const WireRope = memo(function WireRope({
 })
 
 export function PhysicsWires() {
-  const wires = useBoardSelector((ctx) => ctx.wires)
+  const storedWires = useBoardSelector((ctx) => ctx.wires)
   const boardTarget = useBoardSelector((ctx) => ctx.boardTarget)
   const components = useBoardSelector((ctx) => ctx.components)
+  // Same endpoint clearance the static wires apply (wire-endpoint-clearance.ts).
+  const wires = useMemo(
+    () => remapWireEndpoints(storedWires, components),
+    [storedWires, components],
+  )
   const arduinoPins = useMemo<ArduinoPinInfo[]>(
     () => getBoardPinLayout(boardTarget).allPins,
     [boardTarget],
