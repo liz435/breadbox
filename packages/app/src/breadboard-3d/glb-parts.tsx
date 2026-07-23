@@ -40,7 +40,7 @@ import servoUrl from "@/assets/servo.glb?url"
 import stepperUrl from "@/assets/stepper-uln2003.glb?url"
 import powerModuleUrl from "@/assets/power-module.glb?url"
 
-type GlbBehavior = "led" | "rgb" | "servo" | "stepper"
+type GlbBehavior = "led" | "rgb" | "servo" | "stepper" | "pot" | "relay"
 
 export type GlbPartConfig = {
   url: string
@@ -85,7 +85,7 @@ export const GLB_PARTS: Partial<Record<string, GlbPartConfig>> = {
   // Pot & temp are authored pins-down (−Y), so no rotation keeps the legs
   // dropping into the board. (The earlier −90°X stood the face up but laid the
   // pins out sideways in +Z, so they no longer plugged into the holes.)
-  potentiometer: { url: potentiometerUrl, rotation: [0, 0, 0], heightMm: 20, liftMm: 0 },
+  potentiometer: { url: potentiometerUrl, rotation: [0, 0, 0], heightMm: 20, liftMm: 0, behavior: "pot" },
   ultrasonic_sensor: { url: ultrasonicUrl, rotation: [0, 0, 0], heightMm: 20, liftMm: 0 },
   // temperature-sensor.glb is the real TO-92 temp sensor (temp.glb) — the module
   // that used to sit here was actually the DHT/humidity sensor, now on dht_sensor.
@@ -108,7 +108,7 @@ export const GLB_PARTS: Partial<Record<string, GlbPartConfig>> = {
     liftMm: 0,
     screen: { kind: "seven_seg", material: /plasticopreto/i },
   },
-  relay: { url: relayUrl, rotation: [0, 0, 0], heightMm: 20, liftMm: 0 },
+  relay: { url: relayUrl, rotation: [0, 0, 0], heightMm: 20, liftMm: 0, behavior: "relay" },
   // Yaw about vertical to face the LCD the right way. The display already faces
   // up (+Y) via the GLB's Z-up→Y-up root, so a Y-rotation only spins it in-plane
   // (never tips the face). Tuned by eye; ±Math.PI/2 steps rotate it 90°.
@@ -179,7 +179,7 @@ export function glbNormalize(
  *  renders this and lets the user drop anchors on its pins. */
 export function GlbNormalizedModel({ config }: { config: GlbPartConfig }) {
   const { scene } = useGLTF(config.url)
-  const model = useMemo(() => scene.clone(true), [scene])
+  const model = useMemo(() => enableShadows(scene.clone(true)), [scene])
   const { scale, position } = useMemo(() => glbNormalize(model, config), [model, config])
   return (
     <group position={position}>
@@ -194,6 +194,23 @@ export function GlbNormalizedModel({ config }: { config: GlbPartConfig }) {
 
 function isMesh(object: Object3D): object is Mesh {
   return (object as Mesh).isMesh === true
+}
+
+/**
+ * Opt every mesh in a loaded model into the shadow pass.
+ *
+ * Both flags, deliberately: parts shadow the board *and* each other, and a part
+ * that only casts reads as pasted on rather than sitting in the scene. Screen
+ * overlay planes are excluded by their callers (they are emissive panels, and a
+ * plane floating microns above a display face self-shadows into a dark smear).
+ */
+export function enableShadows(root: Object3D): Object3D {
+  root.traverse((object) => {
+    if (!isMesh(object)) return
+    object.castShadow = true
+    object.receiveShadow = true
+  })
+  return root
 }
 
 /** First mesh whose material is translucent or named like a lens/dome/glass. */
@@ -303,7 +320,7 @@ export function GlbPartModel({
 }) {
   const { scene } = useGLTF(config.url)
   // Clone so each instance owns its graph (useGLTF caches the source scene).
-  const model = useMemo(() => scene.clone(true), [scene])
+  const model = useMemo(() => enableShadows(scene.clone(true)), [scene])
 
   // LED/RGB dome: swap in a recolourable material and hand it to the sim so the
   // solved brightness drives its glow (matches the procedural LedModel).
@@ -395,6 +412,60 @@ export function GlbPartModel({
     if (!stepperPivot) return
     return registerPartNodes(component.id, { angleNode: stepperPivot })
   }, [component.id, stepperPivot])
+
+  // Potentiometer shaft: the brass (latao) mesh is the topmost part of the
+  // model, so reparent it under a pivot at its centre and turn it with the
+  // dialled value. Same pivot pattern as the horn/shaft above.
+  const knobPivot = useMemo(() => {
+    if (config.behavior !== "pot") return null
+    const shaft = findMeshByMaterial(model, /latao|brass|knob/i)
+    if (!shaft) return null
+    model.updateWorldMatrix(true, true)
+    const center = new Vector3()
+    new Box3().setFromObject(shaft).getCenter(center)
+    const pivot = new Group()
+    pivot.position.copy(center)
+    model.add(pivot)
+    pivot.attach(shaft)
+    return pivot
+  }, [model, config.behavior])
+
+  // Driven straight off the property, not through the animation loop: the knob
+  // position IS the user's input to the circuit, so it should track the slider
+  // exactly rather than being integrated toward like a physical process.
+  const potValue = typeof component.properties.value === "number" ? component.properties.value : 50
+  useLayoutEffect(() => {
+    if (!knobPivot) return
+    // A real trimmer sweeps ~270°, centred so 50% points straight ahead.
+    knobPivot.rotation.y = ((potValue - 50) / 100) * (Math.PI * 1.5)
+  }, [knobPivot, potValue])
+
+  // Registration is deliberately split from the rotation above: re-registering
+  // on every dial change would fire the registry's subscribers (wire obstacles,
+  // the assembly panel) for a movement that changes none of them.
+  useLayoutEffect(() => {
+    if (!knobPivot) return
+    return registerPartNodes(component.id, { knobNode: knobPivot })
+  }, [component.id, knobPivot])
+
+  // Relay indicator LED. The armature is sealed inside the blue can and can
+  // never be seen, so the coil lamp is the honest visual — and it is what a
+  // person actually watches on a real module.
+  const indicatorMaterial = useMemo(() => {
+    if (config.behavior !== "relay") return null
+    const lamp = findMeshByMaterial(model, /vermelho|indicator/i)
+    if (!lamp || Array.isArray(lamp.material)) return null
+    const material = (lamp.material as MeshStandardMaterial).clone()
+    material.emissive.set("#ff2d2d")
+    material.emissiveIntensity = 0
+    lamp.material = material
+    return material
+  }, [model, config.behavior])
+
+  useLayoutEffect(() => {
+    if (!indicatorMaterial) return
+    return registerPartNodes(component.id, { indicatorMaterial })
+  }, [component.id, indicatorMaterial])
 
   // Orient upright, scale to the target height, centre in X/Z, rest the base on
   // the board (Y=0). This normalized frame is also what the pin calibrator

@@ -658,6 +658,8 @@ export const boardMachine = setup({
           serialBaud: 0,
           oled: {},
           neopixels: {},
+          relays: {},
+          motors: {},
           custom: {},
         }, s.libraryState ?? {});
 

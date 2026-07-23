@@ -451,7 +451,7 @@ export function diagramToBoardState(
   const boardState: BoardState = {
     components,
     wires,
-    libraryState: { servos: {}, steppers: {}, lcd: null, serialBaud: 0, oled: {}, neopixels: {}, custom: {} },
+    libraryState: { servos: {}, steppers: {}, lcd: null, serialBaud: 0, oled: {}, neopixels: {}, relays: {}, motors: {}, custom: {} },
     serialOutput: [],
     sketchCode: diagram.sketch || DEFAULT_SKETCH_CODE,
     customLibraries,

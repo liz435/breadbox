@@ -238,6 +238,8 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     let lcd: LibraryState["lcd"] = null
     const oled: LibraryState["oled"] = {}
     const neopixels: LibraryState["neopixels"] = {}
+    const relays: LibraryState["relays"] = {}
+    const motors: LibraryState["motors"] = {}
     const custom: LibraryState["custom"] = {}
     const peripherals = runner.getPeripheralBus().snapshot()
     for (const [id, s] of Object.entries(peripherals)) {
@@ -251,6 +253,17 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
       }
       if (s.kind === "custom") {
         custom[id] = s.values
+        continue
+      }
+      // The peripheral owns the mechanics — pull-in/drop-out timing, rotor
+      // inertia, the power gate. Publishing them here keeps the 3D scene a
+      // mirror of that model rather than a second, drifting copy of it.
+      if (s.kind === "relay") {
+        relays[id] = { energized: s.energized, pending: s.pending }
+        continue
+      }
+      if (s.kind === "dc_motor") {
+        motors[id] = { speed: s.speed }
         continue
       }
       if (s.kind === "lcd") {
@@ -294,11 +307,11 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
     // framebuffer is a number[] (not Uint8Array) precisely so this comparison
     // is meaningful — Uint8Array would JSON.stringify to `{}` and changes
     // would be silently dropped.
-    const serialized = JSON.stringify({ servos, steppers, lcd, oled, neopixels, custom })
+    const serialized = JSON.stringify({ servos, steppers, lcd, oled, neopixels, relays, motors, custom })
     if (serialized === prevLibStateRef.current) return
     prevLibStateRef.current = serialized
 
-    onLibChange({ servos, steppers, lcd, oled, neopixels, custom })
+    onLibChange({ servos, steppers, lcd, oled, neopixels, relays, motors, custom })
   }, [])
 
   // Shared analysis result — updated inside the tick loop.

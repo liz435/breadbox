@@ -218,6 +218,21 @@ export const neoPixelStateSchema = z.object({
 });
 export type NeoPixelState = z.infer<typeof neoPixelStateSchema>;
 
+export const relayStateSchema = z.object({
+  /** Contacts actually closed — already past the coil's pull-in delay. */
+  energized: z.boolean(),
+  /** A commanded transition is still inside its pull-in / drop-out window. */
+  pending: z.boolean(),
+});
+export type RelayState = z.infer<typeof relayStateSchema>;
+
+export const dcMotorStateSchema = z.object({
+  /** Rotor speed 0..1 of free-running. Already carries the peripheral's
+   *  inertia, power gate, and coast-down — consumers must not re-integrate. */
+  speed: z.number(),
+});
+export type DcMotorState = z.infer<typeof dcMotorStateSchema>;
+
 export const libraryStateSchema = z.object({
   servos: z.record(z.string(), servoStateSchema),
   // Stepper rotor angles, keyed by componentId (mirrors `servos`).
@@ -228,6 +243,12 @@ export const libraryStateSchema = z.object({
   // across multiple soft-buses and the renderer locates by component.
   oled: z.record(z.string(), oledStateSchema).default({}),
   neopixels: z.record(z.string(), neoPixelStateSchema).default({}),
+  // Mechanical state of the electromechanical parts, keyed by componentId. The
+  // peripheral owns the physics (pull-in/drop-out delay, rotor inertia, the
+  // power gate); the renderer only reflects it, so the visual can never drift
+  // from the model that actually drives the netlist.
+  relays: z.record(z.string(), relayStateSchema).default({}),
+  motors: z.record(z.string(), dcMotorStateSchema).default({}),
   // Custom-part behavior signals, keyed by componentId → signal name → value.
   // Published by the generic DSL peripheral; consumed by visual bindings.
   custom: z.record(z.string(), z.record(z.string(), z.number())).default({}),
@@ -336,7 +357,7 @@ export type RealismProfile = z.infer<typeof realismProfileSchema>;
 const boardStateBaseSchema = z.object({
   components: z.record(z.string(), boardComponentSchema),
   wires: z.record(z.string(), wireSchema),
-  libraryState: libraryStateSchema.default({ servos: {}, steppers: {}, lcd: null, serialBaud: 0, oled: {}, neopixels: {}, custom: {} }),
+  libraryState: libraryStateSchema.default({ servos: {}, steppers: {}, lcd: null, serialBaud: 0, oled: {}, neopixels: {}, relays: {}, motors: {}, custom: {} }),
   // Supports legacy string[] format from old saves, normalises to {text, ts}.
   // `source` (optional, added v2.x) lets the Serial Monitor filter output by
   // origin when both the simulator AND a paired real board are emitting at
@@ -418,7 +439,7 @@ export function createDefaultBoardState(): BoardState {
       },
     },
     wires: {},
-    libraryState: { servos: {}, steppers: {}, lcd: null, serialBaud: 0, oled: {}, neopixels: {}, custom: {} },
+    libraryState: { servos: {}, steppers: {}, lcd: null, serialBaud: 0, oled: {}, neopixels: {}, relays: {}, motors: {}, custom: {} },
     serialOutput: [],
     sketchCode: DEFAULT_SKETCH_CODE,
     customLibraries: {},

@@ -5,7 +5,8 @@
 // on their way to a transform. Sources:
 //
 //   libraryState.servos            → servo horn angle (rate-limited like a real SG90)
-//   circuit analysis (voltage)     → DC motor shaft spin (with spin-up/down inertia)
+//   libraryState.motors            → DC motor shaft spin (inertia owned by the peripheral)
+//   libraryState.relays            → relay coil indicator lamp
 //   circuit analysis (brightness)  → LED emissive intensity
 //   libraryState.neopixels         → NeoPixel emissive color + intensity
 //   libraryState.custom (signals)  → assembly-body joints + emissive via bindings
@@ -36,10 +37,9 @@ import {
 
 /** SG90 no-load speed is ~600°/s; a loaded horn is slower. */
 const SERVO_DEG_PER_SEC = 400
-/** Visual shaft speed: ~2 rev/s at a full 5 V. */
-const MOTOR_RAD_PER_SEC_PER_VOLT = (2 * Math.PI * 2) / 5
-/** First-order spin-up / coast-down time constant of a small hobby motor (s). */
-const MOTOR_SPINUP_TAU = 0.3
+/** Visual shaft speed at the peripheral's full rotor speed (~2 rev/s). The
+ *  ramp itself is NOT here — DcMotorPeripheral owns the inertia. */
+const MOTOR_FULL_SPEED_RAD_PER_SEC = 2 * Math.PI * 2
 /** Emissive intensity at full brightness — >1 reads as "lit" under the scene lights. */
 const EMISSIVE_MAX = 2
 
@@ -155,8 +155,6 @@ export function AnimationDriver() {
   }, [libraryState, analysis, assembly, pinStates, rgbLeds, lcdIds, oledIds, sevenSegs, invalidate])
 
   const axisScratch = useRef(new Vector3())
-  // Per-motor current angular velocity (rad/s), ramped toward target for inertia.
-  const motorOmega = useRef(new Map<string, number>())
 
   useFrame((_, rawDelta) => {
     // A background tab can accumulate a huge delta; clamp so motion stays sane.
@@ -217,27 +215,40 @@ export function AnimationDriver() {
       screen.paint(oled ?? null)
     }
 
-    // Solved electrical states → motor spin (with inertia) + LED emissive.
+    // DC motor shafts. The rotor model lives in DcMotorPeripheral — it already
+    // carries the spin-up/coast-down time constant, the power gate, and the
+    // back-EMF that feeds the netlist. Re-deriving speed from solved voltage
+    // here (as this used to) meant two inertia models with different time
+    // constants that disagreed on spin-up and on brownout; the visual now just
+    // reflects the one the circuit is actually solved against.
+    for (const [componentId, motor] of Object.entries(data.libraryState.motors)) {
+      const node = getPartNodes(componentId)?.spinNode
+      if (!node) continue
+      if (Math.abs(motor.speed) > 1e-3) {
+        node.rotation.y += motor.speed * MOTOR_FULL_SPEED_RAD_PER_SEC * delta
+        animating = true
+      }
+    }
+
+    // Relay coil lamps. The armature is sealed inside the can and can never be
+    // seen, so the indicator LED is the honest visual — and because it follows
+    // `energized` rather than the drive pin, it inherits the peripheral's
+    // pull-in / drop-out delay instead of snapping on the GPIO edge.
+    for (const [componentId, relay] of Object.entries(data.libraryState.relays)) {
+      const material = getPartNodes(componentId)?.indicatorMaterial
+      if (!material) continue
+      const lit = relay.energized ? EMISSIVE_MAX : 0
+      if (Math.abs(material.emissiveIntensity - lit) > 0.01) {
+        material.emissiveIntensity = lit
+        animating = true
+      }
+    }
+
+    // Solved electrical states → LED emissive.
     if (data.analysis) {
       for (const [componentId, state] of data.analysis.componentStates) {
         const nodes = getPartNodes(componentId)
         if (!nodes) continue
-        if (nodes.spinNode) {
-          const targetOmega =
-            state.isActive && state.voltage > 0.3
-              ? (state.isReversed ? -1 : 1) * state.voltage * MOTOR_RAD_PER_SEC_PER_VOLT
-              : 0
-          const current = motorOmega.current.get(componentId) ?? 0
-          // First-order ramp toward the target speed: spin-up and coast-down
-          // both lag, so the shaft doesn't snap to speed or stop dead.
-          const blend = 1 - Math.exp(-delta / MOTOR_SPINUP_TAU)
-          const next = current + (targetOmega - current) * blend
-          motorOmega.current.set(componentId, next)
-          if (Math.abs(next) > 1e-3) {
-            nodes.spinNode.rotation.y += next * delta
-            animating = true
-          }
-        }
         // RGB LEDs are driven per-channel below; skip them here so the generic
         // (red-current-only) brightness doesn't fight the colour branch.
         if (nodes.emissiveMaterial && !data.rgbLedIds.has(componentId)) {

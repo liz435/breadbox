@@ -30,8 +30,18 @@ export type PartSceneNodes = {
    *  normalize scale, so a mounted body lands at mm scale instead of a tiny
    *  fraction (which renders it invisibly small). */
   mountNode?: Object3D
+  /** Node set to an absolute rotation from a component *property* rather than
+   *  from simulator state — a potentiometer shaft follows the value the user
+   *  dialled in, which is an input to the circuit, not an output of it. */
+  knobNode?: Object3D
   /** Material whose emissive intensity follows a 0..1 signal (LED dome, NeoPixel). */
   emissiveMaterial?: MeshStandardMaterial
+  /** On-board indicator lamp driven by a boolean peripheral state (a relay
+   *  module's coil LED). Deliberately separate from `emissiveMaterial`, which
+   *  tracks *solved current* through a real LED component — a relay's coil
+   *  current is not its indicator's brightness, and driving the lamp from it
+   *  would light it off the wrong quantity and miss the pull-in delay. */
+  indicatorMaterial?: MeshStandardMaterial
   /** 7-segment display: the 8 segment materials in {@link SEVEN_SEGMENT_ORDER}.
    *  The animation loop lights each from its driver pin's digital/PWM level. */
   segmentMaterials?: MeshStandardMaterial[]
