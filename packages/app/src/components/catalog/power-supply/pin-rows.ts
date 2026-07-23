@@ -1,10 +1,14 @@
 import { railBlockStarts } from "@/breadboard/breadboard-grid"
 import { RAIL_BLOCK_HOLES } from "@/breadboard/breadboard-constants"
 
-/** How far the drawn PCB extends past the pin rows, in hole rows. The top
- *  overhang also steers the block snap below, so the body lands where the
- *  user dropped the module instead of jumping up over neighbouring parts. */
-export const PSU_BODY_OVERHANG_TOP_ROWS = 4
+/** How far the drawn PCB extends past the pin rows, in hole rows. Measured
+ *  from the GLB the 3D view renders: the module body is 31.2mm along the
+ *  board with its pin rows 18.7mm from the up-board edge and 2.6mm from the
+ *  down-board edge — ~7.5 and ~1 hole rows. Keeping the 2D silhouette on the
+ *  same numbers means both views show the module covering the same rows. The
+ *  top overhang also steers the block snap below, so the body lands where
+ *  the user dropped the module. */
+export const PSU_BODY_OVERHANG_TOP_ROWS = 7.5
 export const PSU_BODY_OVERHANG_BOTTOM_ROWS = 1
 
 /** The MB102's two pin rows sit 4 holes apart — exactly a rail block's 1st and

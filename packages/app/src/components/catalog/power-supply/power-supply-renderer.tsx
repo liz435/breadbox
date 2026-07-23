@@ -135,10 +135,10 @@ function PowerSupplyRendererInner({
   const rMinusBot = gridToPixel({ row: bottomRow, col: 10 })
   const rPlusBot = gridToPixel({ row: bottomRow, col: 11 })
 
-  // Body extents — span from outer left rail to outer right rail, with the
-  // real module's up-board overhang so the 2D silhouette matches the 3D model.
-  const bodyLeft = lMinusTop.x - 6
-  const bodyRight = rPlusTop.x + 6
+  // Body extents — the real module is 52mm across, extending ~3.4mm past each
+  // outer rail pin (≈18px at 14px per 2.54mm), same silhouette as the 3D GLB.
+  const bodyLeft = lMinusTop.x - 18
+  const bodyRight = rPlusTop.x + 18
   const bodyTop = lMinusTop.y - PSU_BODY_OVERHANG_TOP_ROWS * HOLE_SPACING
   const bodyBottom = lMinusBot.y + PSU_BODY_OVERHANG_BOTTOM_ROWS * HOLE_SPACING
   const bodyW = bodyRight - bodyLeft

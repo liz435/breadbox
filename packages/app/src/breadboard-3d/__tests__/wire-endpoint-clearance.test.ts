@@ -9,6 +9,7 @@
 import { describe, expect, test } from "bun:test"
 import type { BoardComponent, Wire } from "@dreamer/schemas"
 import { remapWireEndpoints } from "../wire-endpoint-clearance"
+import { powerSupplyPinRows } from "@/components/catalog/power-supply/pin-rows"
 
 function comp(partial: Partial<BoardComponent> & { id: string; type: string }): BoardComponent {
   return {
@@ -83,9 +84,10 @@ describe("remapWireEndpoints", () => {
     const psu = comp({ id: "psu-1", type: "power_supply", x: 0, y: 11 })
     // PSU pads land on rail block rows (pin rows snap near the drop row); plug
     // a wire into the exact + pad hole on col 11 and it must move rows.
-    const wires = { w1: wire({ id: "w1", fromRow: -999, fromCol: 3, toRow: 14, toCol: 11 }) }
+    const [padRow] = powerSupplyPinRows(psu.y)
+    const wires = { w1: wire({ id: "w1", fromRow: -999, fromCol: 3, toRow: padRow, toCol: 11 }) }
     const out = remapWireEndpoints(wires, { "psu-1": psu })
     expect(out.w1.toCol).toBe(11)
-    expect(out.w1.toRow).not.toBe(14)
+    expect(out.w1.toRow).not.toBe(padRow)
   })
 })
