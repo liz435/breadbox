@@ -19,7 +19,7 @@
       "type": "servo",
       "name": "Servo",
       "x": 7,
-      "y": 15,
+      "y": 20,
       "rotation": 0,
       "pins": {
         "signal": null,
@@ -61,37 +61,37 @@
       "id": "wire-d9",
       "fromRow": -999,
       "fromCol": 9,
-      "toRow": 15,
+      "toRow": 20,
       "toCol": 7,
       "color": "#fbbf24",
       "fromBoardId": "arduino-1",
       "fromStrip": "d9",
       "toBoardId": "breadboard-1",
-      "toStrip": "term_15_right"
+      "toStrip": "term_20_right"
     },
     "wire-vcc": {
       "id": "wire-vcc",
-      "fromRow": 16,
+      "fromRow": 21,
       "fromCol": 11,
-      "toRow": 16,
+      "toRow": 21,
       "toCol": 7,
       "color": "#ef4444",
       "fromBoardId": "breadboard-1",
       "fromStrip": "pwr_bot_pos_l",
       "toBoardId": "breadboard-1",
-      "toStrip": "term_16_right"
+      "toStrip": "term_21_right"
     },
     "wire-gnd": {
       "id": "wire-gnd",
-      "fromRow": 16,
+      "fromRow": 21,
       "fromCol": 10,
-      "toRow": 17,
+      "toRow": 22,
       "toCol": 7,
       "color": "#1a1a1a",
       "fromBoardId": "breadboard-1",
       "fromStrip": "pwr_bot_neg_l",
       "toBoardId": "breadboard-1",
-      "toStrip": "term_17_right"
+      "toStrip": "term_22_right"
     },
     "wire-common-gnd": {
       "id": "wire-common-gnd",
