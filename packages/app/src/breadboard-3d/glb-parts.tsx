@@ -437,7 +437,10 @@ export function GlbPartModel({
   useLayoutEffect(() => {
     if (!knobPivot) return
     // A real trimmer sweeps ~270°, centred so 50% points straight ahead.
-    knobPivot.rotation.y = ((potValue - 50) / 100) * (Math.PI * 1.5)
+    // This GLB's brass knob is a disc facing +Z (17.5mm round in X/Y, 5.5mm
+    // thick in Z), so its spin axis is the model's Z — rotating about Y tips
+    // the knob out of its socket instead of turning it.
+    knobPivot.rotation.z = ((potValue - 50) / 100) * (Math.PI * 1.5)
   }, [knobPivot, potValue])
 
   // Registration is deliberately split from the rotation above: re-registering
