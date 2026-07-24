@@ -413,12 +413,15 @@ export function GlbPartModel({
     return registerPartNodes(component.id, { angleNode: stepperPivot })
   }, [component.id, stepperPivot])
 
-  // Potentiometer shaft: the brass (latao) mesh is the topmost part of the
-  // model, so reparent it under a pivot at its centre and turn it with the
-  // dialled value. Same pivot pattern as the horn/shaft above.
+  // Potentiometer shaft. Despite the material names, this GLB's brass
+  // (latao.002) mesh is the round BODY can — the actual knurled shaft +
+  // bushing is the "Metal.Fosco.002" mesh sticking out along −Z (verified by
+  // tinting each mesh in a standalone render). Reparent the shaft under a
+  // pivot at its centre and turn it with the dialled value. Same pivot
+  // pattern as the horn/shaft above.
   const knobPivot = useMemo(() => {
     if (config.behavior !== "pot") return null
-    const shaft = findMeshByMaterial(model, /latao|brass|knob/i)
+    const shaft = findMeshByMaterial(model, /fosco|shaft|eixo/i)
     if (!shaft) return null
     model.updateWorldMatrix(true, true)
     const center = new Vector3()
@@ -436,10 +439,9 @@ export function GlbPartModel({
   const potValue = typeof component.properties.value === "number" ? component.properties.value : 50
   useLayoutEffect(() => {
     if (!knobPivot) return
-    // A real trimmer sweeps ~270°, centred so 50% points straight ahead.
-    // This GLB's brass knob is a disc facing +Z (17.5mm round in X/Y, 5.5mm
-    // thick in Z), so its spin axis is the model's Z — rotating about Y tips
-    // the knob out of its socket instead of turning it.
+    // A real pot sweeps ~270°, centred so 50% points straight ahead. The
+    // shaft protrudes along the model's −Z, so Z is its spin axis — rotating
+    // about Y would tip it sideways instead of turning it.
     knobPivot.rotation.z = ((potValue - 50) / 100) * (Math.PI * 1.5)
   }, [knobPivot, potValue])
 
