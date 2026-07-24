@@ -15,11 +15,16 @@ import { useRef, useState, type RefObject } from "react"
 import { Popover } from "@base-ui/react/popover"
 import { motion, useReducedMotion } from "motion/react"
 import { ChevronDown, Check } from "lucide-react"
-import { BOARD_TARGETS, DEFAULT_BOARD_TARGET, type BoardTarget } from "@dreamer/schemas"
+import { BOARD_TARGETS, DEFAULT_BOARD_TARGET, type BoardTarget, type RealismProfile } from "@dreamer/schemas"
 import { useBoard } from "@/store/board-context"
 import { cn } from "@/utils/classnames"
 
 const BOARD_LIST = Object.values(BOARD_TARGETS)
+const REALISM_PROFILES: Array<{ id: RealismProfile; label: string; detail: string }> = [
+  { id: "learn", label: "Learn", detail: "Guided inputs and forgiving behavior" },
+  { id: "electrical", label: "Electrical", detail: "Requires resolved power and ground" },
+  { id: "hardware", label: "Hardware", detail: "Strict timing and fault diagnostics" },
+]
 
 type BoardSelectorProps = {
   /** Disable the picker (e.g. while the sim is busy). */
@@ -57,6 +62,7 @@ export function BoardSelector({
   }
 
   const boardTarget = (state.boardTarget ?? DEFAULT_BOARD_TARGET) as BoardTarget
+  const realismProfile = (state.realismProfile ?? "learn") as RealismProfile
   const current = BOARD_TARGETS[boardTarget]
 
   return (
@@ -155,6 +161,33 @@ export function BoardSelector({
                   <span className="flex min-w-0 flex-col">
                     <span className="font-medium text-foreground">{board.label}</span>
                     <span className="text-[11px] text-muted-foreground">{board.mcu}</span>
+                  </span>
+                </button>
+              )
+            })}
+            <div className="my-1 border-t border-border/50" />
+            <p className="px-2 py-1 font-medium text-muted-foreground">Simulation realism</p>
+            {REALISM_PROFILES.map((profile) => {
+              const selected = profile.id === realismProfile
+              return (
+                <button
+                  key={profile.id}
+                  type="button"
+                  onClick={() => {
+                    if (profile.id !== realismProfile) {
+                      send({ type: "SET_REALISM_PROFILE", realismProfile: profile.id })
+                    }
+                    setOpen(false)
+                  }}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-accent",
+                    selected && "bg-accent/60",
+                  )}
+                >
+                  <Check className={cn("size-3.5 shrink-0", selected ? "text-emerald-400" : "text-transparent")} />
+                  <span className="flex min-w-0 flex-col">
+                    <span className="font-medium text-foreground">{profile.label}</span>
+                    <span className="text-[11px] text-muted-foreground">{profile.detail}</span>
                   </span>
                 </button>
               )

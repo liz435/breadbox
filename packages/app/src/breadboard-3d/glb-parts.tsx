@@ -40,7 +40,7 @@ import servoUrl from "@/assets/servo.glb?url"
 import stepperUrl from "@/assets/stepper-uln2003.glb?url"
 import powerModuleUrl from "@/assets/power-module.glb?url"
 
-type GlbBehavior = "led" | "rgb" | "servo" | "stepper"
+type GlbBehavior = "led" | "rgb" | "servo" | "stepper" | "pot" | "relay"
 
 export type GlbPartConfig = {
   url: string
@@ -85,7 +85,7 @@ export const GLB_PARTS: Partial<Record<string, GlbPartConfig>> = {
   // Pot & temp are authored pins-down (−Y), so no rotation keeps the legs
   // dropping into the board. (The earlier −90°X stood the face up but laid the
   // pins out sideways in +Z, so they no longer plugged into the holes.)
-  potentiometer: { url: potentiometerUrl, rotation: [0, 0, 0], heightMm: 20, liftMm: 0 },
+  potentiometer: { url: potentiometerUrl, rotation: [0, 0, 0], heightMm: 20, liftMm: 0, behavior: "pot" },
   ultrasonic_sensor: { url: ultrasonicUrl, rotation: [0, 0, 0], heightMm: 20, liftMm: 0 },
   // temperature-sensor.glb is the real TO-92 temp sensor (temp.glb) — the module
   // that used to sit here was actually the DHT/humidity sensor, now on dht_sensor.
@@ -108,7 +108,7 @@ export const GLB_PARTS: Partial<Record<string, GlbPartConfig>> = {
     liftMm: 0,
     screen: { kind: "seven_seg", material: /plasticopreto/i },
   },
-  relay: { url: relayUrl, rotation: [0, 0, 0], heightMm: 20, liftMm: 0 },
+  relay: { url: relayUrl, rotation: [0, 0, 0], heightMm: 20, liftMm: 0, behavior: "relay" },
   // Yaw about vertical to face the LCD the right way. The display already faces
   // up (+Y) via the GLB's Z-up→Y-up root, so a Y-rotation only spins it in-plane
   // (never tips the face). Tuned by eye; ±Math.PI/2 steps rotate it 90°.
@@ -179,7 +179,7 @@ export function glbNormalize(
  *  renders this and lets the user drop anchors on its pins. */
 export function GlbNormalizedModel({ config }: { config: GlbPartConfig }) {
   const { scene } = useGLTF(config.url)
-  const model = useMemo(() => scene.clone(true), [scene])
+  const model = useMemo(() => enableShadows(scene.clone(true)), [scene])
   const { scale, position } = useMemo(() => glbNormalize(model, config), [model, config])
   return (
     <group position={position}>
@@ -194,6 +194,23 @@ export function GlbNormalizedModel({ config }: { config: GlbPartConfig }) {
 
 function isMesh(object: Object3D): object is Mesh {
   return (object as Mesh).isMesh === true
+}
+
+/**
+ * Opt every mesh in a loaded model into the shadow pass.
+ *
+ * Both flags, deliberately: parts shadow the board *and* each other, and a part
+ * that only casts reads as pasted on rather than sitting in the scene. Screen
+ * overlay planes are excluded by their callers (they are emissive panels, and a
+ * plane floating microns above a display face self-shadows into a dark smear).
+ */
+export function enableShadows(root: Object3D): Object3D {
+  root.traverse((object) => {
+    if (!isMesh(object)) return
+    object.castShadow = true
+    object.receiveShadow = true
+  })
+  return root
 }
 
 /** First mesh whose material is translucent or named like a lens/dome/glass. */
@@ -303,7 +320,7 @@ export function GlbPartModel({
 }) {
   const { scene } = useGLTF(config.url)
   // Clone so each instance owns its graph (useGLTF caches the source scene).
-  const model = useMemo(() => scene.clone(true), [scene])
+  const model = useMemo(() => enableShadows(scene.clone(true)), [scene])
 
   // LED/RGB dome: swap in a recolourable material and hand it to the sim so the
   // solved brightness drives its glow (matches the procedural LedModel).
@@ -332,15 +349,15 @@ export function GlbPartModel({
     return registerPartNodes(component.id, { emissiveMaterial: domeMaterial })
   }, [component.id, domeMaterial])
 
-  // Servo horn: reparent the horn (Protoboard.*) under a pivot at the shaft and
-  // hand the sim the inner node as the angle node. This SG90 GLB imports with
-  // its shaft along +Z, and config.rotation (−90°X) stands it up so the shaft
-  // points world +Y. A NESTED pivot handles the spin: the outer group tilts +90°X
-  // so the inner group's local Y lands back on the shaft; the sim sets only the
-  // inner node's rotation.y. (Tilt + spin on one node would compose through XYZ
-  // Euler order and swing the horn through an arc instead — same reason DcMotor
-  // nests its shaft.) If the horn tips over instead of spinning flat, flip the
-  // outer tilt sign to match the model's config.rotation.
+  // Servo horn: reparent the horn meshes (Protoboard.*) under a single pivot at
+  // the horn centre and register that as the angle node — the sim sets its
+  // rotation.y. This SG90 GLB imports Y-up (Sketchfab Z-up->Y-up root, config
+  // rotation [0,0,0]), so the output shaft already points world +Y and the
+  // pivot's local Y IS the shaft axis: the horn spins flat. (An earlier
+  // re-export lacked that root and imported the shaft along +Z, which needed a
+  // nested tilt pivot; the current model does not. If the horn ever tumbles
+  // instead of spinning flat, its shaft isn't +Y and the pivot must re-align to
+  // it — same single-pivot pattern as the stepper shaft.)
   const hornPivot = useMemo(() => {
     if (config.behavior !== "servo") return null
     const horns: Mesh[] = []
@@ -352,15 +369,12 @@ export function GlbPartModel({
     model.updateWorldMatrix(true, true)
     const center = new Vector3()
     new Box3().setFromObject(horns[0]).getCenter(center)
-    const outer = new Group()
-    outer.position.copy(center)
-    outer.rotation.x = Math.PI / 2
-    const spin = new Group()
-    outer.add(spin)
-    model.add(outer)
-    // attach() preserves each part's world pose while reparenting under the spin.
-    for (const part of horns) spin.attach(part)
-    return spin
+    const pivot = new Group()
+    pivot.position.copy(center)
+    model.add(pivot)
+    // attach() preserves each horn's world pose while reparenting under the pivot.
+    for (const part of horns) pivot.attach(part)
+    return pivot
   }, [model, config.behavior])
 
   useLayoutEffect(() => {
@@ -398,6 +412,60 @@ export function GlbPartModel({
     if (!stepperPivot) return
     return registerPartNodes(component.id, { angleNode: stepperPivot })
   }, [component.id, stepperPivot])
+
+  // Potentiometer shaft: the brass (latao) mesh is the topmost part of the
+  // model, so reparent it under a pivot at its centre and turn it with the
+  // dialled value. Same pivot pattern as the horn/shaft above.
+  const knobPivot = useMemo(() => {
+    if (config.behavior !== "pot") return null
+    const shaft = findMeshByMaterial(model, /latao|brass|knob/i)
+    if (!shaft) return null
+    model.updateWorldMatrix(true, true)
+    const center = new Vector3()
+    new Box3().setFromObject(shaft).getCenter(center)
+    const pivot = new Group()
+    pivot.position.copy(center)
+    model.add(pivot)
+    pivot.attach(shaft)
+    return pivot
+  }, [model, config.behavior])
+
+  // Driven straight off the property, not through the animation loop: the knob
+  // position IS the user's input to the circuit, so it should track the slider
+  // exactly rather than being integrated toward like a physical process.
+  const potValue = typeof component.properties.value === "number" ? component.properties.value : 50
+  useLayoutEffect(() => {
+    if (!knobPivot) return
+    // A real trimmer sweeps ~270°, centred so 50% points straight ahead.
+    knobPivot.rotation.y = ((potValue - 50) / 100) * (Math.PI * 1.5)
+  }, [knobPivot, potValue])
+
+  // Registration is deliberately split from the rotation above: re-registering
+  // on every dial change would fire the registry's subscribers (wire obstacles,
+  // the assembly panel) for a movement that changes none of them.
+  useLayoutEffect(() => {
+    if (!knobPivot) return
+    return registerPartNodes(component.id, { knobNode: knobPivot })
+  }, [component.id, knobPivot])
+
+  // Relay indicator LED. The armature is sealed inside the blue can and can
+  // never be seen, so the coil lamp is the honest visual — and it is what a
+  // person actually watches on a real module.
+  const indicatorMaterial = useMemo(() => {
+    if (config.behavior !== "relay") return null
+    const lamp = findMeshByMaterial(model, /vermelho|indicator/i)
+    if (!lamp || Array.isArray(lamp.material)) return null
+    const material = (lamp.material as MeshStandardMaterial).clone()
+    material.emissive.set("#ff2d2d")
+    material.emissiveIntensity = 0
+    lamp.material = material
+    return material
+  }, [model, config.behavior])
+
+  useLayoutEffect(() => {
+    if (!indicatorMaterial) return
+    return registerPartNodes(component.id, { indicatorMaterial })
+  }, [component.id, indicatorMaterial])
 
   // Orient upright, scale to the target height, centre in X/Z, rest the base on
   // the board (Y=0). This normalized frame is also what the pin calibrator
@@ -474,6 +542,37 @@ export function GlbPartModel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [cal, component, grid],
   )
+
+  // Unit-scale mount anchor: a child of the moving node (servo horn / stepper
+  // shaft) whose scale cancels the model's normalize + fit scale so its world
+  // scale is ~1. A body parented onto the part's motion mounts here and lands at
+  // mm scale — mounting on the raw scaled pivot bakes a tiny fraction (≈0.001)
+  // into the body's transform and it renders invisibly small. The anchor rides
+  // the pivot's rotation, so the mounted body still turns with the shaft.
+  const movingPivot = hornPivot ?? stepperPivot
+  const mountAnchor = useMemo(() => {
+    if (!movingPivot) return null
+    const anchor = new Group()
+    anchor.name = "mount-anchor"
+    movingPivot.add(anchor)
+    return anchor
+  }, [movingPivot])
+
+  useLayoutEffect(() => {
+    if (!mountAnchor || !movingPivot) return
+    // Read the pivot's true world scale (normalize × fit × any GLB-internal
+    // scale) and invert it, so the anchor sits at unit world scale. Re-runs when
+    // fit/grid warp changes the pivot's scale.
+    movingPivot.updateWorldMatrix(true, false)
+    const worldScale = new Vector3()
+    movingPivot.matrixWorld.decompose(new Vector3(), new Quaternion(), worldScale)
+    mountAnchor.scale.setScalar(worldScale.x > 1e-9 ? 1 / worldScale.x : 1)
+  }, [mountAnchor, movingPivot, scale, fit])
+
+  useLayoutEffect(() => {
+    if (!mountAnchor) return
+    return registerPartNodes(component.id, { mountNode: mountAnchor })
+  }, [component.id, mountAnchor])
 
   const normalized = (
     <group position={position}>

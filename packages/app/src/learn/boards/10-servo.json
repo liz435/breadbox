@@ -8,14 +8,17 @@
       "y": 0,
       "rotation": 0,
       "pins": {},
-      "properties": { "leftVoltage": 5, "rightVoltage": 5 }
+      "properties": {
+        "leftVoltage": 5,
+        "rightVoltage": 5
+      }
     },
     "servo-1": {
       "id": "servo-1",
       "type": "servo",
       "name": "Servo",
       "x": 7,
-      "y": 5,
+      "y": 20,
       "rotation": 0,
       "pins": {
         "signal": null,
@@ -30,25 +33,30 @@
       "id": "wire-d9",
       "fromRow": -999,
       "fromCol": 9,
-      "toRow": 5,
+      "toRow": 20,
       "toCol": 7,
-      "color": "#fbbf24"
+      "color": "#fbbf24",
+      "toStrip": "term_20_right"
     },
     "wire-vcc": {
       "id": "wire-vcc",
-      "fromRow": 0,
+      "fromRow": 21,
       "fromCol": 11,
-      "toRow": 6,
+      "toRow": 21,
       "toCol": 7,
-      "color": "#ef4444"
+      "color": "#ef4444",
+      "toStrip": "term_21_right",
+      "fromStrip": "pwr_bot_pos_l"
     },
     "wire-gnd": {
       "id": "wire-gnd",
-      "fromRow": 0,
+      "fromRow": 21,
       "fromCol": 10,
-      "toRow": 7,
+      "toRow": 22,
       "toCol": 7,
-      "color": "#1a1a1a"
+      "color": "#1a1a1a",
+      "toStrip": "term_22_right",
+      "fromStrip": "pwr_bot_neg_l"
     },
     "wire-common-gnd": {
       "id": "wire-common-gnd",
@@ -56,10 +64,15 @@
       "fromCol": -3,
       "toRow": 1,
       "toCol": 10,
-      "color": "#1a1a1a"
+      "color": "#1a1a1a",
+      "toStrip": "pwr_bot_neg_l"
     }
   },
-  "libraryState": { "servos": {}, "lcd": null, "serialBaud": 0 },
+  "libraryState": {
+    "servos": {},
+    "lcd": null,
+    "serialBaud": 0
+  },
   "serialOutput": [],
   "sketchCode": "// Example: Servo Sweep\n// Sweep a servo back and forth from 0 to 180 degrees.\n\n#include <Servo.h>\n\nServo myServo;\n\nvoid setup() {\n  myServo.attach(9);\n}\n\nvoid loop() {\n  for (int pos = 0; pos <= 180; pos++) {\n    myServo.write(pos);\n    delay(15);\n  }\n  for (int pos = 180; pos >= 0; pos--) {\n    myServo.write(pos);\n    delay(15);\n  }\n}\n",
   "customLibraries": {}

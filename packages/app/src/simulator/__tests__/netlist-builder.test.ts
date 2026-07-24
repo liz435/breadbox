@@ -288,7 +288,7 @@ describe("netlist-builder — source resistance on digital output pins", () => {
       w5V: { id: "w5V", fromRow: -999, fromCol: -1, toRow: 5, toCol: 0, color: "red" },
     }
 
-    const { netlist, railSources } = buildNetlist(components, wires, createDefaultPinStates())
+    const { netlist, railSources, powerSources } = buildNetlist(components, wires, createDefaultPinStates())
 
     // The rail drives through an intermediate src_ node + 0.5Ω series R so it
     // sags realistically under heavy load instead of holding an ideal 5V.
@@ -301,6 +301,9 @@ describe("netlist-builder — source resistance on digital output pins", () => {
     if (srcLine) expect(srcLine.endsWith(" 0.5")).toBe(true)
     expect(railSources).toHaveLength(1)
     expect(railSources[0]?.rail).toBe("5V")
+    expect(powerSources).toEqual([expect.objectContaining({
+      label: "Arduino 5V", nominalVoltage: 5, currentLimitMa: 500,
+    })])
   })
 })
 

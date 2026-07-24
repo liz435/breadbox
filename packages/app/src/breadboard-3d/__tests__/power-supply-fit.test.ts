@@ -20,13 +20,7 @@ describe("power_supply baked pin fit", () => {
     properties: {},
   } as unknown as BoardComponent
 
-  // SKIPPED (grid v5 re-bake, 2026-07-13): the breadboard grid was re-calibrated
-  // to the real model, moving the power rails outward (cols ±2 now ~±28mm vs the
-  // old ~±22mm). The power_supply's baked pins (~±22.6mm, from the GLB pin tips)
-  // no longer reach them, so the fit stretches to ~1.23x and the right-hand pins
-  // land ~3mm off. Re-calibrate the module on the v5 grid (drag its 8 pins onto
-  // the new rail holes, Copy JSON, re-bake) and restore this test.
-  test.skip("baked calibration seats the module pins on the rail holes", () => {
+  test("baked calibration seats the module pins on the rail holes", () => {
     const cal = getPinCalibration("power_supply")
     expect(cal).toBeDefined()
     if (!cal) return
@@ -35,10 +29,11 @@ describe("power_supply baked pin fit", () => {
     expect(fit).not.toBeNull()
     if (!fit) return
 
-    // The fit shrinks the model to the rail span — never enlarges it past
-    // the board (the original bug), never collapses it.
-    expect(fit.scale).toBeGreaterThan(0.9)
-    expect(fit.scale).toBeLessThan(1.0)
+    // The fit stretches the model by the grid's model↔mm scale (the imported
+    // breadboard model is ~1.23× real size) — never runs away past that
+    // (crossed rail targets once forced it there), never collapses.
+    expect(fit.scale).toBeGreaterThan(1.1)
+    expect(fit.scale).toBeLessThan(1.35)
     // No accidental flip: the pin ordering matches the footprint's.
     expect(Math.abs(fit.rotation)).toBeLessThan(0.05)
 

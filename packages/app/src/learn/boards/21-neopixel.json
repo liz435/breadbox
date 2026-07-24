@@ -8,14 +8,17 @@
       "y": 0,
       "rotation": 0,
       "pins": {},
-      "properties": { "leftVoltage": 5, "rightVoltage": 5 }
+      "properties": {
+        "leftVoltage": 5,
+        "rightVoltage": 5
+      }
     },
     "neo-1": {
       "id": "neo-1",
       "type": "neopixel",
       "name": "NeoPixel Strip",
       "x": 7,
-      "y": 5,
+      "y": 15,
       "rotation": 0,
       "pins": {
         "din": null,
@@ -30,25 +33,30 @@
       "id": "wire-d6",
       "fromRow": -999,
       "fromCol": 6,
-      "toRow": 5,
+      "toRow": 15,
       "toCol": 7,
-      "color": "#22c55e"
+      "color": "#22c55e",
+      "toStrip": "term_15_right"
     },
     "wire-vcc": {
       "id": "wire-vcc",
-      "fromRow": 0,
+      "fromRow": 16,
       "fromCol": 11,
-      "toRow": 6,
+      "toRow": 16,
       "toCol": 7,
-      "color": "#ef4444"
+      "color": "#ef4444",
+      "toStrip": "term_16_right",
+      "fromStrip": "pwr_bot_pos_l"
     },
     "wire-gnd": {
       "id": "wire-gnd",
-      "fromRow": 0,
+      "fromRow": 16,
       "fromCol": 10,
-      "toRow": 7,
+      "toRow": 17,
       "toCol": 7,
-      "color": "#1a1a1a"
+      "color": "#1a1a1a",
+      "toStrip": "term_17_right",
+      "fromStrip": "pwr_bot_neg_l"
     },
     "wire-common-gnd": {
       "id": "wire-common-gnd",
@@ -56,10 +64,15 @@
       "fromCol": -3,
       "toRow": 1,
       "toCol": 10,
-      "color": "#1a1a1a"
+      "color": "#1a1a1a",
+      "toStrip": "pwr_bot_neg_l"
     }
   },
-  "libraryState": { "servos": {}, "lcd": null, "serialBaud": 0 },
+  "libraryState": {
+    "servos": {},
+    "lcd": null,
+    "serialBaud": 0
+  },
   "serialOutput": [],
   "sketchCode": "// Example: NeoPixel Rainbow Chase\n// Cycle rainbow colors on a WS2812 strip on pin 6.\n// Uses external 5V power supply for the LEDs.\n\n#include <Adafruit_NeoPixel.h>\n\n#define PIN 6\n#define NUM_LEDS 8\n\nAdafruit_NeoPixel strip(NUM_LEDS, PIN, NEO_GRB + NEO_KHZ800);\n\nvoid setup() {\n  strip.begin();\n  strip.setBrightness(50);\n  strip.show();\n}\n\nvoid loop() {\n  for (int i = 0; i < NUM_LEDS; i++) {\n    int hue = (i * 65536L / NUM_LEDS) + (millis() * 10);\n    strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(hue)));\n  }\n  strip.show();\n  delay(20);\n}\n",
   "customLibraries": {}

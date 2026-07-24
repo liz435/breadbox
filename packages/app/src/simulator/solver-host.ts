@@ -22,6 +22,7 @@
 // rebuilds the Map and the closure on the receiving side.
 
 import type { BoardComponent, Wire, PinState } from "@dreamer/schemas"
+import type { PeripheralState } from "./peripherals/types"
 import {
   SolverScheduler,
   type SchedulerTickResult,
@@ -29,8 +30,10 @@ import {
 import type {
   CircuitAnalysis,
   ComponentElectricalState,
+  ComponentPowerState,
   CurrentPath,
   CircuitWarning,
+  SolvedSupply,
 } from "./circuit-solver"
 
 // ── Wire format ────────────────────────────────────────────────────────────
@@ -43,6 +46,7 @@ export type SolverTickRequest = {
   wires: Record<string, Wire>
   pinStates: PinState[]
   shiftRegisterOutputs?: Array<[string, boolean[]]>
+  peripheralStates?: Record<string, PeripheralState>
   mcuTimeSeconds: number
 }
 
@@ -56,6 +60,8 @@ export type AnalysisDto = {
   states: ComponentElectricalState[]
   currentPaths: CurrentPath[]
   warnings: CircuitWarning[]
+  supplies: SolvedSupply[]
+  componentPower: ComponentPowerState[]
   /** "row,col" grid key → solved volts, for nodeVoltageAt reconstruction. */
   nodeVolts: Array<[string, number]>
 }
@@ -94,6 +100,8 @@ export function toAnalysisDto(
     states: Array.from(analysis.componentStates.values()),
     currentPaths: analysis.currentPaths,
     warnings: analysis.warnings,
+    supplies: analysis.supplies,
+    componentPower: Array.from(analysis.componentPower.values()),
     nodeVolts,
   }
 }
@@ -103,12 +111,17 @@ export function reviveAnalysis(dto: AnalysisDto): CircuitAnalysis {
     dto.states.map((s) => [s.componentId, s]),
   )
   const volts = new Map(dto.nodeVolts)
+  const componentPower = new Map<string, ComponentPowerState>(
+    dto.componentPower.map((state) => [state.componentId, state]),
+  )
   return {
     isValid: dto.isValid,
     netlist: dto.netlist,
     componentStates,
     currentPaths: dto.currentPaths,
     warnings: dto.warnings,
+    supplies: dto.supplies,
+    componentPower,
     nodeVoltageAt: (point) => volts.get(`${point.row},${point.col}`) ?? null,
   }
 }
@@ -120,6 +133,7 @@ export type SolverHostTickInput = {
   wires: Record<string, Wire>
   pinStates: PinState[]
   shiftRegisterOutputs?: ReadonlyMap<string, readonly boolean[]>
+  peripheralStates?: Record<string, PeripheralState>
   mcuTimeSeconds: number
 }
 
@@ -220,6 +234,7 @@ export class WorkerSolverHost implements SolverHost {
             ([id, bits]) => [id, [...bits]] as [string, boolean[]],
           )
         : undefined,
+      peripheralStates: input.peripheralStates,
       mcuTimeSeconds: input.mcuTimeSeconds,
     }
     this.worker.postMessage(message)

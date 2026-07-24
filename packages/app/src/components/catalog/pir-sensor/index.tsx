@@ -7,6 +7,7 @@ export const pirSensor: ComponentDefinition = {
   description: "HC-SR501 passive infrared motion detector",
   label: "PIR Sensor",
   defaultPins: { data: null },
+  power: { supply: ["vcc", "power"], return: ["gnd", "ground"], minOperatingVolts: 3.3 },
   defaultProperties: {},
   accentColor: "#f59e0b",
   // Vertical header: vcc / signal / gnd each on their own row so no two

@@ -25,6 +25,7 @@ const OBSERVED_FIELDS = [
   "customLibraries",
   "boardTarget",
   "environment",
+  "realismProfile",
   "assembly",
   "selectedId",
   "buildLog",

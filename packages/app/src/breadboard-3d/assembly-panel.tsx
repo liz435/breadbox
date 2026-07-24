@@ -1,12 +1,26 @@
-// ── Assembly panel ──────────────────────────────────────────────────────────
+// ── Scene manager panel ─────────────────────────────────────────────────────
 //
-// DOM overlay listing uploaded bodies with the selected body's mounting
-// controls: parent (world / another body / a component's node), joint (rotate
-// hinge or slide rail), signal bindings (joint motion + emissive glow), GLB
-// clip playback, and delete. Reparenting preserves the body's world pose by
+// Always-present DOM overlay for managing the 3D scene: add / list / show-hide
+// / lock / reorder / rename / duplicate / delete the uploaded bodies, plus an
+// asset library for reusing and reclaiming model files. The selected body gets
+// its mounting inspector: parent (world / another body / a component's node),
+// joint (rotate hinge or slide rail), signal bindings (joint motion + emissive
+// glow), and GLB clip playback. Reparenting preserves the body's world pose by
 // rebasing its transform into the new parent's frame.
 
-import { useSyncExternalStore } from "react"
+import { useState, useSyncExternalStore } from "react"
+import {
+  Box,
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  EyeOff,
+  Lock,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Plus,
+  Unlock,
+} from "lucide-react"
 import { Euler, Matrix4, Quaternion, Vector3 } from "three"
 import type { AssemblyBody, AssemblyBinding, BodyParent, Vec3 } from "@dreamer/schemas"
 import { isBoardComponentType, isCustomComponentType } from "@dreamer/schemas"
@@ -17,8 +31,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAssemblyActions, useAssemblyDoc } from "./use-assembly"
 import { useEditor, type GizmoMode } from "./editor-state"
-import { getBodyRoot, getRegistryVersion, subscribeRegistry } from "./scene-registry"
+import { getBodyRoot, getPartNodes, getRegistryVersion, subscribeRegistry } from "./scene-registry"
 import { componentTarget } from "./uploaded-bodies"
+import { movingMountOptions } from "./mount-targets"
+import { AssetLibrary } from "./asset-library"
 
 /** Transform-gizmo modes, shown as a segmented control for the selected body. */
 const GIZMO_MODES: { mode: GizmoMode; label: string }[] = [
@@ -347,42 +363,183 @@ function AnimationsEditor({ body }: { body: AssemblyBody }) {
 
 // ── Panel ───────────────────────────────────────────────────────────────────
 
-export function AssemblyPanel() {
+/** Remembered across sessions so a hidden panel stays out of the way. */
+const PANEL_COLLAPSED_KEY = "dreamer:scene-panel-collapsed"
+
+function readPanelCollapsed(): boolean {
+  try {
+    return globalThis.localStorage?.getItem(PANEL_COLLAPSED_KEY) === "1"
+  } catch {
+    return false
+  }
+}
+
+export function AssemblyPanel({ onImport }: { onImport: () => void }) {
   const assembly = useAssemblyDoc()
-  const { updateBody, removeBody } = useAssemblyActions()
+  const { updateBody, duplicateBody, reorderBody, removeBody } = useAssemblyActions()
   const { selectedBodyId, select, mode, setMode } = useEditor()
   const components = useBoardSelector((ctx) => ctx.components)
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [collapsed, setCollapsed] = useState(readPanelCollapsed)
   // Parent targets resolve against live scene nodes; refresh when they change.
   useSyncExternalStore(subscribeRegistry, getRegistryVersion, getRegistryVersion)
 
-  const bodies = Object.values(assembly.bodies)
-  if (bodies.length === 0) return null
+  function toggleCollapsed() {
+    const next = !collapsed
+    setCollapsed(next)
+    try {
+      globalThis.localStorage?.setItem(PANEL_COLLAPSED_KEY, next ? "1" : "0")
+    } catch {
+      // Non-browser / storage-denied: keep the in-memory value.
+    }
+  }
 
+  const bodies = Object.values(assembly.bodies)
   const selected = selectedBodyId ? assembly.bodies[selectedBodyId] : undefined
 
   const mountableComponents = Object.values(components).filter(
     (component) => !isBoardComponentType(component.type),
   )
 
+  function commitRename(id: string, value: string) {
+    const name = value.trim()
+    if (name) updateBody(id, { name })
+    setRenamingId(null)
+  }
+
+  if (collapsed) {
+    return (
+      <button
+        type="button"
+        onClick={toggleCollapsed}
+        className="pointer-events-auto absolute left-2 top-14 inline-flex items-center gap-1.5 rounded-lg border border-border bg-background/95 px-2 py-1.5 text-xs font-semibold text-muted-foreground shadow-lg backdrop-blur hover:text-foreground"
+        title="Show the scene panel"
+      >
+        <PanelLeftOpen className="h-3.5 w-3.5" />
+        Scene
+      </button>
+    )
+  }
+
   return (
-    <div className="pointer-events-auto absolute left-2 top-14 max-h-[calc(100%-5rem)] w-60 overflow-y-auto rounded-lg border border-border bg-background/95 p-2 text-sm shadow-lg backdrop-blur">
-      <div className="mb-1 text-xs font-semibold text-muted-foreground">Assembly</div>
-      <ul className="max-h-40 space-y-0.5 overflow-y-auto">
-        {bodies.map((body) => (
-          <li key={body.id}>
-            <button
-              type="button"
+    <div className="pointer-events-auto absolute left-2 top-14 flex max-h-[calc(100%-5rem)] w-64 flex-col overflow-y-auto rounded-lg border border-border bg-background/95 p-2 text-sm shadow-lg backdrop-blur">
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-xs font-semibold text-muted-foreground">Scene</span>
+        <div className="flex items-center gap-0.5">
+          <button
+            type="button"
+            onClick={onImport}
+            className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-xs font-medium text-primary hover:bg-muted"
+            title="Upload a .glb or .stl model (e.g. a part you're about to 3D-print)"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add model
+          </button>
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            title="Hide the scene panel"
+          >
+            <PanelLeftClose className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {bodies.length === 0 ? (
+        <div className="flex flex-col items-center gap-2 px-3 py-6 text-center">
+          <Box className="h-6 w-6 text-muted-foreground/50" />
+          <p className="text-xs text-muted-foreground">No models in this scene yet.</p>
+          <Button size="sm" onClick={onImport}>
+            <Plus className="h-3.5 w-3.5" />
+            Add 3D model
+          </Button>
+          <p className="text-[10px] text-muted-foreground/70">
+            or drag a .glb / .stl file onto the scene
+          </p>
+        </div>
+      ) : (
+        <ul className="max-h-48 space-y-0.5 overflow-y-auto">
+          {bodies.map((body, index) => (
+            <li
+              key={body.id}
               className={cn(
-                "w-full rounded px-2 py-1 text-left text-xs hover:bg-muted",
-                body.id === selectedBodyId && "bg-muted font-medium",
+                "flex items-center gap-0.5 rounded px-1 py-0.5 hover:bg-muted",
+                body.id === selectedBodyId && "bg-muted",
               )}
-              onClick={() => select(body.id === selectedBodyId ? null : body.id)}
             >
-              {body.name}
-            </button>
-          </li>
-        ))}
-      </ul>
+              {renamingId === body.id ? (
+                <Input
+                  autoFocus
+                  defaultValue={body.name}
+                  className="h-6 flex-1 text-xs"
+                  onBlur={(e) => commitRename(body.id, e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitRename(body.id, e.currentTarget.value)
+                    else if (e.key === "Escape") setRenamingId(null)
+                  }}
+                />
+              ) : (
+                <button
+                  type="button"
+                  className={cn(
+                    "min-w-0 flex-1 truncate text-left text-xs",
+                    body.hidden && "text-muted-foreground/60",
+                    body.id === selectedBodyId && "font-medium",
+                  )}
+                  onClick={() => select(body.id === selectedBodyId ? null : body.id)}
+                  onDoubleClick={() => setRenamingId(body.id)}
+                  title="Click to select · double-click to rename"
+                >
+                  {body.name}
+                </button>
+              )}
+
+              <button
+                type="button"
+                className="shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-25"
+                onClick={() => reorderBody(body.id, "up")}
+                disabled={index === 0}
+                title="Move up"
+              >
+                <ChevronUp className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                className="shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-25"
+                onClick={() => reorderBody(body.id, "down")}
+                disabled={index === bodies.length - 1}
+                title="Move down"
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                className="shrink-0 text-muted-foreground hover:text-foreground"
+                onClick={() => updateBody(body.id, { hidden: !body.hidden })}
+                title={body.hidden ? "Show" : "Hide"}
+              >
+                {body.hidden ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  "shrink-0 hover:text-foreground",
+                  body.locked ? "text-amber-500" : "text-muted-foreground",
+                )}
+                onClick={() => updateBody(body.id, { locked: !body.locked })}
+                title={body.locked ? "Unlock" : "Lock"}
+              >
+                {body.locked ? (
+                  <Lock className="h-3.5 w-3.5" />
+                ) : (
+                  <Unlock className="h-3.5 w-3.5" />
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {selected && (
         <div className="mt-2 space-y-3 border-t border-border pt-2">
@@ -440,22 +597,24 @@ export function AssemblyPanel() {
                 ))}
               {mountableComponents.flatMap((component) => {
                 const label = component.name ?? component.type
+                const nodes = getPartNodes(component.id)
                 const options = [
                   <option key={`${component.id}-body`} value={`comp:${component.id}:body`}>
                     {label}
                   </option>,
                 ]
-                if (component.type === "servo") {
+                // Offer whichever moving nodes the part registered — so a body
+                // can ride the servo horn, motor shaft, or stepper output.
+                for (const option of movingMountOptions(component.type, {
+                  angle: Boolean(nodes?.angleNode),
+                  spin: Boolean(nodes?.spinNode),
+                })) {
                   options.push(
-                    <option key={`${component.id}-angle`} value={`comp:${component.id}:angle`}>
-                      {label} — horn (moves)
-                    </option>,
-                  )
-                }
-                if (component.type === "dc_motor") {
-                  options.push(
-                    <option key={`${component.id}-spin`} value={`comp:${component.id}:spin`}>
-                      {label} — shaft (spins)
+                    <option
+                      key={`${component.id}-${option.node}`}
+                      value={`comp:${component.id}:${option.node}`}
+                    >
+                      {label} — {option.label}
                     </option>,
                   )
                 }
@@ -468,7 +627,10 @@ export function AssemblyPanel() {
           <BindingEditor body={selected} />
           <AnimationsEditor body={selected} />
 
-          <div className="flex justify-end">
+          <div className="flex items-center justify-between">
+            <Button size="sm" variant="ghost" onClick={() => duplicateBody(selected.id)}>
+              Duplicate
+            </Button>
             <Button
               size="sm"
               variant="ghost"
@@ -478,11 +640,13 @@ export function AssemblyPanel() {
                 select(null)
               }}
             >
-              Delete body
+              Delete
             </Button>
           </div>
         </div>
       )}
+
+      <AssetLibrary />
     </div>
   )
 }

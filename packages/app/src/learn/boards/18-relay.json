@@ -8,14 +8,17 @@
       "y": 0,
       "rotation": 0,
       "pins": {},
-      "properties": { "leftVoltage": 5, "rightVoltage": 5 }
+      "properties": {
+        "leftVoltage": 5,
+        "rightVoltage": 5
+      }
     },
     "relay-1": {
       "id": "relay-1",
       "type": "relay",
       "name": "Relay",
       "x": 7,
-      "y": 5,
+      "y": 15,
       "rotation": 0,
       "pins": {
         "signal": null
@@ -28,25 +31,30 @@
       "id": "wire-d7",
       "fromRow": -999,
       "fromCol": 7,
-      "toRow": 6,
+      "toRow": 16,
       "toCol": 7,
-      "color": "#fbbf24"
+      "color": "#fbbf24",
+      "toStrip": "term_16_right"
     },
     "wire-vcc": {
       "id": "wire-vcc",
-      "fromRow": 0,
+      "fromRow": 16,
       "fromCol": 11,
-      "toRow": 5,
+      "toRow": 15,
       "toCol": 7,
-      "color": "#ef4444"
+      "color": "#ef4444",
+      "toStrip": "term_15_right",
+      "fromStrip": "pwr_bot_pos_l"
     },
     "wire-gnd": {
       "id": "wire-gnd",
-      "fromRow": 0,
+      "fromRow": 16,
       "fromCol": 10,
-      "toRow": 7,
+      "toRow": 17,
       "toCol": 7,
-      "color": "#1a1a1a"
+      "color": "#1a1a1a",
+      "toStrip": "term_17_right",
+      "fromStrip": "pwr_bot_neg_l"
     },
     "wire-common-gnd": {
       "id": "wire-common-gnd",
@@ -54,10 +62,15 @@
       "fromCol": -3,
       "toRow": 1,
       "toCol": 10,
-      "color": "#1a1a1a"
+      "color": "#1a1a1a",
+      "toStrip": "pwr_bot_neg_l"
     }
   },
-  "libraryState": { "servos": {}, "lcd": null, "serialBaud": 0 },
+  "libraryState": {
+    "servos": {},
+    "lcd": null,
+    "serialBaud": 0
+  },
   "serialOutput": [],
   "sketchCode": "// Example: Relay Toggle\n// Switch a relay on and off every 2 seconds.\n// Uses external 5V power supply for the relay coil.\n\nint relayPin = 7;\n\nvoid setup() {\n  pinMode(relayPin, OUTPUT);\n}\n\nvoid loop() {\n  digitalWrite(relayPin, HIGH);\n  delay(2000);\n  digitalWrite(relayPin, LOW);\n  delay(2000);\n}\n",
   "customLibraries": {}

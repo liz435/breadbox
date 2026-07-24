@@ -29,6 +29,54 @@ export function updateBody(
   return { ...doc, bodies: { ...doc.bodies, [id]: { ...existing, ...changes } } }
 }
 
+/** `base` if free, else `base-2`, `base-3`, … — a body id no body uses yet. */
+export function uniqueBodyId(bodies: Record<string, AssemblyBody>, base: string): string {
+  if (!bodies[base]) return base
+  let n = 2
+  while (bodies[`${base}-${n}`]) n++
+  return `${base}-${n}`
+}
+
+/**
+ * Clone a body: a fresh id, a "copy" name, and a small offset so it doesn't
+ * sit exactly on top of the original. The clone reuses the same uploaded asset
+ * (no re-upload) and keeps its parent/joint, but starts visible + unlocked and
+ * carries no signal bindings (those are keyed by body id, so the new id has
+ * none until the user wires them).
+ */
+export function duplicateBody(doc: AssemblyDoc, id: string): AssemblyDoc {
+  const source = doc.bodies[id]
+  if (!source) return doc
+  const [x, y, z] = source.transform.position
+  const copy: AssemblyBody = {
+    ...source,
+    id: uniqueBodyId(doc.bodies, `${id}-copy`),
+    name: `${source.name} copy`,
+    transform: { ...source.transform, position: [x + 2, y, z + 2] },
+    hidden: false,
+    locked: false,
+  }
+  return { ...doc, bodies: { ...doc.bodies, [copy.id]: copy } }
+}
+
+/**
+ * Move a body up or down in the manager list. Bodies render in insertion
+ * order, so this swaps the entry with its neighbour and rebuilds the record in
+ * the new order. A no-op at the ends.
+ */
+export function reorderBody(doc: AssemblyDoc, id: string, dir: "up" | "down"): AssemblyDoc {
+  const ids = Object.keys(doc.bodies)
+  const index = ids.indexOf(id)
+  if (index === -1) return doc
+  const target = dir === "up" ? index - 1 : index + 1
+  if (target < 0 || target >= ids.length) return doc
+  ids[index] = ids[target]
+  ids[target] = id
+  const bodies: Record<string, AssemblyBody> = {}
+  for (const key of ids) bodies[key] = doc.bodies[key]
+  return { ...doc, bodies }
+}
+
 /**
  * Drop a body, reparent its children to the world so they don't dangle on a
  * missing parent, and drop bindings that referenced it.

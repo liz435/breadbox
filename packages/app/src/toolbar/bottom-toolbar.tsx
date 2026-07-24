@@ -10,6 +10,7 @@ import { PromptBox } from "@/chat/prompt-box"
 import { useBoard } from "@/store/board-context"
 import { useSimulation } from "@/simulator/simulation-loop"
 import { simulationRef } from "@/simulator/simulation-ref"
+import { setActiveSimulationSession } from "@/simulator/simulation-session"
 import type { LibraryState } from "@dreamer/schemas"
 import { EditToolbar } from "./edit-toolbar"
 import { markSerialUnread } from "./serial-unread"
@@ -167,7 +168,7 @@ export function BottomToolbar() {
   )
 
   const sim = useSimulation({ onSerialPrint, onLibraryStateChange, onBuildLog })
-  simulationRef.current = sim
+  setActiveSimulationSession(sim.session)
 
   // Floating variant: no full-width strip. The toolbar now sits as a
   // self-contained card absolutely positioned by the parent (see

@@ -614,7 +614,9 @@ export function compileCircuitProgram(input: unknown): CircuitProgramCompileResu
         return;
       }
 
-      const railCol = net.kind === "ground" ? -1 : -2;
+      // Left rail pair polarity: −1 (inner) is the + rail, −2 (outer edge)
+      // the − rail — matching isPositiveRailCol and the board silkscreen.
+      const railCol = net.kind === "ground" ? -2 : -1;
       wires.push({
         from: source,
         to: `grid.0,${railCol}`,

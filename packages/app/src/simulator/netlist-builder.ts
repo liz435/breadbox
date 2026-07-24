@@ -14,15 +14,20 @@ import {
 import {
   resolveNets,
   getComponentFootprint,
+  componentSurfaceBoardId,
+  terminalAddressKey,
   type Net,
   type GridPoint,
+  type TerminalAddress,
 } from "@/breadboard/breadboard-grid"
 import { getComponentDef } from "@/components/registry"
+import { powerModelFor } from "./power-model"
+import type { PeripheralState } from "./peripherals/types"
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-function pointKey(p: GridPoint): string {
-  return `${p.row},${p.col}`
+function pointKey(p: GridPoint | TerminalAddress): string {
+  return terminalAddressKey(p)
 }
 
 /**
@@ -34,12 +39,24 @@ function buildNodeMap(
   groundNetIds: Set<string>,
 ): Map<string, string> {
   const nodeMap = new Map<string, string>()
+  const localNames = new Map<string, Set<string>>()
 
   for (const net of nets) {
     const spiceName = groundNetIds.has(net.id) ? "0" : `net_${net.id}`
     for (const pt of net.points) {
       nodeMap.set(pointKey(pt), spiceName)
+      const localKey = `${pt.row},${pt.col}`
+      const names = localNames.get(localKey) ?? new Set<string>()
+      names.add(spiceName)
+      localNames.set(localKey, names)
     }
+  }
+
+  // Legacy callers only know local coordinates. Preserve that lookup when it
+  // has one electrical meaning; deliberately omit it when two boards make the
+  // coordinate ambiguous so no caller can silently short them together.
+  for (const [localKey, names] of localNames) {
+    if (names.size === 1) nodeMap.set(localKey, names.values().next().value!)
   }
 
   return nodeMap
@@ -51,7 +68,7 @@ function buildNodeMap(
  */
 function resolveNode(
   nodeMap: Map<string, string>,
-  point: GridPoint,
+  point: GridPoint | TerminalAddress,
 ): string {
   return nodeMap.get(pointKey(point)) ?? `unconnected_${point.row}_${point.col}`
 }
@@ -73,6 +90,20 @@ export type NetlistResult = {
   nets: Net[]
   nodeMap: Map<string, string>
   componentNodePairs: Map<string, { nodeA: string; nodeB: string }>
+  /** Resolved supply requirement per component that declares a power model. */
+  componentPowerBindings: Map<
+    string,
+    {
+      /** SPICE node the part draws supply from; read ground-referenced. */
+      supply: string
+      /** True when the declared return reaches ground — either a fixed-ground
+       * net or a supply's own return node. Null when the part declares no
+       * return pin, so consumers know not to require one. */
+      returnGrounded: boolean | null
+      /** Ids of the supplies feeding `supply`, for fault inheritance. */
+      supplyIds: string[]
+    }
+  >
   /**
    * Digital output pins that drive the circuit, with the SPICE element whose
    * branch current equals the pin's current and the net node it drives. Lets
@@ -95,6 +126,21 @@ export type NetlistResult = {
    * source resistance and their own current limits.
    */
   railSources: Array<{ element: string; rail: "5V" | "3V3"; node: string }>
+  /** Every solved supply, including external modules such as the MB102. */
+  powerSources: Array<{
+    id: string
+    label: string
+    element: string
+    node: string
+    /** The source's own return node, when it is not SPICE node "0". */
+    returnNode?: string
+    /** Set when this supply is an MCU board rail, so diagnostics can name the
+     * real failure mode (polyfuse, regulator) instead of generic wording. */
+    rail?: "5V" | "3V3"
+    nominalVoltage: number
+    currentLimitMa: number
+    sourceResistanceOhms?: number
+  }>
   /**
    * Rails that are wired directly into a ground net — a dead short. These
    * never make it into the netlist (the merged net IS node 0, so the source
@@ -121,12 +167,6 @@ function pwmFrequencyForPin(pin: number): number {
 const RAIL_5V_SOURCE_RESISTANCE_OHMS = 0.5
 const RAIL_3V3_SOURCE_RESISTANCE_OHMS = 1.0
 
-// TODO(multi-board-resolver): inherits resolveNets's single-board assumption.
-// In a scene with >1 surface board, components on different boards that
-// happen to share (row, col) will be merged into the same SPICE node,
-// producing a wrong netlist. The fix lives in breadboard-grid.ts; once
-// resolveNets returns board-scoped nets this function will pick it up
-// for free.
 /** Latched parallel outputs (Q0..Q7) per shift-register component id. */
 export type ShiftRegisterOutputs = ReadonlyMap<string, readonly boolean[]>
 
@@ -138,11 +178,17 @@ export function buildNetlist(
   pinStates: PinState[],
   shiftRegisterOutputs?: ShiftRegisterOutputs,
   mode: NetlistMode = "op",
+  peripheralStates?: Record<string, PeripheralState>,
 ): NetlistResult {
   const nets = resolveNets(components, wires)
   const lines: string[] = []
   const modelLines = new Set<string>()
   const componentNodePairs = new Map<string, { nodeA: string; nodeB: string }>()
+  const componentPowerBindings: NetlistResult["componentPowerBindings"] = new Map()
+  const pendingPowerNodes = new Map<
+    string,
+    { supply: string; return: string | null; declaresReturn: boolean }
+  >()
 
   // Determine which nets connect to fixed ground (Arduino GND pins).
   // Also determine voltage source nets (5V pin = -1, 3V3 pin = -2, or digital
@@ -177,8 +223,9 @@ export function buildNetlist(
   for (const comp of Object.values(components)) {
     if (isBoardComponentType(comp.type) || comp.type === "wire") continue
     const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties)
+    const boardId = componentSurfaceBoardId(comp, components)
     for (const pt of footprint.points) {
-      const nid = pointToNetId.get(pointKey(pt))
+      const nid = pointToNetId.get(pointKey({ ...pt, boardId }))
       if (nid) componentNets.add(nid)
     }
   }
@@ -267,10 +314,11 @@ export function buildNetlist(
       const outputs = shiftRegisterOutputs.get(comp.id)
       if (!outputs) continue
       const pinMap = resolveComponentPins(comp.type, comp.y, comp.x, comp.properties)
+      const boardId = componentSurfaceBoardId(comp, components)
       for (let i = 0; i < SHIFT_REGISTER_OUTPUT_KEYS.length; i++) {
         const pt = pinMap[SHIFT_REGISTER_OUTPUT_KEYS[i]]
         if (!pt) continue
-        const netId = pointToNetId.get(pointKey(pt))
+        const netId = pointToNetId.get(pointKey({ ...pt, boardId }))
         if (!netId) continue
         voltageSourceNets.push({
           label: `V_SR_${sanitize(comp.id)}_Q${i}`,
@@ -331,7 +379,8 @@ export function buildNetlist(
     for (const comp of Object.values(components)) {
       if (isBoardComponentType(comp.type) || comp.type === "wire") continue
       const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties)
-      if (footprint.points.some((pt) => pointToNetId.get(pointKey(pt)) === vs.netId)) {
+      const boardId = componentSurfaceBoardId(comp, components)
+      if (footprint.points.some((pt) => pointToNetId.get(pointKey({ ...pt, boardId })) === vs.netId)) {
         componentIds.push(comp.id)
       }
     }
@@ -343,6 +392,7 @@ export function buildNetlist(
   const pinSources: NetlistResult["pinSources"] = []
   const pwmSources: NetlistResult["pwmSources"] = []
   const railSources: NetlistResult["railSources"] = []
+  const powerSources: NetlistResult["powerSources"] = []
   let vsIndex = 0
 
   for (const vs of voltageSourceNets) {
@@ -374,7 +424,19 @@ export function buildNetlist(
         frequencyHz: pwmFrequencyForPin(vs.pin ?? -1),
       })
     }
-    if (vs.rail) railSources.push({ element, rail: vs.rail, node: nodeName })
+    if (vs.rail) {
+      railSources.push({ element, rail: vs.rail, node: nodeName })
+      powerSources.push({
+        id: `arduino:${vs.rail}:${nodeName}`,
+        label: `Arduino ${vs.rail}`,
+        element,
+        node: nodeName,
+        rail: vs.rail,
+        nominalVoltage: vs.voltage,
+        currentLimitMa: vs.rail === "5V" ? 500 : 50,
+        sourceResistanceOhms: vs.sourceResistanceOhms,
+      })
+    }
     vsIndex++
   }
 
@@ -383,15 +445,37 @@ export function buildNetlist(
     if (isBoardComponentType(comp.type) || comp.type === "wire") continue
 
     const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties)
+    const boardId = componentSurfaceBoardId(comp, components)
     const def = getComponentDef(comp.type)
+
+    // Resolve the declared power pins to nodes now, but defer the binding
+    // itself: parts emit their own supplySources further down this same loop,
+    // so the supply table isn't complete until it finishes.
+    const powerModel = powerModelFor(comp.type)
+    if (powerModel) {
+      const pinMap = resolveComponentPins(comp.type, comp.y, comp.x, comp.properties)
+      const supplyPoint = powerModel.supply.map((name) => pinMap[name]).find(Boolean)
+      const returnPoint = powerModel.return?.map((name) => pinMap[name]).find(Boolean)
+      if (supplyPoint) {
+        pendingPowerNodes.set(comp.id, {
+          supply: resolveNode(nodeMap, { ...supplyPoint, boardId }),
+          // A declared return pin that resolves to nothing stays null — an
+          // unwired ground must not read the same as a wired one.
+          return: returnPoint ? resolveNode(nodeMap, { ...returnPoint, boardId }) : null,
+          declaresReturn: powerModel.return !== undefined,
+        })
+      }
+    }
 
     if (def?.buildNetlist) {
       const ctx = {
         footprint,
-        resolveNode: (pt: GridPoint) => resolveNode(nodeMap, pt),
+        resolveNode: (pt: GridPoint) => resolveNode(nodeMap, { ...pt, boardId }),
         pinStates,
         wires,
+        components,
         mode,
+        peripheralStates,
       }
       const result = def.buildNetlist(comp, ctx)
       if (result) {
@@ -430,9 +514,34 @@ export function buildNetlist(
             modelLines.add(modelLine)
           }
         }
+        if (result.supplySources) powerSources.push(...result.supplySources)
         componentNodePairs.set(comp.id, { nodeA, nodeB })
       }
     }
+  }
+
+  // Bind each declared part to the supplies feeding it. resolveNets has
+  // already merged everything on a net into one SPICE node, so this is a
+  // direct name match rather than a graph walk.
+  const supplyIdsByNode = new Map<string, string[]>()
+  const supplyReturnNodes = new Set<string>()
+  for (const source of powerSources) {
+    const ids = supplyIdsByNode.get(source.node) ?? []
+    ids.push(source.id)
+    supplyIdsByNode.set(source.node, ids)
+    if (source.returnNode) supplyReturnNodes.add(source.returnNode)
+  }
+  for (const [componentId, nodes] of pendingPowerNodes) {
+    // "0" covers a fixed-ground net; a supply's own return node covers parts
+    // grounded through an MB102 − rail, which is a real net tied to 0 through
+    // a 1Ω resistor and so never equals "0".
+    const grounded =
+      nodes.return !== null && (nodes.return === "0" || supplyReturnNodes.has(nodes.return))
+    componentPowerBindings.set(componentId, {
+      supply: nodes.supply,
+      returnGrounded: nodes.declaresReturn ? grounded : null,
+      supplyIds: supplyIdsByNode.get(nodes.supply) ?? [],
+    })
   }
 
   // Transient analysis — short run for DC operating point
@@ -445,7 +554,7 @@ export function buildNetlist(
 
   const netlist = lines.join("\n")
 
-  return { netlist, nets, nodeMap, componentNodePairs, pinSources, pwmSources, railSources, railShorts }
+  return { netlist, nets, nodeMap, componentNodePairs, componentPowerBindings, pinSources, pwmSources, railSources, powerSources, railShorts }
 }
 
 /** Sanitize a component ID for use in SPICE element names */

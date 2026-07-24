@@ -29,7 +29,7 @@ import { registerPartNodes, SEVEN_SEGMENT_ORDER } from "./scene-registry"
 import { buttonPressStore, useButtonPressed } from "@/simulator/button-press-store"
 import { resistorBands } from "./resistor-color-code"
 import { resolveLedColor } from "./led-colors"
-import { GLB_PARTS, GlbPartModel } from "./glb-parts"
+import { GLB_PARTS, GlbPartModel, enableShadows } from "./glb-parts"
 import resistorBaseUrl from "@/assets/resistor-base.glb?url"
 
 /** Extrusion height (mm) for custom-part SVG bodies. */
@@ -333,7 +333,7 @@ function isMesh(object: Object3D): object is Mesh {
 
 function ResistorModel({ component }: { component: BoardComponent }) {
   const { scene } = useGLTF(resistorBaseUrl)
-  const base = useMemo(() => scene.clone(true), [scene])
+  const base = useMemo(() => enableShadows(scene.clone(true)), [scene])
   const ohms = numberProp(component, "resistance", 220)
   const bands = useMemo(() => resistorBands(ohms), [ohms])
 

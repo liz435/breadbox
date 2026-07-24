@@ -12,7 +12,7 @@
 // keep rendering through <UploadedBodies> (for their portal/animation wiring)
 // and get kinematic collider proxies from <PhysicsFollowers>.
 
-import { Suspense, useCallback, useEffect, useRef } from "react"
+import { Suspense, useCallback, useEffect, useLayoutEffect, useRef } from "react"
 import { Euler, Quaternion, type Group } from "three"
 import { RigidBody, type RapierRigidBody } from "@react-three/rapier"
 import { scaleToVec3, type AssemblyBody } from "@dreamer/schemas"
@@ -22,6 +22,7 @@ import { GROUP_PROP } from "./physics-groups"
 import { wakePhysics } from "./physics-activity"
 import { useBodyDrag } from "./use-body-drag"
 import { useEditor } from "./editor-state"
+import { registerBodyVolumeRoot } from "./scene-registry"
 import { BodyModel, BodyNode } from "./uploaded-bodies"
 
 function PhysicsBody({
@@ -32,6 +33,7 @@ function PhysicsBody({
   childrenOf: (id: string) => AssemblyBody[]
 }) {
   const bodyRef = useRef<RapierRigidBody>(null)
+  const volumeRootRef = useRef<Group>(null)
   const { updateBody } = useAssemblyActions()
   const { select } = useEditor()
 
@@ -61,6 +63,11 @@ function PhysicsBody({
     wakePhysics()
   }, [])
 
+  useLayoutEffect(() => {
+    if (!volumeRootRef.current) return
+    return registerBodyVolumeRoot(body.id, volumeRootRef.current)
+  }, [body.id])
+
   return (
     <RigidBody
       ref={bodyRef}
@@ -73,6 +80,7 @@ function PhysicsBody({
       ccd
     >
       <group
+        ref={volumeRootRef}
         scale={scaleToVec3(body.transform.scale)}
         onClick={(event) => {
           event.stopPropagation()

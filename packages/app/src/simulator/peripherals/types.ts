@@ -27,7 +27,9 @@ export type PinEdge = {
 }
 
 export type PeripheralState =
-  | { kind: "servo"; pin: number; angle: number; attached: boolean }
+  | { kind: "servo"; pin: number; angle: number; attached: boolean; moving: boolean }
+  | { kind: "relay"; signalPin: number | null; energized: boolean; pending: boolean }
+  | { kind: "dc_motor"; pin: number | null; speed: number; moving: boolean }
   | { kind: "stepper"; angle: number }
   | { kind: "buzzer"; pin: number; frequencyHz: number | null; playing: boolean }
   | { kind: "led"; pin: number; brightness: number }
@@ -73,6 +75,8 @@ export type PeripheralTrace = {
 export type PeripheralContext = {
   componentId: string
   component: BoardComponent
+  /** Complete board topology for peripherals that must honour VCC/GND. */
+  components?: Record<string, BoardComponent>
   wires: Record<string, Wire>
   pinStore: PinStateStore
   trace: (entry: Omit<PeripheralTrace, "ts">) => void
@@ -106,6 +110,8 @@ export interface Peripheral<S extends PeripheralState = PeripheralState> {
   readonly capabilities: ReadonlySet<PeripheralCapability>
   readonly watchedPins: ReadonlySet<number>
   attach(ctx: PeripheralContext): void
+  /** Update solved local VCC-GND availability after a circuit solve. */
+  setPowered?(powered: boolean): void
   onPinEdge(edge: PinEdge): void
   onTick(simMs: number): void
   getState(): Readonly<S> | null

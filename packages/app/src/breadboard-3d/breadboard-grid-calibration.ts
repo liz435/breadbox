@@ -71,8 +71,11 @@ const BAKED_CALIBRATION: GridCalibration = {
   rails: {
     [-2]: { x: -28.626949465094057, z: -88.00409439401345 },
     [-1]: { x: -25.521633353836208, z: -88.11036199273143 },
-    [10]: { x: 27.56266626458894, z: -88.17809927849045 },
-    [11]: { x: 24.352771003767486, z: -88.08326176885892 },
+    // Col 10 is the inner right rail, col 11 the outer (mirrors -1/-2 on the
+    // left) — the v5 bake had these two assignments crossed, which flipped the
+    // right rail pair and skewed every fit that targets rail holes.
+    [10]: { x: 24.352771003767486, z: -88.08326176885892 },
+    [11]: { x: 27.56266626458894, z: -88.17809927849045 },
   },
 }
 
@@ -97,7 +100,7 @@ function defaultCalibration(): GridCalibration {
   }
 }
 
-const STORAGE_KEY = "dreamer:breadboard-grid-calibration:v5"
+const STORAGE_KEY = "dreamer:breadboard-grid-calibration:v6"
 
 function load(): GridCalibration {
   const base = defaultCalibration()

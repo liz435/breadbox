@@ -16,9 +16,12 @@ import { offsetToWorld, surfaceBoardsOf, wireEndpointOffset } from "./board-offs
 import { pixelToWorld } from "./layout"
 import { calibratedPinXZ, useCalibration } from "./arduino-calibration"
 import { useGridCalibration, warpedGridXZ } from "./breadboard-grid-calibration"
-import { segmentClosest, partObstacles, type PartObstacle } from "./part-obstacles"
-import { obbSegmentInterval, useBoundsVersion } from "./part-volume"
+import { partObstacles, type PartObstacle } from "./part-obstacles"
+import { useBoundsVersion } from "./part-volume"
 import { usePinCalibrations } from "./component-pin-calibration"
+import { useAssemblyObstacles } from "./assembly-obstacles"
+import { bezierArcFactor, resolveWireArcRise } from "./wire-routing"
+import { remapWireEndpoints } from "./wire-endpoint-clearance"
 
 /** Slim jumper insulation radius (mm). */
 const WIRE_RADIUS_MM = 0.5
@@ -113,72 +116,15 @@ const WIRE_SIDE_MARGIN_MM = 1.5
  *  fairly high so a tall part right beside an endpoint hole nudges the arc up a
  *  little rather than launching it into a tall spike. */
 const MIN_ARC_FACTOR = 0.3
-/** Cap on the control-point rise (mm). A part directly under a wire's hole
- *  can't be arced over by a single hop; clamp rather than shoot to the moon.
- *  Deliberately low — real jumpers drape close to the board, not in tall loops. */
-const MAX_WIRE_RISE_MM = 26
+/** Cap on the control-point rise (mm). High enough that the tallest catalog
+ *  part (the 24 mm servo) still clears a mid-span crossing, low enough that an
+ *  oversized uploaded model saturates into a normal-looking hop instead of a
+ *  half-circle to the ceiling. */
+const MAX_WIRE_RISE_MM = 35
 /** Slack (mm) added to a part's pin-spread when deciding whether a wire endpoint
  *  belongs to it. Well under one 2.54 mm hole pitch, so an adjacent hole a part
  *  merely sits near is never mistaken for one of its own pins. */
 const FOOTPRINT_HIT_TOLERANCE_MM = 0.5
-
-/** True when a wire endpoint lands on a part's own footprint — i.e. the wire
- *  plugs into that part. Such a part is the wire's destination, not an obstacle:
- *  a tall body can't be arced away at the wire's own terminus (the arc height
- *  there is ~0), so treating it as one only forces a huge rise that then plunges
- *  straight back down through the body. */
-function endpointOnObstacle(point: Vector3, obstacle: PartObstacle): boolean {
-  return (
-    Math.hypot(point.x - obstacle.x, point.z - obstacle.z) <=
-    obstacle.coreRadius + FOOTPRINT_HIT_TOLERANCE_MM
-  )
-}
-
-/** Raise `rise` so the arc clears an oriented body box over the stretch where the
- *  wire actually passes across it. Unlike a disc, a wire may plug into this same
- *  part's header (endpoint inside the box) yet still need to clear its offset body:
- *  we clamp the cleared interval out of the plugged endpoint's header zone, then
- *  clear the box top at the interval's lowest-arc end. */
-function clearObb(
-  obstacle: Extract<PartObstacle, { kind: "obb" }>,
-  start: Vector3,
-  end: Vector3,
-  span: number,
-  rise: number,
-  avgEndpointY: number,
-): number {
-  const interval = obbSegmentInterval(
-    obstacle.obb, start.x, start.z, end.x, end.z, WIRE_SIDE_MARGIN_MM,
-  )
-  if (!interval) return rise
-  let { t0, t1 } = interval
-
-  const startPlug = endpointOnObstacle(start, obstacle)
-  const endPlug = endpointOnObstacle(end, obstacle)
-  if (startPlug || endPlug) {
-    // Keep the required clearance out of the header zone around a plugged
-    // endpoint (~one pin spread), so the arc drops onto its own pin instead of
-    // spiking up and diving back down. The offset body past it is still cleared.
-    const clampFrac =
-      span > 1e-6
-        ? Math.min(0.49, (obstacle.coreRadius + FOOTPRINT_HIT_TOLERANCE_MM) / span)
-        : 0.49
-    if (startPlug) t0 = Math.max(t0, clampFrac)
-    if (endPlug) t1 = Math.min(t1, 1 - clampFrac)
-    if (t0 >= t1) return rise // the whole crossing is header — nothing to hop
-  }
-
-  // The arc is concave (peaks at t=0.5), so its lowest point over [t0,t1] is at
-  // whichever end sits farther from the apex. Clear the box top there.
-  const tWorst = Math.abs(t0 - 0.5) >= Math.abs(t1 - 0.5) ? t0 : t1
-  const factor = Math.max(MIN_ARC_FACTOR, 3 * tWorst * (1 - tWorst))
-  const clearance = obstacle.obb.topY + WIRE_CLEARANCE_MM - avgEndpointY
-  const neededRise = clearance / factor
-  // Let genuinely tall modules push the arc a little past the default cap so the
-  // wire drapes over the body rather than skimming through it.
-  const cap = Math.max(MAX_WIRE_RISE_MM, clearance + 4)
-  return Math.max(rise, Math.min(neededRise, cap))
-}
 
 function buildCurve(
   wire: Wire,
@@ -193,43 +139,21 @@ function buildCurve(
   // Short on-board jumpers hop low; cross-board runs rise a little higher. The
   // per-wire jitter keeps side-by-side wires from occupying the same arc. Kept
   // shallow so jumpers drape near the board instead of arcing up in tall loops.
-  let rise = Math.min(16, 4 + span * 0.1) + idJitter(wire.id) * 3
-
-  // Lift the arc so it clears every part it passes over — at the part's ACTUAL
-  // position along the hop, not just the midpoint apex. The arc's height above
-  // the endpoints scales as 3·t·(1−t)·rise (peaking at 0.75·rise at t=0.5), so a
-  // part sitting off-centre is passed over where the arc is lower and needs more
-  // rise than the apex formula alone would give. Using the straight-segment
-  // fraction as t is conservative (the real curve sits at least this high),
-  // so we never under-clear.
-  const avgEndpointY = (start.y + end.y) / 2
-  for (const obstacle of obstacles) {
-    if (obstacle.kind === "disc") {
-      // The part this wire plugs into isn't something to hop over — skip it, or
-      // the arc gets forced up and dives straight back down through its body.
-      if (endpointOnObstacle(start, obstacle) || endpointOnObstacle(end, obstacle)) {
-        continue
-      }
-      const { distance, t } = segmentClosest(
-        obstacle.x, obstacle.z, start.x, start.z, end.x, end.z,
-      )
-      if (distance > obstacle.radius + WIRE_SIDE_MARGIN_MM) continue
-      const factor = Math.max(MIN_ARC_FACTOR, 3 * t * (1 - t))
-      const neededRise = (obstacle.topY + WIRE_CLEARANCE_MM - avgEndpointY) / factor
-      rise = Math.max(rise, Math.min(neededRise, MAX_WIRE_RISE_MM))
-      continue
-    }
-    rise = clearObb(obstacle, start, end, span, rise, avgEndpointY)
-  }
+  const rise = resolveWireArcRise(start, end, obstacles, {
+    baseRise: Math.min(16, 4 + span * 0.1) + idJitter(wire.id) * 3,
+    clearanceMm: WIRE_CLEARANCE_MM, maxRiseMm: MAX_WIRE_RISE_MM,
+    sideMarginMm: WIRE_SIDE_MARGIN_MM, plugToleranceMm: FOOTPRINT_HIT_TOLERANCE_MM,
+    minArcFactor: MIN_ARC_FACTOR, arcFactor: bezierArcFactor,
+  })
 
   // Keep the arc taller than the end connectors so the tube (trimmed back to
   // each housing top by HOUSING_LEN) still curves up out of them.
-  rise = Math.max(rise, HOUSING_LEN + 2)
+  const finalRise = Math.max(rise, HOUSING_LEN + 2)
 
   const control1 = start.clone()
-  control1.y += rise
+  control1.y += finalRise
   const control2 = end.clone()
-  control2.y += rise
+  control2.y += finalRise
   return new CubicBezierCurve3(start, control1, control2, end)
 }
 
@@ -272,7 +196,10 @@ const WireTube = memo(function WireTube({
   if (!geom) return null
   return (
     <group>
-      <mesh>
+      {/* Jumpers arcing over the board are exactly what a viewer uses to judge
+          how high a wire is riding, so they cast. They do not receive — a thin
+          tube self-shadowing at this radius reads as noise, not shading. */}
+      <mesh castShadow>
         <tubeGeometry args={[geom.tubeCurve, 24, WIRE_RADIUS_MM, 8, false]} />
         <meshStandardMaterial color={wireColor(wire)} roughness={0.45} />
       </mesh>
@@ -283,17 +210,25 @@ const WireTube = memo(function WireTube({
 })
 
 export function Wires() {
-  const wires = useBoardSelector((ctx) => ctx.wires)
+  const storedWires = useBoardSelector((ctx) => ctx.wires)
   const boardTarget = useBoardSelector((ctx) => ctx.boardTarget)
   const components = useBoardSelector((ctx) => ctx.components)
+  // Slide endpoints that share a hole with a part pin (or sit under a part
+  // body) to a free hole on the same strip — same net, no more wire-through-
+  // part clipping at the plug (see wire-endpoint-clearance.ts).
+  const wires = useMemo(
+    () => remapWireEndpoints(storedWires, components),
+    [storedWires, components],
+  )
   const arduinoPins = getBoardPinLayout(boardTarget).allPins
   const pinCals = usePinCalibrations()
+  const uploadedObstacles = useAssemblyObstacles()
   // GLB body extents arrive as parts render; rebuild obstacles when they do (and
   // when a calibration moves a part) so the OBBs track the rendered geometry.
   const boundsVersion = useBoundsVersion()
   const obstacles = useMemo(
-    () => partObstacles(components, pinCals),
-    [components, pinCals, boundsVersion],
+    () => [...partObstacles(components, pinCals), ...uploadedObstacles],
+    [components, pinCals, boundsVersion, uploadedObstacles],
   )
   const surfaceBoards = useMemo(() => surfaceBoardsOf(components), [components])
   // Re-tube whenever a grid anchor / surface height or an Arduino pin moves.

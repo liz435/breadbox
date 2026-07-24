@@ -3,7 +3,7 @@ import { MAX_ARDUINO_PIN, type BoardComponent, type PinState, type LibraryState,
 import type { ComponentElectricalState } from "@/simulator/circuit-solver";
 import { areConnected, getComponentFootprint, gridToPixel } from "@/breadboard/breadboard-grid";
 import { findArduinoPinForComponentPin } from "@/breadboard/component-pin-resolver";
-import { KNOB_RADIUS, GENERIC_BODY_WIDTH, GENERIC_BODY_HEIGHT, LABEL_FONT_SIZE, HOLE_SPACING } from "@/breadboard/breadboard-constants";
+import { PX_PER_MM, GENERIC_BODY_WIDTH, GENERIC_BODY_HEIGHT, LABEL_FONT_SIZE, HOLE_SPACING } from "@/breadboard/breadboard-constants";
 import { PinLabel } from "./pin-label";
 import { OledCanvas } from "@/components/oled-canvas";
 import { lookupGlyph } from "./lcd-font";
@@ -22,7 +22,7 @@ function BuzzerRenderer({ component, isSelected, electricalState }: { component:
   // Vertical 2-pin layout: + on top row, − on next row.
   const pinPos = gridToPixel({ row: component.y, col: component.x });
   const pinNeg = gridToPixel({ row: component.y + 1, col: component.x });
-  const radius = KNOB_RADIUS;
+  const radius = 6 * PX_PER_MM; // 12mm piezo can (radius 6mm)
   const isActive = electricalState?.isActive ?? false;
   const loudness = Math.max(0.35, Math.min(1, (electricalState?.current ?? 12) / 35));
   const waveDur = `${(0.55 - loudness * 0.22).toFixed(2)}s`;
@@ -71,12 +71,14 @@ function BuzzerRenderer({ component, isSelected, electricalState }: { component:
         stroke={isSelected ? "#3b82f6" : "#333"}
         strokeWidth={isSelected ? 1.5 : 0.8}
       />
-      {/* Inner ring */}
-      <circle cx={bodyCx} cy={bodyCy} r={radius - 3} fill="none" stroke="#333" strokeWidth={0.5} />
-      {/* Sound hole */}
-      <circle cx={bodyCx} cy={bodyCy} r={3} fill="#2a2a2a" stroke="#444" strokeWidth={0.3} />
+      {/* Rim lip + concentric top-face ring — scaled with the 12mm can so the
+          large body doesn't read as an empty disc. */}
+      <circle cx={bodyCx} cy={bodyCy} r={radius - 0.7 * PX_PER_MM} fill="none" stroke="#333" strokeWidth={0.6} />
+      <circle cx={bodyCx} cy={bodyCy} r={radius * 0.56} fill="none" stroke="#333" strokeWidth={0.5} opacity={0.7} />
+      {/* Sound hole — ~2mm vent at the centre of the can */}
+      <circle cx={bodyCx} cy={bodyCy} r={1 * PX_PER_MM} fill="#2a2a2a" stroke="#444" strokeWidth={0.4} />
       {/* + marking on the body */}
-      <text x={bodyCx - 5} y={bodyCy - radius + 6} fontSize={4} fill="#666" fontFamily="monospace">+</text>
+      <text x={bodyCx - radius * 0.5} y={bodyCy - radius + 8} fontSize={5} fill="#666" fontFamily="monospace">+</text>
 
       {/* Pin labels */}
       <PinLabel x={pinPos.x} y={pinPos.y} name="+" side="right" />
@@ -101,33 +103,34 @@ function PotentiometerRenderer({ component, isSelected }: { component: BoardComp
   const pinGnd = gridToPixel(pts[2] ?? { row: component.y + 2, col: component.x });
   const centerX = pinSignal.x;
   const centerY = pinSignal.y;
-  const radius = KNOB_RADIUS;
+  // 16mm rotary pot body with a 6mm knob/shaft (top-down).
+  const bodyR = 8 * PX_PER_MM; // 16mm pot body (radius 8mm)
+  const knobR = 3 * PX_PER_MM; // 6mm shaft/knob
   const knobAngle = ((component.properties.value as number) ?? 50) / 100 * 270 - 135;
   const rad = (knobAngle * Math.PI) / 180;
 
-  const bx = centerX - radius - 6; // body center X
-  const by = centerY;              // body center Y
+  const bx = centerX - bodyR - 6; // body center X
+  const by = centerY;             // body center Y
 
   // Gradient / filter IDs scoped to this component instance
   const gradId = `pot-body-${component.id}`;
   const glowId = `pot-glow-${component.id}`;
 
-  // Slot-head indicator: a small rectangle centred on the dial, rotated with knobAngle
-  const slotHalfLen = radius - 3;
-  const slotHalfW = 1;
+  // Slot-head indicator: a diameter line across the knob, rotated with knobAngle
+  const slotHalfLen = knobR - 0.4 * PX_PER_MM;
   const sx1 = bx + Math.cos(rad) * slotHalfLen;
   const sy1 = by + Math.sin(rad) * slotHalfLen;
   const sx2 = bx - Math.cos(rad) * slotHalfLen;
   const sy2 = by - Math.sin(rad) * slotHalfLen;
 
-  // Position markers at −135°, 0°, +135° around the bezel
+  // Position markers at −135°, 0°, +135° around the body bezel
   const markerAngles = [-135, 0, 135];
-  const markerR = radius + 1.5; // just outside the dial edge
+  const markerR = bodyR + 0.3 * PX_PER_MM; // just outside the body edge
 
-  // Knurl ticks: 10 short marks around the perimeter, co-rotating with the dial
+  // Knurl ticks: 10 short marks around the knob, co-rotating with the dial
   const knurlCount = 10;
-  const knurlInner = radius - 2;
-  const knurlOuter = radius;
+  const knurlInner = knobR - 0.4 * PX_PER_MM;
+  const knurlOuter = knobR;
 
   return (
     <g>
@@ -153,7 +156,7 @@ function PotentiometerRenderer({ component, isSelected }: { component: BoardComp
       {/* Bezel ring — neutral warm-black, avoids blue tint pulling whole thing cool */}
       <circle
         cx={bx} cy={by}
-        r={radius + 2}
+        r={bodyR + 2}
         fill="#1a1a1a"
         stroke={isSelected ? "#3b82f6" : "#57534e"}
         strokeWidth={isSelected ? 1.5 : 0.8}
@@ -174,8 +177,12 @@ function PotentiometerRenderer({ component, isSelected }: { component: BoardComp
         );
       })}
 
-      {/* Dial body — blue radial gradient */}
-      <circle cx={bx} cy={by} r={radius} fill={`url(#${gradId})`} />
+      {/* Pot body — blue radial gradient (16mm disc) */}
+      <circle cx={bx} cy={by} r={bodyR} fill={`url(#${gradId})`} />
+
+      {/* Raised knob / shaft — 6mm dia, sits proud of the body */}
+      <circle cx={bx} cy={by} r={knobR} fill={`url(#${gradId})`} stroke="#0d1117" strokeWidth={0.7} />
+      <circle cx={bx} cy={by} r={knobR} fill="none" stroke="#3a4a63" strokeWidth={0.5} opacity={0.6} />
 
       {/* Knurl ticks rotating with the dial */}
       {Array.from({ length: knurlCount }, (_, i) => {
@@ -214,7 +221,7 @@ function PotentiometerRenderer({ component, isSelected }: { component: BoardComp
       />
 
       {/* Centre pip — muted steel, not bright blue */}
-      <circle cx={bx} cy={by} r={1.5} fill="#6b7280" />
+      <circle cx={bx} cy={by} r={0.3 * PX_PER_MM} fill="#6b7280" />
 
       {/* Pin labels */}
       <PinLabel x={pinVcc.x}    y={pinVcc.y}    name="vcc"    side="right" />
@@ -264,13 +271,12 @@ function LcdRenderer({ component, isSelected, libraryState }: { component: Board
   const pinTop = pins[0];
   const pinBot = pins[pins.length - 1];
 
-  // PCB body is deliberately shorter than the 12-pin column — the pin
-  // header rail extends above and below so it reads like a real module
-  // whose PCB sits between rows 3-10 of the header rather than spanning
-  // the full 12-row span. Width is set for a HD44780-ish ~2:1 aspect.
+  // LCD1602 module drawn at true size: an 80 × 36mm green PCB. The 12-pin
+  // header column is shorter than the PCB, so the header rail runs down the
+  // right edge while the board extends above and below it.
   const pinSpan = pinBot.y - pinTop.y;
-  const bodyH = Math.round(pinSpan * 0.55);
-  const bodyW = Math.round(bodyH * 2.0);
+  const bodyW = 80 * PX_PER_MM;  // green PCB 80mm wide
+  const bodyH = 36 * PX_PER_MM;  // ...× 36mm tall
   const bodyCx = pinTop.x - bodyW / 2 - 10;
   const bodyCy = (pinTop.y + pinBot.y) / 2;
 
@@ -289,12 +295,18 @@ function LcdRenderer({ component, isSelected, libraryState }: { component: Board
   const cgram = lcdState?.cgram;
   const cols = lcdState?.cols ?? 16;
 
-  // Landscape display panel — fills most of the PCB width, leaves a strip
-  // below for silkscreen and the contrast pot like a real HD44780 module.
-  const displayWidth = bodyW - 22;
-  const displayHeight = bodyH * 0.46;
-  const displayAreaX = bodyCx - displayWidth / 2;
-  const displayAreaY = bodyCy - bodyH / 2 + (bodyH - displayHeight - bodyH * 0.2) / 2 + 3;
+  // Metal bezel (71.2 × 26.2mm) framing the active glass (64.5 × 16mm), both
+  // centred on the PCB and nudged up to leave a silkscreen strip below.
+  const bodyL = bodyCx - bodyW / 2;
+  const bodyT = bodyCy - bodyH / 2;
+  const bezelW = 71.2 * PX_PER_MM;
+  const bezelH = 26.2 * PX_PER_MM;
+  const bezelL = bodyCx - bezelW / 2;
+  const bezelT = bodyT + (bodyH - bezelH) / 2 - bodyH * 0.05;
+  const displayWidth = 64.5 * PX_PER_MM;  // active glass 64.5mm wide
+  const displayHeight = 16 * PX_PER_MM;   // ...× 16mm tall
+  const displayAreaX = bezelL + (bezelW - displayWidth) / 2;
+  const displayAreaY = bezelT + (bezelH - displayHeight) / 2;
 
   const pcbGradId = `lcd-pcb-${component.id}`;
   const screenGradId = `lcd-screen-${component.id}`;
@@ -349,12 +361,10 @@ function LcdRenderer({ component, isSelected, libraryState }: { component: Board
     return nodes;
   }
 
-  const bodyL = bodyCx - bodyW / 2;
-  const bodyT = bodyCy - bodyH / 2;
-  const screenBezelL = displayAreaX - 1;
-  const screenBezelT = displayAreaY - 1;
-  const screenBezelW = displayWidth + 2;
-  const screenBezelH = displayHeight + 2;
+  const screenBezelL = bezelL;
+  const screenBezelT = bezelT;
+  const screenBezelW = bezelW;
+  const screenBezelH = bezelH;
 
   return (
     <g>
@@ -407,11 +417,11 @@ function LcdRenderer({ component, isSelected, libraryState }: { component: Board
         stroke={isSelected ? "#3b82f6" : "#02241a"}
         strokeWidth={isSelected ? 1.5 : 0.7} />
 
-      {/* Corner mounting holes (top corners) */}
-      {[[bodyL + 3, bodyT + 3], [bodyL + bodyW - 3, bodyT + 3]].map(([hx, hy], i) => (
+      {/* Corner mounting holes (~2.5mm dia at all four corners) */}
+      {[[bodyL + 3 * PX_PER_MM, bodyT + 3 * PX_PER_MM], [bodyL + bodyW - 3 * PX_PER_MM, bodyT + 3 * PX_PER_MM], [bodyL + 3 * PX_PER_MM, bodyT + bodyH - 3 * PX_PER_MM], [bodyL + bodyW - 3 * PX_PER_MM, bodyT + bodyH - 3 * PX_PER_MM]].map(([hx, hy], i) => (
         <g key={i}>
-          <circle cx={hx} cy={hy} r={1.5} fill="#02241a" stroke="#3a7a5a" strokeWidth={0.35} />
-          <circle cx={hx} cy={hy} r={0.7} fill="#011a12" />
+          <circle cx={hx} cy={hy} r={1.25 * PX_PER_MM} fill="#02241a" stroke="#3a7a5a" strokeWidth={0.5} />
+          <circle cx={hx} cy={hy} r={0.6 * PX_PER_MM} fill="#011a12" />
         </g>
       ))}
 
@@ -421,18 +431,18 @@ function LcdRenderer({ component, isSelected, libraryState }: { component: Board
       <line x1={headerX - 1} y1={pinTop.y} x2={headerX - 1} y2={pinBot.y}
         stroke="#1e6a46" strokeWidth={0.7} opacity={0.5} />
 
-      {/* Contrast trim pot — classic small blue potentiometer near the edge */}
-      <rect x={bodyL + bodyW - 7} y={bodyT + bodyH - 6.5} width={5} height={4} rx={0.4}
-        fill="#1e40af" stroke="#0b2e80" strokeWidth={0.3} />
-      <circle cx={bodyL + bodyW - 4.5} cy={bodyT + bodyH - 4.5} r={1.1}
-        fill="#d4d4d8" stroke="#525252" strokeWidth={0.25} />
-      <line x1={bodyL + bodyW - 5.4} y1={bodyT + bodyH - 4.5}
-            x2={bodyL + bodyW - 3.6} y2={bodyT + bodyH - 4.5}
-            stroke="#27272a" strokeWidth={0.35} />
+      {/* Contrast trim pot — small blue potentiometer near the PCB edge */}
+      <rect x={bodyL + bodyW - 7.5 * PX_PER_MM} y={bodyT + bodyH - 7 * PX_PER_MM} width={6 * PX_PER_MM} height={5 * PX_PER_MM} rx={1}
+        fill="#1e40af" stroke="#0b2e80" strokeWidth={0.5} />
+      <circle cx={bodyL + bodyW - 4.5 * PX_PER_MM} cy={bodyT + bodyH - 4.5 * PX_PER_MM} r={1.6 * PX_PER_MM}
+        fill="#d4d4d8" stroke="#525252" strokeWidth={0.4} />
+      <line x1={bodyL + bodyW - 5.7 * PX_PER_MM} y1={bodyT + bodyH - 4.5 * PX_PER_MM}
+            x2={bodyL + bodyW - 3.3 * PX_PER_MM} y2={bodyT + bodyH - 4.5 * PX_PER_MM}
+            stroke="#27272a" strokeWidth={0.6} />
 
-      {/* Screen bezel — dark frame around the active display */}
-      <rect x={screenBezelL} y={screenBezelT} width={screenBezelW} height={screenBezelH} rx={1}
-        fill="#02241a" stroke="#011a12" strokeWidth={0.5} />
+      {/* Metal bezel — brushed silver frame around the active glass */}
+      <rect x={screenBezelL} y={screenBezelT} width={screenBezelW} height={screenBezelH} rx={2}
+        fill="#7c8794" stroke="#4b5563" strokeWidth={0.8} />
 
       {/* LCD display window */}
       <rect
@@ -515,12 +525,12 @@ function LcdRenderer({ component, isSelected, libraryState }: { component: Board
       />
 
       {/* Silkscreen micro-text on the PCB below the screen */}
-      <text x={bodyL + 4} y={bodyT + bodyH - 3} textAnchor="start"
-        fontSize={2.3} fill="#4a9e78" fontFamily="monospace" opacity={0.75}>
+      <text x={bodyL + 2.5 * PX_PER_MM} y={bodyT + bodyH - 2.5 * PX_PER_MM} textAnchor="start"
+        fontSize={4.5} fill="#4a9e78" fontFamily="monospace" opacity={0.75}>
         HD44780
       </text>
-      <text x={bodyL + bodyW / 2 + 2} y={bodyT + bodyH - 3} textAnchor="middle"
-        fontSize={2.1} fill="#3a8a68" fontFamily="monospace" opacity={0.7}>
+      <text x={bodyL + bodyW * 0.42} y={bodyT + bodyH - 2.5 * PX_PER_MM} textAnchor="middle"
+        fontSize={4} fill="#3a8a68" fontFamily="monospace" opacity={0.7}>
         16×2
       </text>
 
@@ -546,7 +556,7 @@ function TemperatureSensorRenderer({ component, isSelected }: { component: Board
   const coldAmount = !hot ? (0.5 - tempFraction) * 2 : 0;
 
   // TO-92 package: rounded top + flat face — offset to the LEFT of the pin column
-  const bodyRadius = 8;
+  const bodyRadius = 2.35 * PX_PER_MM; // 4.7mm dia half-round body (flat face)
   const bodyCx = pinSignal.x - bodyRadius - 6;
   const bodyCy = pinSignal.y;
   const bodyTop = bodyCy - bodyRadius - 1;
@@ -617,10 +627,10 @@ function TemperatureSensorRenderer({ component, isSelected }: { component: Board
       />
 
       {/* "TMP36" silkscreen label stacked on the flat face */}
-      <text x={bodyCx} y={bodyCy - 2} textAnchor="middle" fontSize={3.2} fill="#a3a3a3" fontFamily="monospace" fontWeight="bold">
+      <text x={bodyCx} y={bodyCy - 2} textAnchor="middle" fontSize={4.5} fill="#a3a3a3" fontFamily="monospace" fontWeight="bold">
         TMP
       </text>
-      <text x={bodyCx} y={bodyCy + 1.5} textAnchor="middle" fontSize={3.2} fill="#a3a3a3" fontFamily="monospace">
+      <text x={bodyCx} y={bodyCy + 3.5} textAnchor="middle" fontSize={4.5} fill="#a3a3a3" fontFamily="monospace">
         36
       </text>
 
@@ -631,7 +641,7 @@ function TemperatureSensorRenderer({ component, isSelected }: { component: Board
         x={bodyCx}
         y={bodyTop - 4}
         textAnchor="middle"
-        fontSize={4}
+        fontSize={5.5}
         fill={hot ? "#fb923c" : coldAmount > 0.5 ? "#93c5fd" : "#9ca3af"}
         fontFamily="monospace"
         fontWeight="bold"
@@ -659,7 +669,7 @@ function PhotoresistorRenderer({ component, isSelected }: { component: BoardComp
 
   const light = Math.max(0, Math.min(100, (component.properties.light as number) ?? 50));
 
-  const bodyR = 8;
+  const bodyR = 2.5 * PX_PER_MM; // LDR head 5mm dia
   const bodyCx = pinA.x - bodyR - 6;
   const bodyCy = (pinA.y + pinB.y) / 2;
 
@@ -770,7 +780,7 @@ function PhotoresistorRenderer({ component, isSelected }: { component: BoardComp
         fill="#ffffff" opacity={0.5} />
 
       {/* Light level readout */}
-      <text x={bodyCx} y={bodyCy - bodyR - 4} textAnchor="middle" fontSize={4}
+      <text x={bodyCx} y={bodyCy - bodyR - 4} textAnchor="middle" fontSize={5.5}
         fill={light > 50 ? "#fde047" : "#9ca3af"} fontFamily="monospace" fontWeight="bold">
         {light}%
       </text>
@@ -799,18 +809,20 @@ function UltrasonicSensorRenderer({ component, isSelected }: { component: BoardC
   // are NOT drawn here — they live in EnvironmentOverlay, which ray-casts the
   // real environment. This renderer only draws the physical HC-SR04 module.
 
-  // PCB body sits to the LEFT of the pin column.
-  const pcbW = 50;
-  const pcbH = (pinBot.y - pinTop.y) + 22;
+  // PCB body sits to the LEFT of the pin column. The board is 45 × 20mm; its
+  // long (45mm) axis runs vertically here so the two cans stack in-column.
+  const pcbW = 20 * PX_PER_MM;  // 20mm across
+  const pcbH = 45 * PX_PER_MM;  // 45mm along the can axis
   const pcbCx = pinTop.x - pcbW / 2 - 10;
   const pcbCy = (pinTop.y + pinBot.y) / 2;
   const pcbL = pcbCx - pcbW / 2;
   const pcbT = pcbCy - pcbH / 2;
 
-  // Two stacked transducer cans — T (trigger) on top, R (echo) below.
-  const eyeR = 9.5;
+  // Two stacked transducer cans (16mm dia) with centres 26mm apart —
+  // T (trigger) on top, R (echo) below.
+  const eyeR = 8 * PX_PER_MM;     // 16mm dia can
   const eyeX = pcbCx;
-  const eyeGap = eyeR + 4;
+  const eyeGap = 13 * PX_PER_MM;  // half of the 26mm centre-to-centre spacing
   const eyeTy = pcbCy - eyeGap;
   const eyeBy = pcbCy + eyeGap;
   const meshAngles = [0, 45, 90, 135, 180, 225, 270, 315];
@@ -824,10 +836,10 @@ function UltrasonicSensorRenderer({ component, isSelected }: { component: BoardC
   const pinNames = ["vcc", "trig", "echo", "gnd"];
 
   const corners: Array<[number, number]> = [
-    [pcbL + 4, pcbT + 4],
-    [pcbL + pcbW - 4, pcbT + 4],
-    [pcbL + 4, pcbT + pcbH - 4],
-    [pcbL + pcbW - 4, pcbT + pcbH - 4],
+    [pcbL + 3 * PX_PER_MM, pcbT + 3 * PX_PER_MM],
+    [pcbL + pcbW - 3 * PX_PER_MM, pcbT + 3 * PX_PER_MM],
+    [pcbL + 3 * PX_PER_MM, pcbT + pcbH - 3 * PX_PER_MM],
+    [pcbL + pcbW - 3 * PX_PER_MM, pcbT + pcbH - 3 * PX_PER_MM],
   ];
 
   return (
@@ -887,16 +899,16 @@ function UltrasonicSensorRenderer({ component, isSelected }: { component: BoardC
       {/* Plated corner mounting holes */}
       {corners.map(([cx, cy], i) => (
         <g key={i}>
-          <circle cx={cx} cy={cy} r={2.4} fill="none" stroke="#cd9b5a" strokeWidth={1} opacity={0.85} />
-          <circle cx={cx} cy={cy} r={1.4} fill={`url(#${holeGradId})`} />
+          <circle cx={cx} cy={cy} r={1.4 * PX_PER_MM} fill="none" stroke="#cd9b5a" strokeWidth={1.2} opacity={0.85} />
+          <circle cx={cx} cy={cy} r={0.8 * PX_PER_MM} fill={`url(#${holeGradId})`} />
         </g>
       ))}
 
       {/* Center crystal + tiny SMD details */}
-      <rect x={eyeX - 3} y={pcbCy - 2} width={6} height={4} rx={0.8} fill="#d4d4d8" stroke="#52525b" strokeWidth={0.4} />
-      <rect x={eyeX - 2.4} y={pcbCy - 1.4} width={4.8} height={2.8} rx={0.5} fill="none" stroke="#a1a1aa" strokeWidth={0.3} opacity={0.7} />
-      <rect x={pcbL + pcbW - 9} y={pcbCy - 6} width={3} height={2} rx={0.3} fill="#0f172a" opacity={0.7} />
-      <rect x={pcbL + pcbW - 9} y={pcbCy + 4} width={3} height={2} rx={0.3} fill="#0f172a" opacity={0.7} />
+      <rect x={eyeX - 2 * PX_PER_MM} y={pcbCy - 1.25 * PX_PER_MM} width={4 * PX_PER_MM} height={2.5 * PX_PER_MM} rx={1} fill="#d4d4d8" stroke="#52525b" strokeWidth={0.5} />
+      <rect x={eyeX - 1.6 * PX_PER_MM} y={pcbCy - 0.85 * PX_PER_MM} width={3.2 * PX_PER_MM} height={1.7 * PX_PER_MM} rx={0.7} fill="none" stroke="#a1a1aa" strokeWidth={0.4} opacity={0.7} />
+      <rect x={pcbL + pcbW - 4 * PX_PER_MM} y={pcbCy - 4 * PX_PER_MM} width={1.6 * PX_PER_MM} height={1.2 * PX_PER_MM} rx={0.3} fill="#0f172a" opacity={0.7} />
+      <rect x={pcbL + pcbW - 4 * PX_PER_MM} y={pcbCy + 2.8 * PX_PER_MM} width={1.6 * PX_PER_MM} height={1.2 * PX_PER_MM} rx={0.3} fill="#0f172a" opacity={0.7} />
 
       {/* === Transducer cans (T = trigger, R = echo) === */}
       {[{ cy: eyeTy, label: "T" }, { cy: eyeBy, label: "R" }].map(({ cy, label }) => (
@@ -906,36 +918,36 @@ function UltrasonicSensorRenderer({ component, isSelected }: { component: BoardC
           {/* metal can */}
           <circle cx={eyeX} cy={cy} r={eyeR} fill={`url(#${eyeGradId})`} stroke="#0f172a" strokeWidth={0.8} />
           {/* rim highlight */}
-          <circle cx={eyeX} cy={cy} r={eyeR - 0.9} fill="none" stroke="#f8fafc" strokeWidth={0.45} opacity={0.45} />
+          <circle cx={eyeX} cy={cy} r={eyeR * 0.9} fill="none" stroke="#f8fafc" strokeWidth={0.6} opacity={0.45} />
           {/* mesh grille — concentric rings */}
-          <circle cx={eyeX} cy={cy} r={eyeR - 2.6} fill="none" stroke="#1f2937" strokeWidth={0.45} opacity={0.8} />
-          <circle cx={eyeX} cy={cy} r={eyeR - 4.6} fill="none" stroke="#1f2937" strokeWidth={0.4} opacity={0.7} />
+          <circle cx={eyeX} cy={cy} r={eyeR * 0.73} fill="none" stroke="#1f2937" strokeWidth={0.6} opacity={0.8} />
+          <circle cx={eyeX} cy={cy} r={eyeR * 0.52} fill="none" stroke="#1f2937" strokeWidth={0.5} opacity={0.7} />
           {/* mesh grille — radial spokes */}
           {meshAngles.map((deg) => {
             const rad = (deg * Math.PI) / 180;
             return (
               <line
                 key={deg}
-                x1={eyeX + Math.cos(rad) * 1.5}
-                y1={cy + Math.sin(rad) * 1.5}
-                x2={eyeX + Math.cos(rad) * (eyeR - 1.5)}
-                y2={cy + Math.sin(rad) * (eyeR - 1.5)}
+                x1={eyeX + Math.cos(rad) * eyeR * 0.16}
+                y1={cy + Math.sin(rad) * eyeR * 0.16}
+                x2={eyeX + Math.cos(rad) * eyeR * 0.84}
+                y2={cy + Math.sin(rad) * eyeR * 0.84}
                 stroke="#1f2937"
-                strokeWidth={0.3}
+                strokeWidth={0.5}
                 opacity={0.45}
               />
             );
           })}
           {/* dark center + specular highlight */}
-          <circle cx={eyeX} cy={cy} r={1.6} fill="#111827" />
-          <ellipse cx={eyeX - 2.6} cy={cy - 2.8} rx={2.6} ry={1.7} fill="#ffffff" opacity={0.4} />
+          <circle cx={eyeX} cy={cy} r={eyeR * 0.17} fill="#111827" />
+          <ellipse cx={eyeX - eyeR * 0.27} cy={cy - eyeR * 0.29} rx={eyeR * 0.27} ry={eyeR * 0.18} fill="#ffffff" opacity={0.4} />
           {/* T / R silkscreen, to the right of the can */}
-          <text x={eyeX + eyeR + 2.5} y={cy + 1.4} fontSize={4} fill="#dbeafe" fontFamily="monospace" fontWeight="bold">{label}</text>
+          <text x={eyeX + eyeR + 3} y={cy + 2} fontSize={6} fill="#dbeafe" fontFamily="monospace" fontWeight="bold">{label}</text>
         </g>
       ))}
 
       {/* Silkscreen part number near the bottom */}
-      <text x={pcbCx} y={pcbT + pcbH - 4.5} textAnchor="middle" fontSize={4.2}
+      <text x={pcbCx} y={pcbT + pcbH - 6} textAnchor="middle" fontSize={6}
         fill="#bfdbfe" fontFamily="monospace" fontWeight="bold" letterSpacing="0.4">HC-SR04</text>
 
       {/* Component name — below the PCB */}
@@ -962,9 +974,9 @@ function IrReceiverRenderer({ component, isSelected }: { component: BoardCompone
   const justReceived = sinceReceive >= 0 && sinceReceive < 400;
 
   // TSOP38238 body sits to the LEFT of the pin column.
-  const bodyW = 14;
-  const bodyH = (pinBot.y - pinTop.y) + 10;
-  const lensR = 5;
+  const bodyW = 6.4 * PX_PER_MM;  // TSOP body 6.4mm wide
+  const bodyH = 5.8 * PX_PER_MM;  // ...× 5.8mm tall
+  const lensR = 2 * PX_PER_MM;    // ~4mm dome lens
   const bodyCx = pinTop.x - bodyW / 2 - 8;
   const bodyCy = (pinTop.y + pinBot.y) / 2;
 
@@ -1043,7 +1055,7 @@ function IrReceiverRenderer({ component, isSelected }: { component: BoardCompone
 
       {/* TSOP silkscreen — vertical text */}
       <text x={bodyCx + bodyW / 2 - 2} y={bodyCy + 2} textAnchor="end"
-        fontSize={2.3} fill="#6b7280" fontFamily="monospace"
+        fontSize={4} fill="#6b7280" fontFamily="monospace"
         transform={`rotate(-90 ${bodyCx + bodyW / 2 - 2} ${bodyCy + 2})`}>
         TSOP
       </text>
@@ -1054,7 +1066,7 @@ function IrReceiverRenderer({ component, isSelected }: { component: BoardCompone
           x={bodyCx - bodyW / 2 - lensR - 2}
           y={bodyCy - bodyH / 2 - 2}
           textAnchor="end"
-          fontSize={3.5}
+          fontSize={5}
           fill="#f87171"
           fontFamily="monospace"
           fontWeight="bold"
@@ -1084,13 +1096,15 @@ function NeoPixelRenderer({ component, isSelected, libraryState }: { component: 
   const numLeds = (component.properties.numLeds as number) ?? 8;
   const displayLeds = Math.min(numLeds, 8);
 
-  // Strip body sits to the LEFT of the pin column.
-  const stripW = 48;
-  const stripH = 14;
+  // Strip body sits to the LEFT of the pin column. 8-LED stick 51 × 10.2mm.
+  const stripW = 51 * PX_PER_MM;   // 51mm long
+  const stripH = 10.2 * PX_PER_MM; // ...× 10.2mm
   const stripCx = pinTop.x - stripW / 2 - 8;
   const stripCy = (pinTop.y + pinBot.y) / 2;
   const stripL = stripCx - stripW / 2;
   const stripT = stripCy - stripH / 2;
+  const ledPitch = 6.35 * PX_PER_MM; // 5050 packages at 6.35mm pitch
+  const ledSize = 5 * PX_PER_MM;     // 5050 package 5 × 5mm
 
   const livePixels = libraryState?.neopixels?.[component.id]?.pixels;
   const hasLivePixels = livePixels != null;
@@ -1168,8 +1182,7 @@ function NeoPixelRenderer({ component, isSelected, libraryState }: { component: 
       {/* SMD LED pads + LED packages. A real WS2812 holds rock-steady light —
           no pulse/shimmer animations; all motion comes from live pixel data. */}
       {Array.from({ length: displayLeds }, (_, i) => {
-        const ledX = stripL + 5 + i * ((stripW - 10) / (displayLeds - 1 || 1));
-        const ledSize = 4;
+        const ledX = stripCx + (i - (displayLeds - 1) / 2) * ledPitch;
         const v = pixelVisual(i);
         const lit = v?.lit === true;
         const intensity = lit ? v.intensity : 0;
@@ -1180,23 +1193,23 @@ function NeoPixelRenderer({ component, isSelected, libraryState }: { component: 
               <circle
                 cx={ledX}
                 cy={stripCy}
-                r={4.5 + intensity * 6}
+                r={ledSize * 1.1 + intensity * ledSize * 1.4}
                 fill={`url(#neo-bloom-${component.id}-${i})`}
                 opacity={0.5 + intensity * 0.5}
                 pointerEvents="none"
               />
             )}
             {/* Copper pad */}
-            <rect x={ledX - ledSize / 2 - 0.8} y={stripCy - ledSize / 2 - 0.8}
-              width={ledSize + 1.6} height={ledSize + 1.6} rx={0.5}
+            <rect x={ledX - ledSize / 2 - ledSize * 0.16} y={stripCy - ledSize / 2 - ledSize * 0.16}
+              width={ledSize * 1.32} height={ledSize * 1.32} rx={1}
               fill="#b08d57" opacity={0.4} />
             {/* White LED package */}
             <rect x={ledX - ledSize / 2} y={stripCy - ledSize / 2}
-              width={ledSize} height={ledSize} rx={0.5}
-              fill="#f5f5f5" stroke="#ddd" strokeWidth={0.3} />
+              width={ledSize} height={ledSize} rx={1}
+              fill="#f5f5f5" stroke="#ddd" strokeWidth={0.4} />
             {/* LED die: saturated hue when lit (dim ≠ muddy), dark when off */}
-            <rect x={ledX - ledSize / 2 + 0.8} y={stripCy - ledSize / 2 + 0.8}
-              width={ledSize - 1.6} height={ledSize - 1.6} rx={0.3}
+            <rect x={ledX - ledSize / 2 + ledSize * 0.2} y={stripCy - ledSize / 2 + ledSize * 0.2}
+              width={ledSize * 0.6} height={ledSize * 0.6} rx={1}
               fill={lit ? v.hue : "#151515"}
               opacity={lit ? 0.75 + intensity * 0.25 : hasLivePixels ? 0.9 : 0.35} />
             {/* Diffuser white-out at the center of a driven pixel */}
@@ -1204,29 +1217,29 @@ function NeoPixelRenderer({ component, isSelected, libraryState }: { component: 
               <circle
                 cx={ledX}
                 cy={stripCy}
-                r={0.55 + intensity * 0.55}
+                r={ledSize * 0.14 + intensity * ledSize * 0.14}
                 fill="#ffffff"
                 opacity={0.35 + intensity * 0.6}
                 pointerEvents="none"
               />
             )}
             {/* Corner mark (pin 1 indicator) */}
-            <circle cx={ledX - ledSize / 2 + 1} cy={stripCy - ledSize / 2 + 1}
-              r={0.4} fill="#888" opacity={0.5} />
+            <circle cx={ledX - ledSize / 2 + ledSize * 0.22} cy={stripCy - ledSize / 2 + ledSize * 0.22}
+              r={ledSize * 0.1} fill="#888" opacity={0.5} />
           </g>
         );
       })}
 
       {/* Data direction arrow (DIN → DOUT) */}
       <polygon
-        points={`${stripL + stripW - 5},${stripCy - 1} ${stripL + stripW - 3},${stripCy} ${stripL + stripW - 5},${stripCy + 1}`}
+        points={`${stripL + stripW - 1.2 * PX_PER_MM},${stripCy - 0.6 * PX_PER_MM} ${stripL + stripW - 0.5 * PX_PER_MM},${stripCy} ${stripL + stripW - 1.2 * PX_PER_MM},${stripCy + 0.6 * PX_PER_MM}`}
         fill="#555" opacity={0.6}
       />
 
       {/* Count badge if more than displayed */}
       {numLeds > 8 && (
         <text x={stripL + stripW - 2} y={stripT - 2}
-          textAnchor="end" fontSize={3.5} fill="#888" fontFamily="monospace">
+          textAnchor="end" fontSize={5} fill="#888" fontFamily="monospace">
           ×{numLeds}
         </text>
       )}
@@ -1248,17 +1261,17 @@ function PirRenderer({ component, isSelected }: { component: BoardComponent; isS
   const pinBot = pins[2];
   const motion = (component.properties.motion as boolean) === true;
 
-  // HC-SR501 is roughly 32×24mm with a big white fresnel dome in the center.
+  // HC-SR501: 32.5 × 24mm PCB with a big white fresnel dome (23mm dia) centred.
   // PCB sits to the LEFT of the pin column.
-  const pcbW = 44;
-  const pcbH = 30;
+  const pcbW = 32.5 * PX_PER_MM;  // 32.5mm wide
+  const pcbH = 24 * PX_PER_MM;    // ...× 24mm tall
   const pcbCx = pinTop.x - pcbW / 2 - 10;
   const pcbCy = (pinTop.y + pinBot.y) / 2;
   const pcbL = pcbCx - pcbW / 2;
   const pcbT = pcbCy - pcbH / 2;
   const domeCx = pcbCx;
   const domeCy = pcbCy;
-  const domeR = 10;
+  const domeR = 11.5 * PX_PER_MM; // 23mm dia fresnel dome
 
   const gradId = `pir-pcb-${component.id}`;
   const domeGradId = `pir-dome-${component.id}`;
@@ -1314,16 +1327,16 @@ function PirRenderer({ component, isSelected }: { component: BoardComponent; isS
       <circle cx={domeCx} cy={domeCy} r={domeR + 1.5} fill="none" stroke="#064e3b" strokeWidth={0.6} opacity={0.8} />
 
       {/* Corner solder pads — little copper dots */}
-      {[[pcbL + 3, pcbT + 3], [pcbL + pcbW - 3, pcbT + 3], [pcbL + 3, pcbT + pcbH - 3], [pcbL + pcbW - 3, pcbT + pcbH - 3]].map(([cx, cy], i) => (
-        <circle key={i} cx={cx} cy={cy} r={0.8} fill="#b08d57" opacity={0.7} />
+      {[[pcbL + 2.5 * PX_PER_MM, pcbT + 2.5 * PX_PER_MM], [pcbL + pcbW - 2.5 * PX_PER_MM, pcbT + 2.5 * PX_PER_MM], [pcbL + 2.5 * PX_PER_MM, pcbT + pcbH - 2.5 * PX_PER_MM], [pcbL + pcbW - 2.5 * PX_PER_MM, pcbT + pcbH - 2.5 * PX_PER_MM]].map(([cx, cy], i) => (
+        <circle key={i} cx={cx} cy={cy} r={0.7 * PX_PER_MM} fill="#b08d57" opacity={0.7} />
       ))}
 
       {/* Two sensitivity/delay trimpots — yellow rectangles with slot */}
       <g>
-        <rect x={pcbL + 3} y={domeCy - 2} width={4} height={4} rx={0.4} fill="#ca8a04" stroke="#713f12" strokeWidth={0.4} />
-        <line x1={pcbL + 3.5} y1={domeCy} x2={pcbL + 6.5} y2={domeCy} stroke="#422006" strokeWidth={0.4} />
-        <rect x={pcbL + pcbW - 7} y={domeCy - 2} width={4} height={4} rx={0.4} fill="#ca8a04" stroke="#713f12" strokeWidth={0.4} />
-        <line x1={pcbL + pcbW - 6.5} y1={domeCy} x2={pcbL + pcbW - 3.5} y2={domeCy} stroke="#422006" strokeWidth={0.4} />
+        <rect x={pcbL + 1 * PX_PER_MM} y={domeCy - 1.75 * PX_PER_MM} width={3.5 * PX_PER_MM} height={3.5 * PX_PER_MM} rx={1} fill="#ca8a04" stroke="#713f12" strokeWidth={0.5} />
+        <line x1={pcbL + 1.5 * PX_PER_MM} y1={domeCy} x2={pcbL + 4 * PX_PER_MM} y2={domeCy} stroke="#422006" strokeWidth={0.6} />
+        <rect x={pcbL + pcbW - 4.5 * PX_PER_MM} y={domeCy - 1.75 * PX_PER_MM} width={3.5 * PX_PER_MM} height={3.5 * PX_PER_MM} rx={1} fill="#ca8a04" stroke="#713f12" strokeWidth={0.5} />
+        <line x1={pcbL + pcbW - 4 * PX_PER_MM} y1={domeCy} x2={pcbL + pcbW - 1.5 * PX_PER_MM} y2={domeCy} stroke="#422006" strokeWidth={0.6} />
       </g>
 
       {/* Dome base ring (metal socket) */}
@@ -1393,8 +1406,8 @@ function SevenSegmentRenderer({ component, components, pinStates, wires, isSelec
   const pinTop = pins[0];
   const pinBot = pins[8];
 
-  const w = 34;
-  const h = (pinBot.y - pinTop.y) + 12;
+  const w = 12.7 * PX_PER_MM; // 0.56" display body 12.7mm wide
+  const h = 19 * PX_PER_MM;   // ...× 19mm tall
   // Display body sits to the RIGHT of the pin column, offset by 3 breadboard holes.
   const x = pinTop.x + w / 2 + (HOLE_SPACING * 3);
   const y = (pinTop.y + pinBot.y) / 2;
@@ -1512,7 +1525,7 @@ function SevenSegmentRenderer({ component, components, pinStates, wires, isSelec
   //   ├─g─┤
   //   e   c
   //   └─d─┘
-  const windowPad = 5;
+  const windowPad = 1.1 * PX_PER_MM;
   const wx = x - w / 2 + windowPad;
   const wy = y - h / 2 + windowPad;
   const ww = w - windowPad * 2 - 3; // leave room for DP on right
@@ -1520,8 +1533,8 @@ function SevenSegmentRenderer({ component, components, pinStates, wires, isSelec
 
   const segLen = ww - 4;
   const segH = (wh - 6) / 2 - 1;
-  const segThick = 2.8;
-  const bevel = 1.2;
+  const segThick = 1.6 * PX_PER_MM; // ~1.6mm segment width
+  const bevel = 0.65 * PX_PER_MM;
 
   // Horizontal segment: pointy trapezoid
   const horizSeg = (cx: number, cy: number): string => {
@@ -1635,7 +1648,7 @@ function SevenSegmentRenderer({ component, components, pinStates, wires, isSelec
       {(Object.keys(paths) as Array<keyof typeof paths>).map(seg => (
         <path key={`ghost-${seg}`} d={paths[seg]} fill={segOffColor} opacity={0.9} />
       ))}
-      <circle cx={dpX} cy={dpY} r={1.5} fill={segOffColor} opacity={0.9} />
+      <circle cx={dpX} cy={dpY} r={0.4 * PX_PER_MM} fill={segOffColor} opacity={0.9} />
 
       {/* Lit segments on top with glow */}
       {(Object.keys(paths) as Array<keyof typeof paths>).map(seg => lit[seg] && (
@@ -1646,12 +1659,12 @@ function SevenSegmentRenderer({ component, components, pinStates, wires, isSelec
       ))}
       {lit.dp && (
         <g filter={`url(#${glowId})`}>
-          <circle cx={dpX} cy={dpY} r={1.5} fill={segOnColor} />
+          <circle cx={dpX} cy={dpY} r={0.4 * PX_PER_MM} fill={segOnColor} />
         </g>
       )}
 
       {/* Decimal point */}
-      <circle cx={rightX + 3} cy={botY - 0.5} r={1.2} fill={segOffColor} />
+      <circle cx={rightX + 3} cy={botY - 0.5} r={0.3 * PX_PER_MM} fill={segOffColor} />
 
       {/* Component label */}
       <text x={x} y={y + h / 2 + 6} textAnchor="middle" fontSize={LABEL_FONT_SIZE} fill="#888" fontFamily="monospace">
@@ -1673,9 +1686,9 @@ function RelayRenderer({ component, pinStates, wires, isSelected }: {
   );
   const pinTop = pins[0];
   const pinBot = pins[2];
-  // PCB sits to the LEFT of the pin column
-  const pcbW = 42;
-  const pcbH = 36;
+  // PCB sits to the LEFT of the pin column. Single-channel module 43 × 26mm.
+  const pcbW = 43 * PX_PER_MM;  // 43mm wide
+  const pcbH = 26 * PX_PER_MM;  // ...× 26mm tall
   const pcbCx = pinTop.x - pcbW / 2 - 8;
   const pcbCy = (pinTop.y + pinBot.y) / 2;
   const pcbL = pcbCx - pcbW / 2;
@@ -1691,21 +1704,21 @@ function RelayRenderer({ component, pinStates, wires, isSelected }: {
   const energized =
     signalPin != null && pinStates[signalPin]?.digitalValue === 1;
 
-  // Relay cube (the blue SRD-05VDC-SL-C) sits in the lower-right of the PCB
-  const cubeW = 20;
-  const cubeH = 18;
-  const cubeL = pcbL + 4;
-  const cubeT = pcbT + 10;
+  // Blue SRD-05VDC-SL-C relay can (19 × 15.5mm) on the left half of the board
+  const cubeW = 19 * PX_PER_MM;
+  const cubeH = 15.5 * PX_PER_MM;
+  const cubeL = pcbL + 2 * PX_PER_MM;
+  const cubeT = pcbT + (pcbH - cubeH) / 2 + 1.5 * PX_PER_MM;
 
-  // Terminal block (green with 3 screw terminals) on the left edge
-  const tbW = 10;
-  const tbH = 22;
-  const tbL = pcbL + pcbW - tbW - 2;
-  const tbT = pcbT + 8;
+  // Green terminal block (3 screw terminals) on the right edge
+  const tbW = 7 * PX_PER_MM;
+  const tbH = 16 * PX_PER_MM;
+  const tbL = pcbL + pcbW - tbW - 1.5 * PX_PER_MM;
+  const tbT = pcbCy - tbH / 2;
 
-  // Status LED position
-  const ledX = pcbL + 6;
-  const ledY = pcbT + 5;
+  // Status LED position (top strip, between the can and the terminal block)
+  const ledX = pcbL + cubeW + 2 * PX_PER_MM;
+  const ledY = pcbT + 3 * PX_PER_MM;
   const ledColor = energized ? "#22c55e" : "#1f2937";
   const ledRim = energized ? "#86efac" : "#4b5563";
 
@@ -1713,10 +1726,10 @@ function RelayRenderer({ component, pinStates, wires, isSelected }: {
   const cubeGradId = `relay-cube-${component.id}`;
   const termGradId = `relay-term-${component.id}`;
   const glowId = `relay-glow-${component.id}`;
-  const contactPivotX = cubeL + 4;
-  const contactY = cubeT + cubeH - 4.5;
-  const contactEndX = cubeL + cubeW - 4;
-  const contactOpenY = contactY - 3.2;
+  const contactPivotX = cubeL + cubeW * 0.2;
+  const contactY = cubeT + cubeH - cubeH * 0.25;
+  const contactEndX = cubeL + cubeW - cubeW * 0.2;
+  const contactOpenY = contactY - cubeH * 0.18;
   const contactClosedY = contactY;
 
   return (
@@ -1761,22 +1774,22 @@ function RelayRenderer({ component, pinStates, wires, isSelected }: {
         strokeWidth={isSelected ? 1.5 : 0.8} />
 
       {/* Mounting holes (corners) */}
-      {[[pcbL + 3, pcbT + 3], [pcbL + pcbW - 3, pcbT + 3], [pcbL + 3, pcbT + pcbH - 3], [pcbL + pcbW - 3, pcbT + pcbH - 3]].map(([cx, cy], i) => (
+      {[[pcbL + 2.5 * PX_PER_MM, pcbT + 2.5 * PX_PER_MM], [pcbL + pcbW - 2.5 * PX_PER_MM, pcbT + 2.5 * PX_PER_MM], [pcbL + 2.5 * PX_PER_MM, pcbT + pcbH - 2.5 * PX_PER_MM], [pcbL + pcbW - 2.5 * PX_PER_MM, pcbT + pcbH - 2.5 * PX_PER_MM]].map(([cx, cy], i) => (
         <g key={i}>
-          <circle cx={cx} cy={cy} r={1.2} fill="#cbd5e1" />
-          <circle cx={cx} cy={cy} r={0.6} fill="#0f172a" />
+          <circle cx={cx} cy={cy} r={0.6 * PX_PER_MM} fill="#cbd5e1" />
+          <circle cx={cx} cy={cy} r={0.3 * PX_PER_MM} fill="#0f172a" />
         </g>
       ))}
 
       {/* Silkscreen label at top */}
-      <text x={x - 4} y={pcbT + 6} fontSize={2.8} fill="#dbeafe" fontFamily="monospace">RELAY 1CH</text>
+      <text x={pcbL + 2 * PX_PER_MM} y={pcbT + 3.2 * PX_PER_MM} fontSize={5} fill="#dbeafe" fontFamily="monospace">RELAY 1CH</text>
 
       {/* Status LED */}
-      <circle cx={ledX} cy={ledY} r={2.2} fill={ledRim} />
-      <circle cx={ledX} cy={ledY} r={1.5} fill={ledColor}
+      <circle cx={ledX} cy={ledY} r={0.55 * PX_PER_MM} fill={ledRim} />
+      <circle cx={ledX} cy={ledY} r={0.38 * PX_PER_MM} fill={ledColor}
         filter={energized ? `url(#${glowId})` : undefined} />
       {energized && (
-        <circle cx={ledX - 0.4} cy={ledY - 0.5} r={0.5} fill="#ffffff" opacity={0.7} />
+        <circle cx={ledX - 0.4} cy={ledY - 0.5} r={0.13 * PX_PER_MM} fill="#ffffff" opacity={0.7} />
       )}
 
       {/* Green terminal block with 3 screw terminals (NO / COM / NC) */}
@@ -1785,52 +1798,52 @@ function RelayRenderer({ component, pinStates, wires, isSelected }: {
         stroke="#064e3b" strokeWidth={0.5} />
       {/* Screw slots */}
       {[0, 1, 2].map(i => {
-        const sy = tbT + 4 + i * 7;
+        const sy = tbT + tbH * 0.18 + i * (tbH * 0.31);
         return (
           <g key={i}>
-            <circle cx={tbL + tbW / 2} cy={sy} r={2} fill="#9ca3af" stroke="#374151" strokeWidth={0.4} />
-            <circle cx={tbL + tbW / 2} cy={sy} r={1.4} fill="#6b7280" />
-            <line x1={tbL + tbW / 2 - 1.2} y1={sy} x2={tbL + tbW / 2 + 1.2} y2={sy}
-              stroke="#1f2937" strokeWidth={0.5} />
+            <circle cx={tbL + tbW / 2} cy={sy} r={tbW * 0.3} fill="#9ca3af" stroke="#374151" strokeWidth={0.5} />
+            <circle cx={tbL + tbW / 2} cy={sy} r={tbW * 0.21} fill="#6b7280" />
+            <line x1={tbL + tbW / 2 - tbW * 0.18} y1={sy} x2={tbL + tbW / 2 + tbW * 0.18} y2={sy}
+              stroke="#1f2937" strokeWidth={0.7} />
           </g>
         );
       })}
 
       {/* Relay cube body */}
-      <rect x={cubeL + 1} y={cubeT + 1.5} width={cubeW} height={cubeH} rx={0.8} fill="#00000050" />
-      <rect x={cubeL} y={cubeT} width={cubeW} height={cubeH} rx={0.8}
+      <rect x={cubeL + 1} y={cubeT + 1.5} width={cubeW} height={cubeH} rx={1.5} fill="#00000050" />
+      <rect x={cubeL} y={cubeT} width={cubeW} height={cubeH} rx={1.5}
         fill={`url(#${cubeGradId})`}
-        stroke="#0c1e4f" strokeWidth={0.6} />
+        stroke="#0c1e4f" strokeWidth={0.8} />
 
       {/* Top face of cube (perspective hint) */}
       <path
-        d={`M ${cubeL} ${cubeT} L ${cubeL + 2} ${cubeT - 1.5} L ${cubeL + cubeW + 2} ${cubeT - 1.5} L ${cubeL + cubeW} ${cubeT} Z`}
+        d={`M ${cubeL} ${cubeT} L ${cubeL + 0.5 * PX_PER_MM} ${cubeT - 0.4 * PX_PER_MM} L ${cubeL + cubeW + 0.5 * PX_PER_MM} ${cubeT - 0.4 * PX_PER_MM} L ${cubeL + cubeW} ${cubeT} Z`}
         fill="#60a5fa"
         opacity={0.85}
       />
 
       {/* Cube label — SRD-05VDC style */}
-      <text x={cubeL + cubeW / 2} y={cubeT + 5} textAnchor="middle" fontSize={2.8} fill="#dbeafe" fontFamily="monospace" fontWeight="bold">
+      <text x={cubeL + cubeW / 2} y={cubeT + cubeH * 0.24} textAnchor="middle" fontSize={5} fill="#dbeafe" fontFamily="monospace" fontWeight="bold">
         SRD-05
       </text>
-      <text x={cubeL + cubeW / 2} y={cubeT + 9} textAnchor="middle" fontSize={2.3} fill="#bfdbfe" fontFamily="monospace">
+      <text x={cubeL + cubeW / 2} y={cubeT + cubeH * 0.42} textAnchor="middle" fontSize={4} fill="#bfdbfe" fontFamily="monospace">
         VDC-SL-C
       </text>
       {/* Armature contact diagram — the arm snaps closed when the coil is
           energized. Purely mechanical: no glow, no sparking; the steady
           status LED is the electrical cue. */}
-      <circle cx={contactPivotX} cy={contactY} r={1} fill="#bfdbfe" opacity={0.8} />
-      <circle cx={contactEndX} cy={contactY} r={1} fill="#93c5fd" opacity={0.85} />
+      <circle cx={contactPivotX} cy={contactY} r={0.4 * PX_PER_MM} fill="#bfdbfe" opacity={0.8} />
+      <circle cx={contactEndX} cy={contactY} r={0.4 * PX_PER_MM} fill="#93c5fd" opacity={0.85} />
       <line
         x1={contactPivotX}
         y1={contactY}
         x2={contactEndX}
         y2={energized ? contactClosedY : contactOpenY}
         stroke="#bfdbfe"
-        strokeWidth={1.05}
+        strokeWidth={1.6}
         strokeLinecap="round"
       />
-      <text x={cubeL + cubeW / 2} y={cubeT + cubeH - 0.5} textAnchor="middle" fontSize={2} fill="#93c5fd" fontFamily="monospace">
+      <text x={cubeL + cubeW / 2} y={cubeT + cubeH - 1 * PX_PER_MM} textAnchor="middle" fontSize={3.5} fill="#93c5fd" fontFamily="monospace">
         {energized ? "CLOSED" : "OPEN"}
       </text>
 
@@ -1925,7 +1938,11 @@ function DcMotorRenderer({ component, pinStates, wires, isSelected }: {
   isSelected: boolean;
 }) {
   const { x, y } = gridToPixel({ row: component.y, col: component.x });
-  const radius = KNOB_RADIUS + 3;
+  // 130-size can lying on its side: 25mm long × 20.4mm dia (flat-sided oval).
+  // The spinning armature shows through a rotor window centred on the anchor.
+  const CAN_L = 25 * PX_PER_MM;   // 25mm long (horizontal)
+  const CAN_W = 20.4 * PX_PER_MM; // 20.4mm dia (vertical)
+  const ROTOR_R = 9 * PX_PER_MM;  // visible armature disc
 
   // Read PWM or digital value from signal pin — duty cycle drives spin speed.
   // Resolve from wiring since saved boards keep component.pins.signal null.
@@ -1996,38 +2013,30 @@ function DcMotorRenderer({ component, pinStates, wires, isSelected }: {
         </linearGradient>
       </defs>
 
-      {/* Drop shadow beneath body */}
-      <ellipse cx={x} cy={y + radius + 0.5} rx={radius - 1} ry={2} fill="#00000060" />
+      {/* Drop shadow beneath the can */}
+      <ellipse cx={x} cy={y + CAN_W / 2 + 1.5} rx={CAN_L / 2 - 2} ry={3} fill="#00000060" />
 
-      {/* Terminal tabs on top of the case */}
-      <rect x={x - 5} y={y - radius - 3} width={2.5} height={4} rx={0.4} fill="#c0c0c0" stroke="#525252" strokeWidth={0.3} />
-      <rect x={x + 2.5} y={y - radius - 3} width={2.5} height={4} rx={0.4} fill="#c0c0c0" stroke="#525252" strokeWidth={0.3} />
+      {/* Terminal tabs on the back (left) end */}
+      <rect x={x - CAN_L / 2 - 2.6 * PX_PER_MM} y={y - 2.6 * PX_PER_MM} width={2.6 * PX_PER_MM} height={1.8 * PX_PER_MM} rx={0.5} fill="#c0c0c0" stroke="#525252" strokeWidth={0.4} />
+      <rect x={x - CAN_L / 2 - 2.6 * PX_PER_MM} y={y + 0.8 * PX_PER_MM} width={2.6 * PX_PER_MM} height={1.8 * PX_PER_MM} rx={0.5} fill="#c0c0c0" stroke="#525252" strokeWidth={0.4} />
 
-      {/* Shaft (sticks out the top) */}
-      <rect x={x - 1.3} y={y - radius - 8} width={2.6} height={8} rx={0.5}
-        fill={`url(#${shaftGradId})`} stroke="#44403c" strokeWidth={0.3} />
+      {/* Output shaft — 9.4 × 2mm out the front (right) end */}
+      <rect x={x + CAN_L / 2} y={y - 1 * PX_PER_MM} width={9.4 * PX_PER_MM} height={2 * PX_PER_MM} rx={1}
+        fill={`url(#${shaftGradId})`} stroke="#44403c" strokeWidth={0.4} />
 
-      {/* Motor case — main cylinder */}
-      <circle cx={x} cy={y} r={radius}
+      {/* Motor can — flat-sided oval (stadium), 25 × 20.4mm */}
+      <rect x={x - CAN_L / 2} y={y - CAN_W / 2} width={CAN_L} height={CAN_W} rx={CAN_W / 2} ry={CAN_W / 2}
         fill={`url(#${caseGradId})`}
         stroke={isSelected ? "#3b82f6" : "#1f2937"}
-        strokeWidth={isSelected ? 1.5 : 0.8} />
+        strokeWidth={isSelected ? 1.8 : 1} />
 
-      {/* Crimp ring (where the case is rolled closed) */}
-      <circle cx={x} cy={y} r={radius - 1} fill="none" stroke="#1f2937" strokeWidth={0.4} opacity={0.6} />
+      {/* Crimp seams near each end of the can */}
+      <line x1={x - CAN_L / 2 + CAN_W * 0.5} y1={y - CAN_W / 2 + 3} x2={x - CAN_L / 2 + CAN_W * 0.5} y2={y + CAN_W / 2 - 3} stroke="#1f2937" strokeWidth={0.6} opacity={0.5} />
+      <line x1={x + CAN_L / 2 - CAN_W * 0.5} y1={y - CAN_W / 2 + 3} x2={x + CAN_L / 2 - CAN_W * 0.5} y2={y + CAN_W / 2 - 3} stroke="#1f2937" strokeWidth={0.6} opacity={0.5} />
 
-      {/* Ventilation slot — arc on the side */}
-      <path
-        d={`M ${x - radius + 3} ${y - 2} A ${radius - 3} ${radius - 3} 0 0 0 ${x - radius + 3} ${y + 2}`}
-        fill="none" stroke="#0f172a" strokeWidth={1} opacity={0.8}
-      />
-      <path
-        d={`M ${x + radius - 3} ${y - 2} A ${radius - 3} ${radius - 3} 0 0 1 ${x + radius - 3} ${y + 2}`}
-        fill="none" stroke="#0f172a" strokeWidth={1} opacity={0.8}
-      />
-
-      {/* Inner recess — shows the rotor when viewed head-on */}
-      <circle cx={x} cy={y} r={radius - 3} fill={`url(#${innerGradId})`} stroke="#0f172a" strokeWidth={0.4} />
+      {/* Rotor window (front-bell opening) showing the armature */}
+      <circle cx={x} cy={y} r={ROTOR_R + 2} fill="#0f172a" opacity={0.6} />
+      <circle cx={x} cy={y} r={ROTOR_R} fill={`url(#${innerGradId})`} stroke="#0f172a" strokeWidth={0.6} />
 
       {/* Rotor / armature: running state spins a copper winding disk over a
           static glow gradient. No SVG filters here — re-rasterizing a blur on
@@ -2038,7 +2047,7 @@ function DcMotorRenderer({ component, pinStates, wires, isSelected }: {
             <circle
               cx={x}
               cy={y}
-              r={radius - 3.4}
+              r={ROTOR_R * 0.96}
               fill={`url(#${motionGradId})`}
               opacity={motionOpacity}
             />
@@ -2046,20 +2055,20 @@ function DcMotorRenderer({ component, pinStates, wires, isSelected }: {
               ref={ringRef}
               cx={x}
               cy={y}
-              r={radius - 4}
+              r={ROTOR_R * 0.9}
               fill="none"
               stroke="#fef3c7"
-              strokeWidth={0.7}
-              strokeDasharray="2 3"
+              strokeWidth={1}
+              strokeDasharray="4 6"
               opacity={0.55}
             />
             <g ref={copperRef}>
                 {[0, 120, 240].map((angle, i) => {
                   const rad = (angle * Math.PI) / 180;
-                  const tip = radius - 4.2;
-                  const ctrl = radius * 0.35;
-                  const x1 = x + Math.cos(rad - 0.22) * 2.1;
-                  const y1 = y + Math.sin(rad - 0.22) * 2.1;
+                  const tip = ROTOR_R * 0.88;
+                  const ctrl = ROTOR_R * 0.46;
+                  const x1 = x + Math.cos(rad - 0.22) * ROTOR_R * 0.21;
+                  const y1 = y + Math.sin(rad - 0.22) * ROTOR_R * 0.21;
                   const cx1 = x + Math.cos(rad + 0.42) * ctrl;
                   const cy1 = y + Math.sin(rad + 0.42) * ctrl;
                   const x2 = x + Math.cos(rad) * tip;
@@ -2070,7 +2079,7 @@ function DcMotorRenderer({ component, pinStates, wires, isSelected }: {
                       d={`M ${x1} ${y1} Q ${cx1} ${cy1} ${x2} ${y2}`}
                       fill="none"
                       stroke={windingStroke}
-                      strokeWidth={2.2}
+                      strokeWidth={4}
                       strokeLinecap="round"
                       opacity={windingOpacity}
                     />
@@ -2078,8 +2087,8 @@ function DcMotorRenderer({ component, pinStates, wires, isSelected }: {
                 })}
                 {[60, 180, 300].map((angle, i) => {
                   const rad = (angle * Math.PI) / 180;
-                  const x2 = x + Math.cos(rad) * (radius - 5.5);
-                  const y2 = y + Math.sin(rad) * (radius - 5.5);
+                  const x2 = x + Math.cos(rad) * (ROTOR_R * 0.72);
+                  const y2 = y + Math.sin(rad) * (ROTOR_R * 0.72);
                   return (
                     <line
                       key={i}
@@ -2088,34 +2097,23 @@ function DcMotorRenderer({ component, pinStates, wires, isSelected }: {
                       x2={x2}
                       y2={y2}
                       stroke="#fef3c7"
-                      strokeWidth={0.8}
+                      strokeWidth={1.4}
                       strokeLinecap="round"
                       opacity={Math.min(0.48, windingOpacity)}
                     />
                   );
                 })}
-                <circle cx={x} cy={y} r={3} fill={`url(#${copperGradId})`} stroke="#fef3c7" strokeWidth={0.55} />
-                <circle cx={x} cy={y} r={1.1} fill="#111827" opacity={0.75} />
+                <circle cx={x} cy={y} r={ROTOR_R * 0.3} fill={`url(#${copperGradId})`} stroke="#fef3c7" strokeWidth={1} />
+                <circle cx={x} cy={y} r={ROTOR_R * 0.12} fill="#111827" opacity={0.75} />
             </g>
-            {[0, 1, 2].map((i) => (
-              <path
-                key={i}
-                d={`M ${x - radius - 4 - i * 2} ${y - 4 + i * 4} C ${x - radius - 9 - i * 2} ${y - 7 + i * 3}, ${x - radius - 9 - i * 2} ${y + 7 - i * 3}, ${x - radius - 4 - i * 2} ${y + 4 - i * 4}`}
-                fill="none"
-                stroke="#fbbf24"
-                strokeWidth={0.65}
-                strokeLinecap="round"
-                opacity={0.14 + duty * 0.28}
-              />
-            ))}
           </>
         ) : (
           <g>
             {/* Static rotor when stopped */}
             {[0, 120, 240].map((angle, i) => {
               const rad = (angle * Math.PI) / 180;
-              const x2 = x + Math.cos(rad) * (radius - 4);
-              const y2 = y + Math.sin(rad) * (radius - 4);
+              const x2 = x + Math.cos(rad) * (ROTOR_R * 0.9);
+              const y2 = y + Math.sin(rad) * (ROTOR_R * 0.9);
               return (
                 <line
                   key={i}
@@ -2124,34 +2122,34 @@ function DcMotorRenderer({ component, pinStates, wires, isSelected }: {
                   x2={x2}
                   y2={y2}
                   stroke="#6b7280"
-                  strokeWidth={1.2}
+                  strokeWidth={2}
                   strokeLinecap="round"
                   opacity={0.7}
                 />
               );
             })}
-            <circle cx={x} cy={y} r={1.5} fill="#9ca3af" />
+            <circle cx={x} cy={y} r={ROTOR_R * 0.15} fill="#9ca3af" />
           </g>
         )}
       </g>
 
-      {/* Motor embossed "M" label (above the case, small) */}
-      <text x={x} y={y + radius + 4} textAnchor="middle" fontSize={3.5} fill="#9ca3af" fontFamily="monospace" fontWeight="bold">
+      {/* Motor embossed "M" label (below the can) */}
+      <text x={x} y={y + CAN_W / 2 + 14} textAnchor="middle" fontSize={6} fill="#9ca3af" fontFamily="monospace" fontWeight="bold">
         MOTOR
       </text>
 
       {/* Duty readout */}
       {isSpinning && (
-        <text x={x} y={y + radius + 10} textAnchor="middle" fontSize={3.5} fill="#fbbf24" fontFamily="monospace">
+        <text x={x} y={y + CAN_W / 2 + 26} textAnchor="middle" fontSize={6} fill="#fbbf24" fontFamily="monospace">
           {Math.round(duty * 100)}% • {spinPeriod}s
         </text>
       )}
 
       {/* Signal pin header below */}
-      <line x1={x} y1={y + radius + 12} x2={x} y2={y + radius + 17} stroke="#c0c0c0" strokeWidth={1.3} strokeLinecap="round" />
+      <line x1={x} y1={y + CAN_W / 2 + 30} x2={x} y2={y + CAN_W / 2 + 37} stroke="#c0c0c0" strokeWidth={1.3} strokeLinecap="round" />
 
-      <PinLabel x={x} y={y + radius + 17} name="signal" side="below" />
-      <text x={x} y={y + radius + 23} textAnchor="middle" fontSize={LABEL_FONT_SIZE} fill="#888" fontFamily="monospace">
+      <PinLabel x={x} y={y + CAN_W / 2 + 37} name="signal" side="below" />
+      <text x={x} y={y + CAN_W / 2 + 46} textAnchor="middle" fontSize={LABEL_FONT_SIZE} fill="#888" fontFamily="monospace">
         {component.name}
       </text>
     </g>
@@ -2164,19 +2162,18 @@ function DhtSensorRenderer({ component, isSelected }: { component: BoardComponen
   const pinData = gridToPixel({ row: component.y + 1, col: component.x });
   const pinGnd  = gridToPixel({ row: component.y + 2, col: component.x });
 
-  // DHT11 blue rectangular housing, body sits to the LEFT of the pin column.
-  // Real DHT11: ~15.5 mm wide × 12 mm tall. With HOLE_SPACING=14 (≈2.54mm),
-  // that's roughly 4 cells × 3 cells — matching the declared footprint.
-  const bW  = HOLE_SPACING * 3.7;   // ~52 px
-  const bH  = HOLE_SPACING * 2.8;   // ~39 px
+  // DHT11 blue grille housing, body sits to the LEFT of the pin column.
+  // Real DHT11 case is 12mm wide × 15.5mm tall (portrait), drawn at true size.
+  const bW  = 12 * PX_PER_MM;    // 12mm wide
+  const bH  = 15.5 * PX_PER_MM;  // ...× 15.5mm tall
   const bodyCx = pinData.x - bW / 2 - 10;
   const bodyCy = pinData.y;
   const bL  = bodyCx - bW / 2;
   const bT  = bodyCy - bH / 2;
 
-  // Sensing grille area (top 45% of front face)
+  // Sensing grille area (top ~55% of front face)
   const grilleT = bT + 4;
-  const grilleH = bH * 0.45;
+  const grilleH = bH * 0.55;
   const grilleL = bL + 4;
   const grilleW = bW - 8;
   // Label area (bottom portion)
@@ -2259,12 +2256,12 @@ function DhtSensorRenderer({ component, isSelected }: { component: BoardComponen
       />
 
       {/* Silkscreen text: part number + manufacturer */}
-      <text x={bodyCx} y={labelT + 5} textAnchor="middle"
-        fontSize={5} fill="#a5e8f7" fontFamily="monospace" fontWeight="bold">
+      <text x={bodyCx} y={labelT + 6} textAnchor="middle"
+        fontSize={6.5} fill="#a5e8f7" fontFamily="monospace" fontWeight="bold">
         DHT11
       </text>
-      <text x={bodyCx} y={labelT + 11} textAnchor="middle"
-        fontSize={3.4} fill="#5bc8e2" fontFamily="monospace">
+      <text x={bodyCx} y={labelT + 13} textAnchor="middle"
+        fontSize={4.5} fill="#5bc8e2" fontFamily="monospace">
         AOSONG
       </text>
 
@@ -2310,15 +2307,15 @@ function ShiftRegisterRenderer({ component, isSelected }: { component: BoardComp
   const bottomLeft = leftPins[rowCount - 1];
   const topRight   = rightPins[0];  // highest row on right = row 7 (bottom)
 
-  // IC body spans between the two pin columns, with small margin
-  const legLen = 4; // length of the flat gull-wing leg stub
-  const bodyL = topLeft.x + legLen;
-  const bodyR = topRight.x - legLen;
-  const bodyW = bodyR - bodyL;
-  const bodyT = topLeft.y - HOLE_SPACING / 2;
-  const bodyH = (rowCount - 1) * HOLE_SPACING + HOLE_SPACING;
-
-  const bodyCx = bodyL + bodyW / 2;
+  // DIP-16 body: 6.35mm wide (0.25"), 19mm long, centred between the two pin
+  // columns. Legs bridge from each body edge out to the pin holes.
+  const bodyW = 6.35 * PX_PER_MM;   // DIP-16 body width
+  const bodyH = 19 * PX_PER_MM;     // ...× 19mm long
+  const midX = (topLeft.x + topRight.x) / 2;
+  const bodyL = midX - bodyW / 2;
+  const bodyR = midX + bodyW / 2;
+  const bodyCx = midX;
+  const bodyT = (topLeft.y + bottomLeft.y) / 2 - bodyH / 2;
 
   const bodyGradId   = `sr-body-${component.id}`;
   const legGradId    = `sr-leg-${component.id}`;
@@ -2391,26 +2388,26 @@ function ShiftRegisterRenderer({ component, isSelected }: { component: BoardComp
 
       {/* Pin 1 notch — semicircular indentation at top centre */}
       <path
-        d={`M ${bodyCx - 4} ${bodyT} A 4 4 0 0 0 ${bodyCx + 4} ${bodyT}`}
+        d={`M ${bodyCx - 1.2 * PX_PER_MM} ${bodyT} A ${1.2 * PX_PER_MM} ${1.2 * PX_PER_MM} 0 0 0 ${bodyCx + 1.2 * PX_PER_MM} ${bodyT}`}
         fill="#0d0d0d"
         stroke="#555" strokeWidth={0.5}
       />
 
       {/* Pin 1 dot — top-left corner of body */}
-      <circle cx={bodyL + 4} cy={bodyT + 5} r={1.2} fill="#5a8a5a" opacity={0.9} />
+      <circle cx={bodyL + 1.1 * PX_PER_MM} cy={bodyT + 1.4 * PX_PER_MM} r={0.35 * PX_PER_MM} fill="#5a8a5a" opacity={0.9} />
 
       {/* Silkscreen text — two lines centred on body */}
       <text x={bodyCx} y={bodyT + bodyH / 2 - 3} textAnchor="middle"
-        fontSize={4} fill="#c8c8c8" fontFamily="monospace" fontWeight="bold">
+        fontSize={4.5} fill="#c8c8c8" fontFamily="monospace" fontWeight="bold">
         74HC595
       </text>
       <text x={bodyCx} y={bodyT + bodyH / 2 + 3.5} textAnchor="middle"
-        fontSize={2.8} fill="#909090" fontFamily="monospace">
+        fontSize={3} fill="#909090" fontFamily="monospace">
         SN74HC595N
       </text>
       {/* Manufacturer dot / date code area */}
       <text x={bodyCx} y={bodyT + bodyH / 2 + 9} textAnchor="middle"
-        fontSize={2.4} fill="#606060" fontFamily="monospace">
+        fontSize={2.6} fill="#606060" fontFamily="monospace">
         TI  2023
       </text>
 
@@ -2453,9 +2450,9 @@ function OledRenderer({ component, isSelected, libraryState }: { component: Boar
   const pinBot = pins[3];
 
   // PCB body (navy/dark-blue) sits to the LEFT of the pin column.
-  // Real SSD1306 0.96" module: ~27mm × 27mm PCB, ~21mm × 11mm display area.
-  const w = 60;
-  const h = (pinBot.y - pinTop.y) + 16;
+  // Real SSD1306 0.96" module: 27.3 × 27.8mm PCB, 21.7 × 10.9mm display area.
+  const w = 27.3 * PX_PER_MM;  // PCB 27.3mm wide
+  const h = 27.8 * PX_PER_MM;  // ...× 27.8mm tall
   const bodyCx = pinTop.x - w / 2 - 10;
   const bodyCy = (pinTop.y + pinBot.y) / 2;
   const bodyL = bodyCx - w / 2;
@@ -2464,22 +2461,17 @@ function OledRenderer({ component, isSelected, libraryState }: { component: Boar
   // 4-pin header row sits along the RIGHT edge of the PCB
   const headerX = bodyL + w;   // right edge of PCB = pin header column
 
-  // Display glass occupies the top ~60% of the PCB, centred
-  const dispMarL = 4;
-  const dispMarT = 5;
-  const dispMarR = 4;
-  const dispMarB = Math.round(h * 0.38);  // leave ~38% at bottom for labels/traces
-  const screenL = bodyL + dispMarL;
-  const screenT = bodyT + dispMarT;
-  const screenW = w - dispMarL - dispMarR;
-  const screenH = h - dispMarT - dispMarB;
-
-  // Glass bezel (slightly larger than active area)
-  const bezelInset = 1;
-  const activeL = screenL + bezelInset;
-  const activeT = screenT + bezelInset;
-  const activeW = screenW - bezelInset * 2;
-  const activeH = screenH - bezelInset * 2;
+  // Active OLED glass at true SSD1306 size (21.7 × 10.9mm), seated near the top
+  // of the PCB; a small dark bezel frames it.
+  const activeW = 21.7 * PX_PER_MM;  // active area 21.7mm wide
+  const activeH = 10.9 * PX_PER_MM;  // ...× 10.9mm tall
+  const activeL = bodyCx - activeW / 2;
+  const activeT = bodyT + 5 * PX_PER_MM;
+  const bezelInset = 1.5 * PX_PER_MM;
+  const screenL = activeL - bezelInset;
+  const screenT = activeT - bezelInset;
+  const screenW = activeW + 2 * bezelInset;
+  const screenH = activeH + 2 * bezelInset;
 
   const pinNames = ["GND", "VCC", "SCL", "SDA"];
 
@@ -2534,10 +2526,10 @@ function OledRenderer({ component, isSelected, libraryState }: { component: Boar
         strokeWidth={isSelected ? 1.5 : 0.7} />
 
       {/* Mounting-hole circles (corner pads, visual only) */}
-      {[[bodyL + 3, bodyT + 3], [bodyL + w - 3, bodyT + 3]].map(([hx, hy], i) => (
+      {[[bodyL + 2.5 * PX_PER_MM, bodyT + 2.5 * PX_PER_MM], [bodyL + w - 2.5 * PX_PER_MM, bodyT + 2.5 * PX_PER_MM], [bodyL + 2.5 * PX_PER_MM, bodyT + h - 2.5 * PX_PER_MM], [bodyL + w - 2.5 * PX_PER_MM, bodyT + h - 2.5 * PX_PER_MM]].map(([hx, hy], i) => (
         <g key={i}>
-          <circle cx={hx} cy={hy} r={2.2} fill="#0d1730" stroke="#2a4a8a" strokeWidth={0.4} />
-          <circle cx={hx} cy={hy} r={1.2} fill="#0a1220" />
+          <circle cx={hx} cy={hy} r={1.1 * PX_PER_MM} fill="#0d1730" stroke="#2a4a8a" strokeWidth={0.5} />
+          <circle cx={hx} cy={hy} r={0.6 * PX_PER_MM} fill="#0a1220" />
         </g>
       ))}
 
@@ -2565,12 +2557,12 @@ function OledRenderer({ component, isSelected, libraryState }: { component: Boar
       ) : (
         <>
           <text x={activeL + activeW / 2} y={activeT + activeH * 0.38}
-            textAnchor="middle" fontSize={3.8}
+            textAnchor="middle" fontSize={5.5}
             fill="#06b6d4" fontFamily="monospace" opacity={0.9}>
             128×64
           </text>
           <text x={activeL + activeW / 2} y={activeT + activeH * 0.65}
-            textAnchor="middle" fontSize={3}
+            textAnchor="middle" fontSize={4.5}
             fill="#0891b2" fontFamily="monospace" opacity={0.7}>
             SSD1306
           </text>
@@ -2588,12 +2580,12 @@ function OledRenderer({ component, isSelected, libraryState }: { component: Boar
         fill={`url(#${glassGradId})`} />
 
       {/* Silkscreen: I2C label + pin names along header edge */}
-      <text x={bodyL + 4} y={bodyT + h - 3} textAnchor="start"
-        fontSize={2.4} fill="#4a6aa0" fontFamily="monospace">
+      <text x={bodyL + 2.5 * PX_PER_MM} y={bodyT + h - 2.5 * PX_PER_MM} textAnchor="start"
+        fontSize={4} fill="#4a6aa0" fontFamily="monospace">
         I2C 0x3C
       </text>
-      <text x={bodyL + w - 4} y={bodyT + h - 3} textAnchor="end"
-        fontSize={2.4} fill="#3a5a80" fontFamily="monospace">
+      <text x={bodyL + w - 2.5 * PX_PER_MM} y={bodyT + h - 2.5 * PX_PER_MM} textAnchor="end"
+        fontSize={4} fill="#3a5a80" fontFamily="monospace">
         0.96"
       </text>
 

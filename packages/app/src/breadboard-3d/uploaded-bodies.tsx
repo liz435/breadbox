@@ -25,6 +25,7 @@ import {
   registerBodyMaterials,
   registerBodyMixer,
   registerBodyRoot,
+  registerBodyVolumeRoot,
   subscribeRegistry,
 } from "./scene-registry"
 import { useEditor } from "./editor-state"
@@ -221,6 +222,10 @@ export function BodyNode({
     if (!rootRef.current) return
     return registerBodyRoot(body.id, rootRef.current)
   }, [body.id])
+  useLayoutEffect(() => {
+    if (!rootRef.current) return
+    return registerBodyVolumeRoot(body.id, rootRef.current)
+  }, [body.id])
   const content = (
     <>
       <BodyModel body={body} />
@@ -233,6 +238,7 @@ export function BodyNode({
     <group
       ref={rootRef}
       name={`assembly-body-${body.id}`}
+      visible={!body.hidden}
       position={body.transform.position}
       rotation={body.transform.rotation}
       scale={scaleToVec3(body.transform.scale)}
@@ -252,15 +258,20 @@ export function BodyNode({
   )
 }
 
-/** Resolve the Object3D a component-parented body mounts into. */
+/** Resolve the Object3D a component-parented body mounts into. Moving nodes
+ *  prefer the part's unit-scale mount anchor (which rides the motion but cancels
+ *  the model's normalize scale) over the raw angle/spin node — mounting on the
+ *  raw scaled node bakes an extreme fraction into the body's transform and it
+ *  renders invisibly small. Falls back to the raw node for parts (procedural
+ *  servo/motor) already built at mm scale. */
 export function componentTarget(
   componentId: string,
   node: "body" | "angle" | "spin",
 ): Object3D | undefined {
   const nodes = getPartNodes(componentId)
   if (!nodes) return undefined
-  if (node === "angle") return nodes.angleNode
-  if (node === "spin") return nodes.spinNode
+  if (node === "angle") return nodes.mountNode ?? nodes.angleNode
+  if (node === "spin") return nodes.mountNode ?? nodes.spinNode
   return nodes.rootNode
 }
 

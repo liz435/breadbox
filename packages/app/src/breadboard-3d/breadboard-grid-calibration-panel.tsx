@@ -11,7 +11,7 @@ import { useEffect, useState } from "react"
 import { toast } from "@/components/ui/toast"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/utils/classnames"
-import { setBreadboardCalibrating } from "./breadboard-calibration"
+import { resetBreadboardTransform, setBreadboardCalibrating } from "./breadboard-calibration"
 import {
   anchorLabel,
   anchorXZ,
@@ -179,8 +179,12 @@ export function BreadboardGridCalibrationPanel() {
           size="sm"
           variant="secondary"
           onClick={() => {
+            // The hole grid and the board's own scale/position live in two stores.
+            // Reset BOTH — resetting only the grid leaves the board running off a
+            // stale saved transform, so the (correct) grid ends up off the board.
             resetGridCalibration()
-            toast.success("Grid reset to baked")
+            resetBreadboardTransform()
+            toast.success("Grid + board reset to baked")
           }}
         >
           Reset to baked

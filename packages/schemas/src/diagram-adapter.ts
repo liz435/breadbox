@@ -451,12 +451,13 @@ export function diagramToBoardState(
   const boardState: BoardState = {
     components,
     wires,
-    libraryState: { servos: {}, steppers: {}, lcd: null, serialBaud: 0, oled: {}, neopixels: {}, custom: {} },
+    libraryState: { servos: {}, steppers: {}, lcd: null, serialBaud: 0, oled: {}, neopixels: {}, relays: {}, motors: {}, custom: {} },
     serialOutput: [],
     sketchCode: diagram.sketch || DEFAULT_SKETCH_CODE,
     customLibraries,
     boardTarget,
     environment,
+    realismProfile: "learn",
     // Diagrams don't describe the 3D assembly layer — leave it absent so the
     // apply paths (load_board op, LOAD_BOARD event, diagram CLI) carry the
     // previous board's assembly forward via repairAssemblyForComponents.

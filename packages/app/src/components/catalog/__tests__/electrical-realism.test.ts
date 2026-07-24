@@ -10,9 +10,12 @@ import type { BoardComponent, PinState, Wire } from "@dreamer/schemas"
 import { createDefaultPinStates } from "@dreamer/schemas"
 import type { NetlistContext } from "@/components/component-definition"
 import { relay } from "@/components/catalog/relay"
+import { servo } from "@/components/catalog/servo"
 import { photoresistor } from "@/components/catalog/photoresistor"
 import { rgbLed } from "@/components/catalog/rgb-led"
 import { sevenSegment } from "@/components/catalog/seven-segment"
+import { temperatureSensor } from "@/components/catalog/temperature-sensor"
+import { dcMotor } from "@/components/catalog/dc-motor"
 
 function makeCtx(
   def: { footprint: (row: number, col: number, props?: Record<string, unknown>) => NetlistContext["footprint"] },
@@ -78,12 +81,14 @@ describe("relay — switched contacts in the netlist", () => {
     expect(lines.find((l) => l.includes("_nc"))).toContain("0.01")
   })
 
-  test("un-wired contacts stay inert (pre-contact-pin boards)", () => {
+  test("un-wired contacts remain open while the powered coil draws its modeled current", () => {
     const comp = makeRelay()
     const ctx = makeCtx(relay, comp, {
       pinStates: pinStatesWith([{ pin: 7, mode: "OUTPUT", digitalValue: 1 }]),
     })
-    expect(relay.buildNetlist?.(comp, ctx)).toBeNull()
+    const lines = relay.buildNetlist?.(comp, ctx)?.lines ?? []
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).toContain(" 70")
   })
 
   test("coil resolved from wire topology when comp.pins.out is unset", () => {
@@ -99,6 +104,74 @@ describe("relay — switched contacts in the netlist", () => {
     })
     const lines = relay.buildNetlist?.(comp, ctx)?.lines ?? []
     expect(lines.find((l) => l.includes("_no"))).toContain("0.01")
+  })
+
+  test("a HIGH control pin cannot close contacts when the coil has no supply topology", () => {
+    const comp = makeRelay()
+    const ctx = makeCtx(relay, comp, {
+      wires: COM_WIRE,
+      pinStates: pinStatesWith([{ pin: 7, mode: "OUTPUT", digitalValue: 1 }]),
+    })
+    // Supplying the complete board activates the power-aware path. It has no
+    // VCC/GND source, so COM stays on NC despite the GPIO command.
+    ctx.components = { [comp.id]: comp }
+    const lines = relay.buildNetlist?.(comp, ctx)?.lines ?? []
+    expect(lines.find((l) => l.includes("_no"))).toContain("10000000")
+    expect(lines.find((l) => l.includes("_nc"))).toContain("0.01")
+  })
+})
+
+describe("servo — controller power load", () => {
+  test("emits a standby load between VCC and GND", () => {
+    const comp: BoardComponent = {
+      id: "servo-1", type: "servo", name: "Servo", x: 1, y: 2, rotation: 0,
+      pins: { signal: null, vcc: null, gnd: null }, properties: {},
+    }
+    const lines = servo.buildNetlist?.(comp, makeCtx(servo, comp))?.lines ?? []
+    expect(lines).toEqual(["R_servo_1 n_3_1 n_4_1 330"])
+  })
+
+  test("uses the elevated moving load from the peripheral snapshot", () => {
+    const comp: BoardComponent = {
+      id: "servo-1", type: "servo", name: "Servo", x: 1, y: 2, rotation: 0,
+      pins: { signal: null, vcc: null, gnd: null }, properties: {},
+    }
+    const ctx = makeCtx(servo, comp)
+    ctx.peripheralStates = {
+      "servo-1": { kind: "servo", pin: 9, angle: 120, attached: true, moving: true },
+    }
+    expect(servo.buildNetlist?.(comp, ctx)?.lines).toEqual(["R_servo_1 n_3_1 n_4_1 30"])
+  })
+})
+
+describe("TMP36 — supply-referenced analog source", () => {
+  test("emits a finite-impedance temperature output, quiescent supply load, and VCC clamp", () => {
+    const comp: BoardComponent = {
+      id: "tmp-1", type: "temperature_sensor", name: "TMP36", x: 1, y: 2, rotation: 0,
+      pins: { vcc: null, signal: null, gnd: null }, properties: { temperature: 25 },
+    }
+    const out = temperatureSensor.buildNetlist?.(comp, makeCtx(temperatureSensor, comp))
+    expect(out?.lines).toContain("R_tmp_1_iq n_2_1 n_4_1 200000")
+    expect(out?.lines).toContain("V_tmp_1_temp tmp36_tmp_1_raw n_4_1 0.75")
+    expect(out?.lines).toContain("R_tmp_1_out tmp36_tmp_1_raw n_3_1 200")
+    expect(out?.lines.some((line) => line.startsWith("D_tmp_1_clamp n_3_1 n_2_1"))).toBe(true)
+    expect(out?.modelLines?.[0]).toContain(".model DTMP36_tmp_1 D(")
+  })
+})
+
+describe("DC motor — stateful back-EMF", () => {
+  test("emits zero back-EMF at standstill and opposing EMF as the rotor accelerates", () => {
+    const comp: BoardComponent = {
+      id: "motor-1", type: "dc_motor", name: "Motor", x: 1, y: 2, rotation: 0,
+      pins: { signal: null }, properties: {},
+    }
+    const stopped = dcMotor.buildNetlist?.(comp, makeCtx(dcMotor, comp))?.lines ?? []
+    expect(stopped.find((line) => line.startsWith("V_motor_1_bemf"))).toContain(" 0")
+
+    const ctx = makeCtx(dcMotor, comp)
+    ctx.peripheralStates = { "motor-1": { kind: "dc_motor", pin: 9, speed: 0.5, moving: true } }
+    const spinning = dcMotor.buildNetlist?.(comp, ctx)?.lines ?? []
+    expect(spinning.find((line) => line.startsWith("V_motor_1_bemf"))).toContain(" 2.1")
   })
 })
 

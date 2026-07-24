@@ -40,6 +40,7 @@ ctx.onmessage = (event) => {
       shiftRegisterOutputs: msg.shiftRegisterOutputs
         ? new Map(msg.shiftRegisterOutputs)
         : undefined,
+      peripheralStates: msg.peripheralStates,
       mcuTimeSeconds: msg.mcuTimeSeconds,
     })
     ctx.postMessage({

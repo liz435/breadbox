@@ -11,7 +11,11 @@ import {
   BOARD_TARGETS,
   DEFAULT_BOARD_TARGET,
   type BoardState,
+  type RealismProfile,
 } from "@dreamer/schemas"
+import { analyzeCircuit } from "../../simulator/circuit-solver"
+import { PowerDomain } from "../../simulator/power-domain"
+import { powerModelFor } from "../../simulator/power-model"
 import { createAvrSketchRunner } from "../../simulator/runners/avr-runner"
 import { PinStateStore } from "../../simulator/pin-state-store"
 import { applySensorInputs, resetSensorBuses } from "../../simulator/sensor-inputs"
@@ -36,6 +40,22 @@ export type HeadlessObservations = {
   oledLitPixels: number
   /** Final LCD text (all rows joined with newlines). */
   lcdText: string
+  /** Fastest DC-motor rotor speed (0..1) observed during the run. */
+  dcMotorMaxSpeed: number
+}
+
+export type HeadlessRunOptions = {
+  /**
+   * Realism profile to simulate under. Defaults to "learn", which leaves the
+   * power gate off exactly as the app does.
+   *
+   * In "electrical"/"hardware" the harness runs the operating-point solve and
+   * pushes solved supply state into the peripheral bus each iteration, the
+   * same sequence as simulation-loop. Without this the harness never exercises
+   * the power model at all — which is why a peripheral wrongly reported as
+   * unpowered could pass the whole suite.
+   */
+  realismProfile?: RealismProfile
 }
 
 export type HeadlessRunResult = {
@@ -72,9 +92,12 @@ export function runBoardHeadless(
   board: BoardState,
   hex: string,
   simulateMs: number,
+  options: HeadlessRunOptions = {},
 ): HeadlessRunResult {
   resetSensorBuses()
   const store = new PinStateStore()
+  const realismProfile = options.realismProfile ?? "learn"
+  const powerDomain = new PowerDomain()
 
   let serial = ""
   const runtimeErrors: string[] = []
@@ -113,6 +136,7 @@ export function runBoardHeadless(
     neopixelMaxLitPixels: 0,
     oledLitPixels: 0,
     lcdText: "",
+    dcMotorMaxSpeed: 0,
   }
 
   let servoAngleMin = Number.POSITIVE_INFINITY
@@ -177,10 +201,41 @@ export function runBoardHeadless(
         }
       }
     }
+    // Solve the operating point and hand the peripherals their supply state,
+    // mirroring simulation-loop. Learn mode skips it, matching the app.
+    const applyPowerGate = (): void => {
+      if (realismProfile === "learn") return
+      const analysis = analyzeCircuit(
+        board.components,
+        board.wires,
+        snapshotAsPinStates(store),
+        undefined,
+        { peripheralStates: bus.snapshot() },
+      )
+      // Deliberately not gated on isValid — simulation-loop applies power
+      // state from any result it gets. A board that fails to solve has no
+      // solved supplies, which is itself the correct "unpowered" answer.
+      powerDomain.update(analysis.supplies, analysis.componentPower)
+      bus.setPowerStates(
+        new Map(
+          Object.values(board.components)
+            .filter((component) => powerModelFor(component.type) !== undefined)
+            .map((component) => [
+              component.id,
+              powerDomain.isComponentOperating(component.id, component.type),
+            ]),
+        ),
+      )
+    }
+
     while (runner.getMillis() < simulateMs) {
       if (runtimeErrors.length > 0) break
       feedSolvedAnalogVoltages()
-      applySensorInputs(board.components, board.wires, store, board.environment, bus)
+      applySensorInputs(
+        board.components, board.wires, store, board.environment, bus,
+        realismProfile, runner.getMillis(), powerDomain,
+      )
+      applyPowerGate()
       runner.runLoopIteration()
       bus.tick(runner.getMillis())
 
@@ -195,6 +250,9 @@ export function runBoardHeadless(
           case "servo":
             servoAngleMin = Math.min(servoAngleMin, state.angle)
             servoAngleMax = Math.max(servoAngleMax, state.angle)
+            break
+          case "dc_motor":
+            observations.dcMotorMaxSpeed = Math.max(observations.dcMotorMaxSpeed, state.speed)
             break
           case "neopixel": {
             const lit = state.pixels.filter((p) => p.r > 0 || p.g > 0 || p.b > 0).length

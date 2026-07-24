@@ -21,9 +21,15 @@
     "test:cli": "bun run --cwd packages/cli test",
     "test": "bun run test:schemas && bun run test:app && bun run test:api && bun run test:cli",
     "examples:compile": "bun run scripts/compile-examples.ts",
+    "assets:optimize": "bun run scripts/optimize-glb.ts",
     "bootrom:fetch": "bun run scripts/fetch-rp2040-bootrom.ts"
   },
   "patchedDependencies": {
     "spicey@0.0.14": "patches/spicey@0.0.14.patch"
+  },
+  "devDependencies": {
+    "@gltf-transform/core": "^4.4.1",
+    "@gltf-transform/extensions": "^4.4.1",
+    "@gltf-transform/functions": "^4.4.1"
   }
 }

@@ -30,6 +30,7 @@
 
 import { parseNetlist, simulateTRAN } from "spicey"
 import type { BoardComponent, Wire, PinState } from "@dreamer/schemas"
+import type { PeripheralState } from "./peripherals/types"
 import {
   buildNetlist,
   type NetlistResult,
@@ -52,6 +53,7 @@ export type TransientStepInput = {
   wires: Record<string, Wire>
   pinStates: PinState[]
   shiftRegisterOutputs?: ShiftRegisterOutputs
+  peripheralStates?: Record<string, PeripheralState>
   /** Simulated seconds to advance the circuit by (the MCU clock's delta). */
   dtSimSeconds: number
 }
@@ -141,6 +143,7 @@ export class TransientSession {
       input.pinStates,
       input.shiftRegisterOutputs,
       "transient",
+      input.peripheralStates,
     )
     const requested = Math.max(input.dtSimSeconds, 0)
 

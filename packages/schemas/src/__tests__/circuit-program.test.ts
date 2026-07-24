@@ -58,8 +58,10 @@ describe("CircuitProgram", () => {
     expect(compiled.ok).toBe(true);
     expect(compiled.diagram?.board).toBe("arduino_uno");
     expect(compiled.diagram?.components.map((component) => component.id)).toEqual(["servo1", "pot1"]);
-    expect(compiled.diagram?.wires.some((wire) => wire.from === "arduino.5V" && wire.to === "grid.0,-2")).toBe(true);
-    expect(compiled.diagram?.wires.some((wire) => wire.from === "arduino.GND" && wire.to === "grid.0,-1")).toBe(true);
+    // Power lands on the inner + rail (col −1), ground on the outer − rail
+    // (col −2) — per isPositiveRailCol.
+    expect(compiled.diagram?.wires.some((wire) => wire.from === "arduino.5V" && wire.to === "grid.0,-1")).toBe(true);
+    expect(compiled.diagram?.wires.some((wire) => wire.from === "arduino.GND" && wire.to === "grid.0,-2")).toBe(true);
     expect(compiled.diagram?.wires.some((wire) => wire.from === "arduino.9" && wire.to === "servo1.signal")).toBe(true);
     expect(compiled.diagram?.wires.some((wire) => wire.from === "arduino.A0" && wire.to === "pot1.signal")).toBe(true);
   });

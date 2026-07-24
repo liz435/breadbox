@@ -16,6 +16,7 @@ import { BOARD_SURFACE_Y } from "./layout"
 import { partObstacles, type PartObstacle } from "./part-obstacles"
 import { usePinCalibrations } from "./component-pin-calibration"
 import { useBoundsVersion } from "./part-volume"
+import { useAssemblyObstacles } from "./assembly-obstacles"
 
 // ── Toggle store (localStorage-backed, mirrors the calibration mode flags) ────
 
@@ -79,10 +80,11 @@ function ObstacleShape({ o }: { o: PartObstacle }) {
 export function ObstacleDebug() {
   const components = useBoardSelector((ctx) => ctx.components)
   const pinCals = usePinCalibrations()
+  const uploadedObstacles = useAssemblyObstacles()
   const boundsVersion = useBoundsVersion()
   const obstacles = useMemo(
-    () => partObstacles(components, pinCals),
-    [components, pinCals, boundsVersion],
+    () => [...partObstacles(components, pinCals), ...uploadedObstacles],
+    [components, pinCals, boundsVersion, uploadedObstacles],
   )
   return (
     <group name="obstacle-debug">

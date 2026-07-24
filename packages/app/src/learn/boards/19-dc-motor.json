@@ -8,14 +8,17 @@
       "y": 0,
       "rotation": 0,
       "pins": {},
-      "properties": { "leftVoltage": 5, "rightVoltage": 5 }
+      "properties": {
+        "leftVoltage": 5,
+        "rightVoltage": 5
+      }
     },
     "motor-1": {
       "id": "motor-1",
       "type": "dc_motor",
       "name": "DC Motor",
       "x": 7,
-      "y": 5,
+      "y": 15,
       "rotation": 0,
       "pins": {
         "signal": 9
@@ -28,17 +31,20 @@
       "id": "wire-d9",
       "fromRow": -999,
       "fromCol": 9,
-      "toRow": 6,
+      "toRow": 16,
       "toCol": 7,
-      "color": "#fbbf24"
+      "color": "#fbbf24",
+      "toStrip": "term_16_right"
     },
     "wire-vcc": {
       "id": "wire-vcc",
-      "fromRow": 0,
+      "fromRow": 16,
       "fromCol": 11,
-      "toRow": 5,
+      "toRow": 15,
       "toCol": 7,
-      "color": "#ef4444"
+      "color": "#ef4444",
+      "toStrip": "term_15_right",
+      "fromStrip": "pwr_bot_pos_l"
     },
     "wire-common-gnd": {
       "id": "wire-common-gnd",
@@ -46,10 +52,15 @@
       "fromCol": -3,
       "toRow": 1,
       "toCol": 10,
-      "color": "#1a1a1a"
+      "color": "#1a1a1a",
+      "toStrip": "pwr_bot_neg_l"
     }
   },
-  "libraryState": { "servos": {}, "lcd": null, "serialBaud": 0 },
+  "libraryState": {
+    "servos": {},
+    "lcd": null,
+    "serialBaud": 0
+  },
   "serialOutput": [],
   "sketchCode": "// Example: DC Motor Speed Ramp\n// Gradually ramp motor speed up and down using PWM.\n// Uses external 5V power supply for the motor.\n\nint motorPin = 9;\n\nvoid setup() {\n  pinMode(motorPin, OUTPUT);\n}\n\nvoid loop() {\n  for (int speed = 0; speed <= 255; speed += 5) {\n    analogWrite(motorPin, speed);\n    delay(30);\n  }\n  for (int speed = 255; speed >= 0; speed -= 5) {\n    analogWrite(motorPin, speed);\n    delay(30);\n  }\n  delay(500);\n}\n",
   "customLibraries": {}

@@ -87,6 +87,10 @@ export const assemblyBodySchema = z.object({
   joint: assemblyJointSchema.optional(),
   /** Loop the animation clips baked into a GLB file while enabled. */
   playAnimations: z.boolean().optional(),
+  /** Hidden from the scene (still listed in the manager). Hides the subtree. */
+  hidden: z.boolean().optional(),
+  /** Locked against transform edits — the gizmo won't attach while set. */
+  locked: z.boolean().optional(),
 });
 export type AssemblyBody = z.infer<typeof assemblyBodySchema>;
 

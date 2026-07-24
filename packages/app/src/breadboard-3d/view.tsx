@@ -32,16 +32,30 @@ import { setObstacleDebug, useObstacleDebug } from "./obstacle-debug"
 import { GLB_PARTS } from "./glb-parts"
 
 const FIRST_GLB_TYPE = Object.keys(GLB_PARTS).sort()[0] ?? null
+const MODEL_DROP_RE = /\.(glb|gltf|stl)$/i
 
 export function Breadboard3dView() {
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [dragActive, setDragActive] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // Counts drag enter/leave across nested children so the drop overlay doesn't
+  // flicker as the cursor crosses the Canvas and its siblings.
+  const dragDepth = useRef(0)
   const physicsEnabled = usePhysicsEnabled()
   const calibrating = useBreadboardCalibrating()
   const pinMode = usePinCalibrationMode()
   const arduinoCalibrating = useArduinoCalibrating()
   const obstacleDebug = useObstacleDebug()
+
+  function handleDropFile(file: File | undefined) {
+    if (!file) return
+    if (!MODEL_DROP_RE.test(file.name)) {
+      toast.error("Unsupported file — drop a .glb, .gltf, or .stl model")
+      return
+    }
+    setPendingFile(file)
+  }
 
   async function handleExport() {
     setExporting(true)
@@ -63,10 +77,35 @@ export function Breadboard3dView() {
 
   return (
     <EditorProvider>
-      <div className="relative h-full w-full">
+      <div
+        className="relative h-full w-full"
+        onDragEnter={(e) => {
+          if (!e.dataTransfer.types.includes("Files")) return
+          dragDepth.current += 1
+          setDragActive(true)
+        }}
+        onDragOver={(e) => {
+          // Only claim file drags; leave in-canvas orbit/gizmo drags alone.
+          if (e.dataTransfer.types.includes("Files")) e.preventDefault()
+        }}
+        onDragLeave={(e) => {
+          if (!e.dataTransfer.types.includes("Files")) return
+          dragDepth.current -= 1
+          if (dragDepth.current <= 0) {
+            dragDepth.current = 0
+            setDragActive(false)
+          }
+        }}
+        onDrop={(e) => {
+          e.preventDefault()
+          dragDepth.current = 0
+          setDragActive(false)
+          handleDropFile(e.dataTransfer.files?.[0])
+        }}
+      >
         <SceneRoot />
 
-        <AssemblyPanel />
+        <AssemblyPanel onImport={() => fileInputRef.current?.click()} />
 
         <div className="absolute right-2 top-2 flex gap-2">
           <Button
@@ -118,13 +157,6 @@ export function Breadboard3dView() {
           >
             {exporting ? "Exporting…" : "Export .glb"}
           </Button>
-          <Button
-            size="sm"
-            onClick={() => fileInputRef.current?.click()}
-            title="Upload a .glb or .stl model (e.g. a part you're about to 3D-print)"
-          >
-            Import 3D model
-          </Button>
           <input
             ref={fileInputRef}
             type="file"
@@ -147,6 +179,14 @@ export function Breadboard3dView() {
             ? "drag a part to move it (snaps to a hole) · drag empty space to orbit · scroll to zoom"
             : "drag to orbit · right-drag to pan · scroll to zoom · click a model to place it"}
         </div>
+
+        {dragActive && (
+          <div className="pointer-events-none absolute inset-2 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-primary bg-primary/10 backdrop-blur-sm">
+            <span className="rounded-md bg-background/90 px-3 py-1.5 text-sm font-medium text-foreground shadow">
+              Drop to add a 3D model
+            </span>
+          </div>
+        )}
 
         {pendingFile && (
           <ImportModelDialog file={pendingFile} onClose={() => setPendingFile(null)} />

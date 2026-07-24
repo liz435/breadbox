@@ -7,6 +7,7 @@ export const dhtSensor: ComponentDefinition = {
   description: "DHT11/DHT22 temperature and humidity sensor",
   label: "DHT Sensor",
   defaultPins: { signal: null },
+  power: { supply: ["vcc", "power"], return: ["gnd", "ground"], minOperatingVolts: 3.3 },
   defaultProperties: { variant: "DHT11" },
   accentColor: "#06b6d4",
   // Vertical header: vcc / data / gnd each on their own row.

@@ -99,12 +99,12 @@ describe("analyzePowerBudget", () => {
     });
 
     connect(board, "w-signal", -999, 9, 5, 2);
-    // MB102 positive rail (-2) to servo VCC row; row bus links col 4 -> col 2.
-    connect(board, "w-ext-vcc", 20, -2, 6, 4);
-    // Common ground: Arduino GND to MB102 negative rail (-1).
-    connect(board, "w-common-gnd", -999, -3, 20, -1);
+    // MB102 positive rail (-1, inner column) to servo VCC row; row bus links col 4 -> col 2.
+    connect(board, "w-ext-vcc", 20, -1, 6, 4);
+    // Common ground: Arduino GND to MB102 negative rail (-2, outer edge).
+    connect(board, "w-common-gnd", -999, -3, 20, -2);
     // MB102 negative rail to servo ground row.
-    connect(board, "w-servo-gnd", 20, -1, 7, 4);
+    connect(board, "w-servo-gnd", 20, -2, 7, 4);
 
     const report = analyzePowerBudget(board);
     const errorCodes = report.issues.filter((i) => i.severity === "error").map((i) => i.code);
@@ -137,12 +137,12 @@ describe("analyzePowerBudget", () => {
 
     connect(board, "w-signal", -999, 9, 5, 2);
     // Supply+ on one row of the + rail.
-    connect(board, "w-rail-source", 20, -2, 20, 0);
+    connect(board, "w-rail-source", 20, -1, 20, 0);
     // Servo VCC tied to a different row of the same + rail.
-    connect(board, "w-servo-vcc", 25, -2, 6, 2);
+    connect(board, "w-servo-vcc", 25, -1, 6, 2);
     // Common ground and servo return on a different rail row.
-    connect(board, "w-common-gnd", -999, -3, 20, -1);
-    connect(board, "w-servo-gnd", 27, -1, 7, 2);
+    connect(board, "w-common-gnd", -999, -3, 20, -2);
+    connect(board, "w-servo-gnd", 27, -2, 7, 2);
 
     const report = analyzePowerBudget(board);
     const errorCodes = report.issues.filter((i) => i.severity === "error").map((i) => i.code);

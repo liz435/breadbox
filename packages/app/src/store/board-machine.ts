@@ -6,6 +6,7 @@ import type {
   LibraryState,
   CustomLibrary,
   BoardTarget,
+  RealismProfile,
   Obstacle,
   Environment,
   AssemblyDoc,
@@ -84,6 +85,7 @@ export type BoardEvent =
   | { type: "UPDATE_CUSTOM_LIBRARY"; name: string; library: CustomLibrary }
   | { type: "REMOVE_CUSTOM_LIBRARY"; name: string }
   | { type: "SET_BOARD_TARGET"; boardTarget: BoardTarget }
+  | { type: "SET_REALISM_PROFILE"; realismProfile: RealismProfile }
   | { type: "ADD_OBSTACLE"; obstacle: Obstacle }
   | { type: "UPDATE_OBSTACLE"; id: string; changes: Partial<Obstacle> }
   | { type: "REMOVE_OBSTACLE"; id: string }
@@ -133,6 +135,7 @@ function boardData(ctx: BoardMachineContext): BoardState {
     customLibraries: ctx.customLibraries,
     boardTarget: ctx.boardTarget ?? DEFAULT_BOARD_TARGET,
     environment: ctx.environment,
+    realismProfile: ctx.realismProfile,
     assembly: ctx.assembly,
   };
 }
@@ -568,6 +571,13 @@ export const boardMachine = setup({
       ],
     },
 
+    SET_REALISM_PROFILE: {
+      actions: assign(({ context, event }) => ({
+        ...pushHistory(context),
+        realismProfile: event.realismProfile,
+      })),
+    },
+
     // ── Environment (obstacles for sensor simulation) ──
 
     ADD_OBSTACLE: {
@@ -648,6 +658,8 @@ export const boardMachine = setup({
           serialBaud: 0,
           oled: {},
           neopixels: {},
+          relays: {},
+          motors: {},
           custom: {},
         }, s.libraryState ?? {});
 
@@ -682,6 +694,7 @@ export const boardMachine = setup({
           sketchCode: normalizedSketch,
           boardTarget: s.boardTarget ?? DEFAULT_BOARD_TARGET,
           environment: s.environment ?? { obstacles: {}, boundaryEnabled: true, boundaryMargin: 100 },
+          realismProfile: s.realismProfile ?? "learn",
           selectedId: null,
           _past: [],
           _future: [],

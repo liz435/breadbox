@@ -1,12 +1,22 @@
 import type { Wire } from "@dreamer/schemas"
 import { HOLE_SPACING } from "@/breadboard/breadboard-constants"
 import type { ComponentDefinition } from "@/components/component-definition"
+import type { PartPowerModel } from "@/components/part-spec"
 import { sanitize } from "@/components/catalog/_shared"
+import { isComponentPowered } from "@/simulator/power-availability"
 
 // Switched-contact model, mirroring the button: a closed contact is a near
 // short, an open one a near-open. The coil state picks which side conducts.
 const CONTACT_CLOSED_OHMS = 0.01
 const CONTACT_OPEN_OHMS = 10_000_000
+
+// Named separately so buildNetlist's pre-solve seed can pass it without
+// referencing `relay` before its own initializer has run.
+const RELAY_POWER: PartPowerModel = {
+  supply: ["vcc", "power"],
+  return: ["gnd", "ground"],
+  minOperatingVolts: 4.5,
+}
 
 /**
  * Find the Arduino pin wired to a breadboard hole via same-row bus-cluster
@@ -43,6 +53,7 @@ export const relay: ComponentDefinition = {
   description: "Single-channel relay module for switching high-power loads",
   label: "Relay",
   defaultPins: { out: null, com: null, no: null, nc: null },
+  power: RELAY_POWER,
   defaultProperties: {},
   accentColor: "#3b82f6",
   // Coil side (rows 0-2: vcc/signal/gnd) plus switched contacts appended on
@@ -70,9 +81,11 @@ export const relay: ComponentDefinition = {
     </svg>
   ),
   // The contacts genuinely switch in the circuit: COM↔NO closes (and COM↔NC
-  // opens) when the coil/signal input reads digital HIGH, so a load wired
-  // through the relay really turns on and off in the solve.
-  buildNetlist: (comp, { footprint, resolveNode, pinStates, wires }) => {
+  // opens) only when the input is commanded *and* the coil has its own VCC
+  // and GND topology. A HIGH GPIO is not enough to move an unpowered relay.
+  buildNetlist: (comp, { footprint, resolveNode, pinStates, wires, components, peripheralStates }) => {
+    const coilVcc = resolveNode(footprint.points[0])
+    const coilGnd = resolveNode(footprint.points[2] ?? footprint.points[0])
     const comPoint = footprint.points[3]
     const noPoint = footprint.points[4]
     const ncPoint = footprint.points[5]
@@ -93,30 +106,40 @@ export const relay: ComponentDefinition = {
           (w.fromRow === row && clusterOf(w.fromCol) === cluster),
       )
     }
-    if (!hasWireAt(comPoint.row, comPoint.col)) return null
+    if (!hasWireAt(comPoint.row, comPoint.col)) {
+      // The relay module still draws coil current when powered even if no
+      // switched load is wired. 70Ω is a conservative 5V relay-coil model.
+      return { lines: [`R_${sanitize(comp.id)} ${coilVcc} ${coilGnd} 70`], nodeA: coilVcc, nodeB: coilGnd }
+    }
 
     const coilPin =
       typeof comp.pins.out === "number" && comp.pins.out >= 0
         ? comp.pins.out
         : resolveArduinoPinForHole(wires, comp.y + 1, comp.x) // signal hole
     const coilState = coilPin != null ? pinStates[coilPin] : undefined
-    const energized =
+    const powered = components ? isComponentPowered(comp, components, wires, RELAY_POWER) : true
+    const peripheralState = peripheralStates?.[comp.id]
+    const mechanicallyEnergized = peripheralState?.kind === "relay"
+      ? peripheralState.energized
+      : undefined
+    const energized = mechanicallyEnergized ?? (
+      powered &&
       coilState?.mode === "OUTPUT" &&
       (coilState.isPwm ? coilState.pwmValue > 127 : coilState.digitalValue === 1)
+    )
 
     const com = resolveNode(comPoint)
     const no = resolveNode(noPoint)
     const nc = resolveNode(ncPoint)
     const id = sanitize(comp.id)
-    const lines: string[] = []
+    const lines: string[] = [`R_${id} ${coilVcc} ${coilGnd} 70`]
     if (com !== no) {
       lines.push(`R_${id}_no ${com} ${no} ${energized ? CONTACT_CLOSED_OHMS : CONTACT_OPEN_OHMS}`)
     }
     if (com !== nc) {
       lines.push(`R_${id}_nc ${com} ${nc} ${energized ? CONTACT_OPEN_OHMS : CONTACT_CLOSED_OHMS}`)
     }
-    if (lines.length === 0) return null
-    return { lines, nodeA: com, nodeB: no }
+    return { lines, nodeA: coilVcc, nodeB: coilGnd }
   },
   generateSketch: (comp) => {
     const pin = comp.pins.out ?? comp.pins.signal

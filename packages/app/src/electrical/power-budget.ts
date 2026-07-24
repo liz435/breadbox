@@ -177,22 +177,24 @@ function componentPinPoints(component: BoardComponent): Record<string, Point> {
 
 function powerSupplyPositivePoints(component: BoardComponent): Point[] {
   // Legacy model: treat component (x,y) as positive anchor.
-  // MB102 model: positive rails at cols -2 and 11 on rows y/y+1.
+  // MB102 model: positive rails on cols -1 and 11 (per isPositiveRailCol —
+  // each pair reads − then + left to right) on rows y/y+1.
   return [
     { row: component.y, col: component.x },
     { row: component.y + 1, col: component.x },
-    { row: component.y, col: -2 },
-    { row: component.y + 1, col: -2 },
+    { row: component.y, col: -1 },
+    { row: component.y + 1, col: -1 },
     { row: component.y, col: 11 },
     { row: component.y + 1, col: 11 },
   ];
 }
 
 function powerSupplyNegativePoints(component: BoardComponent): Point[] {
+  // Negative rails sit on cols -2 and 10 (the first column of each pair).
   return [
     { row: component.y + 1, col: component.x },
-    { row: component.y, col: -1 },
-    { row: component.y + 1, col: -1 },
+    { row: component.y, col: -2 },
+    { row: component.y + 1, col: -2 },
     { row: component.y, col: 10 },
     { row: component.y + 1, col: 10 },
   ];
@@ -246,16 +248,18 @@ function addLoad(
 }
 
 function netHasGroundRail(ds: DisjointSet, net: string): boolean {
+  // Ground rails are cols -2 and 10 (first column of each pair).
   for (let row = 0; row < 30; row++) {
-    if (ds.find(keyGrid({ row, col: -1 })) === net) return true;
+    if (ds.find(keyGrid({ row, col: -2 })) === net) return true;
     if (ds.find(keyGrid({ row, col: 10 })) === net) return true;
   }
   return false;
 }
 
 function netHasPowerRail(ds: DisjointSet, net: string): boolean {
+  // Power (+) rails are cols -1 and 11 (second column of each pair).
   for (let row = 0; row < 30; row++) {
-    if (ds.find(keyGrid({ row, col: -2 })) === net) return true;
+    if (ds.find(keyGrid({ row, col: -1 })) === net) return true;
     if (ds.find(keyGrid({ row, col: 11 })) === net) return true;
   }
   return false;

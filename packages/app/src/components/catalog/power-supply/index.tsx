@@ -3,6 +3,11 @@ import type { ComponentDefinition } from "@/components/component-definition"
 import { sanitize } from "@/components/catalog/_shared"
 import { powerSupplyPinRows } from "./pin-rows"
 
+/** Conservative combined wiring/regulator output resistance for an MB102.
+ * It is intentionally not a perfect voltage source: load current must produce
+ * a visible rail droop in the same circuit solve used by the MCU and UI. */
+const MB102_SOURCE_RESISTANCE_OHMS = 0.35
+
 // Drops onto the top of the breadboard and feeds all four power rails.
 // Each side (left/right) has its own voltage selector (5V or 3.3V).
 // Footprint ignores the click column — pins are anchored to the four
@@ -45,13 +50,14 @@ export const powerSupply: ComponentDefinition = {
     </svg>
   ),
   buildNetlist: (comp, { footprint, resolveNode }) => {
-    // The 8 footprint points correspond to:
-    //   0,4: left + rail (red)
-    //   1,5: left − rail (blue, ground)
-    //   2,6: right − rail (blue, ground)
-    //   3,7: right + rail (red)
-    const lPlusNode = resolveNode(footprint.points[0])
-    const lMinusNode = resolveNode(footprint.points[1])
+    // The 8 footprint points correspond to (polarity per isPositiveRailCol:
+    // every rail pair reads − then + left to right, like real silkscreen):
+    //   0,4: col −2, left − rail (blue, ground)
+    //   1,5: col −1, left + rail (red)
+    //   2,6: col 10, right − rail (blue, ground)
+    //   3,7: col 11, right + rail (red)
+    const lMinusNode = resolveNode(footprint.points[0])
+    const lPlusNode = resolveNode(footprint.points[1])
     const rMinusNode = resolveNode(footprint.points[2])
     const rPlusNode = resolveNode(footprint.points[3])
 
@@ -69,13 +75,44 @@ export const powerSupply: ComponentDefinition = {
     lines.push(`R_${id}_LGND ${lMinusNode} 0 1`)
     lines.push(`R_${id}_RGND ${rMinusNode} 0 1`)
 
-    // Voltage sources from each + rail to ground.
-    lines.push(`V_${id}_L ${lPlusNode} 0 ${leftV}`)
-    lines.push(`V_${id}_R ${rPlusNode} 0 ${rightV}`)
+    // Regulated outputs with finite impedance. A perfect source hides the
+    // very overload/sag behavior learners need to see with motors and LEDs.
+    const lSource = `src_${id}_L`
+    const rSource = `src_${id}_R`
+    lines.push(`V_${id}_L ${lSource} 0 ${leftV}`)
+    lines.push(`R_${id}_L_OUT ${lSource} ${lPlusNode} ${MB102_SOURCE_RESISTANCE_OHMS}`)
+    lines.push(`V_${id}_R ${rSource} 0 ${rightV}`)
+    lines.push(`R_${id}_R_OUT ${rSource} ${rPlusNode} ${MB102_SOURCE_RESISTANCE_OHMS}`)
 
     // Report the left + rail and left − rail as the primary node pair
     // — the electrical state lookup uses these to display voltage/current.
-    return { lines, nodeA: lPlusNode, nodeB: lMinusNode }
+    return {
+      lines,
+      nodeA: lPlusNode,
+      nodeB: lMinusNode,
+      supplySources: [
+        {
+          id: `${comp.id}:left`,
+          label: `${comp.name} left`,
+          element: `V_${id}_L`,
+          node: lPlusNode,
+          returnNode: lMinusNode,
+          nominalVoltage: leftV,
+          currentLimitMa: 700,
+          sourceResistanceOhms: MB102_SOURCE_RESISTANCE_OHMS,
+        },
+        {
+          id: `${comp.id}:right`,
+          label: `${comp.name} right`,
+          element: `V_${id}_R`,
+          node: rPlusNode,
+          returnNode: rMinusNode,
+          nominalVoltage: rightV,
+          currentLimitMa: 700,
+          sourceResistanceOhms: MB102_SOURCE_RESISTANCE_OHMS,
+        },
+      ],
+    }
   },
   computeElectricalState: (_comp, { voltageDrop }) => ({
     // Always "active" — this is a power source, not a passive load.
