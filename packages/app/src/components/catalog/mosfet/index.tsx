@@ -41,6 +41,7 @@ export const mosfet: ComponentDefinition = {
       // Report VDS / drain current as the component's primary pair.
       nodeA: nodeD,
       nodeB: nodeS,
+      preserveOnSelfLoop: true,
     }
   },
   computeElectricalState: (_comp, { voltageDrop, currentMa }) => ({

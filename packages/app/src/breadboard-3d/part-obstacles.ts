@@ -25,7 +25,7 @@ const PART_HEIGHTS_MM: Record<string, number> = {
   dc_motor: 20,
   ultrasonic_sensor: 20,
   neopixel: 3,
-  button: 5,
+  button: 7,
   buzzer: 8,
   resistor: 3,
   capacitor: 6,

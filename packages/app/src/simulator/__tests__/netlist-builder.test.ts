@@ -193,8 +193,8 @@ describe("netlist-builder — floating net bleed resistors", () => {
 
 // ── Duplicate voltage sources ─────────────────────────────────────────
 
-describe("netlist-builder — duplicate voltage source deduplication", () => {
-  test("two OUTPUT HIGH pins connected to same net produces only one voltage source", () => {
+describe("netlist-builder — parallel voltage source handling", () => {
+  test("two OUTPUT HIGH pins connected to same net remain separate and are reported as a conflict", () => {
     // Wire both pin 13 and pin 12 to the same row
     const components: Record<string, BoardComponent> = {
       r1: makeResistor("r1", 5, 0),
@@ -208,17 +208,17 @@ describe("netlist-builder — duplicate voltage source deduplication", () => {
       { pin: 12, mode: "OUTPUT", digitalValue: 1 },
     ])
 
-    const { netlist } = buildNetlist(components, wires, pinStates)
+    const { netlist, driveConflicts } = buildNetlist(components, wires, pinStates)
 
-    // Only one V_D source should target that net node
+    // Both finite-output branches must remain in the circuit so current
+    // sharing/contention is solved instead of silently hiding pin 12.
     const vSourceLines = netlist.split("\n").filter((l) => l.match(/^V_D\d+_\d+\s/))
-    // Check that all voltage sources targeting the same node are collapsed to one
-    const nodeNames = vSourceLines.map((l) => l.split(" ")[2])
-    const uniqueNodes = new Set(nodeNames)
-    expect(vSourceLines.length).toBe(uniqueNodes.size)
+    expect(vSourceLines.length).toBe(2)
+    expect(driveConflicts).toHaveLength(1)
+    expect(driveConflicts[0]?.sources.map((source) => source.pin)).toEqual([13, 12])
   })
 
-  test("5V rail and OUTPUT HIGH pin on same net: deduplication prevents two sources on same node", () => {
+  test("5V rail and OUTPUT HIGH pin on same net remain separate and are reported as a conflict", () => {
     const components: Record<string, BoardComponent> = {
       r1: makeResistor("r1", 5, 0),
     }
@@ -230,15 +230,14 @@ describe("netlist-builder — duplicate voltage source deduplication", () => {
       { pin: 13, mode: "OUTPUT", digitalValue: 1 },
     ])
 
-    const { netlist } = buildNetlist(components, wires, pinStates)
+    const { netlist, driveConflicts } = buildNetlist(components, wires, pinStates)
 
-    // Count voltage source lines pointing to the same intermediate/node
+    // Each source has its own series branch, but both branches terminate at
+    // the same resolved load net.
     const vLines = netlist.split("\n").filter((l) => l.match(/^V_/))
-    const nodeTargets = vLines.map((l) => l.split(" ")[2])
-    const duplicateTargets = nodeTargets.filter(
-      (n, i) => nodeTargets.indexOf(n) !== i,
-    )
-    expect(duplicateTargets.length).toBe(0)
+    expect(vLines).toHaveLength(2)
+    expect(netlist.match(/R_src_\d+ src_\d+ net_net-0/g)).toHaveLength(2)
+    expect(driveConflicts).toHaveLength(1)
   })
 })
 
@@ -367,6 +366,21 @@ describe("netlist-builder — PWM voltage scaling", () => {
       expect(voltage).toBeCloseTo(2.509803, 4)
     }
   })
+
+  test("uses the selected 3.3V MCU profile for GPIO high/PWM", () => {
+    const components: Record<string, BoardComponent> = {
+      r1: makeResistor("r1", 5, 0),
+    }
+    const wires: Record<string, Wire> = {
+      d2: { id: "d2", fromRow: -999, fromCol: 2, toRow: 5, toCol: 3, color: "green" },
+    }
+    const pinStates = createDefaultPinStates().map((state) =>
+      state.pin === 2 ? { ...state, mode: "OUTPUT" as const, digitalValue: 1 } : state,
+    )
+    const { netlist } = buildNetlist(components, wires, pinStates, undefined, "op", undefined, "rpi_pico")
+    expect(netlist).toContain(" 3.3")
+    expect(netlist).not.toContain(" 5\nR_src")
+  })
 })
 
 // ── UNSET pin mode ────────────────────────────────────────────────────
@@ -437,6 +451,23 @@ describe("netlist-builder — component ID sanitization", () => {
       const idPart = elementName.replace(/^R_/, "")
       expect(idPart.length).toBeLessThanOrEqual(20)
     }
+  })
+
+  test("long component IDs with the same prefix still produce unique SPICE elements", () => {
+    const firstId = "r" + "x".repeat(40) + "a"
+    const secondId = "r" + "x".repeat(40) + "b"
+    const components: Record<string, BoardComponent> = {
+      [firstId]: makeResistor(firstId, 5, 0),
+      [secondId]: makeResistor(secondId, 10, 0),
+    }
+
+    const { netlist } = buildNetlist(components, {}, createDefaultPinStates())
+    const elementNames = netlist
+      .split("\n")
+      .filter((line) => line.startsWith("R_") && !line.startsWith("R_bleed_") && !line.startsWith("R_src_"))
+      .map((line) => line.split(" ")[0])
+    expect(elementNames).toHaveLength(2)
+    expect(new Set(elementNames).size).toBe(2)
   })
 })
 
@@ -533,6 +564,19 @@ describe("netlist-builder — edge case inputs", () => {
     expect(result.nodeMap).toBeInstanceOf(Map)
     expect(result.componentNodePairs).toBeInstanceOf(Map)
     expect(typeof result.netlist).toBe("string")
+  })
+
+  test("reports model coverage and solver-only numerical aids", () => {
+    const result = buildNetlist(
+      { r1: makeResistor("r1", 5, 0) },
+      {},
+      createDefaultPinStates(),
+    )
+
+    expect(result.modelCoverage.mode).toBe("op")
+    expect(result.modelCoverage.supportedComponentIds).toContain("r1")
+    expect(result.analysisSettings.nominalTransientDtSeconds).toBe(0.001)
+    expect(result.numericalAids.bleedResistors.length).toBeGreaterThan(0)
   })
 })
 

@@ -1,3 +1,5 @@
+export * from "./physical-scene";
+
 export {
   nonEmptyStringSchema,
   timestampSchema,

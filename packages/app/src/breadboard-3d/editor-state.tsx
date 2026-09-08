@@ -1,11 +1,11 @@
 // ── 3D editor UI state ──────────────────────────────────────────────────────
 //
-// Selection + gizmo mode shared between the DOM overlay (assembly panel,
-// toolbar) and the scene (gizmo, click handlers). Plain React context — r3f's
-// Canvas bridges parent contexts into the 3D tree, so both sides see it.
+// Selection + gizmo mode shared between the scene (gizmo, click handlers) and
+// DOM UI. A module-level store rather than React context because the scene
+// manager now lives in the Components sidebar — a separate dockview panel that
+// a context provider mounted inside the 3D view could never reach.
 
-import { createContext, useContext, useMemo, useState } from "react"
-import type { ReactNode } from "react"
+import { useSyncExternalStore } from "react"
 
 export type GizmoMode = "translate" | "rotate" | "scale"
 
@@ -16,20 +16,42 @@ type EditorState = {
   setMode: (mode: GizmoMode) => void
 }
 
-const EditorContext = createContext<EditorState | null>(null)
+const listeners = new Set<() => void>()
 
-export function EditorProvider({ children }: { children: ReactNode }) {
-  const [selectedBodyId, select] = useState<string | null>(null)
-  const [mode, setMode] = useState<GizmoMode>("translate")
-  const value = useMemo(
-    () => ({ selectedBodyId, select, mode, setMode }),
-    [selectedBodyId, mode],
-  )
-  return <EditorContext.Provider value={value}>{children}</EditorContext.Provider>
+// Snapshot object rebuilt on every change so useSyncExternalStore sees a new
+// reference; `select`/`setMode` are stable module functions (hoisted).
+let state: EditorState = {
+  selectedBodyId: null,
+  select,
+  mode: "translate",
+  setMode,
+}
+
+function emit(): void {
+  for (const listener of listeners) listener()
+}
+
+function select(id: string | null): void {
+  if (id === state.selectedBodyId) return
+  state = { ...state, selectedBodyId: id }
+  emit()
+}
+
+function setMode(mode: GizmoMode): void {
+  if (mode === state.mode) return
+  state = { ...state, mode }
+  emit()
+}
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
+}
+
+function getState(): EditorState {
+  return state
 }
 
 export function useEditor(): EditorState {
-  const ctx = useContext(EditorContext)
-  if (ctx === null) throw new Error("useEditor must be used within <EditorProvider>")
-  return ctx
+  return useSyncExternalStore(subscribe, getState, getState)
 }

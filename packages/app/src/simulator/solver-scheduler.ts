@@ -16,7 +16,7 @@
 //  - `realtimeFactor` (EMA of circuit-advance ÷ mcu-advance) feeds the same
 //    lag badge the AVR runner uses, extended to the circuit domain.
 
-import type { BoardComponent, Wire, PinState } from "@dreamer/schemas"
+import type { BoardComponent, BoardTarget, Wire, PinState } from "@dreamer/schemas"
 import type { PeripheralState } from "./peripherals/types"
 import { TransientSession } from "./transient-session"
 import type { ShiftRegisterOutputs } from "./netlist-builder"
@@ -49,6 +49,7 @@ export type SchedulerTickInput = {
   pinStates: PinState[]
   shiftRegisterOutputs?: ShiftRegisterOutputs
   peripheralStates?: Record<string, PeripheralState>
+  boardTarget?: BoardTarget
   /** The MCU's simulated clock, in seconds. Monotonic within a run. */
   mcuTimeSeconds: number
 }
@@ -114,6 +115,7 @@ export class SolverScheduler {
       pinStates: input.pinStates,
       shiftRegisterOutputs: input.shiftRegisterOutputs,
       peripheralStates: input.peripheralStates,
+      boardTarget: input.boardTarget,
       dtSimSeconds: Math.min(deficit, chunkSeconds),
     })
     advancedTotal += step.advancedSeconds
@@ -127,6 +129,7 @@ export class SolverScheduler {
         pinStates: input.pinStates,
         shiftRegisterOutputs: input.shiftRegisterOutputs,
         peripheralStates: input.peripheralStates,
+        boardTarget: input.boardTarget,
         dtSimSeconds: Math.min(deficit, chunkSeconds),
       })
       advancedTotal += step.advancedSeconds

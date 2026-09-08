@@ -122,7 +122,7 @@ export function useChatMessages(options: UseChatMessagesOptions = {}): UseChatMe
         const sceneOps = allOps.filter((op) => !isGraphOp(op) && !isBoardOp(op)) as SceneOp[]
         if (sceneOps.length > 0) applyOpsToScene(sceneOps, sceneSend)
         if (graphOps.length > 0) applyGraphOpsToGraph(graphOps, graphSend)
-        if (boardOps.length > 0) applyBoardOpsToBoard(boardOps, boardSend)
+        if (boardOps.length > 0) applyBoardOpsToBoard(boardOps, boardSend, boardState)
       }
       if (dataPart.type === "data-token-usage") {
         const usage = dataPart.data as TokenUsageData

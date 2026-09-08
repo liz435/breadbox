@@ -21,7 +21,7 @@
 // states to an array and node voltages to grid-key pairs; `reviveAnalysis`
 // rebuilds the Map and the closure on the receiving side.
 
-import type { BoardComponent, Wire, PinState } from "@dreamer/schemas"
+import type { BoardComponent, BoardTarget, Wire, PinState } from "@dreamer/schemas"
 import type { PeripheralState } from "./peripherals/types"
 import {
   SolverScheduler,
@@ -47,6 +47,7 @@ export type SolverTickRequest = {
   pinStates: PinState[]
   shiftRegisterOutputs?: Array<[string, boolean[]]>
   peripheralStates?: Record<string, PeripheralState>
+  boardTarget?: BoardTarget
   mcuTimeSeconds: number
 }
 
@@ -64,6 +65,9 @@ export type AnalysisDto = {
   componentPower: ComponentPowerState[]
   /** "row,col" grid key → solved volts, for nodeVoltageAt reconstruction. */
   nodeVolts: Array<[string, number]>
+  modelCoverage?: CircuitAnalysis["modelCoverage"]
+  numericalAids?: CircuitAnalysis["numericalAids"]
+  analysisSettings?: CircuitAnalysis["analysisSettings"]
 }
 
 export type SolverTickReply = {
@@ -103,6 +107,9 @@ export function toAnalysisDto(
     supplies: analysis.supplies,
     componentPower: Array.from(analysis.componentPower.values()),
     nodeVolts,
+    modelCoverage: analysis.modelCoverage,
+    numericalAids: analysis.numericalAids,
+    analysisSettings: analysis.analysisSettings,
   }
 }
 
@@ -122,6 +129,9 @@ export function reviveAnalysis(dto: AnalysisDto): CircuitAnalysis {
     warnings: dto.warnings,
     supplies: dto.supplies,
     componentPower,
+    modelCoverage: dto.modelCoverage,
+    numericalAids: dto.numericalAids,
+    analysisSettings: dto.analysisSettings,
     nodeVoltageAt: (point) => volts.get(`${point.row},${point.col}`) ?? null,
   }
 }
@@ -134,6 +144,7 @@ export type SolverHostTickInput = {
   pinStates: PinState[]
   shiftRegisterOutputs?: ReadonlyMap<string, readonly boolean[]>
   peripheralStates?: Record<string, PeripheralState>
+  boardTarget?: BoardTarget
   mcuTimeSeconds: number
 }
 
@@ -235,6 +246,7 @@ export class WorkerSolverHost implements SolverHost {
           )
         : undefined,
       peripheralStates: input.peripheralStates,
+      boardTarget: input.boardTarget,
       mcuTimeSeconds: input.mcuTimeSeconds,
     }
     this.worker.postMessage(message)
@@ -265,6 +277,9 @@ export class WorkerSolverHost implements SolverHost {
   reset(): void {
     this.pendingInput = null
     this.latest = null
+    // Invalidate replies already in flight. A project switch/stop may reset
+    // the host while the worker still owns the previous Board snapshot.
+    this.seq++
     const message: SolverResetRequest = { type: "reset" }
     this.worker.postMessage(message)
   }

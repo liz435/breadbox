@@ -29,7 +29,7 @@
 // a realtime factor) instead of silently losing time.
 
 import { parseNetlist, simulateTRAN } from "spicey"
-import type { BoardComponent, Wire, PinState } from "@dreamer/schemas"
+import type { BoardComponent, BoardTarget, Wire, PinState } from "@dreamer/schemas"
 import type { PeripheralState } from "./peripherals/types"
 import {
   buildNetlist,
@@ -54,6 +54,8 @@ export type TransientStepInput = {
   pinStates: PinState[]
   shiftRegisterOutputs?: ShiftRegisterOutputs
   peripheralStates?: Record<string, PeripheralState>
+  /** MCU electrical profile used for GPIO high/PWM voltage. */
+  boardTarget?: BoardTarget
   /** Simulated seconds to advance the circuit by (the MCU clock's delta). */
   dtSimSeconds: number
 }
@@ -144,6 +146,7 @@ export class TransientSession {
       input.shiftRegisterOutputs,
       "transient",
       input.peripheralStates,
+      input.boardTarget,
     )
     const requested = Math.max(input.dtSimSeconds, 0)
 
@@ -207,8 +210,37 @@ export class TransientSession {
       dt = requested / DORMANT_STEPS
       steps = DORMANT_STEPS
     }
+    // Never integrate past a small requested interval just because the
+    // nominal reactive/PWM sample interval is larger. This keeps the session
+    // clock and the solver's actual state time identical for sub-step calls.
+    if (requested > 0 && requested < dt) {
+      dt = requested
+      steps = 1
+    }
     if (steps > MAX_STEPS_PER_CALL) steps = MAX_STEPS_PER_CALL
     const advanced = requested === 0 ? 0 : Math.min(requested, steps * dt)
+
+    // A zero-duration read is a snapshot, not an integration step. spicey's
+    // transient solver still needs a tiny positive window for Newton settling,
+    // so preserve reactive history and restore it after the readout.
+    // A failed transient attempt may already have mutated spicey's history
+    // before throwing. Snapshot every reactive element for the retry, not
+    // only zero-duration reads; otherwise the retry starts from a partially
+    // advanced state and can create a time/charge discontinuity.
+    const reactiveState = {
+      caps: ckt.C.map((element) => ({ element, vPrev: element.vPrev, iPrev: element.iPrev })),
+      inductors: ckt.L.map((element) => ({ element, iPrev: element.iPrev, vPrev: element.vPrev })),
+    }
+    const restoreReactiveState = () => {
+      for (const saved of reactiveState.caps) {
+        saved.element.vPrev = saved.vPrev
+        saved.element.iPrev = saved.iPrev
+      }
+      for (const saved of reactiveState.inductors) {
+        saved.element.iPrev = saved.iPrev
+        saved.element.vPrev = saved.vPrev
+      }
+    }
 
     // ── 4. Solve, with one halved-dt retry on divergence ────────────────
     ckt.analyses.tran = { dt, tstop: Math.max(advanced, dt * DORMANT_STEPS) }
@@ -216,14 +248,17 @@ export class TransientSession {
     try {
       tran = simulateTRAN(ckt)
     } catch (err) {
+      restoreReactiveState()
       ckt.analyses.tran = { dt: dt / 2, tstop: Math.max(advanced, dt) }
       try {
         tran = simulateTRAN(ckt)
       } catch {
+        restoreReactiveState()
         throw err instanceof Error ? err : new Error(String(err))
       }
     }
     if (!tran) throw new Error("transient analysis returned no result")
+    if (requested === 0) restoreReactiveState()
     this.simTimeSeconds += advanced
 
     // ── 5. Readout: last point, or last-PWM-period average ──────────────

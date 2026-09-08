@@ -17,7 +17,11 @@
 //   3. Create catalog/<type>/index.tsx (and optionally a colocated <type>-renderer.tsx)
 //   4. Import it below and add it to COMPONENT_REGISTRY (order = palette order)
 
-import type { ComponentDefinition } from "@/components/component-definition"
+import type {
+  ComponentCapability,
+  ComponentDefinition,
+  ComponentSpec,
+} from "@/components/component-definition"
 import { getCustomDef } from "@/components/catalog/custom-store"
 
 import { led } from "./led"
@@ -96,6 +100,29 @@ const _registryMap = new Map<string, ComponentDefinition>(
   COMPONENT_REGISTRY.map(def => [def.type, def]),
 )
 
+function deriveCapabilities(def: ComponentDefinition): readonly ComponentCapability[] {
+  const capabilities = new Set<ComponentCapability>(["breadboard-2d"])
+  if (def.buildNetlist || def.createPeripheral) capabilities.add("simulation")
+  if (def.generateSketch) capabilities.add("sketch")
+  if (def.schematicSymbol) capabilities.add("schematic")
+  return [...capabilities]
+}
+
+const _specMap = new Map<string, ComponentSpec>(
+  COMPONENT_REGISTRY.map((def) => [def.type, {
+    type: def.type,
+    label: def.label,
+    category: def.category,
+    description: def.description,
+    pinNames: Object.keys(def.defaultPins),
+    defaultProperties: Object.freeze({ ...(def.defaultProperties ?? {}) }),
+    capabilities: [...new Set([
+      ...deriveCapabilities(def),
+      ...(def.capabilities ?? []),
+    ])],
+  }]),
+)
+
 /**
  * Look up a component definition by type. Checks built-ins first, then the
  * runtime custom-component overlay. Returns undefined for unknown types
@@ -103,4 +130,14 @@ const _registryMap = new Map<string, ComponentDefinition>(
  */
 export function getComponentDef(type: string): ComponentDefinition | undefined {
   return _registryMap.get(type) ?? getCustomDef(type)
+}
+
+/** Stable, renderer-free metadata seam for consumers that do not need the
+ * React-heavy ComponentDefinition implementation. */
+export function getComponentSpec(type: string): ComponentSpec | undefined {
+  return _specMap.get(type)
+}
+
+export function getComponentSpecs(): readonly ComponentSpec[] {
+  return [..._specMap.values()]
 }

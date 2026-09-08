@@ -9,6 +9,7 @@ import { describe, test, expect, afterEach, afterAll } from "bun:test";
 import { mkdtemp, rm } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
+import { createEmptyPhysicalScene } from "@dreamer/schemas";
 
 const TEST_DATA_DIR = await mkdtemp(join(tmpdir(), "dreamer-api-project-repo-"));
 process.env.DATA_DIR = TEST_DATA_DIR;
@@ -180,6 +181,46 @@ describe("projectRepo — rename", () => {
 // ── saveBoardAndGraph (atomic save) ───────────────────────────────────────────
 
 describe("projectRepo — saveBoardAndGraph", () => {
+  test("physical scene persists independently, preserves omissions and supports clear", async () => {
+    const p = await make("Physical Scene");
+    expect(p.physicalScene).toBeUndefined();
+    const scene = createEmptyPhysicalScene();
+    scene.gravity = [0, -1, 0];
+    scene.bodies.ball = {
+      id: "ball", name: "Ball", kind: "dynamic", mass: 0.2,
+      position: [0, 100, 0], rotation: [0, 0, 0],
+      colliders: [{ shape: "sphere", radius: 10, offset: [0, 0, 0],
+        rotation: [0, 0, 0], friction: 0.5, restitution: 0.2 }],
+      source: { uri: "/assets/ball.glb", componentId: "unresolved" },
+    };
+    const saved = await projectRepo.saveBoardAndGraph(p.project.id, OWNER_A, {
+      expectedVersion: p.project.version, physicalScene: scene,
+    });
+    expect(saved?.newVersion).toBe(p.project.version + 1);
+    expect((await projectRepo.readProject(p.project.id, OWNER_A))?.physicalScene).toEqual(scene);
+    await projectRepo.saveBoardAndGraph(p.project.id, OWNER_A, { boardState, graph: { nodes: {}, edges: {} } });
+    expect((await projectRepo.readProject(p.project.id, OWNER_A))?.physicalScene).toEqual(scene);
+    await expect(projectRepo.saveBoardAndGraph(p.project.id, OWNER_A, {
+      expectedVersion: p.project.version, physicalScene: null,
+    })).rejects.toBeInstanceOf(VersionConflictError);
+    expect(await projectRepo.saveBoardAndGraph(p.project.id, OWNER_B, { physicalScene: null })).toBeNull();
+    expect((await projectRepo.readProject(p.project.id, OWNER_A))?.physicalScene).toEqual(scene);
+    const invalid = createEmptyPhysicalScene();
+    invalid.fixedTimeStep = 0;
+    await expect(projectRepo.saveBoardAndGraph(p.project.id, OWNER_A, {
+      physicalScene: invalid, graph: { nodes: {}, edges: {} },
+    })).rejects.toThrow();
+    const unchanged = await projectRepo.readProject(p.project.id, OWNER_A);
+    expect(unchanged?.physicalScene).toEqual(scene);
+    expect(unchanged?.project.version).toBe(p.project.version + 2);
+    await projectRepo.saveBoardAndGraph(p.project.id, OWNER_A, {
+      expectedVersion: unchanged?.project.version, physicalScene: null,
+    });
+    const cleared = await projectRepo.readProject(p.project.id, OWNER_A);
+    expect(cleared?.physicalScene).toBeNull();
+    expect(cleared?.graph).toEqual({ nodes: {}, edges: {} });
+  });
+
   const boardState = {
     components: {},
     wires: {},
@@ -230,6 +271,20 @@ describe("projectRepo — saveBoardAndGraph", () => {
       graph: { nodes: {}, edges: {} },
     });
     expect(result).toBeNull();
+  });
+
+  test("increments the project revision and rejects stale saves", async () => {
+    const p = await make("Revisioned Save");
+    const first = await projectRepo.saveBoardAndGraph(p.project.id, OWNER_A, {
+      expectedVersion: p.project.version,
+      graph: { nodes: {}, edges: {} },
+    });
+    expect(first?.newVersion).toBe(p.project.version + 1);
+
+    await expect(projectRepo.saveBoardAndGraph(p.project.id, OWNER_A, {
+      expectedVersion: p.project.version,
+      graph: { nodes: {}, edges: {} },
+    })).rejects.toBeInstanceOf(VersionConflictError);
   });
 });
 

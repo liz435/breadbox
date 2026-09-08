@@ -27,10 +27,16 @@ import {
   createDefaultBoardState,
   repairAssemblyForComponents,
   type BoardState,
+  physicalSceneSchema,
+  type PhysicalScene,
 } from "@dreamer/schemas";
 
 import { projectsDir, dreamerHome } from "../../../paths";
 import { createLogger } from "../../../logger";
+import {
+  applyBoardOps as applyBoardDocumentOps,
+  createBoardDocument,
+} from "@dreamer/board-domain";
 
 const log = createLogger("project-repo");
 
@@ -120,15 +126,10 @@ function ownsProject(project: ProjectFile, ownerId: string): boolean {
 /**
  * Strip runtime-only fields from `boardState` before they hit disk.
  *
- * Today this is just `libraryState.oled` — SSD1306 framebuffers are 1024
- * bytes per OLED that get rebuilt from scratch on every Run. Persisting
- * them would bloat project files and force project reloads to spend a
- * few hundred KB of RAM on stale pixels.
- *
- * Other runtime-only fields (servo angles, LCD text buffers) are short
- * enough that we keep them around so a saved project can show its last
- * visible state in the UI before re-running the sim. OLED is an order
- * of magnitude larger; we hold a different line for it.
+ * LibraryState and serialOutput are runtime/session state. They are rebuilt
+ * when a project loads or a simulation starts; saving them would make the
+ * document depend on the last render tick and could persist large display
+ * buffers or stale peripheral output.
  */
 function stripRuntimeOnly(project: ProjectFile): ProjectFile {
   if (!project.boardState) return project;
@@ -136,7 +137,8 @@ function stripRuntimeOnly(project: ProjectFile): ProjectFile {
     ...project,
     boardState: {
       ...project.boardState,
-      libraryState: { ...project.boardState.libraryState, oled: {} },
+      libraryState: structuredClone(createDefaultBoardState().libraryState),
+      serialOutput: [],
     },
   };
 }
@@ -572,65 +574,6 @@ async function applyOps(projectId: string, ownerId: string, req: ApplyOpsRequest
 
 // ── Apply board ops ─────────────────────────────────────────────────────────
 
-function applyBoardOp(project: ProjectFile, op: BoardOp): void {
-  if (!project.boardState) {
-    project.boardState = createDefaultBoardState();
-  }
-  const board = project.boardState!;
-
-  switch (op.kind) {
-    case "place_component":
-      board.components[op.payload.component.id] = op.payload.component;
-      break;
-    case "remove_component":
-      delete board.components[op.payload.componentId];
-      break;
-    case "move_component":
-      if (board.components[op.payload.componentId]) {
-        board.components[op.payload.componentId].x = op.payload.x;
-        board.components[op.payload.componentId].y = op.payload.y;
-      }
-      break;
-    case "update_component":
-      if (board.components[op.payload.componentId]) {
-        Object.assign(board.components[op.payload.componentId], op.payload.changes);
-      }
-      break;
-    case "connect_wire":
-      board.wires[op.payload.wire.id] = op.payload.wire;
-      break;
-    case "remove_wire":
-      delete board.wires[op.payload.wireId];
-      break;
-    case "set_pin_mode":
-      // Pin mode is runtime state on the client. The op is still persisted
-      // in the project file (for eval/replay) but doesn't mutate board state.
-      break;
-    case "update_sketch":
-      board.sketchCode = op.payload.code;
-      break;
-    case "update_board_settings":
-      // Merge settings into board state at top level
-      break;
-    case "load_board": {
-      // Wholesale board replacement (apply_design, load example). Diagrams
-      // don't describe the 3D assembly layer, so when the incoming state
-      // carries none, the previous board's assembly survives the swap —
-      // repaired against the new component set so mounts never dangle.
-      const previousAssembly = board.assembly;
-      const next = structuredClone(op.payload.state);
-      if (!next.assembly && previousAssembly) {
-        next.assembly = repairAssemblyForComponents(
-          previousAssembly,
-          Object.keys(next.components),
-        );
-      }
-      project.boardState = next;
-      break;
-    }
-  }
-}
-
 async function applyBoardOps(
   projectId: string,
   ownerId: string,
@@ -640,12 +583,37 @@ async function applyBoardOps(
   const existing = await readProject(projectId, ownerId);
   if (!existing) return null;
 
-  const working = structuredClone(existing);
-
-  for (const rawOp of input.ops) {
-    const op = boardOpSchema.parse(rawOp);
-    applyBoardOp(working, op);
+  if (existing.project.version !== input.expectedVersion) {
+    throw new VersionConflictError(input.expectedVersion, existing.project.version);
   }
+
+  const working = structuredClone(existing);
+  const ops = input.ops.map((rawOp) => boardOpSchema.parse(rawOp));
+  for (const op of ops) {
+    if (op.projectId !== projectId) {
+      throw new OpValidationError(`Op ${op.opId} projectId does not match target project`);
+    }
+    if (op.expectedVersion !== input.expectedVersion) {
+      throw new OpValidationError(
+        `Op ${op.opId} expectedVersion must equal batch expectedVersion`,
+      );
+    }
+  }
+
+  const currentBoard = working.boardState ?? createDefaultBoardState();
+  const previousAssembly = currentBoard.assembly;
+  const result = applyBoardDocumentOps(
+    createBoardDocument(currentBoard, existing.project.version),
+    ops,
+    { enforceRevision: true },
+  );
+  if (!result.state.assembly && previousAssembly) {
+    result.state.assembly = repairAssemblyForComponents(
+      previousAssembly,
+      Object.keys(result.state.components),
+    );
+  }
+  working.boardState = result.state;
 
   working.project.version += 1;
   working.project.updatedAt = now();
@@ -654,7 +622,7 @@ async function applyBoardOps(
   return {
     project: working,
     newVersion: working.project.version,
-    appliedOps: input.ops,
+    appliedOps: ops,
   };
 }
 
@@ -722,14 +690,15 @@ async function saveGraph(
   projectId: string,
   ownerId: string,
   graph: ProjectGraph,
-): Promise<{ saved: true } | null> {
+): Promise<{ saved: true; newVersion: number } | null> {
   const existing = await readProject(projectId, ownerId);
   if (!existing) return null;
 
   existing.graph = graph;
+  existing.project.version += 1;
   existing.project.updatedAt = now();
   await writeProjectRaw(projectId, existing);
-  return { saved: true };
+  return { saved: true, newVersion: existing.project.version };
 }
 
 // ── Board state persistence ─────────────────────────────────────────────────
@@ -738,33 +707,34 @@ async function saveBoardState(
   projectId: string,
   ownerId: string,
   boardState: BoardState,
-): Promise<{ saved: true } | null> {
+): Promise<{ saved: true; newVersion: number } | null> {
   const existing = await readProject(projectId, ownerId);
   if (!existing) return null;
 
   existing.boardState = boardState;
+  existing.project.version += 1;
   existing.project.updatedAt = now();
   await writeProjectRaw(projectId, existing);
-  return { saved: true };
+  return { saved: true, newVersion: existing.project.version };
 }
 
-// ── Atomic board + graph persistence ────────────────────────────────────────
-//
-// Why a combined method exists:
-//   The client needs to save board state and graph state together. If they
-//   were saved through two separate read-mutate-write cycles, two concurrent
-//   requests reading the same base snapshot would each clobber the other's
-//   field on write — silently dropping half of the save.
-//
-//   This method reads once, applies BOTH mutations, and writes once, so the
-//   on-disk file always reflects both fields atomically.
+// ── Combined project state persistence ──────────────────────────────────────
+// One read/write cycle applies all supplied documents and increments the shared
+// project revision once. Omitted fields survive; null clears physicalScene.
 async function saveBoardAndGraph(
   projectId: string,
   ownerId: string,
-  payload: { boardState?: BoardState; graph?: ProjectGraph },
-): Promise<{ saved: true } | null> {
+  payload: { boardState?: BoardState; graph?: ProjectGraph; physicalScene?: PhysicalScene | null; expectedVersion?: number },
+): Promise<{ saved: true; newVersion: number } | null> {
   const existing = await readProject(projectId, ownerId);
   if (!existing) return null;
+
+  if (
+    payload.expectedVersion !== undefined &&
+    payload.expectedVersion !== existing.project.version
+  ) {
+    throw new VersionConflictError(payload.expectedVersion, existing.project.version);
+  }
 
   if (payload.boardState !== undefined) {
     existing.boardState = payload.boardState;
@@ -772,9 +742,13 @@ async function saveBoardAndGraph(
   if (payload.graph !== undefined) {
     existing.graph = payload.graph;
   }
+  if (payload.physicalScene !== undefined) {
+    existing.physicalScene = physicalSceneSchema.nullable().parse(payload.physicalScene);
+  }
+  existing.project.version += 1;
   existing.project.updatedAt = now();
   await writeProjectRaw(projectId, existing);
-  return { saved: true };
+  return { saved: true, newVersion: existing.project.version };
 }
 
 // ── Rename project ──────────────────────────────────────────────────────────

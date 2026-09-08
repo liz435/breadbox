@@ -7,7 +7,7 @@
 
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { Canvas, useFrame, useThree } from "@react-three/fiber"
-import { CameraControls, ContactShadows, Environment, Lightformer, RoundedBox, useGLTF } from "@react-three/drei"
+import { CameraControls, Environment, Lightformer, RoundedBox, useGLTF } from "@react-three/drei"
 import { Box3, Matrix4, Vector3 } from "three"
 import type { Group, InstancedMesh } from "three"
 import { isBoardComponentType } from "@dreamer/schemas"
@@ -17,7 +17,7 @@ import { PartMesh } from "./part-models"
 import { UploadedBodies } from "./uploaded-bodies"
 import { TransformGizmo } from "./transform-gizmo"
 import { AnimationDriver } from "./animation-driver"
-import { Wires } from "./wires"
+import { ServoCables, Wires } from "./wires"
 import { PhysicsScene } from "./physics-scene"
 import { PhysicsErrorBoundary } from "./physics-boundary"
 import { usePhysicsEnabled } from "./physics-flag"
@@ -51,6 +51,8 @@ import { useCalibrating as useArduinoCalibrating } from "./arduino-calibration"
 import { ArduinoPinCalibrator } from "./arduino-calibrator"
 import { ObstacleDebug, useObstacleDebug } from "./obstacle-debug"
 import { enableShadows } from "./glb-parts"
+import { useSceneTuner } from "./scene-tuner"
+import { ARDUINO_MODEL, shiftArduinoPoint } from "./arduino-placement"
 import arduinoUnoUrl from "@/assets/arduino-uno.glb?url"
 import breadboardUrl from "@/assets/breadboard.glb?url"
 
@@ -148,10 +150,10 @@ function RailStripes() {
 /** Fallback Arduino: a procedural PCB with its major landmarks (headers, MCU,
  *  jacks, crystal). Shown while the GLB model streams in, or if it fails. */
 function ArduinoBoardFallback() {
-  const center = pixelToWorld(
+  const center = shiftArduinoPoint(pixelToWorld(
     ARDUINO_RECT_PX.x + ARDUINO_RECT_PX.width / 2,
     ARDUINO_RECT_PX.y + ARDUINO_RECT_PX.height / 2,
-  )
+  ))
   const width = pxToMm(ARDUINO_RECT_PX.width)
   const depth = pxToMm(ARDUINO_RECT_PX.height)
   return (
@@ -218,14 +220,8 @@ function ArduinoBoardFallback() {
 //  - NUDGE       fine shift in the board plane (mm): +x right, +z toward viewer.
 //  - LIFT_Y      raise/lower so the header sockets meet the wire ends (mm).
 //  - SCALE       multiplier on the fitted scale (1 = fill the footprint).
-const ARDUINO_MODEL = {
-  yawTurns: 0,
-  flip: false,
-  nudge: { x: 0, z: 0 },
-  liftY: 0,
-  scale: 1,
-}
-
+// The shared values live in arduino-placement.ts so physics and pin calibration
+// apply the same board-plane offset.
 /** The imported Arduino Uno GLB, auto-fitted to the board's footprint.
  *
  *  The model's native units/orientation are unknown, so everything is derived
@@ -524,6 +520,7 @@ function ContextRecovery() {
 
 export function SceneRoot() {
   const { select } = useEditor()
+  const tuner = useSceneTuner()
   const physicsEnabled = usePhysicsEnabled()
   const physicsActive = usePhysicsActive()
   const calibrating = useBreadboardCalibrating()
@@ -559,27 +556,20 @@ export function SceneRoot() {
         dpr={[1, 1.5]}
         // Soft (PCF) shadow maps. A part casting onto the board it sits on — and
         // onto its neighbours — is the strongest cue that it is seated rather
-        // than floating; ContactShadows below only grounds the board on the
-        // floor and is baked at frames={1}, so it can say nothing about parts.
+        // than floating.
         shadows="soft"
         camera={{ position: [40, 140, 160], fov: 40, near: 1, far: 3000 }}
-        gl={{ toneMappingExposure: 1.15 }}
+        gl={{ toneMappingExposure: tuner.exposure }}
         onPointerMissed={() => select(null)}
       >
-        {/* Warm paper backdrop matching the app's sepia theme (--background
-            cream), with a floor a touch darker (--muted tan) so the board still
-            grounds without a harsh dark slab. Fog fades distance into the page. */}
-        <color attach="background" args={["#efe7d6"]} />
-        {/* Fog kicks in well past the board so it only melts the far floor edge
-            into the horizon — a tight range would wash out the board itself,
-            which is very visible now the fog fades to cream instead of dark. */}
-        <fog attach="fog" args={["#efe7d6", 700, 1500]} />
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.4, 0]} receiveShadow>
-          <planeGeometry args={[1400, 1400]} />
-          <meshStandardMaterial color="#dfd4c0" roughness={1} />
-        </mesh>
+        {/* Match the app's aged-paper background; the warm orange ambience comes
+            from the scene lights below rather than tinting the backdrop. */}
+        <color attach="background" args={[tuner.backgroundColor]} />
 
-        <hemisphereLight args={["#ffffff", "#6b6456"]} intensity={0.5} />
+        <hemisphereLight
+          args={[tuner.hemisphereSkyColor, tuner.hemisphereGroundColor]}
+          intensity={tuner.hemisphereIntensity}
+        />
         {/* Only the key light casts. Its orthographic shadow camera is framed to
             the board rather than the 1400mm floor: at 2048² over the board that
             is ~5 texels/mm, where framing the whole floor would leave <1.5 and
@@ -604,16 +594,37 @@ export function SceneRoot() {
           shadow-normalBias={0.35}
           shadow-bias={-0.0006}
         />
-        <directionalLight position={[-120, 80, -60]} intensity={0.35} />
+        <directionalLight
+          position={[-120, 80, -60]}
+          intensity={tuner.warmLightIntensity}
+          color={tuner.warmLightColor}
+        />
         {/* Procedural studio lighting — soft key overhead, warm + cool rims —
             for real reflections on the metal/plastic parts. No external fetch. */}
         <Environment resolution={256}>
-          <Lightformer intensity={2.2} position={[0, 60, 0]} scale={[120, 120, 1]} rotation={[Math.PI / 2, 0, 0]} />
-          <Lightformer intensity={1.1} position={[-70, 25, -40]} scale={[50, 50, 1]} color="#ffd9ad" />
-          <Lightformer intensity={0.8} position={[70, 25, 40]} scale={[50, 50, 1]} color="#aecbff" />
+          <Lightformer
+            intensity={tuner.topLightIntensity}
+            position={[0, 60, 0]}
+            scale={[120, 120, 1]}
+            rotation={[Math.PI / 2, 0, 0]}
+            color={tuner.topLightColor}
+          />
+          <Lightformer
+            intensity={tuner.warmLightIntensity}
+            position={[-70, 25, -40]}
+            scale={[50, 50, 1]}
+            color={tuner.warmLightColor}
+          />
+          <Lightformer
+            intensity={tuner.orangeLightIntensity}
+            position={[70, 25, 40]}
+            scale={[50, 50, 1]}
+            color={tuner.orangeLightColor}
+          />
         </Environment>
 
         <BoardSurfaces />
+        <ServoCables />
         {/* Physics owns the parts and wires when enabled (drop, drag, drape);
             otherwise they render at their exact grid positions. The visible
             boards above stay grid-driven either way — physics only adds their
@@ -639,9 +650,6 @@ export function SceneRoot() {
         <Suspense fallback={null}>
           <UploadedBodies />
         </Suspense>
-
-        {/* Soft grounding shadow of the board onto the floor. */}
-        <ContactShadows position={[0, 0, 0]} scale={420} resolution={1024} blur={2.6} opacity={0.55} far={80} frames={1} />
 
         {/* Grid calibration handles: drag onto the model's holes to warp the
             hole grid + wire endpoints (see the toolbar toggle). */}

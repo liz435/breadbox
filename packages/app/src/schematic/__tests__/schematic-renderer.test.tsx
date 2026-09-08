@@ -23,6 +23,8 @@ const TERMINAL_OFFSET: Record<SchematicTerminalSide, { dx: number; dy: number }>
   "left-top": { dx: 0, dy: -14 },
   "left-bottom": { dx: 0, dy: 14 },
   right: { dx: 60, dy: 0 },
+  "right-top": { dx: 60, dy: -14 },
+  "right-bottom": { dx: 60, dy: 14 },
   top: { dx: 30, dy: -20 },
   bottom: { dx: 30, dy: 20 },
   "bottom-left": { dx: 18, dy: 25 },
@@ -38,7 +40,7 @@ function getTerminalPos(
 ): { x: number; y: number } {
   const offset = TERMINAL_OFFSET[side]
   if (nodeType === "arduino_pin" && side === "right") {
-    return { x: nodeX + 50, y: nodeY }
+    return { x: nodeX + 88, y: nodeY }
   }
   if (nodeType === "voltage_source" && side === "right") {
     return { x: nodeX + 60, y: nodeY }
@@ -114,9 +116,9 @@ function makeLayout(nodes: SchematicNode[], edges: SchematicEdge[]): SchematicLa
 // ── getTerminalPos special cases ────────────────────────────────────────
 
 describe("getTerminalPos — arduino_pin", () => {
-  test("arduino_pin right side returns (x+50, y)", () => {
+  test("arduino_pin right side returns (x+88, y)", () => {
     const pos = getTerminalPos(80, 100, "arduino_pin", "right")
-    expect(pos.x).toBe(130)
+    expect(pos.x).toBe(168)
     expect(pos.y).toBe(100)
   })
 
@@ -429,11 +431,23 @@ describe("WirePath — rendered wire paths (via SchematicRenderer)", () => {
     const layout = makeLayout(nodes, edges)
     const html = renderLayout(layout)
     // Straight horizontal: "M x y H to_x" (no V segment)
-    // from: arduino_pin right → (80+50, 100) = (130, 100)
+    // from: arduino_pin right → (80+88, 100) = (168, 100)
     // to: resistor left → (230, 100)
     expect(html).toContain("H 230")
     // Should NOT have a V segment for same-y wires
     expect(html).not.toMatch(/V \d/)
+  })
+
+  test("approaches a right-facing LED cathode from outside the symbol body", () => {
+    const nodes = [
+      makeNode({ id: "pin-13", type: "arduino_pin", x: 80, y: 100 }),
+      makeNode({ id: "comp-led1", type: "led", x: 230, y: 100 }),
+    ]
+    const layout = makeLayout(nodes, [
+      makeEdge({ id: "reverse-led", fromNodeId: "pin-13", toNodeId: "comp-led1", fromSide: "right", toSide: "right" }),
+    ])
+    const html = renderLayout(layout)
+    expect(html).toContain('d="M 168 100 H 188 V 120 H 310 V 100 H 290"')
   })
 
   test("orthogonal path (H-V-H) when from.y differs from to.y", () => {
@@ -449,6 +463,33 @@ describe("WirePath — rendered wire paths (via SchematicRenderer)", () => {
     const html = renderLayout(layout)
     // Must have a V segment (vertical portion)
     expect(html).toMatch(/V \d/)
+  })
+
+  test("routes around an LED body when a series resistor is stacked beneath it", () => {
+    // This is the D13 → resistor → LED → GND arrangement. A plain midpoint
+    // route puts its vertical segment through the LED's diode bar, making the
+    // anode connection look like it lands on the cathode.
+    const nodes = [
+      makeNode({ id: "comp-led1", type: "led", x: 230, y: 80 }),
+      makeNode({ id: "comp-r1", type: "resistor", x: 230, y: 180 }),
+    ]
+    const edges = [
+      makeEdge({
+        id: "e1",
+        fromNodeId: "comp-r1",
+        fromSide: "right",
+        toNodeId: "comp-led1",
+        toSide: "left",
+      }),
+    ]
+    const layout = makeLayout(nodes, edges)
+    const html = renderLayout(layout)
+
+    // The route leaves the resistor to the right, travels below both symbols,
+    // then approaches the LED anode from its left. It must not use x=260, the
+    // midpoint that crosses the LED body.
+    expect(html).toContain('d="M 290 180 H 310 V 200 H 210 V 80 H 230"')
+    expect(html).not.toContain('d="M 290 180 H 260 V 80 H 230"')
   })
 
   test("missing fromNode in layout causes WirePath to render nothing — no crash", () => {

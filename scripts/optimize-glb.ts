@@ -32,7 +32,7 @@ import { join } from "node:path"
 import { Document, NodeIO, type Primitive } from "@gltf-transform/core"
 import { EXTMeshoptCompression } from "@gltf-transform/extensions"
 import { dedup, prune, simplify, weld } from "@gltf-transform/functions"
-import { MeshoptEncoder, MeshoptSimplifier } from "meshoptimizer"
+import { MeshoptDecoder, MeshoptEncoder, MeshoptSimplifier } from "meshoptimizer"
 
 const ASSETS_DIR = join(import.meta.dir, "..", "packages", "app", "src", "assets")
 
@@ -164,13 +164,15 @@ async function optimize(io: NodeIO, file: string, dryRun: boolean): Promise<Resu
 
 async function main(): Promise<void> {
   const dryRun = process.argv.includes("--dry-run")
-  await MeshoptEncoder.ready
-  await MeshoptSimplifier.ready
+  await Promise.all([MeshoptDecoder.ready, MeshoptEncoder.ready, MeshoptSimplifier.ready])
   const io = new NodeIO()
     .registerExtensions([EXTMeshoptCompression])
-    .registerDependencies({ "meshopt.encoder": MeshoptEncoder, "meshopt.decoder": MeshoptEncoder })
+    .registerDependencies({ "meshopt.encoder": MeshoptEncoder, "meshopt.decoder": MeshoptDecoder })
 
-  const files = readdirSync(ASSETS_DIR).filter((f) => f.endsWith(".glb")).sort()
+  const only = process.argv.find((arg) => arg.startsWith("--only="))?.slice("--only=".length)
+  const files = readdirSync(ASSETS_DIR)
+    .filter((f) => f.endsWith(".glb") && (only == null || f === only))
+    .sort()
   if (files.length === 0) throw new Error(`no .glb files in ${ASSETS_DIR}`)
 
   const results: Result[] = []

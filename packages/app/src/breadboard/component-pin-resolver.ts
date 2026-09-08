@@ -10,23 +10,19 @@
 // to find Arduino pins connected to a given component, optionally
 // filtered by direction (input pins only, excluding 5V/GND).
 //
-// TODO(multi-board-resolver): every helper here ignores `wire.fromBoardId
-// / toBoardId` and `component.parentId`. With a single implicit breadboard
-// that is fine — every endpoint shares one coordinate space. With
-// multiple surface boards in components{} the helpers will treat the
-// same (row, col) on DIFFERENT boards as connected, producing wrong
-// pin lookups, false-positive button signals, and incorrect "what's on
-// pin N" answers. Fix in lockstep with breadboard-grid.ts (areConnected,
-// resolveNets) so all consumers — netlist-builder, circuit-solver,
-// power-budget, schematic-layout — switch over together.
-
 import {
   MAX_ARDUINO_PIN,
   resolveComponentPins,
   type BoardComponent,
   type Wire,
 } from "@dreamer/schemas"
-import { getComponentFootprint, areConnected, resolveNets } from "./breadboard-grid"
+import {
+  componentSurfaceBoardId,
+  getComponentFootprint,
+  terminalAddressKey,
+  type Net,
+} from "./breadboard-grid"
+import { compileElectricalTopology, electricalTerminalKey } from "@/simulator/electrical-topology"
 
 const GROUND_PINS = new Set([-3, -4, -6])
 const POWER_PINS = new Set([-1, -2])
@@ -59,30 +55,17 @@ export function findArduinoPinsForComponent(
   component: BoardComponent,
   wires: Record<string, Wire>,
 ): number[] {
-  const footprint = getComponentFootprint(
-    component.type,
-    component.y,
-    component.x,
-    component.rotation,
-    component.properties,
+  const topology = compileElectricalTopology({ [component.id]: component }, wires)
+  const netIds = new Set(
+    topology.terminals
+      .filter((terminal) => terminal.componentId === component.id && terminal.netId != null)
+      .map((terminal) => terminal.netId!),
   )
-  const pins = new Set<number>()
-
-  for (const wire of Object.values(wires)) {
-    if (wire.fromRow !== -999) continue
-    const arduinoPin = wire.fromCol
-    if (arduinoPin < 0 || arduinoPin > MAX_ARDUINO_PIN) continue
-
-    const wireTo = { row: wire.toRow, col: wire.toCol }
-    for (const fpPoint of footprint.points) {
-      if (areConnected(wireTo, fpPoint)) {
-        pins.add(arduinoPin)
-        break
-      }
-    }
-  }
-
-  return [...pins]
+  return [...new Set(
+    topology.nets
+      .filter((net) => netIds.has(net.id))
+      .flatMap((net) => net.arduinoPins),
+  )].filter((pin) => pin >= 0 && pin <= MAX_ARDUINO_PIN)
 }
 
 /**
@@ -108,40 +91,40 @@ function findArduinoPinsForComponentPin(
   }
   if (pins.size > 0) return [...pins].sort((a, b) => a - b)
 
+  const topology = compileElectricalTopology({ [component.id]: component }, wires)
   const pinMap = resolveComponentPins(
     component.type,
     component.y,
     component.x,
     component.properties,
   )
-  const targetPoints = names
-    .map((name) => pinMap[name])
-    .filter(Boolean) as Array<{ row: number; col: number }>
-  if (targetPoints.length === 0) return []
+  for (const name of names) {
+    const netId = topology.terminalToNet.get(electricalTerminalKey(component.id, name))
+    const net = topology.nets.find((candidate) => candidate.id === netId)
+    for (const pin of net?.arduinoPins ?? []) {
+      if (pin >= 0 && pin <= MAX_ARDUINO_PIN) pins.add(pin)
+    }
 
-  for (const wire of Object.values(wires)) {
-    if (wire.fromRow !== -999) continue
-    const arduinoPin = wire.fromCol
-    if (arduinoPin < 0 || arduinoPin > MAX_ARDUINO_PIN) continue
-
-    const wireTo = { row: wire.toRow, col: wire.toCol }
-    if (targetPoints.some((point) => {
-      if (areConnected(wireTo, point)) return true
-      // One-hop through a series resistor straddling the center gap.
-      // Resistors bridge the left strip (cols 0–4) to the right strip (cols 5–9)
-      // on the same row. If the target pin is on the right side and the signal
-      // wire lands on the left side at the same row (or vice-versa), the signal
-      // reaches the pin through the resistor.
-      return (
-        wireTo.row === point.row &&
-        ((point.col >= 5 && wireTo.col >= 0 && wireTo.col <= 4) ||
-         (point.col <= 4 && wireTo.col >= 5 && wireTo.col <= 9))
-      )
-    })) {
-      pins.add(arduinoPin)
+    // A few legacy renderers call this helper without passing the resistor
+    // component that bridges the center gap. Preserve that lookup as a
+    // narrowly-scoped compatibility path, but keep it board-qualified and
+    // only use it when the canonical terminal net had no Arduino pin.
+    if (pins.size === 0 && pinMap[name]) {
+      const target = pinMap[name]
+      const boardId = component.parentId ?? "__legacy_surface_board__"
+      for (const wire of Object.values(wires)) {
+        if (wire.fromRow !== -999 || wire.fromCol < 0 || wire.fromCol > MAX_ARDUINO_PIN) continue
+        if (wire.toBoardId && wire.toBoardId !== boardId) continue
+        if (
+          wire.toRow === target.row &&
+          ((target.col >= 5 && wire.toCol >= 0 && wire.toCol <= 4) ||
+            (target.col <= 4 && wire.toCol >= 5 && wire.toCol <= 9))
+        ) {
+          pins.add(wire.fromCol)
+        }
+      }
     }
   }
-
   return [...pins].sort((a, b) => a - b)
 }
 
@@ -164,10 +147,17 @@ export function findPeripheralsOnPin(
   wires: Record<string, Wire>,
 ): BoardComponent[] {
   if (pin < 0 || pin > MAX_ARDUINO_PIN) return []
+  const topology = compileElectricalTopology(components, wires)
   const out: BoardComponent[] = []
   for (const component of Object.values(components)) {
-    const pins = findArduinoPinsForComponent(component, wires)
-    if (pins.includes(pin)) out.push(component)
+    const netIds = new Set(
+      topology.terminals
+        .filter((terminal) => terminal.componentId === component.id && terminal.netId != null)
+        .map((terminal) => terminal.netId!),
+    )
+    if (topology.nets.some((net) => netIds.has(net.id) && net.arduinoPins.includes(pin))) {
+      out.push(component)
+    }
   }
   return out
 }
@@ -198,7 +188,7 @@ export function findInputPinForComponent(
 
 function analyzeButtonSide(
   netIds: Set<string>,
-  netById: Map<string, ReturnType<typeof resolveNets>[number]>,
+  netById: Map<string, Net>,
 ): ButtonSideAnalysis {
   const signalPins = new Set<number>()
   let hasGroundReference = false
@@ -243,6 +233,9 @@ export function analyzeButtonWiring(
     }
   }
 
+  const topology = compileElectricalTopology({ [component.id]: component }, wires)
+  const nets = topology.nets
+  const netById = new Map(nets.map((n) => [n.id, n]))
   const footprint = getComponentFootprint(
     component.type,
     component.y,
@@ -250,34 +243,19 @@ export function analyzeButtonWiring(
     component.rotation,
     component.properties,
   )
-  const points = footprint.points
-  const leftPins = [points[0], points[1]].filter(Boolean) as Array<{ row: number; col: number }>
-  const rightPins = [points[2], points[3]].filter(Boolean) as Array<{ row: number; col: number }>
-
-  if (leftPins.length === 0 || rightPins.length === 0) {
-    return {
-      inputPin: null,
-      hasGroundReference: false,
-      hasPowerReference: false,
-      hasSignalOnBothSides: false,
-    }
-  }
-
-  const nets = resolveNets({ [component.id]: component }, wires)
-  const netById = new Map(nets.map((n) => [n.id, n]))
-
-  const netIdsForPoints = (targets: Array<{ row: number; col: number }>): Set<string> => {
+  const boardId = componentSurfaceBoardId(component, { [component.id]: component })
+  const netIdsForPoints = (points: typeof footprint.points): Set<string> => {
     const ids = new Set<string>()
-    for (const net of nets) {
-      if (net.points.some((p) => targets.some((t) => areConnected(p, t)))) {
-        ids.add(net.id)
+    for (const point of points) {
+      const addressKey = terminalAddressKey({ ...point, boardId })
+      for (const net of nets) {
+        if (net.points.some((candidate) => terminalAddressKey(candidate) === addressKey)) ids.add(net.id)
       }
     }
     return ids
   }
-
-  const leftNetIds = netIdsForPoints(leftPins)
-  const rightNetIds = netIdsForPoints(rightPins)
+  const leftNetIds = netIdsForPoints(footprint.points.slice(0, 2))
+  const rightNetIds = netIdsForPoints(footprint.points.slice(2, 4))
   const left = analyzeButtonSide(leftNetIds, netById)
   const right = analyzeButtonSide(rightNetIds, netById)
 

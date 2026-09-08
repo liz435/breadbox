@@ -129,11 +129,14 @@ export const GLB_PARTS: Partial<Record<string, GlbPartConfig>> = {
   },
   // Smaller re-export of the SG90 (16.6 MB vs the old 24 MB). It DOES have the
   // Sketchfab Z-up→Y-up root (−90°X quaternion on Sketchfab_model), so it
-  // imports Y-up — no config rotation (an extra −90°X laid it on its side).
-  // The bundled jumper cable arcs to y≈52mm / z≈92mm and dominates the bbox:
-  // heightMm is the full 67mm cable-inclusive bbox so the body renders at its
-  // true ~32mm (23 shrank the whole model to a fifth — "servo not rendered").
-  servo: { url: servoUrl, rotation: [0, 0, 0], heightMm: 67, liftMm: 0, behavior: "servo" },
+  // imports Y-up — no extra X/Z correction is needed (an extra −90°X laid it
+  // on its side); the board-plane yaw below only fixes which end faces up-grid.
+  // The current compact SG90 export has an overall height of about 32mm. The
+  // old 67mm target belonged to the previous asset and made this servo render
+  // roughly twice as large as the physical part. Turn it 180° in the board
+  // plane so the body/horn face the correct end of the pin row; the existing
+  // pin calibration remains unchanged because it anchors the placement fit.
+  servo: { url: servoUrl, rotation: [0, Math.PI, 0], heightMm: 32, liftMm: 0, behavior: "servo" },
   // 28BYJ-48 stepper + ULN2003 board (motor + driver in one GLB). Orientation
   // and heightMm are first-pass guesses to eyeball in the desktop app; the
   // "stepper" behavior spins the brass output shaft about the placed-part Y axis
@@ -143,7 +146,10 @@ export const GLB_PARTS: Partial<Record<string, GlbPartConfig>> = {
   // MB102 imports Y-up with its long edge along Z; −90°Y lays it landscape
   // along X to match the footprint (sign picked so the jack/USB end faces the
   // right way — +90°Y had it turned 180°).
-  power_supply: { url: powerModuleUrl, rotation: [0, -Math.PI / 2, 0], heightMm: 22, liftMm: 0 },
+  // Seat the long module 5 mm into the breadboard so the lower body does not
+  // float above the rail surface. Keep this visual sink below the board's
+  // 8.5 mm thickness; pin fit, wire anchors, and physics remain unchanged.
+  power_supply: { url: powerModuleUrl, rotation: [0, -Math.PI / 2, 0], heightMm: 22, liftMm: 0, sinkMm: 5 },
 }
 
 /** Upright + height-normalize + centre-in-XZ + rest-on-Y=0. The "normalized
@@ -349,31 +355,31 @@ export function GlbPartModel({
     return registerPartNodes(component.id, { emissiveMaterial: domeMaterial })
   }, [component.id, domeMaterial])
 
-  // Servo horn: reparent the horn meshes (Protoboard.*) under a single pivot at
-  // the horn centre and register that as the angle node — the sim sets its
-  // rotation.y. This SG90 GLB imports Y-up (Sketchfab Z-up->Y-up root, config
-  // rotation [0,0,0]), so the output shaft already points world +Y and the
-  // pivot's local Y IS the shaft axis: the horn spins flat. (An earlier
-  // re-export lacked that root and imported the shaft along +Z, which needed a
-  // nested tilt pivot; the current model does not. If the horn ever tumbles
-  // instead of spinning flat, its shaft isn't +Y and the pivot must re-align to
-  // it — same single-pivot pattern as the stepper shaft.)
+  // Servo horn: reparent the horn and its centre fastener under a single pivot
+  // at the horn centre and register that as the angle node — the sim sets its
+  // rotation.y. This SG90 GLB imports Y-up (Sketchfab Z-up->Y-up root,
+  // config yaw is around that same vertical Y axis, so the output shaft still
+  // points world +Y and the pivot's local Y IS the shaft axis: the horn spins
+  // flat. The fastener
+  // is a separate Metal.024 mesh; keeping it in the same pivot makes the
+  // visible screw turn with the dual horn instead of staying behind.
   const hornPivot = useMemo(() => {
     if (config.behavior !== "servo") return null
-    const horns: Mesh[] = []
+    const hornParts: Mesh[] = []
     model.traverse((object) => {
       if (!isMesh(object) || Array.isArray(object.material)) return
-      if (/protoboard/i.test(object.material.name ?? "")) horns.push(object)
+      const identity = `${object.name} ${object.material.name ?? ""}`
+      if (/protoboard|metal[_ .]?006|metal\.024/i.test(identity)) hornParts.push(object)
     })
-    if (horns.length === 0) return null
+    if (hornParts.length === 0) return null
     model.updateWorldMatrix(true, true)
     const center = new Vector3()
-    new Box3().setFromObject(horns[0]).getCenter(center)
+    new Box3().setFromObject(hornParts[0]).getCenter(center)
     const pivot = new Group()
     pivot.position.copy(center)
     model.add(pivot)
     // attach() preserves each horn's world pose while reparenting under the pivot.
-    for (const part of horns) pivot.attach(part)
+    for (const part of hornParts) pivot.attach(part)
     return pivot
   }, [model, config.behavior])
 
@@ -413,12 +419,15 @@ export function GlbPartModel({
     return registerPartNodes(component.id, { angleNode: stepperPivot })
   }, [component.id, stepperPivot])
 
-  // Potentiometer shaft: the brass (latao) mesh is the topmost part of the
-  // model, so reparent it under a pivot at its centre and turn it with the
-  // dialled value. Same pivot pattern as the horn/shaft above.
+  // Potentiometer shaft. Despite the material names, this GLB's brass
+  // (latao.002) mesh is the round BODY can — the actual knurled shaft +
+  // bushing is the "Metal.Fosco.002" mesh sticking out along −Z (verified by
+  // tinting each mesh in a standalone render). Reparent the shaft under a
+  // pivot at its centre and turn it with the dialled value. Same pivot
+  // pattern as the horn/shaft above.
   const knobPivot = useMemo(() => {
     if (config.behavior !== "pot") return null
-    const shaft = findMeshByMaterial(model, /latao|brass|knob/i)
+    const shaft = findMeshByMaterial(model, /fosco|shaft|eixo/i)
     if (!shaft) return null
     model.updateWorldMatrix(true, true)
     const center = new Vector3()
@@ -436,8 +445,10 @@ export function GlbPartModel({
   const potValue = typeof component.properties.value === "number" ? component.properties.value : 50
   useLayoutEffect(() => {
     if (!knobPivot) return
-    // A real trimmer sweeps ~270°, centred so 50% points straight ahead.
-    knobPivot.rotation.y = ((potValue - 50) / 100) * (Math.PI * 1.5)
+    // A real pot sweeps ~270°, centred so 50% points straight ahead. The
+    // shaft protrudes along the model's −Z, so Z is its spin axis — rotating
+    // about Y would tip it sideways instead of turning it.
+    knobPivot.rotation.z = ((potValue - 50) / 100) * (Math.PI * 1.5)
   }, [knobPivot, potValue])
 
   // Registration is deliberately split from the rotation above: re-registering

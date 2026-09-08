@@ -28,4 +28,6 @@ test("MB102 publishes both regulated outputs as solved supplies", () => {
   expect(right?.returnNode).toBeDefined()
   expect(left?.returnNode).not.toBe("0")
   expect(left?.returnNode).not.toBe(right?.returnNode)
+  expect(result?.lines.some((line) => line.includes("_LREF") && line.endsWith("1000000000"))).toBe(true)
+  expect(result?.lines.some((line) => line.includes("_LGND") || line.includes("_RGND"))).toBe(false)
 })

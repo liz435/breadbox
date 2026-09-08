@@ -4,11 +4,19 @@ import {
   formatArduinoPin,
   isArduinoSignalPin,
   isBoardComponentType,
+  resolveComponentPins,
   type BoardComponent,
   type BoardState,
   type ComponentType,
 } from "@dreamer/schemas";
 import { useBoard } from "@/store/board-context";
+import {
+  componentSurfaceBoardId,
+  terminalAddressKey,
+  type Net,
+} from "@/breadboard/breadboard-grid";
+import { compileElectricalTopology } from "@/simulator/electrical-topology";
+import { compileElectricalErc } from "@dreamer/board-domain";
 
 type ElectricalIssue = {
   severity: "error" | "warning";
@@ -64,115 +72,14 @@ const UNO_LIMITS = {
   rail3v3LimitMa: 50,
 };
 
-class DisjointSet {
-  private readonly parent = new Map<string, string>();
-
-  private make(key: string) {
-    if (!this.parent.has(key)) this.parent.set(key, key);
-  }
-
-  find(key: string): string {
-    this.make(key);
-    let root = this.parent.get(key)!;
-    while (root !== this.parent.get(root)!) root = this.parent.get(root)!;
-    let current = key;
-    while (current !== root) {
-      const next = this.parent.get(current)!;
-      this.parent.set(current, root);
-      current = next;
-    }
-    return root;
-  }
-
-  union(a: string, b: string) {
-    const ra = this.find(a);
-    const rb = this.find(b);
-    if (ra !== rb) this.parent.set(ra, rb);
-  }
-}
-
-function keyGrid(point: Point): string {
-  return `g:${point.row}:${point.col}`;
-}
-
-function keyArduino(pin: number): string {
-  return `a:${pin}`;
-}
-
+/** Component terminals come from the same resolver as schematic and SPICE. */
 function componentPinPoints(component: BoardComponent): Record<string, Point> {
-  const x = component.x;
-  const y = component.y;
-  switch (component.type) {
-    case "led":
-      return { anode: { row: y, col: x }, cathode: { row: y + 1, col: x } };
-    case "rgb_led":
-      return {
-        red: { row: y, col: x },
-        green: { row: y + 1, col: x },
-        blue: { row: y + 2, col: x },
-        common: { row: y + 3, col: x },
-      };
-    case "resistor":
-      return { a: { row: y, col: x }, b: { row: y, col: x + 4 } };
-    case "button":
-      return { a: { row: y, col: x }, b: { row: y, col: x + 3 } };
-    case "servo":
-      return { signal: { row: y, col: x }, vcc: { row: y + 1, col: x }, gnd: { row: y + 2, col: x } };
-    case "potentiometer":
-      return { vcc: { row: y, col: x }, signal: { row: y + 1, col: x }, gnd: { row: y + 2, col: x } };
-    case "temperature_sensor":
-      return { power: { row: y, col: x }, vout: { row: y + 1, col: x }, ground: { row: y + 2, col: x } };
-    case "buzzer":
-      return { positive: { row: y, col: x }, negative: { row: y + 1, col: x } };
-    case "power_supply":
-      return { positive: { row: y, col: x }, negative: { row: y + 1, col: x } };
-    case "lcd_16x2":
-      return {
-        vss: { row: y + 0, col: x },
-        vdd: { row: y + 1, col: x },
-        vo: { row: y + 2, col: x },
-        rs: { row: y + 3, col: x },
-        rw: { row: y + 4, col: x },
-        e: { row: y + 5, col: x },
-        d4: { row: y + 6, col: x },
-        d5: { row: y + 7, col: x },
-        d6: { row: y + 8, col: x },
-        d7: { row: y + 9, col: x },
-        a: { row: y + 10, col: x },
-        k: { row: y + 11, col: x },
-      };
-    case "relay":
-      return {
-        vcc: { row: y + 0, col: x },
-        signal: { row: y + 1, col: x },
-        gnd: { row: y + 2, col: x },
-      };
-    case "dc_motor":
-      return {
-        vcc: { row: y + 0, col: x },
-        signal: { row: y + 1, col: x },
-      };
-    case "neopixel":
-      return {
-        signal: { row: y + 0, col: x },
-        vcc: { row: y + 1, col: x },
-        gnd: { row: y + 2, col: x },
-      };
-    case "seven_segment":
-      return {
-        a: { row: y + 0, col: x },
-        b: { row: y + 1, col: x },
-        c: { row: y + 2, col: x },
-        d: { row: y + 3, col: x },
-        e: { row: y + 4, col: x },
-        f: { row: y + 5, col: x },
-        g: { row: y + 6, col: x },
-        dp: { row: y + 7, col: x },
-        gnd: { row: y + 8, col: x },
-      };
-    default:
-      return { signal: { row: y, col: x } };
-  }
+  return resolveComponentPins(
+    component.type,
+    component.y,
+    component.x,
+    component.properties,
+  )
 }
 
 function powerSupplyPositivePoints(component: BoardComponent): Point[] {
@@ -207,14 +114,14 @@ function signalPins(component: BoardComponent): string[] {
   if (component.type === "servo") return ["signal"];
   if (component.type === "buzzer") return ["positive"];
   if (component.type === "neopixel") return ["din", "signal"];
-  if (component.type === "lcd_16x2") return ["rs", "e", "d4", "d5", "d6", "d7"];
+  if (component.type === "lcd_16x2") return ["rs", "en", "d4", "d5", "d6", "d7"];
   return ["signal", "vout", "data", "din"];
 }
 
 function powerPins(component: BoardComponent): string[] {
   if (component.type === "servo") return ["vcc"];
   if (component.type === "potentiometer") return ["vcc"];
-  if (component.type === "temperature_sensor") return ["power"];
+  if (component.type === "temperature_sensor") return ["vcc"];
   if (component.type === "buzzer") return ["positive"];
   if (component.type === "dc_motor" || component.type === "relay") return ["vcc", "signal"];
   if (component.type === "neopixel") return ["vcc"];
@@ -227,7 +134,7 @@ function groundPins(component: BoardComponent): string[] {
   if (component.type === "seven_segment") return ["gnd"];
   if (component.type === "servo") return ["gnd"];
   if (component.type === "potentiometer") return ["gnd"];
-  if (component.type === "temperature_sensor") return ["ground"];
+  if (component.type === "temperature_sensor") return ["gnd"];
   if (component.type === "buzzer") return ["negative"];
   if (component.type === "lcd_16x2") return ["vss", "k"];
   if (component.type === "led") return ["cathode"];
@@ -247,69 +154,41 @@ function addLoad(
   bucket.componentIds.add(componentId);
 }
 
-function netHasGroundRail(ds: DisjointSet, net: string): boolean {
-  // Ground rails are cols -2 and 10 (first column of each pair).
-  for (let row = 0; row < 30; row++) {
-    if (ds.find(keyGrid({ row, col: -2 })) === net) return true;
-    if (ds.find(keyGrid({ row, col: 10 })) === net) return true;
-  }
-  return false;
+function netHasGroundRail(nets: Net[], netId: string): boolean {
+  const net = nets.find((candidate) => candidate.id === netId)
+  return net?.points.some((point) => point.col === -2 || point.col === 10) ?? false
 }
 
-function netHasPowerRail(ds: DisjointSet, net: string): boolean {
-  // Power (+) rails are cols -1 and 11 (second column of each pair).
-  for (let row = 0; row < 30; row++) {
-    if (ds.find(keyGrid({ row, col: -1 })) === net) return true;
-    if (ds.find(keyGrid({ row, col: 11 })) === net) return true;
-  }
-  return false;
+function netHasPowerRail(nets: Net[], netId: string): boolean {
+  const net = nets.find((candidate) => candidate.id === netId)
+  return net?.points.some((point) => point.col === -1 || point.col === 11) ?? false
 }
 
-function connectBreadboardBuses(ds: DisjointSet) {
-  for (let row = 0; row < 30; row++) {
-    const left = [0, 1, 2, 3, 4].map((col) => keyGrid({ row, col }));
-    const right = [5, 6, 7, 8, 9].map((col) => keyGrid({ row, col }));
-    for (let i = 1; i < left.length; i++) ds.union(left[0]!, left[i]!);
-    for (let i = 1; i < right.length; i++) ds.union(right[0]!, right[i]!);
-  }
-
-  // Power rails are vertically continuous across rows.
-  for (let row = 1; row < 30; row++) {
-    ds.union(keyGrid({ row: 0, col: -2 }), keyGrid({ row, col: -2 }));
-    ds.union(keyGrid({ row: 0, col: -1 }), keyGrid({ row, col: -1 }));
-    ds.union(keyGrid({ row: 0, col: 10 }), keyGrid({ row, col: 10 }));
-    ds.union(keyGrid({ row: 0, col: 11 }), keyGrid({ row, col: 11 }));
-  }
-}
-
-// TODO(multi-board-resolver): traces nets via the single-board resolver, so
-// power-rail islands across multiple surface boards (Q16 — intentionally
-// not auto-bridged) are misreported: a load on breadboard-2 may appear
-// connected to breadboard-1's 5V rail because their (row, col) coincide.
-// power-budget-guard (the project skill) is the natural lint surface for
-// rail-island warnings once the resolver is board-aware.
 export function analyzeElectricalBoard(board: BoardState): ElectricalReport {
   const boardTarget = board.boardTarget ?? DEFAULT_BOARD_TARGET;
   const issues: ElectricalIssue[] = [];
   const recommendations = new Map<string, string>();
-  const ds = new DisjointSet();
-  connectBreadboardBuses(ds);
-
-  for (const wire of Object.values(board.wires)) {
-    const from = wire.fromRow === -999
-      ? keyArduino(wire.fromCol)
-      : keyGrid({ row: wire.fromRow, col: wire.fromCol });
-    const to = keyGrid({ row: wire.toRow, col: wire.toCol });
-    ds.union(from, to);
+  const topology = compileElectricalTopology(board.components, board.wires);
+  const nets = topology.nets;
+  for (const issue of compileElectricalErc(board)) {
+    issues.push({
+      severity: issue.severity,
+      code: issue.code,
+      message: issue.message,
+      componentId: issue.componentId,
+    });
   }
-
-  const arduinoPinsByNet = new Map<string, Set<number>>();
-  for (const wire of Object.values(board.wires)) {
-    if (wire.fromRow !== -999) continue;
-    const net = ds.find(keyArduino(wire.fromCol));
-    if (!arduinoPinsByNet.has(net)) arduinoPinsByNet.set(net, new Set<number>());
-    arduinoPinsByNet.get(net)!.add(wire.fromCol);
-  }
+  const netIdAt = (component: BoardComponent, point: Point): string => {
+    const boardId = componentSurfaceBoardId(component, board.components);
+    const addressKey = terminalAddressKey({ ...point, boardId });
+    return nets.find((net) => net.points.some((candidate) => terminalAddressKey(candidate) === addressKey))?.id
+      ?? `unconnected:${addressKey}`;
+  };
+  const arduinoPinsByNet = new Map<string, Set<number>>(
+    nets
+      .filter((net) => net.arduinoPins.length > 0)
+      .map((net) => [net.id, new Set(net.arduinoPins)]),
+  );
 
   const pinLoads = new Map<string, { currentMa: number; componentIds: Set<string> }>();
   const railLoads = new Map<string, { currentMa: number; componentIds: Set<string> }>();
@@ -323,7 +202,7 @@ export function analyzeElectricalBoard(board: BoardState): ElectricalReport {
     for (const signalPin of signalPins(component)) {
       const point = pins[signalPin];
       if (!point) continue;
-      const net = ds.find(keyGrid(point));
+      const net = netIdAt(component, point);
       const connectedPins = arduinoPinsByNet.get(net) ?? new Set<number>();
       for (const pin of connectedPins) {
         if (isArduinoSignalPin(pin)) addLoad(pinLoads, String(pin), profile.signalPinCurrentMa, component.id);
@@ -337,7 +216,7 @@ export function analyzeElectricalBoard(board: BoardState): ElectricalReport {
     for (const p of powerPins(component)) {
       const point = pins[p];
       if (!point) continue;
-      const net = ds.find(keyGrid(point));
+      const net = netIdAt(component, point);
       const connectedPins = arduinoPinsByNet.get(net) ?? new Set<number>();
       if (connectedPins.has(-1)) from5v = true;
       if (connectedPins.has(-2)) from3v3 = true;
@@ -345,7 +224,7 @@ export function analyzeElectricalBoard(board: BoardState): ElectricalReport {
         for (const other of components) {
           if (other.type !== "power_supply") continue;
           const positivePoints = powerSupplyPositivePoints(other);
-          if (positivePoints.some((pos) => ds.find(keyGrid(pos)) === net)) {
+          if (positivePoints.some((pos) => netIdAt(other, pos) === net)) {
             fromExternal = true;
             break;
           }
@@ -356,7 +235,7 @@ export function analyzeElectricalBoard(board: BoardState): ElectricalReport {
     for (const gp of groundPins(component)) {
       const point = pins[gp];
       if (!point) continue;
-      const net = ds.find(keyGrid(point));
+      const net = netIdAt(component, point);
       const connectedPins = arduinoPinsByNet.get(net) ?? new Set<number>();
       if (connectedPins.has(-3) || connectedPins.has(-4) || connectedPins.has(-6)) {
         hasGround = true;
@@ -365,7 +244,7 @@ export function analyzeElectricalBoard(board: BoardState): ElectricalReport {
         for (const other of components) {
           if (other.type !== "power_supply") continue;
           const negativePoints = powerSupplyNegativePoints(other);
-          if (negativePoints.some((pos) => ds.find(keyGrid(pos)) === net)) {
+          if (negativePoints.some((pos) => netIdAt(other, pos) === net)) {
             hasGround = true;
             break;
           }
@@ -404,7 +283,7 @@ export function analyzeElectricalBoard(board: BoardState): ElectricalReport {
       const hasAnySignalConnection = signalPins(component).some((sp) => {
         const point = pins[sp];
         if (!point) return false;
-        const net = ds.find(keyGrid(point));
+        const net = netIdAt(component, point);
         const connectedPins = arduinoPinsByNet.get(net) ?? new Set<number>();
         return [...connectedPins].some((pin) => isArduinoSignalPin(pin));
       });
@@ -433,8 +312,8 @@ export function analyzeElectricalBoard(board: BoardState): ElectricalReport {
       const sideA = pins.a;
       const sideB = pins.b;
       if (sideA && sideB) {
-        const netA = ds.find(keyGrid(sideA));
-        const netB = ds.find(keyGrid(sideB));
+        const netA = netIdAt(component, sideA);
+        const netB = netIdAt(component, sideB);
         const pinsA = arduinoPinsByNet.get(netA) ?? new Set<number>();
         const pinsB = arduinoPinsByNet.get(netB) ?? new Set<number>();
         const sideAHasSignal = [...pinsA].some((pin) => isArduinoSignalPin(pin));
@@ -452,10 +331,10 @@ export function analyzeElectricalBoard(board: BoardState): ElectricalReport {
           const refNet = sideAHasSignal ? netB : netA;
           const hasGroundRef =
             [...refPins].some((pin) => pin === -3 || pin === -4 || pin === -6) ||
-            netHasGroundRail(ds, refNet);
+            netHasGroundRail(nets, refNet);
           const hasPowerRef =
             [...refPins].some((pin) => pin === -1 || pin === -2) ||
-            netHasPowerRail(ds, refNet);
+            netHasPowerRail(nets, refNet);
 
           if (!hasGroundRef && !hasPowerRef) {
             issues.push({

@@ -9,9 +9,15 @@
 // (re-uses the same dev commands).
 
 import { defineConfig, devices } from "@playwright/test"
+import { mkdtempSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 
 const APP_PORT = Number(process.env.APP_PORT ?? 28420)
+const API_PORT = Number(process.env.API_PORT ?? 28421)
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${APP_PORT}`
+const API_ORIGIN = process.env.API_ORIGIN ?? `http://localhost:${API_PORT}`
+const E2E_DATA_DIR = process.env.DATA_DIR ?? mkdtempSync(join(tmpdir(), "dreamer-playwright-"))
 
 export default defineConfig({
   testDir: "./e2e",
@@ -49,5 +55,13 @@ export default defineConfig({
         timeout: 60_000,
         stdout: "pipe",
         stderr: "pipe",
+        env: {
+          ...process.env,
+          APP_PORT: String(APP_PORT),
+          API_PORT: String(API_PORT),
+          APP_ORIGIN: process.env.APP_ORIGIN ?? BASE_URL,
+          API_ORIGIN,
+          DATA_DIR: E2E_DATA_DIR,
+        },
       },
 })

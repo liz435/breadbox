@@ -96,6 +96,49 @@ describe("InlineSolverHost", () => {
   })
 })
 
+describe("WorkerSolverHost stale-result guard", () => {
+  class FakeWorker {
+    private readonly handlers: Array<(event: { data: unknown }) => void> = []
+    readonly posted: unknown[] = []
+    postMessage(message: unknown): void { this.posted.push(message) }
+    terminate(): void {}
+    addEventListener(type: "message" | "error", handler: (event: { data: unknown }) => void): void {
+      if (type === "message") this.handlers.push(handler)
+    }
+    emit(data: unknown): void {
+      for (const handler of this.handlers) handler({ data })
+    }
+  }
+
+  test("a reply from before reset cannot become the new project's analysis", () => {
+    const worker = new FakeWorker()
+    const host = new WorkerSolverHost(worker)
+    expect(host.tick(tickInput(0.01))).toBeNull()
+    host.reset()
+    worker.emit({
+      type: "tick-result",
+      seq: 1,
+      lagSeconds: 0,
+      realtimeFactor: 1,
+      throttleMcu: false,
+      stepsUsed: 1,
+      analysis: {
+        isValid: true,
+        netlist: "stale",
+        states: [],
+        currentPaths: [],
+        warnings: [],
+        supplies: [],
+        componentPower: [],
+        nodeVolts: [],
+      },
+    })
+    expect(host.tick(tickInput(0.02))).toBeNull()
+    expect(worker.posted.filter((message) => (message as { type: string }).type === "tick")).toHaveLength(2)
+    host.dispose()
+  })
+})
+
 describe.skipIf(typeof Worker === "undefined")("WorkerSolverHost", () => {
   test("solves through a real worker; results converge with inline", async () => {
     const worker = new Worker(new URL("../solver.worker.ts", import.meta.url).href)

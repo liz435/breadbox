@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
-import { BookOpen, Bug, Box, Square, type LucideIcon } from "lucide-react"
+import { BookOpen, Bug, Box, Square, Move3d, type LucideIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { useDockviewApi } from "@/store/dockview-context"
@@ -27,6 +27,7 @@ const TOOL_ACTIVE =
 const MODE_ICONS: Record<WorkspaceMode, LucideIcon> = {
   "2d": Square,
   "3d": Box,
+  physical: Move3d,
   debug: Bug,
 }
 

@@ -16,6 +16,7 @@ import { getBoardPinLayout, type ArduinoPinInfo } from "@/breadboard/breadboard-
 import { useBoardSelector } from "@/store/board-context"
 import { pixelToWorld } from "./layout"
 import { getCalibration, setPinOverride, useCalibration } from "./arduino-calibration"
+import { shiftArduinoPoint, unshiftArduinoPoint } from "./arduino-placement"
 
 const UP = new Vector3(0, 1, 0)
 
@@ -36,10 +37,14 @@ function PinHandle({ pin }: { pin: ArduinoPinInfo }) {
   const { headerY, overrides } = useCalibration()
   const fallback = useMemo(() => pixelToWorld(pin.x, pin.y), [pin.x, pin.y])
   const override = overrides[pin.pin]
+  const point = shiftArduinoPoint({
+    x: override?.x ?? fallback.x,
+    z: override?.z ?? fallback.z,
+  })
   const position: [number, number, number] = [
-    override?.x ?? fallback.x,
+    point.x,
     headerY,
-    override?.z ?? fallback.z,
+    point.z,
   ]
 
   const camera = useThree((state) => state.camera)
@@ -68,7 +73,8 @@ function PinHandle({ pin }: { pin: ArduinoPinInfo }) {
         // Re-read the height each move so the header-height control applies live.
         plane.set(UP, -getCalibration().headerY)
         if (raycaster.ray.intersectPlane(plane, hit)) {
-          setPinOverride(pin.pin, { x: hit.x, z: hit.z })
+          const point = unshiftArduinoPoint({ x: hit.x, z: hit.z })
+          setPinOverride(pin.pin, { x: point.x, z: point.z })
         }
       }
       const up = () => {

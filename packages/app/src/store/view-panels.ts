@@ -32,11 +32,10 @@ export type ViewPanel = {
   inTabStrip?: boolean;
 };
 
-// `defaultPosition` mirrors the default layout built in app.tsx's onReady, so a
-// view that was closed reopens in its original spot. `within` re-adds a view as
-// a tab in its original group (e.g. Libraries lives with Sketch; Diagram lives
-// with Inspector). Schematic and Inspector share the right column (Schematic on
-// top, Inspector below). When the referenced panel is itself closed, showPanel
+// `defaultPosition` mirrors the default layout built by workspace-modes.ts, so
+// a view that was closed reopens in its original spot. `within` re-adds a view
+// as a tab in its original group (e.g. Libraries lives with Sketch; Diagram
+// lives with Inspector). When the referenced panel is itself closed, showPanel
 // falls back to letting Dockview place the panel (see below).
 export const VIEW_PANELS: ViewPanel[] = [
   { id: "breadboard", label: "Breadboard" },
@@ -46,6 +45,10 @@ export const VIEW_PANELS: ViewPanel[] = [
     defaultPosition: { referencePanel: "breadboard", direction: "within" },
   },
   {
+    id: "physicalTest",
+    label: "Physical Test",
+  },
+  {
     id: "sketchEditor",
     label: "Sketch",
     defaultPosition: { referencePanel: "breadboard", direction: "right" },
@@ -53,7 +56,7 @@ export const VIEW_PANELS: ViewPanel[] = [
   {
     id: "schematic",
     label: "Schematic",
-    defaultPosition: { referencePanel: "inspector", direction: "above" },
+    defaultPosition: { referencePanel: "sketchEditor", direction: "below" },
   },
   {
     id: "inspector",
@@ -72,7 +75,7 @@ export const VIEW_PANELS: ViewPanel[] = [
   },
   {
     id: "projectFiles",
-    label: "Project Files",
+    label: "Components",
     defaultPosition: { referencePanel: "breadboard", direction: "left" },
   },
   {

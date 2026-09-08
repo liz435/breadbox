@@ -127,7 +127,11 @@ export async function startHeadedMode(): Promise<void> {
         ],
         credentials: true,
         methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-        allowedHeaders: ["Content-Type"],
+        // User-Agent: the AI SDK stamps an "ai-sdk/x.y" User-Agent header on
+        // chat requests. Chrome sends it without asking, but WebKit (the
+        // desktop app's WKWebView) lists it in the CORS preflight and blocks
+        // the request unless it's explicitly allowed here.
+        allowedHeaders: ["Content-Type", "User-Agent"],
       }),
     )
     .use(authPlugin)

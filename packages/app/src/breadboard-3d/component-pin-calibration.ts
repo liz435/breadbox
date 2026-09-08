@@ -93,11 +93,11 @@ const BAKED_PIN_CALIBRATION: PinCalibrations = {
   },
   // VIRTUAL pins (the SG90 has no board pins — its cable ends in a connector):
   // three points under the body's base centre at true 2.54mm pitch, in the
-  // normalized frame (heightMm 67 ≈ scale 1). glbNormalize centres on the full
-  // bbox, and the bundled cable (z→92mm) drags that centre ~35mm off the body —
-  // this fit puts the BODY back over its 3 footprint holes at real scale, with
-  // the cable draping down-board. Derived from per-node GLB bounds, not dropped
-  // by hand.
+  // normalized frame. glbNormalize centres on the full bbox, and the bundled
+  // cable drags that centre off the body — this fit puts the BODY back over its
+  // 3 footprint holes at real scale, with the cable draping down-board. The
+  // placement yaw is applied after this fit, so these anchors stay in the
+  // normalized model frame and continue to seat the body over the holes.
   servo: {
     pins: [
       { x: 0, z: -43.3 },

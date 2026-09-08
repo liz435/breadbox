@@ -22,6 +22,7 @@ import { GraphPanel } from "./graph/graph-panel";
 import { ViewportPanel } from "./viewport/viewport-panel";
 import { BreadboardPanel } from "./breadboard/breadboard-panel";
 import { Breadboard3dPanel } from "./breadboard-3d/breadboard-3d-panel";
+import { PhysicalTestPanel } from "./physical-scene/physical-test-panel";
 import { SerialMonitor } from "./panels/serial-monitor";
 import { PinInspector } from "./panels/pin-inspector";
 import { DebuggerPanel } from "./panels/debugger-panel";
@@ -36,6 +37,7 @@ import { AppProviders } from "./app-providers";
 import { DockviewContext } from "./store/dockview-context";
 import { useViewMenuCommands } from "./store/use-view-menu-commands";
 import { useViewMenuSync } from "./store/use-view-menu-sync";
+import { useBreadboard3dTabSync } from "./store/breadboard-3d-tab";
 import { ProjectLoader } from "./project/project-loader";
 import { useGraphPersistence } from "./project/use-graph-persistence";
 import { useBoardPersistence } from "./project/use-board-persistence";
@@ -60,6 +62,11 @@ import { PreviewBanner } from "./auth/preview-banner";
 import { MotionEditorPage } from "./motion/motion-editor-page";
 import { OnboardingTour } from "./onboarding/onboarding-tour";
 import {
+  applyWorkspaceMode,
+  getWorkspaceMode,
+  WORKSPACE_LAYOUT_VERSION,
+} from "./store/workspace-modes";
+import {
   OPEN_ONBOARDING_EVENT,
   ONBOARDING_BOARD_KEY,
   shouldAutoStartOnboarding,
@@ -76,6 +83,10 @@ function BreadboardDockPanel(_props: IDockviewPanelProps) {
 
 function Breadboard3dDockPanel(_props: IDockviewPanelProps) {
   return <ErrorBoundary name="3D Breadboard"><Breadboard3dPanel /></ErrorBoundary>;
+}
+
+function PhysicalTestDockPanel(_props: IDockviewPanelProps) {
+  return <ErrorBoundary name="Physical Test"><PhysicalTestPanel /></ErrorBoundary>;
 }
 
 function InspectorPanel(_props: IDockviewPanelProps) {
@@ -127,6 +138,7 @@ const components = {
   projectFiles: ProjectFilesPanel,
   breadboard: BreadboardDockPanel,
   breadboard3d: Breadboard3dDockPanel,
+  physicalTest: PhysicalTestDockPanel,
   inspector: InspectorPanel,
   graph: GraphEditorPanel,
   viewport: ViewportPanelWrapper,
@@ -171,6 +183,9 @@ function AppInner() {
   // Mirror which view panels are open onto the native View-menu checkmarks.
   // No-op outside the desktop shell.
   useViewMenuSync(dockviewApi);
+  // Track whether the 3D Breadboard tab is front so the Components sidebar
+  // can swap in the 3D scene panel.
+  useBreadboard3dTabSync(dockviewApi);
   // Track which projectId we have already hydrated for. switchProject() now
   // re-runs hydration cleanly without leaking state from the previous project.
   const boardHydratedForRef = useRef<string | null>(null);
@@ -431,7 +446,7 @@ function AppInner() {
 
     // Clear stale layouts from before Arduino simulator conversion.
     // The old layout references "canvas" and missing panels — force a fresh default.
-    const LAYOUT_VERSION = "arduino-sim-v18";
+    const LAYOUT_VERSION = WORKSPACE_LAYOUT_VERSION;
     const saved = localStorage.getItem(LAYOUT_STORAGE_KEY);
     const savedVersion = localStorage.getItem(LAYOUT_STORAGE_KEY + ":version");
     if (saved && savedVersion === LAYOUT_VERSION) {
@@ -447,74 +462,10 @@ function AppInner() {
       localStorage.removeItem(LAYOUT_STORAGE_KEY);
     }
 
-    // Default layout = the Build workspace mode's tab set, so the initial
-    // view matches the Build button that's highlighted on first load:
-    //   Components | Canvas | Sketch / Libraries | Schematic (top) / Inspector (bottom)
-    // Other panels (Serial, Pin Inspector, Diagram) appear when you switch into
-    // Simulate / Debug or open them from the command palette / View menu.
-    const totalWidth = api.width;
-    const totalHeight = api.height;
-
-    const projectFilesPanel = api.addPanel({
-      id: "projectFiles",
-      component: "projectFiles",
-      title: "Components",
-    });
-
-    const canvasPanel = api.addPanel({
-      id: "breadboard",
-      component: "breadboard",
-      title: "Breadboard",
-      position: { referencePanel: projectFilesPanel, direction: "right" },
-    });
-
-    // 3D view lives as a sibling tab of the 2D canvas; re-activate the 2D
-    // canvas so it stays the group's front tab in the default layout.
-    api.addPanel({
-      id: "breadboard3d",
-      component: "breadboard3d",
-      title: "3D Breadboard",
-      position: { referencePanel: canvasPanel, direction: "within" },
-    });
-    canvasPanel.api.setActive();
-
-    // Sketch editor in the third column, with Libraries as a sibling tab.
-    const sketchPanel = api.addPanel({
-      id: "sketchEditor",
-      component: "sketchEditor",
-      title: "Sketch",
-      position: { referencePanel: canvasPanel, direction: "right" },
-    });
-
-    api.addPanel({
-      id: "libraryManager",
-      component: "libraryManager",
-      title: "Libraries",
-      position: { referencePanel: sketchPanel, direction: "within" },
-    });
-
-    sketchPanel.api.setActive();
-
-    // Right column: Schematic on top, Inspector stacked below it.
-    const schematicPanel = api.addPanel({
-      id: "schematic",
-      component: "schematic",
-      title: "Schematic",
-      position: { referencePanel: sketchPanel, direction: "right" },
-    });
-
-    const inspectorPanel = api.addPanel({
-      id: "inspector",
-      component: "inspector",
-      title: "Inspector",
-      position: { referencePanel: schematicPanel, direction: "below" },
-    });
-
-    projectFilesPanel.api.setSize({ width: totalWidth * 0.14 });
-    canvasPanel.api.setSize({ width: totalWidth * 0.36 });
-    sketchPanel.api.setSize({ width: totalWidth * 0.25 });
-    schematicPanel.api.setSize({ width: totalWidth * 0.25 });
-    inspectorPanel.api.setSize({ height: totalHeight * 0.45 });
+    // Build the persisted/default mode through the same deterministic preset
+    // used by the toolbar. This keeps first load, reset, and mode switching
+    // from drifting into three different Dockview trees.
+    applyWorkspaceMode(api, getWorkspaceMode());
 
     setupPersistence(api);
   }, []);
@@ -527,7 +478,7 @@ function AppInner() {
       debounceRef.current = setTimeout(() => {
         const layout = api.toJSON();
         localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout));
-        localStorage.setItem(LAYOUT_STORAGE_KEY + ":version", "arduino-sim-v18");
+        localStorage.setItem(LAYOUT_STORAGE_KEY + ":version", WORKSPACE_LAYOUT_VERSION);
       }, 300);
     });
   }

@@ -186,6 +186,24 @@ describe("analyzeCircuit", () => {
     expect(result.componentStates.has("led1")).toBe(true)
   })
 
+  test("parallel output drivers remain solvable and surface a wiring warning", () => {
+    const result = analyzeCircuit(
+      { r1: makeResistor("r1", 5, 0) },
+      {
+        d13: makeWire("d13", -999, 13, 5, 3),
+        d12: makeWire("d12", -999, 12, 5, 3),
+      },
+      makePinStates([
+        { pin: 13, mode: "OUTPUT", digitalValue: 1 },
+        { pin: 12, mode: "OUTPUT", digitalValue: 0 },
+      ]),
+    )
+
+    expect(result.netlist).toContain("V_D13_")
+    expect(result.netlist).toContain("V_D12_LOW_")
+    expect(result.warnings.some((warning) => warning.type === "drive_conflict")).toBe(true)
+  })
+
   test("LED without resistor generates overcurrent warning", () => {
     // Direct 5V -> LED -> GND (no resistor)
     const components: Record<string, BoardComponent> = {

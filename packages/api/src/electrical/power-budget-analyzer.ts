@@ -5,6 +5,12 @@ import {
   isBoardComponentType,
   resolveComponentPins,
 } from "@dreamer/schemas";
+import {
+  compileElectricalTopology,
+  componentSurfaceBoardId,
+  compileElectricalErc,
+  terminalAddressKey,
+} from "@dreamer/board-domain";
 import type {
   BoardComponent,
   BoardState,
@@ -21,43 +27,6 @@ import { getComponentElectricalProfile } from "./profiles/components";
 import { analyzeRoutingPolicy } from "./routing-policy";
 
 type Point = { row: number; col: number };
-
-class DisjointSet {
-  private readonly parent = new Map<string, string>();
-
-  make(key: string) {
-    if (!this.parent.has(key)) this.parent.set(key, key);
-  }
-
-  find(key: string): string {
-    this.make(key);
-    let root = this.parent.get(key)!;
-    while (root !== this.parent.get(root)!) {
-      root = this.parent.get(root)!;
-    }
-    let current = key;
-    while (current !== root) {
-      const next = this.parent.get(current)!;
-      this.parent.set(current, root);
-      current = next;
-    }
-    return root;
-  }
-
-  union(a: string, b: string) {
-    const ra = this.find(a);
-    const rb = this.find(b);
-    if (ra !== rb) this.parent.set(ra, rb);
-  }
-}
-
-function keyForGrid(point: Point): string {
-  return `g:${point.row}:${point.col}`;
-}
-
-function keyForArduinoPin(pin: number): string {
-  return `a:${pin}`;
-}
 
 /**
  * Resolve component pin positions using the shared canonical resolver.
@@ -152,22 +121,18 @@ function parseConnectedArduinoPins(net: string, arduinoNetMap: Map<string, Set<n
   return arduinoNetMap.get(net) ?? new Set<number>();
 }
 
-function netHasGroundRail(ds: DisjointSet, net: string): boolean {
+function netHasGroundRail(nets: ReadonlyArray<{ id: string; points: Array<{ row: number; col: number; boardId: string }> }>, net: string): boolean {
   // Ground rails are cols -2 and 10 (first column of each pair).
-  for (let row = 0; row < 30; row++) {
-    if (ds.find(keyForGrid({ row, col: -2 })) === net) return true;
-    if (ds.find(keyForGrid({ row, col: 10 })) === net) return true;
-  }
-  return false;
+  return nets.find((candidate) => candidate.id === net)?.points.some(
+    (point) => point.col === -2 || point.col === 10,
+  ) ?? false;
 }
 
-function netHasPowerRail(ds: DisjointSet, net: string): boolean {
+function netHasPowerRail(nets: ReadonlyArray<{ id: string; points: Array<{ row: number; col: number; boardId: string }> }>, net: string): boolean {
   // Power (+) rails are cols -1 and 11 (second column of each pair).
-  for (let row = 0; row < 30; row++) {
-    if (ds.find(keyForGrid({ row, col: -1 })) === net) return true;
-    if (ds.find(keyForGrid({ row, col: 11 })) === net) return true;
-  }
-  return false;
+  return nets.find((candidate) => candidate.id === net)?.points.some(
+    (point) => point.col === -1 || point.col === 11,
+  ) ?? false;
 }
 
 function addRailLoad(
@@ -199,34 +164,6 @@ function addPinLoad(
   bucket.componentIds.add(componentId);
 }
 
-function connectBreadboardBuses(ds: DisjointSet, usedGridPoints: Set<string>) {
-  for (let row = 0; row < 30; row++) {
-    const left = [0, 1, 2, 3, 4].map((col) => keyForGrid({ row, col }));
-    const right = [5, 6, 7, 8, 9].map((col) => keyForGrid({ row, col }));
-
-    for (const point of left) ds.make(point);
-    for (const point of right) ds.make(point);
-
-    for (let i = 1; i < left.length; i++) ds.union(left[0]!, left[i]!);
-    for (let i = 1; i < right.length; i++) ds.union(right[0]!, right[i]!);
-
-    for (const point of left) usedGridPoints.add(point);
-    for (const point of right) usedGridPoints.add(point);
-  }
-
-  // Power rails run the full board length.
-  for (let row = 1; row < 30; row++) {
-    ds.union(keyForGrid({ row: 0, col: -2 }), keyForGrid({ row, col: -2 }));
-    ds.union(keyForGrid({ row: 0, col: -1 }), keyForGrid({ row, col: -1 }));
-    ds.union(keyForGrid({ row: 0, col: 10 }), keyForGrid({ row, col: 10 }));
-    ds.union(keyForGrid({ row: 0, col: 11 }), keyForGrid({ row, col: 11 }));
-    usedGridPoints.add(keyForGrid({ row, col: -2 }));
-    usedGridPoints.add(keyForGrid({ row, col: -1 }));
-    usedGridPoints.add(keyForGrid({ row, col: 10 }));
-    usedGridPoints.add(keyForGrid({ row, col: 11 }));
-  }
-}
-
 export function analyzePowerBudget(
   board: BoardState,
   customFootprints?: CustomFootprintLookup,
@@ -234,29 +171,27 @@ export function analyzePowerBudget(
   const boardTarget = board.boardTarget ?? DEFAULT_BOARD_TARGET;
   const issues: PowerIssue[] = [];
   const recommendations = new Map<string, string>();
-  const ds = new DisjointSet();
-  const arduinoNetMap = new Map<string, Set<number>>();
-  const usedGridPoints = new Set<string>();
-
-  connectBreadboardBuses(ds, usedGridPoints);
-
-  for (const wire of Object.values(board.wires)) {
-    const fromKey = wire.fromRow === -999
-      ? keyForArduinoPin(wire.fromCol)
-      : keyForGrid({ row: wire.fromRow, col: wire.fromCol });
-    const toKey = keyForGrid({ row: wire.toRow, col: wire.toCol });
-    ds.union(fromKey, toKey);
-    usedGridPoints.add(toKey);
-    if (wire.fromRow !== -999) usedGridPoints.add(fromKey);
+  // Connectivity is compiled by board-domain so the API uses the same
+  // board-qualified net partition as the browser and future exporters.
+  const topology = compileElectricalTopology(board, customFootprints);
+  const nets = topology.nets;
+  for (const issue of compileElectricalErc(board, customFootprints)) {
+    issues.push({
+      severity: issue.severity,
+      code: issue.code,
+      message: issue.message,
+      componentId: issue.componentId,
+    });
   }
-
-  // Build root->arduino pins map once after unions.
-  for (const wire of Object.values(board.wires)) {
-    if (wire.fromRow !== -999) continue;
-    const net = ds.find(keyForArduinoPin(wire.fromCol));
-    if (!arduinoNetMap.has(net)) arduinoNetMap.set(net, new Set());
-    arduinoNetMap.get(net)!.add(wire.fromCol);
-  }
+  const arduinoNetMap = new Map<string, Set<number>>(
+    nets.map((net) => [net.id, new Set(net.arduinoPins)]),
+  );
+  const netIdAt = (component: BoardComponent, point: Point): string => {
+    const boardId = componentSurfaceBoardId(component, board.components);
+    const address = { boardId, row: point.row, col: point.col };
+    return nets.find((net) => net.points.some((candidate) => terminalAddressKey(candidate) === terminalAddressKey(address)))?.id
+      ?? `unconnected:${terminalAddressKey(address)}`;
+  };
 
   const pinLoads = new Map<number, { currentMa: number; componentIds: Set<string> }>();
   const railLoads = new Map<string, { currentMa: number; componentIds: Set<string> }>();
@@ -274,7 +209,7 @@ export function analyzePowerBudget(
     for (const signalPinName of signalPinNames) {
       const point = pins[signalPinName];
       if (!point) continue;
-      const net = ds.find(keyForGrid(point));
+      const net = netIdAt(component, point);
       const connectedPins = parseConnectedArduinoPins(net, arduinoNetMap);
       for (const pin of connectedPins) {
         if (isArduinoSignalPin(pin)) {
@@ -293,7 +228,7 @@ export function analyzePowerBudget(
     for (const powerPinName of powerPinNames) {
       const point = pins[powerPinName];
       if (!point) continue;
-      const net = ds.find(keyForGrid(point));
+      const net = netIdAt(component, point);
       const connectedPins = parseConnectedArduinoPins(net, arduinoNetMap);
       if (connectedPins.has(-1)) poweredFromArduino5V = true;
       if (connectedPins.has(-2)) poweredFromArduino3V3 = true;
@@ -309,7 +244,7 @@ export function analyzePowerBudget(
         for (const other of components) {
           if (other.type !== "power_supply") continue;
           const positivePoints = powerSupplyPositivePoints(other);
-          if (positivePoints.some((pos) => ds.find(keyForGrid(pos)) === net)) {
+          if (positivePoints.some((pos) => netIdAt(other, pos) === net)) {
             poweredFromExternal = true;
             break;
           }
@@ -320,7 +255,7 @@ export function analyzePowerBudget(
     for (const groundPinName of chooseGroundPins(component)) {
       const point = pins[groundPinName];
       if (!point) continue;
-      const net = ds.find(keyForGrid(point));
+      const net = netIdAt(component, point);
       const connectedPins = parseConnectedArduinoPins(net, arduinoNetMap);
       if (connectedPins.has(-3) || connectedPins.has(-4) || connectedPins.has(-6)) {
         hasGroundConnection = true;
@@ -329,7 +264,7 @@ export function analyzePowerBudget(
         for (const other of components) {
           if (other.type !== "power_supply") continue;
           const negativePoints = powerSupplyNegativePoints(other);
-          if (negativePoints.some((pos) => ds.find(keyForGrid(pos)) === net)) {
+          if (negativePoints.some((pos) => netIdAt(other, pos) === net)) {
             hasGroundConnection = true;
             break;
           }
@@ -371,7 +306,7 @@ export function analyzePowerBudget(
       const hasAnySignalConnection = signalPinNames.some((signalPinName) => {
         const point = pins[signalPinName];
         if (!point) return false;
-        const net = ds.find(keyForGrid(point));
+        const net = netIdAt(component, point);
         const connectedPins = parseConnectedArduinoPins(net, arduinoNetMap);
         return [...connectedPins].some((pin) => isArduinoSignalPin(pin));
       });
@@ -401,8 +336,8 @@ export function analyzePowerBudget(
       const sideA = pins.a;
       const sideB = pins.b;
       if (sideA && sideB) {
-        const netA = ds.find(keyForGrid(sideA));
-        const netB = ds.find(keyForGrid(sideB));
+        const netA = netIdAt(component, sideA);
+        const netB = netIdAt(component, sideB);
         const pinsA = parseConnectedArduinoPins(netA, arduinoNetMap);
         const pinsB = parseConnectedArduinoPins(netB, arduinoNetMap);
         const sideAHasSignal = [...pinsA].some((pin) => isArduinoSignalPin(pin));
@@ -420,10 +355,10 @@ export function analyzePowerBudget(
           const refNet = sideAHasSignal ? netB : netA;
           const hasGroundRef =
             [...refPins].some((pin) => pin === -3 || pin === -4 || pin === -6) ||
-            netHasGroundRail(ds, refNet);
+            netHasGroundRail(nets, refNet);
           const hasPowerRef =
             [...refPins].some((pin) => pin === -1 || pin === -2) ||
-            netHasPowerRail(ds, refNet);
+            netHasPowerRail(nets, refNet);
 
           if (!hasGroundRef && !hasPowerRef) {
             issues.push({

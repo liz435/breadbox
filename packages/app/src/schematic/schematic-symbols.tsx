@@ -3,7 +3,7 @@
 // Standard IEEE/IEC schematic symbols rendered as SVG React components.
 // Each symbol renders at a given (x, y) position with consistent sizing.
 
-type SymbolProps = {
+export type SymbolProps = {
   x: number
   y: number
   label: string
@@ -15,6 +15,11 @@ type SymbolProps = {
   isPwm?: boolean
   /** ic_pin nodes only: "left" (input, stub goes right) or "right" (output). */
   icSide?: "left" | "right"
+  /** Labelled ports for generic multi-terminal module blocks. */
+  terminals?: Array<{
+    side: "left" | "left-top" | "left-bottom" | "right" | "right-top" | "right-bottom" | "top" | "bottom" | "bottom-left" | "bottom-center" | "bottom-right"
+    label?: string
+  }>
 }
 
 // Neutral ink follows the theme foreground via currentColor (set on the
@@ -1088,7 +1093,7 @@ function IcPinSymbol({ x, y, label, icSide }: SymbolProps) {
   )
 }
 
-export function GenericModuleSymbol({ x, y, label, value, voltage, current, isActive }: SymbolProps) {
+export function GenericModuleSymbol({ x, y, label, value, voltage, current, isActive, terminals }: SymbolProps) {
   const w = 60
   const h = 30
   const stroke = isActive ? STROKE_ACTIVE : STROKE
@@ -1105,10 +1110,35 @@ export function GenericModuleSymbol({ x, y, label, value, voltage, current, isAc
         strokeWidth={STROKE_WIDTH}
         rx={2}
       />
-      <line x1={x} y1={y} x2={x + 6} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
-      <line x1={x + w - 6} y1={y} x2={x + w} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
-      <circle cx={x} cy={y} r={3} fill={stroke} />
-      <circle cx={x + w} cy={y} r={3} fill={stroke} />
+      {terminals == null || terminals.length === 0 ? (
+        <>
+          <line x1={x} y1={y} x2={x + 6} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+          <line x1={x + w - 6} y1={y} x2={x + w} y2={y} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+          <circle cx={x} cy={y} r={3} fill={stroke} />
+          <circle cx={x + w} cy={y} r={3} fill={stroke} />
+        </>
+      ) : terminals.map((terminal) => {
+        const offsets = {
+          left: { dx: 0, dy: 0, ix: 6, iy: 0, anchor: "start" as const, tx: 9, ty: 3 },
+          "left-top": { dx: 0, dy: -14, ix: 6, iy: -10, anchor: "start" as const, tx: 9, ty: -11 },
+          "left-bottom": { dx: 0, dy: 14, ix: 6, iy: 10, anchor: "start" as const, tx: 9, ty: 17 },
+          right: { dx: 60, dy: 0, ix: 54, iy: 0, anchor: "end" as const, tx: 51, ty: 3 },
+          "right-top": { dx: 60, dy: -14, ix: 54, iy: -10, anchor: "end" as const, tx: 51, ty: -11 },
+          "right-bottom": { dx: 60, dy: 14, ix: 54, iy: 10, anchor: "end" as const, tx: 51, ty: 17 },
+          top: { dx: 30, dy: -20, ix: 30, iy: -15, anchor: "middle" as const, tx: 30, ty: -22 },
+          bottom: { dx: 30, dy: 20, ix: 30, iy: 15, anchor: "middle" as const, tx: 30, ty: 29 },
+          "bottom-left": { dx: 18, dy: 25, ix: 20, iy: 15, anchor: "middle" as const, tx: 18, ty: 34 },
+          "bottom-center": { dx: 30, dy: 25, ix: 30, iy: 15, anchor: "middle" as const, tx: 30, ty: 34 },
+          "bottom-right": { dx: 42, dy: 25, ix: 40, iy: 15, anchor: "middle" as const, tx: 42, ty: 34 },
+        }[terminal.side]
+        return (
+          <g key={`${terminal.side}-${terminal.label ?? ""}`}>
+            <line x1={x + offsets.ix} y1={y + offsets.iy} x2={x + offsets.dx} y2={y + offsets.dy} stroke={stroke} strokeWidth={STROKE_WIDTH} />
+            <circle cx={x + offsets.dx} cy={y + offsets.dy} r={3} fill={stroke} />
+            {terminal.label && <text x={x + offsets.tx} y={y + offsets.ty} textAnchor={offsets.anchor} fill="currentColor" fillOpacity={0.6} style={{ font: FONT_VALUE }}>{terminal.label}</text>}
+          </g>
+        )
+      })}
       <text x={x + w / 2} y={y - h / 2 - 8} textAnchor="middle" fill="currentColor" style={{ font: FONT_LABEL }}>
         {label}
       </text>
@@ -1216,5 +1246,3 @@ export function renderSymbol(
       return <GenericModuleSymbol {...props} />
   }
 }
-
-export type { SymbolProps }

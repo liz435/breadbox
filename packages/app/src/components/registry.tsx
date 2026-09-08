@@ -8,4 +8,13 @@
 // See catalog/manager.ts for how the registry is built and how to add a
 // component.
 
-export { COMPONENT_REGISTRY, getComponentDef } from "@/components/catalog/manager"
+export {
+  COMPONENT_REGISTRY,
+  getComponentDef,
+  getComponentSpec,
+  getComponentSpecs,
+} from "@/components/catalog/manager"
+export type {
+  ComponentCapability,
+  ComponentSpec,
+} from "@/components/component-definition"

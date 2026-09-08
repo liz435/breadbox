@@ -111,4 +111,13 @@ export const test = base.extend<{ debug: DebugBuffer }>({
   },
 })
 
+// The visual/smoke suite exercises the editor shell, not the first-run tour.
+// Keep the first-run flag explicit so a fresh isolated DATA_DIR does not add
+// a coach-mark modal or load the tutorial board into every screenshot.
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem("dreamer:onboarding-seen-v1", "1")
+  })
+})
+
 export { expect }

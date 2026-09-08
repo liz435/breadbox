@@ -55,17 +55,22 @@ function worldOf(row: number, col: number): XZ {
 const BAKED_CALIBRATION: GridCalibration = {
   height: 8.5,
   banks: {
+    // z endpoints re-baked onto the model's measured socket field. The board
+    // GLB's 63 socket rows sit at world z ∈ [-104.9, +80.9] (model socket
+    // pitch ≈ 3.0mm at the fitted scale); the previous bake spanned
+    // [-94.5, +94.2], which hung ~4 hole rows past the +z end of the plastic
+    // and left the last ~4 socket rows bare at -z.
     L: {
-      c00: { x: -17.40706874060716, z: -94.51832896341922 },
-      c10: { x: -5.588712230670773, z: -94.15891326648988 },
-      c01: { x: -17.509301677100204, z: 94.18651626275941 },
-      c11: { x: -5.2742809126003305, z: 94.28083728558772 },
+      c00: { x: -17.40706874060716, z: -104.93 },
+      c10: { x: -5.588712230670773, z: -104.93 },
+      c01: { x: -17.509301677100204, z: 80.92 },
+      c11: { x: -5.2742809126003305, z: 80.92 },
     },
     R: {
-      c00: { x: 3.4994045671398184, z: -94.24819681261657 },
-      c10: { x: 15.721537068063205, z: -94.106886003152 },
-      c01: { x: 3.6133958501037764, z: 94.27991158239823 },
-      c11: { x: 15.743458283300315, z: 94.2913647364691 },
+      c00: { x: 3.4994045671398184, z: -104.93 },
+      c10: { x: 15.721537068063205, z: -104.93 },
+      c01: { x: 3.6133958501037764, z: 80.92 },
+      c11: { x: 15.743458283300315, z: 80.92 },
     },
   },
   rails: {
@@ -100,7 +105,7 @@ function defaultCalibration(): GridCalibration {
   }
 }
 
-const STORAGE_KEY = "dreamer:breadboard-grid-calibration:v6"
+const STORAGE_KEY = "dreamer:breadboard-grid-calibration:v7"
 
 function load(): GridCalibration {
   const base = defaultCalibration()

@@ -8,10 +8,11 @@ import asset__assets_arduino_uno_board_DBpS0kIP_svg from "../../app/dist/assets/
 import asset__assets_arduino_uno_kCi3RRpb_glb from "../../app/dist/assets/arduino-uno-kCi3RRpb.glb" with { type: "file" }
 import asset__assets_breadboard_y7uWtgLV_glb from "../../app/dist/assets/breadboard-y7uWtgLV.glb" with { type: "file" }
 import asset__assets_buzzer_DGOKUXsp_glb from "../../app/dist/assets/buzzer-DGOKUXsp.glb" with { type: "file" }
+import asset__assets_components_3d_panel_Be8OhBkO_js from "../../app/dist/assets/components-3d-panel-Be8OhBkO.js" with { type: "file" }
 import asset__assets_dht_sensor_CLBu3U18_glb from "../../app/dist/assets/dht-sensor-CLBu3U18.glb" with { type: "file" }
-import asset__assets_index_B5z0GkrN_css from "../../app/dist/assets/index-B5z0GkrN.css" with { type: "file" }
+import asset__assets_index_B6YXQC_C_js from "../../app/dist/assets/index-B6YXQC_C.js" with { type: "file" }
 import asset__assets_index_CCUjAQjo_js from "../../app/dist/assets/index-CCUjAQjo.js" with { type: "file" }
-import asset__assets_index_eM5pbTec_js from "../../app/dist/assets/index-eM5pbTec.js" with { type: "file" }
+import asset__assets_index_hbPG6oyK_css from "../../app/dist/assets/index-hbPG6oyK.css" with { type: "file" }
 import asset__assets_lcd_Di_2TIwU_glb from "../../app/dist/assets/lcd-Di_2TIwU.glb" with { type: "file" }
 import asset__assets_led_Cc7YdEOQ_glb from "../../app/dist/assets/led-Cc7YdEOQ.glb" with { type: "file" }
 import asset__assets_oled_Bg_R0EOj_glb from "../../app/dist/assets/oled-Bg_R0EOj.glb" with { type: "file" }
@@ -21,13 +22,14 @@ import asset__assets_relay_C6U0biqb_glb from "../../app/dist/assets/relay-C6U0bi
 import asset__assets_resistor_base_BCd3d56__glb from "../../app/dist/assets/resistor-base-BCd3d56_.glb" with { type: "file" }
 import asset__assets_rgb_led_BNqvG13a_glb from "../../app/dist/assets/rgb-led-BNqvG13a.glb" with { type: "file" }
 import asset__assets_rp2040_bootrom_data_BpBHbl0R_js from "../../app/dist/assets/rp2040-bootrom-data-BpBHbl0R.js" with { type: "file" }
-import asset__assets_servo_N0VYQt54_glb from "../../app/dist/assets/servo-N0VYQt54.glb" with { type: "file" }
+import asset__assets_scene_tuner_BPuQbyXL_js from "../../app/dist/assets/scene-tuner-BPuQbyXL.js" with { type: "file" }
+import asset__assets_servo_tmn2HWAw_glb from "../../app/dist/assets/servo-tmn2HWAw.glb" with { type: "file" }
 import asset__assets_seven_segment_DFe3gICx_glb from "../../app/dist/assets/seven-segment-DFe3gICx.glb" with { type: "file" }
-import asset__assets_solver_worker_CjLTxc_R_js from "../../app/dist/assets/solver.worker-CjLTxc_R.js" with { type: "file" }
+import asset__assets_solver_worker_DzhJibRh_js from "../../app/dist/assets/solver.worker-DzhJibRh.js" with { type: "file" }
 import asset__assets_stepper_uln2003_CImAjb64_glb from "../../app/dist/assets/stepper-uln2003-CImAjb64.glb" with { type: "file" }
 import asset__assets_temperature_sensor_iAUUFiLW_glb from "../../app/dist/assets/temperature-sensor-iAUUFiLW.glb" with { type: "file" }
 import asset__assets_ultrasonic_CfjxpiZb_glb from "../../app/dist/assets/ultrasonic-CfjxpiZb.glb" with { type: "file" }
-import asset__assets_view_vjYXiR3__js from "../../app/dist/assets/view-vjYXiR3_.js" with { type: "file" }
+import asset__assets_view_g46p3uzM_js from "../../app/dist/assets/view-g46p3uzM.js" with { type: "file" }
 import asset__favicon_png from "../../app/dist/favicon.png" with { type: "file" }
 import asset__index_html from "../../app/dist/index.html" with { type: "file" }
 
@@ -36,10 +38,11 @@ export const EMBEDDED_ASSETS: Record<string, string> = {
   "/assets/arduino-uno-kCi3RRpb.glb": asset__assets_arduino_uno_kCi3RRpb_glb as unknown as string,
   "/assets/breadboard-y7uWtgLV.glb": asset__assets_breadboard_y7uWtgLV_glb as unknown as string,
   "/assets/buzzer-DGOKUXsp.glb": asset__assets_buzzer_DGOKUXsp_glb as unknown as string,
+  "/assets/components-3d-panel-Be8OhBkO.js": asset__assets_components_3d_panel_Be8OhBkO_js as unknown as string,
   "/assets/dht-sensor-CLBu3U18.glb": asset__assets_dht_sensor_CLBu3U18_glb as unknown as string,
-  "/assets/index-B5z0GkrN.css": asset__assets_index_B5z0GkrN_css as unknown as string,
+  "/assets/index-B6YXQC_C.js": asset__assets_index_B6YXQC_C_js as unknown as string,
   "/assets/index-CCUjAQjo.js": asset__assets_index_CCUjAQjo_js as unknown as string,
-  "/assets/index-eM5pbTec.js": asset__assets_index_eM5pbTec_js as unknown as string,
+  "/assets/index-hbPG6oyK.css": asset__assets_index_hbPG6oyK_css as unknown as string,
   "/assets/lcd-Di_2TIwU.glb": asset__assets_lcd_Di_2TIwU_glb as unknown as string,
   "/assets/led-Cc7YdEOQ.glb": asset__assets_led_Cc7YdEOQ_glb as unknown as string,
   "/assets/oled-Bg_R0EOj.glb": asset__assets_oled_Bg_R0EOj_glb as unknown as string,
@@ -49,16 +52,17 @@ export const EMBEDDED_ASSETS: Record<string, string> = {
   "/assets/resistor-base-BCd3d56_.glb": asset__assets_resistor_base_BCd3d56__glb as unknown as string,
   "/assets/rgb-led-BNqvG13a.glb": asset__assets_rgb_led_BNqvG13a_glb as unknown as string,
   "/assets/rp2040-bootrom-data-BpBHbl0R.js": asset__assets_rp2040_bootrom_data_BpBHbl0R_js as unknown as string,
-  "/assets/servo-N0VYQt54.glb": asset__assets_servo_N0VYQt54_glb as unknown as string,
+  "/assets/scene-tuner-BPuQbyXL.js": asset__assets_scene_tuner_BPuQbyXL_js as unknown as string,
+  "/assets/servo-tmn2HWAw.glb": asset__assets_servo_tmn2HWAw_glb as unknown as string,
   "/assets/seven-segment-DFe3gICx.glb": asset__assets_seven_segment_DFe3gICx_glb as unknown as string,
-  "/assets/solver.worker-CjLTxc_R.js": asset__assets_solver_worker_CjLTxc_R_js as unknown as string,
+  "/assets/solver.worker-DzhJibRh.js": asset__assets_solver_worker_DzhJibRh_js as unknown as string,
   "/assets/stepper-uln2003-CImAjb64.glb": asset__assets_stepper_uln2003_CImAjb64_glb as unknown as string,
   "/assets/temperature-sensor-iAUUFiLW.glb": asset__assets_temperature_sensor_iAUUFiLW_glb as unknown as string,
   "/assets/ultrasonic-CfjxpiZb.glb": asset__assets_ultrasonic_CfjxpiZb_glb as unknown as string,
-  "/assets/view-vjYXiR3_.js": asset__assets_view_vjYXiR3__js as unknown as string,
+  "/assets/view-g46p3uzM.js": asset__assets_view_g46p3uzM_js as unknown as string,
   "/favicon.png": asset__favicon_png as unknown as string,
   "/index.html": asset__index_html as unknown as string,
   "/": asset__index_html as unknown as string,
 }
 
-export const ASSET_COUNT = 26
+export const ASSET_COUNT = 28

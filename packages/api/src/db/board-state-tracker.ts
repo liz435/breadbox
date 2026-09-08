@@ -1,4 +1,5 @@
 import { isBoardComponentType, type BoardState, type BoardOp } from "@dreamer/schemas";
+import { applyBoardOps, createBoardDocument } from "@dreamer/board-domain";
 import { createLogger } from "../logger";
 
 const log = createLogger("board-tracker");
@@ -21,60 +22,6 @@ export function setBoard(projectId: string, board: BoardState): void {
 /** Get the current board state. Returns undefined if not yet tracked. */
 export function getBoard(projectId: string): BoardState | undefined {
   return boards.get(projectId);
-}
-
-/** Apply a single op to the tracked board state in-place. */
-function applyOp(board: BoardState, op: BoardOp): void {
-  switch (op.kind) {
-    case "place_component":
-      board.components[op.payload.component.id] = op.payload.component;
-      break;
-    case "remove_component":
-      delete board.components[op.payload.componentId];
-      break;
-    case "move_component":
-      if (board.components[op.payload.componentId]) {
-        board.components[op.payload.componentId].x = op.payload.x;
-        board.components[op.payload.componentId].y = op.payload.y;
-      }
-      break;
-    case "update_component":
-      if (board.components[op.payload.componentId]) {
-        Object.assign(
-          board.components[op.payload.componentId],
-          op.payload.changes
-        );
-      }
-      break;
-    case "connect_wire":
-      board.wires[op.payload.wire.id] = op.payload.wire;
-      break;
-    case "remove_wire":
-      delete board.wires[op.payload.wireId];
-      break;
-    case "set_pin_mode":
-      // Pin mode is runtime state on the client (owned by PinStateStore),
-      // not persisted on the server-side board snapshot. This op is forwarded
-      // to the client which applies it to its store directly.
-      break;
-    case "update_sketch":
-      board.sketchCode = op.payload.code;
-      break;
-    case "update_board_settings":
-      break;
-    case "load_board": {
-      const next = structuredClone(op.payload.state);
-      board.components = next.components;
-      board.wires = next.wires;
-      board.libraryState = next.libraryState;
-      board.serialOutput = next.serialOutput;
-      board.sketchCode = next.sketchCode;
-      board.customLibraries = next.customLibraries;
-      board.boardTarget = next.boardTarget;
-      board.environment = next.environment;
-      break;
-    }
-  }
 }
 
 /**
@@ -113,9 +60,11 @@ function applyOpsInternal(
       return;
     }
   }
-  for (const op of ops) {
-    applyOp(board, op);
-  }
+  // The tracker is a compatibility adapter for legacy callers, so it keeps
+  // expectedVersion compatibility disabled. The mutation semantics themselves
+  // are shared with the browser through board-domain.
+  const next = applyBoardOps(createBoardDocument(board), ops);
+  boards.set(projectId, next.state);
   log.info(`applied ${ops.length} ops to project ${projectId}`);
 }
 

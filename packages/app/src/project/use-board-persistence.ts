@@ -1,191 +1,164 @@
 import { useCallback, useEffect, useRef } from "react"
 import { useProject } from "./project-context"
-import { useBoard } from "@/store/board-context"
-import { useGraph } from "@/store/graph-context"
-import { saveProjectState } from "./api-client"
-import { BoardContext } from "@/store/board-context"
-import { GraphContext } from "@/store/graph-context"
+import { useBoard, BoardContext } from "@/store/board-context"
+import { useGraph, GraphContext } from "@/store/graph-context"
+import { ApiError, saveProjectState } from "./api-client"
 import { saveRef, editorContentRef, notifySaveFlash } from "./save-ref"
 import { boardSlice } from "./board-slice"
 import { toast } from "@/components/ui/toast"
 import { API_ORIGIN } from "@dreamer/config"
 import { isAnonymousPreview } from "@/auth/use-current-user"
-import type { BoardPersistable } from "./board-slice"
-import type { GraphNode, Edge } from "@dreamer/schemas"
+import { BoardSession } from "./board-session"
+import { physicalDocumentStore, usePhysicalDocument } from "@/physical-scene/document-store"
 
 const SAVE_DEBOUNCE_MS = 2000
 const HYDRATION_GRACE_MS = 3000
 
-type GraphPersistable = {
-  nodes: Record<string, GraphNode>
-  edges: Record<string, Edge>
-}
-
-function graphSlice(ctx: GraphPersistable): GraphPersistable {
-  return { nodes: ctx.nodes, edges: ctx.edges }
+type PersistenceController = {
+  save: () => void
+  schedule: () => void
+  version: number
+  projectId: string
 }
 
 export function useBoardPersistence(): { saveNow: () => void } {
-  const { projectId } = useProject()
+  const { projectId, projectFile, version, setVersion } = useProject()
   const { state: boardState } = useBoard()
   const { state: graphState } = useGraph()
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
-  // Independent dirty hashes per half — graph-only edits must NOT be skipped
-  // just because the board hash is unchanged, and vice versa.
-  const lastSavedBoardRef = useRef<string>("")
-  const lastSavedGraphRef = useRef<string>("")
-  const mountTimeRef = useRef(Date.now())
-  const projectIdRef = useRef(projectId)
-  const savingRef = useRef(false)
-
+  const physical = usePhysicalDocument()
   const boardActor = BoardContext.useActorRef()
   const graphActor = GraphContext.useActorRef()
+  const controllerRef = useRef<PersistenceController | null>(null)
 
-  // Reset dirty-tracking when the project changes so an unrelated save can't
-  // be elided after switchProject(). Also re-arms the hydration grace window
-  // so the new project's first hydration tick isn't autosaved as a "change".
+  // Hydrate once per project, preserving edits/history on version rerenders.
   useEffect(() => {
-    projectIdRef.current = projectId
-    lastSavedBoardRef.current = ""
-    lastSavedGraphRef.current = ""
-    mountTimeRef.current = Date.now()
-  }, [projectId])
+    physicalDocumentStore.open(projectId, projectFile.physicalScene)
+  }, [projectId, projectFile.physicalScene])
 
-  /** Build current persistable payload from live actor state. */
-  const buildPayload = useCallback((): {
-    board: BoardPersistable
-    graph: GraphPersistable
-  } => {
-    if (editorContentRef.current) {
-      boardActor.send({ type: "UPDATE_SKETCH", code: editorContentRef.current() })
+  useEffect(() => {
+    const session = new BoardSession()
+    session.open(projectId)
+    let disposed = false
+    let saving = false
+    let retryDelay = SAVE_DEBOUNCE_MS
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const readyAt = Date.now() + HYDRATION_GRACE_MS
+
+    function prepare() {
+      if (editorContentRef.current) {
+        const code = editorContentRef.current()
+        if (code !== boardActor.getSnapshot().context.sketchCode) {
+          boardActor.send({ type: "UPDATE_SKETCH", code })
+        }
+      }
+      const graph = graphActor.getSnapshot().context
+      const document = physicalDocumentStore.getState()
+      return session.prepareSave(
+        boardSlice(boardActor.getSnapshot().context),
+        { nodes: graph.nodes, edges: graph.edges },
+        controller.version,
+        document.projectId === projectId ? physicalDocumentStore.getPersistableScene() : undefined,
+      )
     }
-    return {
-      board: boardSlice(boardActor.getSnapshot().context),
-      graph: graphSlice(graphActor.getSnapshot().context),
+
+    function schedule(delay = SAVE_DEBOUNCE_MS) {
+      if (disposed || isAnonymousPreview()) return
+      clearTimeout(timer)
+      timer = setTimeout(save, Math.max(delay, readyAt - Date.now()))
     }
-  }, [boardActor, graphActor])
 
-  /** Save immediately — Cmd+S and beforeunload (via saveNow). */
-  const saveNow = useCallback(() => {
-    clearTimeout(debounceRef.current)
-    // Always flash to confirm Cmd+S was received, even if nothing changed.
-    notifySaveFlash()
-
-    // Anonymous preview: nothing to persist, don't fire a request whose
-    // only purpose would be to 401 and surface a "Failed to save" toast.
-    if (isAnonymousPreview()) return
-
-    if (savingRef.current) return
-
-    const { board, graph } = buildPayload()
-    const boardHash = JSON.stringify(board)
-    const graphHash = JSON.stringify(graph)
-
-    const boardDirty = boardHash !== lastSavedBoardRef.current
-    const graphDirty = graphHash !== lastSavedGraphRef.current
-    if (!boardDirty && !graphDirty) return
-
-    // Optimistically mark clean BEFORE the request lands so a fast follow-up
-    // edit during the in-flight save still wins on the next dirty check.
-    if (boardDirty) lastSavedBoardRef.current = boardHash
-    if (graphDirty) lastSavedGraphRef.current = graphHash
-
-    savingRef.current = true
-    saveProjectState(projectIdRef.current, {
-      ...(boardDirty ? { boardState: board } : {}),
-      ...(graphDirty ? { graph } : {}),
-    })
-      .catch(() => {
-        toast.error("Failed to save project")
-        // Roll back so the next save retries the dirty halves.
-        if (boardDirty) lastSavedBoardRef.current = ""
-        if (graphDirty) lastSavedGraphRef.current = ""
-      })
-      .finally(() => {
-        savingRef.current = false
-      })
-  }, [buildPayload])
-
-  // Debounced auto-save — re-runs on board OR graph change.
-  useEffect(() => {
-    if (isAnonymousPreview()) return
-    if (Date.now() - mountTimeRef.current < HYDRATION_GRACE_MS) return
-
-    const board = boardSlice(boardState)
-    const graph = graphSlice(graphState)
-    const boardHash = JSON.stringify(board)
-    const graphHash = JSON.stringify(graph)
-
-    const boardDirty = boardHash !== lastSavedBoardRef.current
-    const graphDirty = graphHash !== lastSavedGraphRef.current
-    if (!boardDirty && !graphDirty) return
-
-    clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => {
-      if (savingRef.current) return
-      if (boardDirty) lastSavedBoardRef.current = boardHash
-      if (graphDirty) lastSavedGraphRef.current = graphHash
-      savingRef.current = true
-      saveProjectState(projectIdRef.current, {
-        ...(boardDirty ? { boardState: board } : {}),
-        ...(graphDirty ? { graph } : {}),
-      })
-        .catch(() => {
-          toast.error("Failed to auto-save project")
-          if (boardDirty) lastSavedBoardRef.current = ""
-          if (graphDirty) lastSavedGraphRef.current = ""
+    function save() {
+      clearTimeout(timer)
+      if (disposed || saving || isAnonymousPreview()) return
+      // Build at execution time. Success drains newer edits made in flight.
+      const plan = prepare()
+      if (!plan) return
+      saving = true
+      void saveProjectState(plan.projectId, plan.payload, plan.expectedVersion)
+        .then(result => {
+          session.markSaved(plan)
+          if (plan.payload.physicalScene !== undefined) {
+            physicalDocumentStore.markSaved(plan.payload.physicalScene ?? null)
+          }
+          if (disposed) return
+          controller.version = result.newVersion
+          setVersion(result.newVersion)
+          retryDelay = SAVE_DEBOUNCE_MS
+          saving = false
+          save()
         })
-        .finally(() => {
-          savingRef.current = false
+        .catch((error: unknown) => {
+          session.markFailed(plan)
+          if (disposed) return
+          saving = false
+          toast.error(error instanceof ApiError && error.status === 409
+            ? "Project changed elsewhere. Reopen it before saving again."
+            : "Failed to save project")
+          // Retry transient failures even without another edit.
+          if (!(error instanceof ApiError) || error.status >= 500 || error.status === 429) {
+            schedule(retryDelay)
+            retryDelay = Math.min(retryDelay * 2, 30_000)
+          }
         })
-    }, SAVE_DEBOUNCE_MS)
+    }
 
-    return () => clearTimeout(debounceRef.current)
-  }, [
-    boardState.components,
-    boardState.wires,
-    boardState.sketchCode,
-    boardState.customLibraries,
-    boardState.boardTarget,
-    boardState.environment,
-    boardState.assembly,
-    graphState.nodes,
-    graphState.edges,
-    projectId,
-  ])
+    const controller: PersistenceController = { projectId, version, save, schedule }
+    controllerRef.current = controller
 
-  // Flush on tab close / navigation via sendBeacon. sendBeacon doesn't
-  // support custom routes well in all browsers but the unified /state
-  // endpoint accepts the same JSON shape, so one beacon covers both halves.
-  useEffect(() => {
-    function handleBeforeUnload() {
-      // Preview-mode visitors have nothing to persist; a beacon would just
-      // 401 silently at the server and waste a cross-tab request.
+    function beforeUnload(event: BeforeUnloadEvent) {
       if (isAnonymousPreview()) return
-      const { board, graph } = buildPayload()
-      const boardHash = JSON.stringify(board)
-      const graphHash = JSON.stringify(graph)
-      const boardDirty = boardHash !== lastSavedBoardRef.current
-      const graphDirty = graphHash !== lastSavedGraphRef.current
-      if (!boardDirty && !graphDirty) return
-
-      const pid = projectIdRef.current
-      const payload: Record<string, unknown> = {}
-      if (boardDirty) payload.boardState = board
-      if (graphDirty) payload.graph = graph
+      const plan = prepare()
+      if (!plan) return
+      // Another write using the outstanding request's version would conflict.
+      if (saving) {
+        event.preventDefault()
+        event.returnValue = ""
+        return
+      }
       try {
-        navigator.sendBeacon(
-          `${API_ORIGIN}/project/${encodeURIComponent(pid)}/state`,
-          new Blob([JSON.stringify(payload)], { type: "application/json" }),
+        const queued = navigator.sendBeacon(
+          `${API_ORIGIN}/project/${encodeURIComponent(projectId)}/state`,
+          new Blob([JSON.stringify({ expectedVersion: plan.expectedVersion, ...plan.payload })], { type: "application/json" }),
         )
+        // Beacon acceptance is not an acknowledgement; retain dirty state.
+        if (!queued) { event.preventDefault(); event.returnValue = "" }
       } catch {
-        /* best effort */
+        event.preventDefault()
+        event.returnValue = ""
       }
     }
-    window.addEventListener("beforeunload", handleBeforeUnload)
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
-  }, [buildPayload])
+    window.addEventListener("beforeunload", beforeUnload)
+    schedule()
+    return () => {
+      disposed = true
+      clearTimeout(timer)
+      window.removeEventListener("beforeunload", beforeUnload)
+      if (controllerRef.current === controller) controllerRef.current = null
+    }
+    // Version rerenders must not dispose the queue or acknowledged hashes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, boardActor, graphActor, setVersion])
 
-  saveRef.current = saveNow
+  useEffect(() => {
+    const controller = controllerRef.current
+    if (controller?.projectId === projectId) controller.version = Math.max(controller.version, version)
+  }, [projectId, version])
+
+  useEffect(() => {
+    controllerRef.current?.schedule()
+  }, [boardState.components, boardState.wires, boardState.sketchCode,
+    boardState.customLibraries, boardState.boardTarget, boardState.environment,
+    boardState.realismProfile, boardState.assembly, graphState.nodes, graphState.edges,
+    physical.projectId, physical.revision, projectId])
+
+  const saveNow = useCallback(() => {
+    notifySaveFlash()
+    controllerRef.current?.save()
+  }, [])
+
+  useEffect(() => {
+    saveRef.current = saveNow
+    return () => { if (saveRef.current === saveNow) saveRef.current = null }
+  }, [saveNow])
   return { saveNow }
 }

@@ -89,6 +89,24 @@ describe("symbol label rendering", () => {
     expect(html).toContain("U1")
   })
 
+  test("GenericModuleSymbol renders distinct labelled ports for a multi-terminal part", () => {
+    const html = render(
+      <GenericModuleSymbol
+        {...BASE_PROPS}
+        terminals={[
+          { side: "left-top", label: "SIG" },
+          { side: "right-top", label: "VCC" },
+          { side: "right-bottom", label: "GND" },
+        ]}
+      />,
+    )
+    expect(html).toContain("SIG")
+    expect(html).toContain("VCC")
+    expect(html).toContain("GND")
+    // Each port has its own terminal circle rather than sharing a 2-pin lead.
+    expect((html.match(/r="3"/g) ?? []).length).toBe(3)
+  })
+
   test("ButtonSymbol renders label with SW prefix", () => {
     const html = render(<ButtonSymbol {...BASE_PROPS} label="BTN1" />)
     expect(html).toContain("SW")

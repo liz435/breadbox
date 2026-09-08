@@ -871,14 +871,10 @@ export function getComponentFootprint(
  * - Power rails run the full length
  * - The center gap separates left (0-4) and right (5-9) sides
  *
- * TODO(multi-board-resolver): this signature has no notion of which board a
- * (row, col) belongs to. When multiple surface boards exist in components{}
- * (the schema supports it today), endpoints with the same row/col on
- * DIFFERENT boards will be reported as connected. The simulator,
- * netlist-builder, and pin resolver all silently produce wrong answers in
- * that case. Fix shape: accept `{ boardId, row, col }` and require boardId
- * equality before applying the bus-equivalence rules below. See the design
- * note in CLAUDE.md / branch web-bb-component (task #7).
+ * Board identity is part of the address whenever more than one surface board
+ * exists, so identical local row/column coordinates on separate boards never
+ * merge. Legacy single-board projects still resolve through the synthetic
+ * `LEGACY_SURFACE_BOARD_ID`.
  */
 export function areConnected(a: GridPoint | TerminalAddress, b: GridPoint | TerminalAddress): boolean {
   if ("boardId" in a && "boardId" in b && a.boardId !== b.boardId) return false;
@@ -972,14 +968,12 @@ class UnionFind {
  * Resolve which component pins are electrically connected through
  * the breadboard's internal bus + wires.
  *
- * TODO(multi-board-resolver): clusters by `(row, col)` only — assumes a
- * single implicit breadboard. With multiple surface boards in components{}
- * the union-find merges nets across physically isolated boards. To fix:
- * cluster by `(boardId, stripId)` using each wire's fromStrip/toStrip when
- * present, and project every component footprint through its parentId to
- * a `(boardId, row, col)` tuple before unioning. The strip-id constants in
- * @dreamer/schemas (legacyRowColToStripId, breadboardFullStripIds, ...) are
- * already in place to receive this.
+ * Every union-find key is a board-qualified terminal address. The topology
+ * compiler in `simulator/electrical-topology.ts` is the consumer-facing
+ * contract used by schematic and SPICE code.
+ *
+ * Previous versions clustered by `(row, col)` only. Board-qualified keys now
+ * keep identical coordinates on physically separate boards independent.
  */
 export function resolveNets(
   components: Record<string, BoardComponent>,
@@ -987,7 +981,15 @@ export function resolveNets(
 ): Net[] {
   const uf = new UnionFind();
   const addresses = new Map<string, TerminalAddress>();
-  const boards = surfaceBoardIds(components);
+  const boards = [
+    ...surfaceBoardIds(components),
+    // Standalone consumers (pin resolver/peripheral discovery) may receive a
+    // child component without the persisted surface-board entity. Its parent
+    // is still enough to keep the local bus physically scoped.
+    ...Object.values(components)
+      .map((component) => component.parentId)
+      .filter((parentId): parentId is string => Boolean(parentId)),
+  ].filter((boardId, index, all) => all.indexOf(boardId) === index);
   // A board-less legacy project remains one electrical surface. In a project
   // with several surfaces, only explicitly parented parts/endpoints can join
   // those surfaces; this prevents same-coordinate cross-board shorts.

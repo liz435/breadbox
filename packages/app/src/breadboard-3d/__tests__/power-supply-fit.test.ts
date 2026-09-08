@@ -3,6 +3,7 @@ import type { BoardComponent } from "@dreamer/schemas"
 import { computePinFit, footprintCenter, footprintPinTargets } from "../part-frame"
 import { getPinCalibration } from "../component-pin-calibration"
 import { applySimilarity2D } from "../similarity-2d"
+import { GLB_PARTS } from "../glb-parts"
 
 // The MB102 power module straddles the full board width — its baked pin
 // calibration (derived from the GLB's pin-tip vertex clusters) must seat the
@@ -19,6 +20,10 @@ describe("power_supply baked pin fit", () => {
     pins: {},
     properties: {},
   } as unknown as BoardComponent
+
+  test("seats the visual module 5 mm into the breadboard", () => {
+    expect(GLB_PARTS.power_supply?.sinkMm).toBe(5)
+  })
 
   test("baked calibration seats the module pins on the rail holes", () => {
     const cal = getPinCalibration("power_supply")
