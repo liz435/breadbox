@@ -11,7 +11,9 @@ import { partColliderBox } from "./physics-model"
 import { partPlacement } from "./part-models"
 import { uniqueBodyId } from "./assembly-edits"
 
-export const SHOWCASE_BOX_SIZE_MM = 26
+// Large enough for the servo's 24mm-high body and its ~32mm horn sweep to
+// make visible contact instead of passing underneath the prop.
+export const SHOWCASE_BOX_SIZE_MM = 40
 export const SHOWCASE_BOX_DROP_HEIGHT_MM = 150
 
 /** Create a box above and just beside the first servo, ready to fall. */
@@ -31,7 +33,7 @@ export function createShowcaseBox(
     const servoHalfWidth = partColliderBox(servo).halfExtents[0]
     // Offset along the servo's local X axis so the box lands next to the
     // housing and can still make contact with it, instead of spawning on top.
-    const lateral = servoHalfWidth + SHOWCASE_BOX_SIZE_MM / 2 + 4
+    const lateral = servoHalfWidth + SHOWCASE_BOX_SIZE_MM / 2 + 1
     x = placement.x + Math.cos(placement.yaw) * lateral
     z = placement.z - Math.sin(placement.yaw) * lateral
     yaw = placement.yaw
