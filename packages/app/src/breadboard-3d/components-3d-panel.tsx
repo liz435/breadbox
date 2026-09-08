@@ -315,7 +315,6 @@ export function Components3dPanel() {
               label={physicsEnabled ? "Physics: On" : "Physics: Off"}
               title="Toggle Rapier physics: parts drop, settle, and can be dragged; wires drape and can be grabbed to reshape — double-click a wire to reset (experimental)"
             />
-            <SceneTuner />
             <Button
               size="sm"
               variant="secondary"
