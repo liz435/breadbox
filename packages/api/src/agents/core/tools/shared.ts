@@ -15,7 +15,7 @@ export const ALL_COMPONENT_TYPES = [
   "potentiometer", "buzzer", "servo", "lcd_16x2", "seven_segment",
   "photoresistor", "temperature_sensor", "ultrasonic_sensor",
   "neopixel", "pir_sensor", "relay", "dc_motor", "dht_sensor",
-  "ir_receiver", "shift_register", "oled_display",
+  "ir_receiver", "shift_register", "oled_display", "power_supply",
 ] as const;
 
 export const PIN_ROLE_VALUES = [
@@ -48,6 +48,10 @@ export function isSignalPin(pin: number): boolean {
 // and frontend breadboard-grid connectivity.
 
 export function getComponentPinNames(type: string): string[] {
+  // The MB102 has no ordinary component pins in the footprint registry: its
+  // terminals land on the breadboard rails.  Agent tools still need semantic
+  // handles so proposal wires can connect `positive`/`negative` to a load.
+  if (type === "power_supply") return ["positive", "negative"];
   return getSharedPinNames(type);
 }
 
@@ -55,6 +59,14 @@ export function resolveComponentPinTarget(
   component: { type: string; x: number; y: number },
   pinName: string,
 ): { row: number; col: number } | null {
+  // Keep the agent-facing semantic handles aligned with the diagram adapter
+  // and the electrical analyzer. The component origin is the positive
+  // anchor; the next row is the negative anchor.
+  if (component.type === "power_supply") {
+    if (pinName === "positive") return { row: component.y, col: component.x };
+    if (pinName === "negative") return { row: component.y + 1, col: component.x };
+    return null;
+  }
   return resolveComponentPin(component.type, component.y, component.x, pinName);
 }
 
