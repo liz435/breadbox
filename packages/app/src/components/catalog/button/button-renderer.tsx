@@ -1,15 +1,9 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback } from "react";
 import type { BoardComponent, PinState } from "@dreamer/schemas";
 import { gridToPixel } from "@/breadboard/breadboard-grid";
 import { LABEL_FONT_SIZE, PX_PER_MM } from "@/breadboard/breadboard-constants";
-import { pinStateStore } from "@/simulator/pin-state-store";
-import { buttonPressStore, useButtonPressed } from "@/simulator/button-press-store";
-import { usePinState } from "@/simulator/use-pin-state";
-import { isStrictHardwareEnabled } from "@/simulator/strict-hardware-flag";
-import { writeWithContactBounce } from "@/simulator/contact-bounce";
-import { simulationRef } from "@/simulator/simulation-ref";
-import { useBoardSelector } from "@/store/board-context";
-import { analyzeButtonWiring } from "@/breadboard/component-pin-resolver";
+import { useButtonInputController } from "@/simulator/button-input-controller";
+import { useButtonPressed } from "@/simulator/button-press-store";
 import { PinLabel } from "@/breadboard/component-renderers/pin-label";
 
 type ButtonRendererProps = {
@@ -21,22 +15,8 @@ type ButtonRendererProps = {
 };
 
 function ButtonRendererInner({ component, isSelected }: ButtonRendererProps) {
-  const wires = useBoardSelector((s) => s.wires);
-  const wiring = useMemo(
-    () => analyzeButtonWiring(component, wires),
-    [component, wires],
-  );
-  const inputPin = wiring.inputPin;
-  const inputPinState = usePinState(inputPin ?? -1);
+  const { press: pressButton, release: releaseButton } = useButtonInputController(component);
   const physicallyPressed = useButtonPressed(component.id);
-  // For INPUT_PULLUP: pressed = pin pulled LOW (0). For INPUT: pressed = HIGH (1).
-  const isPullup = inputPinState?.mode === "INPUT_PULLUP";
-  const pressedValue: 0 | 1 = isPullup ? 0 : 1;
-  const releasedValue: 0 | 1 = isPullup ? 1 : 0;
-  const canDrivePress =
-    inputPin != null &&
-    !wiring.hasSignalOnBothSides &&
-    ((isPullup && wiring.hasGroundReference) || (!isPullup && inputPinState?.mode === "INPUT" && wiring.hasPowerReference));
   const isPressed = physicallyPressed;
 
   // Button spans center gap: pins at (row, col=3), (row+1, col=3) left side
@@ -54,39 +34,15 @@ function ButtonRendererInner({ component, isSelected }: ButtonRendererProps) {
   const bodyHeight = 6 * PX_PER_MM; // 6mm switch body
   const capR = 1.75 * PX_PER_MM; // 3.5mm-dia round plunger cap
 
-  // Strict hardware mode: a press/release is a bounce burst, not one clean
-  // edge — scheduled through the running peripheral bus in sim time so
-  // undebounced sketches really do see the chatter.
-  const driveInput = useCallback((pin: number, value: 0 | 1) => {
-    const runner = simulationRef.current?.runner ?? null;
-    if (isStrictHardwareEnabled() && runner) {
-      writeWithContactBounce(pin, value, {
-        bus: runner.getPeripheralBus(),
-        nowSimMs: runner.getMillis(),
-        writeNow: (p, v) => pinStateStore.writeExternal(p, { digitalValue: v }),
-      });
-      return;
-    }
-    pinStateStore.writeExternal(pin, { digitalValue: value });
-  }, []);
-
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     e.stopPropagation();
-    buttonPressStore.press(component.id);
-    if (canDrivePress && inputPin != null) {
-      driveInput(inputPin, pressedValue);
-    }
-  }, [canDrivePress, component.id, driveInput, inputPin, pressedValue]);
+    pressButton();
+  }, [pressButton]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     e.stopPropagation();
-    buttonPressStore.release(component.id);
-    // Always restore the released state when we know which input this button targets.
-    // This clears stale externally-driven values if wiring changed while pressed.
-    if (inputPin != null) {
-      driveInput(inputPin, releasedValue);
-    }
-  }, [component.id, driveInput, inputPin, releasedValue]);
+    releaseButton();
+  }, [releaseButton]);
 
   const pins = [topLeft, bottomLeft, topRight, bottomRight];
   const bodyL = centerX - bodyWidth / 2;

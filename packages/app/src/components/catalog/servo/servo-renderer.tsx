@@ -4,6 +4,7 @@ import { gridToPixel } from "@/breadboard/breadboard-grid";
 import { LABEL_FONT_SIZE, PX_PER_MM } from "@/breadboard/breadboard-constants";
 import { useBoardSelector } from "@/store/board-context";
 import { PinLabel } from "@/breadboard/component-renderers/pin-label";
+import { servoHornHoleOffsets } from "./servo-horn-geometry";
 
 type ServoRendererProps = {
   component: BoardComponent;
@@ -117,7 +118,7 @@ function ServoRendererInner({ component, isSelected, libraryState }: ServoRender
   const SHAFT_FROM_TOP = 6 * PX_PER_MM;        // output-shaft centre, down from the top of the case
   const GEAR_COVER_R = (11.8 / 2) * PX_PER_MM; // raised round gear-cover disc
   const HUB_R = (5.8 / 2) * PX_PER_MM;         // output hub / spline
-  const HORN_LEN = 15 * PX_PER_MM;             // single-arm horn reach from the shaft centre
+  const HORN_LEN = 15 * PX_PER_MM;             // each dual-arm horn reach from the shaft centre
   const CABLE_RUN = 10 * PX_PER_MM;            // case→pin lead run — long enough to clear the horn sweep
 
   // Case sits to the LEFT of the pins; long axis centred on the middle (vcc) pin.
@@ -214,20 +215,23 @@ function ServoRendererInner({ component, isSelected, libraryState }: ServoRender
 
       {/* Horn — authored pointing right (= 90°); the rAF slew rotates this group */}
       <g ref={hornRef}>
-        {/* Short counter-arm so it reads as a real 2-sided horn.
-            NB: solid stroke — a gradient on a horizontal (zero-height) line
-            has a degenerate objectBoundingBox and paints nothing. */}
-        <line x1={cx} y1={shaftY} x2={cx - HORN_LEN * 0.42} y2={shaftY}
-          stroke="#e2e2e2" strokeWidth={1.8 * PX_PER_MM} strokeLinecap="round" />
-        {/* Main arm */}
-        <line x1={cx} y1={shaftY} x2={cx + HORN_LEN} y2={shaftY}
+        {/* A real dual-sided servo horn has equal arms on both sides of the
+            spline. Keep the arm as a solid stroke: a gradient on a horizontal
+            zero-height line has a degenerate objectBoundingBox and paints
+            nothing in SVG. */}
+        <line x1={cx - HORN_LEN} y1={shaftY} x2={cx + HORN_LEN} y2={shaftY}
           stroke="#ffffff" strokeWidth={2.2 * PX_PER_MM} strokeLinecap="round" />
-        {/* Mounting holes down the main arm */}
-        <circle cx={cx + HORN_LEN} cy={shaftY} r={0.9 * PX_PER_MM} fill="#eee" stroke="#9e9e9e" strokeWidth={0.3} />
-        <circle cx={cx + HORN_LEN} cy={shaftY} r={0.4 * PX_PER_MM} fill="#9e9e9e" />
-        <circle cx={cx + HORN_LEN * 0.82} cy={shaftY} r={0.42 * PX_PER_MM} fill="#9e9e9e" />
-        <circle cx={cx + HORN_LEN * 0.64} cy={shaftY} r={0.42 * PX_PER_MM} fill="#9e9e9e" />
-        <circle cx={cx + HORN_LEN * 0.46} cy={shaftY} r={0.42 * PX_PER_MM} fill="#9e9e9e" />
+
+        {/* Five mounting holes on each arm, mirrored around the hub. */}
+        {servoHornHoleOffsets().map(({ side, fraction }) => {
+          const x = cx + HORN_LEN * fraction;
+          return (
+            <g key={`${side}-${Math.abs(fraction)}`}>
+              <circle cx={x} cy={shaftY} r={0.72 * PX_PER_MM} fill="#eeeeee" stroke="#9e9e9e" strokeWidth={0.3} />
+              <circle cx={x} cy={shaftY} r={0.34 * PX_PER_MM} fill="#9e9e9e" />
+            </g>
+          );
+        })}
       </g>
       {/* Hub centre screw (drawn after the horn so it sits on top) */}
       <circle cx={cx} cy={shaftY} r={1 * PX_PER_MM} fill="#8a8a8a" stroke="#5c5c5c" strokeWidth={0.3} />

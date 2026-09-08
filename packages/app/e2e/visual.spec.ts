@@ -39,7 +39,7 @@ test.describe("visual regression", () => {
     void debug
     await page.goto("/")
     await page.getByTestId("example-button").click()
-    await page.getByTestId("example-row-ex-led").click()
+    await page.getByTestId("example-row-ex-led").first().click()
     // Let the breadboard re-render + simulation pipeline settle.
     await page.waitForTimeout(1000)
 

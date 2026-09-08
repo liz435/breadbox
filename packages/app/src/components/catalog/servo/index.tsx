@@ -4,6 +4,7 @@ import { sanitize, servoVarName } from "@/components/catalog/_shared"
 
 export const servo: ComponentDefinition = {
   type: "servo",
+  capabilities: ["model-3d"],
   category: "output",
   description: "Servo motor — rotate to a precise angle (0-180°)",
   label: "Servo Motor",

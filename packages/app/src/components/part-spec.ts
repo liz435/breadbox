@@ -24,6 +24,8 @@ export type PartNetlistOutput = {
   modelLines?: string[]
   nodeA: string
   nodeB: string
+  /** Keep internal branches when the primary measurement pair self-loops. */
+  preserveOnSelfLoop?: boolean
   /** Explicit supply emitted by this part. The element is the SPICE voltage
    * source whose branch current represents the source load; node is its
    * externally available output after any source resistance. */

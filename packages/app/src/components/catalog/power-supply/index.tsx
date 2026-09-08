@@ -67,21 +67,25 @@ export const powerSupply: ComponentDefinition = {
     const id = sanitize(comp.id)
     const lines: string[] = []
 
-    // Tie both − rails to ground via a tiny resistor. Using 1Ω instead
-    // of a hard short avoids the singular-matrix trap that 0Ω elements
-    // create in spicey's MNA solver, while still being negligible
-    // compared to any real load on the rail (the rail effectively
-    // sits at < 1 mV under normal currents).
-    lines.push(`R_${id}_LGND ${lMinusNode} 0 1`)
-    lines.push(`R_${id}_RGND ${rMinusNode} 0 1`)
+    // Keep each external supply channel floating until the user wires its −
+    // rail to Arduino GND. A 1Ω automatic tie both changes the user's circuit
+    // and makes an unconnected supply look grounded to power diagnostics. A
+    // 1GΩ reference gives SPICE a DC path without creating a hidden common
+    // ground; the explicit breadboard connection still resolves directly to 0.
+    lines.push(`R_${id}_LREF ${lMinusNode} 0 1000000000`)
+    lines.push(`R_${id}_RREF ${rMinusNode} 0 1000000000`)
 
     // Regulated outputs with finite impedance. A perfect source hides the
     // very overload/sag behavior learners need to see with motors and LEDs.
     const lSource = `src_${id}_L`
     const rSource = `src_${id}_R`
-    lines.push(`V_${id}_L ${lSource} 0 ${leftV}`)
+    // The ideal source is between the channel's + and − terminals, not
+    // between + and global node 0. That lets an isolated load draw current
+    // through the supply's own return while the 1GΩ reference only anchors a
+    // floating island numerically.
+    lines.push(`V_${id}_L ${lSource} ${lMinusNode} ${leftV}`)
     lines.push(`R_${id}_L_OUT ${lSource} ${lPlusNode} ${MB102_SOURCE_RESISTANCE_OHMS}`)
-    lines.push(`V_${id}_R ${rSource} 0 ${rightV}`)
+    lines.push(`V_${id}_R ${rSource} ${rMinusNode} ${rightV}`)
     lines.push(`R_${id}_R_OUT ${rSource} ${rPlusNode} ${MB102_SOURCE_RESISTANCE_OHMS}`)
 
     // Report the left + rail and left − rail as the primary node pair

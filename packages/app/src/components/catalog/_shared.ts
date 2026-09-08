@@ -36,7 +36,19 @@ export function footprintFromPins(
 
 /** Sanitize a component id into a SPICE-safe element name fragment. */
 export function sanitize(id: string): string {
-  return id.replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 20)
+  const normalized = id.replace(/[^a-zA-Z0-9_]/g, "_")
+  if (normalized.length <= 20) return normalized
+
+  // SPICE element names are intentionally short, but truncation alone makes
+  // distinct persisted ids collide. Keep the familiar prefix and append a
+  // deterministic suffix so long ids remain both readable and unique.
+  let hash = 2166136261
+  for (let i = 0; i < normalized.length; i++) {
+    hash ^= normalized.charCodeAt(i)
+    hash = Math.imul(hash, 16777619)
+  }
+  const suffix = (hash >>> 0).toString(36).padStart(4, "0").slice(-4)
+  return `${normalized.slice(0, 15)}_${suffix}`
 }
 
 /** Derive a valid C++ identifier for a Servo variable from a component name. */

@@ -194,6 +194,32 @@ describe("TransientSession — RC physics", () => {
     const fresh = session.step({ components, wires, pinStates, dtSimSeconds: 0.0001 })
     expect(capVoltage(fresh)).toBeLessThan(0.5)
   })
+
+  test("zero-duration reads do not integrate reactive state", () => {
+    const session = new TransientSession()
+    const { components, wires } = rcBoard()
+    const pinStates = makePinStates([{ pin: 13, mode: "OUTPUT", digitalValue: 1 }])
+    const seeded = session.step({ components, wires, pinStates, dtSimSeconds: 0.02 })
+    const before = capVoltage(seeded)
+    const clockBefore = session.nowSimSeconds
+
+    const snapshot = session.step({ components, wires, pinStates, dtSimSeconds: 0 })
+    expect(snapshot.advancedSeconds).toBe(0)
+    expect(session.nowSimSeconds).toBe(clockBefore)
+    // The zero-time Newton read can report a slightly different endpoint, but
+    // the restored reactive history must produce the same next real step as a
+    // session that never took the snapshot.
+    expect(Math.abs(capVoltage(snapshot) - before)).toBeLessThan(1e-3)
+    const control = new TransientSession()
+    control.step({ components, wires, pinStates, dtSimSeconds: 0.02 })
+    const expectedNext = control.step({ components, wires, pinStates, dtSimSeconds: 0.01 })
+    const resumedNext = session.step({ components, wires, pinStates, dtSimSeconds: 0.01 })
+    expect(Math.abs(capVoltage(resumedNext) - capVoltage(expectedNext))).toBeLessThan(1e-6)
+
+    const tiny = session.step({ components, wires, pinStates, dtSimSeconds: 1e-8 })
+    expect(tiny.advancedSeconds).toBeCloseTo(1e-8, 12)
+    expect(session.nowSimSeconds).toBeCloseTo(clockBefore + 0.01 + 1e-8, 12)
+  })
 })
 
 describe("TransientSession — PWM square wave", () => {

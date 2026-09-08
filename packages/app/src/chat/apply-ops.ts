@@ -1,4 +1,6 @@
 import type { SceneOp, BoardOp, LibraryState } from "@dreamer/schemas";
+import type { BoardState } from "@dreamer/schemas";
+import { createBoardDocument, validateBoardOps } from "@dreamer/board-domain";
 import type { SceneEvent } from "@/store/scene-machine";
 import type { BoardEvent } from "@/store/board-machine";
 import { pinStateStore } from "@/simulator/pin-state-store";
@@ -233,7 +235,19 @@ export function isBoardOp(op: { kind: string }): boolean {
 export function applyBoardOpsToBoard(
   ops: BoardOp[],
   send: (event: BoardEvent) => void,
+  currentState?: BoardState,
 ): void {
+  // Validate the complete batch through the shared cross-runtime domain
+  // module before translating it to XState events. XState remains a UI
+  // adapter for now, but the mutation rules no longer exist only in React.
+  if (currentState) {
+    try {
+      validateBoardOps(createBoardDocument(currentState), ops);
+    } catch (error) {
+      console.warn("[board-domain] rejected board operation batch", error);
+      return;
+    }
+  }
   for (const op of ops) {
     switch (op.kind) {
       case "place_component": {

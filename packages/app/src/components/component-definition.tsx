@@ -19,6 +19,26 @@ import type { SchematicSymbolType } from "@/schematic/schematic-symbols"
 import type { Peripheral } from "@/simulator/peripherals/types"
 import type { PartSpec } from "./part-spec"
 
+/** Capabilities are explicit seams, not a promise that every view has a
+ * renderer. An adapter can be added or removed without changing the core
+ * component metadata. */
+export type ComponentCapability =
+  | "breadboard-2d"
+  | "model-3d"
+  | "simulation"
+  | "schematic"
+  | "sketch"
+
+export type ComponentSpec = Readonly<{
+  type: string
+  label: string
+  category?: "output" | "input" | "passive" | "display" | "other"
+  description?: string
+  pinNames: readonly string[]
+  defaultProperties: Readonly<Record<string, unknown>>
+  capabilities: readonly ComponentCapability[]
+}>
+
 // ── Sketch generation ─────────────────────────────────────────────────────
 
 export type SketchOutput = {
@@ -68,6 +88,8 @@ export type NetlistOutput = {
   nodeA: string
   /** Primary node B */
   nodeB: string
+  /** Keep internal branches when the primary measurement pair self-loops. */
+  preserveOnSelfLoop?: boolean
   /** Supply metadata emitted with a component's SPICE elements. */
   supplySources?: Array<{
     id: string
@@ -123,6 +145,10 @@ export type ComponentDefinition = PartSpec & {
 
   /** One-line description shown in palette and command palette */
   description?: string
+
+  /** Explicit adapter seams supported by this component. When omitted, the
+   * catalog manager derives the core capabilities from the definition. */
+  capabilities?: readonly ComponentCapability[]
 
   // ── Breadboard placement ──────────────────────────────────────────────
 

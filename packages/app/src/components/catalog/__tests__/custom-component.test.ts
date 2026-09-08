@@ -4,6 +4,7 @@ import type { NetlistContext } from "@/components/component-definition"
 import { getComponentDef } from "@/components/catalog/manager"
 import { getComponentRenderer } from "@/breadboard/component-renderers/index"
 import { CustomPartRenderer } from "@/breadboard/component-renderers/custom-part-renderer"
+import { StepperRenderer } from "@/components/catalog/stepper-motor/stepper-renderer"
 import { registerPluginModule } from "@/components/catalog/load-plugin"
 import { __resetCustomComponents } from "@/components/catalog/custom-store"
 import type { CustomComponentModule } from "@/components/catalog/plugin-host"
@@ -116,6 +117,11 @@ describe("custom component registration", () => {
       })
     registerPluginModule(withRenderer)
     expect(getComponentRenderer("custom:has-renderer")).toBe(StubRenderer)
+  })
+
+  test("keeps the stepper motor in the built-in catalog and renderer path", () => {
+    expect(getComponentDef("stepper_motor")?.label).toBe("Stepper Motor")
+    expect(getComponentRenderer("stepper_motor")).toBe(StepperRenderer)
   })
 
   test("isolates a throwing plugin callback instead of crashing", () => {

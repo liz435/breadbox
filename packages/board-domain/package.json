@@ -1,0 +1,19 @@
+{
+  "name": "@dreamer/board-domain",
+  "version": "0.0.1",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "bunx tsc --noEmit",
+    "test": "bun test src"
+  },
+  "dependencies": {
+    "@dreamer/schemas": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.7.0"
+  }
+}

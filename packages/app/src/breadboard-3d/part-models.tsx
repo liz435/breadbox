@@ -26,7 +26,8 @@ import { useBoardSelector } from "@/store/board-context"
 import { BOARD_SURFACE_Y, pixelToWorld, pxToMm, type WorldPoint } from "./layout"
 import { componentFootprint, footprintCenter, rotationYaw } from "./part-frame"
 import { registerPartNodes, SEVEN_SEGMENT_ORDER } from "./scene-registry"
-import { buttonPressStore, useButtonPressed } from "@/simulator/button-press-store"
+import { useButtonInputController } from "@/simulator/button-input-controller"
+import { useButtonPressed } from "@/simulator/button-press-store"
 import { resistorBands } from "./resistor-color-code"
 import { resolveLedColor } from "./led-colors"
 import { GLB_PARTS, GlbPartModel, enableShadows } from "./glb-parts"
@@ -209,31 +210,56 @@ function UltrasonicModel(_props: { component: BoardComponent }) {
 }
 
 function ButtonModel({ component }: { component: BoardComponent }) {
-  // Same press store the 2D button uses — the circuit-analysis hook subscribes to
-  // it and re-solves, so pressing in 3D closes the contacts in the running sketch.
   const pressed = useButtonPressed(component.id)
+  const { press: pressButton, release: releaseButton } = useButtonInputController(component)
   const press = useCallback(
     (e: ThreeEvent<PointerEvent>) => {
       e.stopPropagation() // don't also start a body drag in physics mode
-      buttonPressStore.press(component.id)
+      pressButton()
       // Release on the next global pointer-up wherever it lands, so sliding off
       // the cap mid-press (or the cap sinking out from under the cursor) doesn't
       // strand it held. A stray onPointerOut can't; window pointerup always fires.
-      const release = () => buttonPressStore.release(component.id)
+      let released = false
+      const release = () => {
+        if (released) return
+        released = true
+        releaseButton()
+        window.removeEventListener("pointercancel", release)
+      }
       window.addEventListener("pointerup", release, { once: true })
       window.addEventListener("pointercancel", release, { once: true })
     },
-    [component.id],
+    [pressButton, releaseButton],
   )
-  // Cap sinks ~0.6 mm and reddens while held so the press reads in 3D.
+  // The 3D demo uses the common 12 x 12 mm tactile-switch package. Keep the
+  // four legs on the existing 7.62 mm x 2.54 mm electrical footprint; only the
+  // housing/cap is enlarged for the physical package and the oblique camera.
+  const bodySize = 12
+  const bodyHeight = 5
+  const capRadius = 2.6
+  const capHeight = 1.8
+  const bodyY = 2.7
+  const capY = pressed ? 5.35 : 5.95
+  const legX = 3.81
+  const legZ = 1.27
+
   return (
     <group>
-      <mesh position={[0, 1.75, 0]}>
-        <boxGeometry args={[6, 3.5, 6]} />
-        <meshStandardMaterial color="#37474f" roughness={0.6} />
-      </mesh>
+      {/* Four visible metal leads make the part read as seated in the board,
+          instead of as a floating dark cube. */}
+      {[
+        [-legX, -legZ],
+        [-legX, legZ],
+        [legX, -legZ],
+        [legX, legZ],
+      ].map(([x, z], index) => (
+        <mesh key={index} position={[x, 1.25, z]}>
+          <cylinderGeometry args={[0.35, 0.35, 2.5, 10]} />
+          <meshStandardMaterial color="#b0bec5" metalness={0.8} roughness={0.3} />
+        </mesh>
+      ))}
       <mesh
-        position={[0, pressed ? 3.4 : 4, 0]}
+        position={[0, bodyY, 0]}
         onPointerDown={press}
         onPointerOver={(e) => {
           e.stopPropagation()
@@ -243,8 +269,22 @@ function ButtonModel({ component }: { component: BoardComponent }) {
           document.body.style.cursor = ""
         }}
       >
-        <cylinderGeometry args={[1.75, 1.75, 1.5, 16]} />
-        <meshStandardMaterial color={pressed ? "#c62828" : "#111111"} roughness={0.5} />
+        <boxGeometry args={[bodySize, bodyHeight, bodySize]} />
+        <meshStandardMaterial color={pressed ? "#455a64" : "#263238"} roughness={0.58} />
+      </mesh>
+      <mesh
+        position={[0, capY, 0]}
+        onPointerDown={press}
+        onPointerOver={(e) => {
+          e.stopPropagation()
+          document.body.style.cursor = "pointer"
+        }}
+        onPointerOut={() => {
+          document.body.style.cursor = ""
+        }}
+      >
+        <cylinderGeometry args={[capRadius, capRadius * 0.92, capHeight, 20]} />
+        <meshStandardMaterial color={pressed ? "#ef5350" : "#111111"} roughness={0.42} />
       </mesh>
     </group>
   )

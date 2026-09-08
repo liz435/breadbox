@@ -11,7 +11,7 @@ import {
   applyOpsRequestSchema,
   projectGraphSchema,
 } from "../db/schemas";
-import { boardStateSchema } from "@dreamer/schemas";
+import { boardStateSchema, physicalSceneSchema } from "@dreamer/schemas";
 import {
   OpValidationError,
   storage,
@@ -22,16 +22,17 @@ import type { AuthContext } from "../auth/context";
 import { authPlugin } from "../auth/auth-plugin";
 import { auditLog } from "../auth/audit-log";
 
-// Combined save payload — both fields optional so the client can omit one
-// when nothing changed in that half. At least one must be present.
+// Omitted fields are preserved; null explicitly clears the physical scene.
 const saveStateRequestSchema = z
   .object({
+    expectedVersion: z.number().int().nonnegative().optional(),
     boardState: boardStateSchema.optional(),
     graph: projectGraphSchema.optional(),
+    physicalScene: physicalSceneSchema.nullable().optional(),
   })
   .refine(
-    (v) => v.boardState !== undefined || v.graph !== undefined,
-    { message: "Must include at least one of boardState or graph" },
+    (v) => v.boardState !== undefined || v.graph !== undefined || v.physicalScene !== undefined,
+    { message: "Must include at least one of boardState, graph or physicalScene" },
   );
 
 function badRequest(
@@ -253,6 +254,14 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
       return result;
     } catch (err) {
       if (err instanceof ZodError) return badRequest(set, err);
+      if (err instanceof VersionConflictError) {
+        set.status = 409;
+        return {
+          error: "Version conflict",
+          expectedVersion: err.expectedVersion,
+          currentVersion: err.currentVersion,
+        };
+      }
       throw err;
     }
   })
@@ -276,11 +285,9 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
       throw err;
     }
   })
-  // ── Atomic board + graph save ───────────────────────────────────────────
-  //
-  // Single read-modify-write that updates both `boardState` and `graph` in
-  // one pass. Use this for the normal autosave / Cmd+S flow so two
-  // concurrent saves can't clobber each other's field.
+  // ── Combined board + graph + physical scene save ────────────────────────
+  // All supplied fields share one write and project revision. Clients should
+  // send expectedVersion for conflict detection during autosave / Cmd+S.
   .post("/:id/state", async ({ auth, params, body, set }) => {
     const ownerId = requireOwnerId(auth);
     try {
@@ -297,6 +304,14 @@ export const projectRoutes = new Elysia({ prefix: "/project" })
       return result;
     } catch (err) {
       if (err instanceof ZodError) return badRequest(set, err);
+      if (err instanceof VersionConflictError) {
+        set.status = 409;
+        return {
+          error: "Version conflict",
+          expectedVersion: err.expectedVersion,
+          currentVersion: err.currentVersion,
+        };
+      }
       throw err;
     }
   })

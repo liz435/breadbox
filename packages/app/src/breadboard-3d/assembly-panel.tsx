@@ -1,12 +1,14 @@
 // ── Scene manager panel ─────────────────────────────────────────────────────
 //
-// Always-present DOM overlay for managing the 3D scene: add / list / show-hide
-// / lock / reorder / rename / duplicate / delete the uploaded bodies, plus an
-// asset library for reusing and reclaiming model files. The selected body gets
-// its mounting inspector: parent (world / another body / a component's node),
-// joint (rotate hinge or slide rail), signal bindings (joint motion + emissive
-// glow), and GLB clip playback. Reparenting preserves the body's world pose by
-// rebasing its transform into the new parent's frame.
+// Manages the 3D scene's uploaded bodies: add / list / show-hide / lock /
+// reorder / rename / duplicate / delete, plus an asset library for reusing and
+// reclaiming model files. The selected body gets its mounting inspector:
+// parent (world / another body / a component's node), joint (rotate hinge or
+// slide rail), signal bindings (joint motion + emissive glow), and GLB clip
+// playback. Reparenting preserves the body's world pose by rebasing its
+// transform into the new parent's frame. Rendered as the "Models" section of
+// the Components sidebar's 3D panel (components-3d-panel), not an overlay
+// inside the 3D view.
 
 import { useState, useSyncExternalStore } from "react"
 import {
@@ -16,8 +18,6 @@ import {
   Eye,
   EyeOff,
   Lock,
-  PanelLeftClose,
-  PanelLeftOpen,
   Plus,
   Unlock,
 } from "lucide-react"
@@ -363,36 +363,14 @@ function AnimationsEditor({ body }: { body: AssemblyBody }) {
 
 // ── Panel ───────────────────────────────────────────────────────────────────
 
-/** Remembered across sessions so a hidden panel stays out of the way. */
-const PANEL_COLLAPSED_KEY = "dreamer:scene-panel-collapsed"
-
-function readPanelCollapsed(): boolean {
-  try {
-    return globalThis.localStorage?.getItem(PANEL_COLLAPSED_KEY) === "1"
-  } catch {
-    return false
-  }
-}
-
 export function AssemblyPanel({ onImport }: { onImport: () => void }) {
   const assembly = useAssemblyDoc()
   const { updateBody, duplicateBody, reorderBody, removeBody } = useAssemblyActions()
   const { selectedBodyId, select, mode, setMode } = useEditor()
   const components = useBoardSelector((ctx) => ctx.components)
   const [renamingId, setRenamingId] = useState<string | null>(null)
-  const [collapsed, setCollapsed] = useState(readPanelCollapsed)
   // Parent targets resolve against live scene nodes; refresh when they change.
   useSyncExternalStore(subscribeRegistry, getRegistryVersion, getRegistryVersion)
-
-  function toggleCollapsed() {
-    const next = !collapsed
-    setCollapsed(next)
-    try {
-      globalThis.localStorage?.setItem(PANEL_COLLAPSED_KEY, next ? "1" : "0")
-    } catch {
-      // Non-browser / storage-denied: keep the in-memory value.
-    }
-  }
 
   const bodies = Object.values(assembly.bodies)
   const selected = selectedBodyId ? assembly.bodies[selectedBodyId] : undefined
@@ -407,43 +385,21 @@ export function AssemblyPanel({ onImport }: { onImport: () => void }) {
     setRenamingId(null)
   }
 
-  if (collapsed) {
-    return (
-      <button
-        type="button"
-        onClick={toggleCollapsed}
-        className="pointer-events-auto absolute left-2 top-14 inline-flex items-center gap-1.5 rounded-lg border border-border bg-background/95 px-2 py-1.5 text-xs font-semibold text-muted-foreground shadow-lg backdrop-blur hover:text-foreground"
-        title="Show the scene panel"
-      >
-        <PanelLeftOpen className="h-3.5 w-3.5" />
-        Scene
-      </button>
-    )
-  }
-
   return (
-    <div className="pointer-events-auto absolute left-2 top-14 flex max-h-[calc(100%-5rem)] w-64 flex-col overflow-y-auto rounded-lg border border-border bg-background/95 p-2 text-sm shadow-lg backdrop-blur">
-      <div className="mb-1 flex items-center justify-between">
-        <span className="text-xs font-semibold text-muted-foreground">Scene</span>
-        <div className="flex items-center gap-0.5">
-          <button
-            type="button"
-            onClick={onImport}
-            className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-xs font-medium text-primary hover:bg-muted"
-            title="Upload a .glb or .stl model (e.g. a part you're about to 3D-print)"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Add model
-          </button>
-          <button
-            type="button"
-            onClick={toggleCollapsed}
-            className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-            title="Hide the scene panel"
-          >
-            <PanelLeftClose className="h-3.5 w-3.5" />
-          </button>
-        </div>
+    <div className="flex flex-col text-sm">
+      <div className="mb-1 flex items-center justify-between px-1">
+        <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Models
+        </h3>
+        <button
+          type="button"
+          onClick={onImport}
+          className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-xs font-medium text-primary hover:bg-muted"
+          title="Upload a .glb or .stl model (e.g. a part you're about to 3D-print)"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Add model
+        </button>
       </div>
 
       {bodies.length === 0 ? (

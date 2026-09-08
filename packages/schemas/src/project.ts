@@ -6,6 +6,7 @@ import {
 } from "./primitives";
 import { graphNodeSchema, edgeSchema } from "./graph";
 import { boardStateSchema } from "./arduino";
+import { physicalSceneSchema } from "./physical-scene";
 
 // Re-export primitives for backwards compatibility
 export { nonEmptyStringSchema, timestampSchema, vec2Schema };
@@ -178,6 +179,7 @@ export const projectFileSchema = z.object({
   assets: z.record(z.string(), assetSchema),
   graph: projectGraphSchema.optional(),
   boardState: boardStateSchema.optional(),
+  physicalScene: physicalSceneSchema.nullable().optional(),
 });
 
 export type ProjectFile = z.infer<typeof projectFileSchema>;

@@ -5,7 +5,8 @@
 
 import type { CircuitAnalysis } from "@/simulator/circuit-solver"
 import type { SchematicLayout, SchematicEdge, SchematicTerminalSide } from "./schematic-layout"
-import { renderSymbol, WireJunction, GroundFlag, PowerFlag, ARDUINO_IC_LABEL_WIDTH, ARDUINO_IC_TERMINAL_OFFSET, type SymbolProps } from "./schematic-symbols"
+import { renderSymbol, WireJunction, GroundFlag, PowerFlag, ARDUINO_IC_LABEL_WIDTH, type SymbolProps } from "./schematic-symbols"
+import { findSchematicJunctions, getSchematicTerminalPos, routeSchematicEdge } from "./schematic-routing"
 
 type SchematicRendererProps = {
   layout: SchematicLayout
@@ -17,60 +18,6 @@ type SchematicRendererProps = {
 
 // ── Wire Routing ───────────────────────────────────────────────────────
 
-/** Terminal offset: how far from the node center to the wire connection point */
-const TERMINAL_OFFSET: Record<SchematicTerminalSide, { dx: number; dy: number }> = {
-  left: { dx: 0, dy: 0 },
-  "left-top": { dx: 0, dy: -14 },
-  "left-bottom": { dx: 0, dy: 14 },
-  right: { dx: 60, dy: 0 },
-  top: { dx: 30, dy: -20 },
-  bottom: { dx: 30, dy: 20 },
-  "bottom-left": { dx: 18, dy: 25 },
-  "bottom-center": { dx: 30, dy: 25 },
-  "bottom-right": { dx: 42, dy: 25 },
-}
-
-/** Special terminal offsets per node type */
-function getTerminalPos(
-  nodeX: number,
-  nodeY: number,
-  nodeType: string,
-  side: SchematicTerminalSide,
-): { x: number; y: number } {
-  const offset = TERMINAL_OFFSET[side]
-
-  // Arduino pin terminal is at the end of the IC stub
-  if (nodeType === "arduino_pin" && side === "right") {
-    return { x: nodeX + ARDUINO_IC_TERMINAL_OFFSET, y: nodeY }
-  }
-
-  // Voltage source has terminal at right (x + 60)
-  if (nodeType === "voltage_source" && side === "right") {
-    return { x: nodeX + 60, y: nodeY }
-  }
-
-  // Ground has terminal at left (x)
-  if (nodeType === "ground" && side === "left") {
-    return { x: nodeX, y: nodeY }
-  }
-
-  // Connector-block modules (servo, temperature sensor): signal/power on the
-  // left, ground on the right. Must match MODULE_PIN_DY / MODULE_GND_X used by
-  // ServoSymbol and TemperatureSensorSymbol.
-  if (nodeType === "servo" || nodeType === "temperature_sensor") {
-    if (side === "left-top") return { x: nodeX, y: nodeY - 14 }
-    if (side === "left-bottom") return { x: nodeX, y: nodeY + 14 }
-    if (side === "right") return { x: nodeX + 64, y: nodeY }
-  }
-
-  // An IC pin's terminal is its node position (the stub runs into the body).
-  if (nodeType === "ic_pin") {
-    return { x: nodeX, y: nodeY }
-  }
-
-  return { x: nodeX + offset.dx, y: nodeY + offset.dy }
-}
-
 /** Unit vector pointing away from a component for a terminal on the given side. */
 function outwardDir(side: SchematicTerminalSide): { dx: number; dy: number } {
   switch (side) {
@@ -79,6 +26,8 @@ function outwardDir(side: SchematicTerminalSide): { dx: number; dy: number } {
     case "left-bottom":
       return { dx: -1, dy: 0 }
     case "right":
+    case "right-top":
+    case "right-bottom":
       return { dx: 1, dy: 0 }
     case "top":
       return { dx: 0, dy: -1 }
@@ -93,7 +42,7 @@ function RailFlags({ layout }: { layout: SchematicLayout }) {
       {layout.rails.map((rail) => {
         const node = layout.nodes.find((n) => n.id === rail.nodeId)
         if (node == null) return null
-        const pos = getTerminalPos(node.x, node.y, node.type, rail.side)
+        const pos = getSchematicTerminalPos(node, rail.side)
         const dir = outwardDir(rail.side)
         return rail.kind === "ground" ? (
           <GroundFlag key={rail.id} x={pos.x} y={pos.y} dir={dir} />
@@ -118,63 +67,24 @@ function wireColor(edge: SchematicEdge, layout: SchematicLayout): string {
 }
 
 function WirePath({ edge, layout }: { edge: SchematicEdge; layout: SchematicLayout }) {
-  const fromNode = layout.nodes.find((n) => n.id === edge.fromNodeId)
-  const toNode = layout.nodes.find((n) => n.id === edge.toNodeId)
-  if (fromNode == null || toNode == null) return null
-
-  const from = getTerminalPos(fromNode.x, fromNode.y, fromNode.type, edge.fromSide)
-  const to = getTerminalPos(toNode.x, toNode.y, toNode.type, edge.toSide)
-
-  const color = wireColor(edge, layout)
-
-  // Orthogonal routing: horizontal to midpoint, then vertical, then horizontal
-  let pathD: string
-  if (Math.abs(from.y - to.y) < 2) {
-    // Same Y: straight horizontal
-    pathD = `M ${from.x} ${from.y} H ${to.x}`
-  } else {
-    const midX = (from.x + to.x) / 2
-    pathD = `M ${from.x} ${from.y} H ${midX} V ${to.y} H ${to.x}`
-  }
+  const route = routeSchematicEdge(edge, layout)
+  if (route == null) return null
 
   return (
     <path
-      d={pathD}
+      d={route.pathD}
+      data-edge-id={edge.id}
+      data-net-id={edge.netId}
+      data-from={`${route.from.x},${route.from.y}`}
+      data-to={`${route.to.x},${route.to.y}`}
+      data-segment-count={route.segments.length}
       fill="none"
-      stroke={color}
+      stroke={wireColor(edge, layout)}
       strokeWidth={2}
       strokeLinecap="round"
       strokeLinejoin="round"
     />
   )
-}
-
-// ── Junction Detection ─────────────────────────────────────────────────
-
-function findJunctions(layout: SchematicLayout): Array<{ x: number; y: number }> {
-  // A junction exists where more than 2 edges meet at the same terminal point
-  const pointCount = new Map<string, { x: number; y: number; count: number }>()
-
-  for (const edge of layout.edges) {
-    const fromNode = layout.nodes.find((n) => n.id === edge.fromNodeId)
-    const toNode = layout.nodes.find((n) => n.id === edge.toNodeId)
-    if (fromNode == null || toNode == null) continue
-
-    const from = getTerminalPos(fromNode.x, fromNode.y, fromNode.type, edge.fromSide)
-    const to = getTerminalPos(toNode.x, toNode.y, toNode.type, edge.toSide)
-
-    for (const pt of [from, to]) {
-      const key = `${Math.round(pt.x)},${Math.round(pt.y)}`
-      const existing = pointCount.get(key)
-      if (existing != null) {
-        existing.count++
-      } else {
-        pointCount.set(key, { x: pt.x, y: pt.y, count: 1 })
-      }
-    }
-  }
-
-  return [...pointCount.values()].filter((p) => p.count > 2)
 }
 
 // ── Main Renderer ──────────────────────────────────────────────────────
@@ -317,7 +227,7 @@ function IcBodyGroup({ layout }: { layout: SchematicLayout }) {
 }
 
 export function SchematicRenderer({ layout, analysis, pressedButtons, selectedComponentId, onSelectComponent }: SchematicRendererProps) {
-  const junctions = findJunctions(layout)
+  const junctions = findSchematicJunctions(layout)
 
   return (
     // color drives currentColor for all neutral symbol ink, so the schematic
@@ -368,6 +278,7 @@ export function SchematicRenderer({ layout, analysis, pressedButtons, selectedCo
           isActive: isButtonPressed ?? compState?.isActive,
           isPwm: node.isPwm,
           icSide: node.icSide,
+          terminals: node.terminals,
         }
 
         return (

@@ -9,6 +9,7 @@ import { Elysia } from "elysia";
 import { mkdtemp, rm } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
+import { createEmptyPhysicalScene, projectFileSchema } from "@dreamer/schemas";
 
 const TEST_DATA_DIR = await mkdtemp(join(tmpdir(), "dreamer-api-project-routes-"));
 process.env.DATA_DIR = TEST_DATA_DIR;
@@ -73,6 +74,42 @@ async function postProject(name: string) {
 }
 
 // ── GET /project ──────────────────────────────────────────────────────────────
+
+describe("POST /project/:id/state — physicalScene", () => {
+  test("round-trips, preserves on graph save, detects conflict and clears", async () => {
+    const p = await postProject("Physical");
+    const save = (payload: unknown) => req(`/project/${p.project.id}/state`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+    });
+    const scene = createEmptyPhysicalScene();
+    expect((await save({ physicalScene: scene, expectedVersion: 0 })).status).toBe(200);
+    expect((await save({ graph: { nodes: {}, edges: {} }, expectedVersion: 1 })).status).toBe(200);
+    const loaded = projectFileSchema.parse(await json(await req(`/project/${p.project.id}`)));
+    expect(loaded.physicalScene).toEqual(scene);
+    const stale = await save({ physicalScene: null, expectedVersion: 0 });
+    expect(stale.status).toBe(409);
+    expect(await json(stale)).toMatchObject({ expectedVersion: 0, currentVersion: 2 });
+    expect((await save({ physicalScene: null, expectedVersion: 2 })).status).toBe(200);
+    expect(projectFileSchema.parse(await json(await req(`/project/${p.project.id}`))).physicalScene).toBeNull();
+  });
+
+  test("rejects invalid scenes and empty saves without writing", async () => {
+    const p = await postProject("Invalid Physical");
+    for (const payload of [{}, { physicalScene: { schemaVersion: 2 } },
+      { physicalScene: { schemaVersion: 1, sensors: { probe: {
+        id: "probe", name: "Probe", kind: "contact", bodyId: "missing",
+        origin: [0, 0, 0], direction: [1, 0, 0], range: 5,
+      } } } }]) {
+      const response = await req(`/project/${p.project.id}/state`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+      });
+      expect(response.status).toBe(400);
+    }
+    const loaded = projectFileSchema.parse(await json(await req(`/project/${p.project.id}`)));
+    expect(loaded.project.version).toBe(0);
+    expect(loaded.physicalScene).toBeUndefined();
+  });
+});
 
 describe("GET /project", () => {
   test("includes created project in list", async () => {

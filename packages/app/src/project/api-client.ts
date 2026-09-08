@@ -1,4 +1,5 @@
 import { API_ORIGIN } from "@dreamer/config";
+import type { PhysicalScene } from "@dreamer/schemas";
 import { projectFileSchema, type ProjectFile } from "./schemas";
 import { z } from "zod";
 import { refreshCurrentUser, isAnonymousPreview } from "@/auth/use-current-user";
@@ -330,19 +331,25 @@ export async function saveProjectState(
   payload: {
     boardState?: Record<string, unknown>;
     graph?: { nodes: Record<string, unknown>; edges: Record<string, unknown> };
+    physicalScene?: PhysicalScene | null;
   },
-): Promise<void> {
+  expectedVersion?: number,
+): Promise<{ saved: true; newVersion: number }> {
   blockMutationIfPreview("save your project");
   const url = `${API_ORIGIN}/project/${encodeURIComponent(projectId)}/state`;
   const res = await authedFetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      ...(expectedVersion !== undefined ? { expectedVersion } : {}),
+      ...payload,
+    }),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
     throw new ApiError(res.status, `${res.status} ${text}`);
   }
+  return z.object({ saved: z.literal(true), newVersion: z.number().int().nonnegative() }).parse(await res.json());
 }
 
 // The upload response feeds straight into a persisted AssemblyBody (assetId +

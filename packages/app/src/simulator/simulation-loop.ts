@@ -26,6 +26,7 @@ import { powerModelFor } from "./power-model"
 import { RunTokenGate } from "./run-token-gate"
 import { debugStateStore } from "./debug-state-store"
 import { createSimulationSession, type SimulationSession } from "./simulation-session"
+import { SimulationRuntime } from "./runtime/simulation-runtime"
 import { advanceBrownout, MCU_3V3_POWER_PROFILE, MCU_5V_POWER_PROFILE } from "./power-domain"
 import { getBoardPinLayout, getComponentFootprint, areConnected } from "@/breadboard/breadboard-grid"
 import { BoardContext } from "@/store/board-context"
@@ -101,7 +102,8 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
   const sessionRef = useRef<SimulationSession | null>(null)
   if (!sessionRef.current) sessionRef.current = createSimulationSession()
   const runnerBoardTargetRef = useRef(DEFAULT_BOARD_TARGET)
-  const rafRef = useRef<number | null>(null)
+  const runtimeRef = useRef<SimulationRuntime | null>(null)
+  if (!runtimeRef.current) runtimeRef.current = new SimulationRuntime()
   // Board actor for reading live state in the tick loop
   const boardActor = BoardContext.useActorRef()
 
@@ -215,11 +217,7 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
   }
 
   const cancelLoop = useCallback(() => {
-    if (rafRef.current !== null) {
-      cancelAnimationFrame(rafRef.current)
-      clearTimeout(rafRef.current)
-      rafRef.current = null
-    }
+    runtimeRef.current?.stop()
   }, [])
 
   // Track previous library state to avoid dispatching unchanged values
@@ -426,6 +424,7 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
           pinStates: snapshotAsPinStates(store),
           shiftRegisterOutputs,
           peripheralStates,
+          boardTarget,
           mcuTimeSeconds: simMs / 1000,
         })
         if (tick) {
@@ -440,7 +439,7 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
           ctx.wires,
           snapshotAsPinStates(store),
           shiftRegisterOutputs,
-          { dtSeconds, peripheralStates },
+          { dtSeconds, peripheralStates, boardTarget },
         )
       }
       if (result) {
@@ -564,7 +563,7 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
 
     function tick() {
       const runner = runnerRef.current
-      if (!runner) return
+      if (!runner) return false
 
       frameCount++
 
@@ -607,20 +606,11 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
       if (runner.debug?.wasHalted()) {
         debugStateStore.setHalt(runner.debug.snapshot())
         send({ type: "BREAKPOINT_HIT" })
-        return
-      }
-
-      // Yield to React every 4th frame
-      if (frameCount % 4 === 0) {
-        rafRef.current = setTimeout(() => {
-          rafRef.current = requestAnimationFrame(tick)
-        }, 0) as unknown as number
-      } else {
-        rafRef.current = requestAnimationFrame(tick)
+        return false
       }
     }
 
-    rafRef.current = requestAnimationFrame(tick)
+    runtimeRef.current?.start(() => tick())
   }, [cancelLoop, syncLibraryState])
 
   /** Build a filename→code map from board state custom libraries */
@@ -815,6 +805,7 @@ export function useSimulation(options: SimulationHookOptions = {}): SimulationAc
   useEffect(() => {
     return () => {
       cancelLoop()
+      runtimeRef.current?.dispose()
       closeAudioContext()
       // Terminate the solver worker thread (no-op for the inline host).
       solverHostRef.current?.dispose()

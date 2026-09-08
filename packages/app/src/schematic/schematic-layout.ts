@@ -13,8 +13,16 @@ import {
   type BoardTarget,
   type Wire,
 } from "@dreamer/schemas"
-import { resolveNets, getComponentFootprint } from "@/breadboard/breadboard-grid"
+import {
+  resolveNets,
+  getComponentFootprint,
+  componentSurfaceBoardId,
+  isPositiveRailCol,
+  type TerminalAddress,
+} from "@/breadboard/breadboard-grid"
+import { compileElectricalTopology } from "@/simulator/electrical-topology"
 import type { SchematicSymbolType } from "./schematic-symbols"
+import { validateSchematicRouting } from "./schematic-routing"
 import { getComponentDef } from "@/components/registry"
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -38,6 +46,23 @@ export type SchematicNode = {
    * Defaults to "left" (a single-sided IC).
    */
   icSide?: "left" | "right"
+  /** Explicit ports for a multi-terminal generic module. */
+  terminals?: Array<{ side: SchematicTerminalSide; label?: string }>
+  /** Stable electrical ports emitted by the layout compiler. */
+  ports?: SchematicPort[]
+}
+
+/**
+ * A rendered port is the bridge between a logical terminal and the symbol
+ * geometry.  `nodeId`/`side` are presentation details; `terminalId` and
+ * `netId` are the electrical identity used by validators and exporters.
+ */
+export type SchematicPort = {
+  id: string
+  terminalId: string
+  netId: string
+  nodeId: string
+  side: SchematicTerminalSide
 }
 
 export type SchematicEdge = {
@@ -47,6 +72,8 @@ export type SchematicEdge = {
   toNodeId: string
   toSide: SchematicTerminalSide
   netId: string
+  fromPortId?: string
+  toPortId?: string
 }
 
 export type SchematicTerminalSide =
@@ -54,6 +81,8 @@ export type SchematicTerminalSide =
   | "left-top"
   | "left-bottom"
   | "right"
+  | "right-top"
+  | "right-bottom"
   | "top"
   | "bottom"
   | "bottom-left"
@@ -70,11 +99,15 @@ export type SchematicRailKind = "ground" | "power"
  */
 export type SchematicRailFlag = {
   id: string
+  /** The resolved electrical net represented by this local rail symbol. */
+  netId?: string
   nodeId: string
   side: SchematicTerminalSide
   kind: SchematicRailKind
   /** Power flags only: the rail voltage, e.g. "5V" / "3.3V". */
   label?: string
+  portId?: string
+  terminalId?: string
 }
 
 /** Rails the Arduino board itself supplies, drawn as flags on its body. */
@@ -92,11 +125,39 @@ export type SchematicLayout = {
   height: number
 }
 
+export type SchematicValidationIssue = {
+  code:
+    | "missing_edge_node"
+    | "missing_edge_port"
+    | "edge_net_mismatch"
+    | "duplicate_port"
+    | "missing_rail_node"
+    | "missing_route_endpoint"
+    | "wire_through_symbol"
+    | "net_crossing_without_junction"
+  severity: "error" | "warning"
+  message: string
+  edgeId?: string
+  nodeId?: string
+  portId?: string
+}
+
+export type SchematicValidationResult = {
+  valid: boolean
+  issues: SchematicValidationIssue[]
+}
+
 const EMPTY_BOARD_RAILS: SchematicBoardRails = { ground: false, powerLabels: [] }
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
 function componentTypeToSymbol(type: string): SchematicSymbolType | null {
+  // These parts have more terminals than their illustrative symbols expose.
+  // Render them as labelled terminal blocks until they get dedicated symbols;
+  // a plain two-terminal picture would silently change the shown topology.
+  if (MULTI_TERMINAL_GENERIC_TYPES.has(type)) {
+    return "generic_module"
+  }
   return getComponentDef(type)?.schematicSymbol ?? "generic_module"
 }
 
@@ -118,15 +179,6 @@ function getPowerLabel(pin: number): string {
   if (pin === -1 || pin === -12) return "5V"
   if (pin === -2) return "3.3V"
   return "VCC"
-}
-
-/** Rail label for an external power supply, from its configured voltage. */
-function powerSupplyVoltageLabel(comp: BoardComponent): string {
-  const props = comp.properties ?? {}
-  const left = typeof props.leftVoltage === "number" ? props.leftVoltage : 0
-  const right = typeof props.rightVoltage === "number" ? props.rightVoltage : 0
-  const v = Math.max(Math.abs(left), Math.abs(right))
-  return v > 0 ? `${v}V` : "VCC"
 }
 
 function terminalSideForPin(
@@ -163,23 +215,46 @@ function terminalSideForPin(
       if (pinName === "vcc") return "left-bottom"
       return "right"
     case "dht_sensor":
-      if (pinName === "vcc") return "bottom-left"
-      if (pinName === "signal" || pinName === "data") return "bottom-center"
-      return "bottom-right"
+      if (pinName === "data" || pinName === "signal") return "left"
+      return pinName === "vcc" ? "right-top" : "right-bottom"
     case "ultrasonic_sensor":
-      return pinName === "trigger" || pinName === "echo" ? "left" : "right"
+      if (pinName === "trigger") return "left-top"
+      if (pinName === "echo") return "left-bottom"
+      return pinName === "vcc" ? "right-top" : "right-bottom"
     case "neopixel":
-      return pinName === "din" ? "left" : "right"
+      return pinName === "din" ? "left" : pinName === "vcc" ? "right-top" : "right-bottom"
     case "pir_sensor":
+      return pinName === "signal" ? "left" : pinName === "vcc" ? "right-top" : "right-bottom"
     case "ir_receiver":
-      return pinName === "signal" || pinName === "out" ? "left" : "right"
+      return pinName === "out" ? "left" : pinName === "vcc" ? "right-top" : "right-bottom"
     case "relay":
-      return pinName === "signal" ? "left" : "right"
+      if (pinName === "vcc") return "left-top"
+      if (pinName === "signal") return "left"
+      if (pinName === "gnd") return "left-bottom"
+      if (pinName === "com") return "right-top"
+      if (pinName === "no") return "right"
+      return "right-bottom"
     case "stepper_motor":
-      // Control lines IN1–IN4 on the left; V+/GND exit right toward the rails.
-      return pinName === "vplus" || pinName === "gnd" ? "right" : "left"
+      if (pinName === "in1") return "left-top"
+      if (pinName === "in2") return "left"
+      if (pinName === "in3") return "left-bottom"
+      if (pinName === "in4") return "right-top"
+      return pinName === "vplus" ? "right" : "right-bottom"
     case "oled_display":
-      return pinName === "sda" || pinName === "scl" ? "left" : "right"
+      if (pinName === "scl") return "left-top"
+      if (pinName === "sda") return "left-bottom"
+      return pinName === "vcc" ? "right-top" : "right-bottom"
+    case "rgb_led":
+      if (pinName === "red") return "left-top"
+      if (pinName === "green") return "left"
+      if (pinName === "blue") return "left-bottom"
+      return "right"
+    case "transistor":
+      if (pinName === "base") return "left"
+      return pinName === "collector" ? "right-top" : "right-bottom"
+    case "mosfet":
+      if (pinName === "gate") return "left"
+      return pinName === "drain" ? "right-top" : "right-bottom"
     case "lcd_16x2":
     case "seven_segment":
     case "shift_register":
@@ -189,8 +264,12 @@ function terminalSideForPin(
   }
 }
 
-function fallbackTerminalSide(pinIdx: number): SchematicTerminalSide {
-  return pinIdx === 0 ? "left" : "right"
+function fallbackTerminalSide(pinIdx: number, pinCount: number): SchematicTerminalSide {
+  if (pinCount <= 1) return "left"
+  if (pinCount === 2) return pinIdx === 0 ? "left" : "right"
+  if (pinCount === 3) return (["left-top", "left-bottom", "right"] as const)[pinIdx] ?? "right"
+  if (pinCount === 4) return (["left-top", "left-bottom", "right-top", "right-bottom"] as const)[pinIdx] ?? "right"
+  return (["left-top", "left", "left-bottom", "right-top", "right", "right-bottom"] as const)[pinIdx] ?? "right"
 }
 
 function detectBoardTarget(components: BoardComponent[]): BoardTarget {
@@ -207,27 +286,21 @@ function detectBoardTarget(components: BoardComponent[]): BoardTarget {
 const HORIZONTAL_SPACING = 150
 const VERTICAL_SPACING = 100
 const PADDING = 80
+const MULTI_TERMINAL_GENERIC_TYPES = new Set([
+  "rgb_led",
+  "relay",
+  "ultrasonic_sensor",
+  "neopixel",
+  "pir_sensor",
+])
 
 /**
  * Component types that should be rendered as IC entities — one ic_pin stub
  * per connected named signal pin — instead of a single 2-terminal symbol.
- * GND/VCC pins of these ICs are still routed through the shared GND/power
- * column nodes; only signal pins become ic_pin stubs.
+ * Every connected pin, including VCC/GND, gets its own stub. This lets the
+ * distributed-rail pass attach a visible power/ground marker to the IC.
  */
 const MULTI_PIN_IC_TYPES = new Set(["seven_segment", "lcd_16x2", "shift_register"])
-
-/**
- * Named pins on multi-pin ICs that should NOT become ic_pin stubs because
- * they are already represented by the shared ground/power nodes.
- */
-const MULTI_PIN_IC_SKIP_PINS = new Set([
-  "gnd",
-  "gnd_a",
-  "gnd_b",
-  "vss",
-  "vdd",
-  "vcc",
-])
 
 export function generateSchematicLayout(
   components: Record<string, BoardComponent>,
@@ -260,7 +333,7 @@ export function generateSchematicLayout(
   )
 
   // 2. Resolve nets to understand connectivity
-  const nets = resolveNets(components, wires)
+  const nets = compileElectricalTopology(components, wires).nets
 
   // 3. Determine which Arduino pins are connected
   const connectedArduinoPins = new Set<number>()
@@ -298,17 +371,67 @@ export function generateSchematicLayout(
   if (signalPins.length > 0) col++
 
   // ── Component + multi-pin IC placement ────────────────────────────────
-  const footprintPointsOf = (c: BoardComponent) =>
+  const boardIdOf = (c: BoardComponent) => componentSurfaceBoardId(c, components)
+  const footprintPointsOf = (c: BoardComponent): TerminalAddress[] =>
     getComponentFootprint(c.type, c.y, c.x, c.rotation, c.properties).points
+      .map((point) => ({ ...point, boardId: boardIdOf(c) }))
   const onNet = (
-    points: ReadonlyArray<{ row: number; col: number }>,
+    points: ReadonlyArray<TerminalAddress>,
     net: ReturnType<typeof resolveNets>[number],
-  ) => points.some((p) => net.points.some((np) => np.row === p.row && np.col === p.col))
+  ) => points.some((p) => net.points.some(
+    (np) => np.boardId === p.boardId && np.row === p.row && np.col === p.col,
+  ))
+  const pointOnNet = (point: { row: number; col: number }, boardId: string, net: ReturnType<typeof resolveNets>[number]) =>
+    net.points.some((np) => np.boardId === boardId && np.row === point.row && np.col === point.col)
   const isRailNet = (net: ReturnType<typeof resolveNets>[number]) =>
     net.arduinoPins.some((p) => isPowerPin(p) || isGroundPin(p))
   const netsOfComp = (c: BoardComponent) => {
     const pts = footprintPointsOf(c)
     return nets.filter((n) => onNet(pts, n))
+  }
+
+  /**
+   * Return a complete, signal-led series chain when the regular components
+   * form one. Rendering these vertically makes a basic D-pin → resistor → LED
+   * → ground circuit look as though its LED terminal is reversed, so they get
+   * a conventional left-to-right schematic flow instead.
+   */
+  const orderedSeriesChain = (): BoardComponent[] | null => {
+    if (regularComponents.length < 2) return null
+
+    const neighbours = new Map<string, Set<string>>(
+      regularComponents.map((comp) => [comp.id, new Set<string>()]),
+    )
+    for (const net of nets) {
+      const onThisNet = regularComponents.filter((comp) => onNet(footprintPointsOf(comp), net))
+      for (let i = 0; i < onThisNet.length; i++) {
+        for (let j = i + 1; j < onThisNet.length; j++) {
+          neighbours.get(onThisNet[i]!.id)!.add(onThisNet[j]!.id)
+          neighbours.get(onThisNet[j]!.id)!.add(onThisNet[i]!.id)
+        }
+      }
+    }
+
+    const start = regularComponents.find((comp) =>
+      neighbours.get(comp.id)!.size <= 1 &&
+      netsOfComp(comp).some((net) => net.arduinoPins.some((pin) => pin >= 0)),
+    )
+    if (start == null || [...neighbours.values()].some((set) => set.size > 2)) return null
+
+    const ordered: BoardComponent[] = []
+    let current: BoardComponent | undefined = start
+    let previousId: string | undefined
+    while (current != null) {
+      ordered.push(current)
+      const currentNeighbours = neighbours.get(current.id)
+      const nextId: string | undefined = currentNeighbours == null
+        ? undefined
+        : [...currentNeighbours].find((id: string) => id !== previousId)
+      previousId = current.id
+      current = nextId == null ? undefined : regularComponents.find((comp) => comp.id === nextId)
+    }
+
+    return ordered.length === regularComponents.length ? ordered : null
   }
 
   // Classify each connected IC signal pin: an "output" drives a regular-
@@ -323,9 +446,8 @@ export function generateSchematicLayout(
   for (const ic of multiPinComponents) {
     const pinMap = resolveComponentPins(ic.type, ic.y, ic.x, ic.properties)
     for (const [pinName, pinPoint] of Object.entries(pinMap)) {
-      if (MULTI_PIN_IC_SKIP_PINS.has(pinName)) continue
       const net = nets.find((n) =>
-        n.points.some((np) => np.row === pinPoint.row && np.col === pinPoint.col),
+        pointOnNet(pinPoint, boardIdOf(ic), n),
       )
       if (net == null) continue
       const drivenByArduino = net.arduinoPins.some((p) => p >= 0)
@@ -363,6 +485,23 @@ export function generateSchematicLayout(
   const pushCompNodeAt = (comp: BoardComponent, x: number, y: number) => {
     const symbolType = componentTypeToSymbol(comp.type)
     if (symbolType == null) return
+    const pinMap = resolveComponentPins(comp.type, comp.y, comp.x, comp.properties)
+    const namedPinNames = Object.keys(pinMap)
+    // Custom parts carry their names in their registered definition, but the
+    // schema resolver deliberately has no runtime custom-footprint lookup.
+    // Use the registered names and footprint ordering to preserve each port.
+    const declaredPinNames = Object.keys(getComponentDef(comp.type)?.defaultPins ?? {})
+    const pinNames = namedPinNames.length > 0 ? namedPinNames : declaredPinNames
+    const terminalCount = Math.max(
+      pinNames.length,
+      getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties).points.length,
+    )
+    const terminals = pinNames.map((pinName, index) => ({
+      side: namedPinNames.length > 0
+        ? terminalSideForPin(comp.type, pinName)
+        : fallbackTerminalSide(index, terminalCount),
+      label: pinName,
+    }))
     nodes.push({
       id: `comp-${comp.id}`,
       type: symbolType,
@@ -371,6 +510,7 @@ export function generateSchematicLayout(
       label: comp.name,
       value: getComponentValue(comp),
       componentId: comp.id,
+      terminals: terminals.length > 2 ? terminals : undefined,
     })
     placedCompIds.add(comp.id)
   }
@@ -439,15 +579,23 @@ export function generateSchematicLayout(
     // Single-sided layout: regular components stacked, then the IC's pins to
     // their right (Arduino → loads → IC pins → body). Output pins align to
     // their load's row; control pins fill the free rows in between.
-    let compRow = 0
     const componentCol = col
-    for (const comp of regularComponents) {
-      pushCompNodeAt(comp, PADDING + componentCol * HORIZONTAL_SPACING, PADDING + compRow * VERTICAL_SPACING)
-      compRow++
+    const seriesChain = orderedSeriesChain()
+    if (seriesChain != null) {
+      for (const [index, comp] of seriesChain.entries()) {
+        pushCompNodeAt(comp, PADDING + (componentCol + index) * HORIZONTAL_SPACING, PADDING)
+      }
+    } else {
+      let compRow = 0
+      for (const comp of regularComponents) {
+        pushCompNodeAt(comp, PADDING + componentCol * HORIZONTAL_SPACING, PADDING + compRow * VERTICAL_SPACING)
+        compRow++
+      }
     }
-    if (regularComponents.length > 0) col = componentCol + 1
+    const componentColumnCount = seriesChain?.length ?? (regularComponents.length > 0 ? 1 : 0)
+    if (componentColumnCount > 0) col = componentCol + componentColumnCount
 
-    const icPinCol = componentCol + (regularComponents.length > 0 ? 1 : 0)
+    const icPinCol = componentCol + componentColumnCount
     const icPinX = PADDING + icPinCol * HORIZONTAL_SPACING
     const usedIcYs = new Set<number>()
     const unaligned: IcPinInfo[] = []
@@ -499,6 +647,23 @@ export function generateSchematicLayout(
   //    shared node. Everything else is a signal net, drawn as wires between the
   //    driving pin and the components.
   const rails: SchematicRailFlag[] = []
+  const ports: SchematicPort[] = []
+  const portById = new Set<string>()
+  const portIdFor = (netId: string, terminalId: string) =>
+    `port-${netId}-${terminalId.replace(/[^A-Za-z0-9_.-]/g, "_")}`
+  const registerPort = (
+    netId: string,
+    terminalId: string,
+    nodeId: string,
+    side: SchematicTerminalSide,
+  ): string => {
+    const id = portIdFor(netId, terminalId)
+    if (!portById.has(id)) {
+      portById.add(id)
+      ports.push({ id, terminalId, netId, nodeId, side })
+    }
+    return id
+  }
   let edgeId = 0
   let railId = 0
 
@@ -506,24 +671,31 @@ export function generateSchematicLayout(
   // recognised as power rails (the supply itself is not drawn).
   const supplyFootprints = powerSupplies.map((ps) => ({
     comp: ps,
-    points: getComponentFootprint(ps.type, ps.y, ps.x, ps.rotation, ps.properties).points,
+    points: footprintPointsOf(ps),
   }))
 
-  type PinMapping = { nodeId: string; side: SchematicTerminalSide }
+  type PinMapping = { nodeId: string; side: SchematicTerminalSide; terminalId: string }
 
   for (const net of nets) {
     const netGroundPins = net.arduinoPins.filter(isGroundPin)
     const netPowerPins = net.arduinoPins.filter(isPowerPin).sort((a, b) => a - b)
-    const supplyOnNet = supplyFootprints.find((sf) =>
-      sf.points.some((fp) => net.points.some((np) => np.row === fp.row && np.col === fp.col)),
-    )
-    const isGroundNet = netGroundPins.length > 0
-    const isPowerNet = !isGroundNet && (netPowerPins.length > 0 || supplyOnNet != null)
+    const supplyTerminals = supplyFootprints.flatMap((sf) => sf.points
+      .filter((point) => onNet([point], net))
+      .map((point) => ({
+        comp: sf.comp,
+        positive: isPositiveRailCol(point.col),
+        voltage: point.col < 0
+          ? (typeof sf.comp.properties?.leftVoltage === "number" ? sf.comp.properties.leftVoltage : 5)
+          : (typeof sf.comp.properties?.rightVoltage === "number" ? sf.comp.properties.rightVoltage : 3.3),
+      })))
+    const supplyPower = supplyTerminals.find((terminal) => terminal.positive)
+    const isGroundNet = netGroundPins.length > 0 || supplyTerminals.some((terminal) => !terminal.positive)
+    const isPowerNet = !isGroundNet && (netPowerPins.length > 0 || supplyPower != null)
     const powerLabel =
       netPowerPins.length > 0
         ? getPowerLabel(netPowerPins[0])
-        : supplyOnNet != null
-          ? powerSupplyVoltageLabel(supplyOnNet.comp)
+        : supplyPower != null
+          ? `${Math.abs(supplyPower.voltage)}V`
           : "VCC"
 
     // Component / IC terminals participating in this net. Named pins carry
@@ -538,11 +710,14 @@ export function generateSchematicLayout(
       let matchedNamedPin = false
       const pinMap = resolveComponentPins(comp.type, comp.y, comp.x, comp.properties)
       for (const [pinName, pinPoint] of Object.entries(pinMap)) {
-        const inNet = net.points.some((np) => np.row === pinPoint.row && np.col === pinPoint.col)
+        const inNet = pointOnNet(pinPoint, boardIdOf(comp), net)
         if (inNet) {
-          terminals.push({ nodeId: compNodeId, side: terminalSideForPin(comp.type, pinName) })
+          terminals.push({
+            nodeId: compNodeId,
+            side: terminalSideForPin(comp.type, pinName),
+            terminalId: `${comp.id}:${pinName}`,
+          })
           matchedNamedPin = true
-          break
         }
       }
       if (matchedNamedPin) continue
@@ -550,10 +725,13 @@ export function generateSchematicLayout(
       const footprint = getComponentFootprint(comp.type, comp.y, comp.x, comp.rotation, comp.properties)
       for (let pinIdx = 0; pinIdx < footprint.points.length; pinIdx++) {
         const fp = footprint.points[pinIdx]
-        const inNet = net.points.some((np) => np.row === fp.row && np.col === fp.col)
+        const inNet = onNet([{ ...fp, boardId: boardIdOf(comp) }], net)
         if (inNet) {
-          terminals.push({ nodeId: compNodeId, side: fallbackTerminalSide(pinIdx) })
-          break // One connection per component per net
+          terminals.push({
+            nodeId: compNodeId,
+            side: fallbackTerminalSide(pinIdx, footprint.points.length),
+            terminalId: `${comp.id}:pin${pinIdx}`,
+          })
         }
       }
     }
@@ -563,12 +741,15 @@ export function generateSchematicLayout(
     for (const ic of multiPinComponents) {
       const icPinMap = resolveComponentPins(ic.type, ic.y, ic.x, ic.properties)
       for (const [pinName, pinPoint] of Object.entries(icPinMap)) {
-        const inNet = net.points.some((np) => np.row === pinPoint.row && np.col === pinPoint.col)
+        const inNet = pointOnNet(pinPoint, boardIdOf(ic), net)
         if (!inNet) continue
         const icPinNodeId = `ic-pin-${ic.id}-${pinName}`
         if (nodes.find((n) => n.id === icPinNodeId)) {
-          terminals.push({ nodeId: icPinNodeId, side: "left" as const })
-          break
+          terminals.push({
+            nodeId: icPinNodeId,
+            side: "left" as const,
+            terminalId: `${ic.id}:${pinName}`,
+          })
         }
       }
     }
@@ -576,12 +757,16 @@ export function generateSchematicLayout(
     if (isGroundNet || isPowerNet) {
       // Distributed rail: drop a local flag at each terminal, no cross wires.
       for (const t of terminals) {
+        const portId = registerPort(net.id, t.terminalId, t.nodeId, t.side)
         rails.push({
           id: `rail-${railId++}`,
+          netId: net.id,
           nodeId: t.nodeId,
           side: t.side,
           kind: isGroundNet ? "ground" : "power",
           label: isPowerNet ? powerLabel : undefined,
+          portId,
+          terminalId: t.terminalId,
         })
       }
       continue
@@ -592,25 +777,52 @@ export function generateSchematicLayout(
     for (const pin of net.arduinoPins) {
       const nodeId = `pin-${pin}`
       if (nodes.find((n) => n.id === nodeId)) {
-        participating.push({ nodeId, side: "right" as const })
+        participating.push({
+          nodeId,
+          side: "right" as const,
+          terminalId: `arduino:${pin}`,
+        })
       }
     }
     participating.push(...terminals)
-
-    for (let i = 0; i < participating.length - 1; i++) {
-      const from = participating[i]
-      const to = participating[i + 1]
-      if (from.nodeId === to.nodeId) continue
-
-      edges.push({
-        id: `edge-${edgeId++}`,
-        fromNodeId: from.nodeId,
-        fromSide: from.side,
-        toNodeId: to.nodeId,
-        toSide: to.side,
-        netId: net.id,
-      })
+    for (const mapping of participating) {
+      registerPort(net.id, mapping.terminalId, mapping.nodeId, mapping.side)
     }
+
+    // Collapse adjacent terminals belonging to one schematic node into a
+    // port group. A multi-pin part can legally have two terminals on one net;
+    // connect both ports to the preceding distinct node rather than dropping
+    // the second one as a self-edge.
+    const groups: PinMapping[][] = []
+    for (const mapping of participating) {
+      const last = groups[groups.length - 1]
+      if (last && last[0]?.nodeId === mapping.nodeId) last.push(mapping)
+      else groups.push([mapping])
+    }
+    for (let i = 1; i < groups.length; i++) {
+      const from = groups[i - 1]![groups[i - 1]!.length - 1]!
+      for (const to of groups[i]!) {
+        if (from.nodeId === to.nodeId && from.side === to.side) continue
+        edges.push({
+          id: `edge-${edgeId++}`,
+          fromNodeId: from.nodeId,
+          fromSide: from.side,
+          toNodeId: to.nodeId,
+          toSide: to.side,
+          netId: net.id,
+          fromPortId: registerPort(net.id, from.terminalId, from.nodeId, from.side),
+          toPortId: registerPort(net.id, to.terminalId, to.nodeId, to.side),
+        })
+      }
+    }
+  }
+
+  // Ports are part of the production layout, not inferred by the renderer.
+  // Keep them attached to their owning node so a validator/exporter can
+  // compare the rendered graph with the electrical terminal contract.
+  for (const node of nodes) {
+    const nodePorts = ports.filter((port) => port.nodeId === node.id)
+    if (nodePorts.length > 0) node.ports = nodePorts
   }
 
   // 6. Compute total dimensions
@@ -620,4 +832,126 @@ export function generateSchematicLayout(
   const height = maxY + PADDING
 
   return { nodes, edges, rails, boardRails, width, height }
+}
+
+/**
+ * Validate the production layout without re-running the breadboard resolver.
+ * This catches presentation drift: an edge that points at a missing symbol,
+ * a port whose net disagrees with the edge, or a rail flag detached from its
+ * terminal. Layouts authored by older callers may omit port metadata; those
+ * are accepted for compatibility because their node/side edges remain valid.
+ */
+export function validateSchematicLayout(layout: SchematicLayout): SchematicValidationResult {
+  const issues: SchematicValidationIssue[] = []
+  const nodesById = new Map(layout.nodes.map((node) => [node.id, node]))
+  const portsById = new Map<string, SchematicPort>()
+
+  for (const node of layout.nodes) {
+    for (const port of node.ports ?? []) {
+      if (portsById.has(port.id)) {
+        issues.push({
+          code: "duplicate_port",
+          severity: "error",
+          message: `Schematic port ${port.id} is emitted more than once`,
+          nodeId: node.id,
+          portId: port.id,
+        })
+      } else {
+        portsById.set(port.id, port)
+      }
+    }
+  }
+
+  for (const edge of layout.edges) {
+    const fromNode = nodesById.get(edge.fromNodeId)
+    const toNode = nodesById.get(edge.toNodeId)
+    if (!fromNode) {
+      issues.push({
+        code: "missing_edge_node",
+        severity: "error",
+        message: `Edge ${edge.id} references missing source node ${edge.fromNodeId}`,
+        edgeId: edge.id,
+        nodeId: edge.fromNodeId,
+      })
+    }
+    if (!toNode) {
+      issues.push({
+        code: "missing_edge_node",
+        severity: "error",
+        message: `Edge ${edge.id} references missing target node ${edge.toNodeId}`,
+        edgeId: edge.id,
+        nodeId: edge.toNodeId,
+      })
+    }
+
+    if (edge.fromPortId && edge.toPortId) {
+      const fromPort = portsById.get(edge.fromPortId)
+      const toPort = portsById.get(edge.toPortId)
+      if (!fromPort) {
+        issues.push({
+          code: "missing_edge_port",
+          severity: "error",
+          message: `Edge ${edge.id} references missing source port ${edge.fromPortId}`,
+          edgeId: edge.id,
+          portId: edge.fromPortId,
+        })
+      }
+      if (!toPort) {
+        issues.push({
+          code: "missing_edge_port",
+          severity: "error",
+          message: `Edge ${edge.id} references missing target port ${edge.toPortId}`,
+          edgeId: edge.id,
+          portId: edge.toPortId,
+        })
+      }
+      if (fromPort && (fromPort.netId !== edge.netId || fromPort.nodeId !== edge.fromNodeId)) {
+        issues.push({
+          code: "edge_net_mismatch",
+          severity: "error",
+          message: `Edge ${edge.id} source port does not belong to its declared node/net`,
+          edgeId: edge.id,
+          portId: edge.fromPortId,
+        })
+      }
+      if (toPort && (toPort.netId !== edge.netId || toPort.nodeId !== edge.toNodeId)) {
+        issues.push({
+          code: "edge_net_mismatch",
+          severity: "error",
+          message: `Edge ${edge.id} target port does not belong to its declared node/net`,
+          edgeId: edge.id,
+          portId: edge.toPortId,
+        })
+      }
+    }
+  }
+
+  for (const rail of layout.rails) {
+    if (!nodesById.has(rail.nodeId)) {
+      issues.push({
+        code: "missing_rail_node",
+        severity: "error",
+        message: `Rail ${rail.id} references missing node ${rail.nodeId}`,
+        nodeId: rail.nodeId,
+      })
+    }
+    if (rail.portId && !portsById.has(rail.portId)) {
+      issues.push({
+        code: "missing_edge_port",
+        severity: "error",
+        message: `Rail ${rail.id} references missing port ${rail.portId}`,
+        portId: rail.portId,
+      })
+    }
+  }
+
+  // Validate the actual route consumed by the SVG renderer. This is separate
+  // from port metadata: a layout can have correct net IDs while the visual
+  // path still crosses a symbol or joins two isolated nets at a crossing.
+  issues.push(...validateSchematicRouting(layout))
+
+  return {
+    valid: issues.every((issue) => issue.severity !== "error"),
+    issues,
+  }
 }

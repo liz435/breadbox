@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.0",
+    "@dreamer/board-domain": "workspace:*",
     "@dreamer/config": "workspace:*",
     "@dreamer/schemas": "workspace:*",
     "@elysiajs/cors": "^1.3.0",

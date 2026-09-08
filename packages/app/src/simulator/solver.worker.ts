@@ -41,6 +41,7 @@ ctx.onmessage = (event) => {
         ? new Map(msg.shiftRegisterOutputs)
         : undefined,
       peripheralStates: msg.peripheralStates,
+      boardTarget: msg.boardTarget,
       mcuTimeSeconds: msg.mcuTimeSeconds,
     })
     ctx.postMessage({

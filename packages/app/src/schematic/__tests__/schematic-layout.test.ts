@@ -1,5 +1,6 @@
 import { describe, test, expect } from "bun:test"
-import { generateSchematicLayout } from "../schematic-layout"
+import { generateSchematicLayout, validateSchematicLayout } from "../schematic-layout"
+import ledBoard from "../../examples/boards/ex-led.json"
 import shiftRegisterBoard from "../../examples/boards/ex-shift-register.json"
 import sevenSegmentBoard from "../../examples/boards/ex-seven-segment.json"
 import type { BoardComponent, Wire } from "@dreamer/schemas"
@@ -41,6 +42,32 @@ function makeRelay(id: string, row: number, col: number): BoardComponent {
     y: row,
     rotation: 0,
     pins: { signal: null },
+    properties: {},
+  }
+}
+
+function makeShiftRegister(id: string, row: number): BoardComponent {
+  return {
+    id,
+    type: "shift_register",
+    name: "74HC595",
+    x: 0,
+    y: row,
+    rotation: 0,
+    pins: {},
+    properties: {},
+  }
+}
+
+function makeTransistor(id: string, row: number, col: number): BoardComponent {
+  return {
+    id,
+    type: "transistor",
+    name: "Q1",
+    x: col,
+    y: row,
+    rotation: 0,
+    pins: {},
     properties: {},
   }
 }
@@ -157,7 +184,9 @@ describe("generateSchematicLayout — component symbol resolution", () => {
     const layout = generateSchematicLayout(components, wires)
     const relayNode = layout.nodes.find((n) => n.id === "comp-relay1")
     expect(relayNode).toBeDefined()
-    expect(relayNode?.type).toBe("relay")
+    // Relay has six independent pins, so it must not use the old two-terminal
+    // illustration. The labelled module block preserves every connection.
+    expect(relayNode?.type).toBe("generic_module")
   })
 
   test("board with only relay still produces schematic nodes", () => {
@@ -265,6 +294,20 @@ describe("generateSchematicLayout — multiple components", () => {
     const resistorNode = layout.nodes.find((n) => n.id === "comp-r1")
     expect(ledNode!.type).toBe("led")
     expect(resistorNode!.type).toBe("resistor")
+  })
+
+  test("places a simple Arduino → resistor → LED → GND chain left-to-right", () => {
+    const layout = generateSchematicLayout(
+      ledBoard.components as unknown as Record<string, BoardComponent>,
+      ledBoard.wires as unknown as Record<string, Wire>,
+    )
+    const resistorNode = layout.nodes.find((n) => n.id === "comp-resistor-1")
+    const ledNode = layout.nodes.find((n) => n.id === "comp-led-1")
+
+    expect(resistorNode).toBeDefined()
+    expect(ledNode).toBeDefined()
+    expect(resistorNode!.x).toBeLessThan(ledNode!.x)
+    expect(resistorNode!.y).toBe(ledNode!.y)
   })
 })
 
@@ -388,6 +431,20 @@ describe("generateSchematicLayout — power rails", () => {
     expect(powerRail!.label).toBe("5V")
   })
 
+  test("external power supply negative rail is rendered as ground, never as VCC", () => {
+    const components: Record<string, BoardComponent> = {
+      psu: makePowerSupply("psu", 0),
+      led1: makeLed("led1", 5, 0),
+    }
+    const layout = generateSchematicLayout(components, {
+      // Right negative rail (col 10) is the PSU return, not a positive output.
+      w1: makeWire("w1", 0, 10, 5, 0),
+    })
+    const rail = layout.rails.find((r) => r.nodeId === "comp-led1")
+    expect(rail?.kind).toBe("ground")
+    expect(rail?.label).toBeUndefined()
+  })
+
   test("power connection does not create a shared power column node", () => {
     const components: Record<string, BoardComponent> = {
       arduino: makeArduino(),
@@ -399,6 +456,62 @@ describe("generateSchematicLayout — power rails", () => {
     }
     const layout = generateSchematicLayout(components, wires)
     expect(layout.nodes.some((n) => n.id.startsWith("power-"))).toBe(false)
+  })
+})
+
+describe("generateSchematicLayout — terminal fidelity", () => {
+  test("multi-pin IC power pins are emitted and receive distributed rail flags", () => {
+    const components: Record<string, BoardComponent> = {
+      arduino: makeArduino(),
+      sr: makeShiftRegister("sr", 5),
+    }
+    const layout = generateSchematicLayout(components, {
+      // vcc = row 5, col 7; gnd = row 12, col 2.
+      vcc: makeArduinoWire("vcc", -1, 5, 7),
+      gnd: makeArduinoWire("gnd", -3, 12, 2),
+    })
+    expect(layout.nodes.some((n) => n.id === "ic-pin-sr-vcc")).toBe(true)
+    expect(layout.nodes.some((n) => n.id === "ic-pin-sr-gnd")).toBe(true)
+    expect(layout.rails.some((r) => r.nodeId === "ic-pin-sr-vcc" && r.kind === "power")).toBe(true)
+    expect(layout.rails.some((r) => r.nodeId === "ic-pin-sr-gnd" && r.kind === "ground")).toBe(true)
+  })
+
+  test("transistor collector, base, and emitter use distinct schematic terminals", () => {
+    const components: Record<string, BoardComponent> = {
+      arduino: makeArduino(),
+      q1: makeTransistor("q1", 5, 0),
+    }
+    const layout = generateSchematicLayout(components, {
+      base: makeArduinoWire("base", 9, 6, 0),
+      collector: makeArduinoWire("collector", -3, 5, 0),
+      emitter: makeArduinoWire("emitter", -1, 7, 0),
+    })
+    const q1Rails = layout.rails.filter((r) => r.nodeId === "comp-q1")
+    expect(q1Rails.some((r) => r.side === "right-top" && r.kind === "ground")).toBe(true)
+    expect(q1Rails.some((r) => r.side === "right-bottom" && r.kind === "power")).toBe(true)
+    const baseEdge = layout.edges.find((edge) => edge.fromNodeId === "comp-q1" || edge.toNodeId === "comp-q1")
+    expect(baseEdge == null ? undefined : baseEdge.fromNodeId === "comp-q1" ? baseEdge.fromSide : baseEdge.toSide).toBe("left")
+  })
+})
+
+describe("generateSchematicLayout — multiple surface boards", () => {
+  test("does not add an isolated same-coordinate component to another board's net", () => {
+    const board = (id: string): BoardComponent => ({
+      id, type: "breadboard_full", name: id, x: 0, y: 0, rotation: 0, pins: {}, properties: {},
+    })
+    const components: Record<string, BoardComponent> = {
+      arduino: makeArduino(),
+      a: board("a"),
+      b: board("b"),
+      ledA: { ...makeLed("ledA", 5, 0), parentId: "a" },
+      ledB: { ...makeLed("ledB", 5, 0), parentId: "b" },
+    }
+    const layout = generateSchematicLayout(components, {
+      signal: { ...makeArduinoWire("signal", 13, 5, 0), toBoardId: "a" },
+    })
+    const signalEdges = layout.edges.filter((edge) => edge.netId === layout.edges[0]?.netId)
+    expect(signalEdges).toHaveLength(1)
+    expect(signalEdges[0]?.fromNodeId === "comp-ledA" || signalEdges[0]?.toNodeId === "comp-ledA").toBe(true)
   })
 })
 
@@ -617,6 +730,26 @@ describe("generateSchematicLayout — edge generation", () => {
     for (const edge of layout.edges) {
       expect(edge.fromNodeId).not.toBe(edge.toNodeId)
     }
+  })
+
+  test("keeps both named terminals when one component has a same-net short", () => {
+    const layout = generateSchematicLayout(
+      {
+        arduino: makeArduino(),
+        r1: makeResistor("r1", 5, 0),
+      },
+      {
+        pin: makeArduinoWire("pin", 13, 5, 3),
+        short: makeWire("short", 5, 3, 5, 6),
+      },
+    )
+
+    const resistorEdges = layout.edges.filter(
+      (edge) => edge.fromNodeId === "pin-13" && edge.toNodeId === "comp-r1",
+    )
+    expect(resistorEdges).toHaveLength(2)
+    expect(new Set(resistorEdges.map((edge) => edge.toSide)).size).toBe(2)
+    expect(layout.edges.every((edge) => edge.fromNodeId !== edge.toNodeId)).toBe(true)
   })
 
   test("ground net is a rail flag, not a drawn edge", () => {
@@ -863,5 +996,20 @@ describe("generateSchematicLayout — column ordering", () => {
     const compNode = layout.nodes.find((n) => n.id === "comp-led1")
     // col 0 = signal pins, col 1 = component → x = 80 + 1 * 150 = 230
     expect(compNode!.x).toBe(230)
+  })
+})
+
+describe("schematic production validation", () => {
+  test("emits stable terminal ports and validates their edge/net ownership", () => {
+    const layout = generateSchematicLayout(
+      { arduino: makeArduino(), led1: makeLed("led1", 5, 0) },
+      { w13: makeArduinoWire("w13", 13, 5, 0) },
+    )
+
+    const led = layout.nodes.find((node) => node.id === "comp-led1")
+    expect(led?.ports?.map((port) => port.terminalId)).toContain("led1:anode")
+    expect(layout.edges[0]?.fromPortId).toBeDefined()
+    expect(layout.edges[0]?.toPortId).toBeDefined()
+    expect(validateSchematicLayout(layout)).toEqual({ valid: true, issues: [] })
   })
 })

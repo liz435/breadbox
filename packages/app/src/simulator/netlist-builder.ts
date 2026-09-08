@@ -8,11 +8,11 @@ import {
   isBoardComponentType,
   resolveComponentPins,
   type BoardComponent,
+  type BoardTarget,
   type Wire,
   type PinState,
 } from "@dreamer/schemas"
 import {
-  resolveNets,
   getComponentFootprint,
   componentSurfaceBoardId,
   terminalAddressKey,
@@ -21,8 +21,11 @@ import {
   type TerminalAddress,
 } from "@/breadboard/breadboard-grid"
 import { getComponentDef } from "@/components/registry"
+import { sanitize } from "@/components/catalog/_shared"
+import { compileElectricalTopology, electricalTerminalKey } from "./electrical-topology"
 import { powerModelFor } from "./power-model"
 import type { PeripheralState } from "./peripherals/types"
+import { describeModelCoverage } from "./model-coverage"
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -70,7 +73,8 @@ function resolveNode(
   nodeMap: Map<string, string>,
   point: GridPoint | TerminalAddress,
 ): string {
-  return nodeMap.get(pointKey(point)) ?? `unconnected_${point.row}_${point.col}`
+  const boardId = "boardId" in point ? sanitize(point.boardId) : "legacy"
+  return nodeMap.get(pointKey(point)) ?? `unconnected_${boardId}_${point.row}_${point.col}`
 }
 
 // ── Public API ───────────────────────────────────────────────────────
@@ -85,10 +89,30 @@ function resolveNode(
  */
 export type NetlistMode = "op" | "transient"
 
+export type NetlistModelCoverage = {
+  mode: NetlistMode
+  supportedComponentIds: string[]
+  unsupportedComponentIds: string[]
+  approximateComponentIds: string[]
+  approximateReasons: Array<{ componentId: string; reason: string }>
+  unsupportedReasons: Array<{ componentId: string; reason: string }>
+}
+
+export type NetlistNumericalAids = {
+  /** Explicit solver-only bleeds; never interpreted as user wiring. */
+  bleedResistors: string[]
+  /** Series resistors added to voltage sources for finite output impedance. */
+  sourceResistanceElements: string[]
+  /** Primitive lines intentionally omitted because both terminals self-looped. */
+  omittedSelfLoopComponents: string[]
+}
+
 export type NetlistResult = {
   netlist: string
   nets: Net[]
   nodeMap: Map<string, string>
+  /** Canonical component terminal → SPICE node mapping for diagnostics/tests. */
+  terminalNodeMap: Map<string, string>
   componentNodePairs: Map<string, { nodeA: string; nodeB: string }>
   /** Resolved supply requirement per component that declares a power model. */
   componentPowerBindings: Map<
@@ -96,9 +120,9 @@ export type NetlistResult = {
     {
       /** SPICE node the part draws supply from; read ground-referenced. */
       supply: string
-      /** True when the declared return reaches ground — either a fixed-ground
-       * net or a supply's own return node. Null when the part declares no
-       * return pin, so consumers know not to require one. */
+      /** True only when the declared return is wired to global SPICE ground.
+       * A supply's private return does not implicitly count. Null when the
+       * part declares no return pin, so consumers know not to require one. */
       returnGrounded: boolean | null
       /** Ids of the supplies feeding `supply`, for fault inheritance. */
       supplyIds: string[]
@@ -146,8 +170,18 @@ export type NetlistResult = {
    * never make it into the netlist (the merged net IS node 0, so the source
    * is dropped), so they must be flagged at build time. `componentIds` are
    * the components touching the shorted net, for warning placement.
-   */
+  */
   railShorts: Array<{ rail: "5V" | "3V3"; componentIds: string[] }>
+  /** Distinct voltage drivers that share one resolved SPICE node. */
+  driveConflicts: Array<{
+    node: string
+    netId: string
+    sources: Array<{ label: string; pin?: number; rail?: "5V" | "3V3"; sourceKey?: string }>
+  }>
+  /** Honest coverage and numerical assumptions for UI/export diagnostics. */
+  modelCoverage: NetlistModelCoverage
+  numericalAids: NetlistNumericalAids
+  analysisSettings: { mode: NetlistMode; nominalTransientDtSeconds: number; nominalTransientStopSeconds: number }
 }
 
 const ARDUINO_OUTPUT_SOURCE_RESISTANCE_OHMS = 25
@@ -159,6 +193,13 @@ const ARDUINO_OUTPUT_SOURCE_RESISTANCE_OHMS = 25
  */
 function pwmFrequencyForPin(pin: number): number {
   return pin === 5 || pin === 6 ? 976.5625 : 490.196
+}
+
+/** Logic-high level comes from the selected MCU profile, not a global Uno
+ * constant. Rails remain separate sources; this value only describes GPIO
+ * output drive and PWM high state. */
+function logicHighVoltageFor(boardTarget?: BoardTarget): number {
+  return boardTarget === "rpi_pico" ? 3.3 : 5
 }
 // The 5V rail on a real Uno comes through a ~0.3Ω polyfuse plus traces (USB)
 // or the regulator; the 3V3 rail is an LP2985 LDO. Small series resistances
@@ -179,9 +220,42 @@ export function buildNetlist(
   shiftRegisterOutputs?: ShiftRegisterOutputs,
   mode: NetlistMode = "op",
   peripheralStates?: Record<string, PeripheralState>,
+  boardTarget?: BoardTarget,
 ): NetlistResult {
-  const nets = resolveNets(components, wires)
+  const topology = compileElectricalTopology(components, wires)
+  const nets = topology.nets
   const lines: string[] = []
+  const logicHighVolts = logicHighVoltageFor(boardTarget)
+  const circuitComponents = Object.values(components).filter(
+    (component) => !isBoardComponentType(component.type) && component.type !== "wire",
+  )
+  const supportedComponentIds: string[] = []
+  const unsupportedComponentIds: string[] = []
+  const approximateComponentIds: string[] = []
+  const approximateReasons: Array<{ componentId: string; reason: string }> = []
+  const unsupportedReasons: Array<{ componentId: string; reason: string }> = []
+  for (const component of circuitComponents) {
+    const definition = getComponentDef(component.type)
+    const coverage = describeModelCoverage(component.type, Boolean(definition?.buildNetlist))
+    if (coverage.classification !== "unsupported") {
+      supportedComponentIds.push(component.id)
+      if (coverage.classification === "approximate") {
+        approximateComponentIds.push(component.id)
+        if (coverage.reason) approximateReasons.push({ componentId: component.id, reason: coverage.reason })
+      }
+    } else {
+      unsupportedComponentIds.push(component.id)
+      unsupportedReasons.push({
+        componentId: component.id,
+        reason: coverage.reason!,
+      })
+    }
+  }
+  const numericalAids: NetlistNumericalAids = {
+    bleedResistors: [],
+    sourceResistanceElements: [],
+    omittedSelfLoopComponents: [],
+  }
   const modelLines = new Set<string>()
   const componentNodePairs = new Map<string, { nodeA: string; nodeB: string }>()
   const componentPowerBindings: NetlistResult["componentPowerBindings"] = new Map()
@@ -207,6 +281,8 @@ export function buildNetlist(
     pwmHighVolts?: number
     /** Set when this source is a supply rail rather than an I/O pin. */
     rail?: "5V" | "3V3"
+    /** Physical source identity; aliases of one rail must not be emitted twice. */
+    sourceKey: string
   }> = []
 
   // Build a point→netId lookup for fast component-to-net resolution
@@ -241,6 +317,7 @@ export function buildNetlist(
           voltage: 5,
           sourceResistanceOhms: RAIL_5V_SOURCE_RESISTANCE_OHMS,
           rail: "5V",
+          sourceKey: "rail:5V",
         })
       } else if (arduinoPin === -2) {
         // 3.3V pin
@@ -250,6 +327,7 @@ export function buildNetlist(
           voltage: 3.3,
           sourceResistanceOhms: RAIL_3V3_SOURCE_RESISTANCE_OHMS,
           rail: "3V3",
+          sourceKey: "rail:3V3",
         })
       } else if (arduinoPin === -3 || arduinoPin === -4) {
         // GND pins
@@ -271,19 +349,21 @@ export function buildNetlist(
             voltageSourceNets.push({
               label: `V_D${arduinoPin}`,
               netId: net.id,
-              voltage: duty * 5,
+              voltage: duty * logicHighVolts,
               sourceResistanceOhms: ARDUINO_OUTPUT_SOURCE_RESISTANCE_OHMS,
               pin: arduinoPin,
               pwmDuty: duty,
-              pwmHighVolts: 5,
+              pwmHighVolts: logicHighVolts,
+              sourceKey: `pin:${arduinoPin}`,
             })
           } else if (ps.digitalValue === 1) {
             voltageSourceNets.push({
               label: `V_D${arduinoPin}`,
               netId: net.id,
-              voltage: 5,
+              voltage: logicHighVolts,
               sourceResistanceOhms: ARDUINO_OUTPUT_SOURCE_RESISTANCE_OHMS,
               pin: arduinoPin,
+              sourceKey: `pin:${arduinoPin}`,
             })
           } else {
             // Pin is OUTPUT LOW → drive 0V through realistic output resistance.
@@ -293,6 +373,7 @@ export function buildNetlist(
               voltage: 0,
               sourceResistanceOhms: ARDUINO_OUTPUT_SOURCE_RESISTANCE_OHMS,
               pin: arduinoPin,
+              sourceKey: `pin:${arduinoPin}`,
             })
           }
         } else if (!ps || ps.mode === "UNSET") {
@@ -325,12 +406,20 @@ export function buildNetlist(
           netId,
           voltage: outputs[i] ? 5 : 0,
           sourceResistanceOhms: ARDUINO_OUTPUT_SOURCE_RESISTANCE_OHMS,
+          sourceKey: `shift:${comp.id}:Q${i}`,
         })
       }
     }
   }
 
   const nodeMap = buildNodeMap(nets, groundNetIds)
+  const terminalNodeMap = new Map<string, string>()
+  for (const terminal of topology.terminals) {
+    if (!terminal.netId) continue
+    const net = nets.find((candidate) => candidate.id === terminal.netId)
+    const node = net ? nodeMap.get(pointKey(net.points[0])) : undefined
+    if (node) terminalNodeMap.set(electricalTerminalKey(terminal.componentId, terminal.pinName), node)
+  }
 
   // Bleed every floating net (no voltage source, no ground, at least one
   // component pin touching it) to ground via a large resistor.
@@ -364,7 +453,9 @@ export function buildNetlist(
     const representativeKey = pointKey(net.points[0])
     const nodeName = nodeMap.get(representativeKey)
     if (!nodeName || nodeName === "0") continue
-    lines.push(`R_bleed_float_${net.id} ${nodeName} 0 1000000000`)
+    const element = `R_bleed_float_${net.id}`
+    lines.push(`${element} ${nodeName} 0 1000000000`)
+    numericalAids.bleedResistors.push(element)
   }
 
   // A supply rail landing in a ground net is a dead short: the merged net IS
@@ -387,12 +478,17 @@ export function buildNetlist(
     railShorts.push({ rail: vs.rail, componentIds })
   }
 
-  // Deduplicate voltage sources: only one source per unique node name
-  const seenSourceNodes = new Set<string>()
   const pinSources: NetlistResult["pinSources"] = []
   const pwmSources: NetlistResult["pwmSources"] = []
   const railSources: NetlistResult["railSources"] = []
   const powerSources: NetlistResult["powerSources"] = []
+  const driveConflicts: NetlistResult["driveConflicts"] = []
+  const emittedSourceKeys = new Set<string>()
+  const sourceGroups = new Map<string, {
+    node: string
+    netId: string
+    sources: Array<{ label: string; pin?: number; rail?: "5V" | "3V3"; sourceKey?: string }>
+  }>()
   let vsIndex = 0
 
   for (const vs of voltageSourceNets) {
@@ -401,15 +497,29 @@ export function buildNetlist(
         nets.find((n) => n.id === vs.netId)?.points[0] ?? { row: -999, col: -999 },
       ),
     )
-    if (!nodeName || nodeName === "0") continue
-    if (seenSourceNodes.has(nodeName)) continue
-    seenSourceNodes.add(nodeName)
+    if (!nodeName) continue
+    // Multiple Arduino aliases can point to the same physical rail. Emit one
+    // source for that physical driver, but retain distinct pin/rail/IC drivers
+    // so the solver can expose contention and current sharing.
+    const sourceGroupKey = `${nodeName}\u0000${vs.sourceKey}`
+    if (emittedSourceKeys.has(sourceGroupKey)) continue
+    emittedSourceKeys.add(sourceGroupKey)
+
+    const group = sourceGroups.get(nodeName) ?? {
+      node: nodeName,
+      netId: vs.netId,
+      sources: [],
+    }
+    group.sources.push({ label: vs.label, pin: vs.pin, rail: vs.rail, sourceKey: vs.sourceKey })
+    sourceGroups.set(nodeName, group)
 
     const element = `${vs.label}_${vsIndex}`
     if (vs.sourceResistanceOhms && vs.sourceResistanceOhms > 0) {
       const sourceNode = `src_${vsIndex}`
       lines.push(`${element} ${sourceNode} 0 ${vs.voltage}`)
-      lines.push(`R_src_${vsIndex} ${sourceNode} ${nodeName} ${vs.sourceResistanceOhms}`)
+      const sourceResistanceElement = `R_src_${vsIndex}`
+      lines.push(`${sourceResistanceElement} ${sourceNode} ${nodeName} ${vs.sourceResistanceOhms}`)
+      numericalAids.sourceResistanceElements.push(sourceResistanceElement)
     } else {
       lines.push(`${element} ${nodeName} 0 ${vs.voltage}`)
     }
@@ -487,11 +597,15 @@ export function buildNetlist(
         const nodeB = result.nodeB
         let bleedIdx = lines.filter((l) => l.startsWith("R_bleed_")).length
         if (nodeA.startsWith("unconnected_")) {
-          lines.push(`R_bleed_${bleedIdx} ${nodeA} 0 1000000000`)
+          const element = `R_bleed_${bleedIdx}`
+          lines.push(`${element} ${nodeA} 0 1000000000`)
+          numericalAids.bleedResistors.push(element)
           bleedIdx++
         }
         if (nodeB.startsWith("unconnected_")) {
-          lines.push(`R_bleed_${bleedIdx} ${nodeB} 0 1000000000`)
+          const element = `R_bleed_${bleedIdx}`
+          lines.push(`${element} ${nodeB} 0 1000000000`)
+          numericalAids.bleedResistors.push(element)
         }
 
         // If both pins resolve to the same SPICE node, emitting the element
@@ -506,8 +620,15 @@ export function buildNetlist(
         // This most commonly happens when an LED is wired anode→D<n> and
         // cathode→GND but the sketch pulls D<n> LOW: both ends collapse to
         // node "0".
-        if (nodeA !== nodeB) {
+        // A one-line primitive with both terminals on one net is a true
+        // self-loop and must be omitted. Multi-line parts (motors, RGB LEDs)
+        // and explicitly multi-terminal primitives (transistor/MOSFET) may
+        // still contain internal branches that remain meaningful even when
+        // their primary measurement pair collapses to one node.
+        if (nodeA !== nodeB || result.lines.length > 1 || result.preserveOnSelfLoop) {
           lines.push(...result.lines)
+        } else {
+          numericalAids.omittedSelfLoopComponents.push(comp.id)
         }
         if (result.modelLines) {
           for (const modelLine of result.modelLines) {
@@ -520,23 +641,45 @@ export function buildNetlist(
     }
   }
 
+  // External supplies are component-emitted sources rather than Arduino pin
+  // sources, so add them after component netlists have been compiled. This
+  // catches MB102-vs-GPIO and MB102-vs-Arduino-rail contention on one net too.
+  for (const source of powerSources) {
+    if (source.rail) continue
+    const group = sourceGroups.get(source.node) ?? {
+      node: source.node,
+      netId: source.id,
+      sources: [],
+    }
+    if (!group.sources.some((existing) => existing.sourceKey === `supply:${source.id}`)) {
+      group.sources.push({
+        label: source.label,
+        sourceKey: `supply:${source.id}`,
+      })
+    }
+    sourceGroups.set(source.node, group)
+  }
+  for (const group of sourceGroups.values()) {
+    const distinctDrivers = new Set(group.sources.map((source) => source.sourceKey ?? (
+      source.pin != null ? `pin:${source.pin}` : source.rail != null ? `rail:${source.rail}` : source.label
+    )))
+    if (distinctDrivers.size > 1) driveConflicts.push(group)
+  }
+
   // Bind each declared part to the supplies feeding it. resolveNets has
   // already merged everything on a net into one SPICE node, so this is a
   // direct name match rather than a graph walk.
   const supplyIdsByNode = new Map<string, string[]>()
-  const supplyReturnNodes = new Set<string>()
   for (const source of powerSources) {
     const ids = supplyIdsByNode.get(source.node) ?? []
     ids.push(source.id)
     supplyIdsByNode.set(source.node, ids)
-    if (source.returnNode) supplyReturnNodes.add(source.returnNode)
   }
   for (const [componentId, nodes] of pendingPowerNodes) {
-    // "0" covers a fixed-ground net; a supply's own return node covers parts
-    // grounded through an MB102 − rail, which is a real net tied to 0 through
-    // a 1Ω resistor and so never equals "0".
-    const grounded =
-      nodes.return !== null && (nodes.return === "0" || supplyReturnNodes.has(nodes.return))
+    // A supply return is not implicitly global ground. It becomes grounded
+    // only when the user wires that return net to an Arduino GND net; the
+    // supply's own SPICE reference resistor is intentionally not enough.
+    const grounded = nodes.return !== null && nodes.return === "0"
     componentPowerBindings.set(componentId, {
       supply: nodes.supply,
       returnGrounded: nodes.declaresReturn ? grounded : null,
@@ -554,10 +697,32 @@ export function buildNetlist(
 
   const netlist = lines.join("\n")
 
-  return { netlist, nets, nodeMap, componentNodePairs, componentPowerBindings, pinSources, pwmSources, railSources, powerSources, railShorts }
-}
-
-/** Sanitize a component ID for use in SPICE element names */
-function sanitize(id: string): string {
-  return id.replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 20)
+  return {
+    netlist,
+    nets,
+    nodeMap,
+    terminalNodeMap,
+    componentNodePairs,
+    componentPowerBindings,
+    pinSources,
+    pwmSources,
+    railSources,
+    powerSources,
+    railShorts,
+    driveConflicts,
+    modelCoverage: {
+      mode,
+      supportedComponentIds,
+      unsupportedComponentIds,
+      approximateComponentIds,
+      approximateReasons,
+      unsupportedReasons,
+    },
+    numericalAids,
+    analysisSettings: {
+      mode,
+      nominalTransientDtSeconds: 0.001,
+      nominalTransientStopSeconds: 0.01,
+    },
+  }
 }

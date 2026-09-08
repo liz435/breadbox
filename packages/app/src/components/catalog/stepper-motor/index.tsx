@@ -3,6 +3,7 @@ import type { ComponentDefinition } from "@/components/component-definition"
 
 export const stepperMotor: ComponentDefinition = {
   type: "stepper_motor",
+  capabilities: ["model-3d"],
   category: "output",
   description: "28BYJ-48 stepper + ULN2003 driver — 4-phase, driven with Stepper.h",
   label: "Stepper Motor",

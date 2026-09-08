@@ -1,5 +1,19 @@
 # Breadbox — Project Instructions
 
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked locally under `.scratch/<feature>/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Uses the standard local labels. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout: `CONTEXT.md` and `docs/adr/`. See `docs/agents/domain.md`.
+
 ## Package Manager
 Always use **bun** — never npm/npx/yarn.
 - `bun install`, `bun add`, `bun run dev`, `bunx`

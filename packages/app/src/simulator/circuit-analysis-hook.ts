@@ -33,6 +33,7 @@ export function useCircuitAnalysis(): {
   // Structural deps — these always trigger a re-analysis
   const components = useBoardSelector((ctx) => ctx.components)
   const wires = useBoardSelector((ctx) => ctx.wires)
+  const boardTarget = useBoardSelector((ctx) => ctx.boardTarget)
 
   // Subscribe to pin state. usePinStates returns an immutable PinState[]
   // (cached against the store snapshot), so the reference only changes when
@@ -49,8 +50,8 @@ export function useCircuitAnalysis(): {
   // it settles (then stops, so an idle cap costs nothing).
   const capAnimTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const depsRef = useRef({ components, wires })
-  depsRef.current = { components, wires }
+  const depsRef = useRef({ components, wires, boardTarget })
+  depsRef.current = { components, wires, boardTarget }
 
   const hasComponents = useMemo(() => {
     return Object.values(components).some(
@@ -72,9 +73,12 @@ export function useCircuitAnalysis(): {
       ? Math.min((now - lastAnalysisAtRef.current) / 1000, 0.25)
       : 0
     lastAnalysisAtRef.current = now
-    const { components: c, wires: w } = depsRef.current
+    const { components: c, wires: w, boardTarget: target } = depsRef.current
     try {
-      analysisRef.current = analyzeCircuit(c, w, snapshotAsPinStates(), undefined, { dtSeconds })
+      analysisRef.current = analyzeCircuit(c, w, snapshotAsPinStates(), undefined, {
+        dtSeconds,
+        boardTarget: target,
+      })
     } catch (err) {
       // Netlist construction crashed (analyzeCircuit reports solver failures
       // in-band via isValid/warnings) — keep the board interactive but leave

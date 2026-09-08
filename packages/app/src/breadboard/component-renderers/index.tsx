@@ -16,6 +16,7 @@ import { ResistorRenderer } from "@/components/catalog/resistor/resistor-rendere
 import { CapacitorRenderer } from "@/components/catalog/capacitor/capacitor-renderer";
 import { IcRenderer } from "@/components/catalog/ic/ic-renderer";
 import { ServoRenderer } from "@/components/catalog/servo/servo-renderer";
+import { StepperRenderer } from "@/components/catalog/stepper-motor/stepper-renderer";
 import { PowerSupplyRenderer } from "@/components/catalog/power-supply/power-supply-renderer";
 import { MultimeterRenderer } from "@/components/catalog/multimeter/multimeter-renderer";
 import { IrRemoteRenderer } from "@/components/catalog/ir-remote/ir-remote-renderer";
@@ -35,6 +36,7 @@ const RENDERER_MAP: Record<
   capacitor: CapacitorRenderer,
   ic: IcRenderer,
   servo: ServoRenderer,
+  stepper_motor: StepperRenderer,
   power_supply: PowerSupplyRenderer,
   multimeter: MultimeterRenderer,
   ir_remote: IrRemoteRenderer,

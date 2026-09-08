@@ -13,7 +13,7 @@ import type {
  *
  * Must stay in sync with `boardData()` in store/board-machine.ts: anything the
  * machine snapshots for undo is user-authored state and has to persist too.
- * The only legitimate exclusions are ephemeral runtime state (see
+ * The legitimate exclusions are runtime output (see
  * `EPHEMERAL_BOARD_FIELDS`). `board-slice.test.ts` enforces this against
  * `boardStateSchema`, so a new BoardState field fails the test until someone
  * decides, explicitly, whether it persists.

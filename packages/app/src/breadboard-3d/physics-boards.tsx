@@ -20,6 +20,7 @@ import {
   pxToMm,
   type WorldPoint,
 } from "./layout"
+import { ARDUINO_MODEL } from "./arduino-placement"
 
 const BREADBOARD_CENTER = pixelToWorld(
   BREADBOARD_RECT_PX.x + BREADBOARD_RECT_PX.width / 2,
@@ -65,7 +66,11 @@ export function PhysicsBoards() {
       {/* Arduino PCB. */}
       <CuboidCollider
         args={[pxToMm(ARDUINO_RECT_PX.width) / 2, PCB_THICKNESS_MM / 2, pxToMm(ARDUINO_RECT_PX.height) / 2]}
-        position={[ARDUINO_CENTER.x, PCB_THICKNESS_MM / 2, ARDUINO_CENTER.z]}
+        position={[
+          ARDUINO_CENTER.x + ARDUINO_MODEL.nudge.x,
+          PCB_THICKNESS_MM / 2,
+          ARDUINO_CENTER.z + ARDUINO_MODEL.nudge.z,
+        ]}
         collisionGroups={GROUP_STATIC}
       />
       {offsets.map((offset, i) => (

@@ -4,11 +4,18 @@
 // Converts the board into a netlist, runs the simulation, and extracts
 // per-component electrical state for rendering.
 
-import { isBoardComponentType, type BoardComponent, type Wire, type PinState } from "@dreamer/schemas"
+import {
+  isBoardComponentType,
+  type BoardComponent,
+  type BoardTarget,
+  type Wire,
+  type PinState,
+} from "@dreamer/schemas"
 import { parseNetlist, simulateTRAN } from "spicey"
 import { buildNetlist, type NetlistResult, type ShiftRegisterOutputs } from "./netlist-builder"
 import { gridToPixel, getComponentFootprint } from "@/breadboard/breadboard-grid"
 import { getComponentDef } from "@/components/registry"
+import { sanitize } from "@/components/catalog/_shared"
 import { getCapVoltage, setCapVoltage } from "./capacitor-state"
 import { TransientSession, type TransientStepResult } from "./transient-session"
 import type { PeripheralState } from "./peripherals/types"
@@ -40,7 +47,7 @@ const CAP_PROBE_DELTA = 0.01 // volts; step for the two-point Thevenin probe
 
 /** SPICE element name the registry emits for a capacitor component (a V source). */
 function capElementName(componentId: string): string {
-  return `V_${componentId.replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 20)}`
+  return `V_${sanitize(componentId)}`
 }
 
 // ── PWM switching-state enumeration ───────────────────────────────────
@@ -209,6 +216,11 @@ export type CircuitAnalysis = {
    * instead of a component's terminal drop.
    */
   nodeVoltageAt?: (point: { row: number; col: number }) => number | null
+  /** What the generated netlist does and does not model. */
+  modelCoverage?: NetlistResult["modelCoverage"]
+  /** Solver-only aids and intentionally omitted degenerate primitives. */
+  numericalAids?: NetlistResult["numericalAids"]
+  analysisSettings?: NetlistResult["analysisSettings"]
 }
 
 export type SolvedSupply = {
@@ -268,6 +280,7 @@ export type CircuitWarning = {
     | "overcurrent"
     | "open_circuit"
     | "short_circuit"
+    | "drive_conflict"
     | "undervoltage"
     | "solver_failed"
   message: string
@@ -280,7 +293,11 @@ export function analyzeCircuit(
   wires: Record<string, Wire>,
   pinStates: PinState[],
   shiftRegisterOutputs?: ShiftRegisterOutputs,
-  options?: { dtSeconds?: number; peripheralStates?: Record<string, PeripheralState> },
+  options?: {
+    dtSeconds?: number
+    peripheralStates?: Record<string, PeripheralState>
+    boardTarget?: BoardTarget
+  },
 ): CircuitAnalysis {
   const componentStates = new Map<string, ComponentElectricalState>()
   const currentPaths: CurrentPath[] = []
@@ -304,13 +321,26 @@ export function analyzeCircuit(
   }
 
   // Build the SPICE netlist
-  const { netlist, componentNodePairs, componentPowerBindings, pinSources, pwmSources, powerSources, railShorts } = buildNetlist(
+  const {
+    netlist,
+    componentNodePairs,
+    componentPowerBindings,
+    pinSources,
+    pwmSources,
+    powerSources,
+    railShorts,
+    driveConflicts,
+    modelCoverage,
+    numericalAids,
+    analysisSettings,
+  } = buildNetlist(
     components,
     wires,
     pinStates,
     shiftRegisterOutputs,
     "op",
     options?.peripheralStates,
+    options?.boardTarget,
   )
 
   if (netlist.trim().length === 0) {
@@ -403,6 +433,10 @@ export function analyzeCircuit(
     pinSources,
     powerSources,
     railShorts,
+    driveConflicts,
+    modelCoverage,
+    numericalAids,
+    analysisSettings,
     getNodeVoltage,
     getElementCurrent,
     elementPrefixFor: (comp) => getComponentDef(comp.type)?.spicePrefix ?? "R",
@@ -457,7 +491,12 @@ export function analyzeCircuitTransient(
   wires: Record<string, Wire>,
   pinStates: PinState[],
   shiftRegisterOutputs?: ShiftRegisterOutputs,
-  options?: { dtSimSeconds?: number; session?: TransientSession },
+  options?: {
+    dtSimSeconds?: number
+    session?: TransientSession
+    peripheralStates?: Record<string, PeripheralState>
+    boardTarget?: BoardTarget
+  },
 ): TransientAnalysis {
   const componentStates = new Map<string, ComponentElectricalState>()
   const currentPaths: CurrentPath[] = []
@@ -488,6 +527,8 @@ export function analyzeCircuitTransient(
       wires,
       pinStates,
       shiftRegisterOutputs,
+      peripheralStates: options?.peripheralStates,
+      boardTarget: options?.boardTarget,
       dtSimSeconds: options?.dtSimSeconds ?? 0,
     })
   } catch (err) {
@@ -550,6 +591,10 @@ export function deriveTransientAnalysis(
     pinSources: step.build.pinSources,
     powerSources: step.build.powerSources,
     railShorts: step.build.railShorts,
+    driveConflicts: step.build.driveConflicts,
+    modelCoverage: step.build.modelCoverage,
+    numericalAids: step.build.numericalAids,
+    analysisSettings: step.build.analysisSettings,
     getNodeVoltage: step.getNodeVoltage,
     getElementCurrent: step.getElementCurrent,
     // Transient mode emits real C/L elements, so their branch currents live
@@ -581,6 +626,10 @@ type DeriveParams = {
   pinSources: NetlistResult["pinSources"]
   powerSources: NetlistResult["powerSources"]
   railShorts: NetlistResult["railShorts"]
+  driveConflicts: NetlistResult["driveConflicts"]
+  modelCoverage: NetlistResult["modelCoverage"]
+  numericalAids: NetlistResult["numericalAids"]
+  analysisSettings: NetlistResult["analysisSettings"]
   getNodeVoltage: (node: string) => number
   getElementCurrent: (element: string) => number
   elementPrefixFor: (comp: BoardComponent) => string
@@ -600,6 +649,10 @@ function deriveAnalysis(params: DeriveParams): CircuitAnalysis {
     pinSources,
     powerSources,
     railShorts,
+    driveConflicts,
+    modelCoverage,
+    numericalAids,
+    analysisSettings,
     getNodeVoltage,
     getElementCurrent,
     elementPrefixFor,
@@ -629,7 +682,7 @@ function deriveAnalysis(params: DeriveParams): CircuitAnalysis {
     const voltageDrop = vA - vB
 
     const def = getComponentDef(comp.type)
-    const sanitizedId = comp.id.replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 20)
+    const sanitizedId = sanitize(comp.id)
     const elementName = `${elementPrefixFor(comp)}_${sanitizedId}`
     // For LEDs the element is the `D_<id>` diode, in series with its Rs; the
     // solved diode branch current is the LED's true through-current. voltageDrop
@@ -691,6 +744,10 @@ function deriveAnalysis(params: DeriveParams): CircuitAnalysis {
   // against the limits each source declares.
   flagSupplyFaults(railShorts, powerSources, circuitComponents, componentNodePairs, getElementCurrent, getNodeVoltage, warnings)
 
+  // Keep distinct voltage drivers in the netlist so current sharing and
+  // contention are solved physically, then surface the wiring mistake here.
+  flagDriveConflicts(driveConflicts, circuitComponents, componentNodePairs, warnings)
+
   // Port-group and whole-chip limits: the ATmega's real constraint isn't just
   // per-pin — each port group and the VCC/GND pins have their own budgets.
   flagPortGroupOvercurrent(pinSources, componentNodePairs, getElementCurrent, warnings)
@@ -749,6 +806,30 @@ function deriveAnalysis(params: DeriveParams): CircuitAnalysis {
     warnings: dedupedWarnings,
     supplies,
     componentPower,
+    modelCoverage,
+    numericalAids,
+    analysisSettings,
+  }
+}
+
+function flagDriveConflicts(
+  conflicts: NetlistResult["driveConflicts"],
+  circuitComponents: BoardComponent[],
+  componentNodePairs: Map<string, { nodeA: string; nodeB: string }>,
+  warnings: CircuitWarning[],
+): void {
+  for (const conflict of conflicts) {
+    const sourceNames = conflict.sources.map((source) => source.label).join(", ")
+    const targets = [...componentNodePairs.entries()]
+      .filter(([, pair]) => pair.nodeA === conflict.node || pair.nodeB === conflict.node)
+      .map(([id]) => id)
+    const componentIds = targets.length > 0
+      ? targets
+      : circuitComponents.slice(0, 1).map((component) => component.id)
+    const message = `Multiple active drivers (${sourceNames}) share ${conflict.node === "0" ? "GND" : conflict.node} — check for an output-to-output or rail-to-output short.`
+    for (const componentId of componentIds) {
+      warnings.push({ componentId, type: "drive_conflict", message })
+    }
   }
 }
 

@@ -43,7 +43,7 @@ test.describe("example loading", () => {
     await page.getByTestId("example-button").click()
 
     // Popover renders example rows by key — data-testid="example-row-ex-led"
-    const ledRow = page.getByTestId("example-row-ex-led")
+    const ledRow = page.getByTestId("example-row-ex-led").first()
     await expect(ledRow).toBeVisible({ timeout: 5_000 })
     await ledRow.click()
 

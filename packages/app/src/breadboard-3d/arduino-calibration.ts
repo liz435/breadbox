@@ -13,8 +13,9 @@
 // model, then "Copy JSON" from the panel to bake a new default in here.
 
 import { useSyncExternalStore } from "react"
+import { shiftArduinoPoint } from "./arduino-placement"
 
-/** Corrected in-plane position of one header socket (world mm). */
+/** Corrected in-plane position of one header socket (base layout world mm). */
 export type PinOverride = { x: number; z: number }
 
 export type Calibration = {
@@ -140,10 +141,14 @@ export function calibratedPinXZ(
   fallback: { x: number; z: number },
 ): { x: number; y: number; z: number } {
   const override = state.overrides[pinId]
-  return {
+  const point = shiftArduinoPoint({
     x: override?.x ?? fallback.x,
-    y: state.headerY,
     z: override?.z ?? fallback.z,
+  })
+  return {
+    x: point.x,
+    y: state.headerY,
+    z: point.z,
   }
 }
 

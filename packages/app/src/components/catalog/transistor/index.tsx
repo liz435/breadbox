@@ -37,6 +37,7 @@ export const transistor: ComponentDefinition = {
       // Report VCE / collector current as the component's primary pair.
       nodeA: nodeC,
       nodeB: nodeE,
+      preserveOnSelfLoop: true,
     }
   },
   computeElectricalState: (_comp, { voltageDrop, currentMa }) => ({
