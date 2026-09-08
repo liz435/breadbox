@@ -47,6 +47,10 @@ export type BodyParent = z.infer<typeof bodyParentSchema>;
 export const modelFormatSchema = z.enum(["glb", "stl"]);
 export type ModelFormat = z.infer<typeof modelFormatSchema>;
 
+/** Built-in, asset-free assembly geometry used by the physics showcase. */
+export const assemblyPrimitiveSchema = z.literal("box");
+export type AssemblyPrimitive = z.infer<typeof assemblyPrimitiveSchema>;
+
 /**
  * Joint in body-local space. A bound signal moves the body around/along
  * `axis` through `pivot` (both in the body's local frame): `rotate` is a
@@ -64,11 +68,14 @@ export const assemblyBodySchema = z.object({
   id: z.string().min(1),
   /** Display name shown in the assembly tree (defaults to the file name). */
   name: z.string().min(1),
-  /** Project asset id of the uploaded mesh file. */
-  assetId: z.string().min(1),
+  /** Project asset id of the uploaded mesh file. Omitted for primitives. */
+  assetId: z.string().min(1).optional(),
   /** Serve path of the uploaded file (mirrors the project Asset's uri). */
-  uri: z.string().min(1),
-  format: modelFormatSchema,
+  uri: z.string().min(1).optional(),
+  /** Uploaded mesh format. Omitted for primitives. */
+  format: modelFormatSchema.optional(),
+  /** Asset-free procedural geometry. Currently the physics showcase box. */
+  primitive: assemblyPrimitiveSchema.optional(),
   /** Named node within a GLB scene graph; the whole scene when omitted. */
   node: z.string().optional(),
   parent: bodyParentSchema.default({ kind: "world" }),
@@ -91,7 +98,15 @@ export const assemblyBodySchema = z.object({
   hidden: z.boolean().optional(),
   /** Locked against transform edits — the gizmo won't attach while set. */
   locked: z.boolean().optional(),
-});
+}).refine(
+  (body) =>
+    body.primitive === "box"
+      ? body.assetId === undefined && body.uri === undefined && body.format === undefined
+      : body.assetId !== undefined && body.uri !== undefined && body.format !== undefined,
+  {
+    message: "Assembly bodies need either primitive: box or an assetId, uri, and format",
+  },
+);
 export type AssemblyBody = z.infer<typeof assemblyBodySchema>;
 
 /**

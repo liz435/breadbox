@@ -29,6 +29,7 @@ import {
   subscribeRegistry,
 } from "./scene-registry"
 import { useEditor } from "./editor-state"
+import { SHOWCASE_BOX_SIZE_MM } from "./showcase-box"
 
 /** Swallows loader failures (bad file, deleted asset) for a single body so
  * one broken mesh can't blank the whole scene. DOM fallbacks don't render
@@ -94,6 +95,30 @@ function StlModel({ bodyId, url }: { bodyId: string; url: string }) {
   // auto-disposes materials it created from JSX.
   useEffect(() => () => material.dispose(), [material])
   return <mesh geometry={geometry} material={material} />
+}
+
+function PrimitiveBoxModel({ bodyId }: { bodyId: string }) {
+  const material = useMemo(
+    () =>
+      new MeshStandardMaterial({
+        color: "#f59e0b",
+        emissive: "#f59e0b",
+        emissiveIntensity: 0,
+        roughness: 0.48,
+        metalness: 0.08,
+      }),
+    [],
+  )
+  useLayoutEffect(
+    () => registerBodyMaterials(bodyId, [material]),
+    [bodyId, material],
+  )
+  useEffect(() => () => material.dispose(), [material])
+  return (
+    <mesh castShadow receiveShadow material={material}>
+      <boxGeometry args={[SHOWCASE_BOX_SIZE_MM, SHOWCASE_BOX_SIZE_MM, SHOWCASE_BOX_SIZE_MM]} />
+    </mesh>
+  )
 }
 
 function GlbModel({
@@ -163,6 +188,10 @@ export function useGlbHasAnimations(url: string): boolean {
 /** Import normalisation: unit fix-up and z-up → y-up, applied inside the
  * user transform so gizmo edits stay in sane mm space. */
 export function BodyModel({ body }: { body: AssemblyBody }) {
+  if (body.primitive === "box") {
+    return <PrimitiveBoxModel bodyId={body.id} />
+  }
+  if (!body.uri || !body.format) return null
   const url = `${API_ORIGIN}${body.uri}`
   const upFix: [number, number, number] =
     body.upAxis === "z" ? [-Math.PI / 2, 0, 0] : [0, 0, 0]

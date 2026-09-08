@@ -33,6 +33,27 @@ describe("assemblyDocSchema", () => {
     expect(body.joint).toBeUndefined();
   });
 
+  test("asset-free box primitive parses without a project asset", () => {
+    const body = assemblyBodySchema.parse({
+      id: "showcase-box",
+      name: "Physics showcase box",
+      primitive: "box",
+    });
+    expect(body.primitive).toBe("box");
+    expect(body.assetId).toBeUndefined();
+    expect(body.uri).toBeUndefined();
+    expect(body.format).toBeUndefined();
+  });
+
+  test("rejects an assembly body without either a primitive or asset source", () => {
+    expect(() =>
+      assemblyBodySchema.parse({
+        id: "missing-source",
+        name: "Missing source",
+      }),
+    ).toThrow();
+  });
+
   test("component parent defaults to the part body node", () => {
     const body = assemblyBodySchema.parse({
       id: "body_arm",
