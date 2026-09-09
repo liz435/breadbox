@@ -1,5 +1,6 @@
 import { describe, test, expect } from "bun:test"
 import { generateSchematicLayout, validateSchematicLayout } from "../schematic-layout"
+import { routeSchematicEdge } from "../schematic-routing"
 import ledBoard from "../../examples/boards/ex-led.json"
 import shiftRegisterBoard from "../../examples/boards/ex-shift-register.json"
 import sevenSegmentBoard from "../../examples/boards/ex-seven-segment.json"
@@ -252,7 +253,38 @@ describe("generateSchematicLayout — single component", () => {
   })
 })
 
-// ── Multiple components vertical stacking ─────────────────────────────
+describe("generateSchematicLayout — AI servo proposal", () => {
+  test("keeps the Arduino signal edge attached to the servo signal terminal", () => {
+    const components: Record<string, BoardComponent> = {
+      arduino: makeArduino(),
+      servo1: makeServo("servo1", 4, 2),
+      psu1: { ...makePowerSupply("psu1", 9), x: 8 },
+    }
+    const wires: Record<string, Wire> = {
+      signal: makeArduinoWire("signal", 9, 4, 2),
+      gndToRail: makeArduinoWire("gnd-to-rail", -3, 0, -2),
+      railToPsu: makeWire("rail-to-psu", 10, -2, 10, 8),
+      psuVcc: makeWire("psu-vcc", 9, 8, 5, 2),
+      psuGnd: makeWire("psu-gnd", 10, 8, 6, 2),
+    }
+
+    const layout = generateSchematicLayout(components, wires)
+    const signalEdge = layout.edges.find(
+      (edge) => edge.fromNodeId === "pin-9" || edge.toNodeId === "pin-9",
+    )
+
+    expect(signalEdge).toBeDefined()
+    expect([signalEdge?.fromNodeId, signalEdge?.toNodeId]).toContain("comp-servo1")
+    expect(layout.rails.some((rail) => rail.terminalId === "servo1:signal")).toBe(false)
+    expect(layout.rails.some((rail) => rail.terminalId === "servo1:vcc" && rail.kind === "power")).toBe(true)
+    const servoNode = layout.nodes.find((node) => node.id === "comp-servo1")
+    const signalRoute = routeSchematicEdge(signalEdge!, layout)
+    expect(signalRoute?.to).toEqual({ x: servoNode!.x, y: servoNode!.y - 14 })
+    expect(signalRoute?.segments.at(-1)?.to).toEqual(signalRoute?.to)
+  })
+})
+
+// ── Multiple components vertical stacking ────────────────────────────────
 
 describe("generateSchematicLayout — multiple components", () => {
   test("two components are stacked vertically in same column", () => {

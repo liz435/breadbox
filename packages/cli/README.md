@@ -16,13 +16,13 @@ Windows:
 irm https://raw.githubusercontent.com/liz435/breadbox/main/scripts/install.ps1 | iex
 ```
 
-Both scripts detect your platform, fetch the right binary from the latest GitHub release, verify its SHA256 (if a sidecar `.sha256` is published), and drop `dreamer` onto your PATH.
+Both scripts detect your platform, fetch the right binary from the latest GitHub release, verify its SHA256 (if a sidecar `.sha256` is published), and drop `breadbox` onto your PATH.
 
 ### From a checked-out repo
 
 ```bash
 bun run build:cli
-./packages/cli/dist/dreamer-darwin-arm64 --version
+./packages/cli/dist/breadbox-darwin-arm64 --version
 ```
 
 ### From source (development)
@@ -35,7 +35,7 @@ bun cli run "add an LED on pin 13"
 ## First-time setup
 
 ```bash
-dreamer setup
+breadbox setup
 ```
 
 Prompts for:
@@ -50,25 +50,25 @@ Each step can also be done individually — see subcommands below.
 
 | Command | Description |
 |---|---|
-| `dreamer` | Interactive REPL (default) |
-| `dreamer run "<prompt>"` | One agent turn, exits when done |
-| `dreamer compile` | Compile the current project's sketch via `arduino-cli` |
-| `dreamer flash <port>` | Compile and flash to a serial port |
-| `dreamer ports` | List connected serial ports |
-| `dreamer board` | Print current board summary (components, wires, sketch size) |
-| `dreamer sketch` | Print current sketch code |
-| `dreamer projects` | List all projects |
-| `dreamer scenes` | List scenes in the current project |
-| `dreamer headed` | REPL + web UI served on port 28440 |
-| `dreamer watch [--port <port>]` | Auto-compile (and optionally flash) on sketch changes |
-| `dreamer setup` | Run all first-time setup steps |
-| `dreamer config [path\|list\|get\|set\|unset] ...` | Manage configuration |
-| `dreamer logs [-f] [<runId>]` | Tail the log file (optionally for a specific run) |
-| `dreamer crash [list\|view\|clear] ...` | Inspect crash reports |
-| `dreamer telemetry [enable\|disable\|status\|preview]` | Manage opt-in telemetry |
-| `dreamer upgrade [--check]` | Check for a new release and update in place |
-| `dreamer version` | Print CLI version |
-| `dreamer help` | Show usage |
+| `breadbox` | Interactive REPL (default) |
+| `breadbox run "<prompt>"` | One agent turn, exits when done |
+| `breadbox compile` | Compile the current project's sketch via `arduino-cli` |
+| `breadbox flash <port>` | Compile and flash to a serial port |
+| `breadbox ports` | List connected serial ports |
+| `breadbox board` | Print current board summary (components, wires, sketch size) |
+| `breadbox sketch` | Print current sketch code |
+| `breadbox projects` | List all projects |
+| `breadbox scenes` | List scenes in the current project |
+| `breadbox headed` | REPL + web UI served on port 28440 |
+| `breadbox watch [--port <port>]` | Auto-compile (and optionally flash) on sketch changes |
+| `breadbox setup` | Run all first-time setup steps |
+| `breadbox config [path\|list\|get\|set\|unset] ...` | Manage configuration |
+| `breadbox logs [-f] [<runId>]` | Tail the log file (optionally for a specific run) |
+| `breadbox crash [list\|view\|clear] ...` | Inspect crash reports |
+| `breadbox telemetry [enable\|disable\|status\|preview]` | Manage opt-in telemetry |
+| `breadbox upgrade [--check]` | Check for a new release and update in place |
+| `breadbox version` | Print CLI version |
+| `breadbox help` | Show usage |
 
 ### Global flags
 
@@ -82,7 +82,7 @@ Each step can also be done individually — see subcommands below.
 
 ### REPL slash commands
 
-Inside `dreamer` or `dreamer headed`, the prompt accepts natural-language messages for the agent and the following slash commands:
+Inside `breadbox` or `breadbox headed`, the prompt accepts natural-language messages for the agent and the following slash commands:
 
 ```
 /board                 Print current board state
@@ -118,11 +118,11 @@ Ctrl+C during agent streaming aborts the run (the background run is marked `fail
 Manage from the CLI:
 
 ```bash
-dreamer config set anthropic-key sk-ant-...
-dreamer config set updates-channel beta
-dreamer config get telemetry
-dreamer config list
-dreamer config path
+breadbox config set anthropic-key sk-ant-...
+breadbox config set updates-channel beta
+breadbox config get telemetry
+breadbox config list
+breadbox config path
 ```
 
 ### Environment variables
@@ -174,11 +174,11 @@ Chains `vite build` (packages/app) → asset manifest generator → five cross-c
 
 | Target | Binary | Size |
 |---|---|---|
-| macOS ARM64 | `dreamer-darwin-arm64` | ~64 MB |
-| macOS x64 | `dreamer-darwin-x64` | ~69 MB |
-| Linux ARM64 | `dreamer-linux-arm64` | ~100 MB |
-| Linux x64 | `dreamer-linux-x64` | ~100 MB |
-| Windows x64 | `dreamer-windows-x64.exe` | ~116 MB |
+| macOS ARM64 | `breadbox-darwin-arm64` | ~64 MB |
+| macOS x64 | `breadbox-darwin-x64` | ~69 MB |
+| Linux ARM64 | `breadbox-linux-arm64` | ~100 MB |
+| Linux x64 | `breadbox-linux-x64` | ~100 MB |
+| Windows x64 | `breadbox-windows-x64.exe` | ~116 MB |
 
 The binaries include the Bun runtime, all dependencies, and the production web UI bundle. No `node_modules`, no source tree, no external Node required.
 
@@ -209,19 +209,19 @@ After running `bun run build:webui` once, the generated manifest has `ASSET_COUN
 
 ## Notes for distribution
 
-- **macOS**: binaries are ad-hoc signed automatically by `bun build --compile`, which is enough to run. Browser-downloaded binaries carry the `com.apple.quarantine` xattr — clear with `xattr -d com.apple.quarantine dreamer` once per download. `curl`-installed binaries and Homebrew-installed ones bypass quarantine.
+- **macOS**: binaries are ad-hoc signed automatically by `bun build --compile`, which is enough to run. Browser-downloaded binaries carry the `com.apple.quarantine` xattr — clear with `xattr -d com.apple.quarantine breadbox` once per download. `curl`-installed binaries and Homebrew-installed ones bypass quarantine.
 - **Windows**: unsigned `.exe` triggers SmartScreen's "unknown publisher" warning. Users click "More info → Run anyway" once.
 - **Linux**: no signing required.
 - **Serial monitor** in compiled binaries uses `arduino-cli monitor`, not the `serialport` npm package — no Node subprocess, no native addons. Live on-board telemetry works; the UI's Serial Monitor panel streams directly.
 
 ## Troubleshooting
 
-**`arduino-cli not found`**: run `dreamer setup`, or install manually from <https://arduino.github.io/arduino-cli/>. If installed to a non-standard path, set `DREAMER_ARDUINO_CLI=/path/to/arduino-cli`.
+**`arduino-cli not found`**: run `breadbox setup`, or install manually from <https://arduino.github.io/arduino-cli/>. If installed to a non-standard path, set `DREAMER_ARDUINO_CLI=/path/to/arduino-cli`.
 
-**`ANTHROPIC_API_KEY is not set`**: `dreamer config set anthropic-key sk-ant-...` or export the env var.
+**`ANTHROPIC_API_KEY is not set`**: `breadbox config set anthropic-key sk-ant-...` or export the env var.
 
 **REPL appears to exit immediately**: you're piping stdin to the binary (e.g. from a background shell). The REPL needs a TTY to stay alive. Run it in a real terminal.
 
-**`EADDRINUSE` on 28441 or 28440**: a previous `dreamer headed` didn't shut down cleanly. Kill stragglers: `lsof -iTCP:28440 -iTCP:28441 -sTCP:LISTEN -t | xargs kill`.
+**`EADDRINUSE` on 28441 or 28440**: a previous `breadbox headed` didn't shut down cleanly. Kill stragglers: `lsof -iTCP:28440 -iTCP:28441 -sTCP:LISTEN -t | xargs kill`.
 
 **Web UI shows old content**: Vite's `define` substitutions are baked at build time. Run `bun run build:webui` before `bun build --compile` to pick up latest web changes. Hard-refresh (Cmd+Shift+R) in the browser to clear the cache.

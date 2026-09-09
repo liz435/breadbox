@@ -35,7 +35,8 @@ finish, a draft release `Breadbox v0.2.0` will exist under **Releases** with:
 - macOS: `.dmg` + `.app.tar.gz` (Apple Silicon and Intel)
 - Windows: `.msi` and/or NSIS `.exe`
 
-Review the artifacts, edit the notes, and click **Publish release**.
+Use the current release entry in [`CHANGELOG.md`](./CHANGELOG.md) as the starting body for the
+draft release. Review the artifacts, edit the notes, and click **Publish release**.
 
 > You can also trigger a build manually from **Actions → Release (desktop) →
 > Run workflow** and pass a tag — useful for dry runs.
@@ -53,7 +54,7 @@ Add these under **Settings → Secrets and variables → Actions**.
 
 The matching **public** key is committed in `tauri.conf.json`
 (`plugins.updater.pubkey`); installed apps use it to verify that an update was
-signed by the holder of this private key. See the one-time setup below.
+signed by the holder of the private key. See the one-time setup below.
 
 #### One-time updater signing key
 

@@ -7,17 +7,17 @@ existing Breadbox web UI inside it — no browser tab.
 ## How it works
 
 The desktop app is a thin native shell around the work that already happens in
-the [`dreamer` CLI binary](../cli):
+the [`breadbox` CLI binary](../cli):
 
 ```
-┌──────────────────────── Dreamer.app (Tauri) ────────────────────────┐
+┌──────────────────────── Breadbox.app (Tauri) ────────────────────────┐
 │  native window (OS webview)                                          │
 │      │                                                               │
-│      │ 1. on launch, spawn the bundled `dreamer` binary as a sidecar │
+│      │ 1. on launch, spawn the bundled `breadbox` binary as a sidecar │
 │      ▼                                                               │
-│   dreamer serve   ──►  Elysia API   on 127.0.0.1 (prefers :28441)    │
+│   breadbox serve   ──►  Elysia API   on 127.0.0.1 (prefers :28441)    │
 │   (no REPL,            embedded web UI on 127.0.0.1 (prefers :28440) │
-│    no browser)         → prints `DREAMER_URL <url>` when ready        │
+│    no browser)         → prints `BREADBOX_URL <url>` when ready        │
 │      │                                                               │
 │      │ 2. read the marker from stdout, navigate the window to <url>  │
 │      ▼                                                               │
@@ -32,19 +32,19 @@ the [`dreamer` CLI binary](../cli):
   web UI bundle.
 - It runs in `serve` mode (added for the desktop shell): API + web UI only, **no
   REPL** (a REPL on the sidecar's non-TTY stdin would exit and kill the server)
-  and **no auto-opened browser** (`DREAMER_NO_OPEN=1`).
+  and **no auto-opened browser** (`BREADBOX_NO_OPEN=1`).
 - Ports aren't fixed: the sidecar prefers `28440` (UI) and `28441` (API) but
   falls back to OS-assigned free ports if those are taken, so it never
-  collides with another process (a running `dreamer headed`, `bun run dev`,
-  etc.). It then prints `DREAMER_URL <url>` on stdout.
+  collides with another process (a running `breadbox headed`, `bun run dev`,
+  etc.). It then prints `BREADBOX_URL <url>` on stdout.
 - While the server boots, the window shows `splash/index.html`. The Rust shell
-  reads the `DREAMER_URL` marker from the sidecar's stdout and navigates the
+  reads the `BREADBOX_URL` marker from the sidecar's stdout and navigates the
   window to it (`src-tauri/src/lib.rs`).
 - A single-instance guard (`tauri-plugin-single-instance`) means launching a
   second copy just focuses the existing window instead of starting a second
   server.
 - It's single-tenant CLI mode — no sign-in. Your Anthropic API key comes from
-  `~/.dreamer/config.json` (run `dreamer setup` or `dreamer config set
+  `~/.dreamer/config.json` (run `breadbox setup` or `breadbox config set
   anthropic-key sk-ant-...`), shared with the CLI.
 
 ## Prerequisites
@@ -71,8 +71,8 @@ bun run dev:desktop          # from the repo root
 ```
 
 `tauri dev`'s `beforeDevCommand` runs `prepare:sidecar`, which (re)builds the
-web UI bundle and the host `dreamer` binary and copies it to
-`src-tauri/binaries/dreamer-<target-triple>`. The first run is slow (it compiles
+web UI bundle and the host `breadbox` binary and copies it to
+`src-tauri/binaries/breadbox-<target-triple>`. The first run is slow (it compiles
 the binary and the Rust shell); later runs reuse the existing sidecar — pass
 `--force` (or run `bun run --cwd packages/desktop prepare:sidecar --force`) after
 changing the app/api/cli to refresh it.
@@ -88,8 +88,8 @@ OS. Output lands in `packages/desktop/src-tauri/target/release/bundle/`:
 
 | Platform | Artifacts |
 |---|---|
-| macOS | `Dreamer.app`, `Dreamer_0.1.0_aarch64.dmg` |
-| Windows | `Dreamer_0.1.0_x64-setup.exe` (NSIS), `.msi` |
+| macOS | `Breadbox.app`, `Breadbox_0.1.0_aarch64.dmg` |
+| Windows | `Breadbox_0.1.0_x64-setup.exe` (NSIS), `.msi` |
 | Linux | `.AppImage`, `.deb` |
 
 Each installer is for the host architecture only. Cross-compiling Tauri apps is
@@ -125,7 +125,7 @@ self-installs signed updates. It requires a one-time updater signing key — see
 
 - **Ports prefer 28440/28441 but aren't fixed.** If those are taken the sidecar
   falls back to OS-assigned free ports and reports the actual URL via the
-  `DREAMER_URL` marker, so there's no collision to manage. Set `APP_PORT` /
+  `BREADBOX_URL` marker, so there's no collision to manage. Set `APP_PORT` /
   `API_PORT` to change the preferences.
 - The Rust shell in `src-tauri/` was scaffolded without a local Rust toolchain
   to compile-check it. If `cargo`/`tauri` reports an error on first build, it's

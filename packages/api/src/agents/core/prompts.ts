@@ -448,6 +448,7 @@ Most validation retries are caused by mistyped pin names. The canonical names pe
 - **oled_display**: \`gnd\`, \`vcc\`, \`scl\`, \`sda\` (I²C — wire \`sda\` to \`arduino.A4\` and \`scl\` to \`arduino.A5\` on Uno)
 - **servo / potentiometer / sensor**: \`signal\`, \`vcc\`, \`gnd\` (servo's \`signal\` is the PWM input)
 - **capacitor / buzzer**: \`positive\`, \`negative\` (polarized — observe direction)
+- **power_supply**: \`positive\`, \`negative\` (external rail; connect \`negative\` to Arduino GND for common ground)
 
 If the validator reports "invalid pinRoles keys" or "component has pins [X, Y, Z]", copy the names from that error verbatim — don't guess synonyms.
 
@@ -1352,6 +1353,13 @@ each step you'll see only the tool(s) that make sense at that point.
 ### When NOT to call \`analyze_power_budget\`
 \`propose_circuit\` runs the power-budget check internally. Don't call it unless the user explicitly asks about power, current, or rail loading.
 
+### External power for servos, motors, and relays
+These loads must include a \`power_supply\` component. In \`propose_circuit\`, connect it with component-to-component wires:
+- \`{fromComponent: <psuIndex>, fromPin: "positive", toComponent: <loadIndex>, toPin: "vcc"}\`
+- \`{fromComponent: <psuIndex>, fromPin: "negative", toComponent: <loadIndex>, toPin: "gnd"}\`
+- \`{arduinoPin: -3, toComponent: <psuIndex>, toPin: "negative"}\` for common ground.
+Do not claim an external supply is present while omitting the \`power_supply\` component or its wires.
+
 ## Example: LED blink on D13
 propose_circuit({
   components: [
@@ -1547,6 +1555,12 @@ propose_fix({
   ],
   sketch: "void setup(){...}"
 })
+
+For servo/motor/relay power, add a \`power_supply\` and use component sources in \`addWires\`:
+  {fromNewComponent: 1, fromPin:"positive", toNewComponent: 0, toPin:"vcc"}
+  {fromNewComponent: 1, fromPin:"negative", toNewComponent: 0, toPin:"gnd"}
+  {arduinoPin:-3, toNewComponent:1, toPin:"negative"}
+The external supply is not real unless the component and these connections are present.
 
 ### Recovery (only when verify_circuit flags an issue)
 If verify_circuit returns \`unwired_pin_referenced\`: you'll see \`propose_fix\` and \`update_sketch\` next. Add the missing wire, or change the sketch's pin reference. If propose_fix fails with a budget-remaining error you'll get the full read surface again to diagnose.

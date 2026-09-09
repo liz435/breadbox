@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { BoardOp } from "@dreamer/schemas";
-import { isBoardComponentType } from "@dreamer/schemas";
+import { BREADBOARD_FULL_ROWS, isBoardComponentType } from "@dreamer/schemas";
 import { makeBoardOp } from "../../make-op";
 import { analyzePowerBudget } from "../../../electrical/power-budget-analyzer";
 import { analyzeRoutingPolicy } from "../../../electrical/routing-policy";
@@ -18,6 +18,12 @@ import {
   isSignalRole,
   resolveComponentPinTarget,
 } from "./shared";
+import {
+  AUTO_LAYOUT_ROW_GAP,
+  advanceAutoLayoutRow,
+  componentLayoutHeight,
+  findAutoLayoutRow,
+} from "./auto-layout";
 
 const MAX_PROPOSE_FIX_ATTEMPTS = 5;
 // v1.5.1: code-enforced cap mirroring the prompt's "max 3 attempts/turn"
@@ -50,6 +56,8 @@ Components: list type + name + properties. They'll be auto-positioned on the bre
   - Each component MUST include pinRoles for every logical pin it exposes.
 Wires: reference components by their INDEX in the components array (0, 1, 2...).
   - Every wire MUST specify a logical target pin via "toPin" (e.g. anode/cathode, a/b, signal/vcc/gnd).
+  - Normal wires start at "arduinoPin". Component-to-component wires use "fromComponent" + "fromPin" instead.
+  - For an external supply, use power_supply positive/negative as the source and connect its negative to Arduino GND for common ground.
   - For LED circuits: pair each LED with a resistor — the tool wires LED→resistor→GND correctly.
 Sketch: provide full Arduino sketch code.
 
@@ -69,7 +77,9 @@ Example — LED blink:
         })).describe("Components to place. Referenced by array index in wires."),
 
         wires: z.array(z.object({
-          arduinoPin: z.number().describe("Arduino pin number (D0-D13=0-13, A0-A5=14-19, 5V=-1, GND=-3)"),
+          arduinoPin: z.number().optional().describe("Arduino pin number (D0-D13=0-13, A0-A5=14-19, 5V=-1, GND=-3). Mutually exclusive with fromComponent."),
+          fromComponent: z.number().int().min(0).optional().describe("Optional source component index for component-to-component wiring. Use with fromPin instead of arduinoPin."),
+          fromPin: z.string().optional().describe("Source component pin, e.g. positive/negative on power_supply or vcc/gnd on a load."),
           toComponent: z.number().int().min(0).describe("Index into components array"),
           toPin: z.string().describe("Logical target pin on that component (required)."),
           color: z.string().optional(),
@@ -205,6 +215,42 @@ Example — LED blink:
         // Validate indices
         const usedTargetPins = new Set<string>();
         for (const wire of input.wires) {
+          const hasArduinoSource = wire.arduinoPin !== undefined;
+          const hasComponentSource = wire.fromComponent !== undefined || wire.fromPin !== undefined;
+          if (hasArduinoSource === hasComponentSource) {
+            errors.push(
+              "Each wire must use exactly one source: arduinoPin, or fromComponent together with fromPin.",
+            );
+            continue;
+          }
+          if (wire.fromComponent !== undefined && wire.fromPin === undefined) {
+            errors.push(`Wire from component ${wire.fromComponent} is missing fromPin.`);
+            continue;
+          }
+          if (wire.fromPin !== undefined && wire.fromComponent === undefined) {
+            errors.push("Wire with fromPin is missing fromComponent.");
+            continue;
+          }
+          if (wire.fromComponent !== undefined) {
+            if (wire.fromComponent >= input.components.length) {
+              errors.push(`Wire references source component index ${wire.fromComponent} but only ${input.components.length} components defined.`);
+              continue;
+            }
+            if (wire.fromComponent === wire.toComponent) {
+              errors.push(`Wire source and target both reference component ${wire.toComponent}; use two different components.`);
+              continue;
+            }
+            const sourceType = input.components[wire.fromComponent]?.type;
+            const sourcePins = getComponentPinNames(sourceType);
+            if (!sourcePins.includes(wire.fromPin!)) {
+              errors.push(`Invalid fromPin "${wire.fromPin}" for component ${wire.fromComponent} (${sourceType}). Allowed: ${sourcePins.join(", ")}`);
+              continue;
+            }
+            if (wire.throughComponent !== undefined) {
+              errors.push("throughComponent series routing currently requires arduinoPin as the source.");
+              continue;
+            }
+          }
           if (wire.toComponent >= input.components.length) {
             errors.push(`Wire references component index ${wire.toComponent} but only ${input.components.length} components defined.`);
             continue;
@@ -228,16 +274,16 @@ Example — LED blink:
             errors.push(`Wire target ${wire.toComponent}.${wire.toPin} is missing pinRoles metadata.`);
             continue;
           }
-          if (targetRole === "reference_ground" && !isGroundPin(wire.arduinoPin)) {
+          if (targetRole === "reference_ground" && hasArduinoSource && !isGroundPin(wire.arduinoPin!)) {
             errors.push(`Wire to ${wire.toComponent}.${wire.toPin} expects ground reference but got pin ${wire.arduinoPin}.`);
           }
-          if (targetRole === "reference_power" && !isPowerPin(wire.arduinoPin)) {
+          if (targetRole === "reference_power" && hasArduinoSource && !isPowerPin(wire.arduinoPin!)) {
             errors.push(`Wire to ${wire.toComponent}.${wire.toPin} expects power reference but got pin ${wire.arduinoPin}.`);
           }
-          if (targetRole === "ground_or_supply" && !isGroundPin(wire.arduinoPin) && !isPowerPin(wire.arduinoPin)) {
+          if (targetRole === "ground_or_supply" && hasArduinoSource && !isGroundPin(wire.arduinoPin!) && !isPowerPin(wire.arduinoPin!)) {
             errors.push(`Wire to ${wire.toComponent}.${wire.toPin} expects ground/power reference but got signal pin ${wire.arduinoPin}.`);
           }
-          if (isSignalRole(targetRole) && !isSignalPin(wire.arduinoPin)) {
+          if (isSignalRole(targetRole) && hasArduinoSource && !isSignalPin(wire.arduinoPin!)) {
             errors.push(`Wire to ${wire.toComponent}.${wire.toPin} expects signal pin but got reference pin ${wire.arduinoPin}.`);
           }
           const pinKey = `${wire.toComponent}:${wire.toPin}`;
@@ -284,8 +330,6 @@ Example — LED blink:
         // validation. This avoids burning tokens on a valid sketch
         // for a circuit that won't fit on the board.
         {
-          const MAX_BOARD_ROW = 27;
-          const ROW_GAP = 2;
           let estimatedNextRow = 0;
           for (const c of Object.values(workingBoard.components)) {
             if (c.type !== "arduino_uno") estimatedNextRow = Math.max(estimatedNextRow, c.y + 4);
@@ -300,14 +344,14 @@ Example — LED blink:
           for (let i = 0; i < input.components.length; i++) {
             if (seriesIntermediateIndices.has(i)) continue;
             const comp = input.components[i];
-            estimatedNextRow += componentHeight(comp.type) + ROW_GAP;
+            estimatedNextRow += componentLayoutHeight(comp.type) + AUTO_LAYOUT_ROW_GAP;
           }
-          if (estimatedNextRow > MAX_BOARD_ROW + 5) {
+          if (estimatedNextRow > BREADBOARD_FULL_ROWS) {
             return {
               success: false,
               failureKind: "layout_overflow",
               errors: [
-                `Too many components (${input.components.length}) — estimated ${estimatedNextRow} rows needed, but the board only has 30 rows.`,
+                `Too many components (${input.components.length}) — estimated ${estimatedNextRow} rows needed, but the board only has ${BREADBOARD_FULL_ROWS} rows.`,
               ],
               hint: "Reduce the component count. For 7-segment displays, skip individual series resistors — the display's built-in forward voltage drop is usually safe at 5V with the simulator's virtual LEDs.",
             };
@@ -364,16 +408,10 @@ Example — LED blink:
         }
 
         // Component height in rows
-        const ROW_GAP = 2;
+        const ROW_GAP = AUTO_LAYOUT_ROW_GAP;
 
         function componentHeight(type: string): number {
-          if (type === "led" || type === "rgb_led") return 2;
-          if (type === "servo" || type === "potentiometer" || type === "temperature_sensor" || type === "capacitor") return 3;
-          if (type === "button") return 2;
-          if (type === "resistor") return 1;
-          if (type === "seven_segment") return 9;
-          if (type === "lcd_16x2") return 12;
-          return 1;
+          return componentLayoutHeight(type);
         }
 
         // Default column for component types.
@@ -383,6 +421,7 @@ Example — LED blink:
         function componentCol(type: string): number {
           if (type === "button") return 3; // straddles gap at cols 3/6
           if (type === "resistor") return 3; // straddles gap at cols 3/6
+          if (type === "power_supply") return 8; // MB102 anchor used by its rail terminals
           if (type === "seven_segment" || type === "lcd_16x2") return 5; // right strip — avoids overlap with resistors
           return 2; // left strip
         }
@@ -441,14 +480,37 @@ Example — LED blink:
           return false;
         }
 
-        for (let i = 0; i < input.components.length; i++) {
+        // Board-wide power modules have a calibrated body that extends across
+        // the rail anchor. Place them before a calibrated servo so the servo
+        // can be put on the safe side of the PSU instead of forcing the PSU
+        // to the tail and still intersecting the servo body.
+        const componentPlacementOrder = input.components
+          .map((_, index) => index)
+          .sort((a, b) => {
+            const aPower = input.components[a]?.type === "power_supply";
+            const bPower = input.components[b]?.type === "power_supply";
+            return Number(bPower) - Number(aPower) || a - b;
+          });
+
+        for (const i of componentPlacementOrder) {
           const comp = input.components[i];
 
           // Skip components that will be positioned alongside their target
           if (pairedResistors.has(i) || seriesIntermediates.has(i)) continue;
 
           const col = componentCol(comp.type);
-          const row = nextRow;
+          const row = findAutoLayoutRow(
+            comp.type,
+            nextRow,
+            [
+              ...Object.values(tempBoard.components)
+                .filter((c) => c.type !== "arduino_uno")
+                .map((c) => ({ type: c.type, row: c.y, col: c.x })),
+              ...placedComponents
+                .filter((placed): placed is NonNullable<typeof placed> => placed != null)
+                .map((placed) => ({ type: placed.type, row: placed.row, col: placed.col })),
+            ],
+          ) ?? nextRow;
           const id = crypto.randomUUID();
 
           placedComponents[i] = { id, type: comp.type, name: comp.name, row, col };
@@ -463,7 +525,7 @@ Example — LED blink:
               placedComponents[pair.resistorIndex] = {
                 id: resId, type: "resistor", name: resComp.name, row: cathodeRow, col: 3,
               };
-              nextRow = cathodeRow + 2;
+              nextRow = cathodeRow + ROW_GAP;
             }
           } else {
             nextRow = row + componentHeight(comp.type) + ROW_GAP;
@@ -516,7 +578,7 @@ Example — LED blink:
                 row: nextRow,
                 col,
               };
-              nextRow += componentHeight(comp.type) + ROW_GAP;
+              nextRow = advanceAutoLayoutRow(comp.type, nextRow);
             }
           } else {
             // Fallback: place sequentially
@@ -528,7 +590,7 @@ Example — LED blink:
               row: nextRow,
               col,
             };
-            nextRow += componentHeight(comp.type) + ROW_GAP;
+            nextRow = advanceAutoLayoutRow(comp.type, nextRow);
           }
         }
 
@@ -538,14 +600,26 @@ Example — LED blink:
           const comp = input.components[i];
           const col = componentCol(comp.type);
           const id = crypto.randomUUID();
-          placedComponents[i] = { id, type: comp.type, name: comp.name, row: nextRow, col };
-          nextRow += componentHeight(comp.type) + ROW_GAP;
+          const row = findAutoLayoutRow(
+            comp.type,
+            nextRow,
+            [
+              ...Object.values(tempBoard.components)
+                .filter((c) => c.type !== "arduino_uno")
+                .map((c) => ({ type: c.type, row: c.y, col: c.x })),
+              ...placedComponents
+                .filter((placed): placed is NonNullable<typeof placed> => placed != null)
+                .map((placed) => ({ type: placed.type, row: placed.row, col: placed.col })),
+            ],
+          ) ?? nextRow;
+          placedComponents[i] = { id, type: comp.type, name: comp.name, row, col };
+          nextRow = advanceAutoLayoutRow(comp.type, row);
         }
 
         // Validate all positions are on board
         for (const pc of placedComponents) {
-          if (pc.row > 27) {
-            errors.push(`Component "${pc.name}" would be placed at row ${pc.row}, which is near the board edge. Board has 30 rows.`);
+          if (pc.row < 0 || pc.row + componentLayoutHeight(pc.type) > BREADBOARD_FULL_ROWS) {
+            errors.push(`Component "${pc.name}" would be placed at row ${pc.row}, outside the ${BREADBOARD_FULL_ROWS}-row board.`);
           }
         }
         if (errors.length > 0) return { success: false, errors, hint: "Too many components for the board. Try reducing the circuit." };
@@ -594,6 +668,46 @@ Example — LED blink:
 
         for (const wire of input.wires) {
           const color = wire.color ?? "#22c55e";
+
+          // Component-to-component wiring is used for external supplies and
+          // other explicit interconnects. It bypasses the Arduino fanout map
+          // because neither endpoint is an Arduino pseudo-pin.
+          if (wire.fromComponent !== undefined) {
+            const source = placedComponents[wire.fromComponent];
+            const target = placedComponents[wire.toComponent];
+            const from = source
+              ? resolveComponentPinTarget(
+                  { type: source.type, x: source.col, y: source.row },
+                  wire.fromPin!,
+                )
+              : null;
+            const to = target
+              ? resolveComponentPinTarget(
+                  { type: target.type, x: target.col, y: target.row },
+                  wire.toPin,
+                )
+              : null;
+            if (!from || !to) {
+              errors.push(`Unable to resolve component wire ${wire.fromComponent}.${wire.fromPin} → ${wire.toComponent}.${wire.toPin}`);
+              continue;
+            }
+            seriesJumperOps.push(makeBoardOp(opCtx, {
+              kind: "connect_wire",
+              payload: {
+                wire: {
+                  id: crypto.randomUUID(),
+                  fromRow: from.row,
+                  fromCol: from.col,
+                  toRow: to.row,
+                  toCol: to.col,
+                  color,
+                },
+              },
+            }));
+            continue;
+          }
+
+          const arduinoPin = wire.arduinoPin!;
 
           if (wire.throughComponent !== undefined && wire.throughEntryPin && wire.throughExitPin) {
             // Series routing: Arduino → throughComponent.entryPin
@@ -664,8 +778,8 @@ Example — LED blink:
             }
 
             // Wire Arduino pin to the intermediate's entry pin (post-swap).
-            if (!wiresByPin.has(wire.arduinoPin)) wiresByPin.set(wire.arduinoPin, []);
-            wiresByPin.get(wire.arduinoPin)!.push({ target: entryPoint, color });
+            if (!wiresByPin.has(arduinoPin)) wiresByPin.set(arduinoPin, []);
+            wiresByPin.get(arduinoPin)!.push({ target: entryPoint, color });
 
             // If exit and target share a bus, the breadboard does the
             // jumper for us. Otherwise emit an explicit wire.
@@ -695,8 +809,8 @@ Example — LED blink:
               errors.push(`Unable to resolve target for component ${wire.toComponent}.${wire.toPin}`);
               continue;
             }
-            if (!wiresByPin.has(wire.arduinoPin)) wiresByPin.set(wire.arduinoPin, []);
-            wiresByPin.get(wire.arduinoPin)!.push({ target: to, color });
+            if (!wiresByPin.has(arduinoPin)) wiresByPin.set(arduinoPin, []);
+            wiresByPin.get(arduinoPin)!.push({ target: to, color });
           }
         }
 
@@ -720,8 +834,12 @@ Example — LED blink:
         if (errors.length > 0) return { success: false, failureKind: "validation", errors };
 
         function railColForPin(pin: number): number {
-          if (pin === -3 || pin === -4 || pin === -6) return -1;
-          if (pin === -1) return -2;
+          // Rail columns follow the physical silkscreen: -2/10 are negative
+          // rails, -1/11 are positive rails. Keep the Arduino GND lead on a
+          // negative rail; the old mapping inverted the left pair and could
+          // make a PSU power net look like an unconnected signal in schematic.
+          if (pin === -3 || pin === -4 || pin === -6) return -2;
+          if (pin === -1) return -1;
           if (pin === -2) return 11;
           return -1;
         }
@@ -937,7 +1055,7 @@ Operations:
   - removeComponents: component IDs to delete (also removes connected wires)
   - addComponents: new components to place (auto-positioned, referenced by index in addWires)
   - moveComponents: relocate existing components by ID
-  - addWires: new wires — can target existing components (by ID) or new ones (by addComponents index)
+  - addWires: new wires — can target existing components (by ID) or new ones (by addComponents index). Use arduinoPin for Arduino sources, or fromExistingComponent/fromNewComponent + fromPin for component-to-component wiring (including power_supply rails).
   - sketch: full replacement Arduino sketch code (optional)
 
 Max ${MAX_PROPOSE_FIX_ATTEMPTS} attempts per run. Each failed call counts toward the limit.
@@ -973,7 +1091,13 @@ Example — rewire an existing component:
         })).optional()
           .describe("Move existing components to new positions"),
         addWires: z.array(z.object({
-          arduinoPin: z.number().describe("Arduino pin (D0-D13=0-13, A0-A5=14-19, 5V=-1, GND=-3)"),
+          arduinoPin: z.number().optional().describe("Arduino pin (D0-D13=0-13, A0-A5=14-19, 5V=-1, GND=-3). Mutually exclusive with a component source."),
+          fromExistingComponent: z.string().optional()
+            .describe("ID of an existing source component for component-to-component wiring"),
+          fromNewComponent: z.number().int().min(0).optional()
+            .describe("Index into addComponents for a new source component"),
+          fromPin: z.string().optional()
+            .describe("Source component pin, e.g. power_supply positive/negative"),
           toExistingComponent: z.string().optional()
             .describe("ID of an existing component on the board"),
           toNewComponent: z.number().int().min(0).optional()
@@ -1029,7 +1153,10 @@ Example — rewire an existing component:
             y: z.number().int().min(0).max(29),
           })).optional(),
           addWires: z.array(z.object({
-            arduinoPin: z.number(),
+            arduinoPin: z.number().optional(),
+            fromExistingComponent: z.string().optional(),
+            fromNewComponent: z.number().int().min(0).optional(),
+            fromPin: z.string().optional(),
             toExistingComponent: z.string().optional(),
             toNewComponent: z.number().int().min(0).optional(),
             toPin: z.string(),
@@ -1200,19 +1327,14 @@ Example — rewire an existing component:
           if (c.type !== "arduino_uno") nextRow = Math.max(nextRow, c.y + 4);
         }
 
-        const ROW_GAP = 2;
+        const ROW_GAP = AUTO_LAYOUT_ROW_GAP;
         function componentHeight(type: string): number {
-          if (type === "led" || type === "rgb_led") return 2;
-          if (type === "servo" || type === "potentiometer" || type === "temperature_sensor" || type === "capacitor") return 3;
-          if (type === "button") return 2;
-          if (type === "resistor") return 1;
-          if (type === "seven_segment") return 9;
-          if (type === "lcd_16x2") return 12;
-          return 1;
+          return componentLayoutHeight(type);
         }
         function componentCol(type: string): number {
           if (type === "button") return 3;
           if (type === "resistor") return 3;
+          if (type === "power_supply") return 8;
           if (type === "seven_segment" || type === "lcd_16x2") return 5;
           return 2;
         }
@@ -1242,11 +1364,30 @@ Example — rewire an existing component:
         const seriesIntermediates = new Set(seriesMap.keys());
 
         // Place non-series, non-paired components
-        for (let i = 0; i < addedComponents.length; i++) {
+        const addedPlacementOrder = addedComponents
+          .map((_, index) => index)
+          .sort((a, b) => {
+            const aPower = addedComponents[a]?.type === "power_supply";
+            const bPower = addedComponents[b]?.type === "power_supply";
+            return Number(bPower) - Number(aPower) || a - b;
+          });
+
+        for (const i of addedPlacementOrder) {
           if (pairedResistors.has(i) || seriesIntermediates.has(i)) continue;
           const comp = addedComponents[i]!;
           const col = componentCol(comp.type);
-          const row = nextRow;
+          const row = findAutoLayoutRow(
+            comp.type,
+            nextRow,
+            [
+              ...Object.values(workingBoard.components)
+                .filter((c) => c.type !== "arduino_uno")
+                .map((c) => ({ type: c.type, row: c.y, col: c.x })),
+              ...placedNew
+                .filter((placed): placed is NonNullable<typeof placed> => placed != null)
+                .map((placed) => ({ type: placed.type, row: placed.row, col: placed.col })),
+            ],
+          ) ?? nextRow;
           const id = crypto.randomUUID();
           placedNew[i] = { id, type: comp.type, name: comp.name, row, col };
 
@@ -1257,7 +1398,7 @@ Example — rewire an existing component:
               const cathodeRow = row + 1;
               const resId = crypto.randomUUID();
               placedNew[pair.resistorIndex] = { id: resId, type: "resistor", name: resComp.name, row: cathodeRow, col: 3 };
-              nextRow = cathodeRow + 2;
+              nextRow = cathodeRow + ROW_GAP;
             }
           } else {
             nextRow = row + componentHeight(comp.type) + ROW_GAP;
@@ -1280,7 +1421,7 @@ Example — rewire an existing component:
           } else {
             const col = componentCol(comp.type);
             placedNew[intermediateIdx] = { id: crypto.randomUUID(), type: comp.type, name: comp.name, row: nextRow, col };
-            nextRow += componentHeight(comp.type) + ROW_GAP;
+            nextRow = advanceAutoLayoutRow(comp.type, nextRow);
           }
         }
 
@@ -1289,14 +1430,26 @@ Example — rewire an existing component:
           if (placedNew[i]) continue;
           const comp = addedComponents[i]!;
           const col = componentCol(comp.type);
-          placedNew[i] = { id: crypto.randomUUID(), type: comp.type, name: comp.name, row: nextRow, col };
-          nextRow += componentHeight(comp.type) + ROW_GAP;
+          const row = findAutoLayoutRow(
+            comp.type,
+            nextRow,
+            [
+              ...Object.values(workingBoard.components)
+                .filter((c) => c.type !== "arduino_uno")
+                .map((c) => ({ type: c.type, row: c.y, col: c.x })),
+              ...placedNew
+                .filter((placed): placed is NonNullable<typeof placed> => placed != null)
+                .map((placed) => ({ type: placed.type, row: placed.row, col: placed.col })),
+            ],
+          ) ?? nextRow;
+          placedNew[i] = { id: crypto.randomUUID(), type: comp.type, name: comp.name, row, col };
+          nextRow = advanceAutoLayoutRow(comp.type, row);
         }
 
         // Validate positions
         for (const pc of placedNew) {
-          if (pc && pc.row > 27) {
-            errors.push(`Component "${pc.name}" would be at row ${pc.row}, near board edge.`);
+          if (pc && (pc.row < 0 || pc.row + componentLayoutHeight(pc.type) > BREADBOARD_FULL_ROWS)) {
+            errors.push(`Component "${pc.name}" would be at row ${pc.row}, outside the ${BREADBOARD_FULL_ROWS}-row board.`);
           }
         }
         if (errors.length > 0) {
@@ -1379,6 +1532,59 @@ Example — rewire an existing component:
             continue;
           }
 
+          // Resolve the source. Existing callers use arduinoPin; the
+          // component source form enables explicit PSU-to-load wiring.
+          const hasArduinoSource = wire.arduinoPin !== undefined;
+          const sourceRefs = [
+            wire.fromExistingComponent !== undefined,
+            wire.fromNewComponent !== undefined,
+          ].filter(Boolean).length;
+          if (
+            (hasArduinoSource && (sourceRefs > 0 || wire.fromPin !== undefined)) ||
+            (!hasArduinoSource && sourceRefs !== 1)
+          ) {
+            errors.push("Each addWires entry must use exactly one source: arduinoPin, or one component source plus fromPin.");
+            continue;
+          }
+
+          let sourceComp: { type: string; x: number; y: number } | undefined;
+          if (wire.fromExistingComponent !== undefined) {
+            const existing = workingBoard.components[wire.fromExistingComponent];
+            if (!existing) {
+              const hint = formatSuggestion(wire.fromExistingComponent, componentCandidates);
+              errors.push(`Wire source component ${wire.fromExistingComponent} not found.${hint}`);
+              continue;
+            }
+            sourceComp = existing;
+          } else if (wire.fromNewComponent !== undefined) {
+            const placed = placedNew[wire.fromNewComponent];
+            if (!placed) {
+              errors.push(`Wire source references addComponents[${wire.fromNewComponent}] which doesn't exist.`);
+              continue;
+            }
+            sourceComp = { type: placed.type, x: placed.col, y: placed.row };
+          }
+
+          if (sourceComp && !wire.fromPin) {
+            errors.push("Component-to-component wires must specify fromPin.");
+            continue;
+          }
+          if (sourceComp) {
+            const sourcePins = getComponentPinNames(sourceComp.type);
+            if (!sourcePins.includes(wire.fromPin!)) {
+              errors.push(`Invalid fromPin "${wire.fromPin}" for ${sourceComp.type}. Allowed: ${sourcePins.join(", ")}`);
+              continue;
+            }
+            if (wire.fromExistingComponent === wire.toExistingComponent && wire.fromExistingComponent !== undefined) {
+              errors.push("Wire source and target must be different components.");
+              continue;
+            }
+            if (wire.fromNewComponent === wire.toNewComponent && wire.fromNewComponent !== undefined) {
+              errors.push("Wire source and target must be different components.");
+              continue;
+            }
+          }
+
           // Resolve through-component for series routing
           let throughComp: { type: string; x: number; y: number } | undefined;
           if (wire.throughExistingComponent) {
@@ -1399,14 +1605,18 @@ Example — rewire an existing component:
           }
 
           if (throughComp && wire.throughEntryPin && wire.throughExitPin) {
+            if (sourceComp) {
+              errors.push("throughExistingComponent/throughNewComponent series routing requires arduinoPin as the source.");
+              continue;
+            }
             // Series routing: Arduino → through.entryPin, then through.exitPin → target.toPin
             const entryPoint = resolveComponentPinTarget(throughComp, wire.throughEntryPin);
             if (!entryPoint) {
               errors.push(`Cannot resolve through-component pin ${wire.throughEntryPin}.`);
               continue;
             }
-            if (!wiresByPin.has(wire.arduinoPin)) wiresByPin.set(wire.arduinoPin, []);
-            wiresByPin.get(wire.arduinoPin)!.push({ target: entryPoint, color });
+            if (!wiresByPin.has(wire.arduinoPin!)) wiresByPin.set(wire.arduinoPin!, []);
+            wiresByPin.get(wire.arduinoPin!)!.push({ target: entryPoint, color });
 
             const exitPoint = resolveComponentPinTarget(throughComp, wire.throughExitPin);
             const finalPoint = resolveComponentPinTarget(targetComp, wire.toPin);
@@ -1439,8 +1649,29 @@ Example — rewire an existing component:
               errors.push(`Cannot resolve target pin ${targetComp.type}.${wire.toPin}.`);
               continue;
             }
-            if (!wiresByPin.has(wire.arduinoPin)) wiresByPin.set(wire.arduinoPin, []);
-            wiresByPin.get(wire.arduinoPin)!.push({ target: to, color });
+            if (sourceComp) {
+              const from = resolveComponentPinTarget(sourceComp, wire.fromPin!);
+              if (!from) {
+                errors.push(`Cannot resolve source pin ${sourceComp.type}.${wire.fromPin}.`);
+                continue;
+              }
+              seriesJumperOps.push(makeBoardOp(opCtx, {
+                kind: "connect_wire",
+                payload: {
+                  wire: {
+                    id: crypto.randomUUID(),
+                    fromRow: from.row,
+                    fromCol: from.col,
+                    toRow: to.row,
+                    toCol: to.col,
+                    color,
+                  },
+                },
+              }));
+            } else {
+              if (!wiresByPin.has(wire.arduinoPin!)) wiresByPin.set(wire.arduinoPin!, []);
+              wiresByPin.get(wire.arduinoPin!)!.push({ target: to, color });
+            }
           }
         }
 
@@ -1471,8 +1702,8 @@ Example — rewire an existing component:
 
         // Generate wire ops (with fanout distribution)
         function railColForPin(pin: number): number {
-          if (pin === -3 || pin === -4 || pin === -6) return -1;
-          if (pin === -1) return -2;
+          if (pin === -3 || pin === -4 || pin === -6) return -2;
+          if (pin === -1) return -1;
           if (pin === -2) return 11;
           return -1;
         }

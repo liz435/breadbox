@@ -35,6 +35,8 @@ import { getBodyRoot, getPartNodes, getRegistryVersion, subscribeRegistry } from
 import { componentTarget } from "./uploaded-bodies"
 import { movingMountOptions } from "./mount-targets"
 import { AssetLibrary } from "./asset-library"
+import { setPhysicsEnabled } from "./physics-flag"
+import { createShowcaseBox } from "./showcase-box"
 
 /** Transform-gizmo modes, shown as a segmented control for the selected body. */
 const GIZMO_MODES: { mode: GizmoMode; label: string }[] = [
@@ -365,7 +367,7 @@ function AnimationsEditor({ body }: { body: AssemblyBody }) {
 
 export function AssemblyPanel({ onImport }: { onImport: () => void }) {
   const assembly = useAssemblyDoc()
-  const { updateBody, duplicateBody, reorderBody, removeBody } = useAssemblyActions()
+  const { addBody, updateBody, duplicateBody, reorderBody, removeBody } = useAssemblyActions()
   const { selectedBodyId, select, mode, setMode } = useEditor()
   const components = useBoardSelector((ctx) => ctx.components)
   const [renamingId, setRenamingId] = useState<string | null>(null)
@@ -385,21 +387,41 @@ export function AssemblyPanel({ onImport }: { onImport: () => void }) {
     setRenamingId(null)
   }
 
+  function dropShowcaseBox() {
+    const body = createShowcaseBox(assembly.bodies, components)
+    addBody(body)
+    select(body.id)
+    // The point of this action is a visible drop-in demo, so make sure a
+    // physics-off scene does not leave the box suspended in the air.
+    setPhysicsEnabled(true)
+  }
+
   return (
     <div className="flex flex-col text-sm">
       <div className="mb-1 flex items-center justify-between px-1">
         <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Models
         </h3>
-        <button
-          type="button"
-          onClick={onImport}
-          className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-xs font-medium text-primary hover:bg-muted"
-          title="Upload a .glb or .stl model (e.g. a part you're about to 3D-print)"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Add model
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onImport}
+            className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-xs font-medium text-primary hover:bg-muted"
+            title="Upload a .glb or .stl model (e.g. a part you're about to 3D-print)"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add model
+          </button>
+          <button
+            type="button"
+            onClick={dropShowcaseBox}
+            className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-xs font-medium text-primary hover:bg-muted"
+            title="Drop a built-in box beside the servo to showcase 3D physics"
+          >
+            <Box className="h-3.5 w-3.5" />
+            Drop box
+          </button>
+        </div>
       </div>
 
       {bodies.length === 0 ? (
@@ -409,6 +431,10 @@ export function AssemblyPanel({ onImport }: { onImport: () => void }) {
           <Button size="sm" onClick={onImport}>
             <Plus className="h-3.5 w-3.5" />
             Add 3D model
+          </Button>
+          <Button size="sm" variant="secondary" onClick={dropShowcaseBox}>
+            <Box className="h-3.5 w-3.5" />
+            Drop physics box
           </Button>
           <p className="text-[10px] text-muted-foreground/70">
             or drag a .glb / .stl file onto the scene

@@ -21,6 +21,7 @@ export const WIRING_GUIDE_TEXT = `## Wire Colors (always follow this convention)
 - 3-pin components (servo/pot/sensor): each pin on a SEPARATE ROW or they short via bus. Wire signal→(row,x), 5V→(row+1,x), GND→(row+2,x).
 - Button: straddles center gap. Pin "a" at col 3, pin "b" at col 6. Wire signal to one side, GND/5V to the other.
 - High-current loads (servo, motor, relay) should use external power_supply with common ground.
+- Power supply: agent proposal tools expose semantic pins \`positive\` and \`negative\`; wire positive to the load's VCC pin, negative to its GND pin, and connect the negative side to Arduino GND.
 - For shared GND or shared power, prefer rail distribution: Arduino GND/5V → rail once, then rail → each component.
 - Resistor: always at cols 3 (pin a) and 6 (pin b), bridging the center gap. Placement col is ignored.
 
@@ -37,7 +38,7 @@ export const WIRING_GUIDE_TEXT = `## Wire Colors (always follow this convention)
 LED: 2 rows vertical (anode y, cathode y+1) | Resistor: horizontal at cols 3,6 (a=col3, b=col6) | Button: cols 3,6 rows y,y+1 (a=col3, b=col6) | Servo/Pot: 3 rows | 7-seg: 9 rows (a-g,dp,gnd) | Capacitor: 2 rows
 
 ## Pin Names
-LED: anode,cathode | RGB: red,green,blue,common | Button: a,b | Resistor: a,b | Capacitor: positive,negative | Pot: vcc,signal,gnd | Buzzer: positive,negative | Servo: signal,vcc,gnd | NeoPixel: din,vcc,gnd | PIR/DHT/IR: signal | Relay/Motor: signal | ShiftReg: data,clock,latch | OLED: gnd,vcc,scl,sda | LCD: vss,vdd,vo,rs,rw,en,d4,d5,d6,d7,a,k | 7seg: a,b,c,d,e,f,g,dp,gnd
+LED: anode,cathode | RGB: red,green,blue,common | Button: a,b | Resistor: a,b | Capacitor: positive,negative | Pot: vcc,signal,gnd | Buzzer: positive,negative | Servo: signal,vcc,gnd | Power supply: positive,negative | NeoPixel: din,vcc,gnd | PIR/DHT/IR: signal | Relay/Motor: signal | ShiftReg: data,clock,latch | OLED: gnd,vcc,scl,sda | LCD: vss,vdd,vo,rs,rw,en,d4,d5,d6,d7,a,k | 7seg: a,b,c,d,e,f,g,dp,gnd
 
 ## Arduino Pins
 Board target: arduino_uno

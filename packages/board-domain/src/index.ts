@@ -23,6 +23,28 @@ export {
   type ElectricalErcTerminal,
 } from "./electrical/erc";
 
+export {
+  AUTO_LAYOUT_ROW_GAP,
+  PSU_BODY_OVERHANG_BOTTOM_ROWS,
+  PSU_BODY_OVERHANG_TOP_ROWS,
+  SERVO_CABLE_RUN_MM,
+  SERVO_CASE_LENGTH_MM,
+  SERVO_CASE_WIDTH_MM,
+  SERVO_HORN_REACH_MM,
+  SERVO_MOUNTING_EAR_LENGTH_MM,
+  SERVO_SHAFT_FROM_TOP_MM,
+  advanceAutoLayoutRow,
+  component2DVisualRowBounds,
+  component3DVisualRowBounds,
+  componentLayoutHeight,
+  componentPlacementRowBounds,
+  findAutoLayoutRow,
+  powerSupplyPinRows,
+  visualRowBoundsOverlap,
+  type PhysicalLayoutComponent,
+  type VisualRowBounds,
+} from "./layout/physical-layout";
+
 /**
  * The versioned, serializable result of a board mutation.  BoardState remains
  * the wire format; the revision lives next to it so callers do not need to

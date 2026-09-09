@@ -44,7 +44,7 @@ useChatMessages (useChat)  ──POST──>   chatRoutes.post                  
 packages/api/src/agents/
 ├─ core/
 │  ├─ agent.ts        streamCoreAgent — main entry
-│  ├─ tools.ts        20 tool() definitions + createCoreTools()
+│  ├─ tools/           28 tool() definitions + createCoreTools()
 │  └─ prompts.ts      BUILD / EDIT system prompts (versioned snapshots)
 ├─ router.ts          routeRequest — picks model + mode (build|edit) + domain
 ├─ planner.ts         generatePlan — lightweight pre-stream plan generator
@@ -77,8 +77,8 @@ packages/api/src/agents/
      as the primary tool), `"edit"` otherwise.
    - **Domain** and **complexity** — feed into prompt snapshot selection
      and the planner.
-3. **Tool construction** (`createCoreTools(...)` in `core/tools.ts`). Returns
-   ~20 tools bound to shared mutable state (`workingBoard`, `ops` array).
+3. **Tool construction** (`createCoreTools(...)` in `core/tools/index.ts`).
+   Returns 28 tools bound to shared mutable state (`workingBoard`, `ops` array).
 4. **System prompt** — `core/prompts.ts` exports `CORE_PROMPT_SNAPSHOTS`
    keyed by `AGENT_VERSION`. Each snapshot has `{ buildPrompt, editPrompt }`.
    The chosen prompt is concatenated with a compact board summary and
@@ -122,16 +122,19 @@ and replaces `layout` with a single string breadcrumb.
 
 ## Tool registry
 
-`packages/api/src/agents/core/tools.ts` exports `createCoreTools({ project,
+`packages/api/src/agents/core/tools/index.ts` exports `createCoreTools({ project,
 sceneId, ops, mode, workingBoard })`. Tools are grouped as:
 
 | Group | Tools |
 | --- | --- |
-| Read-only board | `get_board_overview`, `list_components`, `list_wires`, `get_component_details`, `get_sketch_code`, `get_board_state` |
+| Read-only board | `get_board_overview`, `list_components`, `list_wires`, `get_component_details`, `get_sketch_code`, `get_board_state`, `read_serial_monitor` |
 | Safety / analysis | `analyze_power_budget`, `get_wiring_guide` |
 | Mutators | `place_component`, `update_component`, `move_component`, `remove_component`, `connect_wire`, `wire_component_to_pin`, `remove_wire`, `update_wire` |
 | Sketch edit | `update_sketch`, `patch_sketch` |
 | Macro | `propose_circuit` (build-mode hero), `propose_fix` (edit-mode recovery) |
+| Circuit program | `generate_circuit_program`, `validate_circuit_program`, `compile_circuit_program`, `apply_circuit_program` |
+| Full design | `validate_design`, `apply_design` |
+| Verification | `verify_circuit` |
 
 Each tool is a `tool({ inputSchema, execute })` from `ai`. Mutators build a
 `BoardOp` via `makeBoardOp(opCtx, { kind, payload })` (where `opCtx` carries
@@ -150,7 +153,7 @@ wires yet), and (c) error recovery has to unwind partial boards. So
 
 - Accepts components, wires (indexed by component position), ledResistorPairs,
   throughComponent hints, and the sketch text.
-- Auto-positions components on the 30-row breadboard.
+- Auto-positions components on the 63-row full-size breadboard.
 - Runs layout + sketch validation before emitting ops. If validation fails,
   the return value includes `hint` and `errors` for the next step to retry.
 - Emits the whole op set atomically to the ops array.
@@ -175,11 +178,12 @@ mixed stream of SDK-native UI parts + custom data parts:
 | `data-trace` | Serialized span tree | Trace panel debug |
 | `error` | `{errorText}` | Version conflict, policy block, etc. |
 
-Ops are streamed **in batches** as they are produced during `onNewOps` inside
-`onStepFinish`, so the board mutates incrementally while the model is still
-writing the response. Graph ops piggyback on the same stream but are split
-out of the board op path (`applyGraphOpsToGraph` vs `applyBoardOpsToBoard`)
-by the `useChatMessages` hook on the client.
+Board ops are streamed **in batches** as they are produced during `onNewOps`
+inside `onStepFinish`, so the board mutates incrementally while the model is
+still writing the response. The client partitions board, graph, and legacy
+scene operations before dispatching them to their respective actors; graph
+operations are persisted with the final project update rather than being a
+separate board mutation path.
 
 ## Intent classifier and template fast path
 

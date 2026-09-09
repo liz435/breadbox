@@ -2,16 +2,17 @@
 
 How a compiled sketch turns into live pixels on the breadboard. Everything
 below happens in the browser; the backend is only involved for the one-shot
-`/api/compile` call that produces the hex image.
+`/api/compile` call that produces an Intel HEX image for AVR or a UF2 image for
+RP2040.
 
 ## Component map
 
 ```
    React hook                    Runner abstraction                  Hardware model
 ┌─────────────────┐   creates  ┌────────────────────┐    wraps   ┌────────────────┐
-│ useSimulation() │ ─────────> │  SketchRunner      │  ────────> │  avr8js CPU    │
-│  (rAF loop)     │            │    (avr-runner.ts) │            │  + GPIO ports  │
-│                 │            │                    │            │  + Timers      │
+│ useSimulation() │ ─────────> │  SketchRunner      │  ────────> │  avr8js /      │
+│  (rAF loop)     │            │    (AVR/RP2040)    │            │  rp2040js      │
+│                 │            │                    │            │  + GPIO/timers │
 │ play / pause    │            │  loadSketchAsync   │            │  + USART       │
 │ stop / resume   │            │  runSetup          │            └───────┬────────┘
 │ sendSerialInput │            │  runLoopIteration  │                    │ port listener
@@ -21,7 +22,7 @@ below happens in the browser; the backend is only involved for the one-shot
          ▼                     └────────┬───────────┘ ─────────> │  (20 pins)     │
 ┌─────────────────┐                     │                        └───────┬────────┘
 │ runInlineAnalysis                     │ peripheralBus.dispatchEdge()   │
-│  (every 12 fr.) │                     ▼                                │ writeExternal
+│  (profile-based)│                     ▼                                │ writeExternal
 │ analyzeCircuit  │            ┌────────────────────┐                    │
 │ applySensor     │            │  PeripheralBus     │ ─────────────────> │
 │  Inputs         │            │  servo, buzzer,    │  scheduleEdge +    │
@@ -33,7 +34,7 @@ below happens in the browser; the backend is only involved for the one-shot
 │ libraryState    │  syncLibraryState()                                   │ external sink
 │ (servos, lcd)   │                                                       │ writes back
 └─────────────────┘                                                       ▼
-                                                                   [avr setPin()]
+                                                                   [runner external sink]
 ```
 
 ## The simulation loop
@@ -53,11 +54,11 @@ sendSerialInput, runner }` and owns:
 
 `tick()` in `startLoop()` runs once per `requestAnimationFrame`. Key rates:
 
-- **Circuit analysis** runs on frame 1 and every 12th frame thereafter —
-  about 5 Hz at 60 fps (`simulation-loop.ts:313`). DC analysis is expensive
-  (spicey solver over every node) and analog voltages change slowly relative
-  to pin edges; 5 Hz is the sweet spot between UI smoothness and solver cost.
-- **AVR execution** runs every frame — `runner.runLoopIteration()` advances
+- **Circuit analysis** always runs on frame 1. In `learn` mode it runs every
+  12 frames, or every 2 frames when a reactive circuit is catching up. In
+  `electrical` and `hardware` modes it runs every frame. This keeps the cheap
+  learning path responsive while tighter profiles follow the solved circuit.
+- **Firmware execution** runs every frame — `runner.runLoopIteration()` advances
   exactly `AVR_CYCLES_PER_FRAME = 16_000_000 / 60 ≈ 266_667` simulated cycles
   (`runners/avr-runner.ts:27`). This keeps simulated MCU time locked to wall
   clock at 1:1 on a 60 fps display.
@@ -71,24 +72,25 @@ sendSerialInput, runner }` and owns:
 
 ### Analog voltage flow
 
-`runInlineAnalysis()` (`simulation-loop.ts:225`):
+`runInlineAnalysis()` in `simulation-loop.ts`:
 
-1. Skip if the board has no non-board circuit components (saves solver cost).
-2. Snapshot the pin store via `snapshotAsPinStates(store)` and hand it to
+1. Apply environment-driven sensor inputs first. This seeds the pin store and
+   peripheral bus before the electrical solve and the next MCU quantum.
+2. Skip the solver if the board has no non-board circuit components (saves
+   solver cost).
+3. Snapshot the pin store via `snapshotAsPinStates(store)` and hand it to
    `analyzeCircuit(components, wires, pinStates)`.
-3. Walk the resulting `componentStates`; any component pin (`comp.pins[key]`)
+4. Walk the resulting `componentStates`; any component pin (`comp.pins[key]`)
    that maps to an Arduino analog pin gets its voltage converted via
    `voltsToAnalog(v) = round(min(5, |v|) / 5 * 1023)` and written via
    `store.writeExternal(pin, { analogValue })`.
-4. Fan-out step: walk wires whose `fromRow === -999` (the Arduino-pin sentinel)
+5. Fan-out step: walk wires whose `fromRow === -999` (the Arduino-pin sentinel)
    and whose `fromCol` is an analog pin. If the `to` end lands on a circuit
    component's footprint, assign that component's voltage to the analog pin.
    This is how `analogRead(A0)` sees a voltage divider landed on row 5.
-5. **Always** call `applySensorInputs(components, wires, store, environment,
-   peripheralBus)` last — including when analysis returned `isValid === false`
-   — so sensor-driven inputs (photoresistor, PIR, DHT, ultrasonic, IR) still
-   push their environment-driven readings into the pin store and peripheral
-   bus even on broken boards.
+6. Sensor inputs are intentionally applied even when the electrical analysis is
+   invalid or skipped, so photoresistor, PIR, DHT, ultrasonic, and IR inputs
+   still receive environment-driven readings on a broken or incomplete board.
 
 ### Library state sync
 
@@ -126,9 +128,9 @@ interface SketchRunner {
 ```
 
 The same interface is used by `simulation-loop.ts` unchanged across backends.
-Today only `createAvrSketchRunner(target, callbacks, store?)` is implemented
-(`runners/avr-runner.ts`). The factory in `runners/index.ts` currently wires
-every board target to the AVR runner.
+`createAvrSketchRunner` provides the high-fidelity AVR path, while
+`createRp2040SketchRunner` provides best-effort RP2040 execution. Compile-only
+targets still throw until a matching runner is added.
 
 ### AVR runner implementation
 
@@ -203,6 +205,15 @@ The dispatched `simMs` is derived from `cpu.cycles / freq`, not wall clock,
 because wall-clock time would collapse a 20 ms servo frame into ~1 ms of JS
 time (the AVR simulates 16 ms of MCU time in ~1 ms of real time).
 
+### RP2040 runner
+
+`createRp2040SketchRunner` uses `rp2040js` and loads the compiled UF2 image.
+GPIO, PWM tracking, ADC, peripheral dispatch, and the external-pin sink are
+implemented. A fresh checkout leaves `RP2040_BOOTROM_BASE64` unset, so the
+runner uses a synthesized boot handoff; GPIO-focused sketches work, but
+clock/PLL- and USB-CDC-dependent behavior is not guaranteed until the bootrom
+is supplied with `bun run bootrom:fetch`.
+
 ## Pin state store
 
 File: `packages/app/src/simulator/pin-state-store.ts`
@@ -257,8 +268,9 @@ File: `packages/app/src/simulator/peripherals/peripheral-bus.ts`
 The peripheral bus owns every simulated device for a single sim run. It:
 
 - Builds peripherals from the current board on `attachBoard(input)`. Factories
-  are registered per `ComponentType` at module load — the built-in registry
-  is in `peripheral-bus.ts:36`: servo, buzzer, lcd, ultrasonic, dht, ir.
+  are registered per `ComponentType` at module load. Built-ins include servo,
+  buzzer, LCD, ultrasonic, DHT, IR receiver, OLED, NeoPixel, shift register,
+  stepper, relay, and DC motor.
 - Indexes peripherals by pin (`byPin`) and by type (`byType`) so
   `dispatchEdge(edge)` can fan out in O(watchers) and stdlib lookups like
   `findByTypeOnPin` are O(1).

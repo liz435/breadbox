@@ -367,7 +367,7 @@ appears in the sidebar with working links, every page renders its
   - Pointers and references rejected by design, no `malloc`/`new`, no
     register access, partial multi-file support, no templates.
   - `SeeAlso`: custom libraries (extending doc in /documentation),
-    transpiler source ([`arduino-transpiler.ts`](../simulator/arduino-transpiler.ts)).
+    simulator implementation ([`simulator/README.md`](../simulator/README.md)).
 
 **Milestone 2 — DONE.** Every 🟢 box above is checked and the
 programming group is fully populated in the sidebar (15 pages).

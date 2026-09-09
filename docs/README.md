@@ -16,9 +16,9 @@ things are actually built today.
   resolution, component registry. Read this when adding a new component.
 - [`FRONTEND.md`](./FRONTEND.md) — app shell, board state store (XState),
   panels, chat integration.
-- [`CLI.md`](./CLI.md) — the `npx dreamer` binary: web UI manifest, API
+- [`CLI.md`](./CLI.md) — the `breadbox` binary: web UI manifest, API
   spawning, env-var opt-outs.
-- [`MCP.md`](./MCP.md) — connecting Claude / Cursor via the `dreamer mcp`
+- [`MCP.md`](./MCP.md) — connecting Claude / Cursor via the `breadbox mcp`
   server: install, the connect commands, the live canvas bridge, tools +
   resources reference.
 - [`INTERACTIONS.md`](./INTERACTIONS.md) — cross-system sequences:
@@ -32,3 +32,8 @@ Repo-wide code conventions (kebab-case filenames, zod-first schemas, Base UI
 primitives, no default exports, Tailwind v4, strict TS) are in the root
 [`/CLAUDE.md`](../CLAUDE.md). Read that first for style, then the docs above
 for what each subsystem actually does.
+
+## Third-party sources
+
+- [`ATTRIBUTIONS.md`](./ATTRIBUTIONS.md) — release-facing credits for bundled
+  software, simulation references, and 3D assets.

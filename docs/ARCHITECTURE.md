@@ -1,20 +1,23 @@
 # Architecture
 
 Breadbox is an Arduino-focused virtual breadboard. The user builds a circuit on
-a browser canvas, writes/edits sketch code, and runs it in a cycle-accurate
-AVR emulator — optionally with help from an LLM agent that can place
-components, connect wires, and write the sketch.
+a browser canvas, writes/edits sketch code, and runs it in an in-browser
+firmware runner — AVR is the high-fidelity path and RP2040 is currently
+best-effort. An LLM agent can place components, connect wires, and write the
+sketch.
 
 ## Monorepo layout
 
 Bun workspaces at `packages/*`.
 
 ```
-dreamer/
+breadbox/
   packages/
     app/        React 19 + Vite frontend        (dev: port 28420)
     api/        Elysia HTTP server              (dev: port 28421)
-    cli/        `dreamer` binary (npx)          (spawns api + serves bundle)
+    board-domain/ Shared board topology + ops   (used by app and API)
+    cli/        `breadbox` binary               (spawns api + serves bundle)
+    desktop/    Tauri desktop wrapper           (bundles the CLI sidecar)
     schemas/    Shared zod schemas + types
     config/     Shared TypeScript config + tiny runtime config helper
   docs/         This directory
@@ -47,7 +50,7 @@ Root `package.json` scripts:
 │  │  components, wires, sketch  │  UIMessage   │   ├─ circuit templates (fast)  │
 │  ├─ GraphContext, SceneContext │ <─────────── │   └─ streamCoreAgent (AI SDK)  │
 │  ├─ Simulation loop (rAF)      │  ops stream  │        ├─ Anthropic provider   │
-│  │  ├─ SketchRunner (avr8js)   │              │        └─ 20 tool() defs       │
+│  │  ├─ SketchRunner (AVR/RP2040)│              │        └─ 28 tool() defs       │
 │  │  ├─ PeripheralBus           │              │                                │
 │  │  ├─ PinStateStore           │  /api/compile│  compile route                 │
 │  │  └─ CircuitSolver (spicey)  │ ───────────> │   └─ arduino-cli subprocess    │
@@ -71,8 +74,10 @@ Root `package.json` scripts:
   a library auto-install shim. In hosted (`DREAMER_HOSTED=1`) or CLI mode the
   same server also serves the built web UI — see [CLI.md](./CLI.md) and
   `packages/api/src/routes/web-ui-static.ts`.
-- **AVR emulator**: [`avr8js`](https://github.com/wokwi/avr8js) runs inside
-  the browser. There is no backend-side simulation — the API only ever touches
+- **Firmware runners**: [`avr8js`](https://github.com/wokwi/avr8js) runs AVR
+  sketches in the browser. `rp2040js` provides a best-effort RP2040 runner;
+  without the optional vendored bootrom, PLL- and USB-CDC-dependent behavior is
+  limited. There is no backend-side simulation — the API only invokes
   arduino-cli to produce firmware.
 
 ## Major subsystems
@@ -84,8 +89,9 @@ Root `package.json` scripts:
 
 - **Simulation** (`packages/app/src/simulator/*`) — see [SIMULATION.md](./SIMULATION.md).
   - `simulation-loop.ts` — the React hook that drives the rAF tick loop.
-  - `runners/` — pluggable SketchRunner backends. Today only `avr-runner.ts`
-    is implemented; `rp2040-runner.ts` is a stub.
+  - `runners/` — pluggable SketchRunner backends. `avr-runner.ts` is the
+    high-fidelity AVR implementation; `rp2040-runner.ts` is a best-effort
+    RP2040 implementation. Other targets are compile-only placeholders.
   - `avr-runner.ts` — raw avr8js wrapper: CPU, GPIO ports B/C/D, timers,
     USART.
   - `avr-compiler.ts` — POSTs to the API's `/api/compile` route and parses
@@ -95,7 +101,8 @@ Root `package.json` scripts:
   - `pin-state-store.ts` — single source of truth for all 20 pin values;
     reactive via `useSyncExternalStore`.
   - `circuit-solver.ts` + `netlist-builder.ts` — SPICE-backed (`spicey` lib)
-    DC analysis of the board for LED brightness, reverse polarity, etc.
+    electrical analysis of the board for voltage, current, LED brightness,
+    reverse polarity, and transient behavior.
 
 - **Breadboard** (`packages/app/src/breadboard/*`) — see [BREADBOARD.md](./BREADBOARD.md).
   Grid geometry, `areConnected` / `resolveNets` connectivity logic, rendering
@@ -107,10 +114,10 @@ Root `package.json` scripts:
   sketch autogen.
 
 - **Hardware agent** (`packages/api/src/agents/*`) — see [AGENT.md](./AGENT.md).
-  AI SDK `streamText` + 20 `tool()` definitions. Tool calls produce `BoardOp`
+  AI SDK `streamText` + 28 core `tool()` definitions. Tool calls produce `BoardOp`
   values that the chat route streams to the frontend as `data-scene-ops` parts.
 
-- **CLI** (`packages/cli/*`) — see [CLI.md](./CLI.md). The `dreamer` binary
+- **CLI** (`packages/cli/*`) — see [CLI.md](./CLI.md). The `breadbox` binary
   spawns an API process and serves an embedded build of the web UI.
 
 ## Data flow: user says "blink an LED"
@@ -122,7 +129,7 @@ useChatMessages          │ streamCoreAgent()                │ onData('scene-
   → POST /api/chat       │   → intent classifier            │   → applyBoardOpsToBoard
   { messages, projectId, │   → if template: fast path       │     (BoardContext.send)
     sceneId, threadId,   │   → else: streamText()           │   → BoardContext fires
-    sessionId,           │     with 20 tools                │     PLACE_COMPONENT,
+    sessionId,           │     with 28 core tools           │     PLACE_COMPONENT,
     expectedVersion }    │     → tool calls produce BoardOp │     CONNECT_WIRE,
                          │     → writer.write(data-scene-ops│     UPDATE_SKETCH
                          │     → projectRepo.applyBoardOps  │   → XState assign()
@@ -131,12 +138,11 @@ useChatMessages          │ streamCoreAgent()                │ onData('scene-
 ```
 
 Agent-emitted ops are versioned (`expectedVersion`) and server-authoritative.
-On `VersionConflictError` the server rejects all board ops atomically and
-sends an error part — the client is expected to refresh. (In practice the
-board-op path does not check `expectedVersion` today; see
+The repository validates the batch version and every operation's version before
+applying anything. On `VersionConflictError` the server rejects the batch
+atomically and sends an error part — the client is expected to refresh. See
 [INTERACTIONS.md §3](./INTERACTIONS.md#3-undo--redo-vs-agent-ops) for the
-actual round-trip behavior, including what happens when a user undoes an
-agent op locally.)
+client-side undo behavior.
 
 For flows that span the client, the simulation loop, and the API — button
 press → `digitalRead`, sensor-inspector → `analogRead`, undo vs. agent
@@ -166,7 +172,7 @@ See `packages/api/src/toolchain.ts:121` (CLI resolution),
 | --- | --- | --- | --- |
 | 28420 | Vite dev server | `packages/app` | `bun run dev:app` |
 | 28421 | Elysia API | `packages/api` | `bun run dev:api` |
-| runtime | `dreamer` binary (CLI) static UI | `packages/cli/src/web-ui.ts` | `dreamer headed` |
+| runtime | `breadbox` binary (CLI) static UI | `packages/cli/src/web-ui.ts` | `breadbox headed` |
 
 The frontend learns the API origin via `@dreamer/config`: it reads
-`window.__DREAMER__.apiOrigin` if injected, falls back to the Vite env.
+`window.__BREADBOX__.apiOrigin` if injected, falls back to the Vite env.

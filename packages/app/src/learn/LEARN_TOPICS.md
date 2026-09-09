@@ -138,9 +138,11 @@ which pins are special. No register-level content.
 
 ## Track 2 — Arduino Programming
 
-The C++ subset the simulator actually runs. The source of truth for "what's
-supported" is [`simulator/arduino-stdlib.ts`](../simulator/arduino-stdlib.ts).
-Every page in this track should match it 1:1 — if the stdlib doesn't implement
+The C++ subset the simulator actually runs. The source of truth for what is
+supported is the active runner and peripheral implementation documented in
+[`simulator/README.md`](../simulator/README.md) and
+[`docs/SIMULATION.md`](../../../../docs/SIMULATION.md). Every page in this track
+should match those contracts — if a runner or peripheral doesn't implement
 something, don't teach it here.
 
 ### C++ essentials (the narrow slice Arduino users hit)

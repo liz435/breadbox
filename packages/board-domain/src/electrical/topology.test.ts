@@ -20,6 +20,73 @@ function resistor(id: string, parentId?: string): BoardComponent {
 }
 
 describe("board-domain electrical topology", () => {
+  test("resolves terminal-strip connectivity across all 63 board rows", () => {
+    const board = createDefaultBoardState();
+    board.components.servo = {
+      id: "servo",
+      type: "servo",
+      name: "Servo",
+      x: 2,
+      y: 37,
+      rotation: 0,
+      pins: { signal: null, vcc: null, gnd: null },
+      properties: {},
+    };
+    board.wires.signal = {
+      id: "signal",
+      fromRow: -999,
+      fromCol: 9,
+      toRow: 37,
+      toCol: 0,
+      color: "orange",
+    };
+
+    const topology = compileElectricalTopology(board);
+    const signalNetId = topology.terminalToNet.get(electricalTerminalKey("servo", "signal"));
+    expect(signalNetId).toBeDefined();
+    expect(topology.nets.find((net) => net.id === signalNetId)?.arduinoPins).toContain(9);
+  });
+
+  test("merges PSU semantic anchors with the physical rail pads", () => {
+    const board = createDefaultBoardState();
+    board.components.psu = {
+      id: "psu",
+      type: "power_supply",
+      name: "External 5V",
+      x: 8,
+      y: 9,
+      rotation: 0,
+      pins: {},
+      properties: { leftVoltage: 5, rightVoltage: 5 },
+    };
+    board.components.servo = {
+      id: "servo",
+      type: "servo",
+      name: "Servo",
+      x: 2,
+      y: 4,
+      rotation: 0,
+      pins: { signal: null, vcc: null, gnd: null },
+      properties: {},
+    };
+    board.wires.vcc = {
+      id: "vcc",
+      fromRow: 9,
+      fromCol: 8,
+      toRow: 5,
+      toCol: 2,
+      color: "red",
+    };
+
+    const topology = compileElectricalTopology(board);
+    const vccNet = topology.terminalToNet.get(electricalTerminalKey("servo", "vcc"));
+    const psuPositive = topology.terminalToNet.get(electricalTerminalKey("psu", "positive"));
+    const psuRailPositive = topology.terminalToNet.get(electricalTerminalKey("psu", "leftPositive"));
+    expect(vccNet).toBeDefined();
+    expect(psuPositive).toBe(vccNet);
+    expect(psuRailPositive).toBe(vccNet);
+  });
+
   test("keeps a component's named terminals on the same manually shorted net", () => {
     const board = createDefaultBoardState();
     board.components.r1 = resistor("r1", "breadboard-1");
