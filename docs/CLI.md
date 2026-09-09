@@ -1,7 +1,9 @@
 # CLI
 
-`packages/cli` produces the `dreamer` binary that users install via
-`npx dreamer` or a standalone compiled binary. It bundles:
+`packages/cli` produces the `breadbox` binary that users install from a
+release or build from source. The package namespace remains `@dreamer/cli` and
+the `DREAMER_*` environment variables are retained for compatibility. It
+bundles:
 
 - The built web UI (embedded via Bun's `with { type: "file" }` import).
 - An Elysia API server spawned as a child process.
@@ -11,8 +13,9 @@
 ## Entry points
 
 - `packages/cli/src/index.ts` — CLI arg dispatch. Handles `headed`, `run`,
-  `compile`, `flash`, `list-ports`, `config get|set|list|path`, `logs`,
-  `crashes`, `self-update`, and a default one-shot agent mode.
+  `compile`, `flash`, `ports`, `board`, `sketch`, `projects`, `scenes`,
+  `config`, `logs`, `crash`, `telemetry`, `upgrade`, `diagram`, `mcp`, and a
+  default REPL mode.
 - `packages/cli/src/headed.ts` — the GUI launcher. Spawns the API, starts
   the static web UI server, opens the browser.
 - `packages/cli/src/repl.ts` — interactive REPL over the agent.
@@ -31,7 +34,7 @@ below) and serves them with correct MIME types + cache headers.
 Two non-obvious bits:
 
 1. **Runtime config injection.** `/index.html` gets a `<script>` prepended
-   to `<head>` that sets `window.__DREAMER__ = { apiOrigin, appOrigin,
+   to `<head>` that sets `window.__BREADBOX__ = { apiOrigin, appOrigin,
    preferAvr: true }`. The frontend's `@dreamer/config` reads this before
    the Vite bundle loads, so the React app knows the actual API port
    (picked at runtime, since the user may not have 28421 free).
@@ -81,7 +84,7 @@ There are two independent static-UI paths for different deploy targets:
 
 | Mode | Static route source | Served from | Activation |
 | --- | --- | --- | --- |
-| CLI binary | `packages/cli/src/web-ui.ts` | Binary-embedded manifest | `dreamer headed` |
+| CLI binary | `packages/cli/src/web-ui.ts` | Binary-embedded manifest | `breadbox headed` |
 | Hosted (e.g. Railway) | `packages/api/src/routes/web-ui-static.ts` | `packages/app/dist/` on disk | `DREAMER_HOSTED=1` + dist present |
 
 The hosted route mounts as an Elysia plugin (same port as the API) and
@@ -123,13 +126,13 @@ same `DREAMER_AUTO_INSTALL` flag when in non-interactive CLI mode.
 
 - `crash-reporter.ts` installs a `process.on('uncaughtException')` handler
   at boot (`index.ts:33`). Crashes land in `$DREAMER_HOME/crashes/*.json`.
-  `dreamer crashes list|show|clear` surfaces them.
-- `telemetry.ts` is opt-in (`dreamer config set telemetry true`). Emits
+  `breadbox crash list|view|clear` surfaces them.
+- `telemetry.ts` is opt-in (`breadbox config set telemetry true`). Emits
   anonymized events to a configurable endpoint. Off by default; no PII.
 
-## Self-update
+## Upgrade
 
-`self-update.ts` fetches the latest release from the configured channel
+`upgrade` / `self-update.ts` fetches the latest release from the configured channel
 (`stable` or `beta`) and replaces the binary atomically. Channel is stored
 in `$DREAMER_HOME/config.json`. See `paths.ts:6` for the full config path
 resolution.

@@ -1,5 +1,13 @@
 import React, { useEffect, useRef } from "react";
 import type { BoardComponent, PinState, LibraryState } from "@dreamer/schemas";
+import {
+  SERVO_CABLE_RUN_MM,
+  SERVO_CASE_LENGTH_MM,
+  SERVO_CASE_WIDTH_MM,
+  SERVO_HORN_REACH_MM,
+  SERVO_MOUNTING_EAR_LENGTH_MM,
+  SERVO_SHAFT_FROM_TOP_MM,
+} from "@dreamer/board-domain";
 import { gridToPixel } from "@/breadboard/breadboard-grid";
 import { LABEL_FONT_SIZE, PX_PER_MM } from "@/breadboard/breadboard-constants";
 import { useBoardSelector } from "@/store/board-context";
@@ -112,14 +120,14 @@ function ServoRendererInner({ component, isSelected, libraryState }: ServoRender
   const p2 = gridToPixel({ row: component.y + 2, col: component.x });   // gnd
 
   // ── SG90 micro-servo, drawn at true physical size (14px = 2.54mm pitch) ──
-  const CASE_LEN = 22.8 * PX_PER_MM;           // case length — long axis, vertical along the pins
-  const CASE_WID = 12.2 * PX_PER_MM;           // case width
-  const EAR_LEN = 4.7 * PX_PER_MM;             // each mounting ear (extends the long axis to 32.2mm)
-  const SHAFT_FROM_TOP = 6 * PX_PER_MM;        // output-shaft centre, down from the top of the case
+  const CASE_LEN = SERVO_CASE_LENGTH_MM * PX_PER_MM; // case length — long axis, vertical along the pins
+  const CASE_WID = SERVO_CASE_WIDTH_MM * PX_PER_MM; // case width
+  const EAR_LEN = SERVO_MOUNTING_EAR_LENGTH_MM * PX_PER_MM; // mounting ear length
+  const SHAFT_FROM_TOP = SERVO_SHAFT_FROM_TOP_MM * PX_PER_MM; // shaft centre from case top
   const GEAR_COVER_R = (11.8 / 2) * PX_PER_MM; // raised round gear-cover disc
   const HUB_R = (5.8 / 2) * PX_PER_MM;         // output hub / spline
-  const HORN_LEN = 15 * PX_PER_MM;             // each dual-arm horn reach from the shaft centre
-  const CABLE_RUN = 10 * PX_PER_MM;            // case→pin lead run — long enough to clear the horn sweep
+  const HORN_LEN = SERVO_HORN_REACH_MM * PX_PER_MM; // each dual-arm horn reach from the shaft centre
+  const CABLE_RUN = SERVO_CABLE_RUN_MM * PX_PER_MM; // case→pin lead run
 
   // Case sits to the LEFT of the pins; long axis centred on the middle (vcc) pin.
   const bodyR = p0.x - CABLE_RUN;

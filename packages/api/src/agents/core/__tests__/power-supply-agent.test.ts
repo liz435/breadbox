@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { createDefaultBoardState, type BoardOp, type BoardState } from "@dreamer/schemas";
+import {
+  componentPlacementRowBounds,
+  visualRowBoundsOverlap,
+} from "@dreamer/board-domain";
 import type { ProjectFile } from "../../../db/schemas";
 import { createCoreTools } from "../tools";
 
@@ -86,6 +90,18 @@ describe("agent external power supply wiring", () => {
 
     expect(result.success).toBe(true);
     expect(Object.values(board.components).some((c) => c.type === "power_supply")).toBe(true);
+    const servo = Object.values(board.components).find((c) => c.type === "servo");
+    const powerSupply = Object.values(board.components).find((c) => c.type === "power_supply");
+    expect(servo).toBeDefined();
+    expect(powerSupply).toBeDefined();
+    // The PSU is laid out first; the servo then clears the union of the 2D
+    // renderer bounds and calibrated 3D bounds.
+    expect(powerSupply!.y).toBeLessThan(servo!.y);
+    expect(servo!.y).toBe(27);
+    expect(visualRowBoundsOverlap(
+      componentPlacementRowBounds(powerSupply!.type, powerSupply!.y),
+      componentPlacementRowBounds(servo!.type, servo!.y),
+    )).toBe(false);
 
     const wires = ops
       .filter((op) => op.kind === "connect_wire")
@@ -124,5 +140,53 @@ describe("agent external power supply wiring", () => {
     expect(result.success).toBe(true);
     expect(Object.values(board.components).some((c) => c.type === "power_supply")).toBe(true);
     expect(Object.values(board.wires).some((wire) => wire.fromRow !== -999 && wire.fromCol === 8)).toBe(true);
+  });
+
+  test("propose_fix places a servo below an existing PSU when its calibrated body would overlap above", async () => {
+    const board = createDefaultBoardState();
+    board.boardTarget = "arduino_uno";
+    board.components["psu-existing"] = {
+      id: "psu-existing",
+      type: "power_supply",
+      name: "External 5V Supply",
+      x: 8,
+      y: 18,
+      rotation: 0,
+      pins: {},
+      properties: { leftVoltage: 5, rightVoltage: 3.3 },
+    };
+    const project = makeProject(board);
+    const ops: BoardOp[] = [];
+    const { tools } = createCoreTools({
+      project, sceneId: "scene-psu", ops, mode: "edit", workingBoard: board,
+    });
+
+    const execute = tools.propose_fix.execute as unknown as (
+      input: unknown,
+      options: unknown,
+    ) => Promise<Record<string, unknown>>;
+    const result = await execute({
+      addComponents: [servoComponents[0]],
+      addWires: [
+        { arduinoPin: 9, toNewComponent: 0, toPin: "signal", color: "#eab308" },
+        { fromExistingComponent: "psu-existing", fromPin: "positive", toNewComponent: 0, toPin: "vcc", color: "#ef4444" },
+        { fromExistingComponent: "psu-existing", fromPin: "negative", toNewComponent: 0, toPin: "gnd", color: "#1e293b" },
+        { arduinoPin: -3, toExistingComponent: "psu-existing", toPin: "negative", color: "#1e293b" },
+      ],
+      sketch: servoSketch,
+    }, {});
+
+    expect(result.success).toBe(true);
+    const servo = Object.values(board.components).find((component) => component.type === "servo");
+    expect(servo).toBeDefined();
+    expect(servo!.y).toBe(39);
+    expect(visualRowBoundsOverlap(
+      componentPlacementRowBounds("power_supply", 18),
+      componentPlacementRowBounds(servo!.type, servo!.y),
+    )).toBe(false);
+    expect(Object.values(board.wires).some(
+      (wire) => wire.fromRow === -999 && wire.fromCol === 9 &&
+        wire.toRow === servo!.y && wire.toCol === servo!.x,
+    )).toBe(true);
   });
 });

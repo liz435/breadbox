@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { BoardOp } from "@dreamer/schemas";
-import { isBoardComponentType } from "@dreamer/schemas";
+import { BREADBOARD_FULL_ROWS, isBoardComponentType } from "@dreamer/schemas";
 import { makeBoardOp } from "../../make-op";
 import { analyzePowerBudget } from "../../../electrical/power-budget-analyzer";
 import { analyzeRoutingPolicy } from "../../../electrical/routing-policy";
@@ -18,6 +18,12 @@ import {
   isSignalRole,
   resolveComponentPinTarget,
 } from "./shared";
+import {
+  AUTO_LAYOUT_ROW_GAP,
+  advanceAutoLayoutRow,
+  componentLayoutHeight,
+  findAutoLayoutRow,
+} from "./auto-layout";
 
 const MAX_PROPOSE_FIX_ATTEMPTS = 5;
 // v1.5.1: code-enforced cap mirroring the prompt's "max 3 attempts/turn"
@@ -324,8 +330,6 @@ Example — LED blink:
         // validation. This avoids burning tokens on a valid sketch
         // for a circuit that won't fit on the board.
         {
-          const MAX_BOARD_ROW = 27;
-          const ROW_GAP = 2;
           let estimatedNextRow = 0;
           for (const c of Object.values(workingBoard.components)) {
             if (c.type !== "arduino_uno") estimatedNextRow = Math.max(estimatedNextRow, c.y + 4);
@@ -340,14 +344,14 @@ Example — LED blink:
           for (let i = 0; i < input.components.length; i++) {
             if (seriesIntermediateIndices.has(i)) continue;
             const comp = input.components[i];
-            estimatedNextRow += componentHeight(comp.type) + ROW_GAP;
+            estimatedNextRow += componentLayoutHeight(comp.type) + AUTO_LAYOUT_ROW_GAP;
           }
-          if (estimatedNextRow > MAX_BOARD_ROW + 5) {
+          if (estimatedNextRow > BREADBOARD_FULL_ROWS) {
             return {
               success: false,
               failureKind: "layout_overflow",
               errors: [
-                `Too many components (${input.components.length}) — estimated ${estimatedNextRow} rows needed, but the board only has 30 rows.`,
+                `Too many components (${input.components.length}) — estimated ${estimatedNextRow} rows needed, but the board only has ${BREADBOARD_FULL_ROWS} rows.`,
               ],
               hint: "Reduce the component count. For 7-segment displays, skip individual series resistors — the display's built-in forward voltage drop is usually safe at 5V with the simulator's virtual LEDs.",
             };
@@ -404,17 +408,10 @@ Example — LED blink:
         }
 
         // Component height in rows
-        const ROW_GAP = 2;
+        const ROW_GAP = AUTO_LAYOUT_ROW_GAP;
 
         function componentHeight(type: string): number {
-          if (type === "led" || type === "rgb_led") return 2;
-          if (type === "servo" || type === "potentiometer" || type === "temperature_sensor" || type === "capacitor") return 3;
-          if (type === "power_supply") return 6;
-          if (type === "button") return 2;
-          if (type === "resistor") return 1;
-          if (type === "seven_segment") return 9;
-          if (type === "lcd_16x2") return 12;
-          return 1;
+          return componentLayoutHeight(type);
         }
 
         // Default column for component types.
@@ -483,14 +480,37 @@ Example — LED blink:
           return false;
         }
 
-        for (let i = 0; i < input.components.length; i++) {
+        // Board-wide power modules have a calibrated body that extends across
+        // the rail anchor. Place them before a calibrated servo so the servo
+        // can be put on the safe side of the PSU instead of forcing the PSU
+        // to the tail and still intersecting the servo body.
+        const componentPlacementOrder = input.components
+          .map((_, index) => index)
+          .sort((a, b) => {
+            const aPower = input.components[a]?.type === "power_supply";
+            const bPower = input.components[b]?.type === "power_supply";
+            return Number(bPower) - Number(aPower) || a - b;
+          });
+
+        for (const i of componentPlacementOrder) {
           const comp = input.components[i];
 
           // Skip components that will be positioned alongside their target
           if (pairedResistors.has(i) || seriesIntermediates.has(i)) continue;
 
           const col = componentCol(comp.type);
-          const row = nextRow;
+          const row = findAutoLayoutRow(
+            comp.type,
+            nextRow,
+            [
+              ...Object.values(tempBoard.components)
+                .filter((c) => c.type !== "arduino_uno")
+                .map((c) => ({ type: c.type, row: c.y, col: c.x })),
+              ...placedComponents
+                .filter((placed): placed is NonNullable<typeof placed> => placed != null)
+                .map((placed) => ({ type: placed.type, row: placed.row, col: placed.col })),
+            ],
+          ) ?? nextRow;
           const id = crypto.randomUUID();
 
           placedComponents[i] = { id, type: comp.type, name: comp.name, row, col };
@@ -505,7 +525,7 @@ Example — LED blink:
               placedComponents[pair.resistorIndex] = {
                 id: resId, type: "resistor", name: resComp.name, row: cathodeRow, col: 3,
               };
-              nextRow = cathodeRow + 2;
+              nextRow = cathodeRow + ROW_GAP;
             }
           } else {
             nextRow = row + componentHeight(comp.type) + ROW_GAP;
@@ -558,7 +578,7 @@ Example — LED blink:
                 row: nextRow,
                 col,
               };
-              nextRow += componentHeight(comp.type) + ROW_GAP;
+              nextRow = advanceAutoLayoutRow(comp.type, nextRow);
             }
           } else {
             // Fallback: place sequentially
@@ -570,7 +590,7 @@ Example — LED blink:
               row: nextRow,
               col,
             };
-            nextRow += componentHeight(comp.type) + ROW_GAP;
+            nextRow = advanceAutoLayoutRow(comp.type, nextRow);
           }
         }
 
@@ -580,14 +600,26 @@ Example — LED blink:
           const comp = input.components[i];
           const col = componentCol(comp.type);
           const id = crypto.randomUUID();
-          placedComponents[i] = { id, type: comp.type, name: comp.name, row: nextRow, col };
-          nextRow += componentHeight(comp.type) + ROW_GAP;
+          const row = findAutoLayoutRow(
+            comp.type,
+            nextRow,
+            [
+              ...Object.values(tempBoard.components)
+                .filter((c) => c.type !== "arduino_uno")
+                .map((c) => ({ type: c.type, row: c.y, col: c.x })),
+              ...placedComponents
+                .filter((placed): placed is NonNullable<typeof placed> => placed != null)
+                .map((placed) => ({ type: placed.type, row: placed.row, col: placed.col })),
+            ],
+          ) ?? nextRow;
+          placedComponents[i] = { id, type: comp.type, name: comp.name, row, col };
+          nextRow = advanceAutoLayoutRow(comp.type, row);
         }
 
         // Validate all positions are on board
         for (const pc of placedComponents) {
-          if (pc.row > 27) {
-            errors.push(`Component "${pc.name}" would be placed at row ${pc.row}, which is near the board edge. Board has 30 rows.`);
+          if (pc.row < 0 || pc.row + componentLayoutHeight(pc.type) > BREADBOARD_FULL_ROWS) {
+            errors.push(`Component "${pc.name}" would be placed at row ${pc.row}, outside the ${BREADBOARD_FULL_ROWS}-row board.`);
           }
         }
         if (errors.length > 0) return { success: false, errors, hint: "Too many components for the board. Try reducing the circuit." };
@@ -802,8 +834,12 @@ Example — LED blink:
         if (errors.length > 0) return { success: false, failureKind: "validation", errors };
 
         function railColForPin(pin: number): number {
-          if (pin === -3 || pin === -4 || pin === -6) return -1;
-          if (pin === -1) return -2;
+          // Rail columns follow the physical silkscreen: -2/10 are negative
+          // rails, -1/11 are positive rails. Keep the Arduino GND lead on a
+          // negative rail; the old mapping inverted the left pair and could
+          // make a PSU power net look like an unconnected signal in schematic.
+          if (pin === -3 || pin === -4 || pin === -6) return -2;
+          if (pin === -1) return -1;
           if (pin === -2) return 11;
           return -1;
         }
@@ -1291,16 +1327,9 @@ Example — rewire an existing component:
           if (c.type !== "arduino_uno") nextRow = Math.max(nextRow, c.y + 4);
         }
 
-        const ROW_GAP = 2;
+        const ROW_GAP = AUTO_LAYOUT_ROW_GAP;
         function componentHeight(type: string): number {
-          if (type === "led" || type === "rgb_led") return 2;
-          if (type === "servo" || type === "potentiometer" || type === "temperature_sensor" || type === "capacitor") return 3;
-          if (type === "power_supply") return 6;
-          if (type === "button") return 2;
-          if (type === "resistor") return 1;
-          if (type === "seven_segment") return 9;
-          if (type === "lcd_16x2") return 12;
-          return 1;
+          return componentLayoutHeight(type);
         }
         function componentCol(type: string): number {
           if (type === "button") return 3;
@@ -1335,11 +1364,30 @@ Example — rewire an existing component:
         const seriesIntermediates = new Set(seriesMap.keys());
 
         // Place non-series, non-paired components
-        for (let i = 0; i < addedComponents.length; i++) {
+        const addedPlacementOrder = addedComponents
+          .map((_, index) => index)
+          .sort((a, b) => {
+            const aPower = addedComponents[a]?.type === "power_supply";
+            const bPower = addedComponents[b]?.type === "power_supply";
+            return Number(bPower) - Number(aPower) || a - b;
+          });
+
+        for (const i of addedPlacementOrder) {
           if (pairedResistors.has(i) || seriesIntermediates.has(i)) continue;
           const comp = addedComponents[i]!;
           const col = componentCol(comp.type);
-          const row = nextRow;
+          const row = findAutoLayoutRow(
+            comp.type,
+            nextRow,
+            [
+              ...Object.values(workingBoard.components)
+                .filter((c) => c.type !== "arduino_uno")
+                .map((c) => ({ type: c.type, row: c.y, col: c.x })),
+              ...placedNew
+                .filter((placed): placed is NonNullable<typeof placed> => placed != null)
+                .map((placed) => ({ type: placed.type, row: placed.row, col: placed.col })),
+            ],
+          ) ?? nextRow;
           const id = crypto.randomUUID();
           placedNew[i] = { id, type: comp.type, name: comp.name, row, col };
 
@@ -1350,7 +1398,7 @@ Example — rewire an existing component:
               const cathodeRow = row + 1;
               const resId = crypto.randomUUID();
               placedNew[pair.resistorIndex] = { id: resId, type: "resistor", name: resComp.name, row: cathodeRow, col: 3 };
-              nextRow = cathodeRow + 2;
+              nextRow = cathodeRow + ROW_GAP;
             }
           } else {
             nextRow = row + componentHeight(comp.type) + ROW_GAP;
@@ -1373,7 +1421,7 @@ Example — rewire an existing component:
           } else {
             const col = componentCol(comp.type);
             placedNew[intermediateIdx] = { id: crypto.randomUUID(), type: comp.type, name: comp.name, row: nextRow, col };
-            nextRow += componentHeight(comp.type) + ROW_GAP;
+            nextRow = advanceAutoLayoutRow(comp.type, nextRow);
           }
         }
 
@@ -1382,14 +1430,26 @@ Example — rewire an existing component:
           if (placedNew[i]) continue;
           const comp = addedComponents[i]!;
           const col = componentCol(comp.type);
-          placedNew[i] = { id: crypto.randomUUID(), type: comp.type, name: comp.name, row: nextRow, col };
-          nextRow += componentHeight(comp.type) + ROW_GAP;
+          const row = findAutoLayoutRow(
+            comp.type,
+            nextRow,
+            [
+              ...Object.values(workingBoard.components)
+                .filter((c) => c.type !== "arduino_uno")
+                .map((c) => ({ type: c.type, row: c.y, col: c.x })),
+              ...placedNew
+                .filter((placed): placed is NonNullable<typeof placed> => placed != null)
+                .map((placed) => ({ type: placed.type, row: placed.row, col: placed.col })),
+            ],
+          ) ?? nextRow;
+          placedNew[i] = { id: crypto.randomUUID(), type: comp.type, name: comp.name, row, col };
+          nextRow = advanceAutoLayoutRow(comp.type, row);
         }
 
         // Validate positions
         for (const pc of placedNew) {
-          if (pc && pc.row > 27) {
-            errors.push(`Component "${pc.name}" would be at row ${pc.row}, near board edge.`);
+          if (pc && (pc.row < 0 || pc.row + componentLayoutHeight(pc.type) > BREADBOARD_FULL_ROWS)) {
+            errors.push(`Component "${pc.name}" would be at row ${pc.row}, outside the ${BREADBOARD_FULL_ROWS}-row board.`);
           }
         }
         if (errors.length > 0) {
@@ -1642,8 +1702,8 @@ Example — rewire an existing component:
 
         // Generate wire ops (with fanout distribution)
         function railColForPin(pin: number): number {
-          if (pin === -3 || pin === -4 || pin === -6) return -1;
-          if (pin === -1) return -2;
+          if (pin === -3 || pin === -4 || pin === -6) return -2;
+          if (pin === -1) return -1;
           if (pin === -2) return 11;
           return -1;
         }

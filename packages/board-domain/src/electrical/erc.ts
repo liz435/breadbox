@@ -104,7 +104,11 @@ export function compileElectricalErc(
   for (const terminal of topology.terminals) {
     const component = board.components[terminal.componentId];
     if (component?.type !== "power_supply" || terminal.netId == null || !terminal.pinName.toLowerCase().includes("positive")) continue;
-    const side = terminal.pinName.toLowerCase().includes("right") ? "rightVoltage" : "leftVoltage";
+    const pinName = terminal.pinName.toLowerCase();
+    // The readable `positive` alias is the module's primary left channel (5V
+    // by default); explicit rail terminals carry their side in the name.
+    const rightSide = pinName.includes("right");
+    const side = rightSide ? "rightVoltage" : "leftVoltage";
     const voltage = typeof component.properties?.[side] === "number" ? component.properties[side] as number : side === "leftVoltage" ? 5 : 3.3;
     sources.push({ sourceId: `${component.id}:${side}`, label: `${component.name} ${side}`, netId: terminal.netId, voltage, kind: "power" });
   }

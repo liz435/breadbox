@@ -1,4 +1,5 @@
 import {
+  BREADBOARD_FULL_ROWS,
   isBoardComponentType,
   isSurfaceBoardType,
   resolveComponentPins,
@@ -7,6 +8,7 @@ import {
   type CustomFootprintLookup,
   type Wire,
 } from "@dreamer/schemas";
+import { powerSupplyPinRows } from "../layout/physical-layout";
 
 export type ElectricalGridPoint = { row: number; col: number; boardId: string };
 export type ElectricalNet = {
@@ -124,18 +126,11 @@ function componentPoints(
   customFootprints: CustomFootprintLookup | undefined,
 ): Array<{ name: string; row: number; col: number }> {
   if (component.type === "power_supply") {
-    const railBlockStarts = [2, 8, 14, 20, 26];
-    const usableStarts = railBlockStarts.slice(1);
-    const target = component.y + 7.5;
-    let top = usableStarts[0] ?? 2;
-    for (const start of usableStarts) {
-      if (Math.abs(start - target) <= Math.abs(top - target)) top = start;
-    }
-    const bottom = top + 4;
+    const [top, bottom] = powerSupplyPinRows(component.y);
     // The API has no renderer registry. Keep the persisted MB102 rail contract
     // here: both rail pairs and the legacy clicked pin row are accepted. The
     // snapped rows mirror the catalog footprint without importing the app.
-    return [
+    const points = [
       { name: "leftNegative", row: top, col: -2 },
       { name: "leftPositive", row: top, col: -1 },
       { name: "rightNegative", row: top, col: 10 },
@@ -147,6 +142,7 @@ function componentPoints(
       { name: "positive", row: component.y, col: component.x },
       { name: "negative", row: component.y + 1, col: component.x },
     ];
+    return points;
   }
 
   const pins = resolveComponentPins(
@@ -192,7 +188,7 @@ export function compileElectricalTopology(
   };
 
   for (const boardId of boards) {
-    for (let row = 0; row < 30; row++) {
+    for (let row = 0; row < BREADBOARD_FULL_ROWS; row++) {
       for (let col = 1; col <= 4; col++) {
         uf.union(key({ boardId, row, col: 0 }), key({ boardId, row, col }));
       }
@@ -200,7 +196,7 @@ export function compileElectricalTopology(
         uf.union(key({ boardId, row, col: 5 }), key({ boardId, row, col }));
       }
     }
-    for (let row = 1; row < 30; row++) {
+    for (let row = 1; row < BREADBOARD_FULL_ROWS; row++) {
       for (const col of [-2, -1, 10, 11]) {
         uf.union(key({ boardId, row: 0, col }), key({ boardId, row, col }));
       }
@@ -230,11 +226,42 @@ export function compileElectricalTopology(
   for (const component of Object.values(components)) {
     if (isBoardComponentType(component.type) || component.type === "wire") continue;
     const boardId = componentSurfaceBoardId(component, components);
-    for (const point of componentPoints(component, customFootprints)) {
+    const points = componentPoints(component, customFootprints);
+    for (const point of points) {
       const address = { boardId, row: point.row, col: point.col };
       const addressKey = key(address);
       uf.make(addressKey);
       componentAddressKeys.add(addressKey);
+    }
+
+    // The API-facing PSU `positive`/`negative` anchors are intentionally kept
+    // for readable wire references and backwards-compatible diagrams. They
+    // are aliases for the MB102's actual rail pads, not isolated terminals.
+    // Union each alias with the corresponding physical rail pads so schematic,
+    // ERC, SPICE, and the proposal tool all see the same power network.
+    if (component.type === "power_supply") {
+      const positive = points.find((point) => point.name === "positive");
+      const negative = points.find((point) => point.name === "negative");
+      // The legacy `positive`/`negative` aliases represent the module's
+      // primary left channel (5V by default). Explicit physical rail names
+      // still preserve the independent right channel.
+      const selectedSide = "left";
+      if (positive) {
+        const positiveKey = key({ boardId, row: positive.row, col: positive.col });
+        for (const point of points) {
+          if (point.name.startsWith(selectedSide) && point.name.includes("Positive")) {
+            uf.union(positiveKey, key({ boardId, row: point.row, col: point.col }));
+          }
+        }
+      }
+      if (negative) {
+        const negativeKey = key({ boardId, row: negative.row, col: negative.col });
+        for (const point of points) {
+          if (point.name.startsWith(selectedSide) && point.name.includes("Negative")) {
+            uf.union(negativeKey, key({ boardId, row: point.row, col: point.col }));
+          }
+        }
+      }
     }
   }
 

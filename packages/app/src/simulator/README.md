@@ -1,17 +1,18 @@
 # Simulator
 
-Arduino sketches run on a real AVR emulator (avr8js) after being compiled by
-arduino-cli. Components on the breadboard observe the sketch's pin traffic
-through a shared **peripheral bus** that produces one typed state blob per
-component. The bus is the single source of truth — both the electrical
-analyzer and every UI renderer read from it.
+Arduino sketches run on an in-browser firmware runner after being compiled by
+arduino-cli. AVR targets use avr8js; RP2040 targets use rp2040js in best-effort
+mode. Components on the breadboard observe sketch pin traffic through a shared
+**peripheral bus** that produces one typed state blob per component. The bus is
+the single source of truth — both the electrical analyzer and every UI renderer
+read from it.
 
 There is no JS-side Arduino transpiler. All C++ runs through arduino-cli.
 
 ## Pipeline
 
 ```
- sketch.ino ─► arduino-cli ─► hex ─► avr8js ─► pin edges ─► PeripheralBus ─► component state
+ sketch.ino ─► arduino-cli ─► hex/UF2 ─► AVR/RP2040 runner ─► pin edges ─► PeripheralBus ─► state
                                        │                         │
                                        └─► PinStateStore ◄────────┘
                                                  │
@@ -23,13 +24,13 @@ Each hop is one file:
 
 | Stage | File | What it does |
 |---|---|---|
-| Compile | `avr-compiler.ts` | Streams code to the API's `/api/compile` endpoint; returns Intel HEX + flash/RAM size info. |
-| Emulate | `avr-runner.ts` | Wraps avr8js (ATmega328P). Owns port listeners that fan out edges for the runner callback. |
-| Runner  | `runners/sketch-runner.ts` + `runners/avr-runner.ts` | `SketchRunner` interface + `AvrSketchRunner` implementation (`loadSketchAsync` → `runSetup` → `runLoopIteration` → `reset`); dispatches AVR edges into the peripheral bus with simulated MCU time. The factory in `runners/index.ts` picks the runner based on `BoardTargetInfo.runner`. |
+| Compile | `avr-compiler.ts` | Streams code to the API's `/api/compile` endpoint; returns Intel HEX for AVR or UF2 for RP2040 plus size info. |
+| Emulate | `runners/*` | The factory selects avr8js or rp2040js from `BoardTargetInfo.runner`; compile-only targets fail clearly until a runner exists. |
+| Runner  | `runners/sketch-runner.ts` + `runners/*` | `SketchRunner` interface shared by AVR and RP2040 implementations; each dispatches pin edges into the peripheral bus with simulated MCU time. |
 | Edge fan-out | `peripherals/peripheral-bus.ts` | Per-run registry of `Peripheral` instances. Maintains a pin → peripherals index for O(1) edge dispatch. |
 | Device state | `peripherals/{servo,buzzer,lcd,…}.ts` | Decode pin traffic into typed state. Expose capability tags ("soundSource", "positionActuator", …). |
 | Pin mirror | `pin-state-store.ts` | Shared 20-pin snapshot so renderers and the circuit solver see the same values the VM does. |
-| External input | `sensor-inputs.ts` (legacy), inspector sliders, circuit solver | Drive `pinStateStore.writeExternal` → forwarded to `avrRunner.setExternalPin`. |
+| External input | `sensor-inputs.ts`, inspector sliders, circuit solver | Drive `pinStateStore.writeExternal` → forwarded to the active runner's external-pin sink. |
 | React driver | `simulation-loop.ts` | rAF loop calling `runLoopIteration`; reconciles Web Audio against bus state; pushes servos/LCD to the board XState machine. |
 
 ## The Peripheral contract
@@ -147,8 +148,8 @@ Run `bun test src/` from `packages/app`.
 
 ## Dropped pieces (for history)
 
-Three files + two test files, ~3500 lines, were removed when AVR became
-the only mode:
+Three files + two test files, ~3500 lines, were removed when the old
+transpile-mode implementation was replaced by the runner contract:
 
 - `arduino-transpiler.ts` — regex C++ → JS
 - `arduino-stdlib.ts` — hand-rolled Servo/LCD/NeoPixel/DHT/IR shims

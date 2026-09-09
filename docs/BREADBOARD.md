@@ -7,16 +7,16 @@ rules, net resolution, and how components plug into both UI and simulation.
 
 File: `packages/app/src/breadboard/breadboard-grid.ts`
 
-The board is a 30-row half-size breadboard plus an Arduino Uno on the left.
+The board is a 63-row full-size breadboard plus an Arduino Uno on the left.
 Grid points use `{ row, col }`. Special column values encode the power rails:
 
 ```
-  col = -2   left  "+" rail (red)
-  col = -1   left  "-" rail (blue)
+  col = -2   left  "-" rail (blue)
+  col = -1   left  "+" rail (red)
   col =  0..4   left terminal strip  (a–e)
   col =  5..9   right terminal strip (f–j)
-  col = 10   right "+" rail
-  col = 11   right "-" rail
+  col = 10   right "-" rail
+  col = 11   right "+" rail
 ```
 
 Arduino pins aren't on the grid. Wires originating at an Arduino pin use
@@ -33,7 +33,7 @@ the canonical resolver in `@dreamer/schemas/component-pins.ts`.
 
 ### `areConnected(a, b)`
 
-`breadboard-grid.ts:736`. The rules are simple:
+`breadboard-grid.ts` (`areConnected`). The rules are simple:
 
 1. Same point.
 2. Same row, both cols in `[0..4]` (left terminal strip).
@@ -44,14 +44,15 @@ Anything else is disconnected by default — wires bridge them.
 
 ### `resolveNets(components, wires)`
 
-`breadboard-grid.ts:827`. Classic union-find:
+`breadboard-grid.ts` (`resolveNets`). Classic union-find:
 
 1. Seed every terminal-strip row: join col 0..4 into one root, col 5..9 into
    another.
 2. Seed every power rail column.
-3. For each component, union its footprint points (components bridge across
-   the gap or across rows; the resolver doesn't assume anything about a
-   component's internal topology beyond "all footprint points share a net").
+3. Collect component footprint points so nets touching a component are retained.
+   Component pin-to-pin connectivity is not inferred by unioning every
+   footprint point; logical component topology is resolved by the shared
+   electrical domain in `packages/board-domain/src/electrical/`.
 4. For each wire, union `(fromRow,fromCol)` and `(toRow,toCol)`.
 5. For each Arduino-pin wire (`fromRow === -999`), union `(toRow,toCol)` into
    a synthetic node keyed by the pin number.
@@ -121,8 +122,11 @@ Short form:
 ### Ground-truth hierarchy
 
 1. `schemas/src/component-pins.ts` — pin name → grid offset.
-2. `components/registry.tsx` — everything else about the component.
-3. `simulator/peripherals/*.ts` — runtime behavior in the simulator.
+2. `packages/board-domain/src/electrical/` — shared topology, terminal identity,
+   and ERC rules used by the app and API.
+3. `components/registry.tsx` — frontend rendering, SPICE contributions, and
+   sketch generation.
+4. `simulator/peripherals/*.ts` — runtime behavior in the simulator.
 
 If two files disagree about pin positions, **the schema wins**. The
 registry's `footprintFromPins` exists specifically to prevent that drift.

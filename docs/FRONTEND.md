@@ -12,9 +12,11 @@ a set of inspector/debug panels.
 - `packages/app/src/app-providers.tsx` — provider pyramid: project context,
   scene/graph/board XState actor contexts, dockview, toast provider, error
   boundary.
-- `packages/app/src/router.tsx` — top-level client-side routes (landing,
-  editor, learn). SPA fallback for unknown paths is handled on the server
-  (see [CLI.md](./CLI.md) and `routes/web-ui-static.ts`).
+- `packages/app/src/router.tsx` — small history/location context used by the
+  app shell. Route selection is completed in `app.tsx`, which covers the
+  landing/editor/learn surfaces plus documentation and motion pages. SPA
+  fallback for unknown paths is handled on the server (see [CLI.md](./CLI.md)
+  and `routes/web-ui-static.ts`).
 
 Path alias: `@/*` → `packages/app/src/*` (both in `tsconfig.json` and the
 Vite config). Cross-package imports use `@dreamer/schemas` / `@dreamer/config`.
@@ -26,7 +28,7 @@ Three XState actor contexts, each created with `createActorContext` from
 
 | Context | Machine | Owns |
 | --- | --- | --- |
-| `BoardContext` | `store/board-machine.ts` | Components, wires, sketch code, library state, environment, custom libraries, build log, undo/redo stack |
+| `BoardContext` | `store/board-machine.ts` | Components, wires, sketch code, library state, environment, custom libraries, board target, realism profile, assembly, build log, undo/redo stack |
 | `SceneContext` | `store/scene-machine.ts` | Sprite scene (legacy from an earlier PixiJS iteration; still used by the scene panel) |
 | `GraphContext` | `store/graph-machine.ts` | Node graph (flow-chart view of the board) |
 
@@ -109,6 +111,12 @@ of their own — they're the inverse of `make-op.ts` on the server.
   project CRUD (calls `/api/projects`).
 - `sprite-list.tsx` — scene panel (legacy).
 - `tile-brush-palette.tsx` — tile painter (scene feature).
+- `breadboard-3d/*` — 3D breadboard, assembly, model, calibration, and physics
+  panels.
+- `physical-scene/physical-test-panel.tsx` — Physical Test runtime controls and
+  interaction status.
+- `debugger-panel.tsx` / `diagram-panel.tsx` — firmware debugger and structured
+  circuit-design views.
 
 ## Editor and toolbar
 
